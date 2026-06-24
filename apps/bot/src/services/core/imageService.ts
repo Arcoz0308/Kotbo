@@ -3,28 +3,35 @@ import prisma from '../../utils/db.js';
 import { ensureCanvasFonts, canvasFont } from '../../utils/canvasFonts.js';
 
 // ─────────────────────────────────────────────────────────────
-// Kotbo Design System — Canvas Constants
+// Kotbo Design System — Chalkboard / Tableau Noir Aesthetic
 // ─────────────────────────────────────────────────────────────
 const BRAND = {
-  bg1: '#07090e',
-  bg2: '#0b0f19',
-  bg3: '#101524',
-  card: '#131929',
-  cardAlt: '#182035',
-  border: 'rgba(88, 101, 242, 0.18)',
-  blurple: '#5865f2',
-  green: '#57f287',
-  pink: '#eb459e',
-  yellow: '#fee75c',
-  red: '#ed4245',
-  cyan: '#5bc0eb',
-  textPrimary: '#ffffff',
-  textSecondary: '#cbd5e1',
-  textMuted: '#94a3b8',
-  textDark: '#475569',
-  glowBlurple: 'rgba(88, 101, 242, 0.15)',
-  glowGreen: 'rgba(87, 242, 135, 0.10)',
-  glowPink: 'rgba(235, 69, 158, 0.10)',
+  bg1: '#1A2321',
+  bg2: '#243330',
+  bg3: '#2C3B38',
+  card: 'rgba(255, 255, 255, 0.06)',
+  cardAlt: 'rgba(255, 255, 255, 0.04)',
+  border: 'rgba(255, 255, 255, 0.12)',
+  blurple: '#A8C8FF',
+  green: '#A8E6CF',
+  pink: '#FFB8D0',
+  yellow: '#FFEAA7',
+  red: '#FF8B94',
+  cyan: '#87CEEB',
+  textPrimary: '#E8E4D9',
+  textSecondary: '#C4BFB4',
+  textMuted: '#8A8578',
+  textDark: '#5A5650',
+  glowBlurple: 'rgba(168, 200, 255, 0.06)',
+  glowGreen: 'rgba(168, 230, 207, 0.05)',
+  glowPink: 'rgba(255, 184, 208, 0.05)',
+  chalk: '#E8E4D9',
+  chalkDim: 'rgba(232, 228, 217, 0.5)',
+  postItYellow: '#FFF9C4',
+  postItPink: '#FFE0E6',
+  postItBlue: '#DCEEFB',
+  postItGreen: '#D7F0E0',
+  tape: 'rgba(200, 190, 160, 0.45)',
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -62,50 +69,79 @@ function drawBackground(ctx: SKRSContext2D, W: number, H: number) {
   bg.addColorStop(1, BRAND.bg1);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
+  addChalkboardGrain(ctx, W, H);
+}
+
+function addChalkboardGrain(ctx: SKRSContext2D, W: number, H: number) {
+  const imageData = ctx.getImageData(0, 0, W, H);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const noise = (Math.random() - 0.5) * 14;
+    data[i] = Math.min(255, Math.max(0, data[i] + noise));
+    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
+    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function drawChalkDust(ctx: SKRSContext2D, W: number, H: number) {
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const r = Math.random() * 1.5 + 0.3;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(232, 228, 217, ${Math.random() * 0.08})`;
+    ctx.fill();
+  }
 }
 
 function drawGlows(ctx: SKRSContext2D, W: number, H: number) {
+  drawChalkDust(ctx, W, H);
   const glow1 = ctx.createRadialGradient(W * 0.15, H * 0.12, 0, W * 0.15, H * 0.12, W * 0.4);
   glow1.addColorStop(0, BRAND.glowBlurple);
   glow1.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = glow1;
   ctx.fillRect(0, 0, W, H);
+}
 
-  const glow2 = ctx.createRadialGradient(W * 0.85, H * 0.85, 0, W * 0.85, H * 0.85, W * 0.35);
-  glow2.addColorStop(0, BRAND.glowGreen);
-  glow2.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow2;
-  ctx.fillRect(0, 0, W, H);
+function drawChalkLine(ctx: SKRSContext2D, x1: number, y1: number, x2: number, y2: number, color: string, width: number = 2) {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  const segments = 12;
+  for (let i = 1; i <= segments; i++) {
+    const t = i / segments;
+    const cx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 1.5;
+    const cy = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 1.5;
+    ctx.lineTo(cx, cy);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.globalAlpha = 0.7 + Math.random() * 0.3;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 
 function drawTopAccentBar(ctx: SKRSContext2D, W: number) {
-  const bar = ctx.createLinearGradient(0, 0, W, 0);
-  bar.addColorStop(0, BRAND.blurple);
-  bar.addColorStop(0.4, '#7b68ee');
-  bar.addColorStop(0.7, BRAND.green);
-  bar.addColorStop(1, BRAND.blurple);
-  ctx.fillStyle = bar;
-  ctx.fillRect(0, 0, W, 4);
-
-  const barGlow = ctx.createLinearGradient(0, 4, 0, 24);
-  barGlow.addColorStop(0, 'rgba(88, 101, 242, 0.3)');
-  barGlow.addColorStop(1, 'rgba(88, 101, 242, 0)');
-  ctx.fillStyle = barGlow;
-  ctx.fillRect(0, 4, W, 20);
+  drawChalkLine(ctx, 20, 6, W - 20, 6, BRAND.chalk, 2.5);
+  drawChalkLine(ctx, 20, 6, W - 20, 6, BRAND.chalkDim, 1);
 }
 
 function drawBottomBar(ctx: SKRSContext2D, W: number, H: number) {
-  const bar = ctx.createLinearGradient(0, 0, W, 0);
-  bar.addColorStop(0, 'rgba(88, 101, 242, 0)');
-  bar.addColorStop(0.3, 'rgba(88, 101, 242, 0.45)');
-  bar.addColorStop(0.7, 'rgba(87, 242, 135, 0.45)');
-  bar.addColorStop(1, 'rgba(87, 242, 135, 0)');
-  ctx.fillStyle = bar;
-  ctx.fillRect(0, H - 3, W, 3);
+  drawChalkLine(ctx, 20, H - 6, W - 20, H - 6, BRAND.chalkDim, 2);
+}
+
+function drawTapeStrip(ctx: SKRSContext2D, x: number, y: number, w: number, angle: number = 0) {
+  ctx.save();
+  ctx.translate(x + w / 2, y + 6);
+  ctx.rotate(angle * Math.PI / 180);
+  ctx.fillStyle = BRAND.tape;
+  ctx.fillRect(-w / 2, -6, w, 12);
+  ctx.restore();
 }
 
 function drawFooter(ctx: SKRSContext2D, W: number, H: number, left: string, right: string) {
-  ctx.fillStyle = BRAND.textMuted;
+  ctx.fillStyle = BRAND.chalkDim;
   ctx.font = canvasFont(12, 'normal');
   ctx.textAlign = 'left';
   ctx.fillText(left, 40, H - 18);
@@ -114,31 +150,54 @@ function drawFooter(ctx: SKRSContext2D, W: number, H: number, left: string, righ
   ctx.textAlign = 'left';
 }
 
-function drawKPI(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, value: string, label: string, color: string) {
-  roundRect(ctx, x + 2, y + 4, w, h, 14, 'rgba(0,0,0,0.4)');
-  roundRect(ctx, x, y, w, h, 14, BRAND.card, BRAND.border);
+const POST_IT_COLORS = [BRAND.postItYellow, BRAND.postItPink, BRAND.postItBlue, BRAND.postItGreen];
+let postItIndex = 0;
 
-  const leftBar = ctx.createLinearGradient(x, y, x, y + h);
-  leftBar.addColorStop(0, color);
-  leftBar.addColorStop(1, 'rgba(0,0,0,0.05)');
-  roundRect(ctx, x, y, 4, h, 2, leftBar);
+function drawKPI(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, value: string, label: string, _color: string) {
+  const postItColor = POST_IT_COLORS[postItIndex % POST_IT_COLORS.length];
+  postItIndex++;
 
-  ctx.fillStyle = BRAND.textPrimary;
+  const tilt = (Math.random() - 0.5) * 3;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.rotate(tilt * Math.PI / 180);
+
+  // Post-it shadow
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 3;
+  roundRect(ctx, -w / 2, -h / 2, w, h, 3, postItColor);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
+  // Tape on top
+  drawTapeStrip(ctx, -18, -h / 2 - 6, 36, tilt * -0.5);
+
+  // Folded corner
+  ctx.beginPath();
+  ctx.moveTo(w / 2 - 14, h / 2);
+  ctx.lineTo(w / 2, h / 2 - 14);
+  ctx.lineTo(w / 2, h / 2);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+  ctx.fill();
+
+  ctx.fillStyle = '#2C2C2C';
   ctx.font = canvasFont(26, 'bold');
-  ctx.fillText(value, x + 18, y + h * 0.54);
+  ctx.fillText(value, -w / 2 + 14, 4);
 
-  ctx.fillStyle = BRAND.textMuted;
+  ctx.fillStyle = '#5A5A5A';
   ctx.font = canvasFont(12, 'normal');
-  ctx.fillText(label, x + 18, y + h * 0.82);
+  ctx.fillText(label, -w / 2 + 14, h * 0.32);
+
+  ctx.restore();
 }
 
 function drawSeparatorLine(ctx: SKRSContext2D, x: number, y: number, w: number) {
-  const sep = ctx.createLinearGradient(x, 0, x + w, 0);
-  sep.addColorStop(0, 'rgba(88, 101, 242, 0.4)');
-  sep.addColorStop(0.5, 'rgba(87, 242, 135, 0.2)');
-  sep.addColorStop(1, 'rgba(88, 101, 242, 0)');
-  ctx.fillStyle = sep;
-  ctx.fillRect(x, y, w, 1.5);
+  drawChalkLine(ctx, x, y, x + w, y, BRAND.chalkDim, 1.5);
 }
 
 async function drawCircularAvatar(ctx: SKRSContext2D, url: string, x: number, y: number, radius: number, fallbackName?: string) {
@@ -197,6 +256,8 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
   const totalSubs = feeds.reduce((s, f) => s + f.subscribers.length, 0);
   const activeFeeds = feeds.filter(f => f.enabled).length;
 
+  postItIndex = 0;
+
   // Header
   ctx.fillStyle = BRAND.textPrimary;
   ctx.font = canvasFont(30, 'bold');
@@ -253,12 +314,9 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
     ctx.font = canvasFont(13, 'normal');
     ctx.fillText(truncate(feed.name, 22), chartX, y + barH - 8);
 
-    roundRect(ctx, chartX + 180, y, barMaxW, barH, 8, BRAND.bg3);
+    roundRect(ctx, chartX + 180, y, barMaxW, barH, 8, 'rgba(255,255,255,0.05)');
 
-    const grad = ctx.createLinearGradient(chartX + 180, 0, chartX + 180 + barW, 0);
-    grad.addColorStop(0, BRAND.blurple);
-    grad.addColorStop(1, BRAND.green);
-    roundRect(ctx, chartX + 180, y, barW, barH, 8, grad);
+    roundRect(ctx, chartX + 180, y, barW, barH, 8, BRAND.chalkDim);
 
     ctx.fillStyle = BRAND.textPrimary;
     ctx.font = canvasFont(13, 'bold');
@@ -267,9 +325,10 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
 
   // Subscribers Panel
   const rightX = 640, rightY = sectionY + 28;
-  roundRect(ctx, rightX - 16, rightY - 16, W - rightX + 16 - 24, 316, 16, BRAND.card, BRAND.border);
+  roundRect(ctx, rightX - 16, rightY - 16, W - rightX + 16 - 24, 316, 4, BRAND.postItYellow);
+  drawTapeStrip(ctx, rightX + 80, rightY - 22, 40, -2);
 
-  ctx.fillStyle = BRAND.textSecondary;
+  ctx.fillStyle = '#3A3A3A';
   ctx.font = canvasFont(16, 'bold');
   ctx.fillText('Abonnés par flux', rightX, rightY);
 
@@ -278,18 +337,18 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
     const feed = topBySubs[i];
     const y = rightY + 26 + i * (barH + barGap + 2);
 
-    ctx.fillStyle = BRAND.textMuted;
+    ctx.fillStyle = '#5A5A5A';
     ctx.font = canvasFont(13, 'normal');
     ctx.fillText(truncate(feed.name, 20), rightX, y + 16);
     const subCount = feed.subscribers.length;
-    const dotColor = subCount > 5 ? BRAND.green : subCount > 0 ? BRAND.yellow : BRAND.textDark;
+    const dotColor = subCount > 5 ? '#4CAF50' : subCount > 0 ? '#FF9800' : '#9E9E9E';
 
     ctx.beginPath();
     ctx.arc(rightX + 210, y + 12, 4.5, 0, Math.PI * 2);
     ctx.fillStyle = dotColor;
     ctx.fill();
 
-    ctx.fillStyle = BRAND.textSecondary;
+    ctx.fillStyle = '#3A3A3A';
     ctx.font = canvasFont(14, 'bold');
     ctx.fillText(String(subCount), rightX + 222, y + 17);
   }
@@ -318,39 +377,28 @@ export async function generateWeeklyRecapImage(guildId: string, items: any[]): P
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#0d0f14';
-  ctx.fillRect(0, 0, W, H);
+  drawBackground(ctx, W, H);
+  drawChalkDust(ctx, W, H);
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.012)';
-  for (let i = 0; i < H; i += 4) ctx.fillRect(0, i, W, 1);
+  // Chalk underline title
+  drawChalkLine(ctx, 30, 50, W - 30, 50, BRAND.chalkDim, 2);
 
-  const topBar = ctx.createLinearGradient(0, 0, W, 0);
-  topBar.addColorStop(0, '#1c1f26');
-  topBar.addColorStop(1, '#11141a');
-  ctx.fillStyle = topBar;
-  ctx.fillRect(0, 0, W, 40);
+  ctx.fillStyle = BRAND.chalk;
+  ctx.font = canvasFont(30, 'bold');
+  ctx.fillText('Récap hebdo', 50, 80);
 
-  const colors = ['#ff5f56', '#ffbd2e', '#27c93f'];
-  for (let i = 0; i < 3; i++) {
-    ctx.beginPath();
-    ctx.arc(25 + i * 20, 20, 6, 0, Math.PI * 2);
-    ctx.fillStyle = colors[i];
-    ctx.fill();
-  }
+  // Hand-drawn arrow
+  drawChalkLine(ctx, 340, 72, 380, 72, BRAND.yellow, 2);
+  drawChalkLine(ctx, 375, 67, 380, 72, BRAND.yellow, 2);
+  drawChalkLine(ctx, 375, 77, 380, 72, BRAND.yellow, 2);
 
-  ctx.font = 'bold 18px monospace';
-  ctx.fillStyle = BRAND.green;
-  ctx.fillText('user@kotbo', 50, 80);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(':', 155, 80);
-  ctx.fillStyle = BRAND.blurple;
-  ctx.fillText('~/weekly-news', 170, 80);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('$ recap --format=clean --top=5', 300, 80);
+  ctx.fillStyle = BRAND.yellow;
+  ctx.font = canvasFont(18, 'bold');
+  ctx.fillText('TOP 5', 390, 80);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 32px monospace';
-  ctx.fillText('> EXECUTING WEEKLY RECAP', 50, 140);
+  ctx.fillStyle = BRAND.chalk;
+  ctx.font = canvasFont(28, 'bold');
+  ctx.fillText('> WEEKLY RECAP', 50, 140);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -364,65 +412,73 @@ export async function generateWeeklyRecapImage(guildId: string, items: any[]): P
     const y = currentY;
     currentY += itemH + itemGap;
 
-    ctx.strokeStyle = 'rgba(88, 101, 242, 0.15)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(itemX, y, itemW, itemH);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
-    ctx.fillRect(itemX, y, itemW, itemH);
+    // Post-it for each item
+    const itemColors = [BRAND.postItYellow, BRAND.postItPink, BRAND.postItBlue, BRAND.postItGreen];
+    const itemBg = itemColors[i % itemColors.length];
+    const itemTilt = (Math.random() - 0.5) * 1.5;
 
-    const accentColor = i === 0 ? BRAND.yellow : i === 1 ? '#c9d1d9' : i === 2 ? '#cd7f32' : BRAND.blurple;
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(itemX + 20, y + 32, 45, 40);
-    ctx.strokeStyle = accentColor;
-    ctx.strokeRect(itemX + 20, y + 32, 45, 40);
+    ctx.save();
+    ctx.translate(itemX + itemW / 2, y + itemH / 2);
+    ctx.rotate(itemTilt * Math.PI / 180);
 
-    ctx.fillStyle = accentColor;
-    ctx.font = 'bold 22px monospace';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    roundRect(ctx, -itemW / 2, -itemH / 2, itemW, itemH, 3, itemBg);
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Tape
+    drawTapeStrip(ctx, -itemW / 2 + 20, -itemH / 2 - 6, 30, itemTilt * -1);
+
+    // Rank number circled
+    ctx.beginPath();
+    ctx.arc(-itemW / 2 + 35, 0, 18, 0, Math.PI * 2);
+    ctx.strokeStyle = '#3A3A3A';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#2C2C2C';
+    ctx.font = canvasFont(22, 'bold');
     ctx.textAlign = 'center';
-    ctx.fillText(`${i + 1}`, itemX + 42, y + 58);
+    ctx.fillText(`${i + 1}`, -itemW / 2 + 35, 7);
     ctx.textAlign = 'left';
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 20px monospace';
     const title = item.titleTranslated ?? item.title;
-    ctx.fillText(truncate(title, 65), itemX + 85, y + 42);
+    ctx.fillStyle = '#2C2C2C';
+    ctx.font = canvasFont(18, 'bold');
+    ctx.fillText(truncate(title, 60), -itemW / 2 + 70, -8);
 
-    ctx.fillStyle = BRAND.textMuted;
-    ctx.font = '14px monospace';
-    const sourceLabel = `SOURCE: ${item.feed?.name ?? 'UNKNOWN'} | TAGS: ${item.feed?.category ?? 'GENERAL'}`;
-    ctx.fillText(sourceLabel, itemX + 85, y + 75);
+    ctx.fillStyle = '#6A6A6A';
+    ctx.font = canvasFont(13, 'normal');
+    const sourceLabel = `${item.feed?.name ?? '?'} · ${item.feed?.category ?? 'Général'}`;
+    ctx.fillText(sourceLabel, -itemW / 2 + 70, 18);
 
     if (item.interestScore) {
       const score = Math.round(item.interestScore * 100);
-      const scoreColor = score > 80 ? BRAND.green : score > 50 ? BRAND.yellow : BRAND.red;
+      ctx.fillStyle = score > 80 ? '#4CAF50' : score > 50 ? '#FF9800' : '#F44336';
+      ctx.font = canvasFont(12, 'bold');
+      ctx.fillText(`${score}%`, -itemW / 2 + 70, 38);
 
-      ctx.fillStyle = BRAND.textDark;
-      ctx.fillRect(itemX + 85, y + 90, 200, 4);
-      ctx.fillStyle = scoreColor;
-      ctx.fillRect(itemX + 85, y + 90, (score / 100) * 200, 4);
-
-      ctx.fillStyle = scoreColor;
-      ctx.font = 'bold 12px monospace';
-      ctx.fillText(`${score}% RELEVANCE`, itemX + 300, y + 95);
+      // Hand-drawn underline
+      drawChalkLine(ctx, -itemW / 2 + 70, 42, -itemW / 2 + 70 + score * 1.5, 42, ctx.fillStyle as string, 2);
     }
+
+    ctx.restore();
   }
 
-  ctx.fillStyle = '#11141a';
-  ctx.fillRect(0, H - footerH, W, footerH);
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, H - footerH);
-  ctx.lineTo(W, H - footerH);
-  ctx.stroke();
+  drawChalkLine(ctx, 30, H - footerH, W - 30, H - footerH, BRAND.chalkDim, 1.5);
 
   const footerTextY = H - (footerH / 2) + 5;
-  ctx.fillStyle = BRAND.textMuted;
-  ctx.font = '14px monospace';
+  ctx.fillStyle = BRAND.chalkDim;
+  ctx.font = canvasFont(13, 'normal');
   ctx.textAlign = 'left';
-  ctx.fillText(`KOTBO_OS_v2.0 [SUCCESS] — ${items.length} items parsed.`, 50, footerTextY);
+  ctx.fillText(`Kotbo · ${items.length} articles cette semaine`, 50, footerTextY);
   ctx.textAlign = 'right';
-  ctx.fillText('RECAP_GENERATOR_READY', W - 50, footerTextY);
+  ctx.fillText('Récap hebdo', W - 50, footerTextY);
   ctx.textAlign = 'left';
 
   return canvas.toBuffer('image/png');
@@ -445,6 +501,7 @@ export async function generateMemberStatsImage(
   drawBackground(ctx, W, H);
   drawGlows(ctx, W, H);
   drawTopAccentBar(ctx, W);
+  postItIndex = 0;
 
   ctx.fillStyle = BRAND.textPrimary;
   ctx.font = canvasFont(26, 'bold');
@@ -469,78 +526,60 @@ export async function generateMemberStatsImage(
 
   // Chart (Shifted right for Y axis labels)
   const chartX = 75, chartY = 210, chartW = W - 115, chartH = 220;
-  roundRect(ctx, chartX, chartY, chartW, chartH, 12, BRAND.card, BRAND.border);
+  roundRect(ctx, chartX, chartY, chartW, chartH, 4, 'rgba(255,255,255,0.03)', BRAND.border);
 
   if (dailyData.length > 0) {
     const maxVal = Math.max(...dailyData.map(d => Math.max(d.messages, d.voice)), 1);
     const pad = 16;
 
-    // Grid lines & Y Axis labels
-    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
-    ctx.lineWidth = 1;
+    // Grid lines & Y Axis labels (chalk dashes)
     ctx.fillStyle = BRAND.textMuted;
     ctx.font = canvasFont(10, 'normal');
     ctx.textAlign = 'right';
 
     for (let i = 0; i < 5; i++) {
       const y = chartY + pad + ((chartH - pad * 2) * i) / 4;
-      ctx.beginPath(); 
-      ctx.moveTo(chartX + pad, y); 
-      ctx.lineTo(chartX + chartW - pad, y); 
-      ctx.stroke();
+      // Dashed chalk line
+      for (let dx = chartX + pad; dx < chartX + chartW - pad; dx += 12) {
+        const dashLen = 4 + Math.random() * 4;
+        ctx.fillStyle = `rgba(232, 228, 217, ${0.1 + Math.random() * 0.08})`;
+        ctx.fillRect(dx, y, dashLen, 1);
+      }
 
       const val = Math.round(maxVal - (maxVal * i) / 4);
       ctx.fillText(val.toLocaleString('fr-FR'), chartX - 10, y + 4);
     }
     ctx.textAlign = 'left';
 
-    // Voice area (green, semi-transparent fill)
-    ctx.beginPath();
-    ctx.moveTo(chartX + pad, chartY + chartH - pad);
-    for (let i = 0; i < dailyData.length; i++) {
-      const x = chartX + pad + i * ((chartW - pad * 2) / (dailyData.length - 1 || 1));
-      const y = chartY + chartH - pad - (dailyData[i].voice / maxVal) * (chartH - pad * 2);
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(chartX + chartW - pad, chartY + chartH - pad);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(87, 242, 135, 0.06)';
-    ctx.fill();
-
-    // Voice line
+    // Voice line (chalk green)
     ctx.beginPath();
     for (let i = 0; i < dailyData.length; i++) {
       const x = chartX + pad + i * ((chartW - pad * 2) / (dailyData.length - 1 || 1));
       const y = chartY + chartH - pad - (dailyData[i].voice / maxVal) * (chartH - pad * 2);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      const jx = x + (Math.random() - 0.5) * 1.2;
+      const jy = y + (Math.random() - 0.5) * 1.2;
+      i === 0 ? ctx.moveTo(jx, jy) : ctx.lineTo(jx, jy);
     }
     ctx.strokeStyle = BRAND.green;
     ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.8;
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
-    // Messages area (blurple, semi-transparent fill)
-    ctx.beginPath();
-    ctx.moveTo(chartX + pad, chartY + chartH - pad);
-    for (let i = 0; i < dailyData.length; i++) {
-      const x = chartX + pad + i * ((chartW - pad * 2) / (dailyData.length - 1 || 1));
-      const y = chartY + chartH - pad - (dailyData[i].messages / maxVal) * (chartH - pad * 2);
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(chartX + chartW - pad, chartY + chartH - pad);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(88, 101, 242, 0.06)';
-    ctx.fill();
-
-    // Messages line
+    // Messages line (chalk blue)
     ctx.beginPath();
     for (let i = 0; i < dailyData.length; i++) {
       const x = chartX + pad + i * ((chartW - pad * 2) / (dailyData.length - 1 || 1));
       const y = chartY + chartH - pad - (dailyData[i].messages / maxVal) * (chartH - pad * 2);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      const jx = x + (Math.random() - 0.5) * 1.2;
+      const jy = y + (Math.random() - 0.5) * 1.2;
+      i === 0 ? ctx.moveTo(jx, jy) : ctx.lineTo(jx, jy);
     }
     ctx.strokeStyle = BRAND.blurple;
     ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.8;
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
     // X Axis month/day labels ("les mois" - ticks)
     ctx.fillStyle = BRAND.textMuted;
@@ -565,16 +604,14 @@ export async function generateMemberStatsImage(
     }
     ctx.textAlign = 'left';
 
-    // Legend
-    ctx.fillStyle = BRAND.blurple;
+    // Legend (chalk colored)
     roundRect(ctx, chartX + chartW - 200, chartY + 12, 8, 8, 2, BRAND.blurple);
-    ctx.fillStyle = BRAND.textSecondary;
+    ctx.fillStyle = BRAND.chalk;
     ctx.font = canvasFont(11, 'normal');
     ctx.fillText('Messages', chartX + chartW - 188, chartY + 20);
 
-    ctx.fillStyle = BRAND.green;
     roundRect(ctx, chartX + chartW - 110, chartY + 12, 8, 8, 2, BRAND.green);
-    ctx.fillStyle = BRAND.textSecondary;
+    ctx.fillStyle = BRAND.chalk;
     ctx.fillText('Vocal', chartX + chartW - 98, chartY + 20);
   } else {
     ctx.fillStyle = BRAND.textMuted;
@@ -603,15 +640,12 @@ export async function generateLeaderboardImage(
 
   drawBackground(ctx, W, H);
   drawGlows(ctx, W, H);
+  postItIndex = 0;
 
   const themeColor = type === 'messages' ? BRAND.blurple : type === 'voice' ? BRAND.green : type === 'xp' ? BRAND.pink : BRAND.yellow;
 
-  // Accent bar with theme color
-  const bar = ctx.createLinearGradient(0, 0, W, 0);
-  bar.addColorStop(0, themeColor);
-  bar.addColorStop(1, BRAND.blurple);
-  ctx.fillStyle = bar;
-  ctx.fillRect(0, 0, W, 4);
+  // Chalk accent line
+  drawChalkLine(ctx, 20, 6, W - 20, 6, themeColor, 3);
 
   // Title
   ctx.fillStyle = BRAND.textPrimary;
@@ -630,62 +664,56 @@ export async function generateLeaderboardImage(
   const rowH = 65;
   const maxScore = Math.max(...topMembers.map(m => m.score), 1);
 
-  const rankColors = [BRAND.yellow, '#c9d1d9', '#cd7f32'];
+  const rankChalkColors = [BRAND.yellow, BRAND.chalk, '#E8B87E'];
 
   for (let i = 0; i < topMembers.length; i++) {
     const member = topMembers[i];
     const y = startY + i * rowH;
 
-    // Row card style - Top 3 has custom gradient glow highlight
-    const rowBg = i < 3 ? 'rgba(22, 28, 40, 0.72)' : 'rgba(22, 28, 40, 0.35)';
-    const rowBorder = i < 3 ? rankColors[i] + '40' : BRAND.border;
-    roundRect(ctx, 30, y, W - 60, 54, 10, rowBg, rowBorder);
+    // Chalk underline for each row
+    drawChalkLine(ctx, 40, y + 54, W - 80, y + 54, BRAND.chalkDim, 0.8);
 
-    // Left color bar for top ranks
+    // Rank number (hand-drawn circle for top 3)
     if (i < 3) {
-      roundRect(ctx, 30, y, 4, 54, 2, rankColors[i]);
+      ctx.beginPath();
+      ctx.arc(56, y + 27, 16, 0, Math.PI * 2);
+      ctx.strokeStyle = rankChalkColors[i];
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.8;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = rankChalkColors[i];
+    } else {
+      ctx.fillStyle = BRAND.chalkDim;
     }
-
-    // Rank badge
-    const rankColor = i < 3 ? rankColors[i] : BRAND.cardAlt;
-    const rankTextColor = i < 3 ? '#000000' : BRAND.textSecondary;
-
-    roundRect(ctx, 44, y + 11, 32, 32, 8, rankColor);
-    ctx.fillStyle = rankTextColor;
-    ctx.font = canvasFont(15, 'bold');
+    ctx.font = canvasFont(16, 'bold');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${i + 1}`, 60, y + 27);
+    ctx.fillText(`${i + 1}`, 56, y + 27);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // Avatar with ranking ring
-    const avatarX = 108, avatarY = y + 27;
-    if (i < 3) {
-      ctx.beginPath();
-      ctx.arc(avatarX, avatarY, 20, 0, Math.PI * 2);
-      ctx.strokeStyle = rankColors[i];
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
+    // Avatar
+    const avatarX = 100, avatarY = y + 27;
     await drawCircularAvatar(ctx, member.avatarUrl || '', avatarX, avatarY, 18, member.name);
 
-    // Name / Level
-    ctx.fillStyle = BRAND.textPrimary;
+    // Name / Level (chalk text)
+    ctx.fillStyle = BRAND.chalk;
     ctx.font = canvasFont(15, 'bold');
-    const displayName = member.level !== undefined ? `${member.name}  ᴸᵛ·${member.level}` : member.name;
-    ctx.fillText(truncate(displayName, 22), 138, y + 24);
+    const displayName = member.level !== undefined ? `${member.name}  Niv.${member.level}` : member.name;
+    ctx.fillText(truncate(displayName, 22), 130, y + 24);
 
-    // Progress bar
+    // Chalk bar
     const barX = 340, barMaxW = 200;
     const barW = Math.max(6, (member.score / maxScore) * barMaxW);
 
-    roundRect(ctx, barX, y + 22, barMaxW, 10, 5, 'rgba(255,255,255,0.04)');
-    
-    const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-    grad.addColorStop(0, themeColor);
-    grad.addColorStop(1, BRAND.green);
-    roundRect(ctx, barX, y + 22, barW, 10, 5, grad);
+    // Empty bar outline
+    for (let dx = barX; dx < barX + barMaxW; dx += 10) {
+      ctx.fillStyle = `rgba(232, 228, 217, 0.08)`;
+      ctx.fillRect(dx, y + 22, 6, 10);
+    }
+    // Filled chalk bar
+    roundRect(ctx, barX, y + 22, barW, 10, 3, themeColor + 'AA');
 
     // Score
     ctx.fillStyle = BRAND.textSecondary;
@@ -720,13 +748,9 @@ export async function generateServerStatsImage(
 
   drawBackground(ctx, W, H);
   drawGlows(ctx, W, H);
+  postItIndex = 0;
 
-  // Accent bar (blurple → pink)
-  const topBar = ctx.createLinearGradient(0, 0, W, 0);
-  topBar.addColorStop(0, BRAND.blurple);
-  topBar.addColorStop(1, BRAND.pink);
-  ctx.fillStyle = topBar;
-  ctx.fillRect(0, 0, W, 4);
+  drawChalkLine(ctx, 20, 6, W - 20, 6, BRAND.pink, 3);
 
   ctx.fillStyle = BRAND.textPrimary;
   ctx.font = canvasFont(28, 'bold');
@@ -755,18 +779,17 @@ export async function generateServerStatsImage(
     drawKPI(ctx, x, y, kpiW, kpiH, k.value, k.label, k.color);
   }
 
-  // Active members status
+  // Active members status (chalk annotation)
   const statusY = H - 70;
-  roundRect(ctx, 40, statusY, W - 80, 42, 10, BRAND.card, BRAND.border);
+  drawChalkLine(ctx, 40, statusY, W - 40, statusY, BRAND.chalkDim, 1);
 
-  ctx.fillStyle = BRAND.green;
-  ctx.beginPath();
-  ctx.arc(60, statusY + 21, 5, 0, Math.PI * 2);
-  ctx.fill();
+  // Hand-drawn arrow pointing to the text
+  drawChalkLine(ctx, 42, statusY + 6, 55, statusY + 21, BRAND.green, 2);
+  drawChalkLine(ctx, 55, statusY + 21, 50, statusY + 16, BRAND.green, 1.5);
 
-  ctx.fillStyle = BRAND.textSecondary;
+  ctx.fillStyle = BRAND.chalk;
   ctx.font = canvasFont(15, 'bold');
-  ctx.fillText(`${stats.activeMembers} membres actifs sur cette période`, 76, statusY + 26);
+  ctx.fillText(`${stats.activeMembers} membres actifs sur cette période`, 65, statusY + 26);
 
   drawBottomBar(ctx, W, H);
   return canvas.toBuffer('image/png');
@@ -798,88 +821,87 @@ export async function generateProfileCard(options: {
   const ctx = canvas.getContext('2d');
 
   drawBackground(ctx, W, H);
+  drawChalkDust(ctx, W, H);
+  postItIndex = 0;
 
-  // Banner area
-  const bannerH = 140;
-  const bannerGrad = ctx.createLinearGradient(0, 0, W, bannerH);
-  bannerGrad.addColorStop(0, options.bannerColor || BRAND.blurple);
-  bannerGrad.addColorStop(0.5, '#7b68ee');
-  bannerGrad.addColorStop(1, BRAND.green);
-  ctx.fillStyle = bannerGrad;
-  ctx.fillRect(0, 0, W, bannerH);
+  // Chalk decorative top line
+  drawChalkLine(ctx, 20, 12, W - 20, 12, BRAND.chalkDim, 2);
+  drawChalkLine(ctx, 20, 16, W - 20, 16, BRAND.chalkDim, 1);
 
-  // Banner overlay fade
-  const bannerFade = ctx.createLinearGradient(0, bannerH - 50, 0, bannerH);
-  bannerFade.addColorStop(0, 'rgba(7, 9, 14, 0)');
-  bannerFade.addColorStop(1, BRAND.bg1);
-  ctx.fillStyle = bannerFade;
-  ctx.fillRect(0, bannerH - 50, W, 50);
+  // Avatar (large, with chalk circle)
+  const avatarCX = 100, avatarCY = 100, avatarR = 56;
 
-  // Glows
-  const glow = ctx.createRadialGradient(W * 0.8, 100, 0, W * 0.8, 100, 300);
-  glow.addColorStop(0, 'rgba(87, 242, 135, 0.12)');
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-
-  // Avatar (large, with border)
-  const avatarCX = 100, avatarCY = bannerH - 10, avatarR = 56;
+  // Chalk ring around avatar
   ctx.beginPath();
-  ctx.arc(avatarCX, avatarCY, avatarR + 5, 0, Math.PI * 2);
-  ctx.fillStyle = BRAND.bg1;
-  ctx.fill();
-  
-  // Custom glowing avatar border ring
+  ctx.arc(avatarCX, avatarCY, avatarR + 6, 0, Math.PI * 2);
+  ctx.strokeStyle = BRAND.chalk;
+  ctx.lineWidth = 2.5;
+  ctx.globalAlpha = 0.6;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Dark background circle for avatar
   ctx.beginPath();
   ctx.arc(avatarCX, avatarCY, avatarR + 2, 0, Math.PI * 2);
-  ctx.strokeStyle = options.bannerColor || BRAND.blurple;
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  ctx.fillStyle = BRAND.bg1;
+  ctx.fill();
 
   await drawCircularAvatar(ctx, options.avatarUrl, avatarCX, avatarCY, avatarR, options.displayName);
 
-  // Name & username
+  // Name & username (chalk text)
+  const bannerH = 140;
   const nameX = avatarCX + avatarR + 24;
-  ctx.fillStyle = BRAND.textPrimary;
+  ctx.fillStyle = BRAND.chalk;
   ctx.font = canvasFont(28, 'bold');
-  ctx.fillText(truncate(options.displayName, 28), nameX, bannerH + 18);
+  ctx.fillText(truncate(options.displayName, 28), nameX, avatarCY - 10);
 
-  ctx.fillStyle = BRAND.textMuted;
+  ctx.fillStyle = BRAND.chalkDim;
   ctx.font = canvasFont(16, 'normal');
-  ctx.fillText(`@${options.username}`, nameX, bannerH + 42);
+  ctx.fillText(`@${options.username}`, nameX, avatarCY + 14);
 
-  // Tier badge
+  // Tier badge (post-it style)
   if (options.tier) {
     const tierX = nameX + ctx.measureText(`@${options.username}`).width + 16;
-    roundRect(ctx, tierX, bannerH + 28, ctx.measureText(options.tier).width + 16, 20, 10, 'rgba(88, 101, 242, 0.2)');
-    ctx.fillStyle = BRAND.blurple;
+    ctx.save();
+    ctx.translate(tierX + 20, avatarCY + 6);
+    ctx.rotate(-3 * Math.PI / 180);
+    roundRect(ctx, -20, -10, ctx.measureText(options.tier).width + 24, 20, 2, BRAND.postItYellow);
+    ctx.fillStyle = '#3A3A3A';
     ctx.font = canvasFont(11, 'bold');
-    ctx.fillText(options.tier, tierX + 8, bannerH + 42);
+    ctx.fillText(options.tier, -12, 4);
+    ctx.restore();
   }
 
-  // Rank badge (top right)
+  // Rank (chalk, top right, circled)
   if (options.rank) {
     const rankLabel = `#${options.rank}`;
     ctx.font = canvasFont(36, 'bold');
-    const rankW = ctx.measureText(rankLabel).width;
-    const rankX = W - 50 - rankW;
 
-    ctx.fillStyle = BRAND.blurple;
-    ctx.font = canvasFont(13, 'bold');
-    ctx.textAlign = 'right';
-    ctx.fillText('RANG', W - 50, bannerH + 8);
-    ctx.fillStyle = BRAND.textPrimary;
-    ctx.font = canvasFont(36, 'bold');
-    ctx.fillText(rankLabel, W - 50, bannerH + 44);
+    // Hand-drawn circle around rank
+    ctx.beginPath();
+    ctx.arc(W - 80, avatarCY - 5, 40, 0, Math.PI * 2);
+    ctx.strokeStyle = BRAND.yellow;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.6;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = BRAND.chalkDim;
+    ctx.font = canvasFont(11, 'bold');
+    ctx.textAlign = 'center';
+    ctx.fillText('RANG', W - 80, avatarCY - 22);
+    ctx.fillStyle = BRAND.chalk;
+    ctx.font = canvasFont(30, 'bold');
+    ctx.fillText(rankLabel, W - 80, avatarCY + 10);
     ctx.textAlign = 'left';
   }
 
-  // Bio
-  const contentY = bannerH + 60;
+  // Bio (chalk italic feel)
+  const contentY = bannerH + 30;
   if (options.bio) {
-    ctx.fillStyle = BRAND.textSecondary;
+    ctx.fillStyle = BRAND.chalkDim;
     ctx.font = canvasFont(14, 'normal');
-    ctx.fillText(truncate(options.bio, 90), 40, contentY + 12);
+    ctx.fillText(`« ${truncate(options.bio, 85)} »`, 40, contentY + 12);
   }
 
   drawSeparatorLine(ctx, 40, contentY + 30, W - 80);
@@ -913,13 +935,10 @@ export async function generateProfileCard(options: {
     const nextXp = getXpForLevel(options.level);
     const progress = Math.min(1, Math.max(0, (options.xp - prevXp) / (nextXp - prevXp || 1)));
 
-    roundRect(ctx, xpBarX, xpBarY, xpBarW, xpBarH, 7, 'rgba(255,255,255,0.06)');
+    roundRect(ctx, xpBarX, xpBarY, xpBarW, xpBarH, 4, 'rgba(255,255,255,0.06)');
     if (progress > 0) {
       const filledW = Math.max(xpBarH, xpBarW * progress);
-      const grad = ctx.createLinearGradient(xpBarX, 0, xpBarX + filledW, 0);
-      grad.addColorStop(0, BRAND.blurple);
-      grad.addColorStop(1, BRAND.green);
-      roundRect(ctx, xpBarX, xpBarY, filledW, xpBarH, 7, grad);
+      roundRect(ctx, xpBarX, xpBarY, filledW, xpBarH, 4, BRAND.chalk + 'AA');
     }
 
     ctx.fillStyle = BRAND.textMuted;
@@ -932,27 +951,37 @@ export async function generateProfileCard(options: {
     ctx.textAlign = 'left';
   }
 
-  // Roles (bottom section)
+  // Roles (bottom section — chalk tags)
   if (options.roles.length > 0) {
-    const rolesY = H - 70;
-    ctx.fillStyle = BRAND.textMuted;
+    const rolesY = H - 75;
+    ctx.fillStyle = BRAND.chalkDim;
     ctx.font = canvasFont(12, 'bold');
     ctx.fillText('Rôles', 40, rolesY);
 
+    // Chalk underline under "Rôles"
+    drawChalkLine(ctx, 40, rolesY + 4, 80, rolesY + 4, BRAND.chalkDim, 1);
+
     let roleX = 40;
     const maxRoles = 8;
+    const roleColors = [BRAND.postItYellow, BRAND.postItPink, BRAND.postItBlue, BRAND.postItGreen];
     for (let i = 0; i < Math.min(options.roles.length, maxRoles); i++) {
       const role = options.roles[i];
-      const rw = ctx.measureText(truncate(role, 16)).width + 16;
-      roundRect(ctx, roleX, rolesY + 8, rw, 22, 11, 'rgba(88, 101, 242, 0.12)', 'rgba(88, 101, 242, 0.25)');
-      ctx.fillStyle = BRAND.textSecondary;
       ctx.font = canvasFont(11, 'normal');
-      ctx.fillText(truncate(role, 16), roleX + 8, rolesY + 23);
+      const rw = ctx.measureText(truncate(role, 16)).width + 16;
+      const tilt = (Math.random() - 0.5) * 4;
+      ctx.save();
+      ctx.translate(roleX + rw / 2, rolesY + 19);
+      ctx.rotate(tilt * Math.PI / 180);
+      roundRect(ctx, -rw / 2, -11, rw, 22, 2, roleColors[i % roleColors.length]);
+      ctx.fillStyle = '#3A3A3A';
+      ctx.font = canvasFont(11, 'normal');
+      ctx.fillText(truncate(role, 16), -rw / 2 + 8, 4);
+      ctx.restore();
       roleX += rw + 6;
       if (roleX > W - 100) break;
     }
     if (options.roles.length > maxRoles) {
-      ctx.fillStyle = BRAND.textMuted;
+      ctx.fillStyle = BRAND.chalkDim;
       ctx.font = canvasFont(11, 'bold');
       ctx.fillText(`+${options.roles.length - maxRoles}`, roleX + 4, rolesY + 23);
     }
@@ -960,7 +989,7 @@ export async function generateProfileCard(options: {
 
   // Joined at
   if (options.joinedAt) {
-    ctx.fillStyle = BRAND.textDark;
+    ctx.fillStyle = BRAND.chalkDim;
     ctx.font = canvasFont(11, 'normal');
     ctx.textAlign = 'right';
     ctx.fillText(`Membre depuis ${options.joinedAt}`, W - 40, H - 16);
@@ -968,7 +997,7 @@ export async function generateProfileCard(options: {
   }
 
   // Branding
-  ctx.fillStyle = BRAND.textDark;
+  ctx.fillStyle = BRAND.chalkDim;
   ctx.font = canvasFont(11, 'normal');
   ctx.fillText('Kotbo · Profil communautaire', 40, H - 16);
 
