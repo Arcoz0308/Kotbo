@@ -215,6 +215,16 @@
     let gKeyTimeout: number | null = null;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isEditing = activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.tagName === 'SELECT' ||
+        activeEl.getAttribute('contenteditable') === 'true'
+      );
+
+      if (isEditing) return;
+
       // Check for Ctrl + Shift + key combinations
       if (e.ctrlKey && e.shiftKey) {
         switch (e.key.toLowerCase()) {

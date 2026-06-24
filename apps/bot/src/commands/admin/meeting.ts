@@ -136,11 +136,19 @@ async function execute(interaction: ChatInputCommandInteraction) {
         flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
     } catch (err) {
-      logger.error('MeetingCmd', 'Error creating meeting:', err);
-      await interaction.reply({
-        ...v2(errorContainer('Erreur', 'Erreur lors de la création de la réunion.')),
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-      });
+      if (err instanceof Error && err.message.includes('Configurez')) {
+        logger.warn('MeetingCmd', `Error creating meeting: ${err.message}`);
+        await interaction.reply({
+          ...v2(errorContainer('Erreur de configuration', err.message)),
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        });
+      } else {
+        logger.error('MeetingCmd', 'Error creating meeting:', err);
+        await interaction.reply({
+          ...v2(errorContainer('Erreur', 'Erreur lors de la création de la réunion.')),
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        });
+      }
     }
   }
 }

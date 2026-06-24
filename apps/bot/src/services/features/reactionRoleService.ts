@@ -1,6 +1,7 @@
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 
 /**
  * Crée et envoie un menu de rôles avec boutons dans un canal Discord
@@ -47,7 +48,7 @@ export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
 
     // Créer l'embed du menu
     const embed = new EmbedBuilder()
-      .setTitle(menu.title)
+      .setTitle(resolveEmojiShortcodes(menu.title))
       .setDescription("Cliquez sur les boutons ci-dessous pour vous attribuer ou retirer les rôles correspondants.")
       .setColor('#5865F2')
       .setTimestamp();

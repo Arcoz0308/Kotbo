@@ -15,7 +15,6 @@ import {
   json,
   getJwtSecret,
   getDiscordClientId,
-  getDashboardUrl,
   getDashboardOrigin,
   CORS_EXTRA_ORIGINS,
   splitPath,
@@ -31,7 +30,7 @@ import {
 import { getCurrentInstance } from '../utils/instanceContext.js';
 import { getAllInstances } from '../utils/instanceResolver.js';
 
-// Modular Route Handlers
+// Modular Route Handlers (legacy — maintenu pendant la migration progressive)
 import { handlePublicRoutes } from './routes/public.js';
 import { handleAuthRoutes } from './routes/auth.js';
 import { handleReportErrorRoute } from './routes/error.js';
@@ -41,6 +40,9 @@ import { handleAdminRoutes } from './routes/admin.js';
 import { handleDashboardRoutes } from './routes/dashboard.js';
 import { handleVerifyRoutes } from './routes/verify.js';
 import { handleMCPRoutes, mcpRateLimiter } from './mcp/mcpServer.js';
+
+// Hono — nouveau routeur typé (migration progressive)
+import { createHonoApp } from './hono/app.js';
 
 export type { DashboardSanctionType };
 
@@ -70,9 +72,9 @@ export async function notifyDashboardSanctionReportRequired(params: {
     },
   });
 
-  const broadcaster = (globalThis as any).KOTBO_WS_BROADCASTER;
+  const broadcaster = (globalThis as unknown as Record<string, unknown>).KOTBO_WS_BROADCASTER;
   if (typeof broadcaster === 'function') {
-    broadcaster(params.guildId, 'sanction_report_required');
+    (broadcaster as (guildId: string, reason: string) => void)(params.guildId, 'sanction_report_required');
   }
 }
 
@@ -81,10 +83,13 @@ interface WebSocketData {
   userId?: string;
 }
 
-export const startDashboardApi = (client: Client) => {
+export const startDashboardApi = async (client: Client) => {
   const instance = getCurrentInstance();
   const port = instance.apiPort;
   const strictOAuthConfig = process.env.DASHBOARD_OAUTH_STRICT === 'true';
+
+  // Instancie l'app Hono (nouveau routeur typé)
+  const honoApp = createHonoApp(client);
 
   const clientId = getDiscordClientId();
   const missingOAuthAtStartup = (() => {
@@ -117,7 +122,7 @@ export const startDashboardApi = (client: Client) => {
   };
 
   setDashboardStateBroadcaster(broadcastDashboardStateChangeLocal);
-  (globalThis as any).KOTBO_WS_BROADCASTER = broadcastDashboardStateChangeLocal;
+  (globalThis as unknown as Record<string, unknown>).KOTBO_WS_BROADCASTER = broadcastDashboardStateChangeLocal;
 
   // Clean up expired entries every 10 minutes
   setInterval(() => {
@@ -138,21 +143,41 @@ export const startDashboardApi = (client: Client) => {
     cleanLimiter(mcpRateLimiter, 60 * 1000);
   }, 10 * 60 * 1000).unref();
 
-  const server = Bun.serve<WebSocketData>({
-    port,
+  const startServer = (listenPort: number) => Bun.serve<WebSocketData>({
+    port: listenPort,
+    reusePort: true,
     async fetch(request, serverInstance) {
       const url = new URL(request.url);
 
+      // WebSocket upgrade (inchangé)
       if (url.pathname === '/api/dashboard/ws') {
         const success = serverInstance.upgrade(request, {
-          data: {
-            isAuthenticated: false,
-          },
+          data: { isAuthenticated: false },
         });
-        if (success) {
-          return undefined;
-        }
+        if (success) return undefined;
       }
+
+      // -----------------------------------------------------------------------
+      // 1. Routeur Hono (routes migrées vers Zod + OpenAPI)
+      //    Si Hono retourne 404, on tombe dans le fallback legacy.
+      // -----------------------------------------------------------------------
+      try {
+        const honoResponse = await honoApp.fetch(request);
+        if (honoResponse.status !== 404) {
+          return honoResponse;
+        }
+      } catch (honoErr) {
+        logger.error('DashboardAPI', 'Erreur Hono non gérée:', honoErr);
+        return new Response(JSON.stringify({ error: 'Erreur interne API' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // -----------------------------------------------------------------------
+      // 2. Fallback legacy — handlers non encore migrés vers Hono
+      //    Conservé pendant la période de migration progressive.
+      // -----------------------------------------------------------------------
 
       // Convert request standard to IncomingMessage
       const socket = new Socket();
@@ -168,17 +193,17 @@ export const startDashboardApi = (client: Client) => {
       const logMsg = (msg: string) => {
         try {
           appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`, 'utf8');
-        } catch {}
+        } catch (_e) {
+          // Ignore debug log write errors
+        }
       };
 
-      logMsg(`Request: ${request.method} ${request.url}`);
-      logMsg(`Headers: ${JSON.stringify(req.headers)}`);
+      logMsg(`[Legacy] Request: ${request.method} ${request.url}`);
 
       let bodyText = '';
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         try {
           bodyText = await request.text();
-          logMsg(`Body read success: length=${bodyText.length}, content="${bodyText}"`);
         } catch (err) {
           const errMsg = err instanceof Error ? err.stack || err.message : String(err);
           logMsg(`Body read error: ${errMsg}`);
@@ -191,12 +216,11 @@ export const startDashboardApi = (client: Client) => {
       }
       req.push(null);
 
-
       return new Promise<Response>((resolve) => {
         const res = new BunServerResponse(req, resolve);
 
         void (async () => {
-          // MCP endpoints are public APIs — allow any origin
+          // CORS + sécurité (legacy — géré par Hono middleware pour les routes migrées)
           const isMcpPath = url.pathname.startsWith('/api/mcp/')
             || url.pathname === '/.well-known/oauth-authorization-server'
             || url.pathname.startsWith('/.well-known/oauth-protected-resource/')
@@ -205,7 +229,6 @@ export const startDashboardApi = (client: Client) => {
           if (isMcpPath) {
             res.setHeader('Access-Control-Allow-Origin', '*');
           } else {
-            // CORS whitelist — includes all white-label instance origins
             const dashboardOrigin = getDashboardOrigin();
             const wlOrigins = getAllInstances().map(i => i.dashboardOrigin);
             const allowedOrigins = new Set([
@@ -220,11 +243,8 @@ export const startDashboardApi = (client: Client) => {
                 const parsed = new URL(candidate);
                 if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
                 return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-              } catch {
-                return false;
-              }
+              } catch { return false; }
             };
-
             const origin = req.headers.origin;
             const originStr = Array.isArray(origin) ? origin[0] : origin;
             if (originStr) {
@@ -244,8 +264,6 @@ export const startDashboardApi = (client: Client) => {
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, X-Kotbo-API-Key, X-API-Key');
           res.setHeader('Access-Control-Max-Age', '86400');
-
-          // Security response headers
           res.setHeader('Content-Security-Policy', "default-src 'self';");
           res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
           res.setHeader('X-Frame-Options', 'DENY');
@@ -262,36 +280,17 @@ export const startDashboardApi = (client: Client) => {
 
             const parts = splitPath(url.pathname);
 
-            // Route to modular sub-routers
-            if (await handlePublicRoutes(req, res, parts, url, client)) {
-              return;
-            }
-            if (await handleAuthRoutes(req, res, parts, url, client)) {
-              return;
-            }
-            if (await handleVerifyRoutes(req, res, parts, url, client)) {
-              return;
-            }
-            if (await handleReportErrorRoute(req, res, parts, url, client)) {
-              return;
-            }
-            if (await handleReportFeedbackRoute(req, res, parts, url, client)) {
-              return;
-            }
-            if (await handleUserRoutes(req, res, parts, url, client)) {
-              return;
-            }
-            if (await handleAdminRoutes(req, res, parts, url, client)) {
-              return;
-            }
-            if (await handleMCPRoutes(req, res, parts, url, client)) {
-              return;
-            }
-            if (await handleDashboardRoutes(req, res, parts, url, client)) {
-              return;
-            }
+            // Routes legacy (non encore migrées vers Hono)
+            if (await handlePublicRoutes(req, res, parts, url, client)) return;
+            if (await handleAuthRoutes(req, res, parts, url, client)) return;
+            if (await handleVerifyRoutes(req, res, parts, url, client)) return;
+            if (await handleReportErrorRoute(req, res, parts, url, client)) return;
+            if (await handleReportFeedbackRoute(req, res, parts, url, client)) return;
+            if (await handleUserRoutes(req, res, parts, url, client)) return;
+            if (await handleAdminRoutes(req, res, parts, url, client)) return;
+            if (await handleMCPRoutes(req, res, parts, url, client)) return;
+            if (await handleDashboardRoutes(req, res, parts, url, client)) return;
 
-            // No route matched
             json(res, 404, { error: 'Route introuvable' });
           } catch (error) {
             logger.error('DashboardAPI', error);
@@ -347,6 +346,25 @@ export const startDashboardApi = (client: Client) => {
       }
     }
   });
+
+  let server: ReturnType<typeof startServer>;
+  try {
+    server = startServer(port);
+  } catch (err: any) {
+    if (err?.code === 'EADDRINUSE') {
+      logger.warn('DashboardAPI', `Port ${port} occupé, tentative de libération...`);
+      try {
+        const proc = Bun.spawnSync(['cmd', '/c', `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /PID %a /F`]);
+        await new Promise(r => setTimeout(r, 1000));
+        server = startServer(port);
+      } catch {
+        logger.error('DashboardAPI', `Impossible de démarrer le serveur sur le port ${port} — port toujours occupé.`);
+        return;
+      }
+    } else {
+      throw err;
+    }
+  }
 
   // Diffuser les messages des salons de tickets en temps réel
   client.on('messageCreate', async (msg) => {

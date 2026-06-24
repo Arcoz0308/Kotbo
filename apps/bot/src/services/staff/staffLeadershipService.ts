@@ -577,7 +577,11 @@ export const createMeeting = async (
     return { ...meeting, discordMessageId: announcementMessage.id };
 
   } catch (error) {
-    logger.error('StaffLeadership', `Erreur lors de la création de la réunion: ${error instanceof Error ? error.message : error}`);
+    if (error instanceof Error && error.message.includes('Configurez')) {
+      logger.warn('StaffLeadership', `Erreur de configuration lors de la création de la réunion: ${error.message}`);
+    } else {
+      logger.error('StaffLeadership', `Erreur lors de la création de la réunion: ${error instanceof Error ? error.message : error}`);
+    }
     throw error;
   }
 };

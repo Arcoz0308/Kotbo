@@ -125,11 +125,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const subTitle = type === 'xp' ? "Classement global d'expérience" : `Les ${periodDays} derniers jours`;
 
   if (style === 'embed') {
-    const hasSuperatom = interaction.member instanceof GuildMember && interaction.member.roles.cache.some(r => r.name.toLowerCase().includes('superatom'));
-    const superatomText = hasSuperatom ? `${E.star} Abonné Superatom` : `${E.star} Non-abonné Superatom`;
     const serverName = discordGuild?.name ?? 'Serveur';
 
-    let description = `${E.dot} **${serverName}**\n${E.dot} ${superatomText}\n`;
+    let description = `**${serverName}**\n`;
 
     for (let i = 0; i < formattedTopMembers.length; i++) {
       const member = formattedTopMembers[i];

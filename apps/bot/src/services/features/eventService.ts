@@ -14,6 +14,7 @@ import {
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS, truncate } from '../../utils/embeds.js';
+import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 
 export type EventQuizConfig = {
   themeColor?: string;
@@ -95,8 +96,8 @@ export async function publishEvent(client: Client, eventId: string) {
 
   if (event.type === 'CTF') {
     const embed = new EmbedBuilder()
-      .setTitle(`ðŸš© Capture The Flag : ${event.title}`)
-      .setDescription(event.description || 'Le CTF a commencÃ© ! Trouvez les flags et soumettez-les.')
+      .setTitle(resolveEmojiShortcodes(`🚩 Capture The Flag : ${event.title}`))
+      .setDescription(resolveEmojiShortcodes(event.description || 'Le CTF a commencé ! Trouvez les flags et soumettez-les.'))
       .setColor(COLORS.info)
       .setTimestamp();
 
@@ -128,8 +129,8 @@ export async function publishEvent(client: Client, eventId: string) {
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`ðŸŽ‰ Ã‰vÃ©nement : ${event.title}`)
-    .setDescription(event.description || 'Un nouvel Ã©vÃ©nement commence ! PrÃ©parez-vous.')
+    .setTitle(resolveEmojiShortcodes(`🎉 Événement : ${event.title}`))
+    .setDescription(resolveEmojiShortcodes(event.description || 'Un nouvel événement commence ! Préparez-vous.'))
     .setColor(COLORS.info)
     .addFields({ name: 'Statut', value: 'âŒ› En attente du lancement...', inline: true })
     .setTimestamp();
@@ -579,12 +580,15 @@ export async function finishEvent(client: Client, eventId: string) {
     .map((p: any, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€" ${p.score} pts`)
     .join('\n') || 'Aucun participant.';
 
-  let description = `Bravo Ã  tous les participants !\n\n**Classement Final :**\n${leaderboard}`;
+  let description = `Bravo à tous les participants !
+
+**Classement Final :**
+${leaderboard}`;
 
   if (event.type === 'CTF') {
     const embed = new EmbedBuilder()
-      .setTitle(`ðŸ�� Capture The Flag terminÃ© : ${event.title}`)
-      .setDescription(description)
+      .setTitle(resolveEmojiShortcodes(`🏆 Capture The Flag terminé : ${event.title}`))
+      .setDescription(resolveEmojiShortcodes(description))
       .setColor(COLORS.success)
       .setTimestamp();
 
@@ -609,12 +613,14 @@ export async function finishEvent(client: Client, eventId: string) {
 
   if (lastQuestion) {
     const lastAnswer = (lastQuestion.options as string[])[lastQuestion.correctOptionIndex];
-    description = `âœ… La bonne rÃ©ponse Ã  la derniÃ¨re question Ã©tait : **${lastAnswer}**\n\n` + description;
+    description = `✅ La bonne réponse à la dernière question était : **${lastAnswer}**
+
+` + description;
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`ðŸ�� Ã‰vÃ©nement terminÃ© : ${event.title}`)
-    .setDescription(description)
+    .setTitle(resolveEmojiShortcodes(`🏆 Événement terminé : ${event.title}`))
+    .setDescription(resolveEmojiShortcodes(description))
     .setColor(COLORS.success)
     .setTimestamp();
 
@@ -1165,11 +1171,11 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
     if (!channel) throw new Error('Salon Discord introuvable');
 
     const embed = new EmbedBuilder()
-      .setTitle(`📅 ${event.title}`)
+      .setTitle(resolveEmojiShortcodes(`📅 ${event.title}`))
       .setColor(COLORS.info)
       .setTimestamp();
 
-    if (event.description) embed.setDescription(event.description);
+    if (event.description) embed.setDescription(resolveEmojiShortcodes(event.description));
 
     if (event.triggerValue) {
       const date = new Date(event.triggerValue);

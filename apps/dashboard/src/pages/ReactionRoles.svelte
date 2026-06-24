@@ -9,6 +9,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchReactionRoleMenus, createReactionRoleMenu, deleteReactionRoleMenu } from '../lib/api';
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
+import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
@@ -165,7 +166,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <div class="flex items-start justify-between gap-4">
                 <!-- Menu info -->
                 <div class="space-y-1.5 flex-1 min-w-0">
-                  <h4 class="text-lg font-semibold text-on-surface leading-tight group-hover:text-primary transition-colors duration-300 wrap-break-word">{menu.title}</h4>
+                  <h4 class="text-lg font-semibold text-on-surface leading-tight group-hover:text-primary transition-colors duration-300 wrap-break-word">{@html parseDiscordEmojisAndMarkdown(menu.title)}</h4>
                   <div class="flex flex-wrap gap-2 text-[10px] text-on-surface-variant/60 font-semibold">
                     <span class="flex items-center gap-1 bg-surface-container-high/40 px-2 py-0.5 rounded"><Papicon icon="Hash" size={10} />{getChannelName(menu.channelId)}</span>
                     {#if menu.messageId}
@@ -190,7 +191,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 {#if Array.isArray(menu.options)}
                   {#each menu.options as opt}
                     <div class="flex items-center gap-2 px-3 py-2 bg-surface-container-high/60 border border-outline-variant/10 rounded-xl text-xs font-bold text-on-surface hover:bg-surface-container-high transition-all">
-                      {#if opt.emoji}<span class="text-base">{opt.emoji}</span>{/if}
+                      {#if opt.emoji}<span class="text-base">{@html parseDiscordEmojisAndMarkdown(opt.emoji)}</span>{/if}
                       <span>{opt.label}</span>
                       <span class="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-semibold">
                         {getRoleName(opt.roleId)}
@@ -298,7 +299,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <!-- Message Embed / Text -->
               <div class="bg-[#2f3136] border-l-4 border-[#5865f2] rounded-r p-3 max-w-[520px] space-y-1 shadow-sm">
                 <div class="text-sm font-bold text-white wrap-break-word">
-                  {formTitle || 'Sélectionnez vos rôles de notification'}
+                  {@html parseDiscordEmojisAndMarkdown(formTitle || 'Sélectionnez vos rôles de notification')}
                 </div>
                 <div class="text-xs text-[#b9bbbe]">
                   Cliquez sur les boutons ci-dessous pour vous attribuer ou vous retirer les rôles.
@@ -313,7 +314,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       type="button"
                       class="flex items-center gap-1.5 px-3 py-1.5 bg-[#4f545c] hover:bg-[#686d73] text-white text-xs font-semibold rounded transition-colors"
                     >
-                      {#if opt.emoji}<span>{opt.emoji}</span>{/if}
+                      {#if opt.emoji}<span>{@html parseDiscordEmojisAndMarkdown(opt.emoji)}</span>{/if}
                       <span>{opt.label || 'Bouton'}</span>
                     </button>
                   {/if}

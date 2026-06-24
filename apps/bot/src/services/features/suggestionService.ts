@@ -1,6 +1,7 @@
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 
 /**
  * Crée et publie une nouvelle suggestion dans le salon dédié
@@ -54,7 +55,7 @@ export async function createSuggestion(guildId: string, userId: string, username
 
   const embed = new EmbedBuilder()
     .setTitle(`💡 Nouvelle Suggestion`)
-    .setDescription(content)
+    .setDescription(resolveEmojiShortcodes(content))
     .setAuthor({ name: member?.displayName || username, iconURL: avatarUrl || undefined })
     .addFields(
       { name: 'Statut', value: "⏳ En cours d\'évaluation", inline: true },

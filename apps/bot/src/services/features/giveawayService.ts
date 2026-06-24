@@ -1,6 +1,7 @@
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
@@ -61,8 +62,8 @@ export async function createGiveaway(
     `**Participants :** 0`;
 
   const embed = new EmbedBuilder()
-    .setTitle(`🎉 GIVEAWAY : ${prize} 🎉`)
-    .setDescription(embedDescription)
+    .setTitle(resolveEmojiShortcodes(`🎉 GIVEAWAY : ${prize} 🎉`))
+    .setDescription(resolveEmojiShortcodes(embedDescription))
     .setColor('#5865F2')
     .setFooter({ text: `ID : ${giveaway.id}` })
     .setTimestamp();

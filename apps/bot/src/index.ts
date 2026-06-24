@@ -27,6 +27,7 @@ import {
 } from './handlers/interactionHandler.js';
 import prisma from './utils/db.js';
 import { errorEmbed } from './utils/embeds.js';
+import { loadApplicationEmojis } from './utils/emojis.js';
 import { getCachedDashboardSettings, cache } from './utils/cache.js';
 import {
   evaluateCommandRestriction,
@@ -166,7 +167,7 @@ client.emit = function (eventName: string | symbol, ...args: any[]) {
 };
 
 if (!client.shard || client.shard.ids.includes(0)) {
-  startDashboardApi(client);
+  await startDashboardApi(client);
 }
 
 const slashCommands = new Collection<string, SlashCommandDefinition>();
@@ -226,6 +227,9 @@ client.once(Events.ClientReady, async (c) => {
   logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
   const activityPrefix = isWhiteLabelInstance() ? `${getCurrentInstance().brandName} | ` : '';
   c.user.setActivity(`${activityPrefix}/help | v${botPackageJson.version}`, { type: ActivityType.Playing });
+
+  // Load application emojis before anything else
+  await loadApplicationEmojis(client);
 
   // Load activated guilds into cache at startup
   await loadActivatedGuilds().catch((error) =>

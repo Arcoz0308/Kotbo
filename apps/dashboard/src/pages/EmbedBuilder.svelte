@@ -9,6 +9,7 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { sendOrUpdateEmbed } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
   const actionState = createAsyncActionState();
   const templateAction = createAsyncActionState();
@@ -597,7 +598,7 @@
               
               <!-- Message content (outside embed) -->
               {#if content.trim()}
-                <p class="mt-2 text-sm font-medium text-[#dcddde] whitespace-pre-wrap leading-relaxed text-left">{content}</p>
+                <p class="mt-2 text-sm font-medium text-[#dcddde] whitespace-pre-wrap leading-relaxed text-left">{@html parseDiscordEmojisAndMarkdown(content)}</p>
               {/if}
 
               <!-- Simulated Discord Embed Body -->
@@ -614,9 +615,9 @@
                           <img src={embed.authorIconUrl} alt="" class="w-6 h-6 rounded-full object-cover" />
                         {/if}
                         {#if embed.authorUrl}
-                          <a href={embed.authorUrl} target="_blank" rel="noopener noreferrer" class="hover:underline text-white">{embed.authorName}</a>
+                          <a href={embed.authorUrl} target="_blank" rel="noopener noreferrer" class="hover:underline text-white">{@html parseDiscordEmojisAndMarkdown(embed.authorName)}</a>
                         {:else}
-                          <span>{embed.authorName}</span>
+                          <span>{@html parseDiscordEmojisAndMarkdown(embed.authorName)}</span>
                         {/if}
                       </div>
                     {/if}
@@ -625,16 +626,16 @@
                     {#if embed.title}
                       <h4 class="text-base font-semibold text-white leading-snug">
                         {#if embed.url}
-                          <a href={embed.url} target="_blank" rel="noopener noreferrer" class="text-[#00a8fc] hover:underline">{embed.title}</a>
+                          <a href={embed.url} target="_blank" rel="noopener noreferrer" class="text-[#00a8fc] hover:underline">{@html parseDiscordEmojisAndMarkdown(embed.title)}</a>
                         {:else}
-                          {embed.title}
+                          {@html parseDiscordEmojisAndMarkdown(embed.title)}
                         {/if}
                       </h4>
                     {/if}
 
                     <!-- Description -->
                     {#if embed.description}
-                      <p class="text-sm font-medium text-[#dcddde] whitespace-pre-wrap leading-relaxed">{embed.description}</p>
+                      <p class="text-sm font-medium text-[#dcddde] whitespace-pre-wrap leading-relaxed">{@html parseDiscordEmojisAndMarkdown(embed.description)}</p>
                     {/if}
 
                     <!-- Fields Grid -->
@@ -643,8 +644,8 @@
                         {#each embed.fields as f}
                           {#if f.name && f.value}
                             <div class={f.inline ? "col-span-1" : "col-span-3"}>
-                              <h5 class="text-xs font-bold text-white leading-tight">{f.name}</h5>
-                              <p class="text-xs text-[#dcddde] mt-0.5 whitespace-pre-wrap leading-normal font-medium">{f.value}</p>
+                              <h5 class="text-xs font-bold text-white leading-tight">{@html parseDiscordEmojisAndMarkdown(f.name)}</h5>
+                              <p class="text-xs text-[#dcddde] mt-0.5 whitespace-pre-wrap leading-normal font-medium">{@html parseDiscordEmojisAndMarkdown(f.value)}</p>
                             </div>
                           {/if}
                         {/each}
@@ -665,7 +666,7 @@
                           <img src={embed.footerIconUrl} alt="" class="w-4 h-4 rounded-full object-cover" />
                         {/if}
                         <span>
-                          {embed.footerText}
+                          {@html parseDiscordEmojisAndMarkdown(embed.footerText)}
                           {#if embed.footerText && embed.timestamp}
                             <span class="mx-1">•</span>
                           {/if}

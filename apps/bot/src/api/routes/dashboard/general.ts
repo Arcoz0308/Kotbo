@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, ChannelType } from 'discord.js';
+import { Client, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { isGuildActivated, activateGuild } from '../../../utils/activation.js';
@@ -114,7 +114,7 @@ export async function handleGuildGeneralRoutes(
         ? 'Exécutez les migrations Prisma : bun run db:migrate:deploy'
         : undefined;
       json(res, 500, {
-        error: "Erreur interne de chargement de l\'état de la guilde",
+        error: "Erreur interne de chargement de l'état de la guilde",
         ...(hint ? { hint } : {}),
       });
     }
@@ -126,7 +126,7 @@ export async function handleGuildGeneralRoutes(
     try {
       let discordGuild = client.guilds.cache.get(guildId) ?? null;
       if (!discordGuild) {
-        discordGuild = await client.guilds.fetch(guildId).catch(() => null) as any;
+        discordGuild = await client.guilds.fetch(guildId).catch(() => null) as Guild | null;
       }
       if (!discordGuild) {
         json(res, 404, { error: 'Serveur Discord introuvable' });
@@ -135,7 +135,7 @@ export async function handleGuildGeneralRoutes(
       if (discordGuild.channels.cache.size === 0) {
         await discordGuild.channels.fetch().catch(() => null);
       }
-      const allCh = Array.from(discordGuild.channels.cache.values()) as any[];
+      const allCh = Array.from(discordGuild.channels.cache.values()) as GuildBasedChannel[];
       const textChannels = allCh
         .filter((ch) => ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement)
         .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: ch.rawPosition ?? 0 }))
@@ -173,7 +173,7 @@ export async function handleGuildGeneralRoutes(
       const body = await readJsonBody<{ code?: string }>(req);
       const rawCode = body?.code?.trim() || '';
       if (!rawCode) {
-        json(res, 400, { error: "Le code d\'activation est requis." });
+        json(res, 400, { error: "Le code d'activation est requis." });
         return true;
       }
 
@@ -182,12 +182,12 @@ export async function handleGuildGeneralRoutes(
       });
 
       if (!codeRow) {
-        json(res, 404, { error: "Code d\'activation introuvable." });
+        json(res, 404, { error: "Code d'activation introuvable." });
         return true;
       }
 
       if (!codeRow.isActive || codeRow.usedAt) {
-        json(res, 400, { error: "Ce code d\'activation a déjà été utilisé ou est désactivé." });
+        json(res, 400, { error: "Ce code d'activation a déjà été utilisé ou est désactivé." });
         return true;
       }
 
@@ -195,7 +195,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { ok: true, message: 'Le serveur a été activé avec succès.' });
     } catch (err) {
       logger.error('GeneralAPI', `Error activating guild ${guildId}:`, err);
-      json(res, 500, { error: "Erreur lors de l\'activation du serveur." });
+      json(res, 500, { error: "Erreur lors de l'activation du serveur." });
     }
     return true;
   }

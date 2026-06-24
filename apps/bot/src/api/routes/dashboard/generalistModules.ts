@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, EmbedBuilder } from 'discord.js';
+import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp } from '../../../services/progression/levelingService.js';
@@ -11,6 +11,7 @@ import { invalidateAutoResponseCache } from '../../../services/features/autoResp
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { fetchAllMembers } from '../../../utils/discord.js';
+import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
 
 export async function handleGeneralistModulesRoutes(
   req: IncomingMessage,
@@ -98,6 +99,7 @@ export async function handleGeneralistModulesRoutes(
           stackRewards?: boolean;
           ignoredChannels?: string[];
           ignoredRoles?: string[];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           xpMultipliers?: any;
         }>(req);
 
@@ -364,7 +366,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('LevelingAPI', 'Error during leveling import:', err);
-        json(res, 500, { error: "Erreur lors de l\'importation des données" });
+        json(res, 500, { error: "Erreur lors de l'importation des données" });
       }
       return true;
     }
@@ -1039,7 +1041,7 @@ export async function handleGeneralistModulesRoutes(
         }>(req);
 
         if (!body || !body.channelId || (!body.embed && !body.content)) {
-          json(res, 400, { error: "Salon et données d\'envoi requis (content ou embed)" });
+          json(res, 400, { error: "Salon et données d'envoi requis (content ou embed)" });
           return true;
         }
 
@@ -1055,6 +1057,21 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
+        // Résoudre les shortcodes emoji (:ktb_xxx: → <:ktb_xxx:ID>)
+        if (body.content) body.content = resolveEmojiShortcodes(body.content);
+        if (body.embed) {
+          if (body.embed.title) body.embed.title = resolveEmojiShortcodes(body.embed.title);
+          if (body.embed.description) body.embed.description = resolveEmojiShortcodes(body.embed.description);
+          if (body.embed.authorName) body.embed.authorName = resolveEmojiShortcodes(body.embed.authorName);
+          if (body.embed.footerText) body.embed.footerText = resolveEmojiShortcodes(body.embed.footerText);
+          if (body.embed.fields) {
+            for (const f of body.embed.fields) {
+              f.name = resolveEmojiShortcodes(f.name);
+              f.value = resolveEmojiShortcodes(f.value);
+            }
+          }
+        }
+
         // Construire l'embed Discord si fourni
         const embed = new EmbedBuilder();
         let hasEmbedData = false;
@@ -1062,7 +1079,7 @@ export async function handleGeneralistModulesRoutes(
         if (body.embed) {
           if (body.embed.title) { embed.setTitle(body.embed.title); hasEmbedData = true; }
           if (body.embed.description) { embed.setDescription(body.embed.description); hasEmbedData = true; }
-          if (body.embed.color) { embed.setColor(body.embed.color as any); hasEmbedData = true; }
+          if (body.embed.color) { embed.setColor(body.embed.color as ColorResolvable); hasEmbedData = true; }
           if (body.embed.thumbnailUrl) { embed.setThumbnail(body.embed.thumbnailUrl); hasEmbedData = true; }
           if (body.embed.imageUrl) { embed.setImage(body.embed.imageUrl); hasEmbedData = true; }
           if (body.embed.url) { embed.setURL(body.embed.url); hasEmbedData = true; }
@@ -1099,7 +1116,7 @@ export async function handleGeneralistModulesRoutes(
         }
 
         if (!body.content && !hasEmbedData) {
-          json(res, 400, { error: "Vous devez fournir du texte de message ou au moins un champ d\'embed." });
+          json(res, 400, { error: "Vous devez fournir du texte de message ou au moins un champ d'embed." });
           return true;
         }
 
@@ -1123,7 +1140,7 @@ export async function handleGeneralistModulesRoutes(
         }
 
         if (!messageSent) {
-          json(res, 500, { error: "Le bot n\'a pas pu envoyer ou modifier le message (vérifiez ses permissions)." });
+          json(res, 500, { error: "Le bot n'a pas pu envoyer ou modifier le message (vérifiez ses permissions)." });
           return true;
         }
 
@@ -1140,7 +1157,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { ok: true, messageId: messageSent.id });
       } catch (err) {
         logger.error('EmbedBuilderAPI', 'Error building/sending embed:', err);
-        json(res, 500, { error: "Erreur lors du traitement de l\'embed" });
+        json(res, 500, { error: "Erreur lors du traitement de l'embed" });
       }
       return true;
     }

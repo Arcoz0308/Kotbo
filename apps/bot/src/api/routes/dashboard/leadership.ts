@@ -670,8 +670,13 @@ export async function handleGuildLeadershipRoutes(
 
         json(res, 201, { meeting });
       } catch (err: any) {
-        logger.error('StaffAPI', 'Error creating meeting:', err);
-        json(res, err.message?.includes('Configurez') ? 400 : 500, { error: err.message || 'Erreur lors de la création de la réunion' });
+        const isValidationError = err instanceof Error && err.message.includes('Configurez');
+        if (isValidationError) {
+          logger.warn('StaffAPI', `Error creating meeting: ${err.message}`);
+        } else {
+          logger.error('StaffAPI', 'Error creating meeting:', err);
+        }
+        json(res, isValidationError ? 400 : 500, { error: err.message || 'Erreur lors de la création de la réunion' });
       }
       return true;
     }

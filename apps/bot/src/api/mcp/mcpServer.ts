@@ -1061,7 +1061,7 @@ export async function handleMCPRoutes(
     }
 
     if (!directToken && !rawKey && !basicCredentials && jsonRpcMethod(parsedBody) === 'tools/call' && looksLikeClaude(req)) {
-      mcpLog(req, 'mcp_tools_call_claude_401', { guildId, tool: (parsedBody as any)?.params?.name ?? null });
+      mcpLog(req, 'mcp_tools_call_claude_401', { guildId, tool: (parsedBody as unknown as { params?: { name?: string } })?.params?.name ?? null });
       res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'));
       json(res, 401, { error: 'authorization_required', error_description: 'Autorisation MCP Kotbo requise' });
       return true;

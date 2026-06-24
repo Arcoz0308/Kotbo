@@ -714,7 +714,23 @@
         </div>
 
         <div class="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-hide">
-          {#if filteredTickets.length === 0}
+          {#if loading}
+            {#each Array(5) as _}
+              <div class="w-full p-3 lg:p-4 rounded-lg border border-outline-variant/10 bg-surface-container/30 animate-pulse">
+                <div class="flex items-start gap-3">
+                  <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-surface-container-high shrink-0"></div>
+                  <div class="flex-1 min-w-0 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="h-3.5 w-24 bg-surface-container-high rounded-md"></div>
+                      <div class="h-4 w-16 bg-surface-container-high rounded-full"></div>
+                    </div>
+                    <div class="h-2.5 w-40 bg-surface-container-high rounded-md"></div>
+                    <div class="h-2 w-20 bg-surface-container-high rounded-md"></div>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          {:else if filteredTickets.length === 0}
             <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
               <Papicon icon="inbox" size={28} class="opacity-50 mb-2" />
               <p class="text-xs font-bold">Aucun ticket trouvé</p>

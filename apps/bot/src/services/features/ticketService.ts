@@ -25,6 +25,7 @@ import {
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS, successEmbed, errorEmbed } from '../../utils/embeds.js';
+import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
 
@@ -216,8 +217,8 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
 
   // Build a minimal embed: only title, description and color. No role/category details.
   const embed = new EmbedBuilder()
-    .setTitle(guildConfig.ticketEmbedTitle || 'Support Technique')
-    .setDescription(desc)
+    .setTitle(resolveEmojiShortcodes(guildConfig.ticketEmbedTitle || 'Support Technique'))
+    .setDescription(resolveEmojiShortcodes(desc))
     .setColor(colorHex as any)
     .setTimestamp();
 

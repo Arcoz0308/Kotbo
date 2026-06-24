@@ -185,7 +185,7 @@ function transformPayload(options: unknown): unknown {
 
   // If it's a payload containing embeds
   if (hasEmbeds) {
-    const payload = options as { embeds?: unknown[]; components?: unknown[]; flags?: unknown };
+    const payload = options as { content?: string; embeds?: unknown[]; components?: unknown[]; flags?: unknown };
     if (payload.embeds && Array.isArray(payload.embeds) && payload.embeds.length > 0) {
       const containers: discord.ContainerBuilder[] = [];
       for (const embed of payload.embeds) {
@@ -195,8 +195,20 @@ function transformPayload(options: unknown): unknown {
       }
 
       if (containers.length > 0) {
-        payload.components = payload.components || [];
-        payload.components.push(...containers);
+        const originalComponents = payload.components || [];
+        const newComponents: unknown[] = [];
+
+        if (payload.content) {
+          newComponents.push(
+            new discord.TextDisplayBuilder().setContent(payload.content)
+          );
+          delete payload.content;
+        }
+
+        newComponents.push(...containers);
+        newComponents.push(...(originalComponents as unknown[]));
+
+        payload.components = newComponents;
         delete payload.embeds;
         payload.flags = patchFlags(payload.flags);
       }

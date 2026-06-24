@@ -513,7 +513,7 @@ async function sendLogEmbed(
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel || !channel.isTextBased()) return;
 
-  await channel.send({ embeds: [embed], components }).catch((error) => {
+  await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } }).catch((error) => {
     logger.warn('Logs', `Impossible d'envoyer un log dans ${guild.id}: ${String(error)}`);
   });
 }
