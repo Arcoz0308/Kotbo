@@ -8,6 +8,7 @@
   import { searchStore } from '../stores/search.svelte';
   import { sidebarStore } from '../stores/sidebar.svelte';
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
+  import { onboardingStore } from '../stores/tutorial.svelte';
   import {
     generalItems,
     moderationItems,
@@ -289,6 +290,7 @@
     if ((e.metaKey || e.ctrlKey) && isSearchKey) {
       e.preventDefault();
       serverSwitcherStore.close();
+      onboardingStore.markShortcutUsed();
 
       const now = Date.now();
       if (now - lastCtrlKTime < 500) {

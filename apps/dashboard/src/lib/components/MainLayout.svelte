@@ -4,7 +4,9 @@
   import Breadcrumbs from './Breadcrumbs.svelte';
   import ServerSwitcherModal from './ServerSwitcherModal.svelte';
   import UnsavedChangesBar from './UnsavedChangesBar.svelte';
-  import TutorialOverlay from './TutorialOverlay.svelte';
+  import TutorialWelcome from './TutorialWelcome.svelte';
+  import TutorialChecklist from './TutorialChecklist.svelte';
+  import PageTip from './PageTip.svelte';
 
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
@@ -19,7 +21,7 @@
   import { unsavedChanges } from '../stores/unsavedChanges.svelte';
   import { isMobile } from '../stores/media.svelte';
   import { authStore } from '../stores/auth.svelte';
-  import { tutorialStore, shouldShowTutorialForNewUser } from '../stores/tutorial.svelte';
+  import { onboardingStore } from '../stores/tutorial.svelte';
 
   let { children }: { children?: Snippet } = $props();
 
@@ -42,15 +44,17 @@
   });
 
   $effect(() => {
-    const guildId = authStore.selectedGuildId;
-    if (!guildId) return;
+    const id = authStore.selectedGuildId;
+    if (!id) return;
+    onboardingStore.initialize(id);
+  });
 
-    tutorialStore.initialize(guildId);
-    // Only start tutorial if it's never been seen (not dismissed, not completed, not started)
-    const progress = tutorialStore;
-    if (!progress.dismissed && !progress.completed && !progress.startedAt) {
-      tutorialStore.start();
-    }
+  $effect(() => {
+    const path = $router.path;
+    const url = $router.url;
+    if (!onboardingStore.initialized) return;
+    const qs = url.includes('?') ? url.split('?')[1] : '';
+    onboardingStore.onPageVisit(path, qs);
   });
 
   // Intercept tinro SPA navigation when there are unsaved changes
@@ -89,8 +93,9 @@
       searchStore.close();
       feedbackModal.close();
       serverSwitcherStore.toggle();
+      onboardingStore.markShortcutUsed();
       return;
-    } 
+    }
 
     if (isEditing) return;
 
@@ -195,11 +200,13 @@
           </div>
         {/if}
         
+        <PageTip />
         {@render children?.()}
       {/if}
     </main>
   </div>
   <ServerSwitcherModal />
   <UnsavedChangesBar />
-  <TutorialOverlay />
+  <TutorialWelcome />
+  <TutorialChecklist />
 </div>

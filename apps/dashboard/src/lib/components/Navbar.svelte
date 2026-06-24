@@ -4,7 +4,7 @@
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { themeStore } from '../stores/theme.svelte';
   import { feedbackModal } from '../stores/feedbackModal.svelte';
-  import { tutorialStore } from '../stores/tutorial.svelte';
+  import { onboardingStore } from '../stores/tutorial.svelte';
   import { API_BASE_URL } from '../api';
   import NotificationBell from './NotificationBell.svelte';
   import Papicon from './Papicon.svelte';
@@ -89,9 +89,9 @@
 
   function startTutorial() {
     if (authStore.selectedGuildId) {
-      tutorialStore.initialize(authStore.selectedGuildId);
+      onboardingStore.initialize(authStore.selectedGuildId);
     }
-    tutorialStore.start();
+    onboardingStore.restart();
     userMenuOpen = false;
   }
 </script>

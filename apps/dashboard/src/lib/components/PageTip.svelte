@@ -1,0 +1,131 @@
+<script lang="ts">
+  import { onboardingStore, type PageTip } from '../stores/tutorial.svelte';
+  import { fly, fade } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
+  import {
+    X, Lightbulb, CheckCircle2,
+    LayoutGrid, Inbox, PieChart, Users, AlertTriangle, ShieldAlert,
+    FileText, History, Link, Zap, Trophy, Coins, Sparkles, Megaphone,
+    MousePointer, MessageSquare, ThumbsUp, FilePlus, Book, Rss,
+    UserCheck, UserPlus, BookOpen, Calendar, Package, Settings,
+    Hash, Terminal, Code, Filter, Shield, Clipboard, Smile, Share2, Archive,
+  } from 'lucide-svelte';
+
+  const iconMap: Record<string, typeof LayoutGrid> = {
+    'layout-grid': LayoutGrid,
+    'inbox': Inbox,
+    'pie-chart': PieChart,
+    'users': Users,
+    'alert-triangle': AlertTriangle,
+    'shield-alert': ShieldAlert,
+    'file-text': FileText,
+    'history': History,
+    'link': Link,
+    'zap': Zap,
+    'trophy': Trophy,
+    'coins': Coins,
+    'sparkles': Sparkles,
+    'megaphone': Megaphone,
+    'mouse-pointer': MousePointer,
+    'message-square': MessageSquare,
+    'thumbs-up': ThumbsUp,
+    'file-plus': FilePlus,
+    'book': Book,
+    'rss': Rss,
+    'user-check': UserCheck,
+    'user-plus': UserPlus,
+    'book-open': BookOpen,
+    'calendar': Calendar,
+    'package': Package,
+    'settings': Settings,
+    'hash': Hash,
+    'terminal': Terminal,
+    'code': Code,
+    'filter': Filter,
+    'shield': Shield,
+    'clipboard': Clipboard,
+    'smile': Smile,
+    'share-2': Share2,
+    'archive': Archive,
+  };
+
+  let tip = $derived(onboardingStore.activePageTip);
+  let dismissed = $derived(onboardingStore.pageTipDismissed);
+  let show = $derived(tip !== null && !dismissed && onboardingStore.welcomeSeen);
+
+  function dismiss() {
+    onboardingStore.dismissPageTip();
+  }
+</script>
+
+{#if show && tip}
+  {@const Icon = iconMap[tip.icon] || Lightbulb}
+  <div
+    class="mb-6"
+    transition:fly={{ y: -12, duration: 300, easing: cubicOut }}
+  >
+    <div class="relative bg-surface-container-lowest border border-primary/20 rounded-xl overflow-hidden shadow-sm">
+      <!-- Top gradient line -->
+      <div class="h-0.5 bg-gradient-to-r from-primary via-secondary to-primary/30"></div>
+
+      <div class="p-5">
+        <div class="flex items-start gap-4">
+          <!-- Icon -->
+          <div class="shrink-0">
+            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Icon class="w-5 h-5 text-primary" />
+            </div>
+          </div>
+
+          <!-- Content -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-primary/80 bg-primary/8 px-2 py-0.5 rounded-full">
+                    Guide
+                  </span>
+                </div>
+                <h3 class="text-base font-semibold text-on-surface">{tip.title}</h3>
+              </div>
+              <button
+                onclick={dismiss}
+                class="p-1.5 -mt-1 -mr-1 rounded-lg hover:bg-surface-container text-on-surface-variant/50 hover:text-on-surface transition-colors shrink-0"
+                aria-label="Fermer le guide"
+              >
+                <X class="w-4 h-4" />
+              </button>
+            </div>
+
+            <p class="text-sm text-on-surface-variant leading-relaxed mb-3">
+              {tip.description}
+            </p>
+
+            <!-- Highlights -->
+            {#if tip.highlights.length > 0}
+              <div class="space-y-1.5">
+                {#each tip.highlights as highlight}
+                  <div class="flex items-start gap-2">
+                    <CheckCircle2 class="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                    <span class="text-xs text-on-surface-variant/80 leading-relaxed">{highlight}</span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-end mt-4 pt-3 border-t border-outline-variant/50">
+          <button
+            onclick={dismiss}
+            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/15 transition-colors"
+          >
+            Compris
+            <CheckCircle2 class="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
