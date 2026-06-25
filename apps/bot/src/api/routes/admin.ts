@@ -1,11 +1,12 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, TextChannel, EmbedBuilder } from 'discord.js';
+import { Client, TextChannel, EmbedBuilder, type ColorResolvable } from 'discord.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild } from '../../utils/activation.js';
+import { E, resolveEmojiShortcodes } from '../../utils/emojis.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -743,123 +744,286 @@ export async function handleAdminRoutes(
     }
   }
 
-  // Global announcements broadcast
-  if (parts[2] === 'broadcast' && method === 'POST') {
-    try {
-      const body = await readJsonBody<{message: string}>(req);
-      if (!body || !body.message) {
-        json(res, 400, { error: 'Message requis' }); 
-        return true;
-      }
-      
-      let successCount = 0;
-      let failCount = 0;
+  // ============================================================================
+  // BROADCAST SYSTEM
+  // ============================================================================
 
-      if (client.shard) {
+  if (parts[2] === 'broadcast') {
+    // GET /api/admin/broadcast/emojis — Available custom emojis for the editor
+    if (method === 'GET' && parts[3] === 'emojis' && parts.length === 4) {
+      const emojiList = Object.entries(E)
+        .filter(([, v]) => v && v.startsWith('<'))
+        .map(([key, formatted]) => {
+          const match = formatted.match(/^<a?:(\w+):\d+>$/);
+          return { key, discordName: match?.[1] || key, formatted };
+        });
+      json(res, 200, { emojis: emojiList });
+      return true;
+    }
+
+    // GET /api/admin/broadcast — Broadcast history
+    if (method === 'GET' && parts.length === 3) {
+      try {
+        const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 100);
+        const logs = await prisma.broadcastLog.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+        });
+        const enriched = await Promise.all(logs.map(async (log) => {
+          try {
+            const discordUser = await client.users.fetch(log.sentBy);
+            return { ...log, username: discordUser.username, avatarUrl: discordUser.displayAvatarURL() };
+          } catch {
+            return { ...log, username: 'Inconnu', avatarUrl: null };
+          }
+        }));
+        json(res, 200, { logs: enriched });
+      } catch (err) {
+        logger.error('AdminAPI', 'GET broadcast history error:', err);
+        json(res, 500, { error: "Erreur lors de la récupération de l'historique" });
+      }
+      return true;
+    }
+
+    // DELETE /api/admin/broadcast/:id — Delete a broadcast log entry
+    if (method === 'DELETE' && parts.length === 4) {
+      try {
+        await prisma.broadcastLog.delete({ where: { id: parts[3] } }).catch(() => {});
+        json(res, 200, { ok: true });
+      } catch (err) {
+        json(res, 500, { error: 'Erreur lors de la suppression' });
+      }
+      return true;
+    }
+
+    // POST /api/admin/broadcast — Send configurable broadcast
+    if (method === 'POST' && parts.length === 3) {
+      try {
+        interface BroadcastBody {
+          title?: string;
+          message: string;
+          color?: string;
+          thumbnailUrl?: string;
+          imageUrl?: string;
+          footerText?: string;
+          target?: 'ALL' | 'ACTIVATED' | 'CUSTOM';
+          targetGuilds?: string[];
+          channelPref?: 'NEWS' | 'PUBLIC' | 'STAFF' | 'FALLBACK';
+          dryRun?: boolean;
+        }
+
+        const body = await readJsonBody<BroadcastBody>(req);
+        if (!body || !body.message?.trim()) {
+          json(res, 400, { error: 'Message requis' });
+          return true;
+        }
+
+        const title = body.title?.trim() || '📢 Annonce Globale Kotbo';
+        const message = resolveEmojiShortcodes(body.message.trim());
+        const color = (body.color || '#5865F2') as ColorResolvable;
+        const thumbnailUrl = body.thumbnailUrl?.trim() || null;
+        const imageUrl = body.imageUrl?.trim() || null;
+        const footerText = body.footerText?.trim() || "Système d'annonce globale Kotbo";
+        const target = body.target || 'ALL';
+        const targetGuilds = Array.isArray(body.targetGuilds) ? body.targetGuilds : [];
+        const channelPref = body.channelPref || 'NEWS';
+        const dryRun = body.dryRun === true;
+
         const dbGuilds = await prisma.guild.findMany({
           select: {
             id: true,
+            activated: true,
             newsChannelId: true,
             publicChannelId: true,
+            staffAnnouncementChannelId: true,
           },
         });
-        const guildChannelMap = Object.create(null);
+
+        const guildChannelMap: Record<string, {
+          newsChannelId: string | null;
+          publicChannelId: string | null;
+          staffAnnouncementChannelId: string | null;
+        }> = Object.create(null);
+
+        const allowedGuildIds = new Set<string>();
+
         for (const guild of dbGuilds) {
           guildChannelMap[guild.id] = {
             newsChannelId: guild.newsChannelId,
             publicChannelId: guild.publicChannelId,
+            staffAnnouncementChannelId: guild.staffAnnouncementChannelId,
           };
+
+          if (target === 'ALL') {
+            allowedGuildIds.add(guild.id);
+          } else if (target === 'ACTIVATED' && guild.activated) {
+            allowedGuildIds.add(guild.id);
+          } else if (target === 'CUSTOM' && targetGuilds.includes(guild.id)) {
+            allowedGuildIds.add(guild.id);
+          }
         }
 
-        const results = await client.shard.broadcastEval<{ successCount: number; failCount: number }, {
-          message: string;
-          guildChannelMap: Record<string, { newsChannelId: string | null; publicChannelId: string | null }>;
-        }>(async (
-          shardClient,
-          context
-        ) => {
-          let shardSuccessCount = 0;
-          let shardFailCount = 0;
+        if (target === 'ALL') {
+          const shardGuilds = await collectShardGuilds(client);
+          for (const g of shardGuilds) {
+            allowedGuildIds.add(g.id);
+          }
+        }
 
-          for (const [id, guild] of shardClient.guilds.cache) {
+        const totalTargeted = allowedGuildIds.size;
+
+        if (dryRun) {
+          json(res, 200, { dryRun: true, totalTargeted, target, channelPref });
+          return true;
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+
+        const embedData = { title, message, color: typeof color === 'string' ? color : '#5865F2', thumbnailUrl, imageUrl, footerText };
+        const allowedIds = [...allowedGuildIds];
+
+        if (client.shard) {
+          const results = await client.shard.broadcastEval<
+            { successCount: number; failCount: number },
+            {
+              embedData: typeof embedData;
+              guildChannelMap: typeof guildChannelMap;
+              allowedIds: string[];
+              channelPref: string;
+              COLORS_PRIMARY: number;
+            }
+          >(async (shardClient, ctx) => {
+            let sc = 0;
+            let fc = 0;
+
+            for (const [id, guild] of shardClient.guilds.cache) {
+              if (!ctx.allowedIds.includes(id)) continue;
+              try {
+                const dbG = ctx.guildChannelMap[id];
+                let channel;
+
+                const prefOrder: string[] = [];
+                if (ctx.channelPref === 'NEWS') prefOrder.push(dbG?.newsChannelId || '', dbG?.publicChannelId || '');
+                else if (ctx.channelPref === 'PUBLIC') prefOrder.push(dbG?.publicChannelId || '', dbG?.newsChannelId || '');
+                else if (ctx.channelPref === 'STAFF') prefOrder.push(dbG?.staffAnnouncementChannelId || '', dbG?.newsChannelId || '');
+                else prefOrder.push(dbG?.newsChannelId || '', dbG?.publicChannelId || '', dbG?.staffAnnouncementChannelId || '');
+
+                for (const chId of prefOrder) {
+                  if (chId) {
+                    const found = guild.channels.cache.get(chId);
+                    if (found && found.type === 0) { channel = found; break; }
+                  }
+                }
+
+                if (!channel) {
+                  channel = guild.channels.cache.find((c) => c.type === 0 && c.permissionsFor(shardClient.user!)?.has('SendMessages'));
+                }
+
+                if (channel && channel.isTextBased()) {
+                  const { EmbedBuilder: ShardEmbed } = await import('discord.js');
+                  const embed = new ShardEmbed()
+                    .setTitle(ctx.embedData.title)
+                    .setDescription(ctx.embedData.message)
+                    .setColor((ctx.embedData.color || ctx.COLORS_PRIMARY) as any)
+                    .setFooter({ text: ctx.embedData.footerText || '' })
+                    .setTimestamp();
+                  if (ctx.embedData.thumbnailUrl) embed.setThumbnail(ctx.embedData.thumbnailUrl);
+                  if (ctx.embedData.imageUrl) embed.setImage(ctx.embedData.imageUrl);
+                  await channel.send({ embeds: [embed] });
+                  sc++;
+                } else {
+                  fc++;
+                }
+              } catch {
+                fc++;
+              }
+            }
+            return { successCount: sc, failCount: fc };
+          }, {
+            context: {
+              embedData,
+              guildChannelMap,
+              allowedIds,
+              channelPref,
+              COLORS_PRIMARY: 0x5865f2,
+            },
+          });
+
+          for (const r of results) {
+            successCount += r.successCount;
+            failCount += r.failCount;
+          }
+        } else {
+          for (const [id, guild] of client.guilds.cache) {
+            if (!allowedGuildIds.has(id)) continue;
             try {
-              const dbGuild = context.guildChannelMap?.[id];
-              const targetChannelId = dbGuild?.newsChannelId || dbGuild?.publicChannelId;
-
+              const dbG = guildChannelMap[id];
               let channel;
-              if (targetChannelId) {
-                channel = guild.channels.cache.get(targetChannelId);
+
+              const prefOrder: (string | null)[] = [];
+              if (channelPref === 'NEWS') prefOrder.push(dbG?.newsChannelId, dbG?.publicChannelId);
+              else if (channelPref === 'PUBLIC') prefOrder.push(dbG?.publicChannelId, dbG?.newsChannelId);
+              else if (channelPref === 'STAFF') prefOrder.push(dbG?.staffAnnouncementChannelId, dbG?.newsChannelId);
+              else prefOrder.push(dbG?.newsChannelId, dbG?.publicChannelId, dbG?.staffAnnouncementChannelId);
+
+              for (const chId of prefOrder) {
+                if (chId) {
+                  const found = guild.channels.cache.get(chId);
+                  if (found && found.type === 0) { channel = found; break; }
+                }
               }
 
-              if (!channel || channel.type !== 0) {
-                channel = guild.channels.cache.find((c) => c.type === 0 && c.permissionsFor(shardClient.user!)?.has('SendMessages'));
+              if (!channel) {
+                channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(client.user!)?.has('SendMessages'));
               }
 
               if (channel && channel.isTextBased()) {
                 const embed = new EmbedBuilder()
-                  .setTitle('📢 Annonce Globale Kotbo')
-                  .setDescription(context.message)
-                  .setColor(COLORS.primary)
-                  .setFooter({ text: "Système d'annonce globale" })
+                  .setTitle(title)
+                  .setDescription(message)
+                  .setColor(color)
+                  .setFooter({ text: footerText })
                   .setTimestamp();
+                if (thumbnailUrl) embed.setThumbnail(thumbnailUrl);
+                if (imageUrl) embed.setImage(imageUrl);
                 await channel.send({ embeds: [embed] });
-                shardSuccessCount++;
+                successCount++;
               } else {
-                shardFailCount++;
+                failCount++;
               }
             } catch {
-              shardFailCount++;
-            }
-          }
-
-          return { successCount: shardSuccessCount, failCount: shardFailCount };
-        }, { context: { message: body.message, guildChannelMap } });
-
-        for (const result of results) {
-          successCount += result.successCount;
-          failCount += result.failCount;
-        }
-      } else {
-        const guilds = client.guilds.cache;
-        for (const [id, guild] of guilds) {
-          try {
-            const dbGuild = await prisma.guild.findUnique({ where: { id } });
-            const targetChannelId = dbGuild?.newsChannelId || dbGuild?.publicChannelId;
-
-            let channel;
-            if (targetChannelId) {
-              channel = guild.channels.cache.get(targetChannelId);
-            }
-
-            if (!channel || channel.type !== 0) {
-              channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(client.user!)?.has('SendMessages'));
-            }
-
-            if (channel && channel.isTextBased()) {
-              const embed = new EmbedBuilder()
-                .setTitle('📢 Annonce Globale Kotbo')
-                .setDescription(body.message)
-                .setColor(COLORS.primary)
-                .setFooter({ text: "Système d'annonce globale" })
-                .setTimestamp();
-              await channel.send({ embeds: [embed] });
-              successCount++;
-            } else {
               failCount++;
             }
-          } catch {
-            failCount++;
           }
         }
+
+        await prisma.broadcastLog.create({
+          data: {
+            sentBy: user.userId,
+            title,
+            message: body.message.trim(),
+            color: typeof color === 'string' ? color : '#5865F2',
+            thumbnailUrl,
+            imageUrl,
+            footerText,
+            target,
+            targetGuilds,
+            channelPref,
+            successCount,
+            failCount,
+            totalTargeted,
+          },
+        });
+
+        json(res, 200, { success: true, successCount, failCount, totalTargeted });
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : String(err);
+        logger.error('AdminAPI', `Broadcast error: ${errMessage}`);
+        json(res, 500, { error: "Erreur lors de l'envoi du broadcast" });
       }
-      
-      json(res, 200, { success: true, successCount, failCount });
-    } catch (err: unknown) {
-      const errMessage = err instanceof Error ? err.message : String(err);
-      logger.error('AdminAPI', `Global announcement broadcast error: ${errMessage}`);
-      json(res, 500, { error: 'Erreur de base de données' });
+      return true;
     }
-    return true;
   }
 
   // --- GLOBAL ADMIN CODES AND DEACTIVATION ---

@@ -1222,16 +1222,82 @@ export async function clearBotErrors() {
   return response.json();
 }
 
-export async function sendGlobalBroadcast(message: string) {
+// ─── Broadcast System ───
+
+export interface BroadcastPayload {
+  title?: string;
+  message: string;
+  color?: string;
+  thumbnailUrl?: string;
+  imageUrl?: string;
+  footerText?: string;
+  target?: 'ALL' | 'ACTIVATED' | 'CUSTOM';
+  targetGuilds?: string[];
+  channelPref?: 'NEWS' | 'PUBLIC' | 'STAFF' | 'FALLBACK';
+  dryRun?: boolean;
+}
+
+export interface BroadcastResult {
+  success: boolean;
+  successCount: number;
+  failCount: number;
+  totalTargeted: number;
+  dryRun?: boolean;
+}
+
+export interface BroadcastLogEntry {
+  id: string;
+  sentBy: string;
+  username?: string;
+  avatarUrl?: string | null;
+  title: string;
+  message: string;
+  color: string;
+  thumbnailUrl: string | null;
+  imageUrl: string | null;
+  footerText: string | null;
+  target: string;
+  targetGuilds: string[];
+  channelPref: string;
+  successCount: number;
+  failCount: number;
+  totalTargeted: number;
+  createdAt: string;
+}
+
+export interface BroadcastEmoji {
+  key: string;
+  discordName: string;
+  formatted: string;
+}
+
+export async function sendBroadcast(payload: BroadcastPayload): Promise<BroadcastResult> {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/broadcast`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message })
+    body: JSON.stringify(payload)
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.error || 'Erreur broadcast');
   }
+  return response.json();
+}
+
+export async function fetchBroadcastHistory(limit = 20): Promise<{ logs: BroadcastLogEntry[] }> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/broadcast?limit=${limit}`);
+  if (!response.ok) throw new Error('Erreur chargement historique');
+  return response.json();
+}
+
+export async function deleteBroadcastLog(id: string): Promise<void> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/broadcast/${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Erreur suppression');
+}
+
+export async function fetchBroadcastEmojis(): Promise<{ emojis: BroadcastEmoji[] }> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/broadcast/emojis`);
+  if (!response.ok) throw new Error('Erreur chargement emojis');
   return response.json();
 }
 

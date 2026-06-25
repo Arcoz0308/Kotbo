@@ -48,3 +48,26 @@ model BotGlobalConfig {
 
   @@map("bot_global_config")
 }
+
+model BroadcastLog {
+  id String @id @default(cuid())
+
+  sentBy       String
+  title        String
+  message      String
+  color        String    @default("#5865F2")
+  thumbnailUrl String?
+  imageUrl     String?
+  footerText   String?
+  target       String    @default("ALL") // ALL, ACTIVATED, CUSTOM
+  targetGuilds String[]  @default([])
+  channelPref  String    @default("NEWS") // NEWS, PUBLIC, STAFF, FALLBACK
+
+  successCount Int       @default(0)
+  failCount    Int       @default(0)
+  totalTargeted Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@map("broadcast_logs")
+}

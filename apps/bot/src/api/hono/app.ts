@@ -27,6 +27,7 @@ export function createHonoApp(client: Client): OpenAPIHono {
   app.use('*', async (c, next) => {
     const start = Date.now();
     await next();
+    if (c.res.status === 404) return;
     const ms = Date.now() - start;
     logger.info('HonoAPI', `${c.req.method} ${c.req.path} → ${c.res.status} (${ms}ms)`);
   });

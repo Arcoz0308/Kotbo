@@ -78,6 +78,7 @@
         { path: '/admin/servers', label: 'Serveurs', icon: 'Server' },
         { path: '/admin/shards', label: 'Shards', icon: 'Zap' },
         { path: '/admin/modules', label: 'Modules', icon: 'Box' },
+        { path: '/admin/broadcast', label: 'Broadcast', icon: 'Megaphone' },
       ]
     },
     {

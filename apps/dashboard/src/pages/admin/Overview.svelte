@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
-  import { fetchAdminStats, sendGlobalBroadcast } from '../../lib/api';
+  import { fetchAdminStats } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import AdminLayout from '../../lib/components/AdminLayout.svelte';
@@ -25,10 +25,8 @@
   }
 
   let stats = $state<AdminStats | null>(null);
-  let broadcastMessage = $state('');
   let loading = $state(true);
   let error = $state<string | null>(null);
-  let broadcasting = $state(false);
 
   onMount(async () => {
     try {
@@ -53,22 +51,6 @@
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  }
-
-  async function handleBroadcast(e: SubmitEvent) {
-    e.preventDefault();
-    if (!broadcastMessage.trim()) return;
-    if (!confirm('Êtes-vous sûr de vouloir envoyer ce message sur TOUS les serveurs ?')) return;
-    broadcasting = true;
-    try {
-      const res = await sendGlobalBroadcast(broadcastMessage.trim());
-      broadcastMessage = '';
-      toast.success(`Broadcast envoyé ! Succès : ${res.successCount} serveurs, Échecs : ${res.failCount}`);
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      broadcasting = false;
-    }
   }
 
   const heapPercent = $derived(
@@ -193,47 +175,27 @@
           </div>
         </div>
 
-        <!-- Global Broadcast Card -->
-        <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-6 flex flex-col gap-5">
+        <!-- Broadcast Quick Access -->
+        <a href="/admin/broadcast" class="group bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-6 flex flex-col gap-5 hover:border-blue-500/30 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center text-blue-400">
+            <div class="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center text-blue-400 transition-transform duration-300 group-hover:scale-110">
               <Papicon icon="Megaphone" size={16} />
             </div>
             <div>
-              <p class="font-black text-on-surface text-sm">Annonce Globale</p>
+              <p class="font-black text-on-surface text-sm">Broadcast</p>
               <p class="text-[10px] text-on-surface-variant/40 font-medium">Diffusion sur {stats.guildCount} serveurs</p>
             </div>
           </div>
-
-          <form onsubmit={handleBroadcast} class="flex flex-col flex-1 gap-4">
-            <div class="relative flex-1">
-              <textarea
-                bind:value={broadcastMessage}
-                placeholder="Rédigez votre message global ici..."
-                rows={5}
-                class="w-full h-full min-h-[120px] bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-3 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-blue-500/40 focus:bg-on-surface/6 transition-all duration-200 resize-none font-medium"
-                required
-              ></textarea>
+          <div class="flex-1 flex items-center justify-center py-6">
+            <div class="text-center space-y-2">
+              <div class="w-12 h-12 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center text-blue-400">
+                <Papicon icon="Send" size={22} />
+              </div>
+              <p class="text-xs font-bold text-on-surface-variant/50">Composer une annonce</p>
+              <p class="text-[10px] text-on-surface-variant/30">Emojis custom, ciblage, aperçu, historique</p>
             </div>
-
-            <button
-              type="submit"
-              disabled={broadcasting || !broadcastMessage.trim()}
-              class="flex items-center justify-center gap-2.5 py-3 px-5 rounded-xl font-black text-sm transition-all duration-200
-                {broadcasting || !broadcastMessage.trim()
-                  ? 'bg-on-surface/10 text-on-surface-variant/40 cursor-not-allowed'
-                  : 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-[1.02] active:scale-95 shadow-lg shadow-blue-500/20'}"
-            >
-              {#if broadcasting}
-                <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Envoi en cours...
-              {:else}
-                <Papicon icon="Send" size={15} />
-                Envoyer sur tous les serveurs
-              {/if}
-            </button>
-          </form>
-        </div>
+          </div>
+        </a>
       </div>
 
     {/if}
