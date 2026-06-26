@@ -78,28 +78,30 @@ export const cache = {
 
   async invalidateGuild(guildId: string): Promise<void> {
     const prefix = `guild:${guildId}:`;
-    
-    // Clear L1 memory cache keys matching the prefix
+
     for (const key of memoryCache.keys()) {
       if (key.startsWith(prefix)) {
         memoryCache.delete(key);
       }
     }
 
-    // Clear Redis keys matching the prefix
     try {
       const redis = getRedis();
       if (redis) {
         let cursor = '0';
         const keysToDelete: string[] = [];
         do {
-          const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 100);
+          const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 500);
           cursor = nextCursor;
           keysToDelete.push(...keys);
         } while (cursor !== '0');
 
         if (keysToDelete.length > 0) {
-          await redis.del(...keysToDelete);
+          const pipeline = redis.pipeline();
+          for (let i = 0; i < keysToDelete.length; i += 1000) {
+            pipeline.del(...keysToDelete.slice(i, i + 1000));
+          }
+          await pipeline.exec();
         }
       }
     } catch (err) {

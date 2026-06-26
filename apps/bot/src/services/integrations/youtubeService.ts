@@ -99,21 +99,21 @@ const YOUTUBE_CONFIG = {
 // ==================== CACHE ====================
 
 class YouTubeCache {
-  private cache = new Map<string, { data: unknown; timestamp: number }>();
+  private cache = new Map<string, { data: unknown; expiresAt: number }>();
 
-  set(key: string, data: unknown): void {
-    this.cache.set(key, { data, timestamp: Date.now() });
+  set(key: string, data: unknown, ttlMs = YOUTUBE_CONFIG.CACHE_TTL_MS): void {
+    this.cache.set(key, { data, expiresAt: Date.now() + ttlMs });
   }
 
   get(key: string): unknown | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
-    
-    if (Date.now() - entry.timestamp > YOUTUBE_CONFIG.CACHE_TTL_MS) {
+
+    if (Date.now() > entry.expiresAt) {
       this.cache.delete(key);
       return null;
     }
-    
+
     return entry.data;
   }
 
@@ -341,20 +341,19 @@ async function isYoutubeShort(videoId: string): Promise<boolean> {
 
 async function checkYoutubeLiveStatus(channelId: string): Promise<LiveStatus> {
   const cacheKey = `live:${channelId}`;
-  const cached = cache.get(cacheKey);
-  
-  if (cached && Date.now() - cached.timestamp < 60000) {
-    return cached.data;
-  }
+  const cached = cache.get(cacheKey) as LiveStatus | null;
+  if (cached) return cached;
+
+  const LIVE_CACHE_TTL_MS = 60_000;
 
   const rssResult = await checkLiveViaRSS(channelId);
   if (rssResult.isLive) {
-    cache.set(cacheKey, { data: rssResult, timestamp: Date.now() });
+    cache.set(cacheKey, rssResult, LIVE_CACHE_TTL_MS);
     return rssResult;
   }
 
   const htmlResult = await checkLiveViaHTML(channelId);
-  cache.set(cacheKey, { data: htmlResult, timestamp: Date.now() });
+  cache.set(cacheKey, htmlResult, LIVE_CACHE_TTL_MS);
   return htmlResult;
 }
 
@@ -436,24 +435,20 @@ async function fetchRecentVideos(channelId: string, key: string): Promise<VideoI
     return [];
   }
 
-  const videos: VideoInfo[] = [];
-  
-  for (const item of data.items) {
-    const videoId = item.contentDetails?.videoId;
-    const title = item.snippet?.title;
-    const publishedAtStr = item.snippet?.publishedAt;
-    
-    if (!videoId || !title || !publishedAtStr) continue;
-    
-    const isShort = await isYoutubeShort(videoId);
-    
-    videos.push({
-      videoId,
-      title,
-      publishedAt: new Date(publishedAtStr),
-      isShort,
-    });
-  }
+  const validItems = data.items.filter(
+    (item) => item.contentDetails?.videoId && item.snippet?.title && item.snippet?.publishedAt,
+  );
+
+  const shortResults = await Promise.all(
+    validItems.map((item) => isYoutubeShort(item.contentDetails.videoId)),
+  );
+
+  const videos: VideoInfo[] = validItems.map((item, i) => ({
+    videoId: item.contentDetails.videoId,
+    title: item.snippet.title,
+    publishedAt: new Date(item.snippet.publishedAt),
+    isShort: shortResults[i],
+  }));
 
   return videos.sort((a, b) => a.publishedAt.getTime() - b.publishedAt.getTime());
 }

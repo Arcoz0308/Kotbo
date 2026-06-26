@@ -1,4 +1,4 @@
-import prisma from '../../utils/db.js';
+import { prismaRead as prisma } from '../../utils/db.js';
 
 export const getDashboardAnalytics = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
   const days = options.days || 30;

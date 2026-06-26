@@ -1,3 +1,28 @@
+export { kotboEventBus } from './eventBus.js';
+export type { KotboEventHandler } from './eventBus.js';
+export type {
+  KotboEventMap,
+  KotboEventName,
+  MessageNewEvent,
+  MessageDeleteEvent,
+  MessageUpdateEvent,
+  VoiceJoinEvent,
+  VoiceLeaveEvent,
+  VoiceMoveEvent,
+  MemberJoinEvent,
+  MemberLeaveEvent,
+  MemberUpdateEvent,
+  SanctionAppliedEvent,
+  SanctionRevokedEvent,
+  AutoModTriggeredEvent,
+  ReactionAddEvent,
+  ThreadCreateEvent,
+  ChannelCreateEvent,
+  ChannelDeleteEvent,
+  RoleCreateEvent,
+  RoleDeleteEvent,
+} from './eventBus.types.js';
+
 export { VerificationService } from './services/verification.service.js';
 export type {
   DeployVerificationEmbedInput,

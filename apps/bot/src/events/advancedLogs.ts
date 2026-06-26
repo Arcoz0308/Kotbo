@@ -80,8 +80,8 @@ const inviteUsageCache = new Map<string, Map<string, InviteSnapshot>>();
 const memberInviteUsageCache = new Map<string, MemberInviteUsage>();
 
 const LOG_CHANNEL_CACHE_TTL_MS = 60_000;
-const MESSAGE_SNAPSHOT_TTL_MS = 4 * 60 * 60 * 1000;
-const MESSAGE_SNAPSHOT_MAX_SIZE = 3_000;
+const MESSAGE_SNAPSHOT_TTL_MS = 2 * 60 * 60 * 1000;
+const MESSAGE_SNAPSHOT_MAX_SIZE = Number.parseInt(process.env.MESSAGE_SNAPSHOT_MAX_SIZE ?? '30000', 10);
 const AUDIT_LOOKBACK_MS = 12_000;
 const MAX_BULK_AUTHOR_PREVIEW = 8;
 const advancedLogsRegisteredClients = new WeakSet<Client>();
@@ -428,12 +428,23 @@ function cleanupMessageSnapshots(): void {
 
   if (messageSnapshotStore.size <= MESSAGE_SNAPSHOT_MAX_SIZE) return;
 
-  const entries = [...messageSnapshotStore.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
+  // Evict oldest entries without sorting the entire map — find the Nth oldest
+  // timestamp via a single pass, then delete everything older
   const overflow = messageSnapshotStore.size - MESSAGE_SNAPSHOT_MAX_SIZE;
-  for (let index = 0; index < overflow; index += 1) {
-    const oldest = entries[index];
-    if (!oldest) break;
-    messageSnapshotStore.delete(oldest[0]);
+  const timestamps: number[] = [];
+  for (const snapshot of messageSnapshotStore.values()) {
+    timestamps.push(snapshot.createdAt);
+  }
+  timestamps.sort((a, b) => a - b);
+  const cutoff = timestamps[overflow - 1];
+
+  let deleted = 0;
+  for (const [messageId, snapshot] of messageSnapshotStore.entries()) {
+    if (deleted >= overflow) break;
+    if (snapshot.createdAt <= cutoff) {
+      messageSnapshotStore.delete(messageId);
+      deleted++;
+    }
   }
 }
 

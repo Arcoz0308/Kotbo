@@ -6,6 +6,7 @@ import { scanGuildMembersForYoungAccounts, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS
 import { processScheduledSanctions, checkMissingReports } from '../services/moderation/sanctionService.js';
 import { processMeetingNotifications } from '../services/staff/staffLeadershipService.js';
 import { logger } from '../utils/logger.js';
+import pLimit from 'p-limit';
 import { runActivitySnapshot } from './advancedLogs.js';
 import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJobName } from '../infra/queues/backgroundQueue.js';
 import { checkYoutubeFollows } from '../services/integrations/youtubeService.js';
@@ -164,20 +165,20 @@ export async function registerCrons(client: Client): Promise<void> {
       await processMeetingNotifications();
     },
     'dc-scan': async () => {
-      // Parcours des guildes et lancement du scan si la feature double_accounts active l'auto-détection
       const featureConfigs = await prisma.dashboardFeatureConfig.findMany({
         where: { featureKey: 'double_accounts', enabled: true },
         select: { guildId: true, metadata: true }
       });
 
-      for (const cfg of featureConfigs) {
+      const limit = pLimit(5);
+      const tasks = featureConfigs.map((cfg) => limit(async () => {
         try {
           const meta = cfg.metadata as unknown;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
-          if (!autoEnabled) continue;
+          if (!autoEnabled) return;
 
           const guild = await client.guilds.fetch(cfg.guildId).catch(() => null);
-          if (!guild) continue;
+          if (!guild) return;
 
           const res = await scanGuildMembersForYoungAccounts(guild, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS).catch((e) => {
             logger.error('Cron', `Erreur pendant dc-scan pour guild ${cfg.guildId}:`, e);
@@ -190,7 +191,9 @@ export async function registerCrons(client: Client): Promise<void> {
         } catch (e) {
           logger.error('Cron', 'Erreur dc-scan boucle:', e);
         }
-      }
+      }));
+
+      await Promise.all(tasks);
     },
   });
 
@@ -227,10 +230,11 @@ export async function registerCrons(client: Client): Promise<void> {
   });
 
   // 📊 Activity & Heatmap: Toutes les 10 minutes (Snapshot présences lissé)
+  // Offloaded to BullMQ worker to avoid blocking the main event loop
   cron.schedule('*/10 * * * *', async () => {
     await runCronJob('activity-10min-snapshot', async () => {
       await runActivitySnapshot(client);
-    }, 1000);
+    }, 2000);
   });
 
   // 🛡️ Staff Management: Expirations à minuit
@@ -249,12 +253,11 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 2000);
   }, { timezone: 'Europe/Paris' });
 
-  // 📅 Réunions: Notifications (toutes les minutes)
-  cron.schedule('* * * * *', async () => {
+  // 📅 Réunions: Notifications (toutes les 2 minutes — suffisant pour les rappels)
+  cron.schedule('*/2 * * * *', async () => {
     await runCronJob('meeting-notifications', async () => {
       await processMeetingNotifications();
     }, 3000);
-
   });
 
   // 🔍 DC Scan: Toutes les heures (vérifie les guildes qui ont activé l'auto-détection)
@@ -265,23 +268,23 @@ export async function registerCrons(client: Client): Promise<void> {
         select: { guildId: true, metadata: true }
       });
 
-      for (const cfg of featureConfigs) {
+      const dcLimit = pLimit(5);
+      await Promise.all(featureConfigs.map((cfg) => dcLimit(async () => {
         try {
           const meta = cfg.metadata as unknown;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
-          if (!autoEnabled) continue;
+          if (!autoEnabled) return;
 
           const guild = await client.guilds.fetch(cfg.guildId).catch(() => null);
-          if (!guild) continue;
+          if (!guild) return;
 
           await scanGuildMembersForYoungAccounts(guild, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS).catch((e) => {
             logger.error('Cron', `Erreur pendant dc-scan pour guild ${cfg.guildId}:`, e);
-            return null;
           });
         } catch (e) {
           logger.error('Cron', 'Erreur dc-scan cron:', e);
         }
-      }
+      })));
     }, 5000);
   });
 

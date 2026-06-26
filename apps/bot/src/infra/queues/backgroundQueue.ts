@@ -94,7 +94,7 @@ export async function startBackgroundQueueWorker(): Promise<boolean> {
       getProcessor(),
       {
         connection: workerConnection,
-        concurrency: Number.parseInt(process.env.BULLMQ_CONCURRENCY ?? '2', 10) || 2,
+        concurrency: Number.parseInt(process.env.BULLMQ_CONCURRENCY ?? '10', 10) || 10,
       },
     );
 

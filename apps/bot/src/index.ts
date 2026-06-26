@@ -62,6 +62,14 @@ import { registerWelcomeGoodbyeListener } from './events/welcomeGoodbyeEvents.js
 import { registerSecurityVerificationListener } from './events/securityVerificationEvents.js';
 import { registerAutoModListener } from './events/autoModEvents.js';
 import { registerAutoResponseListener } from './events/autoResponseEvents.js';
+import { registerEventBusBridge } from './events/eventBusBridge.js';
+import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
+import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
+import { registerAutoModBusSubscribers } from './modules/autoMod.module.js';
+import { registerAutoThreadBusSubscribers } from './modules/autoThread.module.js';
+import { registerWelcomeGoodbyeBusSubscribers } from './modules/welcomeGoodbye.module.js';
+import { registerModerationBusSubscribers } from './modules/moderation.module.js';
+import { registerTicketsBusSubscribers } from './modules/tickets.module.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
 import { initializeAutoBackupForAllGuilds, initializeAutoBackup, stopAutoBackup } from './services/system/autoBackupService.js';
 import {
@@ -106,53 +114,61 @@ setClient(client);
 // ==========================================================
 // Guild Activation Central Event Interceptor Gate
 // ==========================================================
+const PASSTHROUGH_EVENTS = new Set<string | symbol>([
+  Events.ClientReady,
+  Events.ShardReady,
+  Events.GuildCreate,
+  Events.GuildDelete,
+]);
+const OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
+
 const originalEmit = client.emit;
 client.emit = function (eventName: string | symbol, ...args: unknown[]) {
-  // Allow system/ready events
-  if (
-    eventName === Events.ClientReady ||
-    eventName === Events.ShardReady ||
-    eventName === Events.GuildCreate ||
-    eventName === Events.GuildDelete
-  ) {
+  if (PASSTHROUGH_EVENTS.has(eventName)) {
     return originalEmit.call(client, eventName, ...args);
   }
 
-  // Detect associated guild
+  // Fast path: extract guildId from first arg (covers 99% of Discord events)
+  const arg = args[0];
+  if (!arg || typeof arg !== 'object') {
+    return originalEmit.call(client, eventName, ...args);
+  }
+
   let guildId: string | null = null;
   let isActivateCommand = false;
   let isOwnerInteraction = false;
 
-  for (const arg of args) {
-    if (!arg) continue;
-    if (typeof arg === 'object') {
-      if (
-        eventName === Events.InteractionCreate &&
-        typeof arg.isChatInput === 'function' &&
-        arg.isChatInput() &&
-        arg.commandName === 'activate'
-      ) {
-        isActivateCommand = true;
-      }
+  if (arg.guild && typeof arg.guild.id === 'string') {
+    guildId = arg.guild.id;
+  } else if (typeof arg.guildId === 'string') {
+    guildId = arg.guildId;
+  } else if (typeof arg.id === 'string' && (arg.constructor?.name === 'Guild' || (arg.name && arg.roles))) {
+    guildId = arg.id;
+  }
 
-      if (arg.user && arg.user.id === process.env.DISCORD_CLIENT_OWNER_ID) {
-        isOwnerInteraction = true;
-      } else if (arg.author && arg.author.id === process.env.DISCORD_CLIENT_OWNER_ID) {
-        isOwnerInteraction = true;
-      }
+  // Fallback: check remaining args only if first didn't yield a guildId
+  if (!guildId) {
+    for (let i = 1; i < args.length; i++) {
+      const a = args[i];
+      if (!a || typeof a !== 'object') continue;
+      if (a.guild && typeof a.guild.id === 'string') { guildId = a.guild.id; break; }
+      if (typeof a.guildId === 'string') { guildId = a.guildId; break; }
+    }
+  }
 
-      if (arg.guild && typeof arg.guild.id === 'string') {
-        guildId = arg.guild.id;
-        break;
-      }
-      if (typeof arg.guildId === 'string') {
-        guildId = arg.guildId;
-        break;
-      }
-      if (typeof arg.id === 'string' && (arg.constructor?.name === 'Guild' || (arg.name && arg.roles))) {
-        guildId = arg.id;
-        break;
-      }
+  if (guildId) {
+    if (
+      eventName === Events.InteractionCreate &&
+      typeof arg.isChatInput === 'function' &&
+      arg.isChatInput() &&
+      arg.commandName === 'activate'
+    ) {
+      isActivateCommand = true;
+    }
+
+    if (OWNER_ID) {
+      const userId = arg.user?.id ?? arg.author?.id;
+      if (userId === OWNER_ID) isOwnerInteraction = true;
     }
   }
 
@@ -240,6 +256,25 @@ client.once(Events.ClientReady, async (c) => {
   await assertRedisConnection().catch((err) => {
     logger.warn('Redis', String(err));
   });
+
+  // Enable distributed Event Bus if configured (Phase 2: multi-process split)
+  if (process.env.EVENTBUS_DISTRIBUTED === 'true') {
+    try {
+      const { createRedisForWorker } = await import('./infra/redis.js');
+      const { kotboEventBus } = await import('@kotbo/core');
+      const pub = createRedisForWorker();
+      const sub = createRedisForWorker();
+      if (pub && sub) {
+        await pub.connect();
+        await sub.connect();
+        kotboEventBus.enableDistributed(pub, sub);
+        logger.success('EventBus', 'Mode distribué (Redis Pub/Sub) activé.');
+      }
+    } catch (err) {
+      logger.warn('EventBus', 'Impossible d\'activer le mode distribué:', err);
+    }
+  }
+
   await startBackgroundQueueWorker();
   await checkTranslationProviderHealth();
 
@@ -256,6 +291,24 @@ client.once(Events.ClientReady, async (c) => {
     (global as unknown).KOTBO_BLACKLIST = new Set();
   }
 
+  // ── Event Bus Bridge (Phase 1: in-process) ──────────────────
+  // The bridge captures raw Discord events and publishes normalized
+  // payloads on the Kotbo Event Bus. Modules can subscribe to bus
+  // events instead of client.on() directly, enabling future split
+  // into independent processes (Phase 2).
+  registerEventBusBridge(client);
+
+  // ── Bus-based modules (decoupled, error-isolated) ─────────
+  registerAnalyticsBusSubscribers(client);
+  registerLevelingBusSubscribers(client);
+  registerAutoModBusSubscribers(client);
+  registerAutoThreadBusSubscribers(client);
+  registerWelcomeGoodbyeBusSubscribers(client);
+  registerModerationBusSubscribers(client);
+  registerTicketsBusSubscribers(client);
+
+  // ── Legacy listeners (still on client.on directly) ────────
+  // TODO: Remove these once bus-based modules are validated
   registerCodePoliceListener(client);
   registerModerationAuditListener(client);
   registerAdvancedLogsListener(client);
@@ -569,10 +622,10 @@ async function flushIndexBuffers() {
   }
 }
 
-// Flush every 5 seconds
+const FLUSH_INTERVAL_MS = Number.parseInt(process.env.FLUSH_INTERVAL_MS ?? '10000', 10) || 10000;
 const flushInterval = setInterval(() => {
   void flushIndexBuffers();
-}, 5000);
+}, FLUSH_INTERVAL_MS);
 
 async function flushAndStop(exitCode = 0) {
   clearInterval(flushInterval);

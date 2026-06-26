@@ -54,24 +54,41 @@ export async function handleMembersRoutes(
     // GET /api/dashboard/guilds/:guildId/linked-accounts
     if (method === 'GET') {
       try {
-        const linkedAccounts = await prisma.linkedAccount.findMany({
-          where: { guildId },
-          orderBy: { createdAt: 'desc' },
-        });
+        const page = Number(url.searchParams.get('page') ?? '1') || 1;
+        const limit = Math.min(Number(url.searchParams.get('limit') ?? '50') || 50, 200);
+        const skip = (page - 1) * limit;
 
-        const enriched = await Promise.all(linkedAccounts.map(async (acc) => {
-          const [p1, p2] = await Promise.all([
-            prisma.memberProfile.findUnique({ where: { guildId_userId: { guildId, userId: acc.user1Id } } }),
-            prisma.memberProfile.findUnique({ where: { guildId_userId: { guildId, userId: acc.user2Id } } }),
-          ]);
+        const [linkedAccounts, total] = await Promise.all([
+          prisma.linkedAccount.findMany({
+            where: { guildId },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+          prisma.linkedAccount.count({ where: { guildId } }),
+        ]);
+
+        // Batch-fetch all member profiles in 1 query instead of 2*N
+        const userIds = [...new Set(linkedAccounts.flatMap(a => [a.user1Id, a.user2Id]))];
+        const profiles = userIds.length > 0
+          ? await prisma.memberProfile.findMany({
+              where: { guildId, userId: { in: userIds } },
+              select: { userId: true, username: true, avatarUrl: true },
+            })
+          : [];
+        const profileMap = new Map(profiles.map(p => [p.userId, p]));
+
+        const enriched = linkedAccounts.map((acc) => {
+          const p1 = profileMap.get(acc.user1Id);
+          const p2 = profileMap.get(acc.user2Id);
           return {
             ...acc,
             user1: p1 ? { tag: p1.username, avatar: p1.avatarUrl } : { tag: acc.user1Id, avatar: null },
             user2: p2 ? { tag: p2.username, avatar: p2.avatarUrl } : { tag: acc.user2Id, avatar: null },
           };
-        }));
+        });
 
-        json(res, 200, enriched);
+        json(res, 200, { data: enriched, total, page, limit });
       } catch (err) {
         logger.error('LinkedAccountsAPI', 'Error fetching linked accounts:', err);
         json(res, 500, { error: 'Erreur lors de la récupération des comptes liés' });

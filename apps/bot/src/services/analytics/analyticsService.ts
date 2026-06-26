@@ -99,9 +99,9 @@ async function flushGuildDailyStats(): Promise<void> {
   const entries = [...guildDailyStatsBuffer.entries()];
   guildDailyStatsBuffer.clear();
 
-  for (const [key, data] of entries) {
+  const ops = entries.map(([key, data]) => {
     const [guildId, dateKey] = key.split(':');
-    if (!guildId || !dateKey) continue;
+    if (!guildId || !dateKey) return null;
 
     const updateData: unknown = {};
     const createData: unknown = { guildId, dateKey };
@@ -113,14 +113,18 @@ async function flushGuildDailyStats(): Promise<void> {
       }
     }
 
-    if (Object.keys(updateData).length === 0) continue;
+    if (Object.keys(updateData).length === 0) return null;
 
-    await prisma.guildDailyStat.upsert({
+    return prisma.guildDailyStat.upsert({
       where: { guildId_dateKey: { guildId, dateKey } },
       update: updateData,
       create: createData,
-    }).catch((error) => {
-      logger.error('Analytics', `Error flushing GuildDailyStat for key ${key}:`, error);
+    });
+  }).filter(Boolean);
+
+  if (ops.length > 0) {
+    await prisma.$transaction(ops).catch((error) => {
+      logger.error('Analytics', 'Error flushing GuildDailyStats batch:', error);
     });
   }
 }
@@ -129,9 +133,9 @@ async function flushGuildHourlyStats(): Promise<void> {
   const entries = [...guildHourlyStatsBuffer.entries()];
   guildHourlyStatsBuffer.clear();
 
-  for (const [key, data] of entries) {
+  const ops = entries.map(([key, data]) => {
     const [guildId, dateKey, hourStr] = key.split(':');
-    if (!guildId || !dateKey || !hourStr) continue;
+    if (!guildId || !dateKey || !hourStr) return null;
     const hour = parseInt(hourStr, 10);
 
     const updateData: unknown = {};
@@ -144,20 +148,23 @@ async function flushGuildHourlyStats(): Promise<void> {
       }
     }
 
-    if (Object.keys(updateData).length === 0) continue;
+    if (Object.keys(updateData).length === 0) return null;
 
-    await prisma.guildHourlyStat.upsert({
+    return prisma.guildHourlyStat.upsert({
       where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
       update: updateData,
       create: createData,
-    }).catch((error) => {
-      logger.error('Analytics', `Error flushing GuildHourlyStat for key ${key}:`, error);
+    });
+  }).filter(Boolean);
+
+  if (ops.length > 0) {
+    await prisma.$transaction(ops).catch((error) => {
+      logger.error('Analytics', 'Error flushing GuildHourlyStats batch:', error);
     });
   }
 }
 
 async function flushChannelDailyStats(): Promise<void> {
-  // Clean up old authors sets
   const currentDateKey = getDateKey();
   for (const key of channelDailyAuthors.keys()) {
     if (!key.endsWith(currentDateKey)) {
@@ -168,29 +175,24 @@ async function flushChannelDailyStats(): Promise<void> {
   const entries = [...channelDailyStatsBuffer.entries()];
   channelDailyStatsBuffer.clear();
 
-  for (const [key, data] of entries) {
+  const ops = entries.map(([key, data]) => {
     const [guildId, channelId, dateKey] = key.split(':');
-    if (!guildId || !channelId || !dateKey) continue;
+    if (!guildId || !channelId || !dateKey) return null;
 
     const count = data.messagesCount || 0;
     const authorsSet = channelDailyAuthors.get(key);
     const uniqueCount = authorsSet ? authorsSet.size : 0;
 
-    await prisma.channelDailyStat.upsert({
+    return prisma.channelDailyStat.upsert({
       where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
-      create: { 
-        guildId, 
-        channelId, 
-        dateKey, 
-        messagesCount: count, 
-        uniqueAuthors: uniqueCount 
-      },
-      update: { 
-        messagesCount: { increment: count },
-        uniqueAuthors: uniqueCount
-      },
-    }).catch((error) => {
-      logger.error('Analytics', `Error flushing ChannelDailyStat for key ${key}:`, error);
+      create: { guildId, channelId, dateKey, messagesCount: count, uniqueAuthors: uniqueCount },
+      update: { messagesCount: { increment: count }, uniqueAuthors: uniqueCount },
+    });
+  }).filter(Boolean);
+
+  if (ops.length > 0) {
+    await prisma.$transaction(ops).catch((error) => {
+      logger.error('Analytics', 'Error flushing ChannelDailyStats batch:', error);
     });
   }
 }
@@ -199,29 +201,40 @@ async function flushMemberDailyStats(): Promise<void> {
   const entries = [...memberDailyStatsBuffer.entries()];
   memberDailyStatsBuffer.clear();
 
-  for (const [key, data] of entries) {
-    const [guildId, userId, dateKey] = key.split(':');
-    if (!guildId || !userId || !dateKey) continue;
+  // Member stats can have many entries — batch in chunks of 50 to avoid
+  // transaction timeouts on large guilds
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const chunk = entries.slice(i, i + BATCH_SIZE);
 
-    const updateData: unknown = {};
-    const createData: unknown = { guildId, userId, dateKey };
+    const ops = chunk.map(([key, data]) => {
+      const [guildId, userId, dateKey] = key.split(':');
+      if (!guildId || !userId || !dateKey) return null;
 
-    for (const [col, val] of Object.entries(data)) {
-      if (val !== undefined && val !== 0) {
-        updateData[col] = { increment: val };
-        createData[col] = val;
+      const updateData: unknown = {};
+      const createData: unknown = { guildId, userId, dateKey };
+
+      for (const [col, val] of Object.entries(data)) {
+        if (val !== undefined && val !== 0) {
+          updateData[col] = { increment: val };
+          createData[col] = val;
+        }
       }
+
+      if (Object.keys(updateData).length === 0) return null;
+
+      return prisma.memberDailyStat.upsert({
+        where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
+        update: updateData,
+        create: createData,
+      });
+    }).filter(Boolean);
+
+    if (ops.length > 0) {
+      await prisma.$transaction(ops).catch((error) => {
+        logger.error('Analytics', `Error flushing MemberDailyStats batch (offset ${i}):`, error);
+      });
     }
-
-    if (Object.keys(updateData).length === 0) continue;
-
-    await prisma.memberDailyStat.upsert({
-      where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-      update: updateData,
-      create: createData,
-    }).catch((error) => {
-      logger.error('Analytics', `Error flushing MemberDailyStat for key ${key}:`, error);
-    });
   }
 }
 

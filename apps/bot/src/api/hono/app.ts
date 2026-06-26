@@ -4,6 +4,7 @@ import type { Client } from 'discord.js';
 import { dashboardCors } from './middleware/cors.js';
 import { healthRouter } from './routes/health.js';
 import { configRouter } from './routes/config.js';
+import { eventBusRouter } from './routes/eventBus.js';
 import { authRouter } from './routes/auth.js';
 import { createPublicProfileRouter } from './routes/public/profile.js';
 import { createVerificationRouter } from './routes/verification.js';
@@ -38,6 +39,7 @@ export function createHonoApp(client: Client): OpenAPIHono {
 
   app.route('/', healthRouter);
   app.route('/', configRouter);
+  app.route('/', eventBusRouter);
   app.route('/', authRouter);
   app.route('/', createPublicProfileRouter(client));
   app.route('/', createVerificationRouter(client));
