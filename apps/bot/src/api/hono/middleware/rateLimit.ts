@@ -16,9 +16,21 @@ export function rateLimit(
   windowMs: number,
   message = 'Trop de requêtes. Veuillez réessayer plus tard.',
 ) {
+  let lastCleanup = Date.now();
+
   return createMiddleware(async (c, next) => {
     const ip = getClientIp(c);
     const now = Date.now();
+
+    // Purge stale IPs every 5 minutes to prevent memory leak
+    if (now - lastCleanup > 5 * 60 * 1000) {
+      lastCleanup = now;
+      for (const [key, ts] of limiterMap) {
+        const valid = ts.filter((t) => now - t < windowMs);
+        if (valid.length === 0) limiterMap.delete(key);
+        else limiterMap.set(key, valid);
+      }
+    }
 
     const timestamps = limiterMap.get(ip) ?? [];
     const validTimestamps = timestamps.filter((t) => now - t < windowMs);

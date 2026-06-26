@@ -6,6 +6,18 @@ import { logger } from '../../utils/logger.js';
 let twitchAccessToken: string | null = null;
 let twitchTokenExpiresAt = 0;
 
+const TWITCH_REQUEST_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TWITCH_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /**
  * Retrieves a Twitch app access token using Client Credentials Flow.
  * Caches the token in memory.
@@ -25,7 +37,7 @@ async function getTwitchToken(): Promise<string | null> {
   }
 
   try {
-    const res = await fetch('https://id.twitch.tv/oauth2/token', {
+    const res = await fetchWithTimeout('https://id.twitch.tv/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -69,7 +81,7 @@ export async function getTwitchUserId(username: string): Promise<string | null> 
   }
 
   try {
-    const res = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanName)}`, {
+    const res = await fetchWithTimeout(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(cleanName)}`, {
       headers: {
         'Client-ID': clientId,
         'Authorization': `Bearer ${token}`,
@@ -122,30 +134,36 @@ export async function checkTwitchFollows(client: Client) {
 
     if (activeFollows.length === 0) return;
 
-    // Group active follows by streamerName to fetch statuses in batches (max 100 per request)
     const usernames = activeFollows.map((f: unknown) => f.streamerName);
     const uniqueUsernames = Array.from(new Set(usernames));
 
-    // Twitch stream endpoint accepts multiple user_login parameters
-    const queryParams = uniqueUsernames.map(name => `user_login=${encodeURIComponent(String(name))}`).join('&');
-    const url = `https://api.twitch.tv/helix/streams?${queryParams}`;
+    // Twitch Helix accepts max 100 user_login per request — batch if needed
+    const TWITCH_BATCH_SIZE = 100;
+    const liveMap = new Map<string, unknown>();
 
-    const res = await fetch(url, {
-      headers: {
-        'Client-ID': clientId,
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    for (let i = 0; i < uniqueUsernames.length; i += TWITCH_BATCH_SIZE) {
+      const batch = uniqueUsernames.slice(i, i + TWITCH_BATCH_SIZE);
+      const queryParams = batch.map(name => `user_login=${encodeURIComponent(String(name))}`).join('&');
+      const url = `https://api.twitch.tv/helix/streams?${queryParams}`;
 
-    if (!res.ok) {
-      logger.warn('TwitchService', `Failed to fetch Twitch stream statuses: ${res.statusText}`);
-      return;
+      const res = await fetchWithTimeout(url, {
+        headers: {
+          'Client-ID': clientId,
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        logger.warn('TwitchService', `Failed to fetch Twitch stream statuses (batch ${i / TWITCH_BATCH_SIZE}): ${res.statusText}`);
+        continue;
+      }
+
+      const resData = await res.json() as unknown;
+      const liveStreams = resData.data || [];
+      for (const s of liveStreams) {
+        liveMap.set(s.user_login.toLowerCase(), s);
+      }
     }
-
-    const resData = await res.json() as unknown;
-    const liveStreams = resData.data || [];
-    // Map live streams by username in lowercase for quick O(1) lookup
-    const liveMap = new Map<string, unknown>(liveStreams.map((s: unknown) => [s.user_login.toLowerCase(), s]));
 
     for (const follow of activeFollows) {
       const name = follow.streamerName.toLowerCase();

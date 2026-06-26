@@ -288,14 +288,16 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 5000);
   });
 
-  // 📺 YouTube & Twitch checks: toutes les 5 minutes
+  // 📺 YouTube & Twitch checks: toutes les 5 minutes (en parallèle)
   cron.schedule('*/5 * * * *', async () => {
-    await runCronJob('youtube', async () => {
-      await checkYoutubeFollows(client);
-    }, 5000);
-    await runCronJob('twitch', async () => {
-      await checkTwitchFollows(client);
-    }, 5000);
+    await Promise.allSettled([
+      runCronJob('youtube', async () => {
+        await checkYoutubeFollows(client);
+      }, 5000),
+      runCronJob('twitch', async () => {
+        await checkTwitchFollows(client);
+      }, 5000),
+    ]);
   });
 
   // 🎫 Ticket Inactivity Checks: toutes les 10 minutes

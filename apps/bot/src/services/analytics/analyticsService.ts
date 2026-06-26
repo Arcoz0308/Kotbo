@@ -386,47 +386,41 @@ export const snapshotServerPopulation = async (
 ) => {
   const dateKey = getDateKey();
 
-  const daily = await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    update: {
-      totalMembers: stats.totalMembers,
-      onlineMembers: stats.onlineMembers,
-      idleMembers: stats.idleMembers,
-      dndMembers: stats.dndMembers,
-      offlineMembers: stats.offlineMembers,
-      totalBots: stats.totalBots,
-      totalHumans: stats.totalHumans,
-      ...(stats.activeMembers !== undefined ? { activeMembers: stats.activeMembers } : {}),
-      ...(stats.activeVoiceMembers !== undefined ? { activeVoiceMembers: stats.activeVoiceMembers } : {})
-    },
-    create: {
-      guildId,
-      dateKey,
-      totalMembers: stats.totalMembers,
-      onlineMembers: stats.onlineMembers,
-      idleMembers: stats.idleMembers,
-      dndMembers: stats.dndMembers,
-      offlineMembers: stats.offlineMembers,
-      totalBots: stats.totalBots,
-      totalHumans: stats.totalHumans,
-      ...(stats.activeMembers !== undefined ? { activeMembers: stats.activeMembers } : {}),
-      ...(stats.activeVoiceMembers !== undefined ? { activeVoiceMembers: stats.activeVoiceMembers } : {})
-    }
-  });
+  const optionalFields = {
+    ...(stats.activeMembers !== undefined ? { activeMembers: stats.activeMembers } : {}),
+    ...(stats.activeVoiceMembers !== undefined ? { activeVoiceMembers: stats.activeVoiceMembers } : {}),
+  };
 
-  // Track Peak values
+  const populationData = {
+    totalMembers: stats.totalMembers,
+    onlineMembers: stats.onlineMembers,
+    idleMembers: stats.idleMembers,
+    dndMembers: stats.dndMembers,
+    offlineMembers: stats.offlineMembers,
+    totalBots: stats.totalBots,
+    totalHumans: stats.totalHumans,
+    ...optionalFields,
+  };
+
+  const hour = getHourKey();
+
+  const [daily] = await Promise.all([
+    prisma.guildDailyStat.upsert({
+      where: { guildId_dateKey: { guildId, dateKey } },
+      update: populationData,
+      create: { guildId, dateKey, ...populationData },
+    }),
+    prisma.guildHourlyStat.upsert({
+      where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
+      update: { onlineMembers: stats.onlineMembers },
+      create: { guildId, dateKey, hour, onlineMembers: stats.onlineMembers },
+    }),
+  ]);
+
   if (stats.onlineMembers > daily.peakOnline) {
     await prisma.guildDailyStat.update({
       where: { id: daily.id },
-      data: { peakOnline: stats.onlineMembers }
+      data: { peakOnline: stats.onlineMembers },
     });
   }
-
-  // Update Hourly Stat with online members
-  const hour = getHourKey();
-  await prisma.guildHourlyStat.upsert({
-    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-    update: { onlineMembers: stats.onlineMembers },
-    create: { guildId, dateKey, hour, onlineMembers: stats.onlineMembers }
-  });
 };

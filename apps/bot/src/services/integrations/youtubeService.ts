@@ -124,18 +124,30 @@ class YouTubeCache {
   has(key: string): boolean {
     return this.get(key) !== null;
   }
+
+  evictExpired(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache) {
+      if (now > entry.expiresAt) this.cache.delete(key);
+    }
+  }
 }
 
 const cache = new YouTubeCache();
+
+setInterval(() => {
+  cache.evictExpired();
+}, 10 * 60 * 1000);
 
 // ==================== RATE LIMITER ====================
 
 class RateLimiter {
   private activeRequests = 0;
+  private waiters: Array<() => void> = [];
 
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     while (this.activeRequests >= YOUTUBE_CONFIG.MAX_CONCURRENT_REQUESTS) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise<void>((resolve) => this.waiters.push(resolve));
     }
 
     this.activeRequests++;
@@ -143,6 +155,7 @@ class RateLimiter {
       return await fn();
     } finally {
       this.activeRequests--;
+      this.waiters.shift()?.();
     }
   }
 }
@@ -372,7 +385,7 @@ async function checkLiveViaRSS(channelId: string): Promise<LiveStatus> {
 
     const text = await response.text();
     
-    if (text.includes('<yt:videoId>') && text.includes('live')) {
+    if (text.includes('<yt:videoId>') && text.includes('live_broadcast')) {
       const videoIdMatch = text.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
       const titleMatch = text.match(/<title>([^<]+)<\/title>/);
       
