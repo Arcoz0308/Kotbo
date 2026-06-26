@@ -2,15 +2,15 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { 
-    fetchStaffMembers, 
-    fetchStaffCalendarData, 
-    createCall, 
-    updateCall, 
+  import {
+    fetchStaffMembers,
+    fetchStaffCalendarData,
+    createCall,
+    updateCall,
     deleteCall,
-    fetchTasks, 
-    createTask, 
-    updateTask, 
+    fetchTasks,
+    createTask,
+    updateTask,
     deleteTask,
     createAbsence,
     createMeeting,
@@ -41,15 +41,23 @@
   let calendarData = $state<CalendarData>(emptyCalendarData());
   let userTasks = $state<any[]>([]);
 
+  // Calendar binding
+  let calendarView = $state<string>('week');
+  let calendarCurrentDate = $state(new Date());
+
   // Filtering
   let selectedStaffIds = $state<string[]>([]);
   let visibleTypes = $state<string[]>(['meeting', 'absence', 'call', 'task']);
+
+  // Panels
+  let showTaskPanel = $state(true);
+  let sidebarCollapsed = $state(false);
 
   // Modals
   let creationModalOpen = $state(false);
   let detailModalOpen = $state(false);
   let currentTab = $state<'meeting' | 'absence' | 'call' | 'task'>('meeting');
-  
+
   // Selection dates
   let selectedStartDate = $state(new Date());
   let selectedEndDate = $state(new Date(Date.now() + 3600000));
@@ -62,8 +70,8 @@
   let formAssigneeId = $state('');
   let formSuperiorId = $state('');
   let formAbsenceType = $state('Autre');
-  let formChannelMode = $state('CREATE_NEW'); // CREATE_NEW, EXISTING
-  let formChannelType = $state('VOICE'); // VOICE, STAGE, THREAD
+  let formChannelMode = $state('CREATE_NEW');
+  let formChannelType = $state('VOICE');
   let formDiscordChannelId = $state('');
   let formIsTempChannel = $state(true);
   let formInviteeUserIds = $state<string[]>([]);
@@ -71,11 +79,14 @@
   let formError = $state('');
   let saving = $state(false);
 
-  // Time boundaries helper
+  // Time boundaries
   let currentRangeStart = new Date();
   let currentRangeEnd = new Date();
 
-  // Derived properties
+  // Mini calendar
+  let miniCalDate = $state(new Date());
+
+  // Derived
   const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
   const myStaffRecord = $derived(allStaff.find(s => s.userId === (authStore.user as any)?.id));
   const activeStaff = $derived(allStaff.filter(s => !s.blacklistEntries || s.blacklistEntries.length === 0));
@@ -84,7 +95,6 @@
     if (!myStaffRecord || allRoles.length === 0) return [];
     const myRole = allRoles.find(r => r.name === myStaffRecord.grade);
     if (!myRole) return activeStaff;
-    
     return activeStaff.filter(s => {
       if (s.userId === (authStore.user as any)?.id) return false;
       if (s.testingPeriods && s.testingPeriods.length > 0) return false;
@@ -94,15 +104,15 @@
     });
   });
 
+  // Events for calendar (no type prefix — Outlook uses color, not text labels)
   const calendarEvents = $derived.by(() => {
     const events: any[] = [];
 
-    // Meetings
     if (visibleTypes.includes('meeting') && calendarData.meetings) {
       calendarData.meetings.forEach((m: any) => {
         events.push({
           id: m.id,
-          title: `Réunion: ${m.title}`,
+          title: m.title,
           start: new Date(m.scheduledAt),
           end: m.endedAt ? new Date(m.endedAt) : new Date(new Date(m.scheduledAt).getTime() + 3600000),
           type: 'meeting',
@@ -113,16 +123,14 @@
       });
     }
 
-    // Absences
     if (visibleTypes.includes('absence') && calendarData.absences) {
       calendarData.absences.forEach((abs: any) => {
         const start = new Date(abs.startDate);
         const end = abs.endDate ? new Date(abs.endDate) : (abs.isIndefinite ? new Date(start.getTime() + 86400000 * 30) : start);
         const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-
         events.push({
           id: abs.id,
-          title: `${abs.type}: ${abs.reason}`,
+          title: abs.reason,
           start,
           end,
           type: 'absence',
@@ -134,14 +142,13 @@
       });
     }
 
-    // Calls
     if (visibleTypes.includes('call') && calendarData.calls) {
       calendarData.calls.forEach((call: any) => {
         events.push({
           id: call.id,
-          title: `Appel: ${call.title}`,
+          title: call.title,
           start: new Date(call.scheduledAt),
-          end: call.endedAt ? new Date(call.endedAt) : new Date(new Date(call.scheduledAt).getTime() + 1800000), // Default 30min
+          end: call.endedAt ? new Date(call.endedAt) : new Date(new Date(call.scheduledAt).getTime() + 1800000),
           type: 'call',
           isAllDay: false,
           details: call.description,
@@ -150,13 +157,12 @@
       });
     }
 
-    // Tasks
     if (visibleTypes.includes('task') && calendarData.tasks) {
       calendarData.tasks.forEach((task: any) => {
         if (task.dueDate) {
           events.push({
             id: task.id,
-            title: `Tâche: ${task.title} [${task.priority}]`,
+            title: task.title,
             start: new Date(task.dueDate),
             end: new Date(new Date(task.dueDate).getTime() + 1800000),
             type: 'task',
@@ -171,13 +177,60 @@
     return events;
   });
 
-  // Helpers
+  // Mini calendar helpers
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  function isToday(date: Date) {
+    const t = new Date();
+    return date.getDate() === t.getDate() && date.getMonth() === t.getMonth() && date.getFullYear() === t.getFullYear();
+  }
+
+  function isSameDay(a: Date, b: Date) {
+    return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  }
+
+  const miniCalDays = $derived.by(() => {
+    const year = miniCalDate.getFullYear();
+    const month = miniCalDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const offset = firstDay === 0 ? 6 : firstDay - 1;
+
+    const days: { date: Date; isCurrentMonth: boolean }[] = [];
+    const prevDays = new Date(year, month, 0).getDate();
+    for (let i = offset - 1; i >= 0; i--) {
+      days.push({ date: new Date(year, month - 1, prevDays - i), isCurrentMonth: false });
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push({ date: new Date(year, month, i), isCurrentMonth: true });
+    }
+    while (days.length % 7 !== 0) {
+      const nextDay = days.length - offset - daysInMonth + 1;
+      days.push({ date: new Date(year, month + 1, nextDay), isCurrentMonth: false });
+    }
+    return days;
+  });
+
+  function navigateToDate(date: Date) {
+    calendarCurrentDate = new Date(date);
+  }
+
+  function miniCalPrev() {
+    miniCalDate = new Date(miniCalDate.getFullYear(), miniCalDate.getMonth() - 1, 1);
+  }
+
+  function miniCalNext() {
+    miniCalDate = new Date(miniCalDate.getFullYear(), miniCalDate.getMonth() + 1, 1);
+  }
+
+  // Format helper
   const formatLocal = (date: Date) => {
     const tzOffset = date.getTimezoneOffset() * 60000;
     const local = new Date(date.getTime() - tzOffset);
     return local.toISOString().slice(0, 16);
   };
 
+  // Data loading
   async function loadData() {
     loading = true;
     try {
@@ -188,7 +241,6 @@
       allStaff = membersData?.members || [];
       allRoles = rolesData?.roles || [];
 
-      // Default filter selection: just current user
       if (myStaffRecord) {
         selectedStaffIds = [myStaffRecord.id];
       } else if (allStaff.length > 0) {
@@ -243,8 +295,6 @@
   function openCreateModal(start: Date, end?: Date) {
     selectedStartDate = start;
     selectedEndDate = end || new Date(start.getTime() + 3600000);
-    
-    // Reset form fields
     formTitle = '';
     formDescription = '';
     formPriority = 'MEDIUM';
@@ -257,7 +307,6 @@
     formIsTempChannel = true;
     formInviteeUserIds = [];
     formError = '';
-
     creationModalOpen = true;
   }
 
@@ -266,7 +315,6 @@
       formError = 'Le titre est obligatoire.';
       return;
     }
-
     saving = true;
     formError = '';
 
@@ -274,29 +322,11 @@
       if (currentTab === 'meeting') {
         const ok = await createMeeting(formTitle, formDescription, selectedStartDate.toISOString(), selectedEndDate.toISOString());
         if (!ok) throw new Error("Erreur de création de la réunion.");
-      } 
-      
-      else if (currentTab === 'absence') {
-        if (!myStaffRecord) {
-          formError = "Votre compte n'est pas enregistré comme membre du staff.";
-          saving = false;
-          return;
-        }
-        if (!formDescription.trim()) {
-          formError = "Le motif de l'absence est obligatoire.";
-          saving = false;
-          return;
-        }
-        if (!formSuperiorId) {
-          formError = 'Veuillez sélectionner un supérieur à notifier.';
-          saving = false;
-          return;
-        }
-        if (selectedEndDate && selectedEndDate < selectedStartDate) {
-          formError = 'La date de fin doit être postérieure ou égale à la date de début.';
-          saving = false;
-          return;
-        }
+      } else if (currentTab === 'absence') {
+        if (!myStaffRecord) { formError = "Votre compte n'est pas enregistré comme membre du staff."; saving = false; return; }
+        if (!formDescription.trim()) { formError = "Le motif de l'absence est obligatoire."; saving = false; return; }
+        if (!formSuperiorId) { formError = 'Veuillez sélectionner un supérieur à notifier.'; saving = false; return; }
+        if (selectedEndDate && selectedEndDate < selectedStartDate) { formError = 'La date de fin doit être postérieure ou égale à la date de début.'; saving = false; return; }
         await createAbsence({
           staffUserId: myStaffRecord.userId,
           startDate: selectedStartDate.toISOString(),
@@ -306,9 +336,7 @@
           superiorUserId: formSuperiorId,
           confirmIndefinite: !selectedEndDate
         });
-      } 
-      
-      else if (currentTab === 'call') {
+      } else if (currentTab === 'call') {
         await createCall({
           title: formTitle,
           description: formDescription,
@@ -319,9 +347,7 @@
           isTempChannel: formIsTempChannel,
           inviteeUserIds: formInviteeUserIds
         });
-      } 
-      
-      else if (currentTab === 'task') {
+      } else if (currentTab === 'task') {
         await createTask({
           title: formTitle,
           description: formDescription,
@@ -346,82 +372,94 @@
     try {
       await updateTask(task.id, { status: nextStatus });
       await Promise.all([refreshCalendar(), refreshTasks()]);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   async function handleDeleteDetail() {
     if (!currentItemDetail) return;
     const { id, type } = currentItemDetail;
-
     if (!confirm('Voulez-vous vraiment supprimer cet élément ?')) return;
-
     try {
-      if (type === 'meeting') {
-        await deleteMeeting(id);
-      } else if (type === 'absence') {
-        await deleteAbsence(id);
-      } else if (type === 'call') {
-        await deleteCall(id);
-      } else if (type === 'task') {
-        await deleteTask(id);
-      }
+      if (type === 'meeting') await deleteMeeting(id);
+      else if (type === 'absence') await deleteAbsence(id);
+      else if (type === 'call') await deleteCall(id);
+      else if (type === 'task') await deleteTask(id);
       detailModalOpen = false;
       await Promise.all([refreshCalendar(), refreshTasks()]);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   function toggleType(type: string) {
-    if (visibleTypes.includes(type)) {
-      visibleTypes = visibleTypes.filter(t => t !== type);
-    } else {
-      visibleTypes = [...visibleTypes, type];
-    }
+    visibleTypes = visibleTypes.includes(type) ? visibleTypes.filter(t => t !== type) : [...visibleTypes, type];
   }
 
   function toggleStaff(staffId: string) {
-    if (selectedStaffIds.includes(staffId)) {
-      selectedStaffIds = selectedStaffIds.filter(id => id !== staffId);
-    } else {
-      selectedStaffIds = [...selectedStaffIds, staffId];
-    }
+    selectedStaffIds = selectedStaffIds.includes(staffId) ? selectedStaffIds.filter(id => id !== staffId) : [...selectedStaffIds, staffId];
     refreshCalendar();
   }
 
   function toggleEveryone() {
-    if (selectedStaffIds.length === activeStaff.length) {
-      selectedStaffIds = [];
-    } else {
-      selectedStaffIds = activeStaff.map(s => s.id);
-    }
+    selectedStaffIds = selectedStaffIds.length === activeStaff.length ? [] : activeStaff.map(s => s.id);
     refreshCalendar();
   }
+
+  function getTypeLabel(type: string) {
+    switch (type) {
+      case 'meeting': return 'Réunion';
+      case 'call': return 'Appel';
+      case 'absence': return 'Absence';
+      case 'task': return 'Tâche';
+      default: return type;
+    }
+  }
+
+  function getTypeColor(type: string) {
+    switch (type) {
+      case 'meeting': return 'emerald';
+      case 'call': return 'green';
+      case 'absence': return 'amber';
+      case 'task': return 'purple';
+      default: return 'slate';
+    }
+  }
+
+  // Pending task count
+  const pendingTaskCount = $derived(userTasks.filter(t => t.status !== 'COMPLETED').length);
 
   onMount(() => {
     const handleDashboardRefresh = () => loadData();
     window.addEventListener('kotbo-dashboard-refresh-request', handleDashboardRefresh);
     loadData();
-
     return () => window.removeEventListener('kotbo-dashboard-refresh-request', handleDashboardRefresh);
   });
 </script>
 
-<ModulePage 
-  title="Planning & Agenda" 
-  description="Gérez et visualisez l'emploi du temps de votre équipe (Réunions, Appels, Absences et Tâches)." 
+<ModulePage
+  title="Planning & Agenda"
+  description="Gérez et visualisez l'emploi du temps de votre équipe."
   icon="calendar"
   featureKey="absences"
 >
   {#snippet actions()}
     <RefreshButton onClick={async () => { await Promise.all([refreshCalendar(), refreshTasks()]); }} loading={loading} label="Actualiser" />
-    <ActionButton 
-      onClick={() => openCreateModal(new Date())} 
-      variant="primary" 
-      icon="plus" 
-      label="Planifier un événement" 
+
+    <!-- Task panel toggle (Outlook "My Day") -->
+    <button
+      onclick={() => showTaskPanel = !showTaskPanel}
+      class="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all border {showTaskPanel ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'bg-surface-container border-outline-variant/20 text-on-surface-variant hover:text-on-surface'}"
+    >
+      <Papicon icon="check-square" size={14} />
+      Ma journée
+      {#if pendingTaskCount > 0}
+        <span class="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] font-bold flex items-center justify-center">{pendingTaskCount}</span>
+      {/if}
+    </button>
+
+    <ActionButton
+      onClick={() => openCreateModal(new Date())}
+      variant="primary"
+      icon="plus"
+      label="Nouvel événement"
     />
   {/snippet}
 
@@ -432,375 +470,366 @@
       <LoadingHint context="data" />
     </div>
   {:else}
-    <div class="flex flex-col xl:flex-row gap-8">
-      
-      <!-- LEFT SIDEBAR: FILTERS -->
-      <aside class="w-full xl:w-72 flex flex-col gap-6 shrink-0">
-        <!-- Types Filter -->
-        <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm">
-          <div class="flex items-center gap-3 mb-1">
-            <div class="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
-              <Papicon icon="filter" size={18} class="text-primary" />
+    <div class="flex flex-col xl:flex-row gap-5">
+
+      <!-- ===== LEFT SIDEBAR (Outlook-style: mini calendar + filters) ===== -->
+      <aside class="w-full xl:w-60 flex flex-col gap-4 shrink-0 {sidebarCollapsed ? 'xl:w-12' : ''}">
+
+        {#if !sidebarCollapsed}
+          <!-- Mini Month Calendar -->
+          <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <button onclick={miniCalPrev} class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-hover transition-colors">
+                <Papicon icon="chevron-left" size={14} class="text-on-surface-variant" />
+              </button>
+              <span class="text-[11px] font-semibold text-on-surface capitalize">
+                {capitalize(miniCalDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }))}
+              </span>
+              <button onclick={miniCalNext} class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-hover transition-colors">
+                <Papicon icon="chevron-right" size={14} class="text-on-surface-variant" />
+              </button>
             </div>
-            <span class="text-xs font-semibold text-on-surface uppercase tracking-widest">Affichage</span>
+
+            <div class="grid grid-cols-7 gap-0">
+              {#each ['L', 'M', 'M', 'J', 'V', 'S', 'D'] as day}
+                <div class="text-center text-[9px] font-semibold text-on-surface-variant/50 py-1">{day}</div>
+              {/each}
+              {#each miniCalDays as { date, isCurrentMonth }}
+                <button
+                  onclick={() => navigateToDate(date)}
+                  class="text-center text-[10px] w-full aspect-square rounded-full flex items-center justify-center transition-all
+                    {isCurrentMonth ? 'text-on-surface hover:bg-primary/15' : 'text-on-surface-variant/25'}
+                    {isToday(date) ? 'bg-primary text-white font-bold hover:bg-primary/90' : ''}
+                    {isSameDay(date, calendarCurrentDate) && !isToday(date) ? 'ring-1.5 ring-primary/50 text-primary font-semibold' : ''}"
+                >
+                  {date.getDate()}
+                </button>
+              {/each}
+            </div>
           </div>
 
-          <div class="flex flex-col gap-2">
-            <button 
-              onclick={() => toggleType('meeting')}
-              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('meeting') ? 'bg-emerald-500/5 border border-emerald-500/20' : 'opacity-50'}"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded bg-emerald-500 border border-emerald-600/30"></div>
-                <span class="text-[11px] font-bold text-on-surface">Réunions staff</span>
-              </div>
-              <Papicon icon={visibleTypes.includes('meeting') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
-            </button>
-
-            <button 
-              onclick={() => toggleType('call')}
-              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('call') ? 'bg-green-500/5 border border-green-500/20' : 'opacity-50'}"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded bg-green-500 border border-green-600/30"></div>
-                <span class="text-[11px] font-bold text-on-surface">Appels Discord</span>
-              </div>
-              <Papicon icon={visibleTypes.includes('call') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
-            </button>
-
-            <button 
-              onclick={() => toggleType('absence')}
-              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('absence') ? 'bg-amber-500/5 border border-amber-500/20' : 'opacity-50'}"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded bg-amber-500 border border-amber-600/30"></div>
-                <span class="text-[11px] font-bold text-on-surface">Absences / Congés</span>
-              </div>
-              <Papicon icon={visibleTypes.includes('absence') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
-            </button>
-
-            <button 
-              onclick={() => toggleType('task')}
-              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('task') ? 'bg-purple-500/5 border border-purple-500/20' : 'opacity-50'}"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded bg-purple-500 border border-purple-600/30"></div>
-                <span class="text-[11px] font-bold text-on-surface">Tâches assignées</span>
-              </div>
-              <Papicon icon={visibleTypes.includes('task') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
-            </button>
+          <!-- Calendars / Type Filters -->
+          <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 shadow-sm">
+            <h3 class="text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-3">Mes calendriers</h3>
+            <div class="flex flex-col gap-1">
+              {#each [
+                { key: 'meeting', label: 'Réunions', color: 'emerald' },
+                { key: 'call', label: 'Appels Discord', color: 'green' },
+                { key: 'absence', label: 'Absences', color: 'amber' },
+                { key: 'task', label: 'Tâches', color: 'purple' }
+              ] as { key, label, color }}
+                <button
+                  onclick={() => toggleType(key)}
+                  class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition-all text-left group {visibleTypes.includes(key) ? 'hover:bg-surface-hover' : 'opacity-40 hover:opacity-60'}"
+                >
+                  <div class="w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors
+                    {color === 'emerald' ? (visibleTypes.includes(key) ? 'bg-emerald-500 border-emerald-600' : 'border-emerald-500/40') : ''}
+                    {color === 'green' ? (visibleTypes.includes(key) ? 'bg-green-500 border-green-600' : 'border-green-500/40') : ''}
+                    {color === 'amber' ? (visibleTypes.includes(key) ? 'bg-amber-500 border-amber-600' : 'border-amber-500/40') : ''}
+                    {color === 'purple' ? (visibleTypes.includes(key) ? 'bg-purple-500 border-purple-600' : 'border-purple-500/40') : ''}"
+                  >
+                    {#if visibleTypes.includes(key)}
+                      <Papicon icon="check" size={10} class="text-white" />
+                    {/if}
+                  </div>
+                  <span class="text-[11px] font-semibold text-on-surface">{label}</span>
+                </button>
+              {/each}
+            </div>
           </div>
+
+          <!-- Staff Members -->
+          <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest">Personnes</h3>
+              <button
+                onclick={toggleEveryone}
+                class="text-[9px] font-semibold uppercase px-2 py-0.5 rounded transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary/20 text-primary' : 'text-on-surface-variant/50 hover:text-on-surface-variant'}"
+              >
+                {selectedStaffIds.length === activeStaff.length ? 'Aucun' : 'Tous'}
+              </button>
+            </div>
+
+            <div class="flex flex-col gap-0.5 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+              {#each activeStaff as staff}
+                <button
+                  onclick={() => toggleStaff(staff.id)}
+                  class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all hover:bg-surface-hover group {selectedStaffIds.includes(staff.id) ? '' : 'opacity-40'}"
+                >
+                  <div class="relative shrink-0">
+                    <img src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.username}`} alt="" class="w-6 h-6 rounded-full" />
+                    {#if selectedStaffIds.includes(staff.id)}
+                      <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-primary rounded-full border-2 border-surface-container-low"></div>
+                    {/if}
+                  </div>
+                  <div class="flex-1 text-left min-w-0">
+                    <div class="text-[11px] font-semibold text-on-surface truncate">{staff.displayName || staff.username}</div>
+                  </div>
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Sidebar collapse toggle -->
+        <button
+          onclick={() => sidebarCollapsed = !sidebarCollapsed}
+          class="hidden xl:flex items-center justify-center w-full py-1.5 text-on-surface-variant/40 hover:text-on-surface-variant transition-colors rounded-lg hover:bg-surface-hover"
+        >
+          <Papicon icon={sidebarCollapsed ? 'chevrons-right' : 'chevrons-left'} size={14} />
+        </button>
+      </aside>
+
+      <!-- ===== MAIN CALENDAR ===== -->
+      <main class="flex-1 min-w-0">
+        <Calendar
+          bind:view={calendarView}
+          bind:currentDate={calendarCurrentDate}
+          events={calendarEvents}
+          onRangeChange={handleRangeChange}
+          onEventClick={handleEventClick}
+          onDateClick={(start: any, end: any) => openCreateModal(start, end)}
+        />
+      </main>
+
+      <!-- ===== RIGHT PANEL: Tasks / "Ma Journée" (Outlook-style) ===== -->
+      {#if showTaskPanel}
+        <aside class="w-full xl:w-72 flex flex-col gap-0 shrink-0">
+          <div class="bg-surface-container-low rounded-xl border border-outline-variant/30 shadow-sm flex flex-col overflow-hidden" style="height: 75vh; min-height: 600px;">
+            <!-- Panel Header -->
+            <div class="px-5 py-3.5 border-b border-outline-variant/20 flex items-center justify-between shrink-0">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 bg-purple-500/15 rounded-lg flex items-center justify-center">
+                  <Papicon icon="sun" size={14} class="text-purple-400" />
+                </div>
+                <div>
+                  <h3 class="text-xs font-bold text-on-surface leading-tight">Ma journée</h3>
+                  <p class="text-[9px] text-on-surface-variant/60 font-medium">
+                    {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </p>
+                </div>
+              </div>
+              <button
+                onclick={() => showTaskPanel = false}
+                class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-hover transition-colors"
+              >
+                <Papicon icon="x" size={14} class="text-on-surface-variant/50" />
+              </button>
+            </div>
+
+            <!-- Tasks List -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar px-3 py-3">
+              {#if userTasks.length === 0}
+                <div class="flex flex-col items-center justify-center h-full text-center p-6 text-on-surface-variant/30">
+                  <Papicon icon="check-circle" size={40} class="mb-3" />
+                  <p class="text-xs font-semibold">Aucune tâche en cours</p>
+                  <p class="text-[10px] mt-1">Votre journée est libre !</p>
+                </div>
+              {:else}
+                <div class="flex flex-col gap-1.5">
+                  {#each userTasks as task}
+                    <div class="group flex items-start gap-2.5 p-2.5 rounded-lg transition-all hover:bg-surface-hover/50 {task.status === 'COMPLETED' ? 'opacity-50' : ''}">
+                      <button
+                        onclick={() => toggleTaskCompletion(task)}
+                        class="mt-0.5 w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors
+                          {task.status === 'COMPLETED' ? 'border-purple-500 bg-purple-500' : 'border-on-surface-variant/30 hover:border-purple-500'}"
+                      >
+                        {#if task.status === 'COMPLETED'}
+                          <Papicon icon="check" size={10} class="text-white" />
+                        {/if}
+                      </button>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-[11px] font-semibold text-on-surface leading-tight {task.status === 'COMPLETED' ? 'line-through text-on-surface-variant' : ''}">{task.title}</p>
+                        {#if task.description}
+                          <p class="text-[10px] text-on-surface-variant/60 line-clamp-1 mt-0.5">{task.description}</p>
+                        {/if}
+                        <div class="flex items-center gap-2 mt-1.5">
+                          {#if task.priority === 'HIGH'}
+                            <span class="text-[9px] font-bold uppercase tracking-wider text-red-400 flex items-center gap-0.5">
+                              <Papicon icon="alert-triangle" size={9} /> Important
+                            </span>
+                          {/if}
+                          {#if task.dueDate}
+                            <span class="text-[9px] text-on-surface-variant/50 flex items-center gap-0.5 font-medium">
+                              <Papicon icon="calendar" size={9} />
+                              {new Date(task.dueDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                            </span>
+                          {/if}
+                        </div>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+
+            <!-- Add Task -->
+            <div class="px-3 py-3 border-t border-outline-variant/15 shrink-0">
+              <button
+                onclick={() => { currentTab = 'task'; openCreateModal(new Date()); }}
+                class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-semibold text-purple-400 hover:bg-purple-500/10 transition-colors"
+              >
+                <Papicon icon="plus" size={14} />
+                Ajouter une tâche
+              </button>
+            </div>
+          </div>
+        </aside>
+      {/if}
+    </div>
+  {/if}
+
+  <!-- ===== CREATION MODAL ===== -->
+  {#if creationModalOpen}
+    <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
+      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => creationModalOpen = false} aria-label="Fermer"></button>
+
+      <div class="relative w-full max-w-xl bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200">
+
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-outline-variant/15 bg-surface-container-low flex justify-between items-center">
+          <h3 class="text-sm font-bold text-on-surface">Nouvel événement</h3>
+          <button onclick={() => creationModalOpen = false} class="w-7 h-7 rounded-md hover:bg-surface-hover flex items-center justify-center transition-colors">
+            <Papicon icon="x" size={16} />
+          </button>
         </div>
 
-        <!-- Team Filter -->
-        <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-widest text-on-surface">Membres</h3>
-            <button 
-              onclick={toggleEveryone}
-              class="text-[11px] font-semibold uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary text-white shadow-sm' : 'bg-surface-container-high text-on-surface-variant'}"
-            >
-              {selectedStaffIds.length === activeStaff.length ? 'Tous déselectionner' : 'Tous sélectionner'}
-            </button>
-          </div>
-          
-          <div class="flex flex-col gap-1 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
-            {#each activeStaff as staff}
-              <button 
-                onclick={() => toggleStaff(staff.id)}
-                class="flex items-center gap-3 p-2 rounded-xl transition-all hover:bg-surface-hover group {selectedStaffIds.includes(staff.id) ? 'bg-primary/5' : ''}"
+        <!-- Type Tabs (Outlook segment control) -->
+        <div class="px-6 pt-4 pb-0">
+          <div class="flex bg-surface-container/50 p-0.5 rounded-lg border border-outline-variant/15 gap-0.5">
+            {#each [
+              { key: 'meeting', label: 'Réunion', icon: 'calendar', color: 'emerald' },
+              { key: 'call', label: 'Appel', icon: 'phone', color: 'green' },
+              { key: 'absence', label: 'Absence', icon: 'sun', color: 'amber' },
+              { key: 'task', label: 'Tâche', icon: 'check-square', color: 'purple' }
+            ] as { key, label, icon, color }}
+              <button
+                onclick={() => currentTab = key as any}
+                class="flex-1 py-2 text-[11px] font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 whitespace-nowrap
+                  {currentTab === key
+                    ? (color === 'emerald' ? 'bg-emerald-500 text-white shadow-sm' :
+                       color === 'green' ? 'bg-green-600 text-white shadow-sm' :
+                       color === 'amber' ? 'bg-amber-500 text-white shadow-sm' :
+                       'bg-purple-600 text-white shadow-sm')
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
               >
-                <div class="relative">
-                  <img src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.username}`} alt="" class="w-8 h-8 rounded-full border border-outline-variant/20" />
-                  {#if selectedStaffIds.includes(staff.id)}
-                    <div class="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border border-surface-container-low flex items-center justify-center">
-                      <div class="w-1 h-1 bg-white rounded-full"></div>
-                    </div>
-                  {/if}
-                </div>
-                <div class="flex-1 text-left">
-                  <div class="text-xs font-bold text-on-surface line-clamp-1">{staff.displayName || staff.username}</div>
-                  <div class="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">{staff.grade}</div>
-                </div>
+                <Papicon icon={icon} size={12} />
+                {label}
               </button>
             {/each}
           </div>
         </div>
-      </aside>
 
-      <!-- MAIN AREA: CALENDAR -->
-      <main class="flex-1 min-w-0">
-        <Calendar 
-          events={calendarEvents} 
-          onRangeChange={handleRangeChange}
-          onEventClick={handleEventClick}
-          onDateClick={(start: any, end: any) => {
-            openCreateModal(start, end);
-          }}
-        />
-      </main>
-
-      <!-- RIGHT SIDEBAR: TO-DO / TASKS LIST -->
-      <aside class="w-full xl:w-80 flex flex-col gap-6 shrink-0">
-        <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm min-h-[500px]">
-          <div class="flex items-center gap-3 mb-2">
-            <div class="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
-              <Papicon icon="check-square" size={18} class="text-purple-600" />
-            </div>
-            <span class="text-xs font-semibold text-on-surface uppercase tracking-widest">Mes Tâches (To-Do)</span>
-          </div>
-
-          <div class="flex-1 flex flex-col gap-3 overflow-y-auto max-h-[400px] pr-1 custom-scrollbar">
-            {#if userTasks.length === 0}
-              <div class="flex-1 flex flex-col items-center justify-center text-center p-6 text-on-surface-variant/40">
-                <Papicon icon="list" size={32} class="mb-2" />
-                <p class="text-xs font-medium">Aucune tâche en cours.</p>
-              </div>
-            {:else}
-              {#each userTasks as task}
-                <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/20 flex gap-3 items-start hover:shadow-md hover:border-purple-500/25 transition-all {task.status === 'COMPLETED' ? 'opacity-60' : ''}">
-                  <button 
-                    onclick={() => toggleTaskCompletion(task)}
-                    class="mt-0.5 w-5 h-5 rounded border border-outline-variant hover:border-purple-500 flex items-center justify-center text-purple-600 transition-colors shrink-0"
-                  >
-                    {#if task.status === 'COMPLETED'}
-                      <Papicon icon="check" size={14} />
-                    {/if}
-                  </button>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-xs font-bold text-on-surface truncate {task.status === 'COMPLETED' ? 'line-through' : ''}">
-                      {task.title}
-                    </p>
-                    {#if task.description}
-                      <p class="text-[10px] text-on-surface-variant line-clamp-2 mt-0.5 leading-tight">
-                        {task.description}
-                      </p>
-                    {/if}
-                    <div class="flex items-center gap-2 mt-2">
-                      <span class="text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded {task.priority === 'HIGH' ? 'bg-red-500/10 text-red-600' : (task.priority === 'MEDIUM' ? 'bg-amber-500/10 text-amber-600' : 'bg-blue-500/10 text-blue-600')}">
-                        {task.priority}
-                      </span>
-                      {#if task.dueDate}
-                        <span class="text-[11px] text-on-surface-variant flex items-center gap-1 font-medium">
-                          <Papicon icon="calendar" size={10} />
-                          {new Date(task.dueDate).toLocaleDateString('fr-FR')}
-                        </span>
-                      {/if}
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            {/if}
-          </div>
-
-          <div class="pt-4 border-t border-outline-variant/20 flex flex-col gap-2">
-            <button 
-              onclick={() => { currentTab = 'task'; openCreateModal(new Date()); }}
-              class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
-            >
-              <Papicon icon="plus" size={14} />
-              Ajouter une tâche
-            </button>
-          </div>
-        </div>
-      </aside>
-
-    </div>
-  {/if}
-
-  <!-- CREATION MODAL -->
-  {#if creationModalOpen}
-    <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <button type="button" class="absolute inset-0 bg-black/40 border-none cursor-default" onclick={() => creationModalOpen = false} aria-label="Fermer"></button>
-      
-      <div class="relative w-full max-w-2xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200">
-        
-        <!-- Header & Tabs -->
-        <div class="p-6 border-b border-outline-variant/20 bg-surface-container-low flex flex-col gap-4">
-          <div class="flex justify-between items-center">
-            <h3 class="text-xl font-semibold text-on-surface">Planifier un événement</h3>
-            <button onclick={() => creationModalOpen = false} class="w-8 h-8 rounded-full hover:bg-surface-hover flex items-center justify-center transition-colors">
-              <Papicon icon="x" size={20} />
-            </button>
-          </div>
-
-          <!-- Outlook/Teams inspired tabs -->
-          <div class="flex bg-surface-container p-1 rounded-lg border border-outline-variant/20 gap-1">
-            <button 
-              onclick={() => currentTab = 'meeting'}
-              class="flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 {currentTab === 'meeting' ? 'bg-emerald-500 text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
-            >
-              <Papicon icon="calendar" size={14} />
-              Réunion Staff
-            </button>
-            <button 
-              onclick={() => currentTab = 'call'}
-              class="flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 {currentTab === 'call' ? 'bg-green-600 text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
-            >
-              <Papicon icon="phone" size={14} />
-              Appel/Call
-            </button>
-            <button 
-              onclick={() => currentTab = 'absence'}
-              class="flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 {currentTab === 'absence' ? 'bg-amber-500 text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
-            >
-              <Papicon icon="sun" size={14} />
-              Absence
-            </button>
-            <button 
-              onclick={() => currentTab = 'task'}
-              class="flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 {currentTab === 'task' ? 'bg-purple-600 text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
-            >
-              <Papicon icon="check" size={14} />
-              Tâche
-            </button>
-          </div>
-        </div>
-
-        <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+        <div class="px-6 py-5 space-y-4 max-h-[55vh] overflow-y-auto custom-scrollbar">
+          <!-- Title -->
           {#if currentTab !== 'absence'}
             <div>
-              <label for="form-title" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Titre</label>
-              <FormInput id="form-title" bind:value={formTitle} placeholder="Ex: Réunion de coordination ou Synchro Hebdo" className="w-full font-bold" />
+              <FormInput bind:value={formTitle} placeholder="Ajouter un titre" className="w-full text-sm font-semibold border-0! border-b! border-outline-variant/20! rounded-none! px-0! py-2! focus:border-primary! bg-transparent!" />
             </div>
           {/if}
 
-          <!-- Date fields -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label for="form-start-date" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Date de début</label>
-              <input 
-                id="form-start-date"
-                type="datetime-local" 
+          <!-- Dates -->
+          <div class="flex items-center gap-3">
+            <Papicon icon="clock" size={16} class="text-on-surface-variant/50 shrink-0" />
+            <div class="flex-1 flex flex-wrap items-center gap-2">
+              <input
+                type="datetime-local"
                 value={formatLocal(selectedStartDate)}
                 onchange={(e) => selectedStartDate = new Date((e.target as HTMLInputElement).value)}
-                class="w-full bg-surface-container text-sm px-4 py-2.5 rounded-xl border border-outline-variant/20 focus:border-primary outline-none transition-all"
+                class="bg-transparent text-xs font-medium px-2 py-1.5 rounded-md border border-outline-variant/20 focus:border-primary outline-none transition-all"
               />
-            </div>
-            {#if currentTab !== 'task'}
-              <div>
-                <label for="form-end-date" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Date de fin</label>
-                <input 
-                  id="form-end-date"
-                  type="datetime-local" 
+              {#if currentTab !== 'task'}
+                <span class="text-on-surface-variant/40 text-xs">–</span>
+                <input
+                  type="datetime-local"
                   value={formatLocal(selectedEndDate)}
                   onchange={(e) => selectedEndDate = new Date((e.target as HTMLInputElement).value)}
-                  class="w-full bg-surface-container text-sm px-4 py-2.5 rounded-xl border border-outline-variant/20 focus:border-primary outline-none transition-all"
+                  class="bg-transparent text-xs font-medium px-2 py-1.5 rounded-md border border-outline-variant/20 focus:border-primary outline-none transition-all"
                 />
-              </div>
-            {/if}
+              {/if}
+            </div>
           </div>
 
-          <!-- Meeting/Call/Event details -->
-          <div>
-            <label for="form-desc" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">
-              {currentTab === 'absence' ? "Motif de l'absence *" : 'Description / Ordre du jour'}
-            </label>
-            <FormTextarea id="form-desc" bind:value={formDescription} placeholder="Détails, points à aborder..." rows={3} className="w-full resize-none" />
+          <!-- Description -->
+          <div class="flex items-start gap-3">
+            <Papicon icon="align-left" size={16} class="text-on-surface-variant/50 shrink-0 mt-2" />
+            <FormTextarea bind:value={formDescription} placeholder={currentTab === 'absence' ? "Motif de l'absence *" : 'Ajouter une description...'} rows={2} className="w-full resize-none text-xs!" />
           </div>
 
-          <!-- Tab Specific fields -->
+          <!-- Absence-specific fields -->
           {#if currentTab === 'absence'}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label for="form-absence-type" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Type d'absence</label>
-                <FormSelect 
-                  id="form-absence-type"
-                  bind:value={formAbsenceType}
-                  className="w-full bg-surface-container text-sm pl-4 pr-10 py-2.5 rounded-xl border border-outline-variant/20 focus:border-primary outline-none transition-all"
-                >
+            <div class="flex items-center gap-3">
+              <Papicon icon="tag" size={16} class="text-on-surface-variant/50 shrink-0" />
+              <div class="flex-1 grid grid-cols-2 gap-3">
+                <FormSelect bind:value={formAbsenceType} className="w-full text-xs! py-1.5!">
                   <option value="Vacances">Vacances / Congés</option>
                   <option value="Maladie">Maladie / Médical</option>
                   <option value="Examens">Examens / Études</option>
                   <option value="Autre">Autre motif</option>
                 </FormSelect>
-              </div>
-              <div>
-                <label for="form-superior" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Supérieur à notifier</label>
-                <SearchableSelect 
-                  id="form-superior" 
-                  bind:value={formSuperiorId} 
-                  options={eligibleSuperiors.map(s => ({ id: s.userId, name: s.displayName || s.username }))} 
-                  placeholder="Sélectionner un supérieur" 
-                  className="w-full" 
+                <SearchableSelect
+                  bind:value={formSuperiorId}
+                  options={eligibleSuperiors.map(s => ({ id: s.userId, name: s.displayName || s.username }))}
+                  placeholder="Supérieur à notifier"
+                  className="w-full text-xs!"
                 />
               </div>
             </div>
           {/if}
 
+          <!-- Call-specific fields -->
           {#if currentTab === 'call'}
-            <div class="border border-outline-variant/20 rounded-xl p-4 bg-surface-container-low space-y-4">
-              <h4 class="text-xs font-semibold uppercase tracking-widest text-on-surface">Configuration Salon Discord</h4>
-              
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label for="form-channel-mode" class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Mode de salon</label>
-                  <FormSelect 
-                    id="form-channel-mode"
-                    bind:value={formChannelMode}
-                    className="w-full bg-surface-container text-sm pl-4 pr-10 py-2.5 rounded-xl border border-outline-variant/20 focus:border-primary outline-none transition-all"
-                  >
-                    <option value="CREATE_NEW">Créer un salon temporaire</option>
-                    <option value="EXISTING">Lier à un salon existant</option>
-                  </FormSelect>
-                </div>
+            <div class="border border-outline-variant/15 rounded-lg p-4 bg-surface-container/30 space-y-3">
+              <div class="flex items-center gap-2 text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest">
+                <Papicon icon="headphones" size={12} />
+                Configuration Discord
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <FormSelect bind:value={formChannelMode} className="w-full text-xs! py-1.5!">
+                  <option value="CREATE_NEW">Salon temporaire</option>
+                  <option value="EXISTING">Salon existant</option>
+                </FormSelect>
                 {#if formChannelMode === 'CREATE_NEW'}
-                  <div>
-                    <label for="form-channel-type" class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Type de salon</label>
-                    <FormSelect 
-                      id="form-channel-type"
-                      bind:value={formChannelType}
-                      className="w-full bg-surface-container text-sm pl-4 pr-10 py-2.5 rounded-xl border border-outline-variant/20 focus:border-primary outline-none transition-all"
-                    >
-                      <option value="VOICE">Vocal Classique</option>
-                      <option value="STAGE">Salon Conférence / Stage</option>
-                    </FormSelect>
-                  </div>
+                  <FormSelect bind:value={formChannelType} className="w-full text-xs! py-1.5!">
+                    <option value="VOICE">Vocal</option>
+                    <option value="STAGE">Conférence</option>
+                  </FormSelect>
                 {:else}
-                  <div>
-                    <label for="form-discord-chan" class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Salon existant</label>
-                    <SearchableSelect 
-                      id="form-discord-chan" 
-                      bind:value={formDiscordChannelId} 
-                      options={[
-                        ...dashboardStore.state.discordVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` })),
-                        ...dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: `# ${c.name}` }))
-                      ]} 
-                      placeholder="Sélectionner un salon" 
-                      className="w-full" 
-                    />
-                  </div>
+                  <SearchableSelect
+                    bind:value={formDiscordChannelId}
+                    options={[
+                      ...dashboardStore.state.discordVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` })),
+                      ...dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: `# ${c.name}` }))
+                    ]}
+                    placeholder="Sélectionner"
+                    className="w-full text-xs!"
+                  />
                 {/if}
               </div>
 
               {#if formChannelMode === 'CREATE_NEW'}
-                <div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-high/50 border border-outline-variant/10">
-                  <div>
-                    <p class="text-xs font-bold">Suppression automatique</p>
-                    <p class="text-[10px] text-on-surface-variant">Supprime le salon dès que le dernier membre s'en va.</p>
-                  </div>
+                <div class="flex items-center justify-between py-2 px-3 rounded-md bg-surface-container-high/30">
+                  <span class="text-[10px] font-medium text-on-surface-variant">Supprimer auto. quand vide</span>
                   <ToggleSwitch checked={formIsTempChannel} onToggle={(v: boolean) => formIsTempChannel = v} />
                 </div>
               {/if}
 
               <div>
-                <span class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Inviter des membres du staff</span>
-                <div class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Invités</span>
+                <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
                   {#each activeStaff.filter(s => s.id !== myStaffRecord?.id) as staff}
-                    <label class="flex items-center gap-2 p-2 bg-surface-container-high/40 rounded-xl cursor-pointer hover:bg-surface-container-high transition-colors">
-                      <input 
-                        type="checkbox" 
+                    <label class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-container-high/30 rounded-md cursor-pointer hover:bg-surface-container-high/50 transition-colors">
+                      <input
+                        type="checkbox"
                         checked={formInviteeUserIds.includes(staff.id)}
                         onchange={(e) => {
-                          if ((e.target as HTMLInputElement).checked) {
-                            formInviteeUserIds = [...formInviteeUserIds, staff.id];
-                          } else {
-                            formInviteeUserIds = formInviteeUserIds.filter(id => id !== staff.id);
-                          }
+                          if ((e.target as HTMLInputElement).checked) formInviteeUserIds = [...formInviteeUserIds, staff.id];
+                          else formInviteeUserIds = formInviteeUserIds.filter(id => id !== staff.id);
                         }}
-                        class="rounded border-outline-variant text-primary focus:ring-primary w-4 h-4" 
+                        class="rounded border-outline-variant text-primary focus:ring-primary w-3 h-3"
                       />
-                      <span class="text-xs font-semibold text-on-surface">{staff.displayName || staff.username}</span>
+                      <span class="text-[10px] font-semibold text-on-surface">{staff.displayName || staff.username}</span>
                     </label>
                   {/each}
                 </div>
@@ -808,151 +837,167 @@
             </div>
           {/if}
 
+          <!-- Task-specific fields -->
           {#if currentTab === 'task'}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label for="form-priority" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Priorité</label>
-                <FormSelect 
-                  id="form-priority"
-                  bind:value={formPriority}
-                  className="w-full bg-surface-container text-sm pl-4 pr-10 py-2.5 rounded-xl border border-outline-variant/20 focus:border-primary outline-none transition-all"
-                >
-                  <option value="LOW">Basse</option>
-                  <option value="MEDIUM">Moyenne</option>
-                  <option value="HIGH">Haute</option>
+            <div class="flex items-center gap-3">
+              <Papicon icon="flag" size={16} class="text-on-surface-variant/50 shrink-0" />
+              <div class="flex-1 grid grid-cols-2 gap-3">
+                <FormSelect bind:value={formPriority} className="w-full text-xs! py-1.5!">
+                  <option value="LOW">Priorité basse</option>
+                  <option value="MEDIUM">Priorité moyenne</option>
+                  <option value="HIGH">Priorité haute</option>
                 </FormSelect>
-              </div>
-              <div>
-                <label for="form-assignee" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Assigner à</label>
-                <SearchableSelect 
-                  id="form-assignee" 
-                  bind:value={formAssigneeId} 
-                  options={activeStaff.map(s => ({ id: s.id, name: s.displayName || s.username }))} 
-                  placeholder="Moi-même (Par défaut)" 
-                  className="w-full" 
+                <SearchableSelect
+                  bind:value={formAssigneeId}
+                  options={activeStaff.map(s => ({ id: s.id, name: s.displayName || s.username }))}
+                  placeholder="Assigner à..."
+                  className="w-full text-xs!"
                 />
               </div>
             </div>
           {/if}
 
           {#if formError}
-            <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 text-xs font-semibold">
+            <div class="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[11px] font-semibold">
+              <Papicon icon="alert-circle" size={14} />
               {formError}
             </div>
           {/if}
         </div>
 
-        <div class="p-6 border-t border-outline-variant/20 bg-surface-container-low flex justify-end gap-3">
-          <button onclick={() => creationModalOpen = false} class="px-5 py-2.5 rounded-xl text-xs font-bold text-on-surface hover:bg-surface-hover transition-colors">
+        <!-- Footer -->
+        <div class="px-6 py-3.5 border-t border-outline-variant/15 bg-surface-container-low flex justify-end gap-2">
+          <button onclick={() => creationModalOpen = false} class="px-4 py-2 rounded-lg text-[11px] font-semibold text-on-surface-variant hover:bg-surface-hover transition-colors">
             Annuler
           </button>
-          <button 
-            onclick={handleCreateItem} 
+          <button
+            onclick={handleCreateItem}
             disabled={saving}
-            class="px-6 py-2.5 rounded-xl text-xs font-semibold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 transition-colors flex items-center gap-2 shadow-md"
+            class="px-5 py-2 rounded-lg text-[11px] font-semibold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-md"
           >
             {#if saving}
-              <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              <div class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
             {/if}
-            Créer l'élément
+            Enregistrer
           </button>
         </div>
-
       </div>
     </div>
   {/if}
 
-  <!-- DETAILS / EDIT MODAL -->
+  <!-- ===== DETAIL MODAL ===== -->
   {#if detailModalOpen && currentItemDetail}
     {@const raw = currentItemDetail.raw}
+    {@const typeColor = getTypeColor(currentItemDetail.type)}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <button type="button" class="absolute inset-0 bg-black/40 border-none cursor-default" onclick={() => detailModalOpen = false} aria-label="Fermer"></button>
-      
-      <div class="relative w-full max-w-lg bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200 text-on-surface">
-        
-        <div class="p-6 border-b border-outline-variant/20 bg-surface-container-low flex justify-between items-center">
-          <div>
-            <span class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider {currentItemDetail.type === 'meeting' ? 'bg-emerald-500/10 text-emerald-600' : (currentItemDetail.type === 'call' ? 'bg-green-600/10 text-green-600' : (currentItemDetail.type === 'absence' ? 'bg-amber-500/10 text-amber-600' : 'bg-purple-600/10 text-purple-600'))}">
-              {currentItemDetail.type}
-            </span>
-            <h3 class="text-lg font-semibold mt-1 leading-tight">{currentItemDetail.title}</h3>
-          </div>
-          <button onclick={() => detailModalOpen = false} class="w-8 h-8 rounded-full hover:bg-surface-hover flex items-center justify-center transition-colors">
-            <Papicon icon="x" size={20} />
-          </button>
-        </div>
+      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => detailModalOpen = false} aria-label="Fermer"></button>
 
-        <div class="p-6 space-y-4">
+      <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200 text-on-surface">
+
+        <!-- Colored top bar (Outlook-style) -->
+        <div class="h-1 {typeColor === 'emerald' ? 'bg-emerald-500' : typeColor === 'green' ? 'bg-green-500' : typeColor === 'amber' ? 'bg-amber-500' : 'bg-purple-500'}"></div>
+
+        <div class="p-5">
+          <!-- Header -->
+          <div class="flex justify-between items-start mb-4">
+            <div class="flex-1 min-w-0">
+              <span class="text-[9px] font-bold uppercase tracking-wider
+                {typeColor === 'emerald' ? 'text-emerald-400' : typeColor === 'green' ? 'text-green-400' : typeColor === 'amber' ? 'text-amber-400' : 'text-purple-400'}">
+                {getTypeLabel(currentItemDetail.type)}
+              </span>
+              <h3 class="text-base font-bold mt-0.5 leading-tight">{currentItemDetail.title}</h3>
+            </div>
+            <button onclick={() => detailModalOpen = false} class="w-7 h-7 rounded-md hover:bg-surface-hover flex items-center justify-center transition-colors shrink-0 ml-2">
+              <Papicon icon="x" size={16} />
+            </button>
+          </div>
+
+          <!-- Time -->
+          <div class="flex items-center gap-2.5 text-xs text-on-surface-variant mb-4">
+            <Papicon icon="clock" size={14} class="shrink-0" />
+            <span class="font-medium">
+              {new Date(currentItemDetail.start).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              {#if currentItemDetail.end}
+                <span class="text-on-surface-variant/40 mx-1">–</span>
+                {new Date(currentItemDetail.end).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              {/if}
+            </span>
+          </div>
+
+          <!-- Description -->
           {#if raw.description || raw.reason}
-            <div class="p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 text-xs italic">
+            <div class="p-3 bg-surface-container/50 rounded-lg text-xs text-on-surface-variant leading-relaxed mb-4">
               {raw.description || raw.reason}
             </div>
           {/if}
 
-          <div class="space-y-2 text-xs">
-            <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
-              <span class="font-bold">Début :</span>
-              <span>{new Date(currentItemDetail.start).toLocaleString('fr-FR')}</span>
-            </div>
-            {#if currentItemDetail.end}
-              <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
-                <span class="font-bold">Fin :</span>
-                <span>{new Date(currentItemDetail.end).toLocaleString('fr-FR')}</span>
+          <!-- Type-specific details -->
+          {#if currentItemDetail.type === 'call'}
+            <div class="space-y-2 text-xs mb-4">
+              <div class="flex items-center gap-2 text-on-surface-variant">
+                <Papicon icon="headphones" size={12} />
+                <span class="font-medium">{raw.channelMode === 'CREATE_NEW' ? 'Salon temporaire' : 'Salon existant'}</span>
               </div>
-            {/if}
-
-            {#if currentItemDetail.type === 'call'}
-              <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
-                <span class="font-bold">Mode Salon :</span>
-                <span>{raw.channelMode === 'CREATE_NEW' ? 'Salon temporaire créé' : 'Salon Discord existant'}</span>
-              </div>
-              {#if raw.discordChannelId}
-                <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
-                  <span class="font-bold">ID Salon Discord :</span>
-                  <span class="font-mono">{raw.discordChannelId}</span>
-                </div>
-              {/if}
               {#if raw.invitees && raw.invitees.length > 0}
-                <div class="py-2">
-                  <span class="font-bold block mb-1">Invités :</span>
-                  <div class="flex flex-wrap gap-1.5">
+                <div class="flex items-start gap-2">
+                  <Papicon icon="users" size={12} class="mt-0.5 text-on-surface-variant" />
+                  <div class="flex flex-wrap gap-1">
                     {#each raw.invitees as invitee}
-                      <span class="px-2 py-1 rounded bg-surface-container-high text-[10px] font-semibold">
+                      <span class="px-2 py-0.5 rounded bg-surface-container-high text-[10px] font-semibold">
                         {invitee.staffMember?.displayName || invitee.staffMember?.username || 'Membre'}
                       </span>
                     {/each}
                   </div>
                 </div>
               {/if}
-            {/if}
+            </div>
+          {/if}
 
-            {#if currentItemDetail.type === 'task'}
-              <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
-                <span class="font-bold">Statut :</span>
-                <span class="font-semibold uppercase tracking-wider text-purple-600">{raw.status}</span>
+          {#if currentItemDetail.type === 'task'}
+            <div class="flex items-center gap-4 text-xs mb-4">
+              <div class="flex items-center gap-1.5">
+                <Papicon icon="flag" size={12} class="text-on-surface-variant" />
+                <span class="font-semibold {raw.priority === 'HIGH' ? 'text-red-400' : raw.priority === 'MEDIUM' ? 'text-amber-400' : 'text-blue-400'}">{raw.priority}</span>
               </div>
-              <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
-                <span class="font-bold">Priorité :</span>
-                <span class="font-semibold uppercase tracking-wider text-amber-500">{raw.priority}</span>
+              <div class="flex items-center gap-1.5">
+                <Papicon icon="activity" size={12} class="text-on-surface-variant" />
+                <span class="font-semibold text-purple-400">{raw.status}</span>
               </div>
-              <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
-                <span class="font-bold">Assigné à :</span>
-                <span>{raw.assignee?.displayName || raw.assignee?.username}</span>
+              {#if raw.assignee}
+                <div class="flex items-center gap-1.5">
+                  <Papicon icon="user" size={12} class="text-on-surface-variant" />
+                  <span class="font-medium">{raw.assignee.displayName || raw.assignee.username}</span>
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          {#if currentItemDetail.type === 'absence'}
+            <div class="flex items-center gap-4 text-xs mb-4">
+              <div class="flex items-center gap-1.5">
+                <Papicon icon="tag" size={12} class="text-on-surface-variant" />
+                <span class="font-semibold text-amber-400">{raw.type || 'Autre'}</span>
               </div>
-            {/if}
-          </div>
+              <div class="flex items-center gap-1.5">
+                <Papicon icon="info" size={12} class="text-on-surface-variant" />
+                <span class="font-semibold {raw.status === 'APPROVED' ? 'text-emerald-400' : 'text-amber-400'}">
+                  {raw.status === 'APPROVED' ? 'Approuvé' : raw.status === 'PENDING' ? 'En attente' : raw.status}
+                </span>
+              </div>
+            </div>
+          {/if}
         </div>
 
-        <div class="p-6 border-t border-outline-variant/20 bg-surface-container-low flex justify-between gap-3">
-          <button onclick={handleDeleteDetail} class="px-5 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-500/10 transition-colors flex items-center gap-1.5">
-            <Papicon icon="trash-2" size={14} />
+        <!-- Footer actions -->
+        <div class="px-5 py-3 border-t border-outline-variant/15 bg-surface-container-low/50 flex justify-between">
+          <button onclick={handleDeleteDetail} class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold text-red-400 hover:bg-red-500/10 transition-colors">
+            <Papicon icon="trash-2" size={12} />
             Supprimer
           </button>
-          <button onclick={() => detailModalOpen = false} class="px-6 py-2.5 rounded-xl text-xs font-bold text-on-surface bg-surface-container hover:bg-surface-hover transition-colors">
+          <button onclick={() => detailModalOpen = false} class="px-4 py-1.5 rounded-md text-[11px] font-semibold text-on-surface-variant hover:bg-surface-hover transition-colors">
             Fermer
           </button>
         </div>
-
       </div>
     </div>
   {/if}
@@ -967,7 +1012,7 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(var(--color-outline-variant), 0.2);
+    background: rgba(255, 255, 255, 0.06);
     border-radius: 10px;
   }
 </style>

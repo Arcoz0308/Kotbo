@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import Papicon from './Papicon.svelte';
 
   interface CalendarEvent {
@@ -17,89 +17,109 @@
     raw?: any;
   }
 
-  let { view = $bindable('month'), currentDate = $bindable(new Date()), events = [], onRangeChange, onEventClick, onDateClick } = $props();
-  
-  // Selection state
+  type ViewType = 'day' | 'workweek' | 'week' | 'month';
+
+  let { view = $bindable('week'), currentDate = $bindable(new Date()), events = [], onRangeChange, onEventClick, onDateClick } = $props();
+
   let isSelecting = $state(false);
   let selectionStart = $state<{ date: Date, minutes: number } | null>(null);
   let selectionEnd = $state<{ date: Date, minutes: number } | null>(null);
+  let timeGridEl = $state<HTMLElement | undefined>(undefined);
 
-  const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const weekDaysShort = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-  const getDaysInMonth = (date: Date) => {
+  const viewTabs: { key: ViewType; label: string }[] = [
+    { key: 'day', label: 'Jour' },
+    { key: 'workweek', label: 'Sem. de travail' },
+    { key: 'week', label: 'Semaine' },
+    { key: 'month', label: 'Mois' }
+  ];
+
+  function getMonday(d: Date): Date {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    date.setDate(diff);
+    return date;
+  }
+
+  function getDaysForView(date: Date, v: ViewType) {
+    if (v === 'day') {
+      return [{ date: new Date(date), isCurrentMonth: true }];
+    }
+
+    if (v === 'workweek') {
+      const monday = getMonday(new Date(date));
+      return Array.from({ length: 5 }, (_, i) => {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        return { date: d, isCurrentMonth: true };
+      });
+    }
+
+    if (v === 'week') {
+      const monday = getMonday(new Date(date));
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        return { date: d, isCurrentMonth: d.getMonth() === date.getMonth() };
+      });
+    }
+
     const year = date.getFullYear();
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
-    // Adjust for Monday start (0=Sun, 1=Mon... -> 0=Mon, 6=Sun)
     const offset = firstDay === 0 ? 6 : firstDay - 1;
-    
-    const days = [];
-    
-    // Prev month days
+    const days: { date: Date; isCurrentMonth: boolean }[] = [];
+
     const prevMonthDays = new Date(year, month, 0).getDate();
     for (let i = offset - 1; i >= 0; i--) {
-      days.push({
-        date: new Date(year, month - 1, prevMonthDays - i),
-        isCurrentMonth: false
-      });
+      days.push({ date: new Date(year, month - 1, prevMonthDays - i), isCurrentMonth: false });
     }
-    
-    // Current month days
     for (let i = 1; i <= daysInMonth; i++) {
-      days.push({
-        date: new Date(year, month, i),
-        isCurrentMonth: true
-      });
+      days.push({ date: new Date(year, month, i), isCurrentMonth: true });
     }
-    
-    // Next month days
     const remaining = 42 - days.length;
     for (let i = 1; i <= remaining; i++) {
-      days.push({
-        date: new Date(year, month + 1, i),
-        isCurrentMonth: false
-      });
-    }
-    
-    return days;
-  };
-
-  const getDaysInWeek = (date: Date) => {
-    const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday start
-    const monday = new Date(date.setDate(diff));
-    
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      days.push({
-        date: d,
-        isCurrentMonth: d.getMonth() === date.getMonth()
-      });
+      days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false });
     }
     return days;
-  };
+  }
 
-  let calendarDays = $derived(view === 'month' ? getDaysInMonth(currentDate) : getDaysInWeek(new Date(currentDate)));
+  let calendarDays = $derived(getDaysForView(currentDate, view as ViewType));
+  let isTimeView = $derived(view !== 'month');
+  let colCount = $derived(calendarDays.length);
+
+  let headerTitle = $derived.by(() => {
+    if (view === 'day') {
+      return capitalize(currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+    }
+    if (view === 'workweek' || view === 'week') {
+      const first = calendarDays[0]?.date;
+      const last = calendarDays[calendarDays.length - 1]?.date;
+      if (!first || !last) return '';
+      if (first.getMonth() === last.getMonth()) {
+        return `${first.getDate()} – ${last.getDate()} ${capitalize(last.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }))}`;
+      }
+      return `${first.getDate()} ${capitalize(first.toLocaleDateString('fr-FR', { month: 'short' }))} – ${last.getDate()} ${capitalize(last.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }))}`;
+    }
+    return capitalize(currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }));
+  });
 
   function next() {
-    if (view === 'month') {
-      currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-    } else {
-      currentDate = new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-    }
+    if (view === 'day') currentDate = new Date(currentDate.getTime() + 86400000);
+    else if (view === 'workweek' || view === 'week') currentDate = new Date(currentDate.getTime() + 7 * 86400000);
+    else currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
     updateRange();
   }
 
   function prev() {
-    if (view === 'month') {
-      currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-    } else {
-      currentDate = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-    }
+    if (view === 'day') currentDate = new Date(currentDate.getTime() - 86400000);
+    else if (view === 'workweek' || view === 'week') currentDate = new Date(currentDate.getTime() - 7 * 86400000);
+    else currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
     updateRange();
   }
 
@@ -109,78 +129,103 @@
   }
 
   function updateRange() {
+    if (!calendarDays.length) return;
     const start = new Date(calendarDays[0].date);
     start.setHours(0, 0, 0, 0);
-    
     const end = new Date(calendarDays[calendarDays.length - 1].date);
     end.setHours(23, 59, 59, 999);
-    
     onRangeChange(start, end);
   }
 
   function isToday(date: Date) {
-    const today = new Date();
-    return date.getDate() === today.getDate() && 
-           date.getMonth() === today.getMonth() && 
-           date.getFullYear() === today.getFullYear();
+    const t = new Date();
+    return date.getDate() === t.getDate() && date.getMonth() === t.getMonth() && date.getFullYear() === t.getFullYear();
   }
 
-  function getEventClass(event: CalendarEvent) {
-    if (event.color) return event.color;
-    
-    switch (event.type) {
-      case 'absence': return 'bg-amber-500/10 text-amber-700 border border-amber-500/20 dark:text-amber-300 dark:border-amber-500/30';
-      case 'vocal': return 'bg-primary/10 text-primary border border-primary/20 dark:text-primary-300 dark:border-primary-500/30';
-      case 'meeting': return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30';
-      case 'call': return 'bg-green-500/10 text-green-700 border border-green-500/20 dark:bg-green-950/20 dark:text-green-300 dark:border-green-500/30';
-      case 'task': return 'bg-purple-500/10 text-purple-700 border border-purple-500/20 dark:bg-purple-950/20 dark:text-purple-300 dark:border-purple-500/30';
-      default: return 'bg-surface-container-high text-on-surface-variant border border-outline-variant/30';
+  function getEventLeftBorder(type: string) {
+    switch (type) {
+      case 'meeting': return 'border-l-emerald-500';
+      case 'call': return 'border-l-green-500';
+      case 'absence': return 'border-l-amber-500';
+      case 'task': return 'border-l-purple-500';
+      default: return 'border-l-slate-400';
     }
   }
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
+  function getEventBg(type: string) {
+    switch (type) {
+      case 'meeting': return 'bg-emerald-500/10 hover:bg-emerald-500/20';
+      case 'call': return 'bg-green-500/10 hover:bg-green-500/20';
+      case 'absence': return 'bg-amber-500/10 hover:bg-amber-500/20';
+      case 'task': return 'bg-purple-500/10 hover:bg-purple-500/20';
+      default: return 'bg-surface-container-high/50 hover:bg-surface-container-high';
+    }
+  }
+
+  function getEventText(type: string) {
+    switch (type) {
+      case 'meeting': return 'text-emerald-300';
+      case 'call': return 'text-green-300';
+      case 'absence': return 'text-amber-300';
+      case 'task': return 'text-purple-300';
+      default: return 'text-on-surface-variant';
+    }
+  }
+
+  function getEventDotColor(type: string) {
+    switch (type) {
+      case 'meeting': return 'bg-emerald-500';
+      case 'call': return 'bg-green-500';
+      case 'absence': return 'bg-amber-500';
+      case 'task': return 'bg-purple-500';
+      default: return 'bg-slate-400';
+    }
+  }
+
+  function getEventIcon(type: string) {
+    switch (type) {
+      case 'meeting': return 'calendar';
+      case 'call': return 'phone';
+      case 'absence': return 'sun';
+      case 'task': return 'check-square';
+      case 'vocal': return 'mic';
+      default: return 'circle';
+    }
+  }
+
+  function formatTime(date: Date | string) {
+    return new Date(date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
 
   function getEventStyles(event: CalendarEvent, dayEvents: CalendarEvent[]) {
     const start = new Date(event.start);
     const end = event.end ? new Date(event.end) : new Date(start.getTime() + 3600000);
-    
     if (isNaN(start.getTime())) return { top: 0, height: 0, width: 0, left: 0 };
 
     const startMinutes = start.getHours() * 60 + start.getMinutes();
-    
-    // Handle events that end on a different day or have no end date
-    const isSameDay = end.toDateString() === start.toDateString();
-    const endMinutes = isSameDay 
-      ? end.getHours() * 60 + end.getMinutes()
-      : 24 * 60; // Extend to end of day if it's a multi-day event
-      
-    const duration = Math.max(endMinutes - startMinutes, 20); // Minimum 20 minutes for visibility
+    const isSameDayEvt = end.toDateString() === start.toDateString();
+    const endMinutes = isSameDayEvt ? end.getHours() * 60 + end.getMinutes() : 24 * 60;
+    const duration = Math.max(endMinutes - startMinutes, 20);
 
-
-    // Better overlap handling
     const timedEvents = dayEvents
       .filter(e => !e.isAllDay)
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-    
-    // Find events that overlap with THIS event
+
     const overlapping = timedEvents.filter(e => {
       const eStart = new Date(e.start).getTime();
       const eEnd = e.end ? new Date(e.end).getTime() : eStart + 3600000;
-      const startT = start.getTime();
-      const endT = end.getTime();
-      
-      return (eStart < endT && eEnd > startT);
+      return eStart < end.getTime() && eEnd > start.getTime();
     });
-    
+
     const index = overlapping.findIndex(e => e.id === event.id);
     const count = Math.max(overlapping.length, 1);
     const safeIndex = index === -1 ? 0 : index;
-    
+
     return {
       top: (startMinutes / (24 * 60)) * 100,
       height: (duration / (24 * 60)) * 100,
-      width: (100 / count),
-      left: (safeIndex * (100 / count))
+      width: 100 / count,
+      left: safeIndex * (100 / count)
     };
   }
 
@@ -188,25 +233,13 @@
     const dayEvents = events.filter((e: CalendarEvent) => {
       const start = new Date(e.start);
       const end = e.end ? new Date(e.end) : start;
-      
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      
-      const s = new Date(start);
-      s.setHours(0, 0, 0, 0);
-      
-      const ed = new Date(end);
-      ed.setHours(0, 0, 0, 0);
-      
+      const d = new Date(date); d.setHours(0, 0, 0, 0);
+      const s = new Date(start); s.setHours(0, 0, 0, 0);
+      const ed = new Date(end); ed.setHours(0, 0, 0, 0);
       return d >= s && d <= ed;
     });
-
-    if (type === 'allDay') {
-      return dayEvents.filter(e => e.isAllDay);
-    }
-    if (type === 'timed') {
-      return dayEvents.filter(e => !e.isAllDay);
-    }
+    if (type === 'allDay') return dayEvents.filter(e => e.isAllDay);
+    if (type === 'timed') return dayEvents.filter(e => !e.isAllDay);
     return dayEvents;
   }
 
@@ -216,83 +249,87 @@
   }
 
   function handleMouseDown(date: Date, e: MouseEvent) {
-    const isWeek = view === 'week';
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
-    
+
     let minutes = 0;
-    if (isWeek) {
-      const rawMinutes = (y / rect.height) * (24 * 60);
-      minutes = Math.floor(rawMinutes / 30) * 30;
+    if (isTimeView) {
+      minutes = Math.floor(((y / rect.height) * (24 * 60)) / 30) * 30;
     }
-    
+
     isSelecting = true;
     selectionStart = { date, minutes };
-    selectionEnd = { date, minutes: isWeek ? minutes + 30 : 1410 }; // 1410 = 23:30
+    selectionEnd = { date, minutes: isTimeView ? minutes + 30 : 1410 };
 
-    const onGlobalMouseMove = (moveEvent: MouseEvent) => {
+    const cellClass = isTimeView ? '.day-column' : '.month-day';
+
+    const onMove = (me: MouseEvent) => {
       if (!isSelecting || !selectionStart) return;
-      const element = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-      const cellClass = isWeek ? '.day-column' : '.month-day';
-      const cell = element?.closest(cellClass) as HTMLElement;
-      
-      if (cell) {
-        const cells = Array.from(document.querySelectorAll(cellClass));
-        const index = cells.indexOf(cell);
-        
-        if (index !== -1) {
-          const colDate = calendarDays[index].date;
+      const el = document.elementFromPoint(me.clientX, me.clientY);
+      const cell = el?.closest(cellClass) as HTMLElement;
+      if (!cell) return;
+      const cells = Array.from(document.querySelectorAll(cellClass));
+      const idx = cells.indexOf(cell);
+      if (idx === -1) return;
 
-          if (isWeek) {
-            const colRect = cell.getBoundingClientRect();
-            const colY = moveEvent.clientY - colRect.top;
-            const colMinutes = Math.floor(((colY / colRect.height) * (24 * 60)) / 30) * 30;
-            selectionEnd = { date: colDate, minutes: colMinutes };
-          } else {
-            selectionEnd = { date: colDate, minutes: 1410 };
-          }
-        }
+      const colDate = calendarDays[idx].date;
+      if (isTimeView) {
+        const colRect = cell.getBoundingClientRect();
+        const colY = me.clientY - colRect.top;
+        const colMinutes = Math.floor(((colY / colRect.height) * (24 * 60)) / 30) * 30;
+        selectionEnd = { date: colDate, minutes: colMinutes };
+      } else {
+        selectionEnd = { date: colDate, minutes: 1410 };
       }
     };
 
-    const onGlobalMouseUp = () => {
+    const onUp = () => {
       if (isSelecting && selectionStart && selectionEnd) {
         let start = new Date(selectionStart.date);
         let end = new Date(selectionEnd.date);
 
-        // Sort dates if dragged backwards
         if (start > end) {
           [start, end] = [end, start];
-          const tempStart = selectionStart;
-          const tempEnd = selectionEnd;
-          selectionStart = { date: tempEnd.date, minutes: tempEnd.minutes };
-          selectionEnd = { date: tempStart.date, minutes: tempStart.minutes };
+          const tmp = selectionStart;
+          selectionStart = { date: selectionEnd.date, minutes: selectionEnd.minutes };
+          selectionEnd = { date: tmp.date, minutes: tmp.minutes };
         }
 
         const startDate = new Date(start);
         startDate.setHours(Math.floor(selectionStart.minutes / 60), selectionStart.minutes % 60, 0, 0);
-        
         const endDate = new Date(end);
         endDate.setHours(Math.floor(selectionEnd.minutes / 60), selectionEnd.minutes % 60, 0, 0);
-        
+
         onDateClick(startDate, endDate);
       }
-      
       isSelecting = false;
       selectionStart = null;
       selectionEnd = null;
-      window.removeEventListener('mousemove', onGlobalMouseMove);
-      window.removeEventListener('mouseup', onGlobalMouseUp);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
     };
 
-    window.addEventListener('mousemove', onGlobalMouseMove);
-    window.addEventListener('mouseup', onGlobalMouseUp);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function scrollToCurrentTime() {
+    if (!timeGridEl) return;
+    const now = new Date();
+    const h = (now.getHours() >= 7 && now.getHours() <= 20) ? Math.max(now.getHours() - 2, 0) : 7;
+    timeGridEl.scrollTop = h * 60;
   }
 
   $effect(() => {
-    // When view changes, we might need to update the range
     if (view) {
       updateRange();
+    }
+  });
+
+  $effect(() => {
+    const v = view;
+    if (v !== 'month') {
+      tick().then(scrollToCurrentTime);
     }
   });
 
@@ -301,168 +338,157 @@
   });
 </script>
 
-<div class="calendar-container h-175 flex flex-col bg-surface-container-low rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
-  <!-- Header -->
-  <header class="p-6 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-lowest">
-    <div class="flex items-center gap-4">
-      <h2 class="text-xl font-semibold text-on-surface capitalize">
-        {#if view === 'month'}
-          {currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-        {:else}
-          Semaine du {calendarDays[0].date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-        {/if}
-      </h2>
-      <div class="flex items-center gap-1 bg-surface-container-high/50 p-1 rounded-xl border border-outline-variant/20">
-        <button onclick={prev} class="p-1.5 hover:bg-surface-hover rounded-lg transition-colors">
-          <Papicon icon="chevron-left" size={18} />
+<div class="calendar-container flex flex-col bg-surface-container-low rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm" style="height: 75vh; min-height: 600px;">
+  <!-- Outlook-style Header -->
+  <header class="px-5 py-3 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest shrink-0">
+    <div class="flex items-center gap-3">
+      <!-- Navigation -->
+      <div class="flex items-center gap-0.5">
+        <button onclick={prev} class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-surface-hover transition-colors" aria-label="Précédent">
+          <Papicon icon="chevron-left" size={16} />
         </button>
-        <button onclick={today} class="px-3 py-1 text-xs font-bold hover:bg-surface-hover rounded-lg transition-colors">
-          Aujourd'hui
-        </button>
-        <button onclick={next} class="p-1.5 hover:bg-surface-hover rounded-lg transition-colors">
-          <Papicon icon="chevron-right" size={18} />
+        <button onclick={next} class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-surface-hover transition-colors" aria-label="Suivant">
+          <Papicon icon="chevron-right" size={16} />
         </button>
       </div>
+      <button onclick={today} class="px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant hover:text-on-surface hover:bg-surface-hover rounded-md border border-outline-variant/20 transition-all">
+        Aujourd'hui
+      </button>
+
+      <!-- Title -->
+      <h2 class="text-base font-semibold text-on-surface ml-1">{headerTitle}</h2>
     </div>
-    
-    <div class="flex items-center gap-2">
-       <div class="flex bg-surface-container p-1 rounded-xl border border-outline-variant/20">
-          <button 
-            onclick={() => view = 'month'} 
-            class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all {view === 'month' ? 'bg-primary text-white shadow-md' : 'text-on-surface-variant hover:text-on-surface'}"
-          >
-            Mois
-          </button>
-          <button 
-            onclick={() => view = 'week'} 
-            class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all {view === 'week' ? 'bg-primary text-white shadow-md' : 'text-on-surface-variant hover:text-on-surface'}"
-          >
-            Semaine
-          </button>
-       </div>
+
+    <!-- View Tabs (Outlook-style) -->
+    <div class="flex bg-surface-container/50 p-0.5 rounded-lg border border-outline-variant/15">
+      {#each viewTabs as { key, label }}
+        <button
+          onclick={() => view = key}
+          class="px-3 py-1.5 text-[11px] font-semibold rounded-md transition-all whitespace-nowrap {view === key ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
+        >
+          {label}
+        </button>
+      {/each}
     </div>
   </header>
 
-  <!-- Grid -->
-  <div class="calendar-grid flex flex-col flex-1 overflow-hidden">
+  <!-- Calendar Body -->
+  <div class="flex-1 flex flex-col overflow-hidden">
     {#if view === 'month'}
-      <div class="grid grid-cols-7 border-collapse h-full overflow-y-auto custom-scrollbar">
+      <!-- ===== MONTH VIEW ===== -->
+      <div class="grid grid-cols-7 h-full overflow-y-auto custom-scrollbar">
         <!-- Day headers -->
-        {#each weekDays as day}
-          <div class="p-4 text-center text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant border-b border-r border-outline-variant/10 last:border-r-0 bg-surface-container-lowest/50">
+        {#each weekDaysShort as day}
+          <div class="p-3 text-center text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-r border-outline-variant/10 last:border-r-0 bg-surface-container-lowest/50 sticky top-0 z-10">
             {day}
           </div>
         {/each}
 
-        <!-- Days -->
+        <!-- Day cells -->
         {#each calendarDays as { date, isCurrentMonth }}
           {@const dayEvents = getEventsForDate(date)}
-          <div 
-            class="month-day min-h-[120px] p-2 border-b border-r border-outline-variant/10 last:border-r-0 hover:bg-surface-hover/30 transition-colors group {isCurrentMonth ? '' : 'bg-surface-container-high/20 opacity-50'} relative select-none"
+          <div
+            class="month-day min-h-27.5 p-1.5 border-b border-r border-outline-variant/10 last:border-r-0 hover:bg-surface-hover/20 transition-colors group relative select-none {isCurrentMonth ? '' : 'opacity-40'}"
             onmousedown={(e) => handleMouseDown(date, e)}
             role="button"
             tabindex="0"
           >
-            <!-- Selection Highlight -->
+            <!-- Selection highlight -->
             {#if isSelecting && selectionStart && selectionEnd}
               {@const startT = selectionStart.date.getTime()}
               {@const endT = selectionEnd.date.getTime()}
               {@const currentT = date.getTime()}
-              {#if (currentT >= startT && currentT <= endT) || (currentT <= startT && currentT >= endT)}
+              {#if (currentT >= Math.min(startT, endT) && currentT <= Math.max(startT, endT))}
                 <div class="absolute inset-0 bg-primary/10 border-2 border-primary/30 z-0"></div>
               {/if}
             {/if}
-            <div class="flex items-center justify-between mb-2 px-1 relative z-10">
-              <span class="text-xs font-semibold {isToday(date) ? 'w-6 h-6 bg-primary text-white flex items-center justify-center rounded-full' : 'text-on-surface-variant'}">
+
+            <div class="flex items-center justify-between mb-1 px-0.5 relative z-10">
+              <span class="text-[11px] font-semibold {isToday(date) ? 'w-6 h-6 bg-primary text-white flex items-center justify-center rounded-full' : 'text-on-surface-variant'}">
                 {date.getDate()}
               </span>
             </div>
-            <div class="flex flex-col gap-1 overflow-y-auto overflow-x-hidden max-h-[80px] custom-scrollbar relative z-10">
-              {#each dayEvents as event}
-                <button 
+
+            <div class="flex flex-col gap-0.5 overflow-hidden max-h-19 relative z-10">
+              {#each dayEvents.slice(0, 3) as event}
+                <button
                   onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
                   onmousedown={(e) => e.stopPropagation()}
-                  class="w-full text-left px-1.5 py-0.5 rounded-md text-[11px] font-bold truncate transition-all hover: shadow-sm {getEventClass(event)}"
+                  class="w-full text-left px-1.5 py-0.5 rounded text-[10px] truncate flex items-center gap-1 transition-all {getEventBg(event.type)} cursor-pointer"
                 >
-                  {#if event.avatarUrl}
-                    <img src={event.avatarUrl} alt="" class="inline-block w-3 h-3 rounded-full mr-1 -mt-0.5" />
+                  <span class="w-1.5 h-1.5 rounded-full shrink-0 {getEventDotColor(event.type)}"></span>
+                  {#if !event.isAllDay}
+                    <span class="text-on-surface-variant/60 font-medium shrink-0">{formatTime(event.start)}</span>
                   {/if}
-                  <span class="inline-flex items-center gap-0.5">
-                    {#if event.type === 'vocal'}
-                      <span class="opacity-75"><Papicon icon="mic" size={10} /></span>
-                    {:else if event.type === 'absence'}
-                      <span class="opacity-75"><Papicon icon="sun" size={10} /></span>
-                    {:else if event.type === 'meeting'}
-                      <span class="opacity-75"><Papicon icon="calendar" size={10} /></span>
-                    {:else if event.type === 'call'}
-                      <span class="opacity-75"><Papicon icon="phone" size={10} /></span>
-                    {:else if event.type === 'task'}
-                      <span class="opacity-75"><Papicon icon="check-square" size={10} /></span>
-                    {/if}
-                    <span>{event.staffName ? `${event.staffName.split(' ')[0]}: ` : ''}{event.title}</span>
-                  </span>
+                  <span class="font-semibold text-on-surface truncate">{event.title}</span>
                 </button>
               {/each}
+              {#if dayEvents.length > 3}
+                <button
+                  onclick={(e) => { e.stopPropagation(); onDateClick(date); }}
+                  onmousedown={(e) => e.stopPropagation()}
+                  class="w-full text-center py-0.5 text-[9px] font-semibold text-primary/70 hover:text-primary transition-colors"
+                >
+                  +{dayEvents.length - 3} autres
+                </button>
+              {/if}
             </div>
           </div>
         {/each}
       </div>
+
     {:else}
-      <!-- Week View with Hours -->
+      <!-- ===== TIME VIEW (Day / Work Week / Week) ===== -->
       <div class="flex flex-col h-full overflow-hidden">
-        <!-- Week Header -->
-        <div class="grid grid-cols-[60px_repeat(7,1fr)] border-b border-outline-variant/30">
+        <!-- Day column headers -->
+        <div class="grid shrink-0 border-b border-outline-variant/20" style="grid-template-columns: 56px repeat({colCount}, 1fr)">
           <div class="border-r border-outline-variant/10"></div>
           {#each calendarDays as { date }}
-            <div class="p-3 text-center border-r border-outline-variant/10 last:border-r-0 {isToday(date) ? 'bg-primary/5' : ''}">
-              <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">{weekDays[(date.getDay() + 6) % 7]}</p>
-              <p class="text-lg font-semibold {isToday(date) ? 'text-primary' : 'text-on-surface'}">{date.getDate()}</p>
+            <div class="py-2.5 px-2 text-center border-r border-outline-variant/10 last:border-r-0 {isToday(date) ? 'bg-primary/5' : ''}">
+              <p class="text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant/60">{weekDaysShort[(date.getDay() + 6) % 7]}</p>
+              <p class="text-lg font-bold {isToday(date) ? 'text-primary' : 'text-on-surface'} leading-tight">
+                {#if isToday(date)}
+                  <span class="inline-flex items-center justify-center w-8 h-8 bg-primary text-white rounded-full">{date.getDate()}</span>
+                {:else}
+                  {date.getDate()}
+                {/if}
+              </p>
             </div>
           {/each}
         </div>
 
-        <!-- All Day Section -->
-        <div class="grid grid-cols-[60px_repeat(7,1fr)] border-b border-outline-variant/30 bg-surface-container-lowest/50">
-          <div class="p-2 text-[10px] font-semibold uppercase text-on-surface-variant flex items-center justify-center border-r border-outline-variant/10">
+        <!-- All-day events -->
+        <div class="grid shrink-0 border-b border-outline-variant/20 bg-surface-container-lowest/30" style="grid-template-columns: 56px repeat({colCount}, 1fr)">
+          <div class="px-1 py-1.5 text-[9px] font-semibold uppercase text-on-surface-variant/50 flex items-center justify-center border-r border-outline-variant/10">
             Journée
           </div>
           {#each calendarDays as { date }}
             {@const allDayEvents = getEventsForDate(date, 'allDay')}
-            <div 
-              class="p-1 min-h-[40px] border-r border-outline-variant/10 last:border-r-0 space-y-1 overflow-hidden hover:bg-surface-hover/20 transition-colors cursor-pointer"
+            <div
+              class="px-1 py-1 min-h-8 border-r border-outline-variant/10 last:border-r-0 space-y-0.5 overflow-hidden hover:bg-surface-hover/20 transition-colors cursor-pointer"
               onclick={() => onDateClick(date)}
               onkeydown={(e) => e.key === 'Enter' && onDateClick(date)}
               role="button"
               tabindex="0"
             >
               {#each allDayEvents.slice(0, 2) as event}
-                <button 
+                <button
                   onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
                   onmousedown={(e) => e.stopPropagation()}
-                  class="w-full text-left px-2 py-0.5 rounded-md text-[11px] font-bold truncate transition-all hover: shadow-sm {getEventClass(event)}"
+                  class="w-full text-left px-2 py-0.5 rounded text-[10px] font-semibold truncate border-l-[3px] {getEventLeftBorder(event.type)} {getEventBg(event.type)} transition-all cursor-pointer"
                 >
-                  <span class="inline-flex items-center gap-0.5">
-                    {#if event.type === 'vocal'}
-                      <span class="opacity-75"><Papicon icon="mic" size={10} /></span>
-                    {:else if event.type === 'absence'}
-                      <span class="opacity-75"><Papicon icon="sun" size={10} /></span>
-                    {:else if event.type === 'meeting'}
-                      <span class="opacity-75"><Papicon icon="calendar" size={10} /></span>
-                    {:else if event.type === 'call'}
-                      <span class="opacity-75"><Papicon icon="phone" size={10} /></span>
-                    {:else if event.type === 'task'}
-                      <span class="opacity-75"><Papicon icon="check-square" size={10} /></span>
-                    {/if}
-                    <span>{event.staffName ? `${event.staffName}: ` : ''}{event.title}</span>
+                  <span class="inline-flex items-center gap-1">
+                    <Papicon icon={getEventIcon(event.type)} size={9} />
+                    <span>{event.title}</span>
                   </span>
                 </button>
               {/each}
               {#if allDayEvents.length > 2}
-                <button 
-                  class="w-full text-center py-0.5 text-[10px] font-semibold text-on-surface-variant/60 hover:text-primary transition-colors"
+                <button
+                  class="w-full text-center py-0.5 text-[9px] font-semibold text-primary/60 hover:text-primary transition-colors"
                   onclick={() => onDateClick(date)}
                 >
-                  ... (+{allDayEvents.length - 2})
+                  +{allDayEvents.length - 2}
                 </button>
               {/if}
             </div>
@@ -470,102 +496,90 @@
         </div>
 
         <!-- Scrollable Time Grid -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar relative">
-          <div class="grid grid-cols-[60px_repeat(7,1fr)] min-h-[1440px] relative">
-            <!-- Hour Labels -->
+        <div bind:this={timeGridEl} class="flex-1 overflow-y-auto custom-scrollbar relative">
+          <div class="grid relative" style="grid-template-columns: 56px repeat({colCount}, 1fr); min-height: 1440px;">
+            <!-- Hour labels -->
             <div class="flex flex-col">
               {#each hours as hour}
-                <div class="h-[60px] text-[10px] font-bold text-on-surface-variant/60 flex items-start justify-center pt-1 border-r border-outline-variant/10">
-                  {hour}:00
+                <div class="h-15 text-[10px] font-semibold text-on-surface-variant/40 flex items-start justify-end pr-2 pt-0 border-r border-outline-variant/10 relative">
+                  <span class="-mt-1.75">{hour.toString().padStart(2, '0')}:00</span>
                 </div>
               {/each}
             </div>
 
-            <!-- Day Columns -->
-            {#each calendarDays as { date }}
+            <!-- Day columns -->
+            {#each calendarDays as { date }, dayIdx}
               {@const dayEvents = getEventsForDate(date)}
-              <div 
-                class="day-column relative border-r border-outline-variant/10 last:border-r-0 h-full overflow-hidden {isToday(date) ? 'bg-primary/[0.02]' : ''} transition-colors cursor-pointer select-none"
+              <div
+                class="day-column relative border-r border-outline-variant/10 last:border-r-0 h-full {isToday(date) ? 'bg-primary/2' : ''} transition-colors cursor-pointer select-none"
                 onmousedown={(e) => handleMouseDown(date, e)}
                 role="button"
                 tabindex="0"
               >
-                <!-- Hour Grid Lines -->
+                <!-- Hour grid lines -->
                 {#each hours as _}
-                  <div class="h-[30px] border-b border-outline-variant/5 hover:bg-primary/5 transition-colors"></div>
-                  <div class="h-[30px] border-b border-outline-variant/10 hover:bg-primary/5 transition-colors"></div>
+                  <div class="h-7.5 border-b border-outline-variant/4"></div>
+                  <div class="h-7.5 border-b border-outline-variant/10"></div>
                 {/each}
 
-                <!-- Selection Overlay -->
+                <!-- Selection overlay -->
                 {#if isSelecting && selectionStart && selectionEnd}
                   {@const startT = selectionStart.date.getTime()}
                   {@const endT = selectionEnd.date.getTime()}
                   {@const currentT = date.getTime()}
-                  
-                  {#if (currentT >= startT && currentT <= endT) || (currentT <= startT && currentT >= endT)}
-                    {@const isStartDay = currentT === startT}
-                    {@const isEndDay = currentT === endT}
-                    {@const top = isStartDay ? (selectionStart.minutes / (24 * 60)) * 100 : 0}
-                    {@const bottom = isEndDay ? (selectionEnd.minutes / (24 * 60)) * 100 : 100}
-                    {@const displayTop = Math.min(top, bottom)}
-                    {@const displayHeight = Math.abs(bottom - top)}
-
-                    <div 
-                      class="absolute left-0 right-0 bg-primary/20 border-y-2 border-primary z-10 pointer-events-none"
+                  {#if (currentT >= Math.min(startT, endT) && currentT <= Math.max(startT, endT))}
+                    {@const isStartDay = currentT === startT || currentT === endT}
+                    {@const sMin = currentT === startT ? selectionStart.minutes : (currentT === endT ? selectionEnd.minutes : 0)}
+                    {@const eMin = currentT === endT ? selectionEnd.minutes : (currentT === startT ? selectionStart.minutes : 1440)}
+                    {@const displayTop = Math.min(sMin, eMin) / 1440 * 100}
+                    {@const displayHeight = Math.abs(eMin - sMin) / 1440 * 100}
+                    <div
+                      class="absolute left-0 right-0 bg-primary/15 border-y-2 border-primary/50 z-10 pointer-events-none rounded-sm"
                       style="top: {displayTop}%; height: {displayHeight}%"
                     >
-                      {#if isStartDay}
-                        <div class="p-1 text-[10px] font-semibold text-primary uppercase">
-                           {Math.floor(selectionStart.minutes / 60)}:{selectionStart.minutes % 60 === 0 ? '00' : '30'} - ...
-                        </div>
-                      {/if}
+                      <div class="px-2 py-0.5 text-[10px] font-semibold text-primary">
+                        {Math.floor(Math.min(sMin, eMin) / 60)}:{(Math.min(sMin, eMin) % 60).toString().padStart(2, '0')} – {Math.floor(Math.max(sMin, eMin) / 60)}:{(Math.max(sMin, eMin) % 60).toString().padStart(2, '0')}
+                      </div>
                     </div>
                   {/if}
                 {/if}
 
-                <!-- Timed Events -->
+                <!-- Timed events (Outlook left-border style) -->
                 {#each getEventsForDate(date, 'timed') as event}
                   {@const styles = getEventStyles(event, dayEvents)}
-                  <button 
+                  <button
                     onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
                     onmousedown={(e) => e.stopPropagation()}
-                    class="absolute rounded-lg p-2 text-[10px] font-semibold border shadow-lg transition-all hover:z-10 hover: flex flex-col gap-1 {getEventClass(event)}"
-                    style="top: {styles.top}%; height: {styles.height}%; left: {styles.left}%; width: {styles.width}%; min-height: 24px;"
+                    class="absolute rounded-sm overflow-hidden transition-all hover:z-20 hover:shadow-lg hover:shadow-black/20 cursor-pointer border-l-[3px] {getEventLeftBorder(event.type)} {getEventBg(event.type)}"
+                    style="top: {styles.top}%; height: {styles.height}%; left: calc({styles.left}% + 2px); width: calc({styles.width}% - 4px); min-height: 22px;"
                   >
-                    <div class="flex items-center gap-1">
-                       {#if event.avatarUrl}
-                         <img src={event.avatarUrl} alt="" class="w-3 h-3 rounded-full" />
-                       {/if}
-                       <span class="truncate">{event.staffName || 'Staff'}</span>
-                    </div>
-                    <span class="leading-tight opacity-90 truncate w-full flex items-center gap-1">
-                      {#if event.type === 'vocal'}
-                        <Papicon icon="mic" size={10} />
-                      {:else if event.type === 'absence'}
-                        <Papicon icon="sun" size={10} />
-                      {:else if event.type === 'meeting'}
-                        <Papicon icon="calendar" size={10} />
-                      {:else if event.type === 'call'}
-                        <Papicon icon="phone" size={10} />
-                      {:else if event.type === 'task'}
-                        <Papicon icon="check-square" size={10} />
+                    <div class="px-2 py-1 h-full flex flex-col">
+                      <span class="text-[9px] font-medium {getEventText(event.type)} opacity-80 leading-none">
+                        {formatTime(event.start)}{event.end ? ` – ${formatTime(event.end)}` : ''}
+                      </span>
+                      <span class="text-[11px] font-semibold text-on-surface truncate leading-tight mt-0.5">{event.title}</span>
+                      {#if event.staffName && styles.height > 4}
+                        <span class="text-[9px] text-on-surface-variant/60 truncate mt-auto flex items-center gap-1">
+                          {#if event.avatarUrl}
+                            <img src={event.avatarUrl} alt="" class="w-3 h-3 rounded-full" />
+                          {/if}
+                          {event.staffName}
+                        </span>
                       {/if}
-                      <span>{event.title}</span>
-                    </span>
+                    </div>
                   </button>
                 {/each}
 
+                <!-- Current time indicator -->
                 {#if isToday(date)}
-                   <!-- Time Dot & Today Highlight -->
-                   {@const now = new Date()}
-                   {@const top = ((now.getHours() * 60 + now.getMinutes()) / (24 * 60)) * 100}
-                   <div class="absolute -left-1 w-2.5 h-2.5 bg-red-500 rounded-full z-30 shadow-lg shadow-red-500/50" style="top: calc({top}% - 5px)"></div>
+                  {@const nowTop = getGlobalTimeTop()}
+                  <div class="absolute -left-[5px] w-[10px] h-[10px] bg-red-500 rounded-full z-30 shadow-lg shadow-red-500/40" style="top: calc({nowTop}% - 5px)"></div>
                 {/if}
               </div>
             {/each}
 
-            <!-- Global Time Line -->
-            <div class="absolute left-[60px] right-0 h-0.5 bg-red-500/30 z-20 pointer-events-none" style="top: {getGlobalTimeTop()}%"></div>
+            <!-- Global red line for current time -->
+            <div class="absolute right-0 h-[2px] bg-red-500/60 z-20 pointer-events-none" style="top: {getGlobalTimeTop()}%; left: 56px;"></div>
           </div>
         </div>
       </div>
@@ -577,5 +591,17 @@
   .calendar-container {
     user-select: none;
   }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
 </style>
-
