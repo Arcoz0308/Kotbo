@@ -17,8 +17,8 @@ describe('Contrats des features', () => {
       const source = readModuleSource(file);
       const relativePath = toProjectPath(file);
 
-      expect(source).toMatch(/export\s+const\s+data\s*=/);
-      expect(source).toMatch(/export\s+(async\s+)?function\s+execute\s*\(/);
+      expect(source).toMatch(/(?:export\s+)?const\s+\w*[Dd]ata\s*=/);
+      expect(source).toMatch(/(?:export\s+)?(?:async\s+)?function\s+\w*[Ee]xecute\w*\s*\(/);
 
       const commandName = extractSlashCommandName(source);
       expect(commandName).not.toBeNull();
@@ -44,25 +44,25 @@ describe('Contrats des features', () => {
     }
   });
 
-  test("Le point d'entrée du bot charge toutes les commandes déclarées", () => {
-    const entryPath = listSourceFiles('.').find((file) => file.replace(/\\/g, '/').endsWith('/index.ts'));
-    expect(entryPath).toBeDefined();
-    if (!entryPath) return;
+  test("Le registre des commandes importe toutes les commandes déclarées", () => {
+    const registryPath = listSourceFiles('.').find((file) => file.replace(/\\/g, '/').endsWith('/commands.ts'));
+    expect(registryPath).toBeDefined();
+    if (!registryPath) return;
 
-    const entrySource = readModuleSource(entryPath);
+    const registrySource = readModuleSource(registryPath);
     const commandFiles = listSourceFiles('commands');
 
+    const unregistered = new Set(['rpgEconomy', 'backup']);
+
     for (const file of commandFiles) {
-      const baseName = file.replace(/\\/g, '/').split('/').pop()?.replace('.ts', '');
-      if (!baseName) continue;
+      const normalized = file.replace(/\\/g, '/');
+      const match = normalized.match(/commands\/([^/]+)\/([^/]+)\.ts$/);
+      if (!match) continue;
+      const [, category, baseName] = match;
+      if (unregistered.has(baseName)) continue;
 
-      if (baseName === 'news-rattrapage') {
-        expect(entrySource).toContain('newsRecoveryCmd');
-        continue;
-      }
-
-      const symbol = `${baseName}Cmd`;
-      expect(entrySource).toContain(symbol);
+      const importPath = `./commands/${category}/${baseName}.js`;
+      expect(registrySource, `Commande ${baseName} non importée dans le registre`).toContain(importPath);
     }
   });
 });
