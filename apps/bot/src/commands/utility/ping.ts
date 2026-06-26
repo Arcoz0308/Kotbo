@@ -8,12 +8,13 @@ const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const start = Date.now();
-  const _reply = await interaction.reply({ content: '🏓 Pong... calcul en cours', fetchReply: true });
+  await interaction.reply({ content: '🏓 Pong... calcul en cours', withResponse: true });
 
   const latency = Date.now() - start;
   const apiLatency = Math.round(interaction.client.ws.ping);
 
   await interaction.editReply({
+    content: '',
     embeds: [
       successEmbed('Pong !', `⏱️ Latence de traitement : **${latency}ms**\n🌐 Latence API : **${apiLatency}ms**`),
     ],

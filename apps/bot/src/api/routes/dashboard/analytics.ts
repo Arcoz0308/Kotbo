@@ -626,11 +626,11 @@ export async function handleAnalyticsRoutes(
 
       const recentSanctions = await Promise.all(recentSanctionsList.map(async s => {
         const [targetProfile, modProfile] = await Promise.all([
-          prisma.memberProfile.findUnique({
+          prismaRead.memberProfile.findUnique({
             where: { guildId_userId: { guildId, userId: s.targetUserId } },
             select: { avatarUrl: true }
           }),
-          prisma.memberProfile.findUnique({
+          prismaRead.memberProfile.findUnique({
             where: { guildId_userId: { guildId, userId: s.moderatorUserId } },
             select: { avatarUrl: true }
           })
@@ -676,7 +676,7 @@ export async function handleAnalyticsRoutes(
       let dailyJoinsLeaves: Array<{ dateKey: string; joins: unknown[]; leaves: unknown[]; invites: unknown[] }> = [];
       if (!useWeeklyAggregation) {
         const [allJoins, allLeaves, allInviteJoins] = await Promise.all([
-          prisma.memberProfile.findMany({
+          prismaRead.memberProfile.findMany({
             where: { guildId, isBot: false, guildJoinedAt: { gte: startDate, lte: endDate } },
             select: {
               userId: true, displayName: true, username: true, globalName: true,
@@ -684,7 +684,7 @@ export async function handleAnalyticsRoutes(
             },
             take: 2000,
           }),
-          prisma.memberProfile.findMany({
+          prismaRead.memberProfile.findMany({
             where: { guildId, isBot: false, guildLeftAt: { gte: startDate, lte: endDate } },
             select: {
               userId: true, displayName: true, username: true, globalName: true,
@@ -692,7 +692,7 @@ export async function handleAnalyticsRoutes(
             },
             take: 2000,
           }),
-          prisma.memberInvite.findMany({
+          prismaRead.memberInvite.findMany({
             where: { guildId, joinedAt: { gte: startDate, lte: endDate } },
             select: {
               userId: true, inviteCode: true, inviterId: true,
