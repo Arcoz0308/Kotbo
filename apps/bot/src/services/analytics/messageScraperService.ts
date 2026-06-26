@@ -151,7 +151,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
         });
       }
 
-      const _channelMessagesScraped = 0;
+      let channelMessagesScraped = 0;
       let messagesSinceLastFlush = 0;
       let hasMore = true;
 
@@ -293,7 +293,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
               continue;
             }
 
-            _channelMessagesScraped++;
+            channelMessagesScraped++;
             totalMessagesScraped++;
             messagesSinceLastFlush++;
 

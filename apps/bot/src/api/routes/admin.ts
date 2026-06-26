@@ -925,7 +925,7 @@ export async function handleAdminRoutes(
                   const embed = new ShardEmbed()
                     .setTitle(ctx.embedData.title)
                     .setDescription(ctx.embedData.message)
-                    .setColor((ctx.embedData.color || ctx.COLORS_PRIMARY) as any)
+                    .setColor(parseInt((ctx.embedData.color || '#5865F2').replace('#', ''), 16))
                     .setFooter({ text: ctx.embedData.footerText || '' })
                     .setTimestamp();
                   if (ctx.embedData.thumbnailUrl) embed.setThumbnail(ctx.embedData.thumbnailUrl);

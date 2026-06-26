@@ -309,6 +309,7 @@ client.once(Events.ClientReady, async (c) => {
 
   // ── Legacy listeners (still on client.on directly) ────────
   // TODO: Remove these once bus-based modules are validated
+  client.setMaxListeners(25);
   registerCodePoliceListener(client);
   registerModerationAuditListener(client);
   registerAdvancedLogsListener(client);
