@@ -66,6 +66,11 @@ export const staffItems: PageConfig[] = [
   { name: "Discipline",          icon: "alert-circle",  href: "/staff-management?tab=warnings", featureKey: "discipline", beta: false, wip: false },
 ];
 
+export const crossServerItems: PageConfig[] = [
+  { name: "Liens de salons",        icon: "link",          href: "/channel-links",      featureKey: "channel_links", beta: true, wip: false },
+  { name: "Serveurs Staff",         icon: "shield",        href: "/staff-server",       featureKey: "staff_server", beta: true, wip: false },
+];
+
 export const configItems: PageConfig[] = [
   { name: "Modules",             icon: "package",       href: "/modules",              featureKey: "modules", beta: false, wip: false },
   { name: "Salons",              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: true, wip: false },
@@ -88,6 +93,7 @@ export const allPages: PageConfig[] = [
   ...moderationItems,
   ...communityItems,
   ...staffItems,
+  ...crossServerItems,
   ...configItems,
   ...otherPages
 ];

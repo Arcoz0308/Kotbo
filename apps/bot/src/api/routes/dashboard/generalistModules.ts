@@ -813,6 +813,22 @@ export async function handleGeneralistModulesRoutes(
           ghostPingAction?: string;
           antiEveryoneEnabled?: boolean;
           antiEveryoneAction?: string;
+          customWordsEnabled?: boolean;
+          customWordsAction?: string;
+          customWords?: string[];
+          customWordsAllowList?: string[];
+          customWordsTimeoutSec?: number;
+          profanityEnabled?: boolean;
+          profanityPresetProfanity?: boolean;
+          profanityPresetSexual?: boolean;
+          profanityPresetSlurs?: boolean;
+          profanityAction?: string;
+          profanityAllowList?: string[];
+          profanityTimeoutSec?: number;
+          inviteFilterEnabled?: boolean;
+          inviteFilterAction?: string;
+          inviteFilterAllowedGuilds?: string[];
+          inviteFilterTimeoutSec?: number;
           antiBotEnabled?: boolean;
           antiBotAction?: string;
           antiBotBypassUsers?: string[];
@@ -855,6 +871,22 @@ export async function handleGeneralistModulesRoutes(
           ghostPingAction: body.ghostPingAction,
           antiEveryoneEnabled: body.antiEveryoneEnabled,
           antiEveryoneAction: body.antiEveryoneAction,
+          customWordsEnabled: body.customWordsEnabled,
+          customWordsAction: body.customWordsAction,
+          customWords: body.customWords,
+          customWordsAllowList: body.customWordsAllowList,
+          customWordsTimeoutSec: body.customWordsTimeoutSec,
+          profanityEnabled: body.profanityEnabled,
+          profanityPresetProfanity: body.profanityPresetProfanity,
+          profanityPresetSexual: body.profanityPresetSexual,
+          profanityPresetSlurs: body.profanityPresetSlurs,
+          profanityAction: body.profanityAction,
+          profanityAllowList: body.profanityAllowList,
+          profanityTimeoutSec: body.profanityTimeoutSec,
+          inviteFilterEnabled: body.inviteFilterEnabled,
+          inviteFilterAction: body.inviteFilterAction,
+          inviteFilterAllowedGuilds: body.inviteFilterAllowedGuilds,
+          inviteFilterTimeoutSec: body.inviteFilterTimeoutSec,
           antiBotEnabled: body.antiBotEnabled,
           antiBotAction: body.antiBotAction,
           antiBotBypassUsers: body.antiBotBypassUsers,
@@ -886,6 +918,22 @@ export async function handleGeneralistModulesRoutes(
             ghostPingAction: body.ghostPingAction ?? 'ALERT',
             antiEveryoneEnabled: body.antiEveryoneEnabled ?? false,
             antiEveryoneAction: body.antiEveryoneAction ?? 'DELETE_AND_WARN',
+            customWordsEnabled: body.customWordsEnabled ?? false,
+            customWordsAction: body.customWordsAction ?? 'BLOCK',
+            customWords: body.customWords ?? [],
+            customWordsAllowList: body.customWordsAllowList ?? [],
+            customWordsTimeoutSec: body.customWordsTimeoutSec ?? 60,
+            profanityEnabled: body.profanityEnabled ?? false,
+            profanityPresetProfanity: body.profanityPresetProfanity ?? true,
+            profanityPresetSexual: body.profanityPresetSexual ?? true,
+            profanityPresetSlurs: body.profanityPresetSlurs ?? true,
+            profanityAction: body.profanityAction ?? 'BLOCK',
+            profanityAllowList: body.profanityAllowList ?? [],
+            profanityTimeoutSec: body.profanityTimeoutSec ?? 60,
+            inviteFilterEnabled: body.inviteFilterEnabled ?? false,
+            inviteFilterAction: body.inviteFilterAction ?? 'BLOCK',
+            inviteFilterAllowedGuilds: body.inviteFilterAllowedGuilds ?? [],
+            inviteFilterTimeoutSec: body.inviteFilterTimeoutSec ?? 60,
             antiBotEnabled: body.antiBotEnabled ?? false,
             antiBotAction: body.antiBotAction ?? 'KICK',
             antiBotBypassUsers: body.antiBotBypassUsers ?? [],

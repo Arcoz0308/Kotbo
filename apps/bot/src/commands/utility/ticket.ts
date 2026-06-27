@@ -12,17 +12,29 @@ import {
   Role,
   User,
   type GuildMember,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  StringSelectMenuBuilder,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { canManageTicket, renameTicketChannel, renameChannelToClosed, renameChannelToOpen } from '../../services/features/ticketService.js';
 import { buildMemberCasePanel } from '../../services/moderation/memberCaseService.js';
 import { generateTranscript } from '../../services/features/transcriptService.js';
-import { COLORS, successEmbed } from '../../utils/embeds.js';
+import { COLORS, successEmbed, errorEmbed } from '../../utils/embeds.js';
+import { isGuildActivated } from '../../utils/activation.js';
 
 const data = new SlashCommandBuilder()
   .setName('ticket')
   .setDescription('🎫 Gère le ticket en cours')
-  .setDMPermission(false)
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('open')
+      .setDescription('Ouvrir un ticket (utilisable en MP)')
+      .addStringOption((opt) =>
+        opt.setName('serveur').setDescription('ID du serveur (requis en MP)'),
+      ),
+  )
   .addSubcommand((subcommand) =>
     subcommand
       .setName('claim')
@@ -83,6 +95,13 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const subcommand = interaction.options.getSubcommand();
+
+  // ─── /ticket open — fonctionne en DM et en serveur ───────
+  if (subcommand === 'open') {
+    return handleOpen(interaction);
+  }
+
   const guildId = interaction.guildId;
   const channel = interaction.channel;
 
@@ -119,7 +138,6 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   }
 
   const canRename = canManageTicket(interaction.member, guildConfig, ticket.staffRoleId) || ticket.userId === interaction.user.id;
-  const subcommand = interaction.options.getSubcommand();
   const isStaff = canManageTicket(interaction.member, guildConfig, ticket.staffRoleId);
   const isOpener = ticket.userId === interaction.user.id;
 
@@ -518,6 +536,120 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       content: `❌ Impossible de renommer le ticket : ${error?.message || 'erreur inconnue'}`,
     });
   }
+}
+
+async function handleOpen(interaction: ChatInputCommandInteraction): Promise<void> {
+  const isDM = !interaction.guildId;
+  const explicitGuildId = interaction.options.getString('serveur');
+
+  let targetGuildId: string | null = null;
+
+  if (isDM) {
+    if (!explicitGuildId) {
+      const mutualGuilds = interaction.client.guilds.cache.filter((g) => {
+        try { return g.members.cache.has(interaction.user.id); } catch { return false; }
+      });
+
+      const activatedGuilds = [...mutualGuilds.values()].filter((g) => isGuildActivated(g.id));
+
+      if (activatedGuilds.length === 0) {
+        await interaction.reply({
+          content: '❌ Aucun serveur trouvé. Précisez l\'ID du serveur avec l\'option `serveur`.',
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+
+      if (activatedGuilds.length === 1) {
+        targetGuildId = activatedGuilds[0].id;
+      } else {
+        const options = activatedGuilds.slice(0, 25).map((g) => ({
+          label: g.name.slice(0, 100),
+          value: g.id,
+          description: `${g.memberCount} membres`,
+        }));
+
+        const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId('ticket:dm_guild_select')
+            .setPlaceholder('Choisir un serveur')
+            .addOptions(options),
+        );
+
+        await interaction.reply({
+          content: '🎫 Sur quel serveur souhaitez-vous ouvrir un ticket ?',
+          components: [selectRow],
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+    } else {
+      targetGuildId = explicitGuildId;
+    }
+  } else {
+    targetGuildId = interaction.guildId!;
+  }
+
+  const guild = interaction.client.guilds.cache.get(targetGuildId!);
+  if (!guild) {
+    await interaction.reply({
+      content: '❌ Le bot n\'est pas présent sur ce serveur.',
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const guildConfig = await prisma.guild.findUnique({ where: { id: targetGuildId! } });
+  if (!guildConfig) {
+    await interaction.reply({
+      content: '❌ Ce serveur n\'est pas configuré.',
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const existingTicket = await prisma.ticket.findFirst({
+    where: {
+      guildId: targetGuildId!,
+      userId: interaction.user.id,
+      status: { in: ['OPEN', 'CLAIMED'] },
+    },
+  });
+
+  if (existingTicket) {
+    await interaction.reply({
+      content: `⚠️ Vous avez déjà un ticket ouvert sur **${guild.name}**.`,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`modal:ticket:open:dm_direct:${targetGuildId}`)
+    .setTitle(`Ticket · ${guild.name}`.slice(0, 45));
+
+  const reasonInput = new TextInputBuilder()
+    .setCustomId('reason')
+    .setLabel('Sujet du ticket')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Ex: Problème de rôles')
+    .setMaxLength(100)
+    .setRequired(true);
+
+  const descInput = new TextInputBuilder()
+    .setCustomId('description')
+    .setLabel('Description détaillée')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Décrivez votre problème en détail...')
+    .setMaxLength(1000)
+    .setRequired(true);
+
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(descInput),
+  );
+
+  await interaction.showModal(modal);
 }
 
 export const ticketCommand = { data, execute } satisfies SlashCommandDefinition;

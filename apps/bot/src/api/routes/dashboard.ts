@@ -26,6 +26,8 @@ import { handleBackupRoutes } from './dashboard/backups.js';
 import { handleScheduleRoutes } from './dashboard/schedules.js';
 import { handleMCPKeyRoutes } from './dashboard/mcp.js';
 import { handleCustomBotRoutes } from './dashboard/customBot.js';
+import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
+import { handleStaffServerRoutes } from './dashboard/staffServer.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -181,6 +183,14 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleCustomBotRoutes(req, res, parts, url, client, user)) {
+      return true;
+    }
+    if (await handleChannelLinkRoutes(req, res, parts, url, client, user, guildId)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleStaffServerRoutes(req, res, parts, url, client, user, guildId)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
   }

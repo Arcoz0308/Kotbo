@@ -262,7 +262,7 @@
       </div>
       <div class="h-8 w-px bg-outline-variant/20"></div>
       <div class="text-right">
-        <div class="text-lg font-semibold text-on-surface">{totalFound.toLocaleString('fr-FR')}</div>
+        <div class="text-lg font-semibold text-on-surface">{onServerCount.toLocaleString('fr-FR')}</div>
         <div class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Total membres</div>
       </div>
     </div>

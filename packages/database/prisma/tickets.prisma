@@ -34,6 +34,8 @@ model Ticket {
   updatedAt     DateTime     @updatedAt
   closedAt      DateTime?
   inactivityAlertSent Boolean  @default(false)
+  isAnonymous         Boolean  @default(false)
+  staffServerGuildId  String?  // Si relay sur serveur staff, l'ID du serveur staff
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

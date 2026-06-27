@@ -21,6 +21,7 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import EmojiPicker from '../lib/components/EmojiPicker.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   // Navigation & Tabs
   let activeTab = $state<'tickets' | 'transcripts' | 'config'>('tickets');
@@ -74,6 +75,9 @@
     categoryId: string;
     staffRoleId: string;
     buttonStyle: 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
+    mode: '' | 'CHANNEL' | 'DM' | 'THREAD';
+    anonymous: boolean;
+    staffServerRelay: boolean;
   }>>([]);
 
   // Config sections accordion
@@ -176,6 +180,9 @@
       categoryId: legacy?.ticketCategoryId || ticketCategoryId || '',
       staffRoleId: legacy?.ticketStaffRoleId || ticketStaffRoleId || '',
       buttonStyle: 'PRIMARY' as const,
+      mode: '' as '' | 'CHANNEL' | 'DM' | 'THREAD',
+      anonymous: false,
+      staffServerRelay: false,
     };
   }
 
@@ -187,6 +194,9 @@
     categoryId: string;
     staffRoleId: string;
     buttonStyle: 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
+    mode: '' | 'CHANNEL' | 'DM' | 'THREAD';
+    anonymous: boolean;
+    staffServerRelay: boolean;
   }> {
     if (Array.isArray(config?.ticketTypes) && config.ticketTypes.length > 0) {
       return config.ticketTypes
@@ -201,6 +211,9 @@
           buttonStyle: item.buttonStyle === 'SECONDARY' || item.buttonStyle === 'SUCCESS' || item.buttonStyle === 'DANGER'
             ? item.buttonStyle
             : 'PRIMARY',
+          mode: item.mode === 'CHANNEL' || item.mode === 'DM' || item.mode === 'THREAD' ? item.mode : '',
+          anonymous: item.anonymous === true,
+          staffServerRelay: item.staffServerRelay === true,
         }));
     }
 
@@ -1427,6 +1440,32 @@
                       <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Rôle staff</span>
                       <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner" className="w-full" />
                     </label>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-outline-variant/10">
+                    <label class="block">
+                      <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Mode du ticket</span>
+                      <FormSelect bind:value={ticketType.mode} className="w-full">
+                        <option value="">Par défaut (global)</option>
+                        <option value="CHANNEL">Salon</option>
+                        <option value="DM">Message Privé</option>
+                        <option value="THREAD">Thread</option>
+                      </FormSelect>
+                    </label>
+                    <div class="flex items-center gap-2 pt-4">
+                      <ToggleSwitch checked={ticketType.anonymous} onToggle={(v) => { ticketType.anonymous = v; }} size="sm" />
+                      <div>
+                        <span class="text-xs font-medium text-on-surface">Anonyme</span>
+                        <p class="text-[10px] text-on-surface-variant/50">Masque l'identité en mode MP</p>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 pt-4">
+                      <ToggleSwitch checked={ticketType.staffServerRelay} onToggle={(v) => { ticketType.staffServerRelay = v; }} size="sm" />
+                      <div>
+                        <span class="text-xs font-medium text-on-surface">Relay staff server</span>
+                        <p class="text-[10px] text-on-surface-variant/50">Crée le thread sur le serveur staff</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               {/each}

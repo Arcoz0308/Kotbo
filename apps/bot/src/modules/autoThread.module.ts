@@ -30,6 +30,7 @@ async function getAutoThreadConfig(guildId: string): Promise<{ enabled: boolean;
 export function registerAutoThreadBusSubscribers(client: Client): void {
   kotboEventBus.subscribe('message:new', async (payload) => {
     if (!payload.guildId) return;
+    if (payload.isInteraction) return;
 
     const config = await getAutoThreadConfig(payload.guildId);
     if (!config.enabled || !config.channels.includes(payload.channelId)) return;
@@ -69,6 +70,8 @@ export function registerAutoThreadBusSubscribers(client: Client): void {
       name: threadName.substring(0, 100),
       autoArchiveDuration: 1440,
       reason: 'AutoThread activé pour le salon.',
+    }).catch((e: unknown) => {
+      logger.error('AutoThread', `Erreur lors de la création du fil pour le message ${payload.messageId}:`, e);
     });
   }, MODULE_NAME);
 

@@ -1,0 +1,77 @@
+// ============================================================================
+// STAFF SERVER LINKING
+// ============================================================================
+
+enum StaffServerSyncMode {
+  MAIN_TO_STAFF    // Hiérarchie sur le principal, rôle simple sur le staff
+  STAFF_TO_MAIN    // Hiérarchie sur le staff, rôle simple sur le principal
+  BIDIRECTIONAL    // Hiérarchie synchronisée sur les 2
+}
+
+model StaffServerLink {
+  id String @id @default(cuid())
+
+  // Le serveur principal (celui qui "possède" le staff)
+  mainGuildId String
+
+  // Le serveur staff dédié
+  staffGuildId String
+
+  syncMode StaffServerSyncMode @default(MAIN_TO_STAFF)
+
+  // Hiérarchie staff liée (null = toutes les hiérarchies)
+  hierarchyId String?
+
+  // Rôle "Staff" générique sur le serveur qui n'a PAS la hiérarchie complète
+  // (ex: si MAIN_TO_STAFF, c'est le rôle staff sur le serveur staff)
+  simpleStaffRoleId String?
+
+  // Salon de logs pour les syncs sur le serveur principal
+  mainLogChannelId String?
+  // Salon de logs pour les syncs sur le serveur staff
+  staffLogChannelId String?
+
+  enabled Boolean @default(true)
+
+  createdByUserId String
+
+  mainGuild  Guild @relation("GuildStaffServerMain", fields: [mainGuildId], references: [id], onDelete: Cascade)
+  staffGuild Guild @relation("GuildStaffServerStaff", fields: [staffGuildId], references: [id], onDelete: Cascade)
+  hierarchy  StaffHierarchy? @relation("StaffServerHierarchy", fields: [hierarchyId], references: [id], onDelete: SetNull)
+
+  roleMappings StaffServerRoleMapping[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([mainGuildId, staffGuildId, hierarchyId])
+  @@index([mainGuildId])
+  @@index([staffGuildId])
+  @@index([enabled])
+  @@map("staff_server_links")
+}
+
+model StaffServerRoleMapping {
+  id String @id @default(cuid())
+
+  staffServerLinkId String
+
+  // Le rôle staff (grade) côté source de la hiérarchie
+  staffRoleId String?
+
+  // Le rôle Discord correspondant sur le serveur principal
+  mainDiscordRoleId String?
+
+  // Le rôle Discord correspondant sur le serveur staff
+  staffDiscordRoleId String?
+
+  staffServerLink StaffServerLink @relation(fields: [staffServerLinkId], references: [id], onDelete: Cascade)
+  staffRole       StaffRole?      @relation("StaffRoleMappings", fields: [staffRoleId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([staffServerLinkId, staffRoleId])
+  @@index([staffServerLinkId])
+  @@map("staff_server_role_mappings")
+}

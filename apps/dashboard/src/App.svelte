@@ -90,6 +90,8 @@
   import FunSettings from "./pages/FunSettings.svelte";
   import CustomBot from "./pages/CustomBot.svelte";
   import Verify from "./pages/Verify.svelte";
+  import ChannelLinks from "./pages/ChannelLinks.svelte";
+  import StaffServerLinks from "./pages/StaffServerLinks.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -162,6 +164,8 @@
     if (path.startsWith("/schedules")) return "settings";
     if (path.startsWith("/mcp-settings")) return "settings";
     if (path.startsWith("/fun")) return "fun";
+    if (path.startsWith("/channel-links")) return "channel_links";
+    if (path.startsWith("/staff-server")) return "staff_server";
     if (path.startsWith("/admin")) return "centralized_config";
     return null;
   }
@@ -713,6 +717,13 @@
                 <ChannelsManagement />
               </Route>
             {/if}
+
+            <Route path="/channel-links">
+              <ChannelLinks />
+            </Route>
+            <Route path="/staff-server">
+              <StaffServerLinks />
+            </Route>
 
             <Route path="/dailyalgo">
               <DailyAlgo />

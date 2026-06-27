@@ -18,7 +18,7 @@
   const saveAction = createAsyncActionState();
 
   const module = $derived((dashboardStore.state.modules as any[]).find((m) => m.id === featureKey));
-  const isModuleEnabled = $derived(module?.status === 'active');
+  const isModuleEnabled = $derived(!module || module.status === 'active');
   const isFixed = $derived(module?.id === 'activity' || module?.id === 'dashboard');
 
   async function toggleModule() {
@@ -72,7 +72,7 @@
     </div>
   </header>
 
-  <main class="flex-1 {isModuleEnabled || isFixed || featureKey === 'sanctions' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
+  <main class="flex-1 {isModuleEnabled || isFixed || featureKey === 'sanctions' || featureKey === 'channel_links' || featureKey === 'staff_server' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
     {@render children()}
   </main>
 </div>

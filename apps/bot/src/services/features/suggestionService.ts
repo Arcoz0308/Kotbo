@@ -1,5 +1,6 @@
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
+import { logger } from '../../utils/logger.js';
 
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 
@@ -141,9 +142,12 @@ export async function handleSuggestionVote(interaction: unknown, type: 'up' | 'd
 
   // Mettre à jour l'embed Discord
   if (suggestion.channelId && suggestion.messageId) {
-    const channel = interaction.guild.channels.cache.get(suggestion.channelId);
+    const channel = interaction.guild?.channels.cache.get(suggestion.channelId);
     if (channel?.isTextBased()) {
-      const message = await channel.messages.fetch(suggestion.messageId).catch(() => null);
+      const message = await channel.messages.fetch(suggestion.messageId).catch((e: unknown) => {
+        logger.error('Suggestions', `Impossible de récupérer le message ${suggestion.messageId}:`, e);
+        return null;
+      });
       if (message) {
         const originalEmbed = message.embeds[0];
         if (originalEmbed) {
@@ -167,10 +171,16 @@ export async function handleSuggestionVote(interaction: unknown, type: 'up' | 'd
 
           const row = new ActionRowBuilder<ButtonBuilder>().addComponents(upBtn, downBtn);
 
-          await message.edit({ embeds: [updatedEmbed], components: [row] }).catch(() => null);
+          await message.edit({ embeds: [updatedEmbed], components: [row] }).catch((e: unknown) => {
+            logger.error('Suggestions', `Impossible de mettre à jour l'embed de la suggestion ${suggestion.id}:`, e);
+          });
         }
       }
+    } else {
+      logger.warn('Suggestions', `Channel ${suggestion.channelId} introuvable dans le cache pour la suggestion ${suggestion.id}`);
     }
+  } else {
+    logger.warn('Suggestions', `Suggestion ${suggestionId} sans channelId ou messageId, impossible de mettre à jour l'embed`);
   }
 
   return interaction.reply({

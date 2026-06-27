@@ -839,6 +839,26 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     return;
   }
 
+  // DM guild select for /ticket open in DMs
+  if (customId === 'ticket:dm_guild_select' && interaction.isStringSelectMenu()) {
+    const selectedGuildId = interaction.values[0];
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
+    const selectedGuild = client.guilds.cache.get(selectedGuildId);
+    const modal = new ModalBuilder()
+      .setCustomId(`modal:ticket:open:dm_direct:${selectedGuildId}`)
+      .setTitle(`Ticket · ${selectedGuild?.name || 'Serveur'}`.slice(0, 45));
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder().setCustomId('reason').setLabel('Sujet du ticket').setStyle(TextInputStyle.Short).setPlaceholder('Ex: Problème de rôles').setMaxLength(100).setRequired(true),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder().setCustomId('description').setLabel('Description détaillée').setStyle(TextInputStyle.Paragraph).setPlaceholder('Décrivez votre problème...').setMaxLength(1000).setRequired(true),
+      ),
+    );
+    await interaction.showModal(modal);
+    return;
+  }
+
   if (!guildId) return;
 
   // Ticket system select menu
@@ -986,6 +1006,12 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   if (customId.startsWith('help_')) {
     const { handleHelpInteraction } = await import('../commands/utility/help.js');
     await handleHelpInteraction(interaction);
+    return;
+  }
+
+  // DM ticket modal — must be before guildId check
+  if (customId.startsWith('modal:ticket:open:dm_direct:')) {
+    await handleTicketModalSubmit(client, customId, interaction);
     return;
   }
 

@@ -431,14 +431,16 @@ export async function handleMembersRoutes(
         botFilter: botFilterMap[botFilter] ?? 'exclude',
       });
 
-      // Compteurs globaux (requêtes légères)
-      const [onServerCount, leftCount, botCount] = await Promise.all([
+      // Compteurs globaux
+      const discordGuild = client.guilds.cache.get(guildId);
+      const [dbOnServerCount, leftCount, botCount] = await Promise.all([
         prisma.memberProfile.count({ where: { guildId, guildLeftAt: null } }),
         prisma.memberProfile.count({ where: { guildId, guildLeftAt: { not: null } } }),
         prisma.memberProfile.count({ where: { guildId, isBot: true } }),
       ]);
+      const onServerCount = discordGuild?.memberCount ?? dbOnServerCount;
 
-      const members = result.members.map((m) => ({
+      let members = result.members.map((m) => ({
         id: m.userId,
         username: m.username ?? 'Utilisateur inconnu',
         displayName: m.displayName ?? m.username ?? 'Utilisateur inconnu',
@@ -451,9 +453,28 @@ export async function handleMembersRoutes(
         isOnServer: !m.guildLeftAt,
       }));
 
+      // Fallback Discord : si la recherche DB ne trouve rien, chercher sur Discord
+      if (members.length === 0 && searchQuery && discordGuild && serverStatus !== 'left') {
+        const discordResults = await discordGuild.members.search({ query: searchQuery, limit }).catch(() => null);
+        if (discordResults && discordResults.size > 0) {
+          members = discordResults.map((dm) => ({
+            id: dm.id,
+            username: dm.user.username,
+            displayName: dm.displayName ?? dm.user.username,
+            avatarUrl: dm.user.displayAvatarURL({ size: 128 }),
+            isBot: dm.user.bot,
+            lastSeenAt: null,
+            messageCount: 0,
+            guildJoinedAt: dm.joinedAt?.toISOString() ?? null,
+            guildLeftAt: null,
+            isOnServer: true,
+          }));
+        }
+      }
+
       json(res, 200, {
         members,
-        totalFound: result.totalFound,
+        totalFound: members.length > result.totalFound ? members.length : result.totalFound,
         totalPages: result.totalPages,
         onServerCount,
         leftCount,

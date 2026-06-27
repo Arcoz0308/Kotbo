@@ -13,6 +13,7 @@
     moderationItems,
     communityItems,
     staffItems,
+    crossServerItems,
     configItems,
     isPageBeta,
     isPageWip,
@@ -103,6 +104,9 @@
   const visibleConfig = $derived(
     isAdmin ? configItems.filter((i) => canViewFeature(i.featureKey)) : [],
   );
+  const visibleCrossServer = $derived(
+    isAdmin ? crossServerItems.filter((i) => canViewFeature(i.featureKey)) : [],
+  );
 
   const visibleStaff = $derived.by((): PageConfig[] => {
     if (isAdmin) return staffItems.filter((i) => canViewFeature(i.featureKey));
@@ -123,6 +127,7 @@
       { key: 'moderation', label: 'Modération',     items: visibleModeration },
       { key: 'community',  label: 'Communauté',     items: visibleCommunity  },
       { key: 'staff',      label: 'Staff',          items: visibleStaff      },
+      { key: 'crossserver',label: 'Cross-Serveur',  items: visibleCrossServer },
       { key: 'config',     label: 'Configuration',  items: visibleConfig     },
     ] satisfies NavGroup[]).filter((g) => g.items.length > 0),
   );

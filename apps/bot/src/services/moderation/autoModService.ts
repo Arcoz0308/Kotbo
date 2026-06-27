@@ -1,4 +1,4 @@
-import { Message, PermissionFlagsBits, EmbedBuilder, Client, PartialMessage, User, Role, Collection, AuditLogEvent, AutoModerationRuleTriggerType, AutoModerationRuleEventType, AutoModerationActionType, GuildMember } from 'discord.js';
+import { Message, PermissionFlagsBits, EmbedBuilder, Client, PartialMessage, User, Role, Collection, AuditLogEvent, AutoModerationRuleTriggerType, AutoModerationRuleEventType, AutoModerationActionType, AutoModerationRuleKeywordPresetType, GuildMember } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
@@ -49,6 +49,22 @@ export async function getOrCreateAutoModConfig(guildId: string) {
           ghostPingAction: 'ALERT',
           antiEveryoneEnabled: false,
           antiEveryoneAction: 'DELETE_AND_WARN',
+          customWordsEnabled: false,
+          customWordsAction: 'BLOCK',
+          customWords: [],
+          customWordsAllowList: [],
+          customWordsTimeoutSec: 60,
+          profanityEnabled: false,
+          profanityPresetProfanity: true,
+          profanityPresetSexual: true,
+          profanityPresetSlurs: true,
+          profanityAction: 'BLOCK',
+          profanityAllowList: [],
+          profanityTimeoutSec: 60,
+          inviteFilterEnabled: false,
+          inviteFilterAction: 'BLOCK',
+          inviteFilterAllowedGuilds: [],
+          inviteFilterTimeoutSec: 60,
           antiBotEnabled: false,
           antiBotAction: 'KICK',
           antiBotBypassUsers: [],
@@ -63,6 +79,48 @@ export async function getOrCreateAutoModConfig(guildId: string) {
     autoModConfigsCache.set(guildId, config);
   }
   return config;
+}
+
+function buildNativeActions(action: string, timeoutSec: number, logChannelId: string | null, blockMessage: string): unknown[] {
+  const actions: unknown[] = [];
+
+  if (action === 'BLOCK' || action === 'TIMEOUT') {
+    actions.push({
+      type: AutoModerationActionType.BlockMessage,
+      metadata: { customMessage: blockMessage }
+    });
+  }
+
+  if (action === 'TIMEOUT') {
+    const duration = Math.max(5, Math.min(2419200, timeoutSec || 60));
+    actions.push({
+      type: AutoModerationActionType.Timeout,
+      metadata: { durationSeconds: duration }
+    });
+  }
+
+  if (logChannelId) {
+    actions.push({
+      type: AutoModerationActionType.SendAlertMessage,
+      metadata: { channelId: logChannelId }
+    });
+  }
+
+  if (actions.length === 0) {
+    if (logChannelId) {
+      actions.push({
+        type: AutoModerationActionType.SendAlertMessage,
+        metadata: { channelId: logChannelId }
+      });
+    } else {
+      actions.push({
+        type: AutoModerationActionType.BlockMessage,
+        metadata: { customMessage: blockMessage }
+      });
+    }
+  }
+
+  return actions;
 }
 
 /**
@@ -101,6 +159,9 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
       spam: 'Kotbo AutoMod - Spam',
       mentions: 'Kotbo AutoMod - Mentions',
       links: 'Kotbo AutoMod - Liens',
+      customWords: 'Kotbo AutoMod - Mots personnalisés',
+      profanity: 'Kotbo AutoMod - Profanités',
+      invites: 'Kotbo AutoMod - Invitations',
     };
 
     const deleteRuleIfExists = async (ruleName: string) => {
@@ -114,10 +175,12 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
     };
 
     if (!config.discordAutoModEnabled) {
-      // Si la synchro native est désactivée, on nettoie toutes nos règles existantes
       await deleteRuleIfExists(ruleNames.spam);
       await deleteRuleIfExists(ruleNames.mentions);
       await deleteRuleIfExists(ruleNames.links);
+      await deleteRuleIfExists(ruleNames.customWords);
+      await deleteRuleIfExists(ruleNames.profanity);
+      await deleteRuleIfExists(ruleNames.invites);
       return;
     }
 
@@ -271,6 +334,142 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
       }
     } else {
       await deleteRuleIfExists(ruleNames.links);
+    }
+
+    // 4. Règle Custom Words Filter
+    if (config.customWordsEnabled && config.customWords?.length > 0) {
+      const existingCustomWords = existingRules.find(r => r.name === ruleNames.customWords);
+      const actions = buildNativeActions(config.customWordsAction, config.customWordsTimeoutSec, logChannelId, "Message bloqué par l'AutoMod Kotbo (Mot interdit détecté).");
+
+      const keywords = (config.customWords as string[])
+        .map((w: string) => w.trim().toLowerCase())
+        .filter((w: string) => w.length > 0 && w.length <= 60)
+        .slice(0, 1000);
+
+      if (keywords.length > 0) {
+        const allowList = (config.customWordsAllowList || [])
+          .map((w: string) => w.trim().toLowerCase())
+          .filter(Boolean)
+          .slice(0, 100);
+
+        const ruleData = {
+          name: ruleNames.customWords,
+          eventType: AutoModerationRuleEventType.MessageSend,
+          triggerType: AutoModerationRuleTriggerType.Keyword,
+          triggerMetadata: {
+            keywordFilter: keywords,
+            allowList: allowList.length > 0 ? allowList : undefined
+          },
+          actions,
+          enabled: true,
+          exemptRoles,
+          exemptChannels
+        };
+
+        try {
+          if (existingCustomWords) {
+            logger.info('AutoModService', `Mise à jour de la règle native Discord "${ruleNames.customWords}" pour ${guild.name}`);
+            await existingCustomWords.edit(ruleData);
+          } else {
+            logger.info('AutoModService', `Création de la règle native Discord "${ruleNames.customWords}" pour ${guild.name}`);
+            await guild.autoModerationRules.create(ruleData);
+          }
+        } catch (err) {
+          logger.error('AutoModService', `Erreur lors de la création/modification de la règle "${ruleNames.customWords}" :`, err);
+        }
+      } else {
+        await deleteRuleIfExists(ruleNames.customWords);
+      }
+    } else {
+      await deleteRuleIfExists(ruleNames.customWords);
+    }
+
+    // 5. Règle Profanity Filter (KeywordPreset)
+    if (config.profanityEnabled) {
+      const existingProfanity = existingRules.find(r => r.name === ruleNames.profanity);
+      const actions = buildNativeActions(config.profanityAction, config.profanityTimeoutSec, logChannelId, "Message bloqué par l'AutoMod Kotbo (Contenu inapproprié détecté).");
+
+      const presets: AutoModerationRuleKeywordPresetType[] = [];
+      if (config.profanityPresetProfanity) presets.push(AutoModerationRuleKeywordPresetType.Profanity);
+      if (config.profanityPresetSexual) presets.push(AutoModerationRuleKeywordPresetType.SexualContent);
+      if (config.profanityPresetSlurs) presets.push(AutoModerationRuleKeywordPresetType.Slurs);
+
+      if (presets.length > 0) {
+        const allowList = (config.profanityAllowList || [])
+          .map((w: string) => w.trim().toLowerCase())
+          .filter(Boolean)
+          .slice(0, 100);
+
+        const ruleData = {
+          name: ruleNames.profanity,
+          eventType: AutoModerationRuleEventType.MessageSend,
+          triggerType: AutoModerationRuleTriggerType.KeywordPreset,
+          triggerMetadata: {
+            presets,
+            allowList: allowList.length > 0 ? allowList : undefined
+          },
+          actions,
+          enabled: true,
+          exemptRoles,
+          exemptChannels
+        };
+
+        try {
+          if (existingProfanity) {
+            logger.info('AutoModService', `Mise à jour de la règle native Discord "${ruleNames.profanity}" pour ${guild.name}`);
+            await existingProfanity.edit(ruleData);
+          } else {
+            logger.info('AutoModService', `Création de la règle native Discord "${ruleNames.profanity}" pour ${guild.name}`);
+            await guild.autoModerationRules.create(ruleData);
+          }
+        } catch (err) {
+          logger.error('AutoModService', `Erreur lors de la création/modification de la règle "${ruleNames.profanity}" :`, err);
+        }
+      } else {
+        await deleteRuleIfExists(ruleNames.profanity);
+      }
+    } else {
+      await deleteRuleIfExists(ruleNames.profanity);
+    }
+
+    // 6. Règle Invite Filter
+    if (config.inviteFilterEnabled) {
+      const existingInvites = existingRules.find(r => r.name === ruleNames.invites);
+      const actions = buildNativeActions(config.inviteFilterAction, config.inviteFilterTimeoutSec, logChannelId, "Message bloqué par l'AutoMod Kotbo (Invitation Discord non autorisée).");
+
+      const keywordFilter = ['*discord.gg/*', '*discord.com/invite/*', '*discordapp.com/invite/*'];
+      const allowList = (config.inviteFilterAllowedGuilds || [])
+        .map((g: string) => `*discord.gg/${g.trim()}*`)
+        .filter(Boolean)
+        .slice(0, 100);
+
+      const ruleData = {
+        name: ruleNames.invites,
+        eventType: AutoModerationRuleEventType.MessageSend,
+        triggerType: AutoModerationRuleTriggerType.Keyword,
+        triggerMetadata: {
+          keywordFilter,
+          allowList: allowList.length > 0 ? allowList : undefined
+        },
+        actions,
+        enabled: true,
+        exemptRoles,
+        exemptChannels
+      };
+
+      try {
+        if (existingInvites) {
+          logger.info('AutoModService', `Mise à jour de la règle native Discord "${ruleNames.invites}" pour ${guild.name}`);
+          await existingInvites.edit(ruleData);
+        } else {
+          logger.info('AutoModService', `Création de la règle native Discord "${ruleNames.invites}" pour ${guild.name}`);
+          await guild.autoModerationRules.create(ruleData);
+        }
+      } catch (err) {
+        logger.error('AutoModService', `Erreur lors de la création/modification de la règle "${ruleNames.invites}" :`, err);
+      }
+    } else {
+      await deleteRuleIfExists(ruleNames.invites);
     }
 
   } catch (err) {

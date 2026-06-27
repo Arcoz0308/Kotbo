@@ -44,6 +44,28 @@ model AutoModConfig {
   antiEveryoneEnabled  Boolean  @default(false)
   antiEveryoneAction   String   @default("DELETE_AND_WARN")
 
+  // Native Discord AutoMod — Custom Words Filter (Keyword trigger)
+  customWordsEnabled     Boolean  @default(false)
+  customWordsAction      String   @default("BLOCK") // BLOCK, TIMEOUT, ALERT
+  customWords            String[] @default([])
+  customWordsAllowList   String[] @default([])
+  customWordsTimeoutSec  Int      @default(60)
+
+  // Native Discord AutoMod — Profanity Filter (KeywordPreset trigger)
+  profanityEnabled       Boolean  @default(false)
+  profanityPresetProfanity Boolean @default(true)
+  profanityPresetSexual  Boolean  @default(true)
+  profanityPresetSlurs   Boolean  @default(true)
+  profanityAction        String   @default("BLOCK") // BLOCK, TIMEOUT, ALERT
+  profanityAllowList     String[] @default([])
+  profanityTimeoutSec    Int      @default(60)
+
+  // Native Discord AutoMod — Invite Filter (Keyword trigger for invite links)
+  inviteFilterEnabled    Boolean  @default(false)
+  inviteFilterAction     String   @default("BLOCK") // BLOCK, TIMEOUT, ALERT
+  inviteFilterAllowedGuilds String[] @default([])
+  inviteFilterTimeoutSec Int      @default(60)
+
   antiBotEnabled       Boolean  @default(false)
   antiBotAction        String   @default("KICK") // KICK, BAN
   antiBotBypassUsers   String[] @default([]) // User IDs autorisés à ajouter des bots

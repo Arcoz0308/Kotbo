@@ -30,26 +30,45 @@
     spamLimit: 5,
     spamIntervalSeconds: 5,
     spamAction: 'TIMEOUT',
-    
+
     linksEnabled: false,
     linksAction: 'DELETE_AND_WARN',
     linksWhitelist: [] as string[],
-    
+
     capsEnabled: false,
     capsThresholdPercent: 80,
     capsMinLength: 10,
-    
+
     emojisEnabled: false,
     emojisLimit: 10,
-    
+
     mentionsEnabled: false,
     mentionsLimit: 5,
 
     ghostPingEnabled: false,
     ghostPingAction: 'ALERT',
-    
+
     antiEveryoneEnabled: false,
     antiEveryoneAction: 'DELETE_AND_WARN',
+
+    customWordsEnabled: false,
+    customWordsAction: 'BLOCK',
+    customWords: [] as string[],
+    customWordsAllowList: [] as string[],
+    customWordsTimeoutSec: 60,
+
+    profanityEnabled: false,
+    profanityPresetProfanity: true,
+    profanityPresetSexual: true,
+    profanityPresetSlurs: true,
+    profanityAction: 'BLOCK',
+    profanityAllowList: [] as string[],
+    profanityTimeoutSec: 60,
+
+    inviteFilterEnabled: false,
+    inviteFilterAction: 'BLOCK',
+    inviteFilterAllowedGuilds: [] as string[],
+    inviteFilterTimeoutSec: 60,
 
     antiBotEnabled: false,
     antiBotAction: 'KICK',
@@ -69,6 +88,9 @@
     mentionsEnabled: false, mentionsLimit: 5,
     ghostPingEnabled: false, ghostPingAction: 'ALERT',
     antiEveryoneEnabled: false, antiEveryoneAction: 'DELETE_AND_WARN',
+    customWordsEnabled: false, customWordsAction: 'BLOCK', customWords: [], customWordsAllowList: [], customWordsTimeoutSec: 60,
+    profanityEnabled: false, profanityPresetProfanity: true, profanityPresetSexual: true, profanityPresetSlurs: true, profanityAction: 'BLOCK', profanityAllowList: [], profanityTimeoutSec: 60,
+    inviteFilterEnabled: false, inviteFilterAction: 'BLOCK', inviteFilterAllowedGuilds: [], inviteFilterTimeoutSec: 60,
     antiBotEnabled: false, antiBotAction: 'KICK', antiBotBypassUsers: [],
     bypassRoles: [], bypassChannels: []
   })));
@@ -83,6 +105,10 @@
           onReset: () => {
             config = JSON.parse(JSON.stringify(savedConfig));
             whitelistInput = config.linksWhitelist.join('\n');
+            customWordsInput = (config.customWords || []).join('\n');
+            customWordsAllowInput = (config.customWordsAllowList || []).join('\n');
+            profanityAllowInput = (config.profanityAllowList || []).join('\n');
+            inviteAllowedGuildsInput = (config.inviteFilterAllowedGuilds || []).join('\n');
           }
         });
       });
@@ -99,6 +125,10 @@
 
   // Helper local states for lists editing
   let whitelistInput = $state('');
+  let customWordsInput = $state('');
+  let customWordsAllowInput = $state('');
+  let profanityAllowInput = $state('');
+  let inviteAllowedGuildsInput = $state('');
   let selectedBypassRole = $state('');
   let selectedBypassChannel = $state('');
   let antiBotBypassInput = $state('');
@@ -112,6 +142,10 @@
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
         whitelistInput = config.linksWhitelist.join('\n');
+        customWordsInput = (config.customWords || []).join('\n');
+        customWordsAllowInput = (config.customWordsAllowList || []).join('\n');
+        profanityAllowInput = (config.profanityAllowList || []).join('\n');
+        inviteAllowedGuildsInput = (config.inviteFilterAllowedGuilds || []).join('\n');
         if (res.isOwner) isOwner = true;
       }
     } catch (err) {
@@ -124,11 +158,16 @@
   async function handleSave(): Promise<boolean> {
     if (!canManageSettings) return false;
     
-    // Parse domains list
     config.linksWhitelist = whitelistInput
-      .split('\n')
-      .map(d => d.trim().toLowerCase())
-      .filter(d => d.length > 0);
+      .split('\n').map(d => d.trim().toLowerCase()).filter(d => d.length > 0);
+    config.customWords = customWordsInput
+      .split('\n').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
+    config.customWordsAllowList = customWordsAllowInput
+      .split('\n').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
+    config.profanityAllowList = profanityAllowInput
+      .split('\n').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
+    config.inviteFilterAllowedGuilds = inviteAllowedGuildsInput
+      .split('\n').map(g => g.trim()).filter(g => g.length > 0);
 
     let success = false;
     let syncWarning: string | null = null;
@@ -363,6 +402,246 @@
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
                   disabled={!canManageSettings}
                 />
+              </div>
+            </div>
+          {/if}
+        </section>
+      </div>
+
+      <!-- Center Divider: Native Discord AutoMod -->
+      <div class="lg:col-span-2 space-y-4">
+        <div class="flex items-center gap-3 px-2">
+          <div class="h-px flex-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+          <h2 class="text-sm font-bold text-primary/80 uppercase tracking-widest whitespace-nowrap flex items-center gap-2">
+            <Papicon icon="Shield" size={16} />
+            Filtres AutoMod Natifs Discord
+          </h2>
+          <div class="h-px flex-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+        </div>
+        <p class="text-xs text-on-surface-variant/60 text-center max-w-2xl mx-auto">
+          Ces filtres utilisent l'API native d'AutoMod de Discord. Ils sont appliqués directement par Discord, avant même que le bot ne reçoive le message, garantissant une modération instantanée et fiable.
+        </p>
+      </div>
+
+      <div class="lg:col-span-2 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Custom Words Filter -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
+              <Papicon icon="Filter" size={20} class="text-orange-400" />
+              Filtre Mots Personnalisés
+            </h3>
+            <ToggleSwitch
+              checked={config.customWordsEnabled}
+              onToggle={(v: boolean) => config.customWordsEnabled = v}
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            Bloque automatiquement les messages contenant des mots ou expressions interdits. Géré nativement par Discord.
+          </p>
+
+          {#if config.customWordsEnabled}
+            <div class="space-y-4 animate-in fade-in duration-300">
+              <div class="space-y-1.5">
+                <label for="customWordsAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                <select
+                  id="customWordsAction"
+                  bind:value={config.customWordsAction}
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  disabled={!canManageSettings}
+                >
+                  <option value="BLOCK">Bloquer le message</option>
+                  <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
+                  <option value="ALERT">Alerter uniquement (logs)</option>
+                </select>
+              </div>
+
+              {#if config.customWordsAction === 'TIMEOUT'}
+                <div class="space-y-1.5">
+                  <label for="customWordsTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                  <input
+                    id="customWordsTimeout"
+                    type="number" min="5" max="2419200"
+                    bind:value={config.customWordsTimeoutSec}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+              {/if}
+
+              <div class="space-y-1.5">
+                <label for="customWords" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Mots interdits (un par ligne, max 1000)</label>
+                <textarea
+                  id="customWords"
+                  bind:value={customWordsInput}
+                  placeholder="mot1&#10;expression interdite&#10;*pattern*"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-32 resize-none font-mono"
+                  disabled={!canManageSettings}
+                ></textarea>
+                <p class="text-[10px] text-on-surface-variant/50 ml-2">Utilisez * comme joker : *spam* détectera « antispam », « spammer », etc.</p>
+              </div>
+
+              <div class="space-y-1.5">
+                <label for="customWordsAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Exceptions (mots autorisés, un par ligne)</label>
+                <textarea
+                  id="customWordsAllow"
+                  bind:value={customWordsAllowInput}
+                  placeholder="exception1&#10;exception2"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
+                  disabled={!canManageSettings}
+                ></textarea>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- Profanity Filter -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
+              <Papicon icon="ShieldX" size={20} class="text-red-400" />
+              Filtre Profanités
+            </h3>
+            <ToggleSwitch
+              checked={config.profanityEnabled}
+              onToggle={(v: boolean) => config.profanityEnabled = v}
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            Utilise les listes de mots prédéfinies par Discord pour bloquer automatiquement les insultes, contenus sexuels et termes haineux.
+          </p>
+
+          {#if config.profanityEnabled}
+            <div class="space-y-4 animate-in fade-in duration-300">
+              <div class="space-y-3">
+                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Catégories actives</span>
+                <div class="space-y-2">
+                  <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
+                    <input type="checkbox" bind:checked={config.profanityPresetProfanity} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
+                    <div>
+                      <span class="text-sm font-medium">Insultes & Grossièretés</span>
+                      <p class="text-[10px] text-on-surface-variant/50">Liste Discord de termes vulgaires et insultants</p>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
+                    <input type="checkbox" bind:checked={config.profanityPresetSexual} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
+                    <div>
+                      <span class="text-sm font-medium">Contenu Sexuel</span>
+                      <p class="text-[10px] text-on-surface-variant/50">Termes à caractère sexuel explicite</p>
+                    </div>
+                  </label>
+                  <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
+                    <input type="checkbox" bind:checked={config.profanityPresetSlurs} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
+                    <div>
+                      <span class="text-sm font-medium">Termes Haineux & Discriminatoires</span>
+                      <p class="text-[10px] text-on-surface-variant/50">Insultes racistes, homophobes et autres slurs</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <label for="profanityAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                <select
+                  id="profanityAction"
+                  bind:value={config.profanityAction}
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  disabled={!canManageSettings}
+                >
+                  <option value="BLOCK">Bloquer le message</option>
+                  <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
+                  <option value="ALERT">Alerter uniquement (logs)</option>
+                </select>
+              </div>
+
+              {#if config.profanityAction === 'TIMEOUT'}
+                <div class="space-y-1.5">
+                  <label for="profanityTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                  <input
+                    id="profanityTimeout"
+                    type="number" min="5" max="2419200"
+                    bind:value={config.profanityTimeoutSec}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+              {/if}
+
+              <div class="space-y-1.5">
+                <label for="profanityAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Exceptions (mots autorisés malgré tout, un par ligne)</label>
+                <textarea
+                  id="profanityAllow"
+                  bind:value={profanityAllowInput}
+                  placeholder="mot autorisé&#10;expression ok"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
+                  disabled={!canManageSettings}
+                ></textarea>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- Invite Filter -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
+              <Papicon icon="UserPlus" size={20} class="text-indigo-400" />
+              Filtre Invitations Discord
+            </h3>
+            <ToggleSwitch
+              checked={config.inviteFilterEnabled}
+              onToggle={(v: boolean) => config.inviteFilterEnabled = v}
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            Bloque automatiquement les liens d'invitation Discord (discord.gg, discord.com/invite). Géré nativement par Discord pour une modération instantanée.
+          </p>
+
+          {#if config.inviteFilterEnabled}
+            <div class="space-y-4 animate-in fade-in duration-300">
+              <div class="space-y-1.5">
+                <label for="inviteFilterAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                <select
+                  id="inviteFilterAction"
+                  bind:value={config.inviteFilterAction}
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  disabled={!canManageSettings}
+                >
+                  <option value="BLOCK">Bloquer le message</option>
+                  <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
+                  <option value="ALERT">Alerter uniquement (logs)</option>
+                </select>
+              </div>
+
+              {#if config.inviteFilterAction === 'TIMEOUT'}
+                <div class="space-y-1.5">
+                  <label for="inviteFilterTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                  <input
+                    id="inviteFilterTimeout"
+                    type="number" min="5" max="2419200"
+                    bind:value={config.inviteFilterTimeoutSec}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+              {/if}
+
+              <div class="space-y-1.5">
+                <label for="inviteAllowed" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Codes d'invitation autorisés (un par ligne)</label>
+                <textarea
+                  id="inviteAllowed"
+                  bind:value={inviteAllowedGuildsInput}
+                  placeholder="monserveur&#10;autreCode"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
+                  disabled={!canManageSettings}
+                ></textarea>
+                <p class="text-[10px] text-on-surface-variant/50 ml-2">Entrez les codes d'invitation (ex: « monserveur » pour discord.gg/monserveur)</p>
               </div>
             </div>
           {/if}

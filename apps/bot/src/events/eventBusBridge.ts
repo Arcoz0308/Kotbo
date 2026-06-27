@@ -31,6 +31,7 @@ export function registerEventBusBridge(client: Client): void {
       hasReference: !!message.reference,
       messageId: message.id,
       attachmentCount: message.attachments.size,
+      isInteraction: !!message.interaction,
       timestamp: message.createdTimestamp,
     });
   });

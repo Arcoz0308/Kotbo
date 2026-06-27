@@ -64,6 +64,7 @@ model StaffRole {
 
   guild Guild @relation("GuildStaffRoles", fields: [guildId], references: [id], onDelete: Cascade)
   hierarchy StaffHierarchy? @relation("HierarchyRoles", fields: [hierarchyId], references: [id], onDelete: SetNull)
+  serverRoleMappings StaffServerRoleMapping[] @relation("StaffRoleMappings")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,6 +97,7 @@ model StaffHierarchy {
   childrenHierarchies StaffHierarchy[] @relation("HierarchyParent")
   roles  StaffRole[] @relation("HierarchyRoles")
   memberGrades StaffMemberHierarchyGrade[]
+  staffServerLinks StaffServerLink[] @relation("StaffServerHierarchy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

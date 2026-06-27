@@ -60,6 +60,9 @@ type TicketPanelTypeConfig = {
   categoryId?: string | null;
   staffRoleId?: string | null;
   buttonStyle?: 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
+  mode?: 'CHANNEL' | 'DM' | 'THREAD' | null;
+  anonymous?: boolean;
+  staffServerRelay?: boolean;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -82,6 +85,10 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
           ? item.buttonStyle
           : 'PRIMARY';
 
+        const mode = item.mode === 'CHANNEL' || item.mode === 'DM' || item.mode === 'THREAD'
+          ? item.mode as 'CHANNEL' | 'DM' | 'THREAD'
+          : null;
+
         return {
           id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ticket-type-${index + 1}`,
           label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
@@ -90,6 +97,9 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
           categoryId: typeof item.categoryId === 'string' && item.categoryId.trim() ? item.categoryId.trim() : null,
           staffRoleId: typeof item.staffRoleId === 'string' && item.staffRoleId.trim() ? item.staffRoleId.trim() : null,
           buttonStyle,
+          mode,
+          anonymous: item.anonymous === true,
+          staffServerRelay: item.staffServerRelay === true,
         };
       })
       .filter((item) => item.label.length > 0);
@@ -747,6 +757,12 @@ export async function handleTicketButton(client: Client, customId: string, inter
  * Handles all modal submissions starting with "modal:ticket:"
  */
 export async function handleTicketModalSubmit(client: Client, customId: string, interaction: ModalSubmitInteraction): Promise<void> {
+  // ─── DM direct ticket (from /ticket open in DM) ──────────
+  if (customId.startsWith('modal:ticket:open:dm_direct:')) {
+    const targetGuildId = customId.split(':')[4];
+    return handleDmDirectTicket(client, interaction, targetGuildId);
+  }
+
   const { guildId, user, guild } = interaction;
   if (!guildId || !guild) return;
 
@@ -763,7 +779,9 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     const description = interaction.fields.getTextInputValue('description');
     const typeId = customId.startsWith('modal:ticket:open:') ? customId.split(':')[3] : null;
     const ticketType = resolveTicketPanelType(guildConfig, typeId);
-    const ticketMode = (guildConfig as unknown).ticketMode || 'CHANNEL';
+    const ticketMode = ticketType.mode || (guildConfig as any).ticketMode || 'CHANNEL';
+    const isAnonymous = ticketType.anonymous === true && ticketMode === 'DM';
+    const useStaffServerRelay = ticketType.staffServerRelay === true;
 
     try {
       const ticketStaffRoleId = ticketType.staffRoleId || guildConfig.ticketStaffRoleId || null;
@@ -771,13 +789,42 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 
       if (ticketMode === 'DM') {
         // ─── Mode DM : ticket via messages privés ───────────────────────
-        const relayChannelId = (guildConfig as unknown).ticketDmRelayChannelId || guildConfig.ticketLogChannelId;
-        const relayChannel = relayChannelId ? await client.channels.fetch(relayChannelId).catch(() => null) : null;
+        let relayChannel: TextChannel | null = null;
+        let staffServerGuildId: string | null = null;
 
-        if (!relayChannel || !(relayChannel instanceof TextChannel)) {
+        if (useStaffServerRelay) {
+          const staffLink = await prisma.staffServerLink.findFirst({
+            where: { mainGuildId: guildId, enabled: true },
+          });
+          if (staffLink) {
+            staffServerGuildId = staffLink.staffGuildId;
+            const staffGuild = client.guilds.cache.get(staffLink.staffGuildId);
+            const logChannelId = staffLink.staffLogChannelId;
+            if (logChannelId && staffGuild) {
+              const ch = staffGuild.channels.cache.get(logChannelId);
+              if (ch instanceof TextChannel) relayChannel = ch;
+            }
+            if (!relayChannel && staffGuild) {
+              const fallback = staffGuild.channels.cache.find(
+                (c) => c instanceof TextChannel && c.name.includes('ticket'),
+              );
+              if (fallback instanceof TextChannel) relayChannel = fallback;
+            }
+          }
+        }
+
+        if (!relayChannel) {
+          const relayChannelId = (guildConfig as any).ticketDmRelayChannelId || guildConfig.ticketLogChannelId;
+          const fetched = relayChannelId ? await client.channels.fetch(relayChannelId).catch(() => null) : null;
+          if (fetched instanceof TextChannel) relayChannel = fetched;
+        }
+
+        if (!relayChannel) {
           await interaction.editReply({ content: '❌ Aucun salon de relais configuré pour le mode MP. Contactez un administrateur.' });
           return;
         }
+
+        const displayName = isAnonymous ? 'Membre Anonyme' : user.username;
 
         const ticket = await prisma.ticket.create({
           data: {
@@ -791,22 +838,32 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
             username: user.username,
             reason,
             description,
-            status: 'OPEN'
+            status: 'OPEN',
+            isAnonymous,
+            staffServerGuildId,
           }
         });
 
+        const threadName = isAnonymous
+          ? `🎫 Anonyme — ${reason}`.slice(0, 100)
+          : `🎫 ${user.username} — ${reason}`.slice(0, 100);
+
         const thread = await relayChannel.threads.create({
-          name: `🎫 ${user.username} — ${reason}`.slice(0, 100),
+          name: threadName,
           autoArchiveDuration: 10080,
-          reason: `Ticket DM de ${user.username}`
+          reason: `Ticket DM de ${displayName}`
         });
 
         await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id } });
 
+        const creatorLine = isAnonymous
+          ? '**Créateur :** Anonyme (identité masquée)'
+          : `**Créateur :** <@${user.id}> (${user.username})`;
+
         const staffEmbed = new EmbedBuilder()
           .setTitle(`🎫 Nouveau Ticket MP · ${ticketType.label}`)
-          .setDescription(`**Créateur :** <@${user.id}> (${user.username})\n**Raison :** ${reason}\n\n**Description :**\n${description}\n\n> Les messages envoyés ici seront relayés en MP à l'utilisateur.`)
-          .setColor(COLORS.primary as unknown)
+          .setDescription(`${creatorLine}\n**Raison :** ${reason}\n\n**Description :**\n${description}\n\n> Les messages envoyés ici seront relayés en MP à l'utilisateur.`)
+          .setColor(COLORS.primary as any)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
@@ -1009,6 +1066,144 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 }
 
 /**
+ * Creates a DM ticket from /ticket open in DMs.
+ */
+async function handleDmDirectTicket(
+  client: Client,
+  interaction: ModalSubmitInteraction,
+  targetGuildId: string,
+): Promise<void> {
+  const user = interaction.user;
+
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+  const guildConfig = await prisma.guild.findUnique({ where: { id: targetGuildId } });
+  if (!guildConfig) {
+    await interaction.editReply({ content: '❌ Ce serveur n\'est pas configuré.' });
+    return;
+  }
+
+  const guild = client.guilds.cache.get(targetGuildId);
+  if (!guild) {
+    await interaction.editReply({ content: '❌ Le bot n\'est pas présent sur ce serveur.' });
+    return;
+  }
+
+  const existingTicket = await prisma.ticket.findFirst({
+    where: { guildId: targetGuildId, userId: user.id, status: { in: ['OPEN', 'CLAIMED'] } },
+  });
+  if (existingTicket) {
+    await interaction.editReply({ content: `⚠️ Vous avez déjà un ticket ouvert sur **${guild.name}**.` });
+    return;
+  }
+
+  const reason = interaction.fields.getTextInputValue('reason');
+  const description = interaction.fields.getTextInputValue('description');
+
+  const ticketStaffRoleId = guildConfig.ticketStaffRoleId || null;
+  const staffMention = ticketStaffRoleId ? `<@&${ticketStaffRoleId}>` : null;
+
+  let relayChannel: TextChannel | null = null;
+  let staffServerGuildId: string | null = null;
+
+  const staffLink = await prisma.staffServerLink.findFirst({
+    where: { mainGuildId: targetGuildId, enabled: true },
+  });
+  if (staffLink) {
+    staffServerGuildId = staffLink.staffGuildId;
+    const staffGuild = client.guilds.cache.get(staffLink.staffGuildId);
+    if (staffLink.staffLogChannelId && staffGuild) {
+      const ch = staffGuild.channels.cache.get(staffLink.staffLogChannelId);
+      if (ch instanceof TextChannel) relayChannel = ch;
+    }
+  }
+
+  if (!relayChannel) {
+    const relayChannelId = (guildConfig as any).ticketDmRelayChannelId || guildConfig.ticketLogChannelId;
+    if (relayChannelId) {
+      const fetched = await client.channels.fetch(relayChannelId).catch(() => null);
+      if (fetched instanceof TextChannel) relayChannel = fetched;
+    }
+  }
+
+  if (!relayChannel) {
+    await interaction.editReply({ content: '❌ Aucun salon de relais configuré sur ce serveur.' });
+    return;
+  }
+
+  const ticket = await prisma.ticket.create({
+    data: {
+      guildId: targetGuildId,
+      mode: 'DM',
+      ticketTypeId: null,
+      ticketTypeLabel: 'MP Direct',
+      staffRoleId: ticketStaffRoleId,
+      categoryId: null,
+      userId: user.id,
+      username: user.username,
+      reason,
+      description,
+      status: 'OPEN',
+      staffServerGuildId,
+    },
+  });
+
+  const thread = await relayChannel.threads.create({
+    name: `🎫 ${user.username} — ${reason}`.slice(0, 100),
+    autoArchiveDuration: 10080,
+    reason: `Ticket DM direct de ${user.username}`,
+  });
+
+  await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id } });
+
+  const staffEmbed = new EmbedBuilder()
+    .setTitle(`🎫 Nouveau Ticket MP · MP Direct`)
+    .setDescription(
+      `**Créateur :** <@${user.id}> (${user.username})\n` +
+      `**Raison :** ${reason}\n\n` +
+      `**Description :**\n${description}\n\n` +
+      `> Les messages envoyés ici seront relayés en MP à l'utilisateur.`,
+    )
+    .setColor(COLORS.primary as any)
+    .setTimestamp()
+    .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
+    new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+    new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+  );
+
+  await thread.send({
+    content: staffMention ? `${staffMention} 🔔 Nouveau ticket en MP.` : '🔔 Nouveau ticket en MP.',
+    embeds: [staffEmbed],
+    components: [row],
+  });
+
+  const dmEmbed = new EmbedBuilder()
+    .setTitle(`🎫 Ticket ouvert · ${guild.name}`)
+    .setDescription(
+      `Votre ticket d'assistance a bien été créé !\n` +
+      `Le personnel va prendre en charge votre demande. **Répondez directement ici** pour communiquer avec le staff.\n\n` +
+      `**Raison :** ${reason}\n**Description :** ${description}`,
+    )
+    .setColor(COLORS.primary as any)
+    .setTimestamp()
+    .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+
+  try {
+    await user.send({ embeds: [dmEmbed] });
+  } catch {
+    await thread.send({
+      embeds: [errorEmbed('MP bloqués', `<@${user.id}> a ses messages privés désactivés.`)],
+    });
+  }
+
+  await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
+  await interaction.editReply({ content: `✅ Votre ticket a été créé sur **${guild.name}** ! Consultez vos messages privés.` });
+}
+
+/**
  * Relays a DM message from a ticket creator to the staff thread.
  */
 export async function relayDmToThread(client: Client, message: Message): Promise<void> {
@@ -1029,10 +1224,13 @@ export async function relayDmToThread(client: Client, message: Message): Promise
     const thread = await client.channels.fetch(ticket.threadId).catch(() => null);
     if (!thread || !thread.isThread()) return;
 
+    const authorName = ticket.isAnonymous ? 'Membre Anonyme' : message.author.username;
+    const authorIcon = ticket.isAnonymous ? undefined : message.author.displayAvatarURL();
+
     const relayEmbed = new EmbedBuilder()
-      .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL() })
+      .setAuthor({ name: authorName, ...(authorIcon ? { iconURL: authorIcon } : {}) })
       .setDescription(message.content || '*Pièce jointe*')
-      .setColor(COLORS.primary as unknown)
+      .setColor(COLORS.primary as any)
       .setTimestamp();
 
     const files = message.attachments.map(a => a.url);

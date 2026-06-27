@@ -1,0 +1,146 @@
+// ============================================================================
+// CROSS-SERVER CHANNEL LINKING
+// ============================================================================
+
+enum ChannelLinkDirection {
+  BIDIRECTIONAL
+  UNIDIRECTIONAL
+}
+
+enum ChannelLinkRelayMode {
+  WEBHOOK
+  EMBED
+}
+
+enum ChannelLinkInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+model ChannelLink {
+  id String @id @default(cuid())
+
+  // Source side
+  sourceGuildId   String
+  sourceChannelId String
+
+  // Target side
+  targetGuildId   String
+  targetChannelId String
+
+  direction ChannelLinkDirection @default(BIDIRECTIONAL)
+
+  // Relay configuration (per side)
+  sourceRelayMode ChannelLinkRelayMode @default(WEBHOOK)
+  targetRelayMode ChannelLinkRelayMode @default(WEBHOOK)
+
+  // Webhook IDs (created by the bot for relay)
+  sourceWebhookId String?
+  targetWebhookId String?
+
+  // Content filters
+  relayText       Boolean @default(true)
+  relayImages     Boolean @default(true)
+  relayEmbeds     Boolean @default(false)
+  relayReactions  Boolean @default(false)
+  relayEdits      Boolean @default(true)
+  relayDeletes    Boolean @default(true)
+  relayThreads    Boolean @default(false)
+  relayPolls      Boolean @default(false)
+
+  // Auto-update channel topic with link info
+  updateTopic Boolean @default(true)
+
+  enabled Boolean @default(true)
+
+  createdByUserId String
+  createdByGuildId String
+
+  sourceGuild Guild @relation("GuildChannelLinksSource", fields: [sourceGuildId], references: [id], onDelete: Cascade)
+  targetGuild Guild @relation("GuildChannelLinksTarget", fields: [targetGuildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sourceGuildId, sourceChannelId, targetGuildId, targetChannelId])
+  @@index([sourceGuildId, sourceChannelId])
+  @@index([targetGuildId, targetChannelId])
+  @@index([enabled])
+  @@map("channel_links")
+}
+
+model ChannelLinkInvite {
+  id String @id @default(cuid())
+
+  code      String @unique
+  guildId   String
+  channelId String
+
+  direction     ChannelLinkDirection @default(BIDIRECTIONAL)
+  relayMode     ChannelLinkRelayMode @default(WEBHOOK)
+
+  // Content filters preset
+  relayText       Boolean @default(true)
+  relayImages     Boolean @default(true)
+  relayEmbeds     Boolean @default(false)
+  relayReactions  Boolean @default(false)
+  relayEdits      Boolean @default(true)
+  relayDeletes    Boolean @default(true)
+  relayThreads    Boolean @default(false)
+  relayPolls      Boolean @default(false)
+
+  status    ChannelLinkInviteStatus @default(PENDING)
+  expiresAt DateTime
+  maxUses   Int     @default(1)
+  uses      Int     @default(0)
+
+  createdByUserId String
+
+  guild Guild @relation("GuildChannelLinkInvites", fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code, status])
+  @@index([guildId])
+  @@index([expiresAt])
+  @@map("channel_link_invites")
+}
+
+model ChannelLinkMessage {
+  id String @id @default(cuid())
+
+  channelLinkId    String
+  sourceMessageId  String
+  sourceChannelId  String
+  relayedMessageId String
+  relayedChannelId String
+  webhookId        String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([channelLinkId, sourceMessageId])
+  @@index([sourceChannelId, sourceMessageId])
+  @@index([relayedChannelId, relayedMessageId])
+  @@index([createdAt])
+  @@map("channel_link_messages")
+}
+
+model ChannelLinkThread {
+  id String @id @default(cuid())
+
+  channelLinkId    String
+  sourceThreadId   String
+  sourceGuildId    String
+  relayedThreadId  String
+  relayedGuildId   String
+  webhookId        String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([channelLinkId, sourceThreadId])
+  @@index([channelLinkId, relayedThreadId])
+  @@map("channel_link_threads")
+}

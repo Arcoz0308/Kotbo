@@ -18,6 +18,7 @@ export interface MessageNewEvent {
   hasReference: boolean;
   messageId: string;
   attachmentCount: number;
+  isInteraction: boolean;
   timestamp: number;
 }
 

@@ -243,6 +243,19 @@ export const defaultFeatures = [
     description: "Création et édition d'embeds personnalisés sur le serveur",
     category: 'management',
   },
+  // ─── Cross-Serveur ───
+  {
+    featureKey: 'channel_links',
+    featureName: 'Liens de salons',
+    description: 'Reliez des salons entre serveurs pour synchroniser les messages',
+    category: 'cross_server',
+  },
+  {
+    featureKey: 'staff_server',
+    featureName: 'Serveurs Staff',
+    description: 'Liez un serveur staff pour synchroniser la hiérarchie et les rôles',
+    category: 'cross_server',
+  },
 ];
 
 export async function getOrCreateFeatureConfigs(guildId: string) {

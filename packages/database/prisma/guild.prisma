@@ -229,6 +229,15 @@ model Guild {
   mcpApiKeys McpApiKey[]
   customBotConfig CustomBotConfig?
 
+  // Cross-server channel linking
+  channelLinksAsSource ChannelLink[] @relation("GuildChannelLinksSource")
+  channelLinksAsTarget ChannelLink[] @relation("GuildChannelLinksTarget")
+  channelLinkInvites   ChannelLinkInvite[] @relation("GuildChannelLinkInvites")
+
+  // Staff server linking
+  staffServerLinksAsMain  StaffServerLink[] @relation("GuildStaffServerMain")
+  staffServerLinksAsStaff StaffServerLink[] @relation("GuildStaffServerStaff")
+
   // Security Verification (anti-DC via dashboard OAuth)
   verificationEnabled       Boolean            @default(false)
   verificationMode          VerificationMode   @default(EMBED)

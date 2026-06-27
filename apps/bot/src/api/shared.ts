@@ -2787,6 +2787,24 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       uptime: guild.economyEnabled ? 99.9 : 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'channel_links',
+      name: 'Liens de salons',
+      description: 'Reliez des salons entre serveurs pour synchroniser les messages automatiquement.',
+      status: getFeatureStatus('channel_links'),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'staff_server',
+      name: 'Serveurs Staff',
+      description: 'Liez un serveur staff dédié pour synchroniser la hiérarchie et les rôles automatiquement.',
+      status: getFeatureStatus('staff_server'),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
     }
   ];
 

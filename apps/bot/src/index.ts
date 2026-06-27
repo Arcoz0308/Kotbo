@@ -7,6 +7,7 @@ import './utils/patchV2.js';
 import {
   Client,
   GatewayIntentBits,
+  Partials,
   Collection,
   Events,
   ActivityType,
@@ -62,6 +63,8 @@ import { registerWelcomeGoodbyeListener } from './events/welcomeGoodbyeEvents.js
 import { registerSecurityVerificationListener } from './events/securityVerificationEvents.js';
 import { registerAutoModListener } from './events/autoModEvents.js';
 import { registerAutoResponseListener } from './events/autoResponseEvents.js';
+import { registerChannelLinkListener } from './events/channelLinkEvents.js';
+import { registerStaffServerListener } from './events/staffServerEvents.js';
 import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
@@ -102,11 +105,14 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildMessageTyping,
     GatewayIntentBits.GuildPresences,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
   ],
+  partials: [Partials.Message, Partials.Reaction],
 });
 
 setClient(client);
@@ -331,6 +337,8 @@ client.once(Events.ClientReady, async (c) => {
   registerSecurityVerificationListener(client);
   registerAutoModListener(client);
   registerAutoResponseListener(client);
+  registerChannelLinkListener(client);
+  registerStaffServerListener(client);
   
   // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
   logger.info('System', 'Enregistrement des cron jobs...');
