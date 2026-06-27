@@ -68,8 +68,6 @@ export async function handleChannelLinkRoutes(
       const otherGuilds: { id: string; name: string; icon: string | null; channels: { id: string; name: string }[] }[] = [];
 
       for (const [id, guild] of client.guilds.cache) {
-        if (id === guildId) continue;
-
         let member;
         try {
           member = await guild.members.fetch(user.userId);

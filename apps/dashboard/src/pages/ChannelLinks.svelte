@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import {
@@ -49,9 +50,13 @@
 
   const channels = $derived(dashboardStore.state.discordChannels ?? []);
 
-  const targetGuildChannels = $derived(
-    otherGuilds.find((g: any) => g.id === newTargetGuildId)?.channels ?? []
-  );
+  const targetGuildChannels = $derived.by(() => {
+    const channels = otherGuilds.find((g: any) => g.id === newTargetGuildId)?.channels ?? [];
+    if (newTargetGuildId === authStore.selectedGuildId && newSourceChannelId) {
+      return channels.filter((c: any) => c.id !== newSourceChannelId);
+    }
+    return channels;
+  });
 
   async function loadData() {
     loading = true;
@@ -336,7 +341,7 @@
             </div>
           {:else if otherGuilds.length === 0}
             <div class="px-3 py-3 rounded-lg bg-surface-container/40 border border-outline-variant/20 text-center">
-              <p class="text-sm text-on-surface-variant/60">Aucun autre serveur trouvé.</p>
+              <p class="text-sm text-on-surface-variant/60">Aucun serveur disponible.</p>
               <p class="text-xs text-on-surface-variant/40 mt-1">Le bot doit être présent et vous devez être admin sur le serveur cible.</p>
             </div>
           {:else}
