@@ -485,6 +485,7 @@ export type DashboardChannel = {
   id: string;
   name: string;
   mention: string;
+  type?: 'text' | 'announcement' | 'voice' | 'forum' | 'media' | 'thread';
 };
 
 export type DashboardRole = {
@@ -2152,7 +2153,9 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
 
     const topTargets = [...targets.entries()]
       .sort((a, b) => b[1].total - a[1].total)
-      .slice(0, 12);
+      .slice(0, 40);
+
+    const topTargetIds = new Set(topTargets.map(([id]) => id));
 
     for (const [targetId, data] of topTargets) {
       let targetLabel = data.label;
@@ -2164,7 +2167,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       }
 
       nodes.push({ id: targetId, label: targetLabel, type: 'target', avatar: targetAvatar });
-      
+
       if (data.mention > 0) {
         edges.push({ from: actualUserId, to: targetId, type: 'mention', count: data.mention });
       }
@@ -2174,6 +2177,60 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       if (data.reaction > 0) {
         edges.push({ from: actualUserId, to: targetId, type: 'reaction', count: data.reaction });
       }
+    }
+
+    const crossEdges = new Map<string, { mention: number; reply: number; reaction: number }>();
+    for (const log of auditLogs || []) {
+      const logUserId = extractIdFromUserStr(log.user);
+      if (!logUserId || !topTargetIds.has(logUserId)) continue;
+
+      if (log.module === 'Messages' && log.action === 'Message envoyé') {
+        const details = log.details || '';
+        const contentMatch = details.match(/Contenu: (.*)/);
+        const content = contentMatch ? contentMatch[1] : details;
+
+        const mentionRegex = /<@!?(\d+)>/g;
+        let match;
+        while ((match = mentionRegex.exec(content)) !== null) {
+          const otherId = match[1];
+          if (otherId !== logUserId && otherId !== actualUserId && topTargetIds.has(otherId)) {
+            const key = logUserId < otherId ? `${logUserId}:${otherId}` : `${otherId}:${logUserId}`;
+            const ce = crossEdges.get(key) ?? { mention: 0, reply: 0, reaction: 0 };
+            ce.mention += 1;
+            crossEdges.set(key, ce);
+          }
+        }
+
+        const replyMatch = details.match(/Réponse à:\s*<@!?(\d+)>/i);
+        if (replyMatch) {
+          const otherId = replyMatch[1];
+          if (otherId !== logUserId && otherId !== actualUserId && topTargetIds.has(otherId)) {
+            const key = logUserId < otherId ? `${logUserId}:${otherId}` : `${otherId}:${logUserId}`;
+            const ce = crossEdges.get(key) ?? { mention: 0, reply: 0, reaction: 0 };
+            ce.reply += 1;
+            crossEdges.set(key, ce);
+          }
+        }
+      } else if (log.module === 'Interactions' && log.action === 'Réaction ajoutée') {
+        const details = log.details || '';
+        const targetMatch = details.match(/Cible:\s*.*?\(<@!?(\d+)>\)/i);
+        if (targetMatch) {
+          const otherId = targetMatch[1];
+          if (otherId !== logUserId && otherId !== actualUserId && topTargetIds.has(otherId)) {
+            const key = logUserId < otherId ? `${logUserId}:${otherId}` : `${otherId}:${logUserId}`;
+            const ce = crossEdges.get(key) ?? { mention: 0, reply: 0, reaction: 0 };
+            ce.reaction += 1;
+            crossEdges.set(key, ce);
+          }
+        }
+      }
+    }
+
+    for (const [key, data] of crossEdges) {
+      const [fromId, toId] = key.split(':');
+      if (data.mention > 0) edges.push({ from: fromId, to: toId, type: 'mention', count: data.mention });
+      if (data.reply > 0) edges.push({ from: fromId, to: toId, type: 'reply', count: data.reply });
+      if (data.reaction > 0) edges.push({ from: fromId, to: toId, type: 'reaction', count: data.reaction });
     }
 
     const result: MemberCaseResponse = {
@@ -2978,16 +3035,42 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
   const allChannels = discordGuild ? Array.from(discordGuild.channels.cache.values()) : [];
   const allRoles = discordGuild ? Array.from(discordGuild.roles.cache.values()) : [];
 
+  const textChannelTypes = new Set([
+    ChannelType.GuildText,
+    ChannelType.GuildAnnouncement,
+    ChannelType.GuildVoice,
+    ChannelType.GuildForum,
+    ChannelType.GuildMedia,
+    ChannelType.PublicThread,
+    ChannelType.PrivateThread,
+    ChannelType.AnnouncementThread,
+  ]);
+
+  const channelTypeLabel = (type: ChannelType): DashboardChannel['type'] => {
+    switch (type) {
+      case ChannelType.GuildAnnouncement: return 'announcement';
+      case ChannelType.GuildVoice: return 'voice';
+      case ChannelType.GuildForum: return 'forum';
+      case ChannelType.GuildMedia: return 'media';
+      case ChannelType.PublicThread:
+      case ChannelType.PrivateThread:
+      case ChannelType.AnnouncementThread:
+        return 'thread';
+      default: return 'text';
+    }
+  };
+
   const discordChannels: DashboardChannel[] = allChannels
-    .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
+    .filter((channel) => textChannelTypes.has(channel.type))
     .map((channel) => ({
       id: channel.id,
       name: channel.name,
       mention: `<#${channel.id}>`,
-      position: channel.rawPosition ?? 0
+      position: channel.rawPosition ?? 0,
+      type: channelTypeLabel(channel.type),
     }))
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
-    .map(({ id, name, mention }) => ({ id, name, mention }));
+    .map(({ id, name, mention, type }) => ({ id, name, mention, type }));
 
   const discordVoiceChannels: DashboardChannel[] = allChannels
     .filter((channel) => channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice)

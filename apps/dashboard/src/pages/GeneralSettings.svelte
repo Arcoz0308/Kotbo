@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -205,7 +206,7 @@
                 {#if field.isVoice}
                   <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
                 {:else}
-                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
                 {/if}
                 <p class="text-[11px] text-on-surface-variant/40 ml-2">{field.desc}</p>
               </div>

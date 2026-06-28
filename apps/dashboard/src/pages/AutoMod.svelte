@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -928,7 +929,7 @@
                     <SearchableSelect 
                       id="bypassChanSelect"
                       bind:value={selectedBypassChannel} 
-                      options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
+                      options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
                       placeholder="Ajouter un salon" 
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
                     />

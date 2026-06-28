@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../../channelUtils';
   import Papicon from '../Papicon.svelte';
   import FormSelect from '../FormSelect.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
@@ -51,7 +52,7 @@
           {#each globalChannelFields as field}
             <div class="space-y-1.5">
               <label for="channel-{field.key}" class="text-[10px] font-bold text-on-surface-variant/60 ml-2">{field.label}</label>
-              <SearchableSelect id="channel-{field.key}" bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+              <SearchableSelect id="channel-{field.key}" bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
               <p class="text-[11px] text-on-surface-variant/40 ml-2">{field.desc}</p>
             </div>
           {/each}
@@ -115,7 +116,7 @@
             <tr class="hover:bg-surface-container-high/20 transition-colors">
               <td class="px-5 py-4"><span class="text-sm font-bold">{feature.featureName}</span></td>
               <td class="px-5 py-4">
-                <SearchableSelect bind:value={features[idx].channelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
+                <SearchableSelect bind:value={features[idx].channelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
               </td>
               <td class="px-5 py-4">
                 <SearchableSelect bind:value={features[idx].requiredRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -10,6 +11,8 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 
   // Config State
   let config = $state({
@@ -120,7 +123,12 @@
 
   let loading = $state(true);
   let loadError = $state('');
+  const channelTabs = ['auto-thread', 'stats', 'temp-voice', 'honeypot'] as const;
   let activeTab = $state<'auto-thread' | 'stats' | 'temp-voice' | 'honeypot'>('auto-thread');
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/channels-management', channelTabs, 'auto-thread') as typeof activeTab;
+  });
   let searchQuery = $state('');
 
   const saveAction = createAsyncActionState();
@@ -1482,7 +1490,7 @@
                   <div class="grow">
                     <SearchableSelect
                       id="honeypot-channel-select"
-                      options={availableChannels.map(c => ({ id: c.id, name: `# ${c.name}` }))}
+                      options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
                       bind:value={config.honeypotChannelId}
                       placeholder="— Sélectionner un salon —"
                     />

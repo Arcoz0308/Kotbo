@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -197,12 +198,12 @@
 
           <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes</label>
-          <SearchableSelect id="discord-channel" bind:value={notificationsDraft.discordChannel} options={availableChannels.map(c => ({ id: c.mention, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <SearchableSelect id="discord-channel" bind:value={notificationsDraft.discordChannel} options={availableChannels.map(c => ({ id: c.mention, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
         </div>
 
           <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="log-channel">Salon des embeds de logs (optionnel)</label>
-          <SearchableSelect id="log-channel" bind:value={notificationsDraft.logChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Ne pas envoyer d'embed" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <SearchableSelect id="log-channel" bind:value={notificationsDraft.logChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Ne pas envoyer d'embed" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
           <p class="text-xs text-on-surface-variant">Les logs restent consultables dans le dashboard même si aucun salon n'est défini.</p>
         </div>
         

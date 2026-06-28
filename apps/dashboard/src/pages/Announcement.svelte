@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -41,7 +44,15 @@
   let showWelcomePresets = $state(false);
   let showLeavePresets   = $state(false);
   let showBoostPresets   = $state(false);
-  let activeTab = $state<'welcome' | 'leave' | 'boost' | 'autoroles'>('welcome');
+  const announcementTabs = ['welcome', 'leave', 'boost', 'autoroles'] as const;
+  type AnnouncementTab = typeof announcementTabs[number];
+  const ANNOUNCE_BASE = window.location.pathname.startsWith('/welcome') ? '/welcome' : '/announcement';
+  let activeTab = $state<AnnouncementTab>('welcome');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl(ANNOUNCE_BASE, announcementTabs, 'welcome') as AnnouncementTab;
+  });
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.welcome_goodbye?.canConfigure
@@ -219,29 +230,29 @@
   {:else}
     <!-- Tabs Header -->
     <div class="flex flex-wrap border-b border-outline-variant/15 gap-2 pb-2">
-      <button 
-        onclick={() => activeTab = 'welcome'}
+      <button
+        onclick={() => gotoTab(ANNOUNCE_BASE, 'welcome', 'welcome')}
         class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'welcome' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
         <Papicon icon="DoorOpen" size={14} />
         Accueil
       </button>
-      <button 
-        onclick={() => activeTab = 'leave'}
+      <button
+        onclick={() => gotoTab(ANNOUNCE_BASE, 'leave', 'welcome')}
         class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'leave' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
         <Papicon icon="Logout" size={14} />
         Départ
       </button>
-      <button 
-        onclick={() => activeTab = 'boost'}
+      <button
+        onclick={() => gotoTab(ANNOUNCE_BASE, 'boost', 'welcome')}
         class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'boost' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
         <Papicon icon="Zap" size={14} />
         Boosts
       </button>
-      <button 
-        onclick={() => activeTab = 'autoroles'}
+      <button
+        onclick={() => gotoTab(ANNOUNCE_BASE, 'autoroles', 'welcome')}
         class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'autoroles' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
         <Papicon icon="Shield" size={14} />
@@ -305,7 +316,7 @@
                   <SearchableSelect 
                     id="wChannel"
                     bind:value={config.welcomeChannelId} 
-                    options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
+                    options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
                     placeholder="Sélectionner le salon" 
                     className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}
@@ -438,7 +449,7 @@
                   <SearchableSelect 
                     id="lChannel"
                     bind:value={config.leaveChannelId} 
-                    options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
+                    options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
                     placeholder="Sélectionner le salon" 
                     className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}
@@ -530,7 +541,7 @@
                   <SearchableSelect 
                     id="bChannel"
                     bind:value={config.boostChannelId} 
-                    options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
+                    options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
                     placeholder="Sélectionner le salon" 
                     className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}

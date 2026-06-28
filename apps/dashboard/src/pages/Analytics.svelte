@@ -1,5 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { router } from 'tinro';
+import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 import { authStore } from '../lib/stores/auth.svelte';
 import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
@@ -20,6 +22,7 @@ import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelt
 import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGraph.svelte';
 import * as XLSX from 'xlsx';
 import { toast } from '../lib/stores/toast.svelte';
+import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
 
   let data: any = $state(null);
   let heatmapData: any = $state(null);
@@ -195,6 +198,7 @@ import { toast } from '../lib/stores/toast.svelte';
     const sheets: ExportSheet[] = [];
     appendExportValue(sheets, 'analytics_dailyTrend', data?.dailyTrend);
     appendExportValue(sheets, 'analytics_topChannels', data?.topChannels);
+    appendExportValue(sheets, 'analytics_topVoiceChannels', data?.topVoiceChannels);
     appendExportValue(sheets, 'analytics_topMessageMembers', data?.topMessageMembers);
     appendExportValue(sheets, 'analytics_topVoiceMembers', data?.topVoiceMembers);
     appendExportValue(sheets, 'analytics_topInviters', data?.topInviters);
@@ -415,9 +419,25 @@ import { toast } from '../lib/stores/toast.svelte';
     ],
   };
 
+  const allValidTabs = Object.values(tabsByCategory).flatMap(tabs => tabs.map(t => t.id));
+
+  function categoryForTab(tabId: string): string {
+    for (const [catId, tabs] of Object.entries(tabsByCategory)) {
+      if (tabs.some(t => t.id === tabId)) return catId;
+    }
+    return 'overview';
+  }
+
+  $effect(() => {
+    const _path = $router.path;
+    const tab = resolveTabFromUrl('/analytics', allValidTabs, 'overview');
+    activeTab = tab;
+    activeCategory = categoryForTab(tab);
+  });
+
   function selectTab(tab: { id: string; disabled?: boolean }) {
     if (tab.disabled) return;
-    activeTab = tab.id;
+    gotoTab('/analytics', tab.id, 'overview');
   }
 
   const currentTabs = $derived(tabsByCategory[activeCategory] || []);
@@ -489,26 +509,11 @@ import { toast } from '../lib/stores/toast.svelte';
 
       <div class="flex flex-col items-end gap-3 w-full md:w-auto">
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <button
-            onclick={exportAllToCSV}
-            class="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
-          >
-            <Papicon icon="DownloadSimple" size={14} /> Export CSV
-          </button>
-
-          <button
-            onclick={exportAllToXLSX}
-            class="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
-          >
-            <Papicon icon="file-text" size={14} /> Export XLSX
-          </button>
-
-          <button
-            onclick={exportAllChartsAsImages}
-            class="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
-          >
-            <Papicon icon="image" size={14} /> Export Images
-          </button>
+          <ExportDropdown
+            onExportCSV={exportAllToCSV}
+            onExportXLSX={exportAllToXLSX}
+            onExportImage={exportAllChartsAsImages}
+          />
 
           <div class="flex flex-col gap-2">
             <div class="flex gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 overflow-x-auto no-scrollbar">
@@ -564,7 +569,7 @@ import { toast } from '../lib/stores/toast.svelte';
     <div class="flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
       {#each categories as cat}
         <button 
-          onclick={() => { activeCategory = cat.id; activeTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; }} 
+          onclick={() => { const firstTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; gotoTab('/analytics', firstTab, 'overview'); }}
           class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           title={cat.description}
         >

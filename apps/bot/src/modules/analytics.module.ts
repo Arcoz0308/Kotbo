@@ -60,7 +60,7 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
     if (payload.durationMs && payload.durationMs > 0) {
       const durationMinutes = Math.floor(payload.durationMs / 60000);
       if (durationMinutes > 0) {
-        await trackVoiceSession(payload.guildId, payload.userId, durationMinutes);
+        await trackVoiceSession(payload.guildId, payload.userId, durationMinutes, payload.channelId);
       }
     }
   }, MODULE_NAME);
@@ -82,6 +82,14 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
       payload.toChannelName,
       now,
     );
+
+    if (payload.joinTimestamp) {
+      const durationMs = Date.now() - payload.joinTimestamp;
+      const durationMinutes = Math.floor(durationMs / 60000);
+      if (durationMinutes > 0) {
+        await trackVoiceSession(payload.guildId, payload.userId, durationMinutes, payload.fromChannelId);
+      }
+    }
   }, MODULE_NAME);
 
   // ── Members ───────────────────────────────────────────────────

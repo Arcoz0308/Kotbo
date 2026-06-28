@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -210,7 +211,7 @@
             <SearchableSelect
               id="countingChannel"
               bind:value={config.funCountingChannelId}
-              options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
+              options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
               placeholder="Aucun salon configuré"
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/30 transition-all"
               disabled={!canManageSettings}
@@ -263,7 +264,7 @@
             <SearchableSelect
               id="oneWordStoryChannel"
               bind:value={config.funOneWordStoryChannelId}
-              options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
+              options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
               placeholder="Aucun salon configuré"
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500/30 transition-all"
               disabled={!canManageSettings}
@@ -304,7 +305,7 @@
             <SearchableSelect
               id="guessNumberChannel"
               bind:value={config.funGuessNumberChannelId}
-              options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
+              options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
               placeholder="Aucun salon configuré"
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500/30 transition-all"
               disabled={!canManageSettings}

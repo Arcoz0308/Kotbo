@@ -5,8 +5,8 @@ import { incrementQuestProgress } from '../services/community/questService.js';
 import { logger } from '../utils/logger.js';
 
 // In-memory store for voice sessions
-// Key: `${guildId}-${userId}`, Value: timestamp (ms)
-const voiceSessions = new Map<string, number>();
+// Key: `${guildId}-${userId}`, Value: { joinTime (ms), channelId }
+const voiceSessions = new Map<string, { joinTime: number; channelId: string }>();
 
 export function registerAnalyticsListeners(client: Client): void {
   // 1 & 7. Messages & Replies
@@ -38,21 +38,21 @@ export function registerAnalyticsListeners(client: Client): void {
     const movedVoice = oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
 
     if (joinedVoice) {
-      voiceSessions.set(sessionKey, Date.now());
+      voiceSessions.set(sessionKey, { joinTime: Date.now(), channelId: newState.channelId! });
       // Log staff session start
       await logStaffVoiceSession(guildId, userId, newState.channelId!, newState.channel?.name || null, new Date());
     } else if (leftVoice) {
-      const joinTime = voiceSessions.get(sessionKey);
+      const session = voiceSessions.get(sessionKey);
       // Log staff session end
-      await logStaffVoiceSession(guildId, userId, oldState.channelId!, oldState.channel?.name || null, joinTime ? new Date(joinTime) : new Date(), new Date());
-      
-      if (joinTime) {
-        const durationMs = Date.now() - joinTime;
-        const durationMinutes = Math.floor(durationMs / 60000); // Convert to minutes
+      await logStaffVoiceSession(guildId, userId, oldState.channelId!, oldState.channel?.name || null, session ? new Date(session.joinTime) : new Date(), new Date());
+
+      if (session) {
+        const durationMs = Date.now() - session.joinTime;
+        const durationMinutes = Math.floor(durationMs / 60000);
 
         try {
           if (durationMinutes > 0) {
-            await trackVoiceSession(guildId, userId, durationMinutes);
+            await trackVoiceSession(guildId, userId, durationMinutes, oldState.channelId!);
             incrementQuestProgress(guildId, userId, 'VOICE_MINUTES', durationMinutes).catch(() => {});
           }
         } catch (error) {
@@ -62,14 +62,20 @@ export function registerAnalyticsListeners(client: Client): void {
         voiceSessions.delete(sessionKey);
       }
     } else if (movedVoice) {
-      // Log end of previous channel session and start of new one for staff
-      const joinTime = voiceSessions.get(sessionKey);
+      const session = voiceSessions.get(sessionKey);
       const now = new Date();
-      await logStaffVoiceSession(guildId, userId, oldState.channelId!, oldState.channel?.name || null, joinTime ? new Date(joinTime) : now, now);
+      await logStaffVoiceSession(guildId, userId, oldState.channelId!, oldState.channel?.name || null, session ? new Date(session.joinTime) : now, now);
       await logStaffVoiceSession(guildId, userId, newState.channelId!, newState.channel?.name || null, now);
-      
-      // Update join time for the new channel to track total duration correctly for analytics
-      voiceSessions.set(sessionKey, now.getTime());
+
+      if (session) {
+        const durationMs = now.getTime() - session.joinTime;
+        const durationMinutes = Math.floor(durationMs / 60000);
+        if (durationMinutes > 0) {
+          trackVoiceSession(guildId, userId, durationMinutes, oldState.channelId!).catch(() => {});
+        }
+      }
+
+      voiceSessions.set(sessionKey, { joinTime: now.getTime(), channelId: newState.channelId! });
     }
   });
 

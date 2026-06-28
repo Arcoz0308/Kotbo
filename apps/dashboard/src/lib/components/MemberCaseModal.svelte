@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../channelUtils';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte.ts';
   import { authStore } from '../stores/auth.svelte.ts';
@@ -472,7 +473,7 @@
     if (!channelId) return 'Non spécifié';
     const channel = dashboardStore.state.discordChannels.find((item) => item.id === channelId);
     if (!channel) return 'Canal inconnu';
-    return `#${channel.name}`;
+    return channelDisplayName(channel);
   }
 
   function getPresenceColor(status: string | null | undefined) {
@@ -1558,7 +1559,7 @@
                       <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Graphe d'Interactions</h4>
                     </div>
                     <div class="flex items-center gap-2">
-                      <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Top 10 contacts</span>
+                      <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Top {(caseData?.interactionGraph?.nodes?.length ?? 1) - 1} contacts</span>
                     </div>
                   </div>
                   

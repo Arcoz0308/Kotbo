@@ -1200,6 +1200,62 @@ export async function handleAdminRoutes(
     return true;
   }
 
+  // POST /api/admin/guilds/:guildId/rescan-members
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'rescan-members' && method === 'POST') {
+    const guildId = parts[3];
+
+    let guildExists = false;
+    if (client.shard) {
+      const results = await client.shard.broadcastEval<boolean, string>((c, id) => c.guilds.cache.has(id), { context: guildId });
+      guildExists = results.some(r => r);
+    } else {
+      guildExists = client.guilds.cache.has(guildId) || !!(await client.guilds.fetch(guildId).catch(() => null));
+    }
+
+    if (!guildExists) {
+      json(res, 404, { error: 'Serveur introuvable' });
+      return true;
+    }
+
+    try {
+      const body = await readJsonBody<{ force?: boolean }>(req);
+      const force = !!body?.force;
+
+      const memberServicePath = path.resolve(__dirname, '../../services/analytics/memberScraperService.js');
+
+      if (client.shard) {
+        const results = await client.shard.broadcastEval<{ success: boolean; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
+          const guild = shardClient.guilds.cache.get(context.guildId);
+          if (!guild) return null;
+          try {
+            const { startMemberScraping } = await import(context.servicePath);
+            await startMemberScraping(shardClient, context.guildId, context.force);
+            return { success: true };
+          } catch (err) {
+            return { success: false, error: err instanceof Error ? err.message : String(err) };
+          }
+        }, { context: { guildId, force, servicePath: memberServicePath } });
+
+        const result = results.find(r => r !== null);
+        if (!result) {
+          json(res, 404, { error: 'Serveur introuvable' });
+        } else if (result.success) {
+          json(res, 200, { ok: true, message: 'Scraping des membres lancé avec succès.' });
+        } else {
+          json(res, 500, { error: result.error || 'Erreur lors du lancement du scraping membres' });
+        }
+      } else {
+        const { startMemberScraping } = await import('../../services/analytics/memberScraperService.js');
+        await startMemberScraping(client, guildId, force);
+        json(res, 200, { ok: true, message: 'Scraping des membres lancé avec succès.' });
+      }
+    } catch (err) {
+      logger.error('AdminAPI', 'POST rescan-members error:', err);
+      json(res, 500, { error: 'Erreur lors du lancement du scraping membres' });
+    }
+    return true;
+  }
+
   // ============================================================================
   // WHITE-LABEL INSTANCE MANAGEMENT
   // ============================================================================

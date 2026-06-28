@@ -136,11 +136,34 @@ export async function handleGuildGeneralRoutes(
         await discordGuild.channels.fetch().catch(() => null);
       }
       const allCh = Array.from(discordGuild.channels.cache.values()) as GuildBasedChannel[];
+      const textChannelTypes = new Set([
+        ChannelType.GuildText,
+        ChannelType.GuildAnnouncement,
+        ChannelType.GuildVoice,
+        ChannelType.GuildForum,
+        ChannelType.GuildMedia,
+        ChannelType.PublicThread,
+        ChannelType.PrivateThread,
+        ChannelType.AnnouncementThread,
+      ]);
+      const channelTypeLabel = (type: ChannelType) => {
+        switch (type) {
+          case ChannelType.GuildAnnouncement: return 'announcement';
+          case ChannelType.GuildVoice: return 'voice';
+          case ChannelType.GuildForum: return 'forum';
+          case ChannelType.GuildMedia: return 'media';
+          case ChannelType.PublicThread:
+          case ChannelType.PrivateThread:
+          case ChannelType.AnnouncementThread:
+            return 'thread';
+          default: return 'text';
+        }
+      };
       const textChannels = allCh
-        .filter((ch) => ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement)
-        .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: ch.rawPosition ?? 0 }))
+        .filter((ch) => textChannelTypes.has(ch.type))
+        .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: ch.rawPosition ?? 0, type: channelTypeLabel(ch.type) }))
         .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention }) => ({ id, name, mention }));
+        .map(({ id, name, mention, type }) => ({ id, name, mention, type }));
       const voiceChannels = allCh
         .filter((ch) => ch.type === ChannelType.GuildVoice || ch.type === ChannelType.GuildStageVoice)
         .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: ch.rawPosition ?? 0 }))

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -1218,7 +1219,7 @@
             {#if ticketMode === 'DM'}
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon de relais staff (les threads MP y sont créés)</span>
-                <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full" />
+                <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full" />
               </label>
               <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15">
                 <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
@@ -1254,11 +1255,11 @@
               {/if}
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon du panel d'ouverture</span>
-                <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner" className="w-full" />
+                <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner" className="w-full" />
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon des logs / transcripts</span>
-                <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner" className="w-full" />
+                <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner" className="w-full" />
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle Staff Support</span>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -18,7 +19,8 @@
     updateMeeting,
     updateAbsenceStatus,
     deleteAbsence,
-    fetchStaffRoles
+    fetchStaffRoles,
+    searchDiscordMembers
   } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
@@ -78,6 +80,53 @@
 
   let formError = $state('');
   let saving = $state(false);
+
+  // Member search for call invitees
+  let memberSearchQuery = $state('');
+  let memberSearchResults = $state<any[]>([]);
+  let memberSearchLoading = $state(false);
+  let memberSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let formInviteeMemberIds = $state<string[]>([]);
+  let selectedMembers = $state<Map<string, any>>(new Map());
+
+  async function searchMembers(query: string) {
+    if (!query.trim()) {
+      memberSearchResults = [];
+      return;
+    }
+    memberSearchLoading = true;
+    try {
+      const data = await searchDiscordMembers(query, 15);
+      memberSearchResults = (data?.members || []).filter(
+        (m: any) => !activeStaff.some(s => s.userId === m.id) && m.id !== (authStore.user as any)?.id
+      );
+    } catch (e) {
+      console.error('Member search error:', e);
+      memberSearchResults = [];
+    } finally {
+      memberSearchLoading = false;
+    }
+  }
+
+  function handleMemberSearchInput(value: string) {
+    memberSearchQuery = value;
+    if (memberSearchTimeout) clearTimeout(memberSearchTimeout);
+    memberSearchTimeout = setTimeout(() => searchMembers(value), 300);
+  }
+
+  function toggleMemberInvitee(member: any) {
+    if (formInviteeMemberIds.includes(member.id)) {
+      formInviteeMemberIds = formInviteeMemberIds.filter(id => id !== member.id);
+      const next = new Map(selectedMembers);
+      next.delete(member.id);
+      selectedMembers = next;
+    } else {
+      formInviteeMemberIds = [...formInviteeMemberIds, member.id];
+      const next = new Map(selectedMembers);
+      next.set(member.id, member);
+      selectedMembers = next;
+    }
+  }
 
   // Time boundaries
   let currentRangeStart = new Date();
@@ -306,6 +355,10 @@
     formDiscordChannelId = '';
     formIsTempChannel = true;
     formInviteeUserIds = [];
+    formInviteeMemberIds = [];
+    selectedMembers = new Map();
+    memberSearchQuery = '';
+    memberSearchResults = [];
     formError = '';
     creationModalOpen = true;
   }
@@ -345,7 +398,7 @@
           channelType: formChannelMode === 'CREATE_NEW' ? formChannelType : null,
           discordChannelId: formChannelMode === 'EXISTING' ? formDiscordChannelId : null,
           isTempChannel: formIsTempChannel,
-          inviteeUserIds: formInviteeUserIds
+          inviteeUserIds: [...formInviteeUserIds, ...formInviteeMemberIds]
         });
       } else if (currentTab === 'task') {
         await createTask({
@@ -800,7 +853,7 @@
                     bind:value={formDiscordChannelId}
                     options={[
                       ...dashboardStore.state.discordVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` })),
-                      ...dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: `# ${c.name}` }))
+                      ...dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))
                     ]}
                     placeholder="Sélectionner"
                     className="w-full text-xs!"
@@ -816,7 +869,7 @@
               {/if}
 
               <div>
-                <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Invités</span>
+                <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Invités — Staff</span>
                 <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
                   {#each activeStaff.filter(s => s.id !== myStaffRecord?.id) as staff}
                     <label class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-container-high/30 rounded-md cursor-pointer hover:bg-surface-container-high/50 transition-colors">
@@ -833,6 +886,79 @@
                     </label>
                   {/each}
                 </div>
+              </div>
+
+              <!-- Members search section -->
+              <div>
+                <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Invités — Membres du serveur</span>
+
+                <!-- Selected members chips -->
+                {#if formInviteeMemberIds.length > 0}
+                  <div class="flex flex-wrap gap-1.5 mb-2">
+                    {#each formInviteeMemberIds as memberId}
+                      {@const member = selectedMembers.get(memberId)}
+                      {#if member}
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-cyan-500/15 border border-cyan-500/25 rounded-md text-[10px] font-semibold text-cyan-300">
+                          <img src={member.avatarUrl || `https://ui-avatars.com/api/?name=${member.displayName || member.username}&size=16`} alt="" class="w-3.5 h-3.5 rounded-full" />
+                          {member.displayName || member.username}
+                          <button
+                            onclick={() => toggleMemberInvitee(member)}
+                            class="ml-0.5 w-3.5 h-3.5 rounded-full hover:bg-cyan-500/30 flex items-center justify-center transition-colors"
+                          >
+                            <Papicon icon="x" size={8} />
+                          </button>
+                        </span>
+                      {/if}
+                    {/each}
+                  </div>
+                {/if}
+
+                <!-- Search input -->
+                <div class="relative">
+                  <div class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                    {#if memberSearchLoading}
+                      <div class="w-3.5 h-3.5 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                    {:else}
+                      <Papicon icon="search" size={12} class="text-on-surface-variant/40" />
+                    {/if}
+                  </div>
+                  <input
+                    type="text"
+                    value={memberSearchQuery}
+                    oninput={(e) => handleMemberSearchInput((e.target as HTMLInputElement).value)}
+                    placeholder="Rechercher un membre..."
+                    class="w-full pl-8 pr-3 py-2 bg-surface-container-high/30 rounded-md border border-outline-variant/15 text-[11px] font-medium text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:border-primary/50 transition-colors"
+                  />
+                </div>
+
+                <!-- Search results -->
+                {#if memberSearchResults.length > 0}
+                  <div class="mt-2 max-h-32 overflow-y-auto custom-scrollbar rounded-md border border-outline-variant/15 bg-surface-container/50">
+                    {#each memberSearchResults as member}
+                      <button
+                        onclick={() => toggleMemberInvitee(member)}
+                        class="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-all hover:bg-surface-hover/50 {formInviteeMemberIds.includes(member.id) ? 'bg-cyan-500/10' : ''}"
+                      >
+                        <img src={member.avatarUrl || `https://ui-avatars.com/api/?name=${member.displayName || member.username}&size=24`} alt="" class="w-5 h-5 rounded-full shrink-0" />
+                        <div class="flex-1 min-w-0">
+                          <span class="text-[11px] font-semibold text-on-surface truncate block">{member.displayName || member.username}</span>
+                          {#if member.username !== member.displayName}
+                            <span class="text-[9px] text-on-surface-variant/50">@{member.username}</span>
+                          {/if}
+                        </div>
+                        {#if formInviteeMemberIds.includes(member.id)}
+                          <div class="w-4 h-4 rounded bg-cyan-500 flex items-center justify-center shrink-0">
+                            <Papicon icon="check" size={10} class="text-white" />
+                          </div>
+                        {:else}
+                          <div class="w-4 h-4 rounded border border-outline-variant/30 shrink-0"></div>
+                        {/if}
+                      </button>
+                    {/each}
+                  </div>
+                {:else if memberSearchQuery.trim() && !memberSearchLoading}
+                  <p class="mt-2 text-[10px] text-on-surface-variant/40 text-center py-2">Aucun membre trouvé</p>
+                {/if}
               </div>
             </div>
           {/if}

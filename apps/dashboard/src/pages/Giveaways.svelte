@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -149,7 +150,7 @@
 
   function getChannelName(channelId: string) {
     const channel = availableChannels.find(c => c.id === channelId);
-    return channel ? `#${channel.name}` : `Salon inconnu (${channelId})`;
+    return channel ? channelDisplayName(channel) : `Salon inconnu (${channelId})`;
   }
 
   function formatDate(dateStr: string) {
@@ -425,7 +426,7 @@
           <SearchableSelect
             id="modal-channel"
             bind:value={formChannelId}
-            options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
+            options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
             placeholder="Sélectionner le salon"
             className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
             disabled={!canManageSettings}

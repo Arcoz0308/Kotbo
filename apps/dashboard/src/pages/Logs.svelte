@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -519,7 +522,7 @@
     if (!channelId) return 'Non spécifié';
     const channel = dashboardStore.state.discordChannels.find((item) => item.id === channelId);
     if (!channel) return 'Canal inconnu';
-    return `#${channel.name}`;
+    return channelDisplayName(channel);
   }
 
   function formatDateTime(value: string | null | undefined) {
@@ -697,7 +700,13 @@
     })
   );
 
+  const logsTabs = ['logs', 'config'] as const;
   let activeTab = $state<'logs' | 'config'>('logs');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/logs', logsTabs, 'logs') as typeof activeTab;
+  });
 
   const stats = $derived([
     { label: 'Événements Discord', val: discordLogs.length, sub: 'Total', subClass: 'text-blue-500' },
@@ -719,7 +728,7 @@
       <div class="inline-flex bg-surface-container-high/60 border border-outline-variant/10 rounded-lg p-1 gap-1">
         <button
           type="button"
-          onclick={() => activeTab = 'logs'}
+          onclick={() => gotoTab('/logs', 'logs', 'logs')}
           class="px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'logs' ? 'bg-primary text-on-primary ' : 'text-on-surface-variant/80 hover:text-on-surface'}"
         >
           Journal
@@ -727,7 +736,7 @@
         {#if canManageSettings}
           <button
             type="button"
-            onclick={() => activeTab = 'config'}
+            onclick={() => gotoTab('/logs', 'config', 'logs')}
             class="px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary ' : 'text-on-surface-variant/80 hover:text-on-surface'}"
           >
             Configuration
@@ -760,7 +769,7 @@
         </div>
       </div>
       <div class="w-full md:w-72">
-        <SearchableSelect bind:value={selectedLogChannelId} on:change={() => handleLogChannelChange()} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+        <SearchableSelect bind:value={selectedLogChannelId} on:change={() => handleLogChannelChange()} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
       </div>
     </div>
 

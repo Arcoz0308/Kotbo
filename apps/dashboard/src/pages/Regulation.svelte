@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
@@ -102,7 +103,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       const channelId = guildState.regulationChannelId || guildState.configChannelId;
       if (!channelId) return 'Aucun salon de publication';
       const channel = (guildState.discordChannels || []).find((c: any) => c.id === channelId);
-      const name = channel ? `#${channel.name}` : `Salon #${channelId}`;
+      const name = channel ? channelDisplayName(channel) : `Salon #${channelId}`;
       return name + (isFallback ? ' (Configuration par défaut)' : '');
     })()
   );
@@ -540,7 +541,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
         {#if canManageSettings}
           <div class="space-y-2">
-            <SearchableSelect id="regulation-channel-select" bind:value={guildState.regulationChannelId} options={(guildState.discordChannels || []).map((channel: any) => ({ id: channel.id, name: channel.name }))} placeholder="Par défaut (salon config)" className="w-full" on:change={(e) => handleRegulationChannelChange(e.detail.value)} disabled={saving || guildState.loading || guildState.discordChannels.length === 0} />
+            <SearchableSelect id="regulation-channel-select" bind:value={guildState.regulationChannelId} options={(guildState.discordChannels || []).map((channel: any) => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder="Par défaut (salon config)" className="w-full" on:change={(e) => handleRegulationChannelChange(e.detail.value)} disabled={saving || guildState.loading || guildState.discordChannels.length === 0} />
           </div>
         {/if}
       </div>

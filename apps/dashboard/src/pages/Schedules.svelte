@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -360,7 +361,7 @@
         <SearchableSelect
           id="schedule-target-channel"
           bind:value={formTargetId}
-          options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
+          options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
           placeholder="Choisir un salon..."
           className="w-full"
         />

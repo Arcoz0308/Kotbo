@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -425,7 +426,7 @@
             {#if notifyViaDiscordChannel}
               <div class="space-y-1.5">
                 <label for="notify-channel" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
-                <SearchableSelect id="notify-channel" bind:value={channelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full" />
+                <SearchableSelect id="notify-channel" bind:value={channelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full" />
               </div>
 
               <div class="space-y-1.5">

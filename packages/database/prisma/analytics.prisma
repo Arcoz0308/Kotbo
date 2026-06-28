@@ -56,6 +56,7 @@ model ChannelDailyStat {
 
   messagesCount Int @default(0)
   uniqueAuthors Int @default(0)
+  voiceMinutes  Int @default(0)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

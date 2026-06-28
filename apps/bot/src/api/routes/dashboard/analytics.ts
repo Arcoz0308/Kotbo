@@ -5,6 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { cache } from '../../../utils/cache.js';
 import {
   json,
+  readJsonBody,
   getGuildMembers,
   type AuthClaims,
   type DashboardAccess,
@@ -31,6 +32,22 @@ export async function handleAnalyticsRoutes(
 
   if (parts[4] !== 'analytics') {
     return false;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/analytics/rescan-members
+  if (parts.length === 6 && parts[5] === 'rescan-members' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ force?: boolean }>(req);
+      const force = !!body?.force;
+
+      const { startMemberScraping } = await import('../../../services/analytics/memberScraperService.js');
+      await startMemberScraping(client, guildId, force);
+      json(res, 200, { ok: true, message: 'Scraping des membres lancé avec succès.' });
+    } catch (err) {
+      logger.error('AnalyticsAPI', 'POST rescan-members error:', err);
+      json(res, 500, { error: 'Erreur lors du lancement du scraping membres' });
+    }
+    return true;
   }
 
   if (method !== 'GET') {
@@ -344,6 +361,7 @@ export async function handleAnalyticsRoutes(
       const [
         dailyStatsRaw,
         channelStats,
+        voiceChannelStats,
         topMessageMembers,
         topVoiceMembers,
         sanctions,
@@ -408,7 +426,7 @@ export async function handleAnalyticsRoutes(
               where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey } },
               orderBy: { dateKey: 'asc' },
             }),
-        // Channel stats
+        // Channel stats (messages)
         prismaRead.channelDailyStat.groupBy({
           by: ['channelId'],
           where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey } },
@@ -416,11 +434,19 @@ export async function handleAnalyticsRoutes(
           orderBy: { _sum: { messagesCount: 'desc' } },
           take: 15,
         }),
+        // Channel stats (voice)
+        prismaRead.channelDailyStat.groupBy({
+          by: ['channelId'],
+          where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey }, voiceMinutes: { gt: 0 } },
+          _sum: { voiceMinutes: true },
+          orderBy: { _sum: { voiceMinutes: 'desc' } },
+          take: 15,
+        }),
         // Top message members
         prismaRead.memberProfile.findMany({
           where: { guildId, isBot: false, messageCount: { gt: 0 } },
           orderBy: { messageCount: 'desc' },
-          take: 15,
+          take: 100,
           select: {
             userId: true, displayName: true, username: true, globalName: true,
             avatarUrl: true, messageCount: true, lastMessageAt: true,
@@ -430,7 +456,7 @@ export async function handleAnalyticsRoutes(
         prismaRead.memberProfile.findMany({
           where: { guildId, isBot: false, voiceTimeSeconds: { gt: 0 } },
           orderBy: { voiceTimeSeconds: 'desc' },
-          take: 15,
+          take: 100,
           select: {
             userId: true, displayName: true, username: true, globalName: true,
             avatarUrl: true, voiceTimeSeconds: true, voiceSessionCount: true,
@@ -659,6 +685,15 @@ export async function handleAnalyticsRoutes(
           channelId: ch.channelId,
           channelName: discordChannel?.name ?? `canal-${ch.channelId.slice(-4)}`,
           messagesCount: ch._sum.messagesCount ?? 0,
+        };
+      });
+
+      const topVoiceChannels = voiceChannelStats.map(ch => {
+        const discordChannel = discordGuild?.channels.cache.get(ch.channelId);
+        return {
+          channelId: ch.channelId,
+          channelName: discordChannel?.name ?? `vocal-${ch.channelId.slice(-4)}`,
+          voiceMinutes: ch._sum.voiceMinutes ?? 0,
         };
       });
 
@@ -906,6 +941,7 @@ export async function handleAnalyticsRoutes(
           };
         }),
         topChannels,
+        topVoiceChannels,
         topMessageMembers: topMessageMembers.map(m => ({
           userId: m.userId,
           name: m.displayName ?? m.globalName ?? m.username ?? 'Inconnu',

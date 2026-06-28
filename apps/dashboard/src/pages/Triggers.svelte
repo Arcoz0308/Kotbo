@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -861,7 +862,7 @@
               <MultiSelect
                 id="filter-allowed-channels"
                 bind:values={formAllowedChannelIds}
-                options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
+                options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
                 placeholder="Rechercher un salon…"
                 accentClass="bg-sky-500/20 text-sky-300 border-sky-500/40"
                 disabled={!canManageSettings}
@@ -876,7 +877,7 @@
               <MultiSelect
                 id="filter-banned-channels"
                 bind:values={formBannedChannelIds}
-                options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
+                options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
                 placeholder="Rechercher un salon…"
                 accentClass="bg-orange-500/20 text-orange-300 border-orange-500/40"
                 disabled={!canManageSettings}

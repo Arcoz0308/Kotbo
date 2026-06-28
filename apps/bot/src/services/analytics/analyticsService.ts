@@ -39,6 +39,7 @@ const guildHourlyStatsBuffer = new Map<string, {
 
 const channelDailyStatsBuffer = new Map<string, {
   messagesCount?: number;
+  voiceMinutes?: number;
 }>();
 
 const memberDailyStatsBuffer = new Map<string, {
@@ -180,13 +181,32 @@ async function flushChannelDailyStats(): Promise<void> {
     if (!guildId || !channelId || !dateKey) return null;
 
     const count = data.messagesCount || 0;
+    const voiceMins = data.voiceMinutes || 0;
     const authorsSet = channelDailyAuthors.get(key);
     const uniqueCount = authorsSet ? authorsSet.size : 0;
 
+    const updateData: Record<string, unknown> = {};
+    const createData: Record<string, unknown> = { guildId, channelId, dateKey };
+
+    if (count > 0) {
+      updateData.messagesCount = { increment: count };
+      createData.messagesCount = count;
+    }
+    if (uniqueCount > 0) {
+      updateData.uniqueAuthors = uniqueCount;
+      createData.uniqueAuthors = uniqueCount;
+    }
+    if (voiceMins > 0) {
+      updateData.voiceMinutes = { increment: voiceMins };
+      createData.voiceMinutes = voiceMins;
+    }
+
+    if (Object.keys(updateData).length === 0) return null;
+
     return prisma.channelDailyStat.upsert({
       where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
-      create: { guildId, channelId, dateKey, messagesCount: count, uniqueAuthors: uniqueCount },
-      update: { messagesCount: { increment: count }, uniqueAuthors: uniqueCount },
+      create: createData,
+      update: updateData,
     });
   }).filter(Boolean);
 
@@ -294,23 +314,29 @@ export const trackMessage = async (guildId: string, channelId: string, userId: s
 /**
  * Increment voice minutes in analytics tables
  */
-export const trackVoiceSession = async (guildId: string, userId: string, durationMinutes: number) => {
+export const trackVoiceSession = async (guildId: string, userId: string, durationMinutes: number, channelId?: string) => {
   if (durationMinutes <= 0) return;
   const dateKey = getDateKey();
   const hour = getHourKey();
 
-  queueGuildDaily(guildId, dateKey, { 
+  queueGuildDaily(guildId, dateKey, {
     voiceMinutes: durationMinutes,
     voiceSessionsCount: 1
   });
 
-  queueGuildHourly(guildId, dateKey, hour, { 
-    voiceMinutes: durationMinutes 
+  queueGuildHourly(guildId, dateKey, hour, {
+    voiceMinutes: durationMinutes
   });
 
-  queueMemberDaily(guildId, userId, dateKey, { 
-    voiceMinutes: durationMinutes 
+  queueMemberDaily(guildId, userId, dateKey, {
+    voiceMinutes: durationMinutes
   });
+
+  if (channelId) {
+    queueChannelDaily(guildId, channelId, dateKey, {
+      voiceMinutes: durationMinutes
+    });
+  }
 };
 
 /**

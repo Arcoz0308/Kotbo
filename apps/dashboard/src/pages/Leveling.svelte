@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -503,7 +504,7 @@
                 <div class="relative w-full">
                   <SearchableSelect 
                     bind:value={pendingIgnoreChannelId}
-                    options={availableChannels.filter(c => !config.ignoredChannels.includes(c.id)).map(c => ({ id: c.id, name: `#${c.name}` }))} 
+                    options={availableChannels.filter(c => !config.ignoredChannels.includes(c.id)).map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
                     placeholder="Ajouter un salon à exclure..." 
                     className="w-full"
                     clearable={false}
@@ -634,7 +635,7 @@
                 options={[
                   { id: '', name: '💬 Salon d\'origine du message' },
                   { id: 'DM', name: '✉️ Message Privé (DM)' },
-                  ...availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))
+                  ...availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))
                 ]} 
                 placeholder="— Sélectionner —" 
                 className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"

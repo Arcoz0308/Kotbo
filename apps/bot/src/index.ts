@@ -410,6 +410,47 @@ client.once(Events.ClientReady, async (c) => {
     logger.error('System', 'Erreur lors de la vérification du scrap historique au démarrage:', err);
   }
 
+  // Trigger historical member scraping for any activated guild that hasn't started yet
+  try {
+    const { startMemberScraping } = await import('./services/analytics/memberScraperService.js');
+    const activatedGuildsForMembers = await prisma.guild.findMany({
+      where: { activated: true },
+      select: { id: true, statsConfig: true }
+    });
+
+    for (const g of activatedGuildsForMembers) {
+      let config = (g.statsConfig as any) || {};
+
+      if (config.memberScrapeStatus === 'IN_PROGRESS') {
+        logger.info('System', `Correction du scrap membres bloqué en IN_PROGRESS pour la guilde ${g.id}`);
+        config = {
+          ...config,
+          memberScrapeStatus: 'FAILED',
+          memberScrapeError: 'Interrompu par le redémarrage du bot',
+        };
+        delete config.memberScrapeProgress;
+
+        await prisma.guild.update({
+          where: { id: g.id },
+          data: { statsConfig: config }
+        });
+      }
+
+      if (
+        !config.memberScrapeStatus ||
+        config.memberScrapeStatus === 'NOT_STARTED' ||
+        config.memberScrapeStatus === 'FAILED'
+      ) {
+        logger.info('System', `Démarrage du scrap membres automatique pour la guilde ${g.id}`);
+        startMemberScraping(client, g.id).catch((err) =>
+          logger.error('System', `Erreur lors du démarrage du scrap membres pour ${g.id}:`, err)
+        );
+      }
+    }
+  } catch (err) {
+    logger.error('System', 'Erreur lors de la vérification du scrap membres au démarrage:', err);
+  }
+
   logger.success('System', 'Bot opérationnel et synchronisé.');
 });
 
@@ -426,6 +467,12 @@ client.on(Events.GuildCreate, async (guild) => {
     const { startHistoricalScraping } = await import('./services/analytics/messageScraperService.js');
     startHistoricalScraping(client, guild.id).catch((err) =>
       logger.error('System', `Impossible de démarrer le scraping historique pour ${guild.name}:`, err)
+    );
+
+    // Start member scraping
+    const { startMemberScraping } = await import('./services/analytics/memberScraperService.js');
+    startMemberScraping(client, guild.id).catch((err) =>
+      logger.error('System', `Impossible de démarrer le scraping membres pour ${guild.name}:`, err)
     );
   } else {
     const channel = guild.systemChannel || guild.channels.cache.find(

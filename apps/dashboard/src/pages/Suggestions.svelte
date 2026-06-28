@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -251,7 +252,7 @@
           <SearchableSelect
             id="suggestions-channel"
             bind:value={moduleConfig.channelId}
-            options={availableChannels.map((c) => ({ id: c.id, name: `#${c.name}` }))}
+            options={availableChannels.map((c) => ({ id: c.id, name: channelDisplayName(c) }))}
             placeholder="Sélectionner un salon"
             className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm"
             disabled={!canConfigure || !moduleConfig.enabled}

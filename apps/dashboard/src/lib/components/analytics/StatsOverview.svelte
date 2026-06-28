@@ -1,10 +1,52 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
+  import ExportDropdown from './ExportDropdown.svelte';
+  import { toast } from '../../stores/toast.svelte';
+  import * as XLSX from 'xlsx';
 
   let { data, chartLabels } = $props<{ data: any; chartLabels: any[] }>();
 
   const fmt = (n: number) => n?.toLocaleString('fr-FR') ?? '0';
+
+  function triggerDownload(content: BlobPart, fileName: string, mimeType: string) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportChartCSV(name: string, rows: Record<string, unknown>[]) {
+    if (!rows.length) { toast.error('Aucune donnée.'); return; }
+    const headers = Object.keys(rows[0]);
+    const csv = [headers.join(','), ...rows.map(r => headers.map(h => String(r[h] ?? '')).join(','))].join('\n');
+    triggerDownload(csv, `${name}.csv`, 'text/csv;charset=utf-8');
+  }
+
+  function exportChartXLSX(name: string, rows: Record<string, unknown>[]) {
+    if (!rows.length) { toast.error('Aucune donnée.'); return; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name.slice(0, 31));
+    XLSX.writeFile(wb, `${name}.xlsx`);
+  }
+
+  function exportChartImage(cardSelector: string, name: string) {
+    const card = document.querySelector(cardSelector);
+    const canvas = card?.querySelector('canvas');
+    if (!canvas) { toast.error('Graphique introuvable.'); return; }
+    canvas.toBlob((blob) => {
+      if (blob) triggerDownload(blob, `${name}.png`, 'image/png');
+    }, 'image/png');
+  }
+
+  function trendRows() {
+    return chartLabels.map(l => ({ date: l.label, messages: l.messages || 0, voiceMinutes: l.voiceMinutes || 0 }));
+  }
 
   const stats = $derived([
     { label: 'Messages', value: fmt(data?.totals?.messages), icon: 'ChatCircleDots', color: '#6366f1' },
@@ -38,7 +80,7 @@
 
   <!-- Main Chart Section -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 premium-card p-8 rounded-xl space-y-8">
+    <div id="chart-trend" class="lg:col-span-2 premium-card p-8 rounded-xl space-y-8">
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-4">
           <div class="bg-primary/10 p-3 rounded-lg text-primary">
@@ -49,6 +91,11 @@
             <p class="text-xs font-bold text-on-surface-variant/40">Messages & Sessions Vocales</p>
           </div>
         </div>
+        <ExportDropdown
+          onExportCSV={() => exportChartCSV('tendance_globale', trendRows())}
+          onExportXLSX={() => exportChartXLSX('tendance_globale', trendRows())}
+          onExportImage={() => exportChartImage('#chart-trend', 'tendance_globale')}
+        />
       </div>
       
       <div class="h-[300px]">

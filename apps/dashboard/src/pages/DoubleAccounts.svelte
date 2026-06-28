@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -14,10 +15,18 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 
   // ── Tabs ──
   type Tab = 'links' | 'detections' | 'verification' | 'config';
+  const daTabs = ['links', 'detections', 'verification', 'config'] as const;
   let activeTab = $state<Tab>('links');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/double-accounts', daTabs, 'links') as Tab;
+  });
 
   // ── Scanning ──
   let scanning = $state(false);
@@ -605,7 +614,7 @@
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <label class="space-y-1.5">
               <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de vérification</span>
-              <SearchableSelect bind:value={verifConfig.verificationChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Aucun salon" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
+              <SearchableSelect bind:value={verifConfig.verificationChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Aucun salon" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5">
               <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle vérifié</span>
@@ -613,7 +622,7 @@
             </label>
             <label class="space-y-1.5">
               <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de logs</span>
-              <SearchableSelect bind:value={verifConfig.verificationLogChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Par défaut" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
+              <SearchableSelect bind:value={verifConfig.verificationLogChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Par défaut" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
           </div>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -921,7 +922,7 @@
                   <!-- Discord Channel Selector -->
                   <div class="space-y-1.5">
                     <label for="config-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">Salon de diffusion</label>
-                    <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: `#${channel.name}` }))} placeholder="— Sélectionner un salon —" className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+                    <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder="— Sélectionner un salon —" className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
                   </div>
 
                   <!-- Save Config Button -->

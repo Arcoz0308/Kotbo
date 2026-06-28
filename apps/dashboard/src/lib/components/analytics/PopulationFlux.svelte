@@ -2,9 +2,9 @@
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
 
-  let { data, chartLabels, invitesData, onOpenMember } = $props<{ 
-    data: any; 
-    chartLabels: any[]; 
+  let { data, chartLabels, invitesData, onOpenMember } = $props<{
+    data: any;
+    chartLabels: any[];
     invitesData: any;
     onOpenMember?: (userId: string, name: string) => void;
   }>();
@@ -28,7 +28,7 @@
           <p class="text-xs font-bold text-on-surface-variant/40">Arrivées vs Départs</p>
         </div>
       </div>
-      <div class="flex gap-4">
+      <div class="flex items-center gap-4">
         <div class="flex flex-col items-end">
            <span class="text-sm font-semibold text-emerald-500">+{chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0)}</span>
            <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Entrées</span>

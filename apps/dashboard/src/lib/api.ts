@@ -772,6 +772,13 @@ export async function deleteManagerNote(staffUserId, noteId, guildId = authStore
   return dashboardMutation(`/staff/${staffUserId}/notes/${noteId}`, { method: 'DELETE', guildId });
 }
 
+export async function searchDiscordMembers(query: string, limit = 12, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  params.append('limit', String(limit));
+  return dashboardRequest(`/staff/discord-members?${params}`, { method: 'GET', guildId });
+}
+
 export async function toggleTutorStatus(userId, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/staff/members/${userId}/tutor`, { method: 'POST', guildId });
 }
@@ -1604,6 +1611,15 @@ export async function rescanChannelsManagementStats(payload: { force: boolean },
     payload,
     guildId,
     errorContext: 'API Error (Rescan Stats):'
+  });
+}
+
+export async function rescanMemberStats(payload: { force: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/analytics/rescan-members', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Rescan Members):'
   });
 }
 

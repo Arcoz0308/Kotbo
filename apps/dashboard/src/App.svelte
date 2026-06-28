@@ -156,11 +156,11 @@
     if (path.startsWith("/suggestions")) return "suggestions";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
-      const tab = new URLSearchParams(window.location.search).get("tab");
-      if (tab === "roles") return "staff_roles";
-      if (tab === "polls") return "polls";
-      if (tab === "warnings") return "discipline";
-      if (tab === "leadership") return "staff_directory";
+      const segment = path.split('/')[2] || '';
+      if (segment === "roles") return "staff_roles";
+      if (segment === "polls") return "polls";
+      if (segment === "warnings") return "discipline";
+      if (segment === "leadership") return "staff_directory";
       return "staff_directory";
     }
     if (path.startsWith("/modules")) return "modules";
@@ -455,7 +455,7 @@
         <Verify guildId={meta.params.guildId} token={meta.params.token} />
       </Route>
 
-      <Route path="/analytics">
+      <Route path="/analytics/*">
         <Analytics />
       </Route>
       <Route path="/activity">
@@ -493,14 +493,14 @@
           <AdminBroadcast />
         </Route>
       {/if}
-      <Route path="/logs">
+      <Route path="/logs/*">
         <Logs />
       </Route>
-      <Route path="/sanctions">
+      <Route path="/sanctions/*">
         <Sanctions />
       </Route>
       <Route path="/detections">
-        <div use:navigate={"/double-accounts?tab=detections"}></div>
+        <div use:navigate={"/double-accounts/detections"}></div>
       </Route>
       <Route path="/regulation">
         <Regulation />
@@ -519,7 +519,7 @@
         <Route path="/notifications">
           <NotificationsSettings />
         </Route>
-        <Route path="/command-access">
+        <Route path="/command-access/*">
           <CommandAccess />
         </Route>
         <Route path="/settings">
@@ -528,10 +528,10 @@
         <Route path="/automations">
           <ModuleCatalog />
         </Route>
-        <Route path="/staff-management">
+        <Route path="/staff-management/*">
           <StaffManagement />
         </Route>
-        <Route path="/channels-management">
+        <Route path="/channels-management/*">
           <ChannelsManagement />
         </Route>
       {/if}
@@ -554,25 +554,25 @@
       <Route path="/absences">
         <div use:navigate={"/planning"}></div>
       </Route>
-      <Route path="/planning">
+      <Route path="/planning/*">
         <Planning />
       </Route>
-      <Route path="/inbox">
+      <Route path="/inbox/*">
         <Inbox />
       </Route>
       <Route path="/tutoring">
         <Tutoring />
       </Route>
-      <Route path="/double-accounts">
+      <Route path="/double-accounts/*">
         <DoubleAccounts />
-      </Route>
-      <Route path="/invitations">
-        <Invitations />
       </Route>
       <Route path="/invitations/:code" let:meta>
         {#key meta.params.code}
           <InvitationDetail code={meta.params.code} />
         {/key}
+      </Route>
+      <Route path="/invitations/*">
+        <Invitations />
       </Route>
 
       <Route path="/backups">
@@ -626,7 +626,7 @@
               <Overview />
             </Route>
 
-            <Route path="/analytics">
+            <Route path="/analytics/*">
               <Analytics />
             </Route>
             <Route path="/activity">
@@ -664,29 +664,29 @@
                 <AdminBroadcast />
               </Route>
             {/if}
-            <Route path="/logs">
+            <Route path="/logs/*">
               <Logs />
             </Route>
-            <Route path="/sanctions">
+            <Route path="/sanctions/*">
               <Sanctions />
             </Route>
             <Route path="/detections">
-              <div use:navigate={"/double-accounts?tab=detections"}></div>
+              <div use:navigate={"/double-accounts/detections"}></div>
             </Route>
             <Route path="/regulation">
               <Regulation />
             </Route>
-            <Route path="/news">
+            <Route path="/news/*">
               <News />
             </Route>
-            <Route path="/social-networks">
+            <Route path="/social-networks/*">
               <SocialNetworks />
-            </Route>
-            <Route path="/profile">
-              <Profile />
             </Route>
             <Route path="/profile/:userId" let:meta>
               <Profile userId={meta.params.userId} />
+            </Route>
+            <Route path="/profile/*">
+              <Profile />
             </Route>
             {#if canManageSettings}
               <Route path="/modules">
@@ -699,7 +699,7 @@
               <Route path="/notifications">
                 <NotificationsSettings />
               </Route>
-              <Route path="/command-access">
+              <Route path="/command-access/*">
                 <CommandAccess />
               </Route>
               <Route path="/settings">
@@ -720,18 +720,18 @@
               <Route path="/automations">
                 <ModuleCatalog />
               </Route>
-              <Route path="/staff-management">
+              <Route path="/staff-management/*">
                 <StaffManagement />
               </Route>
-              <Route path="/channels-management">
+              <Route path="/channels-management/*">
                 <ChannelsManagement />
               </Route>
             {/if}
 
-            <Route path="/channel-health">
+            <Route path="/channel-health/*">
               <ChannelHealth />
             </Route>
-            <Route path="/pulse">
+            <Route path="/pulse/*">
               <Pulse />
             </Route>
             <Route path="/reputation">
@@ -749,7 +749,7 @@
             <Route path="/evaluations">
               <Evaluations />
             </Route>
-            <Route path="/marketplace">
+            <Route path="/marketplace/*">
               <Marketplace />
             </Route>
             <Route path="/quests">
@@ -804,32 +804,32 @@
             <Route path="/absences">
               <div use:navigate={"/planning"}></div>
             </Route>
-            <Route path="/planning">
+            <Route path="/planning/*">
               <Planning />
             </Route>
-            <Route path="/inbox">
+            <Route path="/inbox/*">
               <Inbox />
             </Route>
             <Route path="/tutoring">
               <Tutoring />
             </Route>
-            <Route path="/nickname-moderation">
+            <Route path="/nickname-moderation/*">
               <NicknameModeration />
             </Route>
 
-            <Route path="/leveling">
+            <Route path="/leveling/*">
               <Leveling />
             </Route>
-            <Route path="/economy">
+            <Route path="/economy/*">
               <Economy />
             </Route>
             <Route path="/giveaways">
               <Giveaways />
             </Route>
-            <Route path="/welcome">
+            <Route path="/welcome/*">
               <Announcement />
             </Route>
-            <Route path="/announcement">
+            <Route path="/announcement/*">
               <Announcement />
             </Route>
             <Route path="/reaction-roles">
@@ -851,16 +851,16 @@
               <FunSettings />
             </Route>
 
-            <Route path="/double-accounts">
+            <Route path="/double-accounts/*">
               <DoubleAccounts />
-            </Route>
-            <Route path="/invitations">
-              <Invitations />
             </Route>
             <Route path="/invitations/:code" let:meta>
               {#key meta.params.code}
                 <InvitationDetail code={meta.params.code} />
               {/key}
+            </Route>
+            <Route path="/invitations/*">
+              <Invitations />
             </Route>
 
             <Route path="/events">

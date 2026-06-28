@@ -3,6 +3,7 @@
 </script>
 
 <script lang="ts">
+  import { channelDisplayName } from '../../channelUtils';
   import Papicon from '../Papicon.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
@@ -127,7 +128,7 @@
                         <div class="space-y-4">
                           <div class="space-y-1.5">
                             <label for="notify-channel-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
-                            <SearchableSelect id="notify-channel-{feature.featureKey}" bind:value={features[idx].channelId} options={availableChannels.map(channel => ({ id: channel.id, name: `#${channel.name}` }))} placeholder="Utiliser le salon par défaut" className="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                            <SearchableSelect id="notify-channel-{feature.featureKey}" bind:value={features[idx].channelId} options={availableChannels.map(channel => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder="Utiliser le salon par défaut" className="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
                           </div>
                           <div class="space-y-1.5">
                             <label for="notify-role-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Rôle à mentionner</label>

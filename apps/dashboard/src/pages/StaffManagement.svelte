@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -51,37 +52,29 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     return !!value && staffTabs.includes(value as StaffTab);
   }
 
-  function getTabFromSearch(search: string): StaffTab | null {
-    const tab = new URLSearchParams(search).get('tab');
-    return isStaffTab(tab) ? tab : null;
-  }
-
   let activeTab = $state<StaffTab>('members');
-  
+
   // États de chargement par catégorie
   let loadingStates = $state<Record<string, boolean>>({
     members: true,
     roles: true,
     organigramme: true,
-    warnings: false, // Pas de fetch au démarrage (interne)
-    blacklist: false, // Pas de fetch au démarrage (interne)
+    warnings: false,
+    blacklist: false,
     polls: true,
     leadership: true
   });
 
-  // Synchronisation de l'onglet avec l'URL
   $effect(() => {
-    // On observe $router.path pour déclencher l'effet lors des changements de navigation
     const _path = $router.path;
-    const tabFromUrl = getTabFromSearch(window.location.search);
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      activeTab = tabFromUrl;
+    const tab = resolveTabFromUrl('/staff-management', staffTabs, 'members');
+    if (isStaffTab(tab) && tab !== activeTab) {
+      activeTab = tab;
     }
   });
 
   function switchTab(tab: StaffTab) {
-    activeTab = tab;
-    router.goto(`/staff-management?tab=${tab}`);
+    gotoTab('/staff-management', tab, 'members');
     void loadTabData(tab);
   }
 
@@ -574,8 +567,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   // Loadings
 
   onMount(() => {
-    const initialTab = getTabFromSearch(window.location.search);
-    if (initialTab) {
+    const initialTab = resolveTabFromUrl('/staff-management', staffTabs, 'members');
+    if (isStaffTab(initialTab)) {
       activeTab = initialTab;
     }
   });
