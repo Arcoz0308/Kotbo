@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Client, TextChannel, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, GuildScheduledEventPrivacyLevel, GuildScheduledEventEntityType, PermissionFlagsBits } from 'discord.js';
 import type { McpKeyPermission, SanctionType, SanctionStatus } from '@prisma/client';
+import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import {
   registerWarnSanction,
@@ -2241,19 +2242,32 @@ export function registerMcpTools(
         }
 
         try {
+          // Vérifier que les deux membres existent bien en base
+          const [p1, p2] = await Promise.all([
+            prisma.memberProfile.findFirst({ where: { guildId, userId: r1.userId }, select: { userId: true } }),
+            prisma.memberProfile.findFirst({ where: { guildId, userId: r2.userId }, select: { userId: true } }),
+          ]);
+
+          if (!p1) return err(`Membre introuvable en base : ${r1.label} (${r1.userId}). Le membre n'a peut-être jamais rejoint le serveur.`);
+          if (!p2) return err(`Membre introuvable en base : ${r2.label} (${r2.userId}). Le membre n'a peut-être jamais rejoint le serveur.`);
+
           const link = await linkAccounts({
             guildId,
             user1Id: r1.userId,
             user2Id: r2.userId,
-            type: 'MANUAL',
-            status: 'VALIDATED',
+            type: LinkedAccountType.MANUAL,
+            status: LinkedAccountStatus.VALIDATED,
             reason: reason || `Liaison manuelle via MCP par ${key_name ?? 'agent'}`,
             linkedByUserId: 'mcp_agent',
             metadata: { linkedBy: key_name ?? 'mcp_agent', at: new Date().toISOString() },
           });
 
+          if (!link) {
+            return err(`La liaison n'a pas pu être créée (IDs identiques après normalisation ? ${r1.userId} / ${r2.userId})`);
+          }
+
           await audit(key_name, 'Liaison comptes MCP', `${r1.label} ↔ ${r2.label}`, `IDs: ${r1.userId} / ${r2.userId}`);
-          return ok({ ok: true, linkId: link?.id ?? null, user1: r1.userId, user2: r2.userId });
+          return ok({ ok: true, linkId: link.id, user1Id: r1.userId, user1Label: r1.label, user2Id: r2.userId, user2Label: r2.label });
         } catch (e) {
           return err(`Erreur lors de la liaison : ${e instanceof Error ? e.message : String(e)}`);
         }
