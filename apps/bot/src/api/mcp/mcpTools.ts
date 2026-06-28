@@ -2298,48 +2298,62 @@ export function registerMcpTools(
       })
     );
 
-    // 4. create_giveaway
+    // 4. create_giveaway / create_giveway
+    const giveawayInputSchema = {
+      channel: z.string().describe('Salon cible'),
+      prize: z.string().describe('Lot à gagner'),
+      winner_count: z.number().int().min(1).default(1).describe('Nombre de gagnants'),
+      duration_minutes: z.number().int().min(1).describe('Durée en minutes avant le tirage'),
+      description: z.string().optional().describe('Description ou règles'),
+      rpg_xp: z.number().int().default(0).describe('XP RPG offerte aux gagnants'),
+      rpg_coins: z.number().int().default(0).describe('Pièces RPG offertes aux gagnants'),
+      rpg_item_id: z.string().optional().describe('ID de l\'objet RPG offert aux gagnants'),
+      key_name: z.string().optional(),
+    };
+
+    const giveawayHandler = guard('WRITE_COMMUNITY', async ({ channel, prize, winner_count, duration_minutes, description, rpg_xp, rpg_coins, rpg_item_id, key_name }) => {
+      const resolved = resolveChannel(guildId, client, channel);
+      if (!resolved.ok) return resolved.response;
+
+      try {
+        const giveaway = await createGiveaway(
+          client,
+          guildId,
+          resolved.channel.id,
+          prize,
+          winner_count,
+          duration_minutes,
+          description,
+          rpg_xp,
+          rpg_coins,
+          rpg_item_id || null
+        );
+
+        await audit(key_name, 'Création giveaway MCP', prize, `Salon: #${resolved.channel.name}`);
+        return ok({ ok: true, giveawayId: giveaway.id, prize });
+      } catch (e) {
+        return err(`Erreur lors du lancement du giveaway : ${e instanceof Error ? e.message : String(e)}`);
+      }
+    });
+
     server.registerTool(
       'create_giveaway',
       {
         description: 'Lance un tirage au sort (giveaway) sur Discord.',
-        inputSchema: {
-          channel: z.string().describe('Salon cible'),
-          prize: z.string().describe('Lot à gagner'),
-          winner_count: z.number().int().min(1).default(1).describe('Nombre de gagnants'),
-          duration_minutes: z.number().int().min(1).describe('Durée en minutes avant le tirage'),
-          description: z.string().optional().describe('Description ou règles'),
-          rpg_xp: z.number().int().default(0).describe('XP RPG offerte aux gagnants'),
-          rpg_coins: z.number().int().default(0).describe('Pièces RPG offertes aux gagnants'),
-          rpg_item_id: z.string().optional().describe('ID de l\'objet RPG offert aux gagnants'),
-          key_name: z.string().optional(),
-        },
+        inputSchema: giveawayInputSchema,
         _meta: toolMeta,
       },
-      guard('WRITE_COMMUNITY', async ({ channel, prize, winner_count, duration_minutes, description, rpg_xp, rpg_coins, rpg_item_id, key_name }) => {
-        const resolved = resolveChannel(guildId, client, channel);
-        if (!resolved.ok) return resolved.response;
+      giveawayHandler
+    );
 
-        try {
-          const giveaway = await createGiveaway(
-            client,
-            guildId,
-            resolved.channel.id,
-            prize,
-            winner_count,
-            duration_minutes,
-            description,
-            rpg_xp,
-            rpg_coins,
-            rpg_item_id || null
-          );
-
-          await audit(key_name, 'Création giveaway MCP', prize, `Salon: #${resolved.channel.name}`);
-          return ok({ ok: true, giveawayId: giveaway.id, prize });
-        } catch (e) {
-          return err(`Erreur lors du lancement du giveaway : ${e instanceof Error ? e.message : String(e)}`);
-        }
-      })
+    server.registerTool(
+      'create_giveway',
+      {
+        description: 'Lance un tirage au sort (giveaway) sur Discord (alias).',
+        inputSchema: giveawayInputSchema,
+        _meta: toolMeta,
+      },
+      giveawayHandler
     );
 
     // 5. cancel_giveaway / reroll_giveaway
@@ -2393,8 +2407,8 @@ export function registerMcpTools(
         inputSchema: {
           name: z.string().describe('Nom de la quête'),
           description: z.string().describe('Description des objectifs'),
-          type: z.enum(['MESSAGE', 'VOICE', 'LEVEL', 'QUEST_COMPLETE', 'SUGGESTION', 'TICKET_OPEN']),
-          frequency: z.enum(['DAILY', 'WEEKLY', 'ONCE', 'SEASONAL']),
+          type: z.enum(['SEND_MESSAGES', 'VOICE_MINUTES', 'REACT_MESSAGES', 'WIN_GAME', 'EARN_COINS', 'GIVE_REP', 'CREATE_THREADS', 'REPLY_MESSAGES']),
+          frequency: z.enum(['DAILY', 'WEEKLY']),
           target: z.number().int().describe('Nombre de répétitions requises pour valider la quête'),
           reward_coins: z.number().int().default(0),
           reward_xp: z.number().int().default(0),
@@ -2735,8 +2749,8 @@ export function registerMcpTools(
           quest_id: z.string().describe('ID de la quête à modifier'),
           name: z.string().optional(),
           description: z.string().optional(),
-          type: z.enum(['MESSAGE_COUNT', 'VOICE_TIME_MINUTES', 'REPUTATION_GIVEN', 'REPUTATION_RECEIVED', 'INVITE_COUNT']).optional(),
-          frequency: z.enum(['DAILY', 'WEEKLY', 'SEASONAL']).optional(),
+          type: z.enum(['SEND_MESSAGES', 'VOICE_MINUTES', 'REACT_MESSAGES', 'WIN_GAME', 'EARN_COINS', 'GIVE_REP', 'CREATE_THREADS', 'REPLY_MESSAGES']).optional(),
+          frequency: z.enum(['DAILY', 'WEEKLY']).optional(),
           target: z.number().int().min(1).optional().describe('Objectif quantitatif'),
           reward_coins: z.number().int().optional(),
           reward_xp: z.number().int().optional(),
