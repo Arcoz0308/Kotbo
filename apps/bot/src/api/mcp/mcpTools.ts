@@ -2401,25 +2401,26 @@ export function registerMcpTools(
           description: z.string().optional().describe('Description du formulaire'),
           is_recruitment: z.boolean().default(false).describe("Indique s'il s'agit d'un formulaire de recrutement"),
           questions: z.array(z.object({
-            id: z.string().describe('Identifiant unique de la question (ex: "motivation")'),
+            id: z.string().optional().describe('Identifiant unique de la question (généré automatiquement si omis)'),
             label: z.string().describe('Intitulé de la question'),
-            type: z.enum(['text', 'paragraph', 'select', 'checkbox']).default('text'),
+            type: z.enum(['text', 'paragraph', 'select', 'checkbox', 'discord_connect']).default('text'),
             required: z.boolean().default(true),
             placeholder: z.string().optional(),
             options: z.array(z.string()).optional().describe("Options (obligatoire si type == 'select')"),
-          })).describe('Liste des questions'),
+          })).default([]).describe('Liste des questions'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
       guard('WRITE_COMMUNITY', async ({ name, description, is_recruitment, questions, key_name }) => {
         try {
-          const mappedFields = questions.map((q: any) => ({
-            id: q.id,
+          const mappedFields = questions.map((q: any, i: number) => ({
+            id: q.id || q.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30) || `field_${i}`,
             label: q.label,
             type: q.type === 'text' ? 'short_text'
                 : q.type === 'select' ? 'dropdown'
                 : q.type === 'checkbox' ? 'checkboxes'
+                : q.type === 'discord_connect' ? 'discord_connect'
                 : 'paragraph',
             required: q.required ?? true,
             description: q.placeholder || undefined,
@@ -2438,7 +2439,7 @@ export function registerMcpTools(
           });
 
           await audit(key_name, 'Création formulaire MCP', name, `Questions: ${questions.length}`);
-          return ok({ ok: true, formId: form.id, name });
+          return ok({ ok: true, formId: form.id, name, fieldsCreated: mappedFields.length });
         } catch (e) {
           return err(`Erreur lors de la création du formulaire: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -2728,9 +2729,9 @@ export function registerMcpTools(
           is_recruitment: z.boolean().optional().describe("Indique s'il s'agit d'un formulaire de recrutement"),
           is_active: z.boolean().optional().describe("Activer ou désactiver le formulaire"),
           questions: z.array(z.object({
-            id: z.string().describe('Identifiant unique de la question'),
+            id: z.string().optional().describe('Identifiant unique de la question (généré automatiquement si omis)'),
             label: z.string().describe('Intitulé de la question'),
-            type: z.enum(['text', 'paragraph', 'select', 'checkbox']).default('text'),
+            type: z.enum(['text', 'paragraph', 'select', 'checkbox', 'discord_connect']).default('text'),
             required: z.boolean().default(true),
             placeholder: z.string().optional(),
             options: z.array(z.string()).optional(),
@@ -2751,26 +2752,27 @@ export function registerMcpTools(
           if (is_active !== undefined) updateData.isActive = is_active;
 
           if (questions !== undefined) {
-            const mappedFields = questions.map((q: any) => ({
-              id: q.id,
+            const mappedFields = questions.map((q: any, i: number) => ({
+              id: q.id || q.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30) || `field_${i}`,
               label: q.label,
               type: q.type === 'text' ? 'short_text'
                   : q.type === 'select' ? 'dropdown'
                   : q.type === 'checkbox' ? 'checkboxes'
+                  : q.type === 'discord_connect' ? 'discord_connect'
                   : 'paragraph',
               required: q.required ?? true,
               description: q.placeholder || undefined,
               options: q.options || undefined,
             }));
             updateData.structure = {
-              title: name || existing.name,
-              description: description || existing.description || undefined,
+              title: name || (existing as any).name,
+              description: description || (existing as any).description || undefined,
               fields: mappedFields,
             };
           }
 
           await updateCustomForm(form_id, guildId, updateData);
-          await audit(key_name, 'Mise à jour formulaire MCP', name || existing.name, `ID: ${form_id}`);
+          await audit(key_name, 'Mise à jour formulaire MCP', name || (existing as any).name, `ID: ${form_id}`);
           return ok({ ok: true, formId: form_id });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);

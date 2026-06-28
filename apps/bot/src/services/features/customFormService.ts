@@ -25,7 +25,7 @@ import { handleFormTrigger } from './autoResponseService.js';
 
 export type CustomFormField = {
   id: string;
-  type: 'short_text' | 'paragraph' | 'multiple_choice' | 'checkboxes' | 'dropdown' | 'email' | 'number' | 'date';
+  type: 'short_text' | 'paragraph' | 'multiple_choice' | 'checkboxes' | 'dropdown' | 'email' | 'number' | 'date' | 'discord_connect';
   label: string;
   description?: string;
   required: boolean;
