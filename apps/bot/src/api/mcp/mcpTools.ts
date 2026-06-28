@@ -3745,8 +3745,16 @@ export function registerMcpTools(
       },
       guard('WRITE_MEMBERS', async ({ id, name, description, type, price, purchasable, atk_bonus, def_bonus, hp_restore, energy_restore, key_name }) => {
         try {
+          const existing = await prisma.rpgItem.findUnique({
+            where: { id }
+          });
+
+          if (existing && existing.guildId !== guildId) {
+            return err("Cet objet existe déjà et appartient à un autre serveur ou est un objet global.");
+          }
+
           const item = await prisma.rpgItem.upsert({
-            where: { guildId_id: { guildId, id } },
+            where: { id },
             update: {
               name,
               description,
@@ -3794,12 +3802,15 @@ export function registerMcpTools(
       guard('WRITE_MEMBERS', async ({ id, key_name }) => {
         try {
           const existing = await prisma.rpgItem.findUnique({
-            where: { guildId_id: { guildId, id } }
+            where: { id }
           });
           if (!existing) return err('Objet introuvable');
+          if (existing.guildId !== guildId) {
+            return err("Cet objet appartient à un autre serveur ou est un objet global.");
+          }
 
           await prisma.rpgItem.delete({
-            where: { guildId_id: { guildId, id } }
+            where: { id }
           });
 
           await audit(key_name, 'Configuration économie MCP', `Objet boutique RPG supprimé: ${existing.name}`, `ID: ${id}`);
