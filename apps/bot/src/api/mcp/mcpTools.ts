@@ -952,6 +952,83 @@ export function registerMcpTools(
         return ok({ ok: true, messageId: sent.id, channelId: resolved.channel.id, channelName: resolved.channel.name });
       })
     );
+
+    server.registerTool(
+      'delete_messages',
+      {
+        description:
+          'Supprime un ou plusieurs messages dans un salon Discord. ' +
+          'Mode 1 (message_id) : supprime un message précis. ' +
+          'Mode 2 (bulk) : supprime les N derniers messages du salon (max 100, < 14 jours). ' +
+          'Requiert la permission WRITE_MESSAGES.',
+        inputSchema: {
+          channel: z.string().describe('Nom du salon, mention <#id> ou ID'),
+          message_id: z.string().optional().describe('ID du message à supprimer (mode suppression unique)'),
+          count: z.number().int().min(1).max(100).optional().describe('Nombre de messages récents à supprimer en bulk (max 100)'),
+          user_filter: z.string().optional().describe('Limiter le bulk uniquement aux messages de ce membre (nom, mention ou ID)'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ channel, message_id, count, user_filter, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        const ch = resolved.channel;
+
+        // ── Mode 1 : suppression d'un message unique ──
+        if (message_id) {
+          const msg = await ch.messages.fetch(message_id).catch(() => null);
+          if (!msg) return err(`Message ${message_id} introuvable dans #${ch.name}.`);
+
+          const deleted = await msg.delete().then(() => true).catch(() => false);
+          if (!deleted) return err('Impossible de supprimer le message (permissions insuffisantes ?).');
+
+          await audit(key_name, 'Suppression message MCP', `#${ch.name}`, `MessageID: ${message_id}`);
+          return ok({ ok: true, deleted: 1, messageId: message_id, channelId: ch.id });
+        }
+
+        // ── Mode 2 : bulk delete ──
+        const bulkCount = count ?? 10;
+
+        // Résoudre l'éventuel filtre utilisateur
+        let filterUserId: string | null = null;
+        if (user_filter) {
+          const ru = await resolveMember(guildId, user_filter);
+          if (!ru.ok) return ru.response;
+          filterUserId = ru.userId;
+        }
+
+        // Récupérer les messages (on prend plus pour compenser les anciens > 14 jours)
+        const fetched = await ch.messages.fetch({ limit: Math.min(bulkCount * 3, 100) }).catch(() => null);
+        if (!fetched) return err('Impossible de récupérer les messages (permissions insuffisantes ?).');
+
+        const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+        let candidates = fetched
+          .filter(m => m.createdTimestamp > twoWeeksAgo)
+          .filter(m => !filterUserId || m.author.id === filterUserId)
+          .sort((a, b) => b.createdTimestamp - a.createdTimestamp)
+          .first(bulkCount);
+
+        if (candidates.length === 0) {
+          return err('Aucun message éligible à la suppression (trop anciens ou filtre trop restrictif).');
+        }
+
+        let deletedCount = 0;
+        if (candidates.length === 1) {
+          // bulkDelete ne fonctionne pas pour 1 seul message
+          await candidates[0]!.delete().catch(() => null);
+          deletedCount = 1;
+        } else {
+          const result = await ch.bulkDelete(candidates, true).catch(() => null);
+          deletedCount = result?.size ?? 0;
+        }
+
+        const filterLabel = filterUserId ? ` (filtre: <@${filterUserId}>)` : '';
+        await audit(key_name, 'Suppression bulk MCP', `#${ch.name}${filterLabel}`, `${deletedCount} message(s) supprimé(s)`);
+        return ok({ ok: true, deleted: deletedCount, channelId: ch.id, channelName: ch.name });
+      })
+    );
   }
 
   // ── WRITE_TICKETS ─────────────────────────────────────────────────────────
