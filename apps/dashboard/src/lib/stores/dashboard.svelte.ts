@@ -34,6 +34,7 @@ class DashboardStore {
     autoThreadChannels: [] as string[],
     funEnabled: false,
     economyEnabled: false,
+    levelingEnabled: false,
     funCountingChannelId: '',
     funOneWordStoryChannelId: '',
     funGuessNumberChannelId: '',
@@ -154,6 +155,7 @@ class DashboardStore {
         this.state.autoThreadChannels = data.autoThreadChannels || [];
         this.state.funEnabled = data.funEnabled || false;
         this.state.economyEnabled = data.economyEnabled || false;
+        this.state.levelingEnabled = data.levelingEnabled || false;
         this.state.funCountingChannelId = data.funCountingChannelId || '';
         this.state.funOneWordStoryChannelId = data.funOneWordStoryChannelId || '';
         this.state.funGuessNumberChannelId = data.funGuessNumberChannelId || '';

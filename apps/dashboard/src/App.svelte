@@ -90,8 +90,17 @@
   import FunSettings from "./pages/FunSettings.svelte";
   import CustomBot from "./pages/CustomBot.svelte";
   import Verify from "./pages/Verify.svelte";
+  import ChannelHealth from "./pages/ChannelHealth.svelte";
   import ChannelLinks from "./pages/ChannelLinks.svelte";
   import StaffServerLinks from "./pages/StaffServerLinks.svelte";
+  import Pulse from "./pages/Pulse.svelte";
+  import Reputation from "./pages/Reputation.svelte";
+  import Satisfaction from "./pages/Satisfaction.svelte";
+  import Seasons from "./pages/Seasons.svelte";
+  // Predictions page merged into Pulse
+  import Evaluations from "./pages/Evaluations.svelte";
+  import Marketplace from "./pages/Marketplace.svelte";
+  import Quests from "./pages/Quests.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -164,6 +173,7 @@
     if (path.startsWith("/schedules")) return "settings";
     if (path.startsWith("/mcp-settings")) return "settings";
     if (path.startsWith("/fun")) return "fun";
+    if (path.startsWith("/channel-health")) return "channel_health";
     if (path.startsWith("/channel-links")) return "channel_links";
     if (path.startsWith("/staff-server")) return "staff_server";
     if (path.startsWith("/admin")) return "centralized_config";
@@ -718,6 +728,33 @@
               </Route>
             {/if}
 
+            <Route path="/channel-health">
+              <ChannelHealth />
+            </Route>
+            <Route path="/pulse">
+              <Pulse />
+            </Route>
+            <Route path="/reputation">
+              <Reputation />
+            </Route>
+            <Route path="/satisfaction">
+              <div use:navigate={"/tickets"}></div>
+            </Route>
+            <Route path="/seasons">
+              <Seasons />
+            </Route>
+            <Route path="/predictions">
+              <div use:navigate={"/pulse"}></div>
+            </Route>
+            <Route path="/evaluations">
+              <Evaluations />
+            </Route>
+            <Route path="/marketplace">
+              <Marketplace />
+            </Route>
+            <Route path="/quests">
+              <Quests />
+            </Route>
             <Route path="/channel-links">
               <ChannelLinks />
             </Route>

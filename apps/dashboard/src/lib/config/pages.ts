@@ -21,6 +21,7 @@ export function isPageWip(page: PageConfig): boolean {
 
 export const generalItems: PageConfig[] = [
   { name: "Vue d'ensemble", icon: "grid",      href: "/",          featureKey: "dashboard", beta: false, wip: false },
+  { name: "Pulse & IA",     icon: "activity",  href: "/pulse",     featureKey: "dashboard", beta: true, wip: false },
   { name: "Inbox",          icon: "inbox",     href: "/inbox",     featureKey: "inbox", beta: false, wip: false },
   { name: "Analytics",      icon: "pie-chart", href: "/analytics", featureKey: "analytics", beta: false, wip: false },
 ];
@@ -39,9 +40,19 @@ export const moderationItems: PageConfig[] = [
   { name: "Daily Algo",          icon: "code",          href: "/dailyalgo",         featureKey: "daily_algo", beta: false, wip: false },
 ];
 
-export const communityItems: PageConfig[] = [
+export const levelingItems: PageConfig[] = [
   { name: "Leveling & XP",       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: true, wip: false },
+  { name: "Saisons",             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: true, wip: false },
+  { name: "Réputation",          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: true, wip: false },
+];
+
+export const economyItems: PageConfig[] = [
   { name: "Économie & RPG",      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: true, wip: false },
+  { name: "Marché",              icon: "shopping-bag",  href: "/marketplace",      featureKey: "economy",  beta: true, wip: false },
+  { name: "Quêtes",              icon: "compass",       href: "/quests",           featureKey: "economy",  beta: true, wip: false },
+];
+
+export const communityItems: PageConfig[] = [
   { name: "Giveaways",           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
   { name: "Annonces & Auto-Rôle", icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: false, wip: false },
   { name: "Reaction Roles",      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: true, wip: false },
@@ -59,7 +70,8 @@ export const staffItems: PageConfig[] = [
   { name: "Hiérarchie & Rôles",  icon: "shield",        href: "/staff-management?tab=roles",   featureKey: "staff_roles", beta: false, wip: false },
   { name: "Recrutement",         icon: "user-plus",     href: "/recruitment",      featureKey: "recruitment", beta: false, wip: false },
   { name: "Formulaires",         icon: "description",   href: "/recruitment-forms", featureKey: "recruitment", beta: false, wip: false },
-  { name: "Tickets",             icon: "message-square",href: "/tickets",          featureKey: "tickets", beta: false, wip: false },
+  { name: "Tickets & Satisfaction", icon: "message-square",href: "/tickets",          featureKey: "tickets", beta: false, wip: false },
+  { name: "Évaluations Staff",   icon: "award",         href: "/evaluations",      featureKey: "staff_directory", beta: true, wip: false },
   { name: "Tutorat",             icon: "book-open",     href: "/tutoring",         featureKey: "tutoring", beta: false, wip: false },
   { name: "Planning",            icon: "calendar",      href: "/planning",         featureKey: "absences", beta: false, wip: false },
   { name: "Sondages",            icon: "bar-chart",     href: "/staff-management?tab=polls",    featureKey: "polls", beta: false, wip: false },
@@ -73,6 +85,7 @@ export const crossServerItems: PageConfig[] = [
 
 export const configItems: PageConfig[] = [
   { name: "Modules",             icon: "package",       href: "/modules",              featureKey: "modules", beta: false, wip: false },
+  { name: "Santé Salons",        icon: "activity",      href: "/channel-health",       featureKey: "channel_health", beta: true, wip: false },
   { name: "Salons",              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: true, wip: false },
   { name: "Commandes",           icon: "terminal",      href: "/command-access",       featureKey: "commands", beta: false, wip: false },
   { name: "Paramètres",          icon: "settings",      href: "/settings",             featureKey: "settings", beta: false, wip: false },
@@ -91,6 +104,8 @@ export const otherPages: PageConfig[] = [
 export const allPages: PageConfig[] = [
   ...generalItems,
   ...moderationItems,
+  ...levelingItems,
+  ...economyItems,
   ...communityItems,
   ...staffItems,
   ...crossServerItems,

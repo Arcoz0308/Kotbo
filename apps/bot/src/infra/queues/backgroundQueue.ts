@@ -24,7 +24,13 @@ export type BackgroundJobName =
   | 'scheduled-events'
   | 'leaderboard-refresh'
   | 'history-scrape'
-  | 'data-retention';
+  | 'data-retention'
+  | 'channel-health-analysis'
+  | 'pulse-snapshot'
+  | 'season-check'
+  | 'marketplace-expiration'
+  | 'quest-expiration'
+  | 'stats-ping';
 
 
 

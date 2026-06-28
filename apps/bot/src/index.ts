@@ -65,6 +65,7 @@ import { registerAutoModListener } from './events/autoModEvents.js';
 import { registerAutoResponseListener } from './events/autoResponseEvents.js';
 import { registerChannelLinkListener } from './events/channelLinkEvents.js';
 import { registerStaffServerListener } from './events/staffServerEvents.js';
+import { registerAbsenceMentionListener } from './events/absenceMentionEvents.js';
 import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
@@ -86,8 +87,19 @@ initBotSentry();
 
 // Resolve white-label instance from launcher args
 const instanceId = parseInstanceIdFromArgs();
-await loadAllInstances();
-const resolvedInstance = instanceId === '__default__' ? getDefaultInstance() : getInstanceById(instanceId);
+let resolvedInstance;
+
+if (instanceId === '__default__') {
+  resolvedInstance = getDefaultInstance();
+  // Load white-label instances in the background to populate CORS origins and config cache
+  loadAllInstances().catch((err) => {
+    logger.warn('WhiteLabel', 'Failed to load white-label instances in background:', err);
+  });
+} else {
+  await loadAllInstances();
+  resolvedInstance = getInstanceById(instanceId);
+}
+
 if (!resolvedInstance) {
   logger.error('Bot', `Instance white-label introuvable: ${instanceId}`);
   process.exit(1);
@@ -339,7 +351,8 @@ client.once(Events.ClientReady, async (c) => {
   registerAutoResponseListener(client);
   registerChannelLinkListener(client);
   registerStaffServerListener(client);
-  
+  registerAbsenceMentionListener(client);
+
   // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
   logger.info('System', 'Enregistrement des cron jobs...');
   await registerCrons(client);

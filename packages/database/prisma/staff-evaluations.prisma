@@ -1,0 +1,48 @@
+// ============================================================================
+// STAFF EVALUATIONS — ÉVALUATIONS DE PERFORMANCE AUTOMATIQUES
+// ============================================================================
+
+model StaffEvaluation {
+  id String @id @default(cuid())
+
+  guildId     String
+  staffUserId String
+  evaluatorId String? // null = auto-généré
+
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Métriques quantitatives
+  totalMessages     Int @default(0)
+  totalVoiceMinutes Int @default(0)
+  sanctionsHandled  Int @default(0)
+  ticketsResolved   Int @default(0)
+  meetingsAttended  Int @default(0)
+  meetingsTotal     Int @default(0)
+  absenceDays       Int @default(0)
+
+  // Scores calculés (0-100)
+  activityScore    Int @default(0)
+  moderationScore  Int @default(0)
+  presenceScore    Int @default(0)
+  overallScore     Int @default(0)
+
+  // Tendance vs évaluation précédente
+  trend      String @default("STABLE") // UP, DOWN, STABLE
+  trendDelta Int    @default(0)
+
+  // Commentaire du manager
+  managerNote String?
+
+  // Statut
+  status String @default("DRAFT") // DRAFT, PUBLISHED, ACKNOWLEDGED
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, staffUserId])
+  @@index([guildId, periodEnd])
+  @@map("staff_evaluations")
+}

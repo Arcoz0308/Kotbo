@@ -207,6 +207,7 @@ export const createAbsence = async (
     type: string;
     message?: string;
     superiorUserId: string;
+    notifyOnMention?: boolean;
   }
 ) => {
   const [requester, superior, allRoles] = await Promise.all([
@@ -253,6 +254,7 @@ export const createAbsence = async (
       type: params.type,
       message: params.message,
       isIndefinite,
+      notifyOnMention: params.notifyOnMention ?? false,
       superiorUserId: params.superiorUserId,
       superiorNotifiedAt: new Date(),
       status: 'ACKNOWLEDGED'

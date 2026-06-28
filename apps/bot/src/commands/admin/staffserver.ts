@@ -14,6 +14,7 @@ import {
   addRoleMapping,
   removeRoleMapping,
   fullSyncStaffRoles,
+  autoSetupRoleMappings,
 } from '../../services/staff/staffServerService.js';
 
 const data = new SlashCommandBuilder()
@@ -157,14 +158,25 @@ async function handleSetup(interaction: ChatInputCommandInteraction) {
     BIDIRECTIONAL: 'Bidirectionnel',
   };
 
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setColor(COLORS.warning).setDescription('⏳ Lien créé, configuration automatique des rôles en cours...')],
+  });
+
+  const roleSetup = await autoSetupRoleMappings(result, interaction.client);
+  const syncResult = await fullSyncStaffRoles(result.id, interaction.client);
+
   const embed = successEmbed(
-    '🏢 Serveur staff lié !',
+    '🏢 Serveur staff lié et synchronisé !',
     `**Serveur staff :** ${staffGuild.name}\n` +
     `**Mode de sync :** ${syncModeLabels[syncMode]}\n` +
     `**Hiérarchie :** ${hierarchyId || 'Toutes'}\n` +
     `**Rôle simple :** ${simpleStaffRole ? `<@&${simpleStaffRole.id}>` : 'Non configuré'}\n` +
     `**ID du lien :** \`${result.id}\`\n\n` +
-    `Utilisez \`/staffserver mapping\` pour configurer les correspondances de rôles.`,
+    `**Rôles auto-configurés :**\n` +
+    `• ${roleSetup.matched} rôle(s) existant(s) détecté(s)\n` +
+    `• ${roleSetup.created} rôle(s) créé(s) sur ${staffGuild.name}\n` +
+    (roleSetup.failed > 0 ? `• ⚠️ ${roleSetup.failed} échec(s)\n` : '') +
+    `\n**Sync initiale :** ${syncResult.synced} action(s), ${syncResult.errors} erreur(s)`,
   );
 
   await interaction.editReply({ embeds: [embed] });

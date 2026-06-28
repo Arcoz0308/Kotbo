@@ -41,6 +41,7 @@ model StaffAbsence {
   type String @default("Autre")
   message String?
   isIndefinite Boolean @default(false)
+  notifyOnMention Boolean @default(false)
   status AbsenceStatus @default(PENDING)
   isVoid Boolean @default(false)
   superiorUserId String?

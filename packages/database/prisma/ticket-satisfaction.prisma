@@ -1,0 +1,25 @@
+// ============================================================================
+// TICKET SATISFACTION — FEEDBACK POST-RÉSOLUTION
+// ============================================================================
+
+model TicketSatisfaction {
+  id String @id @default(cuid())
+
+  guildId   String
+  ticketId  String
+  userId    String // Membre qui donne son avis
+  staffId   String? // Staff qui a géré le ticket
+
+  rating     Int // 1-5
+  comment    String?
+  respondedAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, ticketId, userId])
+  @@index([guildId, staffId])
+  @@index([guildId, createdAt])
+  @@map("ticket_satisfactions")
+}

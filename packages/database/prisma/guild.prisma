@@ -252,6 +252,34 @@ model Guild {
   securityVerifications SecurityVerification[]
   autoLeaderboards AutoLeaderboard[]
 
+  // Channel Health Monitor
+  channelHealthConfig ChannelHealthConfig?
+  channelHealthAlerts ChannelHealthAlert[]
+
+  // Pulse — Server Health Score
+  pulseSnapshots PulseSnapshot[]
+
+  // Reputation System
+  reputationVotes ReputationVote[]
+
+  // Ticket Satisfaction
+  ticketSatisfactions TicketSatisfaction[]
+
+  // Leveling Seasons
+  levelingSeasons LevelingSeason[]
+  seasonSnapshots SeasonSnapshot[]
+
+  // Staff Performance Evaluations
+  staffEvaluations StaffEvaluation[]
+
+  // Marketplace
+  marketplaceListings MarketplaceListing[]
+  marketplaceTransactions MarketplaceTransaction[]
+
+  // Quests
+  questDefinitions QuestDefinition[]
+  questProgress QuestProgress[]
+
   @@map("guilds")
 }
 

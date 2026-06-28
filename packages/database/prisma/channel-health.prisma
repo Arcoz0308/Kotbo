@@ -1,0 +1,115 @@
+// ============================================================================
+// CHANNEL HEALTH MONITOR — ANALYSE DE SANTÉ DES SALONS
+// ============================================================================
+
+enum ChannelHealthStatus {
+  HEALTHY
+  OVERLOADED
+  UNDERUSED
+  DEAD
+}
+
+enum ChannelHealthAlertType {
+  SPLIT_SUGGESTED
+  SPLIT_AUTO
+  ARCHIVE_SUGGESTED
+  ARCHIVE_AUTO
+  MERGE_SUGGESTED
+}
+
+enum ChannelHealthAlertStatus {
+  PENDING
+  APPLIED
+  DISMISSED
+  EXPIRED
+}
+
+model ChannelHealthConfig {
+  guildId String @id
+
+  enabled       Boolean @default(false)
+  alertChannelId String?
+
+  // Mode: NOTIFY (conseil) ou AUTO (création/archivage auto)
+  splitMode   String @default("NOTIFY") // NOTIFY | AUTO
+  archiveMode String @default("NOTIFY") // NOTIFY | AUTO
+
+  // Période d'analyse
+  analysisPeriodDays Int @default(14)
+
+  // Seuils de surcharge (moyennes sur la période)
+  overloadMsgPerHour    Int @default(120)
+  overloadUniqueUsers   Int @default(80)
+
+  // Seuils de sous-utilisation
+  underusedMsgPerDay    Int @default(5)
+  underusedUniqueUsers  Int @default(3)
+  deadMsgPerWeek        Int @default(2)
+
+  // Salons exclus de l'analyse
+  excludedChannelIds String[] @default([])
+
+  // Catégorie d'archivage
+  archiveCategoryId String?
+
+  // Template de nom pour les salons split
+  splitNameTemplate String @default("{name}-{number}")
+
+  // Digest hebdomadaire
+  weeklyDigestEnabled Boolean @default(true)
+  weeklyDigestDay     Int     @default(1) // 0=Dim, 1=Lun, ...
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("channel_health_configs")
+}
+
+model ChannelHealthAlert {
+  id String @id @default(cuid())
+
+  guildId   String
+  channelId String
+  channelName String?
+
+  type   ChannelHealthAlertType
+  status ChannelHealthAlertStatus @default(PENDING)
+
+  // Métriques qui ont déclenché l'alerte
+  avgMsgPerHour    Float @default(0)
+  avgMsgPerDay     Float @default(0)
+  uniqueUsersAvg   Float @default(0)
+  peakHour         Int?
+  analysisPeriod   Int   @default(14) // jours
+
+  // Score de confiance (0-100)
+  confidence Int @default(50)
+
+  // Détails du diagnostic
+  reason  String?
+  details Json?
+
+  // Salon suggéré pour fusion (merge)
+  mergeTargetChannelId   String?
+  mergeTargetChannelName String?
+
+  // Salon créé (split auto) ou archivé
+  resultChannelId String?
+
+  // Qui a traité l'alerte
+  resolvedBy   String?
+  resolvedAt   DateTime?
+  resolvedNote String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, status])
+  @@index([guildId, channelId])
+  @@index([guildId, createdAt])
+  @@map("channel_health_alerts")
+}

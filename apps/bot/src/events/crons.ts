@@ -164,6 +164,31 @@ export async function registerCrons(client: Client): Promise<void> {
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
+    'channel-health-analysis': async () => {
+      logger.debug('Cron', 'Analyse de santé des salons...');
+      const { runChannelHealthAnalysis } = await import('../services/analytics/channelHealthService.js');
+      await runChannelHealthAnalysis(client);
+    },
+    'pulse-snapshot': async () => {
+      logger.debug('Cron', 'Calcul du Pulse pour tous les serveurs...');
+      const { runPulseForAllGuilds } = await import('../services/analytics/pulseService.js');
+      await runPulseForAllGuilds(client);
+    },
+    'season-check': async () => {
+      logger.debug('Cron', 'Vérification des saisons de leveling...');
+      const { checkAndProgressSeasons } = await import('../services/progression/seasonService.js');
+      await checkAndProgressSeasons(client);
+    },
+    'marketplace-expiration': async () => {
+      logger.debug('Cron', 'Traitement des annonces marketplace expirées...');
+      const { processExpiredListings } = await import('../services/economy/marketplaceService.js');
+      await processExpiredListings();
+    },
+    'quest-expiration': async () => {
+      logger.debug('Cron', 'Expiration des quêtes anciennes...');
+      const { expireOldProgress } = await import('../services/community/questService.js');
+      await expireOldProgress();
+    },
     'dc-scan': async () => {
       const featureConfigs = await prisma.dashboardFeatureConfig.findMany({
         where: { featureKey: 'double_accounts', enabled: true },
@@ -194,6 +219,11 @@ export async function registerCrons(client: Client): Promise<void> {
       }));
 
       await Promise.all(tasks);
+    },
+    'stats-ping': async () => {
+      logger.debug('Cron', 'Vérification du stats ping...');
+      const { pingMasterServer } = await import('../services/system/statsService.js');
+      await pingMasterServer(client);
     },
   });
 
@@ -313,6 +343,62 @@ export async function registerCrons(client: Client): Promise<void> {
       await refreshAllAutoLeaderboards(client);
     }, 5000);
   });
+
+  // 📊 Channel Health Analysis: tous les jours à 4h du matin
+  cron.schedule('0 4 * * *', async () => {
+    await runCronJob('channel-health-analysis', async () => {
+      const { runChannelHealthAnalysis } = await import('../services/analytics/channelHealthService.js');
+      await runChannelHealthAnalysis(client);
+    }, 5000);
+  }, { timezone: 'Europe/Paris' });
+
+  // 💓 Pulse: Snapshot quotidien à 3h du matin
+  cron.schedule('0 3 * * *', async () => {
+    await runCronJob('pulse-snapshot', async () => {
+      const { runPulseForAllGuilds } = await import('../services/analytics/pulseService.js');
+      await runPulseForAllGuilds(client);
+    }, 5000);
+  }, { timezone: 'Europe/Paris' });
+
+  // 🏆 Leveling Seasons: Vérification quotidienne à 0h05
+  cron.schedule('5 0 * * *', async () => {
+    await runCronJob('season-check', async () => {
+      const { checkAndProgressSeasons } = await import('../services/progression/seasonService.js');
+      await checkAndProgressSeasons(client);
+    }, 3000);
+  }, { timezone: 'Europe/Paris' });
+
+  // 🏪 Marketplace: Expiration des annonces toutes les 10 minutes
+  cron.schedule('*/10 * * * *', async () => {
+    await runCronJob('marketplace-expiration', async () => {
+      const { processExpiredListings } = await import('../services/economy/marketplaceService.js');
+      await processExpiredListings();
+    }, 2000);
+  });
+
+  // 📋 Quests: Expiration des quêtes quotidiennes à minuit
+  cron.schedule('0 0 * * *', async () => {
+    await runCronJob('quest-expiration', async () => {
+      const { expireOldProgress } = await import('../services/community/questService.js');
+      await expireOldProgress();
+    }, 2000);
+  }, { timezone: 'Europe/Paris' });
+
+  // 📊 Stats: Ping all instances every 6 hours
+  cron.schedule('0 */6 * * *', async () => {
+    await runCronJob('stats-ping', async () => {
+      const { pingMasterServer } = await import('../services/system/statsService.js');
+      await pingMasterServer(client);
+    }, 5000);
+  });
+
+  // Trigger a stats ping shortly after startup (10 seconds) to refresh stats
+  setTimeout(() => {
+    logger.info('Cron', 'Triggering startup stats ping...');
+    import('../services/system/statsService.js')
+      .then(({ pingMasterServer }) => pingMasterServer(client))
+      .catch((err) => logger.error('Cron', 'Failed to run startup stats ping:', err));
+  }, 10_000);
 
   logger.success('Cron', "Tous les jobs cron sont enregistrés (Suivi d'activité minute activé)");
 }

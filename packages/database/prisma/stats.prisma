@@ -1,0 +1,18 @@
+// ============================================================================
+// SYSTEME DE STATISTIQUES DES INSTANCES (Pour kotbo.fr et self-hosts)
+// ============================================================================
+
+model BotInstanceStats {
+  id              String   @id @default(cuid())
+  botClientId     String   @unique
+  botName         String
+  botAvatarUrl    String?
+  dashboardUrl    String?
+  guildCount      Int      @default(0)
+  userCount       Int      @default(0)
+  version         String?
+  isSelfHosted    Boolean  @default(false)
+  lastPingAt      DateTime @default(now()) @updatedAt
+
+  @@map("bot_instance_stats")
+}

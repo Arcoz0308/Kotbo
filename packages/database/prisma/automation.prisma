@@ -21,6 +21,7 @@ model ScheduledTask {
 model AutoResponse {
   id             String   @id @default(cuid())
   guildId        String
+  triggerType    String   @default("MESSAGE") // MESSAGE, FORM, TICKET
   trigger        String
   response       String?   // Text or JSON embed
   matchType      String   @default("CONTAINS") // EXACT, CONTAINS, REGEX
@@ -28,6 +29,8 @@ model AutoResponse {
   roleIdToAdd    String?
   roleIdToRemove String?
   deleteTrigger  Boolean  @default(false)
+  closeTicket    Boolean  @default(false)
+  rejectForm     Boolean  @default(false)
 
   // Filtres de déclenchement
   allowedRoleIds    String[] @default([]) // Rôles autorisés (vide = tous)
@@ -35,10 +38,18 @@ model AutoResponse {
   allowedChannelIds String[] @default([]) // Salons autorisés (vide = tous)
   bannedChannelIds  String[] @default([]) // Salons interdits
 
+  // Formulaire (si triggerType == FORM)
+  formId            String?
+  formQuestionLabel String?
+
+  // Ticket (si triggerType == TICKET)
+  ticketTypeId        String?
+  ticketQuestionLabel String? // "reason", "description" ou label du champ
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
-  @@unique([guildId, trigger])
+  @@index([guildId])
   @@map("auto_responses")
 }

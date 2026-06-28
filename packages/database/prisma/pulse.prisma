@@ -1,0 +1,49 @@
+// ============================================================================
+// PULSE — SCORE DE SANTÉ GLOBAL DU SERVEUR
+// ============================================================================
+
+model PulseSnapshot {
+  id String @id @default(cuid())
+
+  guildId String
+  dateKey String // YYYY-MM-DD
+
+  // Score global 0-100
+  score Int @default(50)
+
+  // Sous-scores par catégorie (0-100)
+  activityScore    Int @default(50)
+  moderationScore  Int @default(50)
+  growthScore      Int @default(50)
+  engagementScore  Int @default(50)
+  healthScore      Int @default(50)
+
+  // Métriques brutes utilisées pour le calcul
+  totalMessages      Int @default(0)
+  totalVoiceMinutes  Int @default(0)
+  activeMembers      Int @default(0)
+  totalMembers       Int @default(0)
+  membersJoined      Int @default(0)
+  membersLeft        Int @default(0)
+  sanctionsCount     Int @default(0)
+  ticketsResolved    Int @default(0)
+  ticketsOpen        Int @default(0)
+  channelsHealthy    Int @default(0)
+  channelsUnhealthy  Int @default(0)
+
+  // Tendance par rapport à la veille
+  trend      String @default("STABLE") // UP, DOWN, STABLE
+  trendDelta Int    @default(0)
+
+  // Alertes générées
+  alerts Json? // [{ type, message, severity }]
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey])
+  @@index([guildId, dateKey])
+  @@map("pulse_snapshots")
+}

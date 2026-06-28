@@ -1,6 +1,7 @@
 import { Events, type Client, type VoiceState, type Message, type GuildMember } from 'discord.js';
 import { trackMessage, trackVoiceSession, trackMemberJoin, trackMemberLeave, trackReaction, trackThreadCreation, trackReply } from '../services/analytics/analyticsService.js';
 import { logStaffVoiceSession } from '../services/staff/staffLeadershipService.js';
+import { incrementQuestProgress } from '../services/community/questService.js';
 import { logger } from '../utils/logger.js';
 
 // In-memory store for voice sessions
@@ -14,8 +15,10 @@ export function registerAnalyticsListeners(client: Client): void {
 
     try {
       await trackMessage(message.guildId, message.channelId, message.author.id);
+      incrementQuestProgress(message.guildId, message.author.id, 'SEND_MESSAGES').catch(() => {});
       if (message.reference) {
         await trackReply(message.guildId, message.author.id);
+        incrementQuestProgress(message.guildId, message.author.id, 'REPLY_MESSAGES').catch(() => {});
       }
     } catch (error) {
       logger.error('Analytics', `Erreur lors du tracking de message/reply pour ${message.author.id}:`, error);
@@ -50,6 +53,7 @@ export function registerAnalyticsListeners(client: Client): void {
         try {
           if (durationMinutes > 0) {
             await trackVoiceSession(guildId, userId, durationMinutes);
+            incrementQuestProgress(guildId, userId, 'VOICE_MINUTES', durationMinutes).catch(() => {});
           }
         } catch (error) {
           logger.error('Analytics', `Erreur lors du tracking vocal pour ${userId}:`, error);
@@ -100,6 +104,7 @@ export function registerAnalyticsListeners(client: Client): void {
 
       if (reaction.message.inGuild()) {
         await trackReaction(reaction.message.guildId, user.id);
+        incrementQuestProgress(reaction.message.guildId, user.id, 'REACT_MESSAGES').catch(() => {});
       }
     } catch (error) {
       logger.error('Analytics', `Erreur lors du tracking de réaction:`, error);
@@ -115,6 +120,7 @@ export function registerAnalyticsListeners(client: Client): void {
       const creatorId = thread.ownerId;
       if (creatorId) {
         await trackThreadCreation(thread.guildId, creatorId);
+        incrementQuestProgress(thread.guildId, creatorId, 'CREATE_THREADS').catch(() => {});
       }
     } catch (error) {
       logger.error('Analytics', `Erreur lors du tracking de thread:`, error);

@@ -505,6 +505,7 @@ export async function handleGuildLeadershipRoutes(
           type,
           message: body.message,
           superiorUserId,
+          notifyOnMention: body.notifyOnMention ?? false,
         });
 
         await pushAudit(guildId, {

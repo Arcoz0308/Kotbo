@@ -1,6 +1,6 @@
 import { Client, Events, type GuildMember, type PartialGuildMember } from 'discord.js';
 import { logger } from '../utils/logger.js';
-import { syncMemberRoles } from '../services/staff/staffServerService.js';
+import { syncMemberRoles, syncMemberOnJoin } from '../services/staff/staffServerService.js';
 
 export function registerStaffServerListener(client: Client): void {
   client.on(Events.GuildMemberUpdate, async (oldMember: GuildMember | PartialGuildMember, newMember: GuildMember) => {
@@ -20,5 +20,15 @@ export function registerStaffServerListener(client: Client): void {
     }
   });
 
-  logger.success('StaffServer', 'Écouteur StaffServer enregistré (guildMemberUpdate)');
+  client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
+    if (member.user.bot) return;
+
+    try {
+      await syncMemberOnJoin(member, client);
+    } catch (err) {
+      logger.error('StaffServer', `Erreur sync à l'arrivée pour ${member.user.tag}`, err);
+    }
+  });
+
+  logger.success('StaffServer', 'Écouteur StaffServer enregistré (guildMemberUpdate + guildMemberAdd)');
 }

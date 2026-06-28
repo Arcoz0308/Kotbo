@@ -17,6 +17,7 @@ model GuildDailyStat {
   totalHumans      Int @default(0)
 
   messagesCount    Int @default(0)
+  reactionsCount   Int @default(0)
   voiceMinutes     Int @default(0)
   voiceSessionsCount Int @default(0)
 

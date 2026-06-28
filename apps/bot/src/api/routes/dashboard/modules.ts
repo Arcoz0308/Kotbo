@@ -450,6 +450,13 @@ export async function handleModulesRoutes(
       if (moduleId === 'nickname_moderation') updates.autoNicknameModerationEnabled = body.status === 'active';
       if (moduleId === 'auto_thread') updates.autoThreadEnabled = body.status === 'active';
       if (moduleId === 'fun') updates.funEnabled = body.status === 'active';
+      if (moduleId === 'leveling') {
+        await prisma.levelConfig.upsert({
+          where: { guildId },
+          create: { guildId, enabled: body.status === 'active' },
+          update: { enabled: body.status === 'active' }
+        });
+      }
 
       if (Object.keys(updates).length > 0) {
         await prisma.guild.update({ where: { id: guildId }, data: updates });
@@ -470,6 +477,7 @@ export async function handleModulesRoutes(
         'nickname_moderation': 'nicknameModeration',
         'auto_thread': 'autoThread',
         'fun': 'fun',
+        'leveling': 'leveling',
       };
       
       const kotboModuleName = moduleMapping[normalizedKey];

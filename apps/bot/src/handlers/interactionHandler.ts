@@ -114,6 +114,30 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Ticket Satisfaction Survey ──────────────────────────────────────
+  if (customId.startsWith('satisfaction:')) {
+    const parts = customId.split(':');
+    const satGuildId = parts[1];
+    const ticketId = parts[2];
+    const rating = parseInt(parts[3], 10);
+
+    if (satGuildId && ticketId && rating >= 1 && rating <= 5) {
+      const { recordSatisfaction } = await import('../services/features/ticketSatisfactionService.js');
+      const success = await recordSatisfaction(satGuildId, ticketId, user.id, rating);
+
+      if (success) {
+        const ratingEmojis = ['', '😡', '😕', '😐', '🙂', '🤩'];
+        await interaction.update({
+          embeds: [new EmbedBuilder().setColor(COLORS.success).setTitle('Merci pour votre retour !').setDescription(`Vous avez donné la note ${ratingEmojis[rating]} **${rating}/5**.`).setTimestamp()],
+          components: [],
+        });
+      } else {
+        await interaction.reply({ content: '❌ Erreur lors de l\'enregistrement.', flags: [MessageFlags.Ephemeral] });
+      }
+    }
+    return;
+  }
+
   // ── RPG Drop Claim button ───────────────────────────────────────────
   if (customId.startsWith('rpg_drop_claim:')) {
     const dropId = customId.split(':')[1];

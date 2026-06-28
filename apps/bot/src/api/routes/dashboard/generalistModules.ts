@@ -636,15 +636,22 @@ export async function handleGeneralistModulesRoutes(
         const body = await readJsonBody<{
           trigger: string;
           response: string | null;
-          matchType: string;
+          matchType?: string;
           enabled?: boolean;
           roleIdToAdd?: string | null;
           roleIdToRemove?: string | null;
           deleteTrigger?: boolean;
+          closeTicket?: boolean;
+          rejectForm?: boolean;
           allowedRoleIds?: string[];
           bannedRoleIds?: string[];
           allowedChannelIds?: string[];
           bannedChannelIds?: string[];
+          triggerType?: string;
+          formId?: string | null;
+          formQuestionLabel?: string | null;
+          ticketTypeId?: string | null;
+          ticketQuestionLabel?: string | null;
         }>(req);
 
         if (!body || !body.trigger) {
@@ -652,8 +659,8 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        if (!body.response && !body.roleIdToAdd && !body.roleIdToRemove && !body.deleteTrigger) {
-          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, ou suppression du message)' });
+        if (!body.response && !body.roleIdToAdd && !body.roleIdToRemove && !body.deleteTrigger && !body.closeTicket && !body.rejectForm) {
+          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, suppression du message, fermeture de ticket ou rejet de formulaire)' });
           return true;
         }
 
@@ -667,10 +674,17 @@ export async function handleGeneralistModulesRoutes(
             roleIdToAdd: body.roleIdToAdd || null,
             roleIdToRemove: body.roleIdToRemove || null,
             deleteTrigger: body.deleteTrigger ?? false,
+            closeTicket: body.closeTicket ?? false,
+            rejectForm: body.rejectForm ?? false,
             allowedRoleIds: body.allowedRoleIds ?? [],
             bannedRoleIds: body.bannedRoleIds ?? [],
             allowedChannelIds: body.allowedChannelIds ?? [],
             bannedChannelIds: body.bannedChannelIds ?? [],
+            triggerType: body.triggerType || 'MESSAGE',
+            formId: body.formId || null,
+            formQuestionLabel: body.formQuestionLabel || null,
+            ticketTypeId: body.ticketTypeId || null,
+            ticketQuestionLabel: body.ticketQuestionLabel || null,
           },
         });
 
@@ -695,10 +709,17 @@ export async function handleGeneralistModulesRoutes(
           roleIdToAdd?: string | null;
           roleIdToRemove?: string | null;
           deleteTrigger?: boolean;
+          closeTicket?: boolean;
+          rejectForm?: boolean;
           allowedRoleIds?: string[];
           bannedRoleIds?: string[];
           allowedChannelIds?: string[];
           bannedChannelIds?: string[];
+          triggerType?: string;
+          formId?: string | null;
+          formQuestionLabel?: string | null;
+          ticketTypeId?: string | null;
+          ticketQuestionLabel?: string | null;
         }>(req);
 
         if (!body) {
@@ -720,14 +741,16 @@ export async function handleGeneralistModulesRoutes(
         const combinedRoleIdToAdd = body.roleIdToAdd !== undefined ? body.roleIdToAdd : existing.roleIdToAdd;
         const combinedRoleIdToRemove = body.roleIdToRemove !== undefined ? body.roleIdToRemove : existing.roleIdToRemove;
         const combinedDeleteTrigger = body.deleteTrigger !== undefined ? body.deleteTrigger : existing.deleteTrigger;
+        const combinedCloseTicket = body.closeTicket !== undefined ? body.closeTicket : (existing as { closeTicket?: boolean }).closeTicket;
+        const combinedRejectForm = body.rejectForm !== undefined ? body.rejectForm : (existing as { rejectForm?: boolean }).rejectForm;
 
         if (!combinedTrigger) {
           json(res, 400, { error: 'Déclencheur requis' });
           return true;
         }
 
-        if (!combinedResponse && !combinedRoleIdToAdd && !combinedRoleIdToRemove && !combinedDeleteTrigger) {
-          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, ou suppression du message)' });
+        if (!combinedResponse && !combinedRoleIdToAdd && !combinedRoleIdToRemove && !combinedDeleteTrigger && !combinedCloseTicket && !combinedRejectForm) {
+          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, suppression du message, fermeture de ticket ou rejet de formulaire)' });
           return true;
         }
 
@@ -741,10 +764,17 @@ export async function handleGeneralistModulesRoutes(
             roleIdToAdd: body.roleIdToAdd,
             roleIdToRemove: body.roleIdToRemove,
             deleteTrigger: body.deleteTrigger,
+            closeTicket: body.closeTicket,
+            rejectForm: body.rejectForm,
             allowedRoleIds: body.allowedRoleIds,
             bannedRoleIds: body.bannedRoleIds,
             allowedChannelIds: body.allowedChannelIds,
             bannedChannelIds: body.bannedChannelIds,
+            triggerType: body.triggerType,
+            formId: body.formId,
+            formQuestionLabel: body.formQuestionLabel,
+            ticketTypeId: body.ticketTypeId,
+            ticketQuestionLabel: body.ticketQuestionLabel,
           },
         });
 

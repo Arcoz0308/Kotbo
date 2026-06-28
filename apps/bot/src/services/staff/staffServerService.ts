@@ -340,6 +340,151 @@ async function sendSyncLog(
   }
 }
 
+// ── Auto-setup role mappings on link creation ──────────────
+
+export async function autoSetupRoleMappings(
+  link: StaffServerLink,
+  client: Client,
+): Promise<{ created: number; matched: number; failed: number }> {
+  const mainGuild = client.guilds.cache.get(link.mainGuildId);
+  const staffGuild = client.guilds.cache.get(link.staffGuildId);
+  if (!mainGuild || !staffGuild) return { created: 0, matched: 0, failed: 0 };
+
+  const staffRoles = await prisma.staffRole.findMany({
+    where: {
+      guildId: link.mainGuildId,
+      enabled: true,
+      ...(link.hierarchyId ? { hierarchyId: link.hierarchyId } : {}),
+    },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  let created = 0;
+  let matched = 0;
+  let failed = 0;
+
+  for (const staffRole of staffRoles) {
+    if (!staffRole.discordRoleId) continue;
+
+    const mainDiscordRole = mainGuild.roles.cache.get(staffRole.discordRoleId);
+    if (!mainDiscordRole) continue;
+
+    try {
+      let targetDiscordRoleId: string;
+
+      const existingRole = staffGuild.roles.cache.find(
+        (r) => r.name.toLowerCase() === mainDiscordRole.name.toLowerCase() && !r.managed,
+      );
+
+      if (existingRole) {
+        targetDiscordRoleId = existingRole.id;
+        matched++;
+      } else {
+        const newRole = await staffGuild.roles.create({
+          name: mainDiscordRole.name,
+          color: mainDiscordRole.color,
+          hoist: mainDiscordRole.hoist,
+          mentionable: mainDiscordRole.mentionable,
+          reason: 'Kotbo StaffServer: Auto-création lors du setup',
+        });
+        targetDiscordRoleId = newRole.id;
+        created++;
+      }
+
+      const existingMapping = await prisma.staffServerRoleMapping.findFirst({
+        where: {
+          staffServerLinkId: link.id,
+          staffRoleId: staffRole.id,
+        },
+      });
+
+      if (!existingMapping) {
+        await prisma.staffServerRoleMapping.create({
+          data: {
+            staffServerLinkId: link.id,
+            staffRoleId: staffRole.id,
+            mainDiscordRoleId: staffRole.discordRoleId,
+            staffDiscordRoleId: targetDiscordRoleId,
+          },
+        });
+      }
+    } catch (err) {
+      logger.warn(TAG, `Impossible de mapper le rôle "${mainDiscordRole.name}" sur ${staffGuild.name}`, err);
+      failed++;
+    }
+  }
+
+  await invalidateStaffLinkCache(link);
+  return { created, matched, failed };
+}
+
+// ── Member join sync ───────────────────────────────────────
+
+export async function syncMemberOnJoin(
+  member: GuildMember,
+  client: Client,
+): Promise<void> {
+  const guildId = member.guild.id;
+  const links = await getStaffLinksForGuild(guildId);
+  if (links.length === 0) return;
+
+  for (const link of links) {
+    try {
+      const isMainGuild = link.mainGuildId === guildId;
+      const isStaffGuild = link.staffGuildId === guildId;
+      if (!isMainGuild && !isStaffGuild) continue;
+
+      const otherGuildId = isMainGuild ? link.staffGuildId : link.mainGuildId;
+      const otherGuild = client.guilds.cache.get(otherGuildId);
+      if (!otherGuild) continue;
+
+      let otherMember: GuildMember | null = null;
+      try {
+        otherMember = await otherGuild.members.fetch(member.user.id);
+      } catch {
+        continue;
+      }
+
+      const sourceField = isMainGuild ? 'staffDiscordRoleId' : 'mainDiscordRoleId';
+      const targetField = isMainGuild ? 'mainDiscordRoleId' : 'staffDiscordRoleId';
+
+      if (!shouldSyncFromGuild(link.syncMode, !isMainGuild)) continue;
+
+      for (const mapping of link.roleMappings) {
+        const sourceRoleId = mapping[sourceField];
+        const targetRoleId = mapping[targetField];
+        if (!sourceRoleId || !targetRoleId) continue;
+
+        if (otherMember.roles.cache.has(sourceRoleId)) {
+          const role = member.guild.roles.cache.get(targetRoleId);
+          if (role && !member.roles.cache.has(targetRoleId)) {
+            await member.roles.add(role, 'Kotbo StaffServer: Sync à l\'arrivée').catch((err) =>
+              logger.warn(TAG, `Impossible d'ajouter le rôle ${targetRoleId} à ${member.user.tag} à l'arrivée`, err),
+            );
+          }
+        }
+      }
+
+      if (link.simpleStaffRoleId) {
+        const otherRoleField = isMainGuild ? 'mainDiscordRoleId' : 'staffDiscordRoleId';
+        const otherRoleIds = link.roleMappings
+          .map((m) => m[otherRoleField])
+          .filter(Boolean) as string[];
+        const hasAnyStaffRole = otherMember.roles.cache.some((r) => otherRoleIds.includes(r.id));
+
+        if (hasAnyStaffRole) {
+          const simpleRole = member.guild.roles.cache.get(link.simpleStaffRoleId);
+          if (simpleRole && !member.roles.cache.has(simpleRole.id)) {
+            await member.roles.add(simpleRole, 'Kotbo StaffServer: Rôle staff simple à l\'arrivée').catch(() => null);
+          }
+        }
+      }
+    } catch (err) {
+      logger.error(TAG, `Erreur sync à l'arrivée pour ${member.user.tag} sur link ${link.id}`, err);
+    }
+  }
+}
+
 // ── Full sync (manual trigger) ──────────────────────────────
 
 export async function fullSyncStaffRoles(linkId: string, client: Client): Promise<{ synced: number; errors: number }> {

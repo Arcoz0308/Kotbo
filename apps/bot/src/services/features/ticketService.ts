@@ -30,6 +30,7 @@ import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2, text, separator } fro
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
+import { handleTicketTrigger } from './autoResponseService.js';
 
 function sanitizeTicketChannelName(input: string): string {
   const cleaned = input
@@ -588,49 +589,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
     }
 
     await interaction.deferUpdate();
-
-    // Mettre à jour en BDD
-    await prisma.ticket.update({
-      where: { id: ticketId },
-      data: {
-        status: 'CLOSED',
-        closedById: user.id,
-        closedByName: user.username,
-        closedAt: new Date()
-      }
-    });
-
-    const ticketChannel = interaction.channel as TextChannel;
-    if (ticketChannel) {
-      // Rename channel
-      await renameChannelToClosed(client, ticketChannel.id).catch(() => null);
-
-      // Retirer les permissions d'écriture et lecture de l'opener
-      try {
-        await ticketChannel.permissionOverwrites.edit(ticket.userId, {
-          ViewChannel: false,
-          SendMessages: false
-        });
-      } catch (err) {
-        logger.error('Ticket', 'Error removing opener permissions from closed channel:', err);
-      }
-
-      const closeEmbed = new EmbedBuilder()
-        .setTitle('🔒 Ticket Fermé')
-        .setDescription(`Le ticket a été fermé par <@${user.id}>.\n\nLes membres du personnel peuvent maintenant exporter la transcription ou supprimer définitivement le salon.`)
-        .setColor(COLORS.danger as unknown)
-        .setTimestamp();
-
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`ticket:reopen:${ticketId}`).setLabel('Réouvrir').setStyle(ButtonStyle.Success).setEmoji('🔓'),
-        new ButtonBuilder().setCustomId(`ticket:delete:${ticketId}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
-      );
-
-      await ticketChannel.send({ embeds: [closeEmbed], components: [row] });
-    }
-
-    // Logger
-    await logTicketEvent(client, guildConfig, 'CLOSED', ticket, user);
+    await closeTicket(client, ticketId, user.id, user.username);
     return;
   }
 
@@ -894,6 +853,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         }
 
         await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
+        await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
         await interaction.editReply({ content: `✅ Votre ticket a été créé ! Consultez vos messages privés pour communiquer avec le staff.` });
 
       } else if (ticketMode === 'THREAD') {
@@ -953,6 +913,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         });
 
         await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
+        await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
         await interaction.editReply({ content: `✅ Votre ticket a été créé : <#${thread.id}>.` });
 
       } else {
@@ -1053,6 +1014,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         });
 
         await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
+        await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
         await interaction.editReply({ content: `✅ Votre ticket a été créé avec succès : <#${ticketChannel.id}>.` });
       }
 
@@ -1200,6 +1162,7 @@ async function handleDmDirectTicket(
   }
 
   await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
+  await handleTicketTrigger(targetGuildId, user.id, null, reason, description, client, ticket.id);
   await interaction.editReply({ content: `✅ Votre ticket a été créé sur **${guild.name}** ! Consultez vos messages privés.` });
 }
 
@@ -1376,6 +1339,80 @@ async function logTicketEvent(
     await logChannel.send({ embeds: [embed] });
   } catch (err) {
     logger.error('Ticket', 'Error sending to ticket log channel:', err);
+  }
+}
+
+export async function closeTicket(
+  client: Client,
+  ticketId: string,
+  closedByUserId: string,
+  closedByUsername: string
+): Promise<void> {
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: ticketId }
+  });
+  if (!ticket || ticket.status === 'CLOSED') return;
+
+  const guildConfig = await prisma.guild.findUnique({
+    where: { id: ticket.guildId }
+  });
+  if (!guildConfig) return;
+
+  // Mettre à jour en BDD
+  const updatedTicket = await prisma.ticket.update({
+    where: { id: ticketId },
+    data: {
+      status: 'CLOSED',
+      closedById: closedByUserId,
+      closedByName: closedByUsername,
+      closedAt: new Date()
+    }
+  });
+
+  const channelId = ticket.channelId || ticket.threadId;
+  if (channelId) {
+    const channel = client.channels.cache.get(channelId) || await client.channels.fetch(channelId).catch(() => null);
+    if (channel && (channel instanceof TextChannel || channel.isThread())) {
+      const ticketChannel = channel as TextChannel;
+      // Rename channel
+      await renameChannelToClosed(client, ticketChannel.id).catch(() => null);
+
+      // Retirer les permissions d'écriture et lecture de l'opener
+      try {
+        if (ticketChannel.permissionOverwrites && typeof ticketChannel.permissionOverwrites.edit === 'function') {
+          await ticketChannel.permissionOverwrites.edit(ticket.userId, {
+            ViewChannel: false,
+            SendMessages: false
+          });
+        }
+      } catch (err) {
+        logger.error('Ticket', 'Error removing opener permissions from closed channel:', err);
+      }
+
+      const closeEmbed = new EmbedBuilder()
+        .setTitle('🔒 Ticket Fermé')
+        .setDescription(`Le ticket a été fermé par <@${closedByUserId}>.\n\nLes membres du personnel peuvent maintenant exporter la transcription ou supprimer définitivement le salon.`)
+        .setColor(COLORS.danger as unknown)
+        .setTimestamp();
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`ticket:reopen:${ticketId}`).setLabel('Réouvrir').setStyle(ButtonStyle.Success).setEmoji('🔓'),
+        new ButtonBuilder().setCustomId(`ticket:delete:${ticketId}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
+      );
+
+      await ticketChannel.send({ embeds: [closeEmbed], components: [row] }).catch(() => null);
+    }
+  }
+
+  // Logger
+  await logTicketEvent(client, guildConfig, 'CLOSED', updatedTicket, { id: closedByUserId, username: closedByUsername });
+
+  // Satisfaction survey
+  try {
+    const { sendSatisfactionSurvey } = await import('./ticketSatisfactionService.js');
+    await sendSatisfactionSurvey(client, ticket.guildId, ticketId, ticket.userId, ticket.claimedById ?? undefined);
+  } catch (err) {
+    logger.error('Ticket', 'Erreur envoi sondage satisfaction:', err);
   }
 }
 

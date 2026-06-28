@@ -7,7 +7,7 @@ import {
   readJsonBody,
   type AuthClaims,
 } from '../../shared.js';
-import { fullSyncStaffRoles } from '../../../services/staff/staffServerService.js';
+import { fullSyncStaffRoles, autoSetupRoleMappings } from '../../../services/staff/staffServerService.js';
 
 export async function handleStaffServerRoutes(
   req: IncomingMessage,
@@ -104,7 +104,19 @@ export async function handleStaffServerRoutes(
         include: { roleMappings: true, hierarchy: true },
       });
 
-      json(res, 201, link);
+      const roleSetup = await autoSetupRoleMappings(link, client);
+      const syncResult = await fullSyncStaffRoles(link.id, client);
+
+      const updatedLink = await prisma.staffServerLink.findUnique({
+        where: { id: link.id },
+        include: { roleMappings: true, hierarchy: true },
+      });
+
+      json(res, 201, {
+        ...updatedLink,
+        autoSetup: roleSetup,
+        initialSync: syncResult,
+      });
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur POST staff-server', err);
       json(res, 500, { error: 'Erreur serveur' });

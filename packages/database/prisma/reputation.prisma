@@ -1,0 +1,23 @@
+// ============================================================================
+// REPUTATION — SYSTÈME DE RECONNAISSANCE COMMUNAUTAIRE
+// ============================================================================
+
+model ReputationVote {
+  id String @id @default(cuid())
+
+  guildId  String
+  giverId  String // Celui qui donne le +rep
+  receiverId String // Celui qui reçoit
+
+  value   Int    @default(1) // +1 ou -1
+  reason  String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, giverId, receiverId, createdAt])
+  @@index([guildId, receiverId])
+  @@index([guildId, giverId, createdAt])
+  @@map("reputation_votes")
+}

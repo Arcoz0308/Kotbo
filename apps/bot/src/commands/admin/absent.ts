@@ -67,6 +67,12 @@ const data = new SlashCommandBuilder()
           .setName('message')
           .setDescription('Message complémentaire (optionnel)')
           .setRequired(false),
+      )
+      .addBooleanOption((option) =>
+        option
+          .setName('notifier_mention')
+          .setDescription('Notifier automatiquement quand quelqu\'un vous mentionne pendant l\'absence')
+          .setRequired(false),
       ),
   )
   .addSubcommand((subcommand) =>
@@ -173,6 +179,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const finRaw = interaction.options.getString('fin', false);
     const reason = interaction.options.getString('raison', true);
     const message = interaction.options.getString('message', false) ?? undefined;
+    const notifyOnMention = interaction.options.getBoolean('notifier_mention', false) ?? false;
     const superior = interaction.options.getUser('superieur', true);
 
     if (superior.bot) {
@@ -233,6 +240,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         type,
         message,
         superiorUserId: superior.id,
+        notifyOnMention,
       });
 
       const isIndefinite = !endDate;

@@ -1,0 +1,68 @@
+// ============================================================================
+// MARKETPLACE — HÔTEL DES VENTES / MARCHÉ ENTRE JOUEURS
+// ============================================================================
+
+enum ListingType {
+  FIXED_PRICE
+  AUCTION
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  CANCELLED
+  EXPIRED
+}
+
+model MarketplaceListing {
+  id String @id @default(cuid())
+
+  guildId  String
+  sellerId String
+
+  itemId   String // Référence RpgItem
+  quantity Int    @default(1)
+
+  type     ListingType @default(FIXED_PRICE)
+  status   ListingStatus @default(ACTIVE)
+
+  price       Int // Prix fixe ou prix de départ pour enchères
+  currentBid  Int? // Enchère actuelle
+  bidderId    String? // Dernier enchérisseur
+
+  expiresAt DateTime
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  transactions MarketplaceTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, status])
+  @@index([guildId, sellerId])
+  @@index([guildId, expiresAt])
+  @@map("marketplace_listings")
+}
+
+model MarketplaceTransaction {
+  id String @id @default(cuid())
+
+  guildId   String
+  listingId String
+  sellerId  String
+  buyerId   String
+  itemId    String
+
+  quantity  Int
+  price     Int // Prix final payé
+
+  guild   Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  listing MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, sellerId])
+  @@index([guildId, buyerId])
+  @@index([guildId, createdAt])
+  @@map("marketplace_transactions")
+}

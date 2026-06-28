@@ -108,7 +108,9 @@
       'inbox': '/inbox',
       'tutoring': '/tutoring',
       'double_accounts': '/double-accounts',
-      'fun': '/fun'
+      'fun': '/fun',
+      'leveling': '/leveling',
+      'economy': '/economy'
     };
     return mapping[moduleId] || `/module-settings/${moduleId}`;
   }

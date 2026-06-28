@@ -28,6 +28,15 @@ import { handleMCPKeyRoutes } from './dashboard/mcp.js';
 import { handleCustomBotRoutes } from './dashboard/customBot.js';
 import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
 import { handleStaffServerRoutes } from './dashboard/staffServer.js';
+import { handleChannelHealthRoutes } from './dashboard/channelHealth.js';
+import { handlePulseRoutes } from './dashboard/pulse.js';
+import { handleReputationRoutes } from './dashboard/reputation.js';
+import { handleSatisfactionRoutes } from './dashboard/satisfaction.js';
+import { handleSeasonRoutes } from './dashboard/seasons.js';
+import { handlePredictionRoutes } from './dashboard/predictions.js';
+import { handleEvaluationRoutes } from './dashboard/evaluations.js';
+import { handleMarketplaceRoutes } from './dashboard/marketplace.js';
+import { handleQuestRoutes } from './dashboard/quests.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -190,6 +199,42 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleStaffServerRoutes(req, res, parts, url, client, user, guildId)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleChannelHealthRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handlePulseRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleReputationRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleSatisfactionRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleSeasonRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handlePredictionRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleEvaluationRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleMarketplaceRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleQuestRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

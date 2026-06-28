@@ -24,6 +24,7 @@ import {
   mcpProtectedResourceMetadata,
 } from '../mcp/mcpServer.js';
 import { generateRssXml } from '../../services/core/newsService.js';
+import { handleFormTrigger } from '../../services/features/autoResponseService.js';
 
 function mcpBaseFromResource(resource: string | null): string | null {
   if (!resource) return null;
@@ -755,6 +756,13 @@ export async function handlePublicRoutes(
       }
 
       logger.success('PublicAPI', `Form submission for ${formId} from ${body.discordId || 'unknown'}`);
+
+      if (body.discordId) {
+        await handleFormTrigger(form.guildId, body.discordId, formId, body.data as Record<string, string>, client).catch(err => {
+          logger.error('PublicAPI', `Error executing form trigger for submission ${candidature.id}:`, err);
+        });
+      }
+
       json(res, 201, { ok: true, id: candidature.id });
     } catch (err) {
       logger.error('PublicAPI', `Error submitting form ${parts[3]}:`, err);

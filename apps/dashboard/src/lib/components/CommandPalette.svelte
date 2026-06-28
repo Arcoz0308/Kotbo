@@ -12,6 +12,8 @@
   import {
     generalItems,
     moderationItems,
+    levelingItems,
+    economyItems,
     communityItems,
     staffItems,
     configItems,
@@ -64,6 +66,12 @@
   const visibleModeration = $derived(
     moderationItems.filter((i) => (isStaff || isModerator || isAdmin) && canViewFeature(i.featureKey))
   );
+  const visibleLeveling = $derived(
+    levelingItems.filter((i) => canViewFeature(i.featureKey))
+  );
+  const visibleEconomy = $derived(
+    economyItems.filter((i) => canViewFeature(i.featureKey))
+  );
   const visibleCommunity = $derived(
     communityItems.filter((i) => canViewFeature(i.featureKey))
   );
@@ -103,6 +111,30 @@
         sublabel: 'Page · Modération',
         icon: item.icon || 'shield',
         group: 'Modération',
+        action: () => router.goto(item.href)
+      });
+    }
+
+    // Leveling Items
+    for (const item of visibleLeveling) {
+      items.push({
+        id: `leveling-${item.name}`,
+        label: item.name,
+        sublabel: "Page · Système d'XP",
+        icon: item.icon || 'trophy',
+        group: "Système d'XP",
+        action: () => router.goto(item.href)
+      });
+    }
+
+    // Economy Items
+    for (const item of visibleEconomy) {
+      items.push({
+        id: `economy-${item.name}`,
+        label: item.name,
+        sublabel: 'Page · Économie & RPG',
+        icon: item.icon || 'coins',
+        group: 'Économie & RPG',
         action: () => router.goto(item.href)
       });
     }

@@ -72,10 +72,37 @@
       })
     };
 
+    const verticalLinePlugin = {
+      id: 'verticalLine',
+      afterDatasetsDraw: (chartInstance: any) => {
+        if (type !== 'line' && type !== 'bar') return;
+        
+        const activeElements = chartInstance.tooltip?.getActiveElements();
+        if (activeElements && activeElements.length > 0) {
+          const activePoint = activeElements[0];
+          const ctx = chartInstance.ctx;
+          const x = activePoint.element.x;
+          const topY = chartInstance.scales.y.top;
+          const bottomY = chartInstance.scales.y.bottom;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(x, topY);
+          ctx.lineTo(x, bottomY);
+          ctx.lineWidth = 1.5;
+          const isDark = document.documentElement.classList.contains('dark');
+          ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)';
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    };
+
     const config: ChartConfiguration = {
       type: type as any,
       data: processedData,
-      plugins: [gradient],
+      plugins: [gradient, verticalLinePlugin],
       options: {
 
         responsive: true,

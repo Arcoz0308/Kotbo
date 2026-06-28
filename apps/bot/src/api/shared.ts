@@ -36,6 +36,7 @@ import {
   normalizeCommandRestrictions,
   type CommandRestrictionRule,
 } from '../utils/commandAccess.js';
+import { commands } from '../commands.js';
 
 import {
   hashAPIKey,
@@ -633,6 +634,8 @@ export type CommandCatalogEntry = {
   label: string;
   description: string;
   defaultAccess: 'tout_le_monde' | 'modération' | 'administration';
+  category?: string;
+  options?: any[];
 };
 
 export type DashboardAccessLevel = 'none' | 'moderator' | 'admin';
@@ -713,6 +716,7 @@ export type DashboardState = {
   autoThreadBotsEnabled: boolean;
   funEnabled: boolean;
   economyEnabled: boolean;
+  levelingEnabled: boolean;
   funCountingChannelId: string;
   funOneWordStoryChannelId: string;
   funGuessNumberChannelId: string;
@@ -806,6 +810,7 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   double_accounts: 'Détection et gestion des comptes multiples pour la sécurité.',
   events: "Organisation et gestion d'événements communautaires et quiz.",
   economy: "Système complet d'économie et d'aventures RPG textuelles.",
+  leveling: "Système complet d'XP, niveaux, saisons compétitives et rôles de récompense.",
 };
 
 export const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }> = [
@@ -2407,13 +2412,151 @@ export async function resolveFeatureAccessMap(
   return featureAccess;
 }
 
+const COMMAND_CATEGORIES: Record<string, string> = {
+  // Administration
+  setup: 'Administration',
+  config: 'Administration',
+  admin: 'Administration',
+  status: 'Administration',
+  activate: 'Administration',
+  link: 'Administration',
+  staffserver: 'Administration',
+  channelhealth: 'Administration',
+  absent: 'Administration',
+  meeting: 'Administration',
+  demission: 'Administration',
+
+  // Modération
+  sanction: 'Modération',
+  dc: 'Modération',
+  rescan: 'Modération',
+  casier: 'Modération',
+  note: 'Modération',
+  transcript: 'Modération',
+  clear: 'Modération',
+  channel: 'Modération',
+  signal: 'Modération',
+  role: 'Modération',
+
+  // Économie
+  buy: 'Économie',
+  daily: 'Économie',
+  coins: 'Économie',
+  dice: 'Économie',
+  economyInfo: 'Économie',
+  games: 'Économie',
+  giveCoins: 'Économie',
+  giveItem: 'Économie',
+  guess: 'Économie',
+  items: 'Économie',
+  removeCoins: 'Économie',
+  removeItem: 'Économie',
+  richest: 'Économie',
+  rps: 'Économie',
+  roulette: 'Économie',
+  shop: 'Économie',
+  spawnItem: 'Économie',
+  use: 'Économie',
+  work: 'Économie',
+  market: 'Économie',
+
+  // Utilitaire
+  ping: 'Utilitaire',
+  info: 'Utilitaire',
+  epoch: 'Utilitaire',
+  devutils: 'Utilitaire',
+  help: 'Utilitaire',
+  post: 'Utilitaire',
+  stats: 'Utilitaire',
+  invites: 'Utilitaire',
+  serverstats: 'Utilitaire',
+  event: 'Utilitaire',
+  ticket: 'Utilitaire',
+  suggest: 'Utilitaire',
+  suggestionConfig: 'Utilitaire',
+  dashboard: 'Utilitaire',
+
+  // Profil & Commu
+  profile: 'Communauté',
+  profil: 'Communauté',
+  rank: 'Communauté',
+  leaderboard: 'Communauté',
+  rep: 'Communauté',
+  quests: 'Communauté',
+  giveaway: 'Communauté',
+
+  // Fun / Autre
+  excuse: 'Fun',
+  dailyAlgo: 'Fun',
+  ctf: 'Fun',
+  say: 'Fun'
+};
+
+export function buildRichCommandCatalog(): CommandCatalogEntry[] {
+  const catalogMap = new Map(COMMAND_CATALOG.map(c => [c.name, c]));
+  
+  return commands.map(cmd => {
+    const serialized = typeof (cmd.data as any).toJSON === 'function' ? (cmd.data as any).toJSON() : cmd.data;
+    const name = serialized.name;
+    const staticMeta = catalogMap.get(name);
+    
+    // Titre/label convivial
+    let label = staticMeta?.label || (name.charAt(0).toUpperCase() + name.slice(1));
+    if (name === 'dailyAlgo') label = 'Daily Algo';
+    if (name === 'devutils') label = 'Outils Dev';
+    if (name === 'serverstats') label = 'Stats Serveur';
+    if (name === 'suggestionConfig') label = 'Config Suggestions';
+    if (name === 'staffserver') label = 'Serveur Staff';
+    if (name === 'channelhealth') label = 'Santé Salons';
+    if (name === 'economyInfo') label = 'Éco Infos';
+    if (name === 'giveCoins') label = 'Donner pièces';
+    if (name === 'giveItem') label = 'Donner objet';
+    if (name === 'removeCoins') label = 'Retirer pièces';
+    if (name === 'removeItem') label = 'Retirer objet';
+    if (name === 'spawnItem') label = 'Générer objet';
+    
+    // Détermination de l'accès par défaut si non spécifié statiquement
+    let defaultAccess = staticMeta?.defaultAccess;
+    if (!defaultAccess) {
+      const perms = serialized.default_member_permissions;
+      if (perms) {
+        const adminFlag = BigInt(perms) & BigInt(PermissionFlagsBits.Administrator);
+        const manageGuildFlag = BigInt(perms) & BigInt(PermissionFlagsBits.ManageGuild);
+        if (adminFlag) {
+          defaultAccess = 'administration';
+        } else if (manageGuildFlag) {
+          defaultAccess = 'modération';
+        } else {
+          defaultAccess = 'tout_le_monde';
+        }
+      } else {
+        defaultAccess = 'tout_le_monde';
+      }
+    }
+    
+    const category = COMMAND_CATEGORIES[name] || 'Autre';
+
+    return {
+      name,
+      label,
+      description: serialized.description || staticMeta?.description || '',
+      defaultAccess: defaultAccess as any,
+      category,
+      options: serialized.options || []
+    };
+  });
+}
+
 export const getGuildState = async (client: Client, guildId: string, access: DashboardAccess, userId?: string): Promise<DashboardState | null> => {
   const { ensureDashboardSchemaPatches } = await import('../utils/schemaPatches.js');
   await ensureDashboardSchemaPatches();
 
   const guild = await prisma.guild.findUnique({ 
     where: { id: guildId },
-    include: { dashboardFeatureConfigs: true }
+    include: { 
+      dashboardFeatureConfigs: true,
+      levelConfig: true
+    }
   });
   if (!guild) return null;
 
@@ -2789,6 +2932,15 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       lastSync: guild.updatedAt.toISOString()
     },
     {
+      id: 'leveling',
+      name: 'Leveling & XP',
+      description: MODULE_DESCRIPTIONS.leveling,
+      status: getFeatureStatus('leveling', guild.levelConfig?.enabled ?? false),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
       id: 'channel_links',
       name: 'Liens de salons',
       description: 'Reliez des salons entre serveurs pour synchroniser les messages automatiquement.',
@@ -2906,6 +3058,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     autoThreadBotsEnabled: guild.autoThreadBotsEnabled,
     funEnabled: guild.funEnabled,
     economyEnabled: guild.economyEnabled,
+    levelingEnabled: guild.levelConfig?.enabled ?? false,
     funCountingChannelId: guild.funCountingChannelId ?? '',
     funOneWordStoryChannelId: guild.funOneWordStoryChannelId ?? '',
     funGuessNumberChannelId: guild.funGuessNumberChannelId ?? '',
@@ -2923,7 +3076,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     moderatorRoleId: guild.moderatorRoleId ?? '',
     commandRestrictions: runtime.commandRestrictions,
     sidebarFavorites: runtime.sidebarFavorites,
-    commandCatalog: COMMAND_CATALOG,
+    commandCatalog: buildRichCommandCatalog(),
     access: {
       level: access.level === 'admin' ? 'admin' : 'moderator',
       canModerateContent: access.canModerateContent,

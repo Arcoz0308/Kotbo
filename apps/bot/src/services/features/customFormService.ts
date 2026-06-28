@@ -16,6 +16,7 @@ import {
 import prisma from '../../utils/db.js';
 import { Prisma } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
+import { handleFormTrigger } from './autoResponseService.js';
 
 
 // ============================================================================
@@ -184,6 +185,10 @@ export async function submitCustomForm(
     logger.error('CustomFormService', 'Error processing recruitment link for custom form:', err);
   }
 
+  if (client) {
+    await handleFormTrigger(guildId, userId, formId, data, client);
+  }
+
   return submission;
 }
 
@@ -287,7 +292,8 @@ export async function handleFormModalSubmit(
       userId,
       interaction.user.username,
       interaction.user.tag,
-      formData
+      formData,
+      interaction.client
     );
   }
 

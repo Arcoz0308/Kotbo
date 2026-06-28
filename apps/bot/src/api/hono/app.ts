@@ -7,6 +7,7 @@ import { configRouter } from './routes/config.js';
 import { eventBusRouter } from './routes/eventBus.js';
 import { authRouter } from './routes/auth.js';
 import { createPublicProfileRouter } from './routes/public/profile.js';
+import { createPublicStatsRouter } from './routes/public/stats.js';
 import { createVerificationRouter } from './routes/verification.js';
 import { logger } from '../../utils/logger.js';
 
@@ -42,6 +43,7 @@ export function createHonoApp(client: Client): OpenAPIHono {
   app.route('/', eventBusRouter);
   app.route('/', authRouter);
   app.route('/', createPublicProfileRouter(client));
+  app.route('/', createPublicStatsRouter(client));
   app.route('/', createVerificationRouter(client));
 
   // ---------------------------------------------------------------------------

@@ -11,6 +11,8 @@
   import {
     generalItems,
     moderationItems,
+    levelingItems,
+    economyItems,
     communityItems,
     staffItems,
     crossServerItems,
@@ -80,6 +82,7 @@
   const isModuleDisabled = (featureKey?: string): boolean => {
     if (!featureKey) return false;
     if (featureKey === 'economy') return !dashboardStore.state.economyEnabled;
+    if (featureKey === 'leveling') return !dashboardStore.state.levelingEnabled;
     if (featureKey === 'fun') return !dashboardStore.state.funEnabled;
     if (featureKey === 'daily_algo') return !dashboardStore.state.dailyAlgoEnabled;
     if (featureKey === 'auto_thread') return !dashboardStore.state.autoThreadEnabled;
@@ -95,6 +98,8 @@
   const isStaff      = $derived(!!authStore.member);
 
   const visibleGeneral    = $derived(generalItems.filter((i) => canViewFeature(i.featureKey)));
+  const visibleLeveling   = $derived(levelingItems.filter((i) => canViewFeature(i.featureKey)));
+  const visibleEconomy    = $derived(economyItems.filter((i) => canViewFeature(i.featureKey)));
   const visibleCommunity  = $derived(communityItems.filter((i) => canViewFeature(i.featureKey)));
   const visibleModeration = $derived(
     isStaff || isModerator || isAdmin
@@ -125,6 +130,8 @@
     ([
       { key: 'general',    label: 'Général',       items: visibleGeneral    },
       { key: 'moderation', label: 'Modération',     items: visibleModeration },
+      { key: 'leveling',   label: "Système d'XP",  items: visibleLeveling   },
+      { key: 'economy',    label: 'Économie & RPG',items: visibleEconomy    },
       { key: 'community',  label: 'Communauté',     items: visibleCommunity  },
       { key: 'staff',      label: 'Staff',          items: visibleStaff      },
       { key: 'crossserver',label: 'Cross-Serveur',  items: visibleCrossServer },

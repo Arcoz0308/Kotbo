@@ -442,11 +442,11 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex gap-1 p-1 bg-surface-container/40 rounded-lg w-fit">
+      <div class="tab-group w-fit">
         {#each [{ key: 'custom', label: `Personnalisés (${customWords.length})` }, { key: 'global', label: `Globaux (${globalWords.length})` }] as tab}
           <button
             onclick={() => activeTab = tab.key as 'custom' | 'global'}
-            class="px-4 py-2 rounded-xl text-sm font-bold transition-all {activeTab === tab.key ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+            class="tab-button {activeTab === tab.key ? 'active' : ''}"
           >
             {tab.label}
           </button>
@@ -498,35 +498,35 @@
 
         <!-- Liste des mots personnalisés -->
         {#if customWords.length > 0}
-          <div class="rounded-lg border border-outline-variant/20 overflow-hidden">
-            <table class="w-full text-sm">
+          <div class="section-card-flush">
+            <table class="data-table">
               <thead>
-                <tr class="bg-surface-container/40 text-left">
-                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Mot</th>
-                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Catégorie</th>
-                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50 text-center">Actif</th>
-                  <th class="px-3 py-3"></th>
+                <tr>
+                  <th>Mot</th>
+                  <th>Catégorie</th>
+                  <th class="text-center">Actif</th>
+                  <th></th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-outline-variant/10">
+              <tbody>
                 {#each customWords as entry (entry.id)}
                   {@const cat = getCat(entry.category)}
-                  <tr class="hover:bg-surface-container/20 transition-colors {entry.enabled ? '' : 'opacity-40'}">
-                    <td class="px-5 py-3 font-mono font-semibold text-on-surface">{entry.word}</td>
-                    <td class="px-5 py-3">
+                  <tr class={entry.enabled ? '' : 'opacity-40'}>
+                    <td class="font-mono font-semibold text-on-surface">{entry.word}</td>
+                    <td>
                       <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border {cat.bg} {cat.color}">
                         {cat.label}
                       </span>
                     </td>
-                    <td class="px-5 py-3 text-center">
+                    <td class="text-center">
                       <ToggleSwitch checked={entry.enabled} onToggle={() => handleToggle(entry)} disabled={wordAction.state.loading} />
                     </td>
-                    <td class="px-3 py-3 text-right">
+                    <td class="text-right">
                       <button
                         onclick={() => handleDelete(entry)}
                         disabled={wordAction.state.loading}
                         aria-label="Supprimer {entry.word}"
-                        class="p-2 rounded-xl text-on-surface-variant/40 hover:text-error hover:bg-error/10 transition-all disabled:opacity-30"
+                        class="p-2 rounded-xl text-on-surface-variant/40 hover:text-error hover:bg-error/10 transition-all disabled:opacity-30 cursor-pointer"
                       >
                         <Papicon icon="trash" size={15} />
                       </button>
@@ -536,7 +536,7 @@
               </tbody>
             </table>
           </div>
-          <p class="text-xs text-on-surface-variant/40 text-right">{customWords.length} mot(s) personnalisé(s)</p>
+          <p class="text-xs text-on-surface-variant/40 text-right font-sans">{customWords.length} mot(s) personnalisé(s)</p>
         {:else}
           <div class="flex flex-col items-center gap-3 py-10 text-on-surface-variant/30">
             <Papicon icon="filter" size={36} class="opacity-20" />
@@ -548,30 +548,30 @@
       {:else}
         <!-- Liste globale (read-only) -->
         {#if globalWords.length > 0}
-          <div class="rounded-lg border border-outline-variant/20 overflow-hidden">
+          <div class="section-card-flush">
             <div class="bg-surface-container/30 px-5 py-3 flex items-center gap-2 text-xs text-on-surface-variant/50 border-b border-outline-variant/10">
               <Papicon icon="lock" size={12} />
               <span>Ces mots sont gérés globalement et ne peuvent pas être modifiés ici.</span>
             </div>
-            <table class="w-full text-sm">
+            <table class="data-table">
               <thead>
-                <tr class="bg-surface-container/40 text-left">
-                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Mot</th>
-                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Catégorie</th>
-                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50 text-center">Actif</th>
+                <tr>
+                  <th>Mot</th>
+                  <th>Catégorie</th>
+                  <th class="text-center">Actif</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-outline-variant/10">
+              <tbody>
                 {#each globalWords as entry (entry.id)}
                   {@const cat = getCat(entry.category)}
-                  <tr class="hover:bg-surface-container/20 transition-colors {entry.enabled ? '' : 'opacity-40'}">
-                    <td class="px-5 py-3 font-mono font-semibold text-on-surface">{entry.word}</td>
-                    <td class="px-5 py-3">
+                  <tr class={entry.enabled ? '' : 'opacity-40'}>
+                    <td class="font-mono font-semibold text-on-surface">{entry.word}</td>
+                    <td>
                       <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border {cat.bg} {cat.color}">
                         {cat.label}
                       </span>
                     </td>
-                    <td class="px-5 py-3 text-center">
+                    <td class="text-center">
                       <span class="inline-flex items-center gap-1.5 text-xs font-bold {entry.enabled ? 'text-primary' : 'text-on-surface-variant/30'}">
                         <span class="w-2 h-2 rounded-full {entry.enabled ? 'bg-primary' : 'bg-on-surface-variant/20'}"></span>
                         {entry.enabled ? 'Actif' : 'Inactif'}
@@ -582,7 +582,7 @@
               </tbody>
             </table>
           </div>
-          <p class="text-xs text-on-surface-variant/40 text-right">{globalWords.length} mot(s) global/globaux</p>
+          <p class="text-xs text-on-surface-variant/40 text-right font-sans">{globalWords.length} mot(s) global/globaux</p>
         {:else}
           <div class="flex flex-col items-center gap-3 py-10 text-on-surface-variant/30">
             <Papicon icon="filter" size={36} class="opacity-20" />

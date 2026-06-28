@@ -9,7 +9,8 @@
   import {
     API_BASE_URL,
     fetchMemberCase,
-    runMemberCaseAction
+    runMemberCaseAction,
+    fetchSatisfactionData
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -24,7 +25,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   // Navigation & Tabs
-  let activeTab = $state<'tickets' | 'transcripts' | 'config'>('tickets');
+  let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'config'>('tickets');
   let ticketFilter = $state<'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED'>('ALL');
   
   // Data State
@@ -83,6 +84,31 @@
   // Config sections accordion
   let expandedConfigSection = $state<string | null>('mode');
   let showMobileChat = $state(false);
+
+  // Satisfaction State
+  let satisfactionLoading = $state(false);
+  let satisfactionData: any = $state(null);
+
+  const ratingEmojis = ['', '\u{1F621}', '\u{1F615}', '\u{1F610}', '\u{1F642}', '\u{1F929}'];
+  const ratingLabels = ['', 'Tres insatisfait', 'Insatisfait', 'Neutre', 'Satisfait', 'Tres satisfait'];
+
+  function getRatingColor(rating: number): string {
+    if (rating >= 4.5) return 'var(--color-success, #22c55e)';
+    if (rating >= 3.5) return 'var(--color-primary, #5865F2)';
+    if (rating >= 2.5) return 'var(--color-warning, #f59e0b)';
+    return 'var(--color-danger, #ef4444)';
+  }
+
+  async function loadSatisfaction() {
+    satisfactionLoading = true;
+    try {
+      satisfactionData = await fetchSatisfactionData();
+    } catch {
+      toast.error('Erreur lors du chargement de la satisfaction');
+    } finally {
+      satisfactionLoading = false;
+    }
+  }
 
   function toggleConfigSection(section: string) {
     expandedConfigSection = expandedConfigSection === section ? null : section;
@@ -152,7 +178,7 @@
     ticketTypes = JSON.parse(JSON.stringify(savedSettingsConfig.ticketTypes));
   }
 
-  function changeTab(tab: 'tickets' | 'transcripts' | 'config') {
+  function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'config') {
     if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Tickets (Configuration)') {
       const confirmLeave = confirm("Vous avez des modifications non sauvegardées. Quitter sans enregistrer ?");
       if (!confirmLeave) return;
@@ -319,6 +345,8 @@
   async function handleRefresh() {
     if (activeTab === 'transcripts') {
       await loadTranscripts();
+    } else if (activeTab === 'satisfaction') {
+      await loadSatisfaction();
     } else {
       await loadTicketsAndConfig();
     }
@@ -663,6 +691,8 @@
   $effect(() => {
     if (activeTab === 'transcripts') {
       void loadTranscripts();
+    } else if (activeTab === 'satisfaction') {
+      void loadSatisfaction();
     }
   });
 
@@ -717,6 +747,7 @@
     {#each [
       { key: 'tickets', label: 'Tickets' },
       { key: 'transcripts', label: 'Transcriptions' },
+      { key: 'satisfaction', label: 'Satisfaction' },
       { key: 'config', label: 'Configuration' }
     ] as tab}
       <button
@@ -1568,6 +1599,82 @@
         </div>
       {/if}
     </div>
+  {:else if activeTab === 'satisfaction'}
+    <!-- Satisfaction Tab -->
+    {#if satisfactionLoading}
+      <div class="flex items-center justify-center py-16">
+        <div class="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+      </div>
+    {:else if satisfactionData}
+      <div class="sat-grid">
+        <!-- Overview Card -->
+        <div class="sat-card sat-overview-card">
+          <div class="sat-avg-rating" style="color: {getRatingColor(satisfactionData.global.averageRating)}">
+            <span class="sat-avg-value">{satisfactionData.global.averageRating.toFixed(1)}</span>
+            <span class="sat-avg-max">/5</span>
+          </div>
+          <p class="sat-avg-label">{satisfactionData.global.totalResponses} réponses</p>
+
+          <div class="sat-distribution">
+            {#each satisfactionData.global.distribution as d}
+              <div class="sat-dist-row">
+                <span class="sat-dist-label">{ratingEmojis[d.rating]} {d.rating}</span>
+                <div class="sat-dist-bar">
+                  <div class="sat-dist-fill" style="width: {satisfactionData.global.totalResponses > 0 ? (d.count / satisfactionData.global.totalResponses * 100) : 0}%"></div>
+                </div>
+                <span class="sat-dist-count">{d.count}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Staff Satisfaction Card -->
+        <div class="sat-card sat-staff-card">
+          <h3 class="sat-card-title">Satisfaction par Staff</h3>
+          {#if satisfactionData.byStaff.length === 0}
+            <p class="sat-empty">Aucune donnee par staff.</p>
+          {:else}
+            <div class="sat-staff-list">
+              {#each satisfactionData.byStaff as staff}
+                <div class="sat-staff-row">
+                  <span class="sat-staff-id">{staff.staffId}</span>
+                  <div class="sat-staff-rating" style="color: {getRatingColor(staff.averageRating)}">
+                    {staff.averageRating.toFixed(1)}/5
+                  </div>
+                  <span class="sat-staff-count">({staff.totalResponses} avis)</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        <!-- Recent Reviews Card -->
+        <div class="sat-card sat-recent-card">
+          <h3 class="sat-card-title">Avis recents</h3>
+          {#if satisfactionData.global.recent.length === 0}
+            <p class="sat-empty">Aucun avis pour le moment.</p>
+          {:else}
+            <div class="sat-recent-list">
+              {#each satisfactionData.global.recent.slice(0, 15) as review}
+                <div class="sat-review-row">
+                  <span class="sat-review-emoji">{ratingEmojis[review.rating]}</span>
+                  <span class="sat-review-user">{review.userId}</span>
+                  {#if review.comment}
+                    <span class="sat-review-comment">"{review.comment}"</span>
+                  {/if}
+                  <span class="sat-review-date">{new Date(review.createdAt).toLocaleDateString('fr-FR')}</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+    {:else}
+      <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
+        <Papicon icon="smile" size={36} class="opacity-50 mb-2" />
+        <p class="text-xs font-bold">Aucune donnee de satisfaction</p>
+      </div>
+    {/if}
   {/if}
 </ModulePage>
 
@@ -1696,4 +1803,40 @@
 <style>
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Satisfaction Tab Styles */
+  .sat-grid { display: grid; grid-template-columns: 300px 1fr; gap: 1rem; }
+  .sat-card { background: var(--color-surface, rgba(255,255,255,0.05)); border: 1px solid var(--color-border, rgba(255,255,255,0.1)); border-radius: 12px; padding: 1.25rem; }
+  .sat-card-title { margin: 0 0 1rem; font-size: 0.95rem; color: var(--color-text-secondary, rgba(255,255,255,0.6)); }
+
+  .sat-overview-card { text-align: center; }
+  .sat-avg-rating { display: flex; align-items: baseline; justify-content: center; gap: 0.25rem; }
+  .sat-avg-value { font-size: 3rem; font-weight: 700; }
+  .sat-avg-max { font-size: 1rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+  .sat-avg-label { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.875rem; margin: 0.5rem 0 1.5rem; }
+
+  .sat-distribution { display: flex; flex-direction: column; gap: 0.5rem; }
+  .sat-dist-row { display: grid; grid-template-columns: 40px 1fr 30px; align-items: center; gap: 0.5rem; }
+  .sat-dist-label { font-size: 0.85rem; }
+  .sat-dist-bar { height: 8px; background: var(--color-border, rgba(255,255,255,0.1)); border-radius: 4px; overflow: hidden; }
+  .sat-dist-fill { height: 100%; background: var(--color-primary, #5865F2); border-radius: 4px; }
+  .sat-dist-count { text-align: right; font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+
+  .sat-staff-list { display: flex; flex-direction: column; gap: 0.5rem; }
+  .sat-staff-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; }
+  .sat-staff-id { flex: 1; font-family: monospace; font-size: 0.8rem; }
+  .sat-staff-rating { font-weight: 600; }
+  .sat-staff-count { font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
+
+  .sat-recent-card { grid-column: 1 / -1; }
+  .sat-recent-list { display: flex; flex-direction: column; gap: 0.25rem; }
+  .sat-review-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 0.85rem; }
+  .sat-review-emoji { font-size: 1.1rem; }
+  .sat-review-user { font-family: monospace; font-size: 0.8rem; }
+  .sat-review-comment { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-style: italic; flex: 1; }
+  .sat-review-date { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.75rem; }
+
+  .sat-empty { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-style: italic; }
+
+  @media (max-width: 768px) { .sat-grid { grid-template-columns: 1fr; } }
 </style>

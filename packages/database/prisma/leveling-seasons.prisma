@@ -1,0 +1,67 @@
+// ============================================================================
+// LEVELING SEASONS — SAISONS COMPÉTITIVES
+// ============================================================================
+
+enum SeasonStatus {
+  UPCOMING
+  ACTIVE
+  ENDED
+  ARCHIVED
+}
+
+model LevelingSeason {
+  id String @id @default(cuid())
+
+  guildId  String
+  name     String
+  number   Int
+
+  status   SeasonStatus @default(UPCOMING)
+
+  startDate DateTime
+  endDate   DateTime
+
+  // Récompenses de fin de saison (JSON: [{ rank, roleId?, coins?, badge? }])
+  rewards Json?
+
+  // Rôle exclusif attribué au top 1
+  topRoleId String?
+
+  // Leaderboard final archivé (JSON: [{ userId, xp, level, rank }])
+  finalLeaderboard Json?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  snapshots SeasonSnapshot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, number])
+  @@index([guildId, status])
+  @@map("leveling_seasons")
+}
+
+model SeasonSnapshot {
+  id String @id @default(cuid())
+
+  guildId   String
+  seasonId  String
+  userId    String
+
+  xp        Int @default(0)
+  level     Int @default(0)
+  rank      Int @default(0)
+
+  messagesCount  Int @default(0)
+  voiceMinutes   Int @default(0)
+
+  guild  Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  season LevelingSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([seasonId, userId])
+  @@index([guildId, seasonId])
+  @@index([seasonId, xp])
+  @@map("season_snapshots")
+}

@@ -9,7 +9,6 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
-
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
   const commandCatalog = $derived(dashboardStore.state.commandCatalog || []);
@@ -22,6 +21,80 @@
   const saveAction = createAsyncActionState();
 
   let savedRestrictions = $state<any[]>([]);
+  let commandSearch = $state('');
+  let catalogFilter = $state<string>('all');
+  let activeTab = $state<'doc' | 'permissions'>('doc');
+
+  // Permission selection state
+  let channelMode = $state<'neutral' | 'allowedOnly' | 'blockedOnly'>('neutral');
+  let roleMode = $state<'neutral' | 'allowedOnly' | 'blockedOnly'>('neutral');
+  let userMode = $state<'neutral' | 'allowedOnly' | 'blockedOnly'>('neutral');
+  let selectedCommandName = $state('');
+  let userIdInput = $state('');
+
+  // Accordion state for subcommands
+  let expandedSubs = $state<Set<string>>(new Set());
+
+  function toggleSubExpand(subName: string) {
+    const next = new Set(expandedSubs);
+    if (next.has(subName)) next.delete(subName);
+    else next.add(subName);
+    expandedSubs = next;
+  }
+
+  let commandDraft = $state({
+    commandName: '',
+    allowedChannelIds: [] as string[],
+    blockedChannelIds: [] as string[],
+    allowedRoleIds: [] as string[],
+    blockedRoleIds: [] as string[],
+    allowedUserIds: [] as string[],
+    blockedUserIds: [] as string[],
+  });
+
+  const emptyDraft = () => ({
+    commandName: '',
+    allowedChannelIds: [] as string[],
+    blockedChannelIds: [] as string[],
+    allowedRoleIds: [] as string[],
+    blockedRoleIds: [] as string[],
+    allowedUserIds: [] as string[],
+    blockedUserIds: [] as string[],
+  });
+
+  const uniqueIds = (ids: string[]) => [...new Set(ids)];
+  const normalizeSearchText = (value: string) => value.trim().toLowerCase();
+
+  const channelOptions = $derived(availableChannels.map((channel) => ({
+    id: channel.id,
+    name: channel.name,
+    prefix: '#',
+  })));
+
+  const roleOptions = $derived(availableRoles.map((role) => ({
+    id: role.id,
+    name: role.name,
+    prefix: '@',
+  })));
+
+  const channelConflicts = $derived(commandDraft.allowedChannelIds.filter((id) => commandDraft.blockedChannelIds.includes(id)));
+  const roleConflicts = $derived(commandDraft.allowedRoleIds.filter((id) => commandDraft.blockedRoleIds.includes(id)));
+  const userConflicts = $derived(commandDraft.allowedUserIds.filter((id) => commandDraft.blockedUserIds.includes(id)));
+  const hasConflicts = $derived(channelConflicts.length > 0 || roleConflicts.length > 0 || userConflicts.length > 0);
+
+  function inferMode(allowedIds: string[], blockedIds: string[]): 'neutral' | 'allowedOnly' | 'blockedOnly' {
+    if (allowedIds.length > 0 && blockedIds.length === 0) return 'allowedOnly';
+    if (blockedIds.length > 0 && allowedIds.length === 0) return 'blockedOnly';
+    return 'neutral';
+  }
+
+  const selectedChannelIds = $derived(channelMode === 'allowedOnly' ? commandDraft.allowedChannelIds : commandDraft.blockedChannelIds);
+  const selectedRoleIds = $derived(roleMode === 'allowedOnly' ? commandDraft.allowedRoleIds : commandDraft.blockedRoleIds);
+  const selectedUserIds = $derived(userMode === 'allowedOnly' ? commandDraft.allowedUserIds : commandDraft.blockedUserIds);
+
+  const channelSelectionDisabled = $derived(channelMode === 'neutral' || !canManageSettings || !selectedCommandName);
+  const roleSelectionDisabled = $derived(roleMode === 'neutral' || !canManageSettings || !selectedCommandName);
+  const userSelectionDisabled = $derived(userMode === 'neutral' || !canManageSettings || !selectedCommandName);
 
   const currentRestrictions = $derived.by(() => {
     if (!selectedCommandName) return dashboardStore.state.commandRestrictions || [];
@@ -84,70 +157,6 @@
     savedRestrictions = JSON.parse(JSON.stringify(dashboardStore.state.commandRestrictions || []));
   });
 
-  type RestrictionMode = 'neutral' | 'allowedOnly' | 'blockedOnly';
-
-  let commandSearch = $state('');
-  let catalogFilter = $state<'all' | 'active' | 'no-rules' | 'administration' | 'modération' | 'public'>('all');
-  let channelMode = $state<RestrictionMode>('neutral');
-  let roleMode = $state<RestrictionMode>('neutral');
-  let userMode = $state<RestrictionMode>('neutral');
-  let selectedCommandName = $state('');
-  let commandDraft = $state({
-    commandName: '',
-    allowedChannelIds: [] as string[],
-    blockedChannelIds: [] as string[],
-    allowedRoleIds: [] as string[],
-    blockedRoleIds: [] as string[],
-    allowedUserIds: [] as string[],
-    blockedUserIds: [] as string[],
-  });
-  let userIdInput = $state('');
-
-  const emptyDraft = () => ({
-    commandName: '',
-    allowedChannelIds: [] as string[],
-    blockedChannelIds: [] as string[],
-    allowedRoleIds: [] as string[],
-    blockedRoleIds: [] as string[],
-    allowedUserIds: [] as string[],
-    blockedUserIds: [] as string[],
-  });
-
-  const uniqueIds = (ids: string[]) => [...new Set(ids)];
-
-  const normalizeSearchText = (value: string) => value.trim().toLowerCase();
-
-  const channelOptions = $derived(availableChannels.map((channel) => ({
-    id: channel.id,
-    name: channel.name,
-    prefix: '#',
-  })));
-
-  const roleOptions = $derived(availableRoles.map((role) => ({
-    id: role.id,
-    name: role.name,
-    prefix: '@',
-  })));
-
-  const channelConflicts = $derived(commandDraft.allowedChannelIds.filter((id) => commandDraft.blockedChannelIds.includes(id)));
-  const roleConflicts = $derived(commandDraft.allowedRoleIds.filter((id) => commandDraft.blockedRoleIds.includes(id)));
-  const userConflicts = $derived(commandDraft.allowedUserIds.filter((id) => commandDraft.blockedUserIds.includes(id)));
-  const hasConflicts = $derived(channelConflicts.length > 0 || roleConflicts.length > 0 || userConflicts.length > 0);
-
-  function inferMode(allowedIds: string[], blockedIds: string[]): RestrictionMode {
-    if (allowedIds.length > 0 && blockedIds.length === 0) return 'allowedOnly';
-    if (blockedIds.length > 0 && allowedIds.length === 0) return 'blockedOnly';
-    return 'neutral';
-  }
-
-  const selectedChannelIds = $derived(channelMode === 'allowedOnly' ? commandDraft.allowedChannelIds : commandDraft.blockedChannelIds);
-  const selectedRoleIds = $derived(roleMode === 'allowedOnly' ? commandDraft.allowedRoleIds : commandDraft.blockedRoleIds);
-  const selectedUserIds = $derived(userMode === 'allowedOnly' ? commandDraft.allowedUserIds : commandDraft.blockedUserIds);
-
-  const channelSelectionDisabled = $derived(channelMode === 'neutral' || !canManageSettings || !selectedCommandName);
-  const roleSelectionDisabled = $derived(roleMode === 'neutral' || !canManageSettings || !selectedCommandName);
-  const userSelectionDisabled = $derived(userMode === 'neutral' || !canManageSettings || !selectedCommandName);
-
   function loadCommandDraft(commandName: string) {
     const rule = dashboardStore.state.commandRestrictions.find((entry) => entry.commandName === commandName);
     const nextDraft = rule ? {
@@ -174,22 +183,32 @@
     selectedCommandName = commandName;
     loadCommandDraft(commandName);
     saveAction.clearFeedback();
+    expandedSubs = new Set();
   }
 
   function defaultAccessLabel(access: string) {
     if (access === 'administration') return 'Admin';
-    if (access === 'modération') return 'Modération';
-    return 'Ouvert';
+    if (access === 'modération') return 'Mod';
+    return 'Tous';
   }
 
-  function defaultAccessClasses(access: string) {
-    if (access === 'administration') return 'bg-rose-500/10 text-rose-700 dark:text-rose-300';
-    if (access === 'modération') return 'bg-amber-500/10 text-amber-700 dark:text-amber-300';
-    return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+  function defaultAccessBadgeClass(access: string) {
+    if (access === 'administration') return 'badge-danger';
+    if (access === 'modération') return 'badge-warning';
+    return 'badge-success';
   }
 
   function hasRestriction(commandName: string) {
     return dashboardStore.state.commandRestrictions.some((entry) => entry.commandName === commandName);
+  }
+
+  function getRestrictionCounts(commandName: string) {
+    const rule = dashboardStore.state.commandRestrictions.find((entry) => entry.commandName === commandName);
+    if (!rule) return null;
+    const channels = rule.allowedChannelIds.length + rule.blockedChannelIds.length;
+    const roles = rule.allowedRoleIds.length + rule.blockedRoleIds.length;
+    const users = rule.allowedUserIds.length + rule.blockedUserIds.length;
+    return { channels, roles, users, total: channels + roles + users };
   }
 
   function resolveDraftConflicts() {
@@ -207,103 +226,49 @@
     userMode = inferMode(commandDraft.allowedUserIds, commandDraft.blockedUserIds);
   }
 
-  function setChannelMode(mode: RestrictionMode) {
+  function setChannelMode(mode: 'neutral' | 'allowedOnly' | 'blockedOnly') {
     channelMode = mode;
     if (mode === 'neutral') {
-      commandDraft = {
-        ...commandDraft,
-        allowedChannelIds: [],
-        blockedChannelIds: [],
-      };
+      commandDraft = { ...commandDraft, allowedChannelIds: [], blockedChannelIds: [] };
       return;
     }
-
     if (mode === 'allowedOnly') {
-      const nextAllowed = commandDraft.allowedChannelIds.length > 0
-        ? commandDraft.allowedChannelIds
-        : commandDraft.blockedChannelIds;
-      commandDraft = {
-        ...commandDraft,
-        allowedChannelIds: uniqueIds(nextAllowed),
-        blockedChannelIds: [],
-      };
+      const nextAllowed = commandDraft.allowedChannelIds.length > 0 ? commandDraft.allowedChannelIds : commandDraft.blockedChannelIds;
+      commandDraft = { ...commandDraft, allowedChannelIds: uniqueIds(nextAllowed), blockedChannelIds: [] };
       return;
     }
-
-    const nextBlocked = commandDraft.blockedChannelIds.length > 0
-      ? commandDraft.blockedChannelIds
-      : commandDraft.allowedChannelIds;
-    commandDraft = {
-      ...commandDraft,
-      allowedChannelIds: [],
-      blockedChannelIds: uniqueIds(nextBlocked),
-    };
+    const nextBlocked = commandDraft.blockedChannelIds.length > 0 ? commandDraft.blockedChannelIds : commandDraft.allowedChannelIds;
+    commandDraft = { ...commandDraft, allowedChannelIds: [], blockedChannelIds: uniqueIds(nextBlocked) };
   }
 
-  function setRoleMode(mode: RestrictionMode) {
+  function setRoleMode(mode: 'neutral' | 'allowedOnly' | 'blockedOnly') {
     roleMode = mode;
     if (mode === 'neutral') {
-      commandDraft = {
-        ...commandDraft,
-        allowedRoleIds: [],
-        blockedRoleIds: [],
-      };
+      commandDraft = { ...commandDraft, allowedRoleIds: [], blockedRoleIds: [] };
       return;
     }
-
     if (mode === 'allowedOnly') {
-      const nextAllowed = commandDraft.allowedRoleIds.length > 0
-        ? commandDraft.allowedRoleIds
-        : commandDraft.blockedRoleIds;
-      commandDraft = {
-        ...commandDraft,
-        allowedRoleIds: uniqueIds(nextAllowed),
-        blockedRoleIds: [],
-      };
+      const nextAllowed = commandDraft.allowedRoleIds.length > 0 ? commandDraft.allowedRoleIds : commandDraft.blockedRoleIds;
+      commandDraft = { ...commandDraft, allowedRoleIds: uniqueIds(nextAllowed), blockedRoleIds: [] };
       return;
     }
-
-    const nextBlocked = commandDraft.blockedRoleIds.length > 0
-      ? commandDraft.blockedRoleIds
-      : commandDraft.allowedRoleIds;
-    commandDraft = {
-      ...commandDraft,
-      allowedRoleIds: [],
-      blockedRoleIds: uniqueIds(nextBlocked),
-    };
+    const nextBlocked = commandDraft.blockedRoleIds.length > 0 ? commandDraft.blockedRoleIds : commandDraft.allowedRoleIds;
+    commandDraft = { ...commandDraft, allowedRoleIds: [], blockedRoleIds: uniqueIds(nextBlocked) };
   }
 
-  function setUserMode(mode: RestrictionMode) {
+  function setUserMode(mode: 'neutral' | 'allowedOnly' | 'blockedOnly') {
     userMode = mode;
     if (mode === 'neutral') {
-      commandDraft = {
-        ...commandDraft,
-        allowedUserIds: [],
-        blockedUserIds: [],
-      };
+      commandDraft = { ...commandDraft, allowedUserIds: [], blockedUserIds: [] };
       return;
     }
-
     if (mode === 'allowedOnly') {
-      const nextAllowed = commandDraft.allowedUserIds.length > 0
-        ? commandDraft.allowedUserIds
-        : commandDraft.blockedUserIds;
-      commandDraft = {
-        ...commandDraft,
-        allowedUserIds: uniqueIds(nextAllowed),
-        blockedUserIds: [],
-      };
+      const nextAllowed = commandDraft.allowedUserIds.length > 0 ? commandDraft.allowedUserIds : commandDraft.blockedUserIds;
+      commandDraft = { ...commandDraft, allowedUserIds: uniqueIds(nextAllowed), blockedUserIds: [] };
       return;
     }
-
-    const nextBlocked = commandDraft.blockedUserIds.length > 0
-      ? commandDraft.blockedUserIds
-      : commandDraft.allowedUserIds;
-    commandDraft = {
-      ...commandDraft,
-      allowedUserIds: [],
-      blockedUserIds: uniqueIds(nextBlocked),
-    };
+    const nextBlocked = commandDraft.blockedUserIds.length > 0 ? commandDraft.blockedUserIds : commandDraft.allowedUserIds;
+    commandDraft = { ...commandDraft, allowedUserIds: [], blockedUserIds: uniqueIds(nextBlocked) };
   }
 
   function toggleChannelSelection(channelId: string, checked: boolean) {
@@ -315,7 +280,6 @@
       commandDraft = { ...commandDraft, allowedChannelIds: next };
       return;
     }
-
     const next = checked
       ? [...new Set([...commandDraft.blockedChannelIds, channelId])]
       : commandDraft.blockedChannelIds.filter((entry) => entry !== channelId);
@@ -331,7 +295,6 @@
       commandDraft = { ...commandDraft, allowedRoleIds: next };
       return;
     }
-
     const next = checked
       ? [...new Set([...commandDraft.blockedRoleIds, roleId])]
       : commandDraft.blockedRoleIds.filter((entry) => entry !== roleId);
@@ -340,51 +303,25 @@
 
   function clearChannels() {
     channelMode = 'neutral';
-    commandDraft = {
-      ...commandDraft,
-      allowedChannelIds: [],
-      blockedChannelIds: [],
-    };
+    commandDraft = { ...commandDraft, allowedChannelIds: [], blockedChannelIds: [] };
   }
 
   function clearRoles() {
     roleMode = 'neutral';
-    commandDraft = {
-      ...commandDraft,
-      allowedRoleIds: [],
-      blockedRoleIds: [],
-    };
+    commandDraft = { ...commandDraft, allowedRoleIds: [], blockedRoleIds: [] };
   }
 
   function clearUsers() {
     userMode = 'neutral';
-    commandDraft = {
-      ...commandDraft,
-      allowedUserIds: [],
-      blockedUserIds: [],
-    };
+    commandDraft = { ...commandDraft, allowedUserIds: [], blockedUserIds: [] };
   }
 
   function clearAllRules() {
     channelMode = 'neutral';
     roleMode = 'neutral';
     userMode = 'neutral';
-    commandDraft = {
-      ...commandDraft,
-      ...emptyDraft(),
-      commandName: selectedCommandName,
-    };
+    commandDraft = { ...commandDraft, ...emptyDraft(), commandName: selectedCommandName };
   }
-
-  $effect(() => {
-    if (!selectedCommandName && commandCatalog.length > 0) {
-      selectedCommandName = commandCatalog[0].name;
-      return;
-    }
-    if (selectedCommandName) {
-      loadCommandDraft(selectedCommandName);
-    }
-  });
 
   function upsertCommandDraft() {
     if (!selectedCommandName) return;
@@ -431,51 +368,11 @@
       },
       {
         successMessage: 'Restrictions de commande enregistrées.',
-        failureMessage: 'Impossible d’enregistrer les restrictions pour le moment.'
+        failureMessage: 'Impossible d\u2019enregistrer les restrictions pour le moment.'
       }
     );
     return success;
   }
-
-  function resetCommandDraft() {
-    loadCommandDraft(selectedCommandName);
-    saveAction.clearFeedback();
-  }
-
-  const selectedCatalogEntry = $derived(commandCatalog.find((entry) => entry.name === selectedCommandName));
-  const selectedRestrictionSummary = $derived(
-    dashboardStore.state.commandRestrictions.find((entry) => entry.commandName === selectedCommandName)
-  );
-  const hasSelectedRestriction = $derived(!!selectedRestrictionSummary);
-
-  const filteredCommandCatalog = $derived.by(() => {
-    const search = normalizeSearchText(commandSearch);
-    const commands = [...commandCatalog];
-
-    const matchesFilter = (command: { name: string; label: string; defaultAccess: string }) => {
-      if (catalogFilter === 'active') return hasRestriction(command.name);
-      if (catalogFilter === 'no-rules') return !hasRestriction(command.name);
-      if (catalogFilter === 'administration') return command.defaultAccess === 'administration';
-      if (catalogFilter === 'modération') return command.defaultAccess === 'modération';
-      if (catalogFilter === 'public') return command.defaultAccess !== 'administration' && command.defaultAccess !== 'modération';
-      return true;
-    };
-
-    return commands
-      .filter((command) => {
-        if (!matchesFilter(command)) return false;
-        if (!search) return true;
-        return command.name.toLowerCase().includes(search)
-          || (command.label || '').toLowerCase().includes(search)
-          || (command.description || '').toLowerCase().includes(search);
-      })
-      .sort((a, b) => {
-        const aActive = hasRestriction(a.name) ? 1 : 0;
-        const bActive = hasRestriction(b.name) ? 1 : 0;
-        if (aActive !== bActive) return bActive - aActive;
-        return a.name.localeCompare(b.name, 'fr');
-      });
-  });
 
   function addUserId() {
     if (userSelectionDisabled) return;
@@ -501,7 +398,6 @@
       };
       return;
     }
-
     if (userMode === 'blockedOnly') {
       commandDraft = {
         ...commandDraft,
@@ -509,334 +405,966 @@
       };
     }
   }
+
+  const selectedCatalogEntry = $derived(commandCatalog.find((entry) => entry.name === selectedCommandName));
+  const hasSelectedRestriction = $derived(hasRestriction(selectedCommandName));
+
+  const filteredCommandCatalog = $derived.by(() => {
+    const search = normalizeSearchText(commandSearch);
+    const commands = [...commandCatalog];
+
+    const matchesFilter = (command: any) => {
+      if (catalogFilter === 'all') return true;
+      if (catalogFilter === 'active') return hasRestriction(command.name);
+      if (catalogFilter === 'no-rules') return !hasRestriction(command.name);
+      return command.category === catalogFilter;
+    };
+
+    return commands
+      .filter((command) => {
+        if (!matchesFilter(command)) return false;
+        if (!search) return true;
+        
+        const basicMatch = command.name.toLowerCase().includes(search)
+          || (command.label || '').toLowerCase().includes(search)
+          || (command.description || '').toLowerCase().includes(search);
+        
+        if (basicMatch) return true;
+
+        return command.options?.some((opt: any) => {
+          const optMatch = opt.name.toLowerCase().includes(search) || (opt.description || '').toLowerCase().includes(search);
+          if (optMatch) return true;
+          if (opt.options) {
+            return opt.options.some((subOpt: any) => subOpt.name.toLowerCase().includes(search) || (subOpt.description || '').toLowerCase().includes(search));
+          }
+          return false;
+        }) || false;
+      })
+      .sort((a, b) => {
+        const aActive = hasRestriction(a.name) ? 1 : 0;
+        const bActive = hasRestriction(b.name) ? 1 : 0;
+        if (aActive !== bActive) return bActive - aActive;
+        return a.name.localeCompare(b.name, 'fr');
+      });
+  });
+
+  const categoryCounts = $derived.by(() => {
+    const counts: Record<string, number> = { all: commandCatalog.length, active: 0, 'no-rules': 0 };
+    for (const cmd of commandCatalog) {
+      const active = hasRestriction(cmd.name);
+      if (active) counts.active++;
+      else counts['no-rules']++;
+      
+      const cat = cmd.category || 'Autre';
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  });
+
+  const categories = [
+    { id: 'all', name: 'Toutes', icon: 'terminal' },
+    { id: 'Administration', name: 'Administration', icon: 'lock' },
+    { id: 'Modération', name: 'Modération', icon: 'shield' },
+    { id: 'Économie', name: 'Économie', icon: 'Coins' },
+    { id: 'Utilitaire', name: 'Utilitaire', icon: 'Gears' },
+    { id: 'Communauté', name: 'Communauté', icon: 'users' },
+    { id: 'Fun', name: 'Fun', icon: 'Star' }
+  ];
+
+  $effect(() => {
+    if (!selectedCommandName && commandCatalog.length > 0) {
+      selectedCommandName = commandCatalog[0].name;
+    }
+  });
+
+  const hasSubcommands = $derived(
+    selectedCatalogEntry?.options?.some((opt: any) => opt.type === 1 || opt.type === 2) ?? false
+  );
+
+  function getOptionTypeLabel(type: number): string {
+    switch (type) {
+      case 1: return 'Sous-commande';
+      case 2: return 'Groupe';
+      case 3: return 'Texte';
+      case 4: return 'Nombre entier';
+      case 5: return 'Vrai/Faux';
+      case 6: return 'Membre';
+      case 7: return 'Salon';
+      case 8: return 'Rôle';
+      case 9: return 'Mention';
+      case 10: return 'Nombre';
+      case 11: return 'Fichier';
+      default: return 'Option';
+    }
+  }
+
+  function getOptionTypeBadgeClass(type: number): string {
+    switch (type) {
+      case 1: return 'badge-warning';
+      case 3: return 'badge-info';
+      case 4: return 'badge-info';
+      case 5: return 'badge-warning';
+      case 6: return 'badge-success';
+      case 7: return 'badge-info';
+      case 8: return 'badge-info';
+      case 9: return 'badge-info';
+      case 10: return 'badge-info';
+      case 11: return 'badge-neutral';
+      default: return 'badge-neutral';
+    }
+  }
+
+  function buildCommandSignature(cmdName: string, subName?: string, options?: any[]): string {
+    let parts = [`/${cmdName}`];
+    if (subName) parts.push(subName);
+    
+    if (options) {
+      for (const opt of options) {
+        if (opt.type === 1 || opt.type === 2) continue;
+        if (opt.required) {
+          parts.push(`<${opt.name}>`);
+        } else {
+          parts.push(`[${opt.name}]`);
+        }
+      }
+    }
+    return parts.join(' ');
+  }
 </script>
 
-<div class="relative overflow-hidden rounded-xl border border-primary/10 bg-linear-to-br from-primary/10 via-white to-sky-100/70 dark:from-primary/20 dark:via-slate-900 dark:to-slate-800 p-5 mb-6 font-inter">
-  <div class="relative z-10 flex flex-wrap items-center justify-between gap-4">
-    <div class="flex items-center gap-4">
-      <div class="bg-primary/10 p-2 rounded-xl text-primary">
-        <Papicon icon="Lock" size={20} />
+<!-- ═══════════ HEADER ═══════════ -->
+<div class="flex flex-col gap-8 animate-in fade-in slide-up duration-500">
+
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden group">
+    <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/8 rounded-full blur-[60px] group-hover:bg-primary/15 transition-all duration-700"></div>
+
+    <div class="flex items-center gap-4 relative">
+      <div class="w-11 h-11 bg-linear-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-md shadow-primary/15">
+        <Papicon icon="terminal" size={22} class="text-white" />
       </div>
       <div>
-        <span class="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Centre de permissions</span>
-        <h2 class="text-lg font-extrabold text-primary tracking-tight font-headline">Gestion des commandes</h2>
-        <p class="text-sm text-on-surface-variant/70 max-w-xl">Configurez qui peut exécuter chaque commande, où et avec quels rôles.</p>
+        <h1 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">Commandes</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Gérez les permissions d'accès et consultez la structure de vos commandes.</p>
       </div>
     </div>
-    <div class="flex flex-wrap gap-2">
-      <div class="rounded-lg border border-primary/20 bg-white/80 dark:bg-slate-900/80 px-3 py-2">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Commandes</p>
-        <p class="text-lg font-semibold text-on-surface">{commandCatalog.length}</p>
+
+    <div class="flex items-center gap-3 relative">
+      <div class="stat-kpi flex items-center gap-2.5 !py-1.5 !px-3">
+        <Papicon icon="Code" size={14} class="text-on-surface-variant" />
+        <div class="flex flex-col">
+          <span class="section-label !text-[9px]">Commandes</span>
+          <span class="text-sm font-semibold text-on-surface">{commandCatalog.length}</span>
+        </div>
       </div>
-      <div class="rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-2">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Règles</p>
-        <p class="text-lg font-semibold text-emerald-800 dark:text-emerald-200">{activeRestrictionCount}</p>
+      <div class="stat-kpi flex items-center gap-2.5 !py-1.5 !px-3 !border-primary/20">
+        <Papicon icon="Lock" size={14} class="text-primary" />
+        <div class="flex flex-col">
+          <span class="section-label !text-[9px] !text-primary/70">Restrictions</span>
+          <span class="text-sm font-semibold text-primary">{activeRestrictionCount}</span>
+        </div>
       </div>
     </div>
-  </div>
-</div>
+  </header>
 
-<div class="grid grid-cols-12 gap-8 font-inter">
-  <div class="col-span-12 xl:col-span-4 space-y-6">
-    <div class="section-card p-6">
-      <div class="flex items-center justify-between gap-3 mb-4">
-        <h3 class="text-xl font-bold font-headline flex items-center gap-3">
-          <Papicon icon="segment" size={20} class="text-primary" />
-          Catalogue des commandes
-        </h3>
-        <span class="text-[10px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-on-surface-variant">{filteredCommandCatalog.length}</span>
+  <!-- ═══════════ MAIN LAYOUT ═══════════ -->
+  <div class="grid grid-cols-12 gap-6">
+
+    <!-- ─── Left Column: Categories + Command List ─── -->
+    <div class="col-span-12 xl:col-span-4 flex flex-col gap-4">
+
+      <!-- Category filters -->
+      <div class="section-card p-4">
+        <p class="section-label mb-3 px-1">Catégories</p>
+        <div class="flex flex-col gap-0.5">
+          {#each categories as cat}
+            <button
+              type="button"
+              onclick={() => { catalogFilter = cat.id; }}
+              class="cmd-cat-btn {catalogFilter === cat.id ? 'cmd-cat-btn--active' : ''}"
+            >
+              <span class="flex items-center gap-2.5">
+                <Papicon icon={cat.icon} size={15} class="{catalogFilter === cat.id ? 'text-on-primary' : 'text-on-surface-variant'}" />
+                <span>{cat.name}</span>
+              </span>
+              <span class="cmd-cat-count {catalogFilter === cat.id ? 'cmd-cat-count--active' : ''}">
+                {categoryCounts[cat.id] || 0}
+              </span>
+            </button>
+          {/each}
+
+          <div class="h-px bg-outline-variant/40 my-2"></div>
+
+          <button
+            type="button"
+            onclick={() => { catalogFilter = 'active'; }}
+            class="cmd-cat-btn {catalogFilter === 'active' ? 'cmd-cat-btn--active' : ''}"
+          >
+            <span class="flex items-center gap-2.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 {catalogFilter === 'active' ? '' : 'opacity-60'}"></span>
+              <span>Avec restrictions</span>
+            </span>
+            <span class="cmd-cat-count {catalogFilter === 'active' ? 'cmd-cat-count--active' : ''}">
+              {categoryCounts.active}
+            </span>
+          </button>
+          <button
+            type="button"
+            onclick={() => { catalogFilter = 'no-rules'; }}
+            class="cmd-cat-btn {catalogFilter === 'no-rules' ? 'cmd-cat-btn--active' : ''}"
+          >
+            <span class="flex items-center gap-2.5">
+              <span class="w-2 h-2 rounded-full bg-on-surface-variant/30"></span>
+              <span>Sans restriction</span>
+            </span>
+            <span class="cmd-cat-count {catalogFilter === 'no-rules' ? 'cmd-cat-count--active' : ''}">
+              {categoryCounts['no-rules']}
+            </span>
+          </button>
+        </div>
       </div>
 
-      <div class="mb-4">
-        <label class="sr-only" for="command-search">Rechercher une commande</label>
+      <!-- Search + Command list -->
+      <div class="section-card p-4 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <p class="section-label px-1">Commandes</p>
+          <span class="badge badge-neutral text-[10px]">{filteredCommandCatalog.length}</span>
+        </div>
+
+        <!-- Search input -->
         <div class="relative">
-          <Papicon icon="search" size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+          <Papicon icon="Search" size={15} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
           <input
             id="command-search"
             type="text"
             bind:value={commandSearch}
-            placeholder="Rechercher : nom, label ou description"
-            class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/25"
+            placeholder="Rechercher une commande..."
+            class="cmd-search-input"
           />
-        </div>
-      </div>
-
-      <div class="mb-5 flex flex-wrap gap-2">
-        <button type="button" onclick={() => { catalogFilter = 'all'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'all' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Toutes</button>
-        <button type="button" onclick={() => { catalogFilter = 'active'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'active' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Règles actives</button>
-        <button type="button" onclick={() => { catalogFilter = 'no-rules'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'no-rules' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Sans règle</button>
-        <button type="button" onclick={() => { catalogFilter = 'administration'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'administration' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Admin</button>
-        <button type="button" onclick={() => { catalogFilter = 'modération'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'modération' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Modération</button>
-        <button type="button" onclick={() => { catalogFilter = 'public'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'public' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Ouvertes</button>
-      </div>
-
-      <div class="space-y-2 max-h-[66vh] overflow-y-auto pr-1">
-        {#if filteredCommandCatalog.length === 0}
-          <div class="p-4 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-sm text-on-surface-variant">
-            Aucune commande ne correspond à votre recherche.
-          </div>
-        {:else}
-          {#each filteredCommandCatalog as command}
+          {#if commandSearch}
             <button
               type="button"
-              onclick={() => selectCommand(command.name)}
-              class="w-full text-left p-4 rounded-lg border transition-all duration-200 {selectedCommandName === command.name ? 'border-primary bg-primary/5 shadow-sm' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5'}"
+              onclick={() => { commandSearch = ''; }}
+              aria-label="Effacer"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40 hover:text-on-surface transition-colors"
             >
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <p class="font-semibold text-slate-800 dark:text-slate-100">/{command.name}</p>
-                  <p class="text-xs text-on-surface-variant mt-1">{command.label}</p>
+              <Papicon icon="x" size={14} />
+            </button>
+          {/if}
+        </div>
+
+        <!-- Command list -->
+        <div class="cmd-list custom-scrollbar">
+          {#if filteredCommandCatalog.length === 0}
+            <div class="flex flex-col items-center justify-center py-10 text-center">
+              <Papicon icon="Search" size={28} class="text-on-surface-variant/30 mb-2" />
+              <p class="text-sm text-on-surface-variant/60">Aucune commande trouvée</p>
+            </div>
+          {:else}
+            {#each filteredCommandCatalog as command}
+              <button
+                type="button"
+                onclick={() => selectCommand(command.name)}
+                class="cmd-item {selectedCommandName === command.name ? 'cmd-item--selected' : ''}"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="cmd-item-name">
+                    <span class="text-primary">/</span>{command.name}
+                  </p>
+                  <p class="cmd-item-desc">{command.description || command.label || ''}</p>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5 shrink-0">
                   {#if hasRestriction(command.name)}
-                    <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full bg-primary/10 text-primary">Actif</span>
+                    {@const rc = getRestrictionCounts(command.name)}
+                    <span class="badge badge-success !text-[9px] !gap-1 !px-1.5">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      {rc?.total}
+                    </span>
                   {/if}
-                  <span class="text-[10px] font-semibold uppercase tracking-[0.18em] px-2 py-1 rounded-full {defaultAccessClasses(command.defaultAccess)}">
+                  <span class="badge {defaultAccessBadgeClass(command.defaultAccess)} !text-[9px]">
                     {defaultAccessLabel(command.defaultAccess)}
                   </span>
                 </div>
-              </div>
-            </button>
-          {/each}
-        {/if}
-      </div>
-    </div>
-  </div>
-
-  <div class="col-span-12 xl:col-span-8 space-y-8">
-    <div class="section-card p-8">
-      <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
-        <div>
-          <h3 class="text-2xl font-semibold font-headline">{selectedCatalogEntry ? `/${selectedCatalogEntry.name}` : 'Sélectionnez une commande'}</h3>
-          <p class="text-on-surface-variant mt-1">{selectedCatalogEntry?.description || 'Choisissez une commande dans la colonne de gauche.'}</p>
-        </div>
-        <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
-          <span class="px-3 py-1 rounded-full {hasSelectedRestriction ? 'bg-primary/10 text-primary' : 'bg-slate-100 dark:bg-slate-800'}">{hasSelectedRestriction ? 'Règles actives' : 'Aucune règle'}</span>
-          {#if selectedCatalogEntry}
-            <span class="px-3 py-1 rounded-full {defaultAccessClasses(selectedCatalogEntry.defaultAccess)}">{defaultAccessLabel(selectedCatalogEntry.defaultAccess)}</span>
+              </button>
+            {/each}
           {/if}
         </div>
       </div>
+    </div>
 
-      <div class="mb-6 grid grid-cols-1 md:grid-cols-6 gap-3">
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Salons autorisés</p>
-          <p class="mt-1 text-xl font-semibold">{commandDraft.allowedChannelIds.length}</p>
+    <!-- ─── Right Column: Details ─── -->
+    <div class="col-span-12 xl:col-span-8">
+      {#if !selectedCommandName || !selectedCatalogEntry}
+        <!-- Empty state -->
+        <div class="section-card flex flex-col items-center justify-center min-h-[55vh] text-center p-8">
+          <div class="w-14 h-14 rounded-xl bg-surface-container flex items-center justify-center mb-4">
+            <Papicon icon="terminal" size={28} class="text-on-surface-variant/40" />
+          </div>
+          <h4 class="text-base font-semibold text-on-surface">Sélectionnez une commande</h4>
+          <p class="text-sm text-on-surface-variant/60 mt-1.5 max-w-xs">Choisissez une commande dans la liste pour afficher sa documentation et configurer ses permissions d'accès.</p>
         </div>
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Salons interdits</p>
-          <p class="mt-1 text-xl font-semibold">{commandDraft.blockedChannelIds.length}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Rôles autorisés</p>
-          <p class="mt-1 text-xl font-semibold">{commandDraft.allowedRoleIds.length}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Rôles interdits</p>
-          <p class="mt-1 text-xl font-semibold">{commandDraft.blockedRoleIds.length}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Utilisateurs autorisés</p>
-          <p class="mt-1 text-xl font-semibold">{commandDraft.allowedUserIds.length}</p>
-        </div>
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Utilisateurs interdits</p>
-          <p class="mt-1 text-xl font-semibold">{commandDraft.blockedUserIds.length}</p>
-        </div>
-      </div>
+      {:else}
+        <div class="section-card p-5 xl:p-6 flex flex-col gap-5">
 
-      {#if hasConflicts}
-        <div class="mb-6 rounded-lg border border-amber-300/70 bg-amber-500/10 p-4 text-sm">
-          <p class="font-bold text-amber-800 dark:text-amber-200">Conflit détecté</p>
-          <p class="text-amber-700 dark:text-amber-300 mt-1">Des éléments sont à la fois autorisés et interdits ({channelConflicts.length} salon(s), {roleConflicts.length} rôle(s), {userConflicts.length} utilisateur(s)).</p>
-          <button
-            type="button"
-            onclick={resolveDraftConflicts}
-            disabled={!canManageSettings || !selectedCommandName}
-            class="mt-3 px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-semibold uppercase tracking-[0.14em] disabled:opacity-50"
-          >
-            Résoudre automatiquement
-          </button>
-        </div>
-      {/if}
-
-      <div class="mb-5 flex flex-wrap items-center gap-2 border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-800/60">
-        <span class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant mr-2">Actions rapides</span>
-        <button
-          type="button"
-          onclick={clearChannels}
-          disabled={!canManageSettings || !selectedCommandName}
-          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
-        >
-          Vider les salons
-        </button>
-        <button
-          type="button"
-          onclick={clearRoles}
-          disabled={!canManageSettings || !selectedCommandName}
-          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
-        >
-          Vider les rôles
-        </button>
-        <button
-          type="button"
-          onclick={clearUsers}
-          disabled={!canManageSettings || !selectedCommandName}
-          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
-        >
-          Vider les utilisateurs
-        </button>
-        <button
-          type="button"
-          onclick={clearAllRules}
-          disabled={!canManageSettings || !selectedCommandName}
-          class="px-3 py-1.5 rounded-xl border border-rose-300/70 text-rose-700 dark:text-rose-300 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-rose-500/10 disabled:opacity-50"
-        >
-          Supprimer toutes les règles
-        </button>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mode salons</p>
-            <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
-              <button type="button" onclick={() => setChannelMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {channelMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
-              <button type="button" onclick={() => setChannelMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {channelMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
-              <button type="button" onclick={() => setChannelMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {channelMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
+          <!-- Command header -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-outline-variant/40">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2.5 flex-wrap">
+                <h2 class="text-xl font-bold tracking-tight text-on-surface font-headline">
+                  <span class="text-primary">/</span>{selectedCatalogEntry.name}
+                </h2>
+                {#if selectedCatalogEntry.category}
+                  <span class="badge badge-neutral !text-[9px]">{selectedCatalogEntry.category}</span>
+                {/if}
+              </div>
+              <p class="text-sm text-on-surface-variant/70 mt-1">{selectedCatalogEntry.description || 'Aucune description disponible.'}</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              {#if hasSelectedRestriction}
+                <span class="badge badge-success !text-[9px] !font-semibold">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Filtres actifs
+                </span>
+              {/if}
+              <span class="badge {defaultAccessBadgeClass(selectedCatalogEntry.defaultAccess)} !text-[9px] !font-semibold">
+                {defaultAccessLabel(selectedCatalogEntry.defaultAccess)}
+              </span>
             </div>
           </div>
 
-          <AccessEntitySelector
-            id="channels-selector"
-            options={channelOptions}
-            selectedIds={selectedChannelIds}
-            disabled={channelSelectionDisabled}
-            placeholder={channelMode === 'neutral' ? 'Mode vide: commande autorisée dans tous les salons' : channelMode === 'allowedOnly' ? 'Sélectionner les salons autorisés' : 'Sélectionner les salons interdits'}
-            onToggle={toggleChannelSelection}
-          />
-
-          <p class="text-xs text-on-surface-variant">
-            {#if channelMode === 'neutral'}
-              Aucun filtrage de salon: la commande reste disponible partout.
-            {:else if channelMode === 'allowedOnly'}
-              Seuls les salons sélectionnés peuvent exécuter cette commande.
-            {:else}
-              Les salons sélectionnés sont bloqués pour cette commande.
-            {/if}
-          </p>
-        </div>
-
-        <div class="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mode rôles</p>
-            <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
-              <button type="button" onclick={() => setRoleMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {roleMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
-              <button type="button" onclick={() => setRoleMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {roleMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
-              <button type="button" onclick={() => setRoleMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {roleMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
-            </div>
+          <!-- Tab navigation -->
+          <div class="tab-group self-start">
+            <button
+              type="button"
+              onclick={() => activeTab = 'doc'}
+              class="tab-button {activeTab === 'doc' ? 'active' : ''}"
+            >
+              <Papicon icon="Paper" size={14} />
+              Structure
+            </button>
+            <button
+              type="button"
+              onclick={() => activeTab = 'permissions'}
+              class="tab-button {activeTab === 'permissions' ? 'active' : ''}"
+            >
+              <Papicon icon="Lock" size={14} />
+              Permissions
+              {#if hasSelectedRestriction}
+                <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+              {/if}
+            </button>
           </div>
 
-          <AccessEntitySelector
-            id="roles-selector"
-            options={roleOptions}
-            selectedIds={selectedRoleIds}
-            disabled={roleSelectionDisabled}
-            placeholder={roleMode === 'neutral' ? 'Mode vide: commande autorisée pour tous les rôles' : roleMode === 'allowedOnly' ? 'Sélectionner les rôles autorisés' : 'Sélectionner les rôles interdits'}
-            onToggle={toggleRoleSelection}
-          />
+          <!-- ═══ Tab: Structure / Documentation ═══ -->
+          {#if activeTab === 'doc'}
+            <div class="flex flex-col gap-4 animate-in fade-in slide-up duration-300">
 
-          <p class="text-xs text-on-surface-variant">
-            {#if roleMode === 'neutral'}
-              Aucun filtrage de rôle: la commande n’est pas restreinte par rôle.
-            {:else if roleMode === 'allowedOnly'}
-              Un des rôles sélectionnés doit être présent pour exécuter la commande.
-            {:else}
-              Les rôles sélectionnés ne peuvent pas exécuter la commande.
-            {/if}
-          </p>
-        </div>
+              <!-- Discord-style command preview -->
+              <div class="cmd-discord-preview">
+                <div class="flex items-start gap-3">
+                  <div class="w-9 h-9 rounded-full shrink-0 bg-gradient-to-tr from-primary to-secondary flex items-center justify-center text-white font-bold text-sm select-none">K</div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-semibold text-sm text-[#f2f3f5]">Kotbo</span>
+                      <span class="inline-flex items-center gap-0.5 text-[9px] font-bold px-1 py-px rounded bg-[#5865F2] text-white uppercase leading-none">Bot</span>
+                      <span class="text-[10px] text-[#949ba4] ml-1">Maintenant</span>
+                    </div>
+                    <div class="mt-1.5 space-y-1">
+                      {#if hasSubcommands}
+                        {#each selectedCatalogEntry.options.filter((opt: any) => opt.type === 1 || opt.type === 2) as sub}
+                          <div class="cmd-discord-sig">{buildCommandSignature(selectedCatalogEntry.name, sub.name, sub.options)}</div>
+                        {/each}
+                      {:else}
+                        <div class="cmd-discord-sig">{buildCommandSignature(selectedCatalogEntry.name, undefined, selectedCatalogEntry.options)}</div>
+                      {/if}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-        <div class="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mode utilisateurs</p>
-            <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
-              <button type="button" onclick={() => setUserMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {userMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
-              <button type="button" onclick={() => setUserMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {userMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
-              <button type="button" onclick={() => setUserMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {userMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
-            </div>
-          </div>
+              <!-- Subcommands accordion or direct params -->
+              {#if hasSubcommands}
+                <div class="flex flex-col gap-2">
+                  <p class="section-label px-1">Sous-commandes</p>
+                  {#each selectedCatalogEntry.options.filter((opt: any) => opt.type === 1 || opt.type === 2) as sub}
+                    <div class="cmd-accordion section-card !rounded-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onclick={() => toggleSubExpand(sub.name)}
+                        class="cmd-accordion-header"
+                      >
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <span class="badge badge-warning !text-[9px]">Sub</span>
+                          <span class="font-mono text-sm font-semibold text-on-surface">/{selectedCatalogEntry.name} {sub.name}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          {#if sub.options && sub.options.length > 0}
+                            <span class="badge badge-neutral !text-[9px]">{sub.options.length} param.</span>
+                          {/if}
+                          <Papicon
+                            icon="ChevronDown"
+                            size={16}
+                            class="text-on-surface-variant/50 transition-transform duration-200 {expandedSubs.has(sub.name) ? 'rotate-180' : ''}"
+                          />
+                        </div>
+                      </button>
 
-          <div class="space-y-2">
-            <div class="flex items-center gap-2">
-              <input
-                type="text"
-                bind:value={userIdInput}
-                placeholder="ID Discord"
-                disabled={userSelectionDisabled}
-                class="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/25 disabled:opacity-60"
-              />
-              <button
-                type="button"
-                onclick={addUserId}
-                disabled={userSelectionDisabled}
-                class="px-3 py-2 rounded-xl bg-primary text-white text-[10px] font-semibold uppercase tracking-wide disabled:opacity-50"
-              >
-                Ajouter
-              </button>
-            </div>
-
-            <div class="max-h-32 overflow-y-auto space-y-2 pr-1">
-              {#if selectedUserIds.length === 0}
-                <div class="text-[11px] text-on-surface-variant/60">
-                  {userMode === 'neutral'
-                    ? 'Mode vide: aucun filtrage par utilisateur.'
-                    : userMode === 'allowedOnly'
-                      ? 'Ajoutez les utilisateurs autorisés.'
-                      : 'Ajoutez les utilisateurs interdits.'}
+                      {#if expandedSubs.has(sub.name)}
+                        <div class="cmd-accordion-body animate-in fade-in slide-up duration-200">
+                          <p class="text-xs text-on-surface-variant mb-3">{sub.description || 'Aucune description fournie.'}</p>
+                          
+                          {#if sub.options && sub.options.length > 0}
+                            <table class="data-table">
+                              <thead>
+                                <tr>
+                                  <th>Paramètre</th>
+                                  <th>Type</th>
+                                  <th>Statut</th>
+                                  <th>Description</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {#each sub.options as opt}
+                                  <tr>
+                                    <td class="font-mono font-semibold text-on-surface">{opt.name}</td>
+                                    <td><span class="badge {getOptionTypeBadgeClass(opt.type)} !text-[9px]">{getOptionTypeLabel(opt.type)}</span></td>
+                                    <td>
+                                      {#if opt.required}
+                                        <span class="text-error font-semibold text-xs">Requis</span>
+                                      {:else}
+                                        <span class="text-on-surface-variant/50 text-xs">Optionnel</span>
+                                      {/if}
+                                    </td>
+                                    <td class="text-on-surface-variant text-xs">{opt.description || '—'}</td>
+                                  </tr>
+                                {/each}
+                              </tbody>
+                            </table>
+                          {:else}
+                            <p class="text-xs text-on-surface-variant/50 italic">Aucun paramètre.</p>
+                          {/if}
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {:else if selectedCatalogEntry.options && selectedCatalogEntry.options.length > 0}
+                <div class="flex flex-col gap-2">
+                  <p class="section-label px-1">Paramètres</p>
+                  <div class="section-card !rounded-lg overflow-hidden">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Paramètre</th>
+                          <th>Type</th>
+                          <th>Statut</th>
+                          <th>Description</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {#each selectedCatalogEntry.options as opt}
+                          <tr>
+                            <td class="font-mono font-semibold text-on-surface">{opt.name}</td>
+                            <td><span class="badge {getOptionTypeBadgeClass(opt.type)} !text-[9px]">{getOptionTypeLabel(opt.type)}</span></td>
+                            <td>
+                              {#if opt.required}
+                                <span class="text-error font-semibold text-xs">Requis</span>
+                              {:else}
+                                <span class="text-on-surface-variant/50 text-xs">Optionnel</span>
+                              {/if}
+                            </td>
+                            <td class="text-on-surface-variant text-xs">{opt.description || '—'}</td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               {:else}
-                {#each selectedUserIds as userId}
-                  <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/70 px-2.5 py-1.5">
-                    <span class="text-[11px] font-semibold text-on-surface">{userId}</span>
-                    <button
-                      type="button"
-                      onclick={() => removeUserId(userId)}
-                      disabled={userSelectionDisabled}
-                      class="text-[10px] font-semibold uppercase tracking-wide text-rose-500 disabled:opacity-50"
-                    >
-                      Retirer
-                    </button>
-                  </div>
-                {/each}
+                <div class="section-card !rounded-lg flex items-center justify-center p-8 text-center">
+                  <p class="text-sm text-on-surface-variant/50 italic">Cette commande ne possède aucun paramètre ni sous-commande.</p>
+                </div>
               {/if}
             </div>
+
+          {:else}
+            <!-- ═══ Tab: Permissions ═══ -->
+            <div class="flex flex-col gap-4 animate-in fade-in slide-up duration-300">
+
+              {#if hasConflicts}
+                <div class="cmd-conflict-banner">
+                  <Papicon icon="alert-triangle" size={18} class="text-amber-500 shrink-0 mt-0.5" />
+                  <div class="flex-1">
+                    <p class="font-semibold text-sm text-on-surface">Conflits détectés</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Certains éléments sont simultanément autorisés et bloqués.</p>
+                    <button
+                      type="button"
+                      onclick={resolveDraftConflicts}
+                      disabled={!canManageSettings || !selectedCommandName}
+                      class="mt-2 px-3 py-1 rounded-md bg-amber-600 text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-amber-700 transition-colors disabled:opacity-50"
+                    >
+                      Résoudre automatiquement
+                    </button>
+                  </div>
+                </div>
+              {/if}
+
+              <!-- Quick actions bar -->
+              <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-lg bg-surface-container/60 border border-outline-variant/30">
+                <span class="section-label">Actions rapides</span>
+                <div class="flex flex-wrap gap-1.5">
+                  <button type="button" onclick={clearChannels} disabled={!canManageSettings} class="cmd-quick-btn">Vider salons</button>
+                  <button type="button" onclick={clearRoles} disabled={!canManageSettings} class="cmd-quick-btn">Vider rôles</button>
+                  <button type="button" onclick={clearUsers} disabled={!canManageSettings} class="cmd-quick-btn">Vider membres</button>
+                  <button type="button" onclick={clearAllRules} disabled={!canManageSettings} class="cmd-quick-btn cmd-quick-btn--danger">Tout supprimer</button>
+                </div>
+              </div>
+
+              <!-- Permission sections grid -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                <!-- Channels section -->
+                <div class="cmd-perm-section">
+                  <div class="flex items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-2">
+                      <Papicon icon="TextBubble" size={14} class="text-on-surface-variant/60" />
+                      <span class="section-label">Salons</span>
+                    </div>
+                    <div class="tab-group !p-0.5 !gap-px">
+                      <button type="button" onclick={() => setChannelMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {channelMode === 'neutral' ? 'active' : ''}">Tous</button>
+                      <button type="button" onclick={() => setChannelMode('allowedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-allow {channelMode === 'allowedOnly' ? 'active cmd-mode-allow--active' : ''}">✓</button>
+                      <button type="button" onclick={() => setChannelMode('blockedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-block {channelMode === 'blockedOnly' ? 'active cmd-mode-block--active' : ''}">✕</button>
+                    </div>
+                  </div>
+
+                  <AccessEntitySelector
+                    id="channels-selector"
+                    options={channelOptions}
+                    selectedIds={selectedChannelIds}
+                    disabled={channelSelectionDisabled}
+                    placeholder={channelMode === 'neutral' ? 'Tous les salons' : channelMode === 'allowedOnly' ? 'Salons autorisés...' : 'Salons bloqués...'}
+                    onToggle={toggleChannelSelection}
+                  />
+
+                  <p class="text-[11px] text-on-surface-variant/50 mt-2 leading-relaxed">
+                    {#if channelMode === 'neutral'}
+                      Exécutable partout.
+                    {:else}
+                      {channelMode === 'allowedOnly' ? 'Limitée aux' : 'Interdite dans les'} salons configurés.
+                    {/if}
+                  </p>
+                </div>
+
+                <!-- Roles section -->
+                <div class="cmd-perm-section">
+                  <div class="flex items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-2">
+                      <Papicon icon="User" size={14} class="text-on-surface-variant/60" />
+                      <span class="section-label">Rôles</span>
+                    </div>
+                    <div class="tab-group !p-0.5 !gap-px">
+                      <button type="button" onclick={() => setRoleMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {roleMode === 'neutral' ? 'active' : ''}">Tous</button>
+                      <button type="button" onclick={() => setRoleMode('allowedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-allow {roleMode === 'allowedOnly' ? 'active cmd-mode-allow--active' : ''}">✓</button>
+                      <button type="button" onclick={() => setRoleMode('blockedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-block {roleMode === 'blockedOnly' ? 'active cmd-mode-block--active' : ''}">✕</button>
+                    </div>
+                  </div>
+
+                  <AccessEntitySelector
+                    id="roles-selector"
+                    options={roleOptions}
+                    selectedIds={selectedRoleIds}
+                    disabled={roleSelectionDisabled}
+                    placeholder={roleMode === 'neutral' ? 'Tous les rôles' : roleMode === 'allowedOnly' ? 'Rôles autorisés...' : 'Rôles bloqués...'}
+                    onToggle={toggleRoleSelection}
+                  />
+
+                  <p class="text-[11px] text-on-surface-variant/50 mt-2 leading-relaxed">
+                    {#if roleMode === 'neutral'}
+                      Accessible à tous.
+                    {:else}
+                      Rôles {roleMode === 'allowedOnly' ? 'autorisés' : 'bloqués'} : {selectedRoleIds.length}.
+                    {/if}
+                  </p>
+                </div>
+
+                <!-- Members section -->
+                <div class="cmd-perm-section">
+                  <div class="flex items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-2">
+                      <Papicon icon="user" size={14} class="text-on-surface-variant/60" />
+                      <span class="section-label">Membres</span>
+                    </div>
+                    <div class="tab-group !p-0.5 !gap-px">
+                      <button type="button" onclick={() => setUserMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {userMode === 'neutral' ? 'active' : ''}">Tous</button>
+                      <button type="button" onclick={() => setUserMode('allowedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-allow {userMode === 'allowedOnly' ? 'active cmd-mode-allow--active' : ''}">✓</button>
+                      <button type="button" onclick={() => setUserMode('blockedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-block {userMode === 'blockedOnly' ? 'active cmd-mode-block--active' : ''}">✕</button>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        bind:value={userIdInput}
+                        placeholder="ID Discord..."
+                        disabled={userSelectionDisabled}
+                        class="cmd-user-input"
+                      />
+                      <button
+                        type="button"
+                        onclick={addUserId}
+                        disabled={userSelectionDisabled || !userIdInput.trim()}
+                        class="cmd-user-add-btn"
+                      >
+                        <Papicon icon="Plus" size={14} />
+                      </button>
+                    </div>
+
+                    <div class="max-h-24 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar">
+                      {#if selectedUserIds.length === 0}
+                        <p class="text-[10px] text-on-surface-variant/40 italic py-1.5">
+                          {userMode === 'neutral' ? 'Aucune restriction.' : 'Aucun membre configuré.'}
+                        </p>
+                      {:else}
+                        {#each selectedUserIds as uId}
+                          <div class="cmd-user-chip">
+                            <span class="font-mono text-[11px] text-on-surface/80">{uId}</span>
+                            <button
+                              type="button"
+                              onclick={() => removeUserId(uId)}
+                              disabled={userSelectionDisabled}
+                              class="text-error/60 hover:text-error transition-colors disabled:opacity-50"
+                            >
+                              <Papicon icon="x" size={12} />
+                            </button>
+                          </div>
+                        {/each}
+                      {/if}
+                    </div>
+                  </div>
+
+                  <p class="text-[11px] text-on-surface-variant/50 mt-2 leading-relaxed">
+                    {#if userMode === 'neutral'}
+                      Aucun ciblage individuel.
+                    {:else}
+                      Membres {userMode === 'allowedOnly' ? 'autorisés' : 'bloqués'} : {selectedUserIds.length}.
+                    {/if}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Rule summary -->
+              <div class="glass-panel rounded-lg p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <Papicon icon="Paper" size={14} class="text-primary" />
+                  <span class="text-xs font-semibold text-on-surface">Résumé de la règle</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] text-on-surface-variant">
+                  <div>
+                    <span class="font-semibold text-on-surface/80">Salons :</span>
+                    {#if channelMode === 'neutral'}
+                      Tous
+                    {:else}
+                      {channelMode === 'allowedOnly' ? 'Uniquement' : 'Bloqués :'} {selectedChannelIds.length}
+                    {/if}
+                  </div>
+                  <div>
+                    <span class="font-semibold text-on-surface/80">Rôles :</span>
+                    {#if roleMode === 'neutral'}
+                      Tous
+                    {:else}
+                      {roleMode === 'allowedOnly' ? 'Uniquement' : 'Bloqués :'} {selectedRoleIds.length}
+                    {/if}
+                  </div>
+                  <div>
+                    <span class="font-semibold text-on-surface/80">Membres :</span>
+                    {#if userMode === 'neutral'}
+                      Tous
+                    {:else}
+                      {userMode === 'allowedOnly' ? 'Uniquement' : 'Bloqués :'} {selectedUserIds.length}
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Footer feedback -->
+          <div class="flex items-center justify-between gap-3 pt-4 border-t border-outline-variant/30">
+            <InlineFeedback
+              message={saveAction.state.message}
+              error={saveAction.state.error}
+              idleText="Les modifications sont appliquées après enregistrement."
+            />
           </div>
-
-          <p class="text-xs text-on-surface-variant">
-            {#if userMode === 'neutral'}
-              Aucun filtrage utilisateur: la commande est ouverte pour tous.
-            {:else if userMode === 'allowedOnly'}
-              Seuls les utilisateurs listés peuvent exécuter la commande.
-            {:else}
-              Les utilisateurs listés ne peuvent pas exécuter la commande.
-            {/if}
-          </p>
         </div>
-      </div>
-
-      <div class="mt-8 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-sm text-on-surface-variant">
-        <p class="font-bold text-on-surface mb-2">Résumé de la règle en cours</p>
-        <p>Salons autorisés : {commandDraft.allowedChannelIds.length || 'aucun'} · Salons interdits : {commandDraft.blockedChannelIds.length || 'aucun'} · Rôles autorisés : {commandDraft.allowedRoleIds.length || 'aucun'} · Rôles interdits : {commandDraft.blockedRoleIds.length || 'aucun'} · Utilisateurs autorisés : {commandDraft.allowedUserIds.length || 'aucun'} · Utilisateurs interdits : {commandDraft.blockedUserIds.length || 'aucun'}</p>
-      </div>
-
-      <div class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800 pt-6">
-        <InlineFeedback
-          message={saveAction.state.message}
-          error={saveAction.state.error}
-          idleText="Les modifications ne sont appliquées qu’après enregistrement."
-        />
-      </div>
+      {/if}
     </div>
   </div>
 </div>
+
+<style>
+  /* ─── Custom scrollbar ─── */
+  .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--outline-variant); border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--outline); }
+
+  /* ─── Category button ─── */
+  .cmd-cat-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--on-surface-variant);
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    text-align: left;
+  }
+  .cmd-cat-btn:hover {
+    background: var(--surface-hover);
+    color: var(--on-surface);
+  }
+  .cmd-cat-btn--active {
+    background: var(--color-primary) !important;
+    color: var(--on-primary-color) !important;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  .cmd-cat-count {
+    font-size: 0.625rem;
+    font-weight: 600;
+    padding: 0.125rem 0.375rem;
+    border-radius: 9999px;
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+  }
+  .cmd-cat-count--active {
+    background: rgba(255, 255, 255, 0.2) !important;
+    color: var(--on-primary-color) !important;
+  }
+
+  /* ─── Search input ─── */
+  .cmd-search-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+    font-size: 0.8125rem;
+    color: var(--on-surface);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .cmd-search-input::placeholder {
+    color: var(--on-surface-variant);
+    opacity: 0.5;
+  }
+  .cmd-search-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+  }
+
+  /* ─── Command list ─── */
+  .cmd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  /* ─── Command item ─── */
+  .cmd-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .cmd-item:hover {
+    background: var(--surface-hover);
+    border-color: var(--outline-variant);
+  }
+  .cmd-item--selected {
+    background: var(--surface-selection) !important;
+    border-color: var(--color-primary) !important;
+    box-shadow: 0 0 0 1px var(--color-primary);
+  }
+  .cmd-item-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--on-surface);
+    white-space: nowrap;
+  }
+  .cmd-item-desc {
+    font-size: 0.6875rem;
+    color: var(--on-surface-variant);
+    opacity: 0.7;
+    margin-top: 0.125rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+  }
+
+  /* ─── Discord preview ─── */
+  .cmd-discord-preview {
+    background: #313338;
+    border-radius: 0.625rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+  }
+  .cmd-discord-sig {
+    background: #2b2d31;
+    padding: 0.375rem 0.625rem;
+    border-radius: 0.375rem;
+    border: 1px solid #1e1f22;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8125rem;
+    color: #00b0f4;
+    line-height: 1.4;
+    word-break: break-all;
+  }
+
+  /* ─── Accordion ─── */
+  .cmd-accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    text-align: left;
+    gap: 0.5rem;
+  }
+  .cmd-accordion-header:hover {
+    background: var(--surface-hover);
+  }
+  .cmd-accordion-body {
+    padding: 0 1rem 1rem;
+  }
+
+  /* ─── Conflict banner ─── */
+  .cmd-conflict-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    background: rgba(245, 158, 11, 0.06);
+  }
+
+  /* ─── Quick action button ─── */
+  .cmd-quick-btn {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--outline-variant);
+    background: transparent;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--on-surface-variant);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .cmd-quick-btn:hover {
+    background: var(--surface-hover);
+    color: var(--on-surface);
+  }
+  .cmd-quick-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .cmd-quick-btn--danger {
+    border-color: rgba(220, 38, 38, 0.2);
+    color: var(--color-error);
+  }
+  .cmd-quick-btn--danger:hover {
+    background: rgba(220, 38, 38, 0.06);
+  }
+
+  /* ─── Permission section ─── */
+  .cmd-perm-section {
+    padding: 1rem;
+    border-radius: 0.625rem;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-lowest);
+  }
+
+  /* ─── Mode buttons (allow/block active states) ─── */
+  .cmd-mode-allow--active {
+    background: rgb(16, 185, 129) !important;
+    color: white !important;
+  }
+  .cmd-mode-block--active {
+    background: var(--color-error) !important;
+    color: white !important;
+  }
+
+  /* ─── User input & chips ─── */
+  .cmd-user-input {
+    flex: 1;
+    padding: 0.375rem 0.625rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+    font-size: 0.75rem;
+    color: var(--on-surface);
+    outline: none;
+    transition: border-color 0.15s ease;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .cmd-user-input:focus {
+    border-color: var(--color-primary);
+  }
+  .cmd-user-input:disabled {
+    opacity: 0.5;
+  }
+  .cmd-user-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 0.375rem;
+    background: var(--color-primary);
+    color: var(--on-primary-color);
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+    flex-shrink: 0;
+  }
+  .cmd-user-add-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .cmd-user-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-lowest);
+  }
+</style>

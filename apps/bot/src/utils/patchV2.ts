@@ -13,6 +13,13 @@ const COLORS_RAW = {
 
 const EMOJI_PREFIX_REGEX = /^(?:<a?:\w+:\d+>|[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/;
 
+// Mentions don't resolve inside Components V2 TextDisplay \u2014 strip them
+export function stripMentions(text: string): string {
+  return text
+    .replace(/<@&(\d+)>/g, '@r\u00F4le')
+    .replace(/<@!?(\d+)>/g, '@utilisateur');
+}
+
 function getEmojiForTitle(title: string): string | null {
   const t = title.toLowerCase();
   if (t.includes('succès') || t.includes('réussi') || t.includes('validé') || t.includes('confirmé') || t.includes('terminé') || t.includes('success')) {
@@ -89,6 +96,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
   if (authorHeader || title) {
     fullTitle = `${authorHeader}### ${title || 'Info'}`;
   }
+  fullTitle = stripMentions(fullTitle);
 
   // Text section + thumbnail accessory
   if (fullTitle) {
@@ -110,7 +118,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
 
   // Description
   if (data.description) {
-    c.addTextDisplayComponents(new discord.TextDisplayBuilder().setContent(data.description));
+    c.addTextDisplayComponents(new discord.TextDisplayBuilder().setContent(stripMentions(data.description)));
   }
 
   // Fields
@@ -119,7 +127,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
     for (const field of data.fields) {
       if (field.name && field.value) {
         c.addTextDisplayComponents(
-          new discord.TextDisplayBuilder().setContent(`**${field.name}**\n${field.value}`)
+          new discord.TextDisplayBuilder().setContent(stripMentions(`**${field.name}**\n${field.value}`))
         );
       }
     }
@@ -137,7 +145,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
   // Footer
   if (data.footer?.text) {
     c.addSeparatorComponents(new discord.SeparatorBuilder().setDivider(false).setSpacing(discord.SeparatorSpacingSize.Small));
-    c.addTextDisplayComponents(new discord.TextDisplayBuilder().setContent(`-# ${data.footer.text}`));
+    c.addTextDisplayComponents(new discord.TextDisplayBuilder().setContent(stripMentions(`-# ${data.footer.text}`)));
   }
 
   return c;
@@ -200,7 +208,7 @@ function transformPayload(options: unknown): unknown {
 
         if (payload.content) {
           newComponents.push(
-            new discord.TextDisplayBuilder().setContent(payload.content)
+            new discord.TextDisplayBuilder().setContent(stripMentions(payload.content))
           );
           delete payload.content;
         }

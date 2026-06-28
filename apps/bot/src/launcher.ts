@@ -254,7 +254,8 @@ async function spawnInstance(instance: ResolvedInstance, workerPath: string): Pr
 
   setupShardListeners(manager, label);
 
-  await manager.spawn();
+  const timeout = process.env.SHARD_READY_TIMEOUT ? Number(process.env.SHARD_READY_TIMEOUT) : 120_000;
+  await manager.spawn({ timeout });
   logger.success('Sharding', `[${label}] Bot lancé avec ${manager.totalShards} shard(s) — port API ${instance.apiPort}`);
 
   return manager;

@@ -61,6 +61,10 @@ import { signalCommand, signalContextCommand } from './commands/moderation/signa
 import { dashboardCommand } from './commands/utility/dashboard.js';
 import { linkCommand } from './commands/admin/link.js';
 import { staffserverCommand } from './commands/admin/staffserver.js';
+import { channelhealthCommand } from './commands/admin/channelhealth.js';
+import { repCommand } from './commands/community/rep.js';
+import { marketCommand } from './commands/economy/market.js';
+import { questsCommand } from './commands/community/quests.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; description: string; toJSON: () => unknown };
@@ -139,6 +143,10 @@ export const commands: SlashCommandDefinition[] = [
   workCommand,
   linkCommand,
   staffserverCommand,
+  channelhealthCommand,
+  repCommand,
+  marketCommand,
+  questsCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [
