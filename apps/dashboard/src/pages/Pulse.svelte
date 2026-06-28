@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { fetchPulseData, refreshPulse, fetchPredictions } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -9,7 +11,13 @@
   let loading = $state(true);
   let pulseData: any = $state(null);
   let predData: any = $state(null);
+  const pulseTabs = ['apercu', 'sante', 'predictions'] as const;
   let activeTab: TabId = $state('apercu');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/pulse', pulseTabs, 'apercu') as TabId;
+  });
   let period = $state(30);
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
@@ -132,7 +140,7 @@
   {#each tabs as tab}
     <button
       class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
-      onclick={() => activeTab = tab.id}
+      onclick={() => gotoTab('/pulse', tab.id, 'apercu')}
     >
       <Papicon icon={tab.icon} size={15} />
       {tab.label}

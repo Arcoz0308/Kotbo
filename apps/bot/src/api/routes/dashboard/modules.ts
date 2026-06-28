@@ -4976,41 +4976,8 @@ export async function handleModulesRoutes(
           return true;
         }
 
-        const updated = await prisma.ticket.update({
-          where: { id: ticketId },
-          data: {
-            status: 'CLOSED',
-            closedById: user.userId,
-            closedByName: user.username,
-            closedAt: new Date()
-          }
-        });
-
-        if (ticket.channelId) {
-          const ch = client.channels.cache.get(ticket.channelId);
-          if (ch && ch instanceof TextChannel) {
-            await ch.permissionOverwrites.edit(ticket.userId, {
-              ViewChannel: false,
-              SendMessages: false
-            }).catch(() => {});
-
-            const { renameChannelToClosed } = await import('../../../services/features/ticketService.js');
-            await renameChannelToClosed(client, ticket.channelId).catch(() => {});
-
-            const closeEmbed = new EmbedBuilder()
-              .setTitle('🔒 Ticket Fermé')
-              .setDescription(`Le ticket a été fermé depuis le Dashboard Kotbo par **${user.username}**.`)
-              .setColor(COLORS.danger as unknown)
-              .setTimestamp();
-
-            const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-              new ButtonBuilder().setCustomId(`ticket:reopen:${ticketId}`).setLabel('Réouvrir').setStyle(ButtonStyle.Success).setEmoji('🔓'),
-              new ButtonBuilder().setCustomId(`ticket:delete:${ticketId}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
-            );
-
-            await ch.send({ embeds: [closeEmbed], components: [row] }).catch(() => {});
-          }
-        }
+        const { closeTicket } = await import('../../../services/features/ticketService.js');
+        const updated = await closeTicket(client, ticketId, user.userId, user.username);
 
         json(res, 200, updated);
       } catch (err: unknown) {

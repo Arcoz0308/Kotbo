@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -31,7 +33,13 @@
   let loading = $state(false);
   let error = $state('');
 
+  const inviteTabs = ['invites', 'top', 'suspensions'] as const;
   let activeTab = $state<Tab>('invites');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/invitations', inviteTabs, 'invites') as Tab;
+  });
   let searchQuery = $state('');
   let statusFilter = $state<'all' | InviteStatus>('all');
   let sortBy = $state<'createdAt' | 'uses' | 'joins' | 'retention'>('createdAt');
@@ -454,7 +462,7 @@
           class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all {activeTab === tab.id
             ? 'bg-primary/10 text-primary'
             : 'bg-surface-container-high/30 text-on-surface-variant/70 hover:bg-surface-container-high/50'}"
-          onclick={() => activeTab = tab.id}
+          onclick={() => gotoTab('/invitations', tab.id, 'invites')}
         >
           <Papicon icon={tab.icon} size={16} />
           <span>{tab.label}</span>

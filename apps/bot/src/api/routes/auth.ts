@@ -55,8 +55,14 @@ export async function handleAuthRoutes(
         return true;
       }
 
+      const returnTo = url.searchParams.get('returnTo');
       const state = crypto.randomBytes(16).toString('hex');
-      res.setHeader('Set-Cookie', `kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`);
+      
+      const cookies = [`kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`];
+      if (returnTo) {
+        cookies.push(`kotbo_oauth_return_to=${encodeURIComponent(returnTo)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`);
+      }
+      res.setHeader('Set-Cookie', cookies);
 
       const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}&response_type=code&scope=identify%20guilds&state=${state}`;
       res.writeHead(302, { Location: discordUrl });
@@ -78,6 +84,7 @@ export async function handleAuthRoutes(
       const dashboardUrl = getDashboardUrl();
       const cookies = req.headers.cookie ? Object.fromEntries(req.headers.cookie.split(';').map(c => c.trim().split('='))) : {};
       const cookieState = cookies['kotbo_oauth_state'];
+      const returnTo = cookies['kotbo_oauth_return_to'] ? decodeURIComponent(cookies['kotbo_oauth_return_to']) : '';
       const urlState = url.searchParams.get('state');
 
       if (!cookieState || !urlState || cookieState !== urlState) {
@@ -87,7 +94,10 @@ export async function handleAuthRoutes(
         return true;
       }
 
-      res.setHeader('Set-Cookie', 'kotbo_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+      res.setHeader('Set-Cookie', [
+        'kotbo_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
+        'kotbo_oauth_return_to=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0'
+      ]);
 
       const code = url.searchParams.get('code');
       if (!code) {
@@ -124,7 +134,8 @@ export async function handleAuthRoutes(
           discordToken: tokenData.access_token
         }, getJwtSecret(), { expiresIn: '7d' });
 
-        res.writeHead(302, { Location: `${dashboardUrl}#token=${token}` });
+        const returnToUrl = returnTo ? `${returnTo.startsWith('/') ? '' : '/'}${returnTo}` : '';
+        res.writeHead(302, { Location: `${dashboardUrl}${returnToUrl}#token=${token}` });
         res.end();
       } catch (err) {
         logger.error('Auth', 'Discord callback error:', err);

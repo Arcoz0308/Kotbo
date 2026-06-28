@@ -18,6 +18,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
 
   let candidatures = $state<any[]>([]);
   let tutors = $state<any[]>([]);
@@ -294,6 +295,175 @@
     oralFailReason = '';
   }
 
+  let activeTab = $state<'candidatures' | 'google-forms'>('candidatures');
+  
+  // Google Forms state
+  let forms = $state<any[]>([]);
+  let formsLoading = $state(false);
+  let formsError = $state('');
+  
+  let showCreateModal = $state(false);
+  let showScriptModal = $state(false);
+  let selectedForm = $state<any>(null);
+  let generatedScript = $state('');
+
+  // API Key success modal state
+  let newlyGeneratedKey = $state('');
+  let showKeyModal = $state(false);
+  let keyCopied = $state(false);
+
+  // New form state
+  let newFormName = $state('');
+  let newFormDescription = $state('');
+
+  const createFormAction = createAsyncActionState();
+  const deleteFormAction = createAsyncActionState();
+  const regenerateKeyAction = createAsyncActionState();
+
+  function copyKeyToClipboard() {
+    navigator.clipboard.writeText(newlyGeneratedKey);
+    keyCopied = true;
+    setTimeout(() => { keyCopied = false; }, 2000);
+  }
+
+  async function fetchForms() {
+    if (!authStore.selectedGuildId) return;
+    formsLoading = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error('Impossible de charger les formulaires');
+      const data = await res.json();
+      // Filter only Google Forms
+      forms = (data.forms || []).filter((f: any) => f.structure?.type === 'google');
+    } catch (err: any) {
+      formsError = err.message;
+    } finally {
+      formsLoading = false;
+    }
+  }
+
+  async function createForm() {
+    if (!newFormName.trim()) return;
+
+    await createFormAction.run(async () => {
+      const structure = {
+        title: newFormName,
+        description: newFormDescription,
+        type: 'google',
+        fields: [
+          {
+            id: 'discord_id',
+            type: 'short_text',
+            label: 'Discord ID',
+            description: 'Votre ID Discord (ex: 123456789012345678)',
+            required: true,
+          },
+          {
+            id: 'discord_username',
+            type: 'short_text',
+            label: 'Pseudo Discord',
+            description: 'Votre pseudo Discord (ex: elouan)',
+            required: true,
+          },
+          {
+            id: 'email',
+            type: 'email',
+            label: 'Email',
+            description: 'Votre adresse email',
+            required: true,
+          },
+          {
+            id: 'age',
+            type: 'number',
+            label: 'Âge',
+            description: 'Votre âge',
+            required: true,
+          },
+        ],
+      };
+
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authStore.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newFormName,
+          description: newFormDescription || undefined,
+          template: 'google',
+          structure
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Erreur lors de la création');
+      }
+      const data = await res.json();
+      newlyGeneratedKey = data.apiKey?.key || data.apiKey || ''; // fallback if API returns key directly
+      showKeyModal = !!newlyGeneratedKey;
+      showCreateModal = false;
+      newFormName = '';
+      newFormDescription = '';
+      await fetchForms();
+      return true;
+    }, { successMessage: 'Formulaire Google créé avec succès !' });
+  }
+
+  async function deleteForm(formId: string) {
+    if (!confirm('Voulez-vous vraiment supprimer ce formulaire ? Cette action est irréversible.')) return;
+
+    await deleteFormAction.run(async () => {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error('Erreur lors de la suppression');
+      await fetchForms();
+      return true;
+    }, { successMessage: 'Formulaire supprimé' });
+  }
+
+  async function regenerateAPIKey(formId: string) {
+    if (!confirm('Voulez-vous vraiment régénérer la clé API ? L\'ancienne clé ne fonctionnera plus.')) return;
+
+    await regenerateKeyAction.run(async () => {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}/regenerate-key`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error('Erreur lors de la régénération');
+      const data = await res.json();
+      newlyGeneratedKey = data.apiKey;
+      showKeyModal = true;
+      await fetchForms();
+      return true;
+    }, { successMessage: 'Clé API régénérée' });
+  }
+
+  async function showGoogleAppsScript(form: any) {
+    selectedForm = form;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${form.id}/script`, {
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error('Erreur lors de la génération du script');
+      const data = await res.json();
+      generatedScript = data.script;
+      showScriptModal = true;
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  $effect(() => {
+    if (activeTab === 'google-forms') {
+      fetchForms();
+    }
+  });
+
   import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
@@ -304,22 +474,52 @@
   featureKey="recruitment"
 >
   {#snippet actions()}
-    <div class="flex items-center gap-3">
-      <RefreshButton onClick={fetchInitialData} loading={loading} label="Actualiser" />
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- Tabs Selector -->
+      <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-lg border border-outline-variant/20 relative">
+        <button 
+          onclick={() => activeTab = 'candidatures'}
+          class="flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 {activeTab === 'candidatures' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+        >
+          <Papicon icon="people" size={16} />
+          <span class="text-xs font-bold">Candidatures</span>
+        </button>
+        <button 
+          onclick={() => activeTab = 'google-forms'}
+          class="flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 {activeTab === 'google-forms' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+        >
+          <Papicon icon="description" size={16} />
+          <span class="text-xs font-bold">Google Forms</span>
+        </button>
+      </div>
+
+      <RefreshButton onClick={activeTab === 'candidatures' ? fetchInitialData : fetchForms} loading={activeTab === 'candidatures' ? loading : formsLoading} label="Actualiser" />
+
+      {#if activeTab === 'google-forms' && canManageSettings}
+        <button 
+          onclick={() => showCreateModal = true}
+          class="px-4 py-2.5 rounded-xl bg-primary text-white font-semibold uppercase tracking-wider text-xs hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        >
+          <Papicon icon="add" size={16} />
+          Nouveau Google Form
+        </button>
+      {/if}
+
       {#if canManageSettings}
         <button 
           onclick={() => configVisible = true}
-          class="p-3 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
+          class="p-2.5 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
           title="Paramètres du module"
         >
-          <Papicon icon="settings" size={20} />
+          <Papicon icon="settings" size={18} />
         </button>
       {/if}
     </div>
   {/snippet}
 
   <div class="space-y-10">
-    <div class="flex flex-wrap gap-4 mb-8">
+    {#if activeTab === 'candidatures'}
+      <div class="flex flex-wrap gap-4 mb-8">
       <div class="px-6 py-4 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-sm hover:shadow-primary/5 transition-all">
         <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
             <Papicon icon="pending_actions" size={18} />
@@ -526,7 +726,117 @@
       </div>
     {/if}
   {/if}
-</div>
+{/if}
+
+    {#if activeTab === 'google-forms'}
+      {#if formsLoading && forms.length === 0}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {#each Array(3) as _}
+            <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-6 animate-pulse">
+              <div class="h-6 bg-surface-container rounded-lg w-3/4 mb-4"></div>
+              <div class="h-4 bg-surface-container rounded-lg w-1/2 mb-2"></div>
+              <div class="h-20 bg-surface-container rounded-xl mt-4"></div>
+            </div>
+          {/each}
+        </div>
+      {:else if formsError}
+        <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-8 py-10 text-center flex flex-col items-center">
+          <Papicon icon="error" size={48} class="text-rose-500 mb-4" />
+          <p class="text-xl font-bold text-rose-700">{formsError}</p>
+        </div>
+      {:else if forms.length === 0}
+        <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20 animate-in fade-in duration-300">
+          <div class="w-24 h-24 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner">
+            <Papicon icon="description" size={48} />
+          </div>
+          <h3 class="text-2xl font-semibold tracking-tight text-on-surface/50">Aucun formulaire Google Forms</h3>
+          <p class="mt-3 text-sm max-w-sm text-center opacity-60 leading-relaxed px-10">
+            Créez votre première intégration Google Forms pour commencer à recevoir des candidatures depuis vos formulaires externes.
+          </p>
+        </div>
+      {:else}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
+          {#each forms as form (form.id)}
+            <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-6 hover:bg-surface-container-low transition-all duration-300 group relative">
+              <div class="absolute -inset-1 bg-linear-to-r from-primary/5 to-secondary/5 rounded-[1.3rem] blur-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              
+              <div class="relative space-y-4">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1 min-w-0">
+                    <h3 class="text-lg font-semibold text-on-surface truncate">{form.name}</h3>
+                    {#if form.description}
+                      <p class="text-xs text-on-surface-variant/70 mt-1 line-clamp-2 leading-relaxed">{form.description}</p>
+                    {/if}
+                  </div>
+                  <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border {form.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}">
+                    {form.isActive ? 'Actif' : 'Inactif'}
+                  </span>
+                </div>
+
+                <div class="space-y-2.5 py-3 border-y border-outline-variant/10 text-xs text-on-surface-variant/75">
+                  {#if form.apiKey}
+                    <div class="flex items-center gap-2">
+                      <Papicon icon="api" size={14} class="text-primary" />
+                      <span class="font-medium">Clé API :</span>
+                      <span class="font-mono bg-surface-container px-2 py-0.5 rounded border border-outline-variant/10">{form.apiKey.displayKey}</span>
+                    </div>
+                  {:else}
+                    <div class="flex items-center justify-between gap-2 min-w-0">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <Papicon icon="link" size={14} class="text-primary" />
+                        <span class="truncate font-mono">{window.location.origin}/form/{form.id}</span>
+                      </div>
+                      <button
+                        onclick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/form/${form.id}`);
+                          toast.success("Lien copié dans le presse-papier !");
+                        }}
+                        class="p-1 rounded-md hover:bg-surface-container-high transition-colors shrink-0 text-on-surface-variant/65"
+                        title="Copier le lien public"
+                      >
+                        <Papicon icon="content_copy" size={12} />
+                      </button>
+                    </div>
+                  {/if}
+                  <div class="flex items-center gap-2">
+                    <Papicon icon="send" size={14} class="text-primary" />
+                    <span><strong>{form._count?.candidatures || 0}</strong> candidatures reçues</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-1 font-inter">
+                  {#if form.apiKey}
+                    <button
+                      onclick={() => showGoogleAppsScript(form)}
+                      class="flex-1 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                      title="Générer le script Google Forms"
+                    >
+                      <Papicon icon="code" size={14} />
+                      Script
+                    </button>
+                    <button
+                      onclick={() => regenerateAPIKey(form.id)}
+                      class="px-3 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-xs font-semibold uppercase transition-all"
+                      title="Régénérer la clé API"
+                    >
+                      <Papicon icon="refresh" size={14} />
+                    </button>
+                  {/if}
+                  <button
+                    onclick={() => deleteForm(form.id)}
+                    class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-500 text-xs font-semibold uppercase transition-all"
+                    title="Supprimer le formulaire"
+                  >
+                    <Papicon icon="delete" size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
+  </div>
 
 <!-- ============================================== -->
 <!-- MODALS -->
@@ -751,6 +1061,151 @@
         </div>
     </div>
 </div>
+{/if}
+<!-- Create Google Form Modal -->
+{#if showCreateModal}
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
+      <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5">
+        <div>
+          <h3 class="text-2xl font-semibold text-on-surface">Nouveau Formulaire Google Forms</h3>
+          <p class="text-on-surface-variant text-sm">Créez une intégration pour un formulaire externe.</p>
+        </div>
+        <button onclick={() => showCreateModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+          <Papicon icon="x" size={24} />
+        </button>
+      </div>
+
+      <div class="p-8 space-y-6">
+        <label class="block">
+          <span class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Nom du formulaire</span>
+          <FormInput 
+            type="text" 
+            bind:value={newFormName} 
+            placeholder="Ex: Formulaire Modération"
+            className="w-full"
+          />
+        </label>
+
+        <label class="block">
+          <span class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Description</span>
+          <textarea 
+            bind:value={newFormDescription} 
+            placeholder="Description optionnelle..."
+            class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm h-24 resize-none"
+          ></textarea>
+        </label>
+      </div>
+
+      <div class="p-8 bg-surface-container-low border-t border-outline-variant/20 flex gap-4">
+        <button onclick={() => showCreateModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">Annuler</button>
+        <button 
+          onclick={createForm} 
+          disabled={createFormAction.state.loading || !newFormName.trim()}
+          class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+        >
+          {createFormAction.state.loading ? 'Création...' : 'Créer l\'intégration'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Google Apps Script Modal -->
+{#if showScriptModal}
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-4xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto font-inter">
+      <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5 sticky top-0 bg-surface z-10">
+        <div>
+          <h3 class="text-2xl font-semibold text-on-surface">Script Google Apps Script</h3>
+          <p class="text-on-surface-variant text-sm">Formulaire: {selectedForm?.name}</p>
+        </div>
+        <button onclick={() => showScriptModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+          <Papicon icon="x" size={24} />
+        </button>
+      </div>
+      
+      <div class="p-8 space-y-6">
+        <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-4 text-amber-400">
+          <Papicon icon="info" size={20} class="shrink-0" />
+          <div class="text-sm">
+            <p class="font-bold mb-1">Instructions d'installation</p>
+            <ol class="list-decimal list-inside space-y-1 text-amber-400/80">
+              <li>Ouvrez votre Google Form</li>
+              <li>Cliquez sur "Extensions" > "Apps Script"</li>
+              <li>Supprimez tout code existant</li>
+              <li>Collez ce script</li>
+              <li>Sauvegardez (Ctrl+S)</li>
+              <li>Ajoutez un trigger: onSubmit > From form > On form submit</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="relative">
+          <pre class="bg-surface-container rounded-lg p-6 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-on-surface max-h-[40vh] overflow-y-auto">{generatedScript}</pre>
+          <button 
+            onclick={() => {
+              navigator.clipboard.writeText(generatedScript);
+              toast.success("Script copié !");
+            }}
+            class="absolute top-4 right-4 px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-all shadow-md active:scale-95"
+          >
+            Copier
+          </button>
+        </div>
+      </div>
+      
+      <div class="p-8 bg-surface-container-low border-t border-outline-variant/20">
+        <button onclick={() => showScriptModal = false} class="w-full py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">Fermer</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- API Key Success Modal -->
+{#if showKeyModal}
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
+      <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-emerald-500/5">
+        <div>
+          <h3 class="text-2xl font-semibold text-emerald-500 flex items-center gap-2">
+            <Papicon icon="check_circle" size={24} />
+            Clé API Générée
+          </h3>
+          <p class="text-on-surface-variant text-sm">Conservez-la précieusement</p>
+        </div>
+        <button onclick={() => showKeyModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+          <Papicon icon="x" size={24} />
+        </button>
+      </div>
+      
+      <div class="p-8 space-y-6">
+        <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-4 text-amber-400">
+          <Papicon icon="warning" size={20} class="shrink-0" />
+          <div class="text-sm leading-relaxed font-medium">
+            <p class="font-bold mb-1">Attention sécurité</p>
+            <p>Pour votre sécurité, cette clé API ne sera **plus jamais affichée**. Copiez-la immédiatement et collez-la dans votre Google Apps Script.</p>
+          </div>
+        </div>
+
+        <div class="relative">
+          <div class="bg-surface-container rounded-lg p-6 text-sm font-mono break-all pr-24 border border-outline-variant/20 select-all text-on-surface">
+            {newlyGeneratedKey}
+          </div>
+          <button 
+            onclick={copyKeyToClipboard}
+            class="absolute top-1/2 -translate-y-1/2 right-4 px-4 py-2.5 rounded-xl {keyCopied ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-all shadow-md active:scale-95"
+          >
+            {keyCopied ? 'Copié !' : 'Copier'}
+          </button>
+        </div>
+      </div>
+      
+      <div class="p-8 bg-surface-container-low border-t border-outline-variant/20">
+        <button onclick={() => showKeyModal = false} class="w-full py-4 rounded-xl font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors">J'ai copié la clé</button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>

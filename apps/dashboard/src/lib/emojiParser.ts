@@ -2,9 +2,6 @@
 // Kotbo Discord Emoji & Markdown Parser
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Escapes standard HTML special characters for safety.
- */
 export function escapeHtml(text: string): string {
   if (!text) return '';
   return text
@@ -13,40 +10,67 @@ export function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
-/**
- * Parses Discord custom emojis (including <:ktb_...:id>) and standard Discord Markdown.
- * Returns an HTML string that can be safely rendered using {@html}.
- */
 export function parseDiscordEmojisAndMarkdown(text: string | null | undefined): string {
   if (!text) return '';
 
-  // 1. Escape HTML for safety first
-  let html = escapeHtml(text);
+  // 1. Extract code blocks first to protect them from further parsing
+  const codeBlocks: string[] = [];
+  let raw = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_m, lang, code) => {
+    const idx = codeBlocks.length;
+    const escapedCode = escapeHtml(code.replace(/\n$/, ''));
+    codeBlocks.push(
+      `<div class="my-1.5 rounded bg-[#1e1f22] border border-white/5 overflow-hidden">` +
+      (lang ? `<div class="px-3 py-1 text-[10px] font-mono text-[#72767d] border-b border-white/5 uppercase tracking-wider">${escapeHtml(lang)}</div>` : '') +
+      `<pre class="px-3 py-2 font-mono text-xs text-[#e3e5e8] whitespace-pre-wrap leading-relaxed overflow-x-auto">${escapedCode}</pre></div>`
+    );
+    return `\x00CODEBLOCK_${idx}\x00`;
+  });
 
-  // 2. Parse custom emojis (format: &lt;a?:name:id&gt;)
-  // Matches: &lt;:name:id&gt; or &lt;a:name:id&gt;
-  // This loads the real, official emojis from Discord CDN for professional rendering.
+  // 2. Escape HTML for safety
+  let html = escapeHtml(raw);
+
+  // 3. Custom emojis
   html = html.replace(/&lt;a?:(\w+):(\d+)&gt;/g, (match, name, id) => {
     const isAnimated = match.startsWith('&lt;a:');
     const ext = isAnimated ? 'gif' : 'webp';
     return `<img src="https://cdn.discordapp.com/emojis/${id}.${ext}?size=48&quality=lossless" alt=":${name}:" title=":${name}:" class="inline-block h-[1.25em] w-[1.25em] mx-0.5 align-middle" style="vertical-align: -0.2em;" />`;
   });
 
-  // 3. Parse Discord Markdown
+  // 4. Spoiler tags: ||text||
+  html = html.replace(/\|\|(.*?)\|\|/g, '<span class="bg-[#1e1f22] text-[#1e1f22] hover:text-[#dcddde] rounded px-1 py-0.5 cursor-pointer transition-colors duration-200" title="Spoiler">$1</span>');
+
+  // 5. Headings (Discord supports # ## ### at line start)
+  html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-bold text-white mt-2 mb-1 leading-snug">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold text-white mt-2 mb-1 leading-snug">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold text-white mt-2 mb-1 leading-snug">$1</h1>');
+
+  // 6. Blockquotes: > text or >>> multiline
+  html = html.replace(/^&gt;&gt;&gt; ([\s\S]+)$/gm, '<div class="border-l-4 border-[#4e5058] pl-3 my-1">$1</div>');
+  html = html.replace(/^&gt; (.+)$/gm, '<div class="border-l-4 border-[#4e5058] pl-3 my-0.5">$1</div>');
+
+  // 7. Unordered lists: - item or * item
+  html = html.replace(/^(?:- |\* )(.+)$/gm, '<div class="flex gap-2 items-start ml-1"><span class="text-[#b5bac1] mt-px select-none">•</span><span>$1</span></div>');
+
+  // 8. Discord markdown formatting (order matters: bold-italic first)
   html = html
-    // Strikethrough: ~~text~~
-    .replace(/~~(.*?)~~/g, '<del class="line-through opacity-70">$1</del>')
-    // Bold: **text**
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong class="font-bold text-white"><em class="italic">$1</em></strong>')
     .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>')
-    // Italic: *text* or _text_
-    .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-    .replace(/_(.*?)_/g, '<em class="italic">$1</em>')
-    // Underline: __text__
     .replace(/__(.*?)__/g, '<u class="underline">$1</u>')
-    // Inline code: `text`
-    .replace(/`(.*?)`/g, '<code class="bg-[#1e1f22] px-1.5 py-0.5 rounded font-mono text-xs text-[#e3e5e8] border border-white/5">$1</code>')
-    // Line breaks
-    .replace(/\n/g, '<br />');
+    .replace(/~~(.*?)~~/g, '<del class="line-through opacity-70">$1</del>')
+    .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+    .replace(/_([^\s].*?[^\s])_/g, '<em class="italic">$1</em>')
+    .replace(/`(.*?)`/g, '<code class="bg-[#1e1f22] px-1.5 py-0.5 rounded font-mono text-xs text-[#e3e5e8] border border-white/5">$1</code>');
+
+  // 9. Masked links: [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-[#00a8fc] hover:underline" target="_blank" rel="noopener noreferrer">$1</a>');
+
+  // 10. Line breaks
+  html = html.replace(/\n/g, '<br />');
+
+  // 11. Restore code blocks
+  for (let i = 0; i < codeBlocks.length; i++) {
+    html = html.replace(`\x00CODEBLOCK_${i}\x00`, codeBlocks[i]);
+  }
 
   return html;
 }

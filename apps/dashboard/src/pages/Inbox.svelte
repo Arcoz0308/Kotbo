@@ -1,10 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { fade, slide, fly } from 'svelte/transition';
   import Papicon from '../lib/components/Papicon.svelte';
 
+  const inboxTabs = ['tous', 'modération', 'recrutement', 'staff', 'système'] as const;
   let currentTab = $state('tous');
+
+  $effect(() => {
+    const _path = $router.path;
+    currentTab = resolveTabFromUrl('/inbox', inboxTabs, 'tous');
+  });
 
   onMount(() => {
     notificationsStore.fetchNotifications();
@@ -94,7 +102,7 @@
   <div class="flex items-center gap-2 p-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-[22px] overflow-x-auto no-scrollbar shadow-sm">
     {#each tabs as tab}
       <button
-        onclick={() => currentTab = tab.id}
+        onclick={() => gotoTab('/inbox', tab.id, 'tous')}
         class="relative flex items-center gap-2.5 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300
           {currentTab === tab.id ? 'text-white' : 'text-on-surface-variant hover:bg-surface-container-high'}"
       >

@@ -61,9 +61,14 @@
   let availableForms = $state<any[]>([]);
   let ticketTypes = $state<any[]>([]);
 
+  interface ResponseEntry {
+    message: string;
+    weight: number;
+  }
+
   // Form states
   let formTrigger = $state('');
-  let formResponse = $state('');
+  let formResponses = $state<ResponseEntry[]>([{ message: '', weight: 100 }]);
   let formMatchType = $state('CONTAINS');
   let formEnabled = $state(true);
   let formRoleIdToAdd = $state<string | null>(null);
@@ -116,11 +121,40 @@
     }
   });
 
+  function responsesToPayload(entries: ResponseEntry[]): string | null {
+    const valid = entries.filter(e => e.message.trim());
+    if (valid.length === 0) return null;
+    if (valid.length === 1 && valid[0].weight === 100) return valid[0].message;
+    return JSON.stringify(valid.map(e => ({ message: e.message, weight: e.weight })));
+  }
+
+  function payloadToResponses(response: string | null): ResponseEntry[] {
+    if (!response || !response.trim()) return [{ message: '', weight: 100 }];
+    try {
+      const parsed = JSON.parse(response);
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].message !== undefined) {
+        return parsed.map((m: any) => ({ message: m.message || '', weight: m.weight || 0 }));
+      }
+    } catch {}
+    return [{ message: response, weight: 100 }];
+  }
+
+  function addResponseEntry() {
+    formResponses = [...formResponses, { message: '', weight: 0 }];
+  }
+
+  function removeResponseEntry(index: number) {
+    if (formResponses.length <= 1) return;
+    formResponses = formResponses.filter((_, i) => i !== index);
+  }
+
+  const totalWeight = $derived(formResponses.reduce((sum, r) => sum + r.weight, 0));
+
   function openCreateModal() {
     isEditing = false;
     editingId = null;
     formTrigger = '';
-    formResponse = '';
+    formResponses = [{ message: '', weight: 100 }];
     formMatchType = 'CONTAINS';
     formEnabled = true;
     formRoleIdToAdd = null;
@@ -145,7 +179,7 @@
     isEditing = true;
     editingId = item.id;
     formTrigger = item.trigger;
-    formResponse = item.response || '';
+    formResponses = payloadToResponses(item.response);
     formMatchType = item.matchType;
     formEnabled = item.enabled;
     formRoleIdToAdd = item.roleIdToAdd;
@@ -168,7 +202,8 @@
 
   async function handleSubmit() {
     if (!canManageSettings || !formTrigger) return;
-    if (!formResponse.trim() && !formRoleIdToAdd && !formRoleIdToRemove && !formDeleteTrigger && !formCloseTicket && !formRejectForm) {
+    const computedResponse = responsesToPayload(formResponses);
+    if (!computedResponse && !formRoleIdToAdd && !formRoleIdToRemove && !formDeleteTrigger && !formCloseTicket && !formRejectForm) {
       actionState.setError("Veuillez configurer au moins une action (réponse, ajout/retrait de rôle, suppression du message, fermeture de ticket, ou rejet de candidature).");
       return;
     }
@@ -176,7 +211,7 @@
     await actionState.run(async () => {
       const payload = {
         trigger: formTrigger,
-        response: formResponse.trim() || null,
+        response: computedResponse,
         matchType: formMatchType,
         enabled: formEnabled,
         roleIdToAdd: formRoleIdToAdd,
@@ -451,19 +486,28 @@
 
                 <!-- Optional Response text box -->
                 {#if item.response}
+                  {@const responses = payloadToResponses(item.response)}
                   <div class="space-y-1">
-                    <span class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest block ml-1">Message de réponse (DM) :</span>
-                    <div class="p-4 bg-surface-container-high/30 border border-outline-variant/5 rounded-lg text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap">
-                      {item.response}
-                    </div>
+                    <span class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest block ml-1">
+                      {responses.length > 1 ? `Messages de réponse (DM) — ${responses.length} variantes :` : 'Message de réponse (DM) :'}
+                    </span>
+                    {#each responses as resp, ri}
+                      <div class="p-4 bg-surface-container-high/30 border border-outline-variant/5 rounded-lg text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap flex items-start gap-3">
+                        <span class="flex-1">{resp.message}</span>
+                        {#if responses.length > 1}
+                          <span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">{resp.weight}%</span>
+                        {/if}
+                      </div>
+                    {/each}
                   </div>
                 {/if}
 
                 <!-- Badges representing actions -->
                 <div class="flex flex-wrap gap-2 pt-3 border-t border-outline-variant/10">
                   {#if item.response}
+                    {@const badgeResponses = payloadToResponses(item.response)}
                     <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/10">
-                      <Papicon icon="message" size={10} /> Message
+                      <Papicon icon="message" size={10} /> {badgeResponses.length > 1 ? `${badgeResponses.length} Messages` : 'Message'}
                     </span>
                   {/if}
                   {#if item.roleIdToAdd}
@@ -724,15 +768,68 @@
           </div>
         {/if}
 
-        <div class="space-y-1.5">
-          <label for="modal-response" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Réponse du Bot en DM (Optionnelle)</label>
-          <textarea 
-            id="modal-response"
-            bind:value={formResponse} 
-            placeholder="Texte envoyé en message privé par le bot..."
-            class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none h-24 resize-none font-sans"
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">
+              Réponse(s) du Bot en DM (Optionnelle{formResponses.length > 1 ? 's' : ''})
+            </label>
+            {#if formResponses.length > 1}
+              <span class="text-[10px] font-semibold px-2.5 py-1 rounded-lg {totalWeight === 100 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'} font-sans">
+                Total : {totalWeight}%
+              </span>
+            {/if}
+          </div>
+
+          {#each formResponses as entry, i}
+            <div class="flex gap-3 items-start">
+              <div class="flex-1">
+                <textarea
+                  bind:value={entry.message}
+                  placeholder="Texte envoyé en message privé par le bot..."
+                  class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none h-20 resize-none font-sans"
+                  disabled={!canManageSettings}
+                ></textarea>
+              </div>
+              {#if formResponses.length > 1}
+                <div class="flex flex-col items-center gap-1 shrink-0 w-20">
+                  <label class="text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-wider font-sans">Taux %</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    bind:value={entry.weight}
+                    class="w-full bg-surface-container rounded-lg px-2 py-2 text-sm text-center focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onclick={() => removeResponseEntry(i)}
+                  class="mt-6 p-1.5 text-error/60 hover:text-error hover:bg-error/10 rounded-lg transition-all cursor-pointer shrink-0"
+                  title="Retirer ce message"
+                  disabled={!canManageSettings}
+                >
+                  <Papicon icon="close" size={14} />
+                </button>
+              {/if}
+            </div>
+          {/each}
+
+          <button
+            type="button"
+            onclick={addResponseEntry}
+            class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary hover:text-primary-hover px-3 py-2 rounded-lg hover:bg-primary/10 transition-all cursor-pointer font-sans"
             disabled={!canManageSettings}
-          ></textarea>
+          >
+            <Papicon icon="add" size={12} />
+            Ajouter une réponse alternative
+          </button>
+
+          {#if formResponses.length > 1 && totalWeight !== 100}
+            <p class="text-[10px] text-amber-500 font-medium ml-2 font-sans">
+              Le total des taux d'apparition devrait idéalement être de 100% (actuellement {totalWeight}%).
+            </p>
+          {/if}
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

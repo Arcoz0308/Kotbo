@@ -22,6 +22,11 @@ const loginRoute = createRoute({
   path:    '/api/auth/discord/login',
   summary: 'Démarre le flux OAuth2 Discord',
   tags:    ['Auth'],
+  request: {
+    query: z.object({
+      returnTo: z.string().optional(),
+    }),
+  },
   responses: {
     302: { description: 'Redirection vers Discord OAuth' },
     500: {
@@ -41,6 +46,7 @@ authRouter.openapi(loginRoute, (c) => {
     return c.json({ error: 'Configuration OAuth invalide côté serveur.', missing: missingOAuth }, 500);
   }
 
+  const { returnTo } = c.req.valid('query');
   const state = crypto.randomBytes(16).toString('hex');
 
   // Pose le cookie CSRF anti-forgery
@@ -48,6 +54,12 @@ authRouter.openapi(loginRoute, (c) => {
     'Set-Cookie',
     `kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`,
   );
+  if (returnTo) {
+    c.res.headers.append(
+      'Set-Cookie',
+      `kotbo_oauth_return_to=${encodeURIComponent(returnTo)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`
+    );
+  }
 
   const discordUrl = [
     `https://discord.com/api/oauth2/authorize`,
@@ -116,6 +128,7 @@ authRouter.openapi(callbackRoute, async (c) => {
     }),
   );
   const cookieState = cookies['kotbo_oauth_state'];
+  const returnTo = cookies['kotbo_oauth_return_to'] ? decodeURIComponent(cookies['kotbo_oauth_return_to']) : '';
 
   if (!cookieState || !urlState || cookieState !== urlState) {
     logger.warn('Auth', 'OAuth state CSRF verification failed');
@@ -126,6 +139,10 @@ authRouter.openapi(callbackRoute, async (c) => {
   c.header(
     'Set-Cookie',
     'kotbo_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
+  );
+  c.res.headers.append(
+    'Set-Cookie',
+    'kotbo_oauth_return_to=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
   );
 
   if (!code) {
@@ -179,7 +196,8 @@ authRouter.openapi(callbackRoute, async (c) => {
       { expiresIn: '7d' },
     );
 
-    return c.redirect(`${dashboardUrl}#token=${token}`, 302);
+    const returnToUrl = returnTo ? `${returnTo.startsWith('/') ? '' : '/'}${returnTo}` : '';
+    return c.redirect(`${dashboardUrl}${returnToUrl}#token=${token}`, 302);
   } catch (err) {
     logger.error('Auth', 'Discord callback error:', err);
     return c.redirect(`${dashboardUrl}/login?error=auth_failed`, 302);

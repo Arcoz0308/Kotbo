@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { Client, TextChannel, ChannelType } from 'discord.js';
+import { Client, TextChannel, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, GuildScheduledEventPrivacyLevel, GuildScheduledEventEntityType, PermissionFlagsBits } from 'discord.js';
 import type { McpKeyPermission, SanctionType, SanctionStatus } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import {
@@ -9,7 +9,17 @@ import {
   registerBanSanction,
   registerTimeoutSanction,
 } from '../../services/moderation/sanctionService.js';
-import { renameChannelToClosed } from '../../services/features/ticketService.js';
+import { renameChannelToClosed, closeTicket } from '../../services/features/ticketService.js';
+import { getPredictionData } from '../../services/analytics/predictionService.js';
+import { getPulseDashboardData } from '../../services/analytics/pulseService.js';
+import { getHourlyHeatmapData } from '../../services/analytics/dashboardAnalyticsService.js';
+
+// Services Kotbo additionnels pour les outils MCP
+import { createCustomEvent } from '../../services/features/eventService.js';
+import { createCustomForm } from '../../services/features/customFormService.js';
+import { addStaffMember, removeStaffMember } from '../../services/staff/staffManagementService.js';
+import { addXp } from '../../services/progression/levelingService.js';
+import { createGiveaway, endGiveaway, rerollGiveaway } from '../../services/features/giveawayService.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type McpToolHandler = (args: any) => Promise<ReturnType<typeof ok> | ReturnType<typeof err>> | ReturnType<typeof ok> | ReturnType<typeof err>;
@@ -991,20 +1001,26 @@ export function registerMcpTools(
         if (!ticket) return err('Ticket introuvable');
         if (ticket.status === 'CLOSED') return err('Ce ticket est déjà fermé');
 
-        await prisma.ticket.update({
-          where: { id: ticket.id },
-          data: { status: 'CLOSED', closedAt: new Date(), closedByName: `MCP[${key_name ?? 'agent'}]` },
-        });
+        const closerName = `MCP[${key_name ?? 'agent'}]`;
 
-        if (ticket.channelId) {
+        // Envoyer un message de contexte dans le salon avant la fermeture
+        if (ticket.channelId && reason) {
           const channel = client.guilds.cache.get(guildId)?.channels.cache.get(ticket.channelId);
           if (channel?.isTextBased()) {
             await (channel as TextChannel)
-              .send({ content: `🔒 Ticket fermé via IA${reason ? ` — ${reason}` : ''}.` })
+              .send({ content: `🤖 Raison de fermeture (IA) : ${reason}` })
               .catch(() => null);
           }
-          await renameChannelToClosed(client, ticket.channelId).catch(() => undefined);
         }
+
+        // Utiliser la vraie fonction closeTicket qui gère tout :
+        // - Update BDD (status CLOSED, closedBy, closedAt)
+        // - Retrait des permissions de l'opener
+        // - Envoi de l'embed de fermeture avec boutons Réouvrir/Supprimer
+        // - Renommage du salon (ticket- → fermer-)
+        // - Log dans le salon de logs
+        // - Envoi du sondage de satisfaction
+        await closeTicket(client, ticket.id, client.user?.id ?? 'mcp_agent', closerName);
 
         await audit(key_name, 'Fermeture ticket MCP', `Ticket: ${ticket.id}`, reason ?? '(sans raison)');
 
@@ -1163,5 +1179,2359 @@ export function registerMcpTools(
         );
       })
     );
+
+    server.registerTool(
+      'get_reputation_leaderboard',
+      {
+        description: 'Classement des membres par points de réputation.',
+        inputSchema: {
+          limit: z.number().int().min(1).max(50).default(10),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ limit }) => {
+        const votes = await prisma.reputationVote.groupBy({
+          by: ['receiverId'],
+          where: { guildId },
+          _count: { id: true },
+          orderBy: { _count: { id: 'desc' } },
+          take: limit,
+        });
+
+        const userIds = votes.map((v) => v.receiverId);
+        const profiles = await prisma.memberProfile.findMany({
+          where: { guildId, userId: { in: userIds } },
+          select: { userId: true, username: true, displayName: true },
+        });
+        const nameOf = new Map(profiles.map((p) => [p.userId, p.displayName ?? p.username ?? p.userId]));
+
+        return ok(
+          votes.map((v, i) => ({
+            rank: i + 1,
+            userId: v.receiverId,
+            name: nameOf.get(v.receiverId) ?? v.receiverId,
+            reputationPoints: v._count.id,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_quest_definitions',
+      {
+        description: 'Liste les quêtes disponibles sur le serveur (quotidiennes, hebdomadaires, etc.).',
+        inputSchema: {
+          enabled_only: z.boolean().default(true).describe('Ne retourner que les quêtes actives'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ enabled_only }) => {
+        const quests = await prisma.questDefinition.findMany({
+          where: { guildId, ...(enabled_only ? { enabled: true } : {}) },
+          orderBy: { createdAt: 'desc' },
+        });
+        return ok(
+          quests.map((q) => ({
+            id: q.id,
+            name: q.name,
+            description: q.description,
+            type: q.type,
+            frequency: q.frequency,
+            target: q.target,
+            rewardCoins: q.rewardCoins,
+            rewardXp: q.rewardXp,
+            enabled: q.enabled,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_member_quests',
+      {
+        description: "Récupère la progression des quêtes d'un membre spécifique.",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const progress = await prisma.questProgress.findMany({
+          where: { guildId, userId: resolved.userId },
+          include: { quest: { select: { name: true, description: true, type: true, frequency: true, target: true } } },
+          orderBy: { updatedAt: 'desc' },
+          take: 20,
+        });
+
+        return ok(
+          progress.map((p) => ({
+            questName: p.quest.name,
+            questType: p.quest.type,
+            frequency: p.quest.frequency,
+            current: p.current,
+            target: p.target,
+            status: p.status,
+            dateKey: p.dateKey,
+            claimedAt: p.claimedAt?.toISOString() ?? null,
+          }))
+        );
+      })
+    );
+  }
+
+  // ── READ_ECONOMY ──────────────────────────────────────────────────────────
+
+  if (shouldRegister('READ_ECONOMY')) {
+    server.registerTool(
+      'get_economy_config',
+      {
+        description: "Récupère la configuration de l'économie du serveur (monnaie, récompenses, paramètres RPG).",
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async () => {
+        const config = await prisma.economyConfig.findUnique({ where: { guildId } });
+        if (!config) return err("Aucune configuration d'économie trouvée pour ce serveur.");
+
+        return ok({
+          currencyName: config.currencyName,
+          currencyEmoji: config.currencyEmoji,
+          dailyRewardMin: config.dailyRewardMin,
+          dailyRewardMax: config.dailyRewardMax,
+          maxEnergy: config.maxEnergy,
+          energyRecoveryPerHour: config.energyRecoveryPerHour,
+        });
+      })
+    );
+
+    server.registerTool(
+      'get_rpg_profile',
+      {
+        description: "Récupère le profil RPG d'un membre (solde, niveau, stats, équipement).",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const profile = await prisma.rpgProfile.findUnique({
+          where: { guildId_userId: { guildId, userId: resolved.userId } },
+          include: {
+            rpgGuild: { select: { name: true, level: true } },
+            inventory: { include: { item: { select: { name: true, type: true } } }, take: 30 },
+          },
+        });
+
+        if (!profile) return err('Aucun profil RPG trouvé pour ce membre.');
+
+        const equipIds = [profile.weaponId, profile.armorId, profile.potionId].filter(Boolean) as string[];
+        const equipItems = equipIds.length > 0
+          ? await prisma.rpgItem.findMany({ where: { id: { in: equipIds } }, select: { id: true, name: true, type: true, atkBonus: true, defBonus: true, hpRestore: true } })
+          : [];
+        const equipOf = new Map(equipItems.map((i) => [i.id, i]));
+
+        const weapon = profile.weaponId ? equipOf.get(profile.weaponId) : null;
+        const armor = profile.armorId ? equipOf.get(profile.armorId) : null;
+        const potion = profile.potionId ? equipOf.get(profile.potionId) : null;
+
+        return ok({
+          userId: resolved.userId,
+          balance: profile.balance,
+          level: profile.level,
+          xp: profile.xp,
+          health: profile.health,
+          maxHealth: profile.maxHealth,
+          energy: profile.energy,
+          attack: profile.attack,
+          defense: profile.defense,
+          speed: profile.speed,
+          isTraveling: profile.isTraveling,
+          travelDestination: profile.travelDestination,
+          weapon: weapon ? { name: weapon.name, atkBonus: weapon.atkBonus } : null,
+          armor: armor ? { name: armor.name, defBonus: armor.defBonus } : null,
+          potion: potion ? { name: potion.name, hpRestore: potion.hpRestore } : null,
+          guild: profile.rpgGuild ? { name: profile.rpgGuild.name, level: profile.rpgGuild.level } : null,
+          inventory: profile.inventory.map((i) => ({
+            itemName: i.item.name,
+            itemType: i.item.type,
+            quantity: i.quantity,
+          })),
+        });
+      })
+    );
+
+    server.registerTool(
+      'get_rpg_leaderboard',
+      {
+        description: 'Classement économique par solde, niveau RPG ou XP RPG.',
+        inputSchema: {
+          by: z.enum(['balance', 'level', 'xp']).default('balance').describe('Critère du classement'),
+          limit: z.number().int().min(1).max(50).default(10),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async ({ by, limit }) => {
+        const rows = await prisma.rpgProfile.findMany({
+          where: { guildId },
+          orderBy: { [by]: 'desc' },
+          take: limit,
+          select: { userId: true, balance: true, level: true, xp: true },
+        });
+
+        const profiles = await prisma.memberProfile.findMany({
+          where: { guildId, userId: { in: rows.map((r) => r.userId) } },
+          select: { userId: true, username: true, displayName: true },
+        });
+        const nameOf = new Map(profiles.map((p) => [p.userId, p.displayName ?? p.username ?? p.userId]));
+
+        return ok(
+          rows.map((r, i) => ({
+            rank: i + 1,
+            userId: r.userId,
+            name: nameOf.get(r.userId) ?? r.userId,
+            balance: r.balance,
+            level: r.level,
+            xp: r.xp,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_shop_items',
+      {
+        description: 'Liste les objets disponibles dans la boutique RPG.',
+        inputSchema: {
+          type: z.string().optional().describe("Filtre par type d'objet (WEAPON, ARMOR, POTION, etc.)"),
+          purchasable_only: z.boolean().default(true).describe('Ne retourner que les objets achetables'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async ({ type, purchasable_only }) => {
+        const items = await prisma.rpgItem.findMany({
+          where: {
+            guildId,
+            ...(type ? { type } : {}),
+            ...(purchasable_only ? { purchasable: true } : {}),
+          },
+          orderBy: { price: 'asc' },
+        });
+
+        return ok(
+          items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            type: item.type,
+            price: item.price,
+            purchasable: item.purchasable,
+            atkBonus: item.atkBonus,
+            defBonus: item.defBonus,
+            hpRestore: item.hpRestore,
+            energyRestore: item.energyRestore,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_marketplace_listings',
+      {
+        description: 'Liste les offres actives du marché (ventes et enchères entre joueurs).',
+        inputSchema: {
+          type: z.enum(['FIXED_PRICE', 'AUCTION']).optional().describe("Type d'offre"),
+          limit: z.number().int().min(1).max(50).default(20),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ECONOMY', async ({ type, limit }) => {
+        const listings = await prisma.marketplaceListing.findMany({
+          where: {
+            guildId,
+            status: 'ACTIVE',
+            ...(type ? { type } : {}),
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+        });
+
+        const itemIds = [...new Set(listings.map((l) => l.itemId))];
+        const sellerIds = [...new Set(listings.map((l) => l.sellerId))];
+
+        const [items, profiles] = await Promise.all([
+          prisma.rpgItem.findMany({
+            where: { id: { in: itemIds } },
+            select: { id: true, name: true, type: true },
+          }),
+          prisma.memberProfile.findMany({
+            where: { guildId, userId: { in: sellerIds } },
+            select: { userId: true, username: true, displayName: true },
+          }),
+        ]);
+
+        const itemOf = new Map(items.map((i) => [i.id, i]));
+        const nameOf = new Map(profiles.map((p) => [p.userId, p.displayName ?? p.username ?? p.userId]));
+
+        return ok(
+          listings.map((l) => {
+            const item = itemOf.get(l.itemId);
+            return {
+              id: l.id,
+              type: l.type,
+              status: l.status,
+              itemName: item?.name ?? l.itemId,
+              itemType: item?.type ?? null,
+              quantity: l.quantity,
+              price: l.price,
+              currentBid: l.currentBid,
+              sellerName: nameOf.get(l.sellerId) ?? l.sellerId,
+              expiresAt: l.expiresAt?.toISOString() ?? null,
+              createdAt: l.createdAt.toISOString(),
+            };
+          })
+        );
+      })
+    );
+  }
+
+  // ── READ_MODERATION ───────────────────────────────────────────────────────
+
+  if (shouldRegister('READ_MODERATION')) {
+    server.registerTool(
+      'get_automod_config',
+      {
+        description: "Récupère la configuration complète de l'AutoMod du serveur.",
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_MODERATION', async () => {
+        const config = await prisma.autoModConfig.findUnique({ where: { guildId } });
+        if (!config) return err("Aucune configuration AutoMod trouvée.");
+
+        return ok({
+          discordAutoModEnabled: config.discordAutoModEnabled,
+          spamEnabled: config.spamEnabled,
+          linksEnabled: config.linksEnabled,
+          capsEnabled: config.capsEnabled,
+          emojisEnabled: config.emojisEnabled,
+          mentionsEnabled: config.mentionsEnabled,
+          ghostPingEnabled: config.ghostPingEnabled,
+          antiEveryoneEnabled: config.antiEveryoneEnabled,
+          customWordsEnabled: config.customWordsEnabled,
+          profanityEnabled: config.profanityEnabled,
+          inviteFilterEnabled: config.inviteFilterEnabled,
+          antiBotEnabled: config.antiBotEnabled,
+          bypassRoles: config.bypassRoles,
+          bypassChannels: config.bypassChannels,
+        });
+      })
+    );
+
+    server.registerTool(
+      'get_banned_words',
+      {
+        description: 'Liste les mots bannis configurés sur le serveur.',
+        inputSchema: {
+          category: z.string().optional().describe('Filtre par catégorie'),
+          enabled_only: z.boolean().default(true),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_MODERATION', async ({ category, enabled_only }) => {
+        const words = await prisma.bannedWord.findMany({
+          where: {
+            guildId,
+            ...(category ? { category } : {}),
+            ...(enabled_only ? { enabled: true } : {}),
+          },
+          orderBy: { category: 'asc' },
+        });
+
+        return ok(
+          words.map((w) => ({
+            id: w.id,
+            word: w.word,
+            category: w.category,
+            enabled: w.enabled,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_auto_responses',
+      {
+        description: 'Liste les réponses automatiques configurées sur le serveur.',
+        inputSchema: {
+          enabled_only: z.boolean().default(true),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_MODERATION', async ({ enabled_only }) => {
+        const responses = await prisma.autoResponse.findMany({
+          where: { guildId, ...(enabled_only ? { enabled: true } : {}) },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        return ok(
+          responses.map((r) => ({
+            id: r.id,
+            triggerType: r.triggerType,
+            trigger: r.trigger,
+            response: r.response,
+            matchType: r.matchType,
+            enabled: r.enabled,
+            deleteTrigger: r.deleteTrigger,
+            allowedChannelIds: r.allowedChannelIds,
+            bannedChannelIds: r.bannedChannelIds,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_code_police_rules',
+      {
+        description: 'Liste les règles CodePolice (détection de code brut dans les messages).',
+        inputSchema: {
+          enabled_only: z.boolean().default(true),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_MODERATION', async ({ enabled_only }) => {
+        const rules = await prisma.codePoliceRule.findMany({
+          where: { guildId, ...(enabled_only ? { enabled: true } : {}) },
+          orderBy: { category: 'asc' },
+        });
+
+        return ok(
+          rules.map((r) => ({
+            id: r.id,
+            key: r.key,
+            category: r.category,
+            matchType: r.matchType,
+            language: r.language,
+            label: r.label,
+            severity: r.severity,
+            enabled: r.enabled,
+          }))
+        );
+      })
+    );
+  }
+
+  // ── READ_ANALYTICS ────────────────────────────────────────────────────────
+
+  if (shouldRegister('READ_ANALYTICS')) {
+    server.registerTool(
+      'get_channel_analytics',
+      {
+        description: "Statistiques d'activité par salon sur une période donnée (messages, auteurs uniques, vocal).",
+        inputSchema: {
+          period_days: z.number().int().min(1).max(90).default(7).describe('Nombre de jours à analyser'),
+          limit: z.number().int().min(1).max(50).default(20).describe('Nombre de salons à retourner'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ANALYTICS', async ({ period_days, limit }) => {
+        const since = new Date();
+        since.setDate(since.getDate() - period_days);
+        const sinceKey = since.toISOString().slice(0, 10);
+
+        const stats = await prisma.channelDailyStat.groupBy({
+          by: ['channelId'],
+          where: { guildId, dateKey: { gte: sinceKey } },
+          _sum: { messagesCount: true, uniqueAuthors: true, voiceMinutes: true },
+          orderBy: { _sum: { messagesCount: 'desc' } },
+          take: limit,
+        });
+
+        const guild = client.guilds.cache.get(guildId);
+        return ok(
+          stats.map((s) => {
+            const ch = guild?.channels.cache.get(s.channelId);
+            return {
+              channelId: s.channelId,
+              channelName: ch?.name ?? null,
+              totalMessages: s._sum.messagesCount ?? 0,
+              totalUniqueAuthors: s._sum.uniqueAuthors ?? 0,
+              totalVoiceMinutes: s._sum.voiceMinutes ?? 0,
+            };
+          })
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_hourly_activity',
+      {
+        description: "Activité horaire du serveur (heatmap) pour visualiser les pics d'activité.",
+        inputSchema: {
+          days: z.number().int().min(1).max(30).default(7).describe('Nombre de jours à analyser'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ANALYTICS', async ({ days }) => {
+        const data = await getHourlyHeatmapData(guildId, { days });
+        return ok(data);
+      })
+    );
+
+    server.registerTool(
+      'get_pulse_dashboard',
+      {
+        description:
+          'Score de santé du serveur (Pulse) avec détails par catégorie : activité, modération, croissance, engagement.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_ANALYTICS', async () => {
+        const data = await getPulseDashboardData(guildId);
+        return ok(data);
+      })
+    );
+
+    server.registerTool(
+      'get_member_daily_stats',
+      {
+        description: "Statistiques quotidiennes d'un membre spécifique (messages, vocal par jour).",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+          period_days: z.number().int().min(1).max(30).default(7),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ANALYTICS', async ({ member, period_days }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const since = new Date();
+        since.setDate(since.getDate() - period_days);
+        const sinceKey = since.toISOString().slice(0, 10);
+
+        const stats = await prisma.memberDailyStat.findMany({
+          where: { guildId, userId: resolved.userId, dateKey: { gte: sinceKey } },
+          orderBy: { dateKey: 'asc' },
+        });
+
+        return ok({
+          userId: resolved.userId,
+          name: resolved.label,
+          period: { from: sinceKey, days: period_days },
+          daily: stats.map((s) => ({
+            date: s.dateKey,
+            messages: s.messageCount,
+            voiceMinutes: s.voiceMinutes,
+          })),
+          totals: stats.reduce(
+            (acc: { messages: number; voiceMinutes: number }, s) => ({
+              messages: acc.messages + s.messageCount,
+              voiceMinutes: acc.voiceMinutes + s.voiceMinutes,
+            }),
+            { messages: 0, voiceMinutes: 0 }
+          ),
+        });
+      })
+    );
+
+    server.registerTool(
+      'get_prediction_data',
+      {
+        description: "Prédictions d'activité du serveur (tendances, projections de croissance, prévisions de churn).",
+        inputSchema: {
+          days: z.number().int().min(7).max(90).default(30).describe("Nombre de jours d'historique pour les prédictions"),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_ANALYTICS', async ({ days }) => {
+        const data = await getPredictionData(guildId, days);
+        return ok(data);
+      })
+    );
+  }
+
+  // ── WRITE_COMMUNITY ───────────────────────────────────────────────────────
+
+  if (shouldRegister('WRITE_COMMUNITY')) {
+    server.registerTool(
+      'respond_suggestion',
+      {
+        description:
+          "Répond à une suggestion communautaire et met à jour son statut. Requiert la permission WRITE_COMMUNITY.",
+        inputSchema: {
+          suggestion_id: z.string().describe('ID de la suggestion (issu de get_suggestions)'),
+          status: z.enum(['APPROVED', 'REJECTED', 'IMPLEMENTED']).describe('Nouveau statut'),
+          response: z.string().min(1).max(1000).describe('Texte de réponse'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ suggestion_id, status, response, key_name }) => {
+        const suggestion = await prisma.suggestion.findFirst({ where: { id: suggestion_id, guildId } });
+        if (!suggestion) return err('Suggestion introuvable');
+
+        await prisma.suggestion.update({
+          where: { id: suggestion.id },
+          data: {
+            status,
+            responseText: response,
+            respondedById: 'mcp_agent',
+            respondedAt: new Date(),
+          },
+        });
+
+        if (suggestion.channelId && suggestion.messageId) {
+          const channel = client.guilds.cache.get(guildId)?.channels.cache.get(suggestion.channelId);
+          if (channel?.isTextBased()) {
+            const statusEmoji = status === 'APPROVED' ? '✅' : status === 'REJECTED' ? '❌' : '🚀';
+            await (channel as TextChannel)
+              .send({ content: `${statusEmoji} **Réponse à la suggestion de ${suggestion.username} :**\n${response}` })
+              .catch(() => null);
+          }
+        }
+
+        await audit(key_name, 'Réponse suggestion MCP', `Suggestion: ${suggestion.id}`, `${status} — ${response.slice(0, 200)}`);
+
+        return ok({ ok: true, suggestionId: suggestion.id, status });
+      })
+    );
+
+    server.registerTool(
+      'update_event_status',
+      {
+        description: "Met à jour le statut d'un événement du serveur. Requiert la permission WRITE_COMMUNITY.",
+        inputSchema: {
+          event_id: z.string().describe("ID de l'événement (issu de get_events)"),
+          status: z.enum(['DRAFT', 'SCHEDULED', 'ACTIVE', 'ENDED', 'CANCELLED']).describe('Nouveau statut'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ event_id, status, key_name }) => {
+        const event = await prisma.event.findFirst({ where: { id: event_id, guildId } });
+        if (!event) return err('Événement introuvable');
+
+        await prisma.event.update({ where: { id: event.id }, data: { status } });
+
+        await audit(key_name, 'Modification événement MCP', `Événement: ${event.title}`, `Statut: ${status}`);
+
+        return ok({ ok: true, eventId: event.id, title: event.title, status });
+      })
+    );
+
+    server.registerTool(
+      'create_giveaway_message',
+      {
+        description:
+          "Annonce un giveaway existant dans un salon Discord. Requiert la permission WRITE_COMMUNITY.",
+        inputSchema: {
+          giveaway_id: z.string().describe('ID du giveaway (issu de get_giveaways)'),
+          channel: z.string().describe('Nom du salon, mention <#id> ou ID'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ giveaway_id, channel, key_name }) => {
+        const giveaway = await prisma.giveaway.findFirst({ where: { id: giveaway_id, guildId } });
+        if (!giveaway) return err('Giveaway introuvable');
+
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        const msg = await resolved.channel
+          .send({
+            content: `🎉 **GIVEAWAY** 🎉\n\n**${giveaway.prize}**${giveaway.description ? `\n${giveaway.description}` : ''}\n\n🏆 ${giveaway.winnerCount} gagnant(s)\n⏰ Fin : <t:${Math.floor(giveaway.endsAt.getTime() / 1000)}:R>\n\nParticipants : ${giveaway.participants.length}`,
+          })
+          .catch(() => null);
+
+        if (!msg) return err("Impossible d'envoyer le message dans ce salon");
+
+        await audit(key_name, 'Annonce giveaway MCP', `Giveaway: ${giveaway.prize}`, `Salon: #${resolved.channel.name}`);
+
+        return ok({ ok: true, giveawayId: giveaway.id, messageId: msg.id, channelName: resolved.channel.name });
+      })
+    );
+  }
+
+  // ── WRITE_MEMBERS ─────────────────────────────────────────────────────────
+
+  if (shouldRegister('WRITE_MEMBERS')) {
+    server.registerTool(
+      'set_member_note',
+      {
+        description: "Définit ou met à jour la note de modération sur le profil d'un membre. Requiert WRITE_MEMBERS.",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+          note: z.string().max(1000).describe('Note de modération (vide pour effacer)'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, note, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        await prisma.memberProfile.upsert({
+          where: { guildId_userId: { guildId, userId: resolved.userId } },
+          update: { moderatorNote: note || null },
+          create: { guildId, userId: resolved.userId, moderatorNote: note || null, lastSeenAt: new Date() },
+        });
+
+        await audit(key_name, 'Note modérateur MCP', `Membre: ${resolved.label} (${resolved.userId})`, note.slice(0, 200) || '(note effacée)');
+
+        return ok({ ok: true, userId: resolved.userId, note: note || null });
+      })
+    );
+
+    server.registerTool(
+      'add_role',
+      {
+        description: "Ajoute un rôle Discord à un membre. Requiert la permission WRITE_MEMBERS.",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+          role: z.string().describe('Nom ou ID du rôle à ajouter'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, role, key_name }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const target = await guild.members.fetch(resolved.userId).catch(() => null);
+        if (!target) return err('Membre introuvable sur le serveur Discord');
+
+        const roleId = SNOWFLAKE.test(role) ? role : null;
+        const discordRole = roleId
+          ? guild.roles.cache.get(roleId)
+          : guild.roles.cache.find((r) => r.name.toLowerCase() === role.toLowerCase());
+
+        if (!discordRole) return err(`Rôle « ${role} » introuvable`);
+
+        if (target.roles.cache.has(discordRole.id)) {
+          return err(`${resolved.label} a déjà le rôle ${discordRole.name}`);
+        }
+
+        await target.roles.add(discordRole).catch((e) => {
+          throw new Error(`Impossible d'ajouter le rôle : ${e instanceof Error ? e.message : String(e)}`);
+        });
+
+        await audit(key_name, 'Ajout rôle MCP', `Membre: ${resolved.label}`, `Rôle: ${discordRole.name}`);
+
+        return ok({ ok: true, userId: resolved.userId, roleName: discordRole.name, roleId: discordRole.id });
+      })
+    );
+
+    server.registerTool(
+      'remove_role',
+      {
+        description: "Retire un rôle Discord d'un membre. Requiert la permission WRITE_MEMBERS.",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+          role: z.string().describe('Nom ou ID du rôle à retirer'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l'audit)"),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, role, key_name }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const target = await guild.members.fetch(resolved.userId).catch(() => null);
+        if (!target) return err('Membre introuvable sur le serveur Discord');
+
+        const roleId = SNOWFLAKE.test(role) ? role : null;
+        const discordRole = roleId
+          ? guild.roles.cache.get(roleId)
+          : guild.roles.cache.find((r) => r.name.toLowerCase() === role.toLowerCase());
+
+        if (!discordRole) return err(`Rôle « ${role} » introuvable`);
+
+        if (!target.roles.cache.has(discordRole.id)) {
+          return err(`${resolved.label} n'a pas le rôle ${discordRole.name}`);
+        }
+
+        await target.roles.remove(discordRole).catch((e) => {
+          throw new Error(`Impossible de retirer le rôle : ${e instanceof Error ? e.message : String(e)}`);
+        });
+
+        await audit(key_name, 'Retrait rôle MCP', `Membre: ${resolved.label}`, `Rôle: ${discordRole.name}`);
+
+        return ok({ ok: true, userId: resolved.userId, roleName: discordRole.name, roleId: discordRole.id });
+      })
+    );
+
+    server.registerTool(
+      'get_member_level',
+      {
+        description: "Récupère le niveau et l'XP d'un membre dans le système de leveling.",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const level = await prisma.memberLevel.findUnique({
+          where: { guildId_userId: { guildId, userId: resolved.userId } },
+        });
+
+        if (!level) return err('Aucune donnée de niveau pour ce membre.');
+
+        const rewards = await prisma.levelRoleReward.findMany({
+          where: { guildId, level: { lte: level.level } },
+          orderBy: { level: 'asc' },
+        });
+
+        return ok({
+          userId: resolved.userId,
+          name: resolved.label,
+          level: level.level,
+          xp: level.xp,
+          lastXpGain: level.lastXpGain?.toISOString() ?? null,
+          unlockedRewards: rewards.map((r) => ({ level: r.level, roleId: r.roleId })),
+        });
+      })
+    );
+
+    server.registerTool(
+      'get_invite_stats',
+      {
+        description: "Statistiques d'invitations d'un membre (nombre d'invités, codes utilisés).",
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const [invites, invited] = await Promise.all([
+          prisma.guildInvite.findMany({
+            where: { guildId, inviterId: resolved.userId },
+            select: { code: true, usedCount: true, createdAt: true },
+          }),
+          prisma.memberInvite.findMany({
+            where: { guildId, inviterId: resolved.userId },
+            select: { userId: true, joinedAt: true, leftAt: true },
+          }),
+        ]);
+
+        const active = invited.filter((i) => !i.leftAt).length;
+        const left = invited.filter((i) => i.leftAt).length;
+
+        return ok({
+          userId: resolved.userId,
+          name: resolved.label,
+          totalInvited: invited.length,
+          activeInvited: active,
+          leftInvited: left,
+          inviteCodes: invites.map((i) => ({
+            code: i.code,
+            usedCount: i.usedCount,
+            createdAt: i.createdAt.toISOString(),
+          })),
+        });
+      })
+    );
+  }
+
+  // ── WRITE_COMMUNITY (NEW) ──────────────────────────────────────────────────
+  if (shouldRegister('WRITE_COMMUNITY')) {
+    // 1. create_custom_event
+    server.registerTool(
+      'create_custom_event',
+      {
+        description: 'Crée un événement personnalisé (base de données et optionnellement sur Discord avec annonce).',
+        inputSchema: {
+          title: z.string().describe("Titre de l'événement"),
+          description: z.string().optional().describe("Description de l'événement"),
+          start_time: z.string().describe("Date/heure de début (format ISO, ex: 2026-06-30T18:00:00Z)"),
+          end_time: z.string().optional().describe("Date/heure de fin (format ISO)"),
+          location: z.string().default('Discord').describe("Lieu de l'événement"),
+          announcement_channel: z.string().optional().describe("Nom ou ID du salon d'annonce"),
+          form_id: z.string().optional().describe("ID du formulaire d'inscription lié"),
+          create_discord_event: z.boolean().default(true).describe("Créer un événement Discord officiel natif"),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ title, description, start_time, end_time, location, announcement_channel, form_id, create_discord_event, key_name }) => {
+        let announceChId: string | undefined;
+        if (announcement_channel) {
+          const resolved = resolveChannel(guildId, client, announcement_channel);
+          if (resolved.ok) announceChId = resolved.channel.id;
+        }
+
+        try {
+          const event = await createCustomEvent(client, guildId, {
+            title,
+            description,
+            announcementChannelId: announceChId,
+            formId: form_id,
+            startTime: start_time,
+            endTime: end_time,
+            createDiscordEvent: create_discord_event,
+            location,
+          });
+
+          // Publier l'annonce s'il y a un salon
+          if (event && announceChId) {
+            const { publishCustomEventAnnouncement } = await import('../../services/features/eventService.js');
+            await publishCustomEventAnnouncement(client, event.id).catch(() => null);
+          }
+
+          await audit(key_name, 'Création événement MCP', title, `Type: CUSTOM | Début: ${start_time}`);
+          return ok({ ok: true, eventId: event?.id ?? null, title });
+        } catch (e) {
+          return err(`Erreur lors de la création de l'événement: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 2. create_custom_form
+    server.registerTool(
+      'create_custom_form',
+      {
+        description: 'Crée un formulaire de A à Z avec questions structurées.',
+        inputSchema: {
+          name: z.string().describe('Nom du formulaire'),
+          description: z.string().optional().describe('Description du formulaire'),
+          is_recruitment: z.boolean().default(false).describe("Indique s'il s'agit d'un formulaire de recrutement"),
+          questions: z.array(z.object({
+            id: z.string().describe('Identifiant unique de la question (ex: "motivation")'),
+            label: z.string().describe('Intitulé de la question'),
+            type: z.enum(['text', 'paragraph', 'select', 'checkbox']).default('text'),
+            required: z.boolean().default(true),
+            placeholder: z.string().optional(),
+            options: z.array(z.string()).optional().describe("Options (obligatoire si type == 'select')"),
+          })).describe('Liste des questions'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ name, description, is_recruitment, questions, key_name }) => {
+        try {
+          const form = await createCustomForm(guildId, {
+            name,
+            description,
+            isRecruitment: is_recruitment,
+            structure: { fields: questions },
+          });
+
+          await audit(key_name, 'Création formulaire MCP', name, `Questions: ${questions.length}`);
+          return ok({ ok: true, formId: form.id, name });
+        } catch (e) {
+          return err(`Erreur lors de la création du formulaire: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 3. create_announcement
+    server.registerTool(
+      'create_announcement',
+      {
+        description: 'Envoie une annonce structurée sous forme d\'Embed Discord dans un salon.',
+        inputSchema: {
+          channel: z.string().describe('Salon cible (nom, mention ou ID)'),
+          title: z.string().describe('Titre de l\'annonce'),
+          description: z.string().describe('Contenu de l\'annonce (markdown autorisé)'),
+          color: z.string().default('#5865F2').describe('Couleur hexadécimale de l\'embed (ex: #ff0000)'),
+          mention: z.enum(['none', 'everyone', 'here', 'role']).default('none').describe('Mention à inclure'),
+          role_mention: z.string().optional().describe('Nom ou ID du rôle à mentionner (si mention == "role")'),
+          image_url: z.string().optional().describe('URL d\'une image à intégrer dans l\'embed'),
+          thumbnail_url: z.string().optional().describe('URL d\'une miniature à intégrer dans l\'embed'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ channel, title, description, color, mention, role_mention, image_url, thumbnail_url, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        const embed = new EmbedBuilder()
+          .setTitle(title)
+          .setDescription(description)
+          .setColor(color.startsWith('#') ? (color as any) : `#${color}`)
+          .setTimestamp();
+
+        if (image_url) embed.setImage(image_url);
+        if (thumbnail_url) embed.setThumbnail(thumbnail_url);
+
+        let content = '';
+        if (mention === 'everyone') content = '@everyone';
+        else if (mention === 'here') content = '@here';
+        else if (mention === 'role' && role_mention) {
+          const guild = client.guilds.cache.get(guildId);
+          const role = guild?.roles.cache.find(r => r.id === role_mention || r.name.toLowerCase() === role_mention.toLowerCase());
+          if (role) content = `<@&${role.id}>`;
+        }
+
+        try {
+          const sent = await resolved.channel.send({ content, embeds: [embed] });
+          if (resolved.channel.type === ChannelType.GuildAnnouncement) {
+            await sent.crosspost().catch(() => null);
+          }
+
+          await audit(key_name, 'Annonce MCP', title, `Salon: #${resolved.channel.name}`);
+          return ok({ ok: true, messageId: sent.id, channelId: resolved.channel.id });
+        } catch (e) {
+          return err(`Erreur lors de l'envoi de l'annonce : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 4. create_giveaway
+    server.registerTool(
+      'create_giveaway',
+      {
+        description: 'Lance un tirage au sort (giveaway) sur Discord.',
+        inputSchema: {
+          channel: z.string().describe('Salon cible'),
+          prize: z.string().describe('Lot à gagner'),
+          winner_count: z.number().int().min(1).default(1).describe('Nombre de gagnants'),
+          duration_minutes: z.number().int().min(1).describe('Durée en minutes avant le tirage'),
+          description: z.string().optional().describe('Description ou règles'),
+          rpg_xp: z.number().int().default(0).describe('XP RPG offerte aux gagnants'),
+          rpg_coins: z.number().int().default(0).describe('Pièces RPG offertes aux gagnants'),
+          rpg_item_id: z.string().optional().describe('ID de l\'objet RPG offert aux gagnants'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ channel, prize, winner_count, duration_minutes, description, rpg_xp, rpg_coins, rpg_item_id, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const giveaway = await createGiveaway(
+            client,
+            guildId,
+            resolved.channel.id,
+            prize,
+            winner_count,
+            duration_minutes,
+            description,
+            rpg_xp,
+            rpg_coins,
+            rpg_item_id || null
+          );
+
+          await audit(key_name, 'Création giveaway MCP', prize, `Salon: #${resolved.channel.name}`);
+          return ok({ ok: true, giveawayId: giveaway.id, prize });
+        } catch (e) {
+          return err(`Erreur lors du lancement du giveaway : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 5. cancel_giveaway / reroll_giveaway
+    server.registerTool(
+      'cancel_giveaway',
+      {
+        description: 'Annule/Met fin à un giveaway actif sans tirer de gagnants ou en forçant le tirage immédiat.',
+        inputSchema: {
+          giveaway_id: z.string().describe('ID du giveaway'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ giveaway_id, key_name }) => {
+        try {
+          await endGiveaway(client, giveaway_id);
+          await audit(key_name, 'Annulation giveaway MCP', giveaway_id, '');
+          return ok({ ok: true, giveawayId: giveaway_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'reroll_giveaway',
+      {
+        description: 'Tire un nouveau gagnant pour un giveaway déjà terminé.',
+        inputSchema: {
+          giveaway_id: z.string().describe('ID du giveaway'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ giveaway_id, key_name }) => {
+        try {
+          await rerollGiveaway(client, giveaway_id);
+          await audit(key_name, 'Reroll giveaway MCP', giveaway_id, '');
+          return ok({ ok: true, giveawayId: giveaway_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 6. create_rpg_adventure / create_quest_definition
+    server.registerTool(
+      'create_quest_definition',
+      {
+        description: 'Crée une nouvelle définition de quête pour le système communautaire.',
+        inputSchema: {
+          name: z.string().describe('Nom de la quête'),
+          description: z.string().describe('Description des objectifs'),
+          type: z.enum(['MESSAGE', 'VOICE', 'LEVEL', 'QUEST_COMPLETE', 'SUGGESTION', 'TICKET_OPEN']),
+          frequency: z.enum(['DAILY', 'WEEKLY', 'ONCE', 'SEASONAL']),
+          target: z.number().int().describe('Nombre de répétitions requises pour valider la quête'),
+          reward_coins: z.number().int().default(0),
+          reward_xp: z.number().int().default(0),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ name, description, type, frequency, target, reward_coins, reward_xp, key_name }) => {
+        try {
+          const quest = await prisma.questDefinition.create({
+            data: {
+              guildId,
+              name,
+              description,
+              type,
+              frequency,
+              target,
+              rewardCoins: reward_coins,
+              rewardXp: reward_xp,
+              enabled: true,
+            }
+          });
+
+          await audit(key_name, 'Création quête MCP', name, `Target: ${target} | XP: ${reward_xp}`);
+          return ok({ ok: true, questId: quest.id, name });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 7. create_auto_response
+    server.registerTool(
+      'create_auto_response',
+      {
+        description: 'Configure un déclencheur de réponse automatique (Auto-Response).',
+        inputSchema: {
+          trigger: z.string().describe('Le mot-clé ou la phrase déclencheuse'),
+          response: z.string().describe('La réponse textuelle ou JSON embed à envoyer'),
+          trigger_type: z.enum(['MESSAGE', 'FORM', 'TICKET']).default('MESSAGE'),
+          match_type: z.enum(['EXACT', 'CONTAINS', 'REGEX']).default('CONTAINS'),
+          role_to_add: z.string().optional().describe('ID du rôle à attribuer au déclenchement'),
+          role_to_remove: z.string().optional().describe('ID du rôle à retirer au déclenchement'),
+          delete_trigger: z.boolean().default(false).describe('Supprimer le message déclencheur (si MESSAGE)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ trigger, response, trigger_type, match_type, role_to_add, role_to_remove, delete_trigger, key_name }) => {
+        try {
+          const autoRes = await prisma.autoResponse.create({
+            data: {
+              guildId,
+              trigger,
+              response,
+              triggerType: trigger_type,
+              matchType: match_type,
+              roleIdToAdd: role_to_add || null,
+              roleIdToRemove: role_to_remove || null,
+              deleteTrigger: delete_trigger,
+              enabled: true,
+            }
+          });
+
+          await audit(key_name, 'Création AutoResponse MCP', trigger, `Type: ${trigger_type}`);
+          return ok({ ok: true, autoResponseId: autoRes.id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 8. create_scheduled_task
+    server.registerTool(
+      'create_scheduled_task',
+      {
+        description: 'Crée une tâche planifiée automatique récurrente.',
+        inputSchema: {
+          name: z.string().describe('Nom de la tâche'),
+          type: z.enum(['CHANNEL_RESET', 'SERVER_BACKUP', 'DATA_EXPORT']),
+          cron: z.string().describe('Expression Cron standard (ex: "0 0 * * *" pour tous les minuits)'),
+          target_id: z.string().optional().describe('ID Discord cible (ex: salon)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ name, type, cron, target_id, key_name }) => {
+        try {
+          const task = await prisma.scheduledTask.create({
+            data: {
+              guildId,
+              name,
+              type,
+              cron,
+              targetId: target_id || null,
+              enabled: true,
+            }
+          });
+
+          await audit(key_name, 'Création tâche planifiée MCP', name, `Cron: ${cron}`);
+          return ok({ ok: true, taskId: task.id, name });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+  }
+
+  // ── WRITE_TICKETS (NEW) ────────────────────────────────────────────────────
+  if (shouldRegister('WRITE_TICKETS')) {
+    // 1. create_ticket
+    server.registerTool(
+      'create_ticket',
+      {
+        description: 'Crée un ticket d\'assistance privé pour un membre et y ajoute des membres optionnels.',
+        inputSchema: {
+          opener: z.string().describe('ID Discord, mention, ou nom du créateur/bénéficiaire du ticket'),
+          reason: z.string().describe('Sujet court du ticket'),
+          description: z.string().describe('Description détaillée du problème'),
+          extra_members: z.array(z.string()).default([]).describe('Membres supplémentaires à ajouter au salon (ID, mention, username)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_TICKETS', async ({ opener, reason, description, extra_members, key_name }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const resolvedOpener = await resolveMember(guildId, opener);
+        if (!resolvedOpener.ok) return resolvedOpener.response;
+
+        // Récupérer le membre Discord opener
+        const openerMember = await guild.members.fetch(resolvedOpener.userId).catch(() => null);
+        if (!openerMember) return err('Créateur du ticket introuvable sur Discord');
+
+        // Récupérer la config du ticket
+        const guildConfig = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            ticketCategoryId: true,
+            ticketLogChannelId: true,
+            ticketStaffRoleId: true,
+            ticketEmbedColor: true,
+          }
+        });
+
+        // Configurer les permissions
+        const permissionOverwrites: any[] = [
+          {
+            id: guild.roles.everyone.id,
+            deny: [PermissionFlagsBits.ViewChannel]
+          },
+          {
+            id: resolvedOpener.userId,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.EmbedLinks,
+              PermissionFlagsBits.AttachFiles
+            ]
+          }
+        ];
+
+        // Ajouter les membres supplémentaires
+        const extraResolved: string[] = [];
+        for (const rawMem of extra_members) {
+          const resolved = await resolveMember(guildId, rawMem);
+          if (resolved.ok) {
+            permissionOverwrites.push({
+              id: resolved.userId,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.EmbedLinks,
+                PermissionFlagsBits.AttachFiles
+              ]
+            });
+            extraResolved.push(resolved.label);
+          }
+        }
+
+        // Ajouter le rôle staff si configuré
+        const staffRoleId = guildConfig?.ticketStaffRoleId;
+        if (staffRoleId) {
+          permissionOverwrites.push({
+            id: staffRoleId,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.EmbedLinks,
+              PermissionFlagsBits.AttachFiles,
+              PermissionFlagsBits.ManageMessages
+            ]
+          });
+        }
+
+        try {
+          const cleanedUsername = openerMember.user.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
+          const chName = `ticket-${cleanedUsername}`;
+
+          const ticketChannel = await guild.channels.create({
+            name: chName,
+            type: ChannelType.GuildText,
+            parent: guildConfig?.ticketCategoryId || null,
+            permissionOverwrites,
+            reason: `Ticket créé via MCP pour ${openerMember.user.tag}`
+          });
+
+          // Créer le ticket en base de données
+          const ticket = await prisma.ticket.create({
+            data: {
+              guildId,
+              channelId: ticketChannel.id,
+              userId: resolvedOpener.userId,
+              username: openerMember.user.username,
+              reason,
+              description,
+              status: 'OPEN'
+            }
+          });
+
+          // Envoyer l'embed de bienvenue
+          const welcomeEmbed = new EmbedBuilder()
+            .setTitle(`🎫 Ticket d'Assistance · ${reason}`)
+            .setDescription(`Bonjour <@${resolvedOpener.userId}> !\nUn membre du personnel va prendre en charge votre demande.\n\n**Description :**\n${description}\n\n${extraResolved.length > 0 ? `**Membres ajoutés :** ${extraResolved.map(m => `\`${m}\``).join(', ')}` : ''}`)
+            .setColor(guildConfig?.ticketEmbedColor as any || 0x5865F2)
+            .setTimestamp()
+            .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
+            new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+            new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+          );
+
+          await ticketChannel.send({
+            content: `${staffRoleId ? `<@&${staffRoleId}> ` : ''}<@${resolvedOpener.userId}> 🔔 Bienvenue dans votre ticket d'assistance.`,
+            embeds: [welcomeEmbed],
+            components: [row]
+          });
+
+          await audit(key_name, 'Création ticket MCP', ticket.id, `Cible: ${openerMember.user.tag} | Salon: #${ticketChannel.name}`);
+          return ok({ ok: true, ticketId: ticket.id, channelId: ticketChannel.id, channelName: ticketChannel.name });
+        } catch (e) {
+          return err(`Erreur lors de la création du ticket : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 2. get_ticket_system_config
+    server.registerTool(
+      'get_ticket_system_config',
+      {
+        description: 'Récupère la configuration globale du système de tickets sur le serveur.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('WRITE_TICKETS', async () => {
+        const guild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            ticketCategoryId: true,
+            ticketLogChannelId: true,
+            ticketStaffRoleId: true,
+            ticketChannelId: true,
+            ticketEmbedTitle: true,
+            ticketEmbedDesc: true,
+            ticketEmbedButtonText: true,
+            ticketEmbedColor: true,
+            ticketEmbedType: true,
+            ticketMode: true,
+            ticketDmRelayChannelId: true,
+            ticketTypes: true,
+            ticketAllowOverclaim: true,
+            ticketInactivityEnabled: true,
+            ticketInactivityHours: true,
+          }
+        });
+        return ok(guild);
+      })
+    );
+
+    // 3. update_ticket_system_config
+    server.registerTool(
+      'update_ticket_system_config',
+      {
+        description: 'Met à jour la configuration générale du système de tickets.',
+        inputSchema: {
+          category_id: z.string().optional().describe('Catégorie Discord où ranger les salons de tickets'),
+          log_channel_id: z.string().optional().describe('Salon de logs des tickets'),
+          staff_role_id: z.string().optional().describe('Rôle du staff par défaut pour gérer les tickets'),
+          channel_id: z.string().optional().describe('Salon d\'ouverture des tickets (contenant le panel)'),
+          mode: z.enum(['CHANNEL', 'DM', 'THREAD']).optional().describe('Mode de tickets (salon dédié, messages privés ou fil de discussion)'),
+          embed_title: z.string().optional(),
+          embed_desc: z.string().optional(),
+          embed_button_text: z.string().optional(),
+          embed_color: z.string().optional().describe('Couleur hexadécimale'),
+          inactivity_enabled: z.boolean().optional(),
+          inactivity_hours: z.number().int().min(1).optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_TICKETS', async ({ category_id, log_channel_id, staff_role_id, channel_id, mode, embed_title, embed_desc, embed_button_text, embed_color, inactivity_enabled, inactivity_hours, key_name }) => {
+        try {
+          await prisma.guild.update({
+            where: { id: guildId },
+            data: {
+              ...(category_id !== undefined ? { ticketCategoryId: category_id || null } : {}),
+              ...(log_channel_id !== undefined ? { ticketLogChannelId: log_channel_id || null } : {}),
+              ...(staff_role_id !== undefined ? { ticketStaffRoleId: staff_role_id || null } : {}),
+              ...(channel_id !== undefined ? { ticketChannelId: channel_id || null } : {}),
+              ...(mode !== undefined ? { ticketMode: mode } : {}),
+              ...(embed_title !== undefined ? { ticketEmbedTitle: embed_title } : {}),
+              ...(embed_desc !== undefined ? { ticketEmbedDesc: embed_desc } : {}),
+              ...(embed_button_text !== undefined ? { ticketEmbedButtonText: embed_button_text } : {}),
+              ...(embed_color !== undefined ? { ticketEmbedColor: embed_color } : {}),
+              ...(inactivity_enabled !== undefined ? { ticketInactivityEnabled: inactivity_enabled } : {}),
+              ...(inactivity_hours !== undefined ? { ticketInactivityHours: inactivity_hours } : {}),
+            }
+          });
+
+          await audit(key_name, 'Configuration tickets MCP', 'Mise à jour des paramètres globaux', '');
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur de mise à jour: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 4. create_ticket_type
+    server.registerTool(
+      'create_ticket_type',
+      {
+        description: 'Ajoute un nouveau type/sujet de ticket pour le sélecteur d\'ouverture de tickets.',
+        inputSchema: {
+          id: z.string().describe('ID unique du type (ex: "recrut")'),
+          label: z.string().describe('Nom du bouton/menu (ex: "Recrutement")'),
+          description: z.string().describe('Courte description de ce type de ticket'),
+          category_id: z.string().optional().describe('Catégorie spécifique pour ranger ce type de ticket'),
+          staff_role_id: z.string().optional().describe('Rôle staff spécifique pour ce type de ticket'),
+          emoji: z.string().optional().describe('Emoji du type'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_TICKETS', async ({ id, label, description, category_id, staff_role_id, emoji, key_name }) => {
+        try {
+          const guild = await prisma.guild.findUnique({ where: { id: guildId }, select: { ticketTypes: true } });
+          const currentTypes: any[] = Array.isArray(guild?.ticketTypes) ? (guild.ticketTypes as any[]) : [];
+
+          // Enlever si ID existe déjà pour mise à jour
+          const filtered = currentTypes.filter(t => t.id !== id);
+          filtered.push({
+            id,
+            label,
+            description,
+            categoryId: category_id || null,
+            staffRoleId: staff_role_id || null,
+            emoji: emoji || null,
+          });
+
+          await prisma.guild.update({
+            where: { id: guildId },
+            data: { ticketTypes: filtered }
+          });
+
+          await audit(key_name, 'Configuration tickets MCP', `Nouveau type de ticket: ${label}`, `ID: ${id}`);
+          return ok({ ok: true, ticketTypes: filtered });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 5. setup_ticket_system_message
+    server.registerTool(
+      'setup_ticket_system_message',
+      {
+        description: 'Envoie l\'embed d\'ouverture officiel avec les boutons/sélecteurs dans le salon de support.',
+        inputSchema: {
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_TICKETS', async ({ key_name }) => {
+        try {
+          const { sendTicketSetupEmbed } = await import('../../services/features/ticketService.js');
+          await sendTicketSetupEmbed(client, guildId);
+
+          await audit(key_name, 'Configuration tickets MCP', 'Embed d\'ouverture de tickets envoyé', '');
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur d'envoi du panel : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+  }
+
+  // ── WRITE_MEMBERS (NEW) ────────────────────────────────────────────────────
+  if (shouldRegister('WRITE_MEMBERS')) {
+    // 1. rename_member
+    server.registerTool(
+      'rename_member',
+      {
+        description: 'Renomme (change le pseudo) d\'un membre sur le serveur Discord.',
+        inputSchema: {
+          member: z.string().describe('Nom, mention ou ID du membre'),
+          nickname: z.string().describe('Le nouveau pseudo (vide pour réinitialiser)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, nickname, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const guild = client.guilds.cache.get(guildId);
+        const discordMember = await guild?.members.fetch(resolved.userId).catch(() => null);
+        if (!discordMember) return err('Membre introuvable sur le serveur Discord');
+
+        try {
+          await discordMember.setNickname(nickname || null, `Renommé via MCP par l'IA`);
+          await audit(key_name, 'Modification pseudo MCP', resolved.label, `Pseudo appliqué: "${nickname || '(pseudo réinitialisé)'}"`);
+          return ok({ ok: true, userId: resolved.userId, nickname: nickname || null });
+        } catch (e) {
+          return err(`Impossible de renommer le membre : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 2. manage_member_roles
+    server.registerTool(
+      'manage_member_roles',
+      {
+        description: 'Attribue ou retire des rôles Discord en masse pour un membre.',
+        inputSchema: {
+          member: z.string().describe('Nom, mention ou ID du membre'),
+          roles: z.array(z.string()).describe('Liste des rôles à attribuer ou retirer (nom ou ID)'),
+          action: z.enum(['add', 'remove']).describe('Action à réaliser : ajouter ou retirer les rôles'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, roles, action, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const guild = client.guilds.cache.get(guildId);
+        const discordMember = await guild?.members.fetch(resolved.userId).catch(() => null);
+        if (!discordMember) return err('Membre introuvable');
+
+        const resolvedRoles = [];
+        for (const rawRole of roles) {
+          const rId = SNOWFLAKE.test(rawRole) ? rawRole : null;
+          const role = rId ? guild?.roles.cache.get(rId) : guild?.roles.cache.find(r => r.name.toLowerCase() === rawRole.toLowerCase());
+          if (role) resolvedRoles.push(role);
+        }
+
+        if (resolvedRoles.length === 0) return err('Aucun rôle valide trouvé');
+
+        try {
+          if (action === 'add') {
+            await discordMember.roles.add(resolvedRoles);
+          } else {
+            await discordMember.roles.remove(resolvedRoles);
+          }
+
+          await audit(key_name, `${action === 'add' ? 'Ajout' : 'Retrait'} rôles MCP`, resolved.label, `Rôles modifiés: ${resolvedRoles.map(r => r.name).join(', ')}`);
+          return ok({ ok: true, userId: resolved.userId, roles: resolvedRoles.map(r => ({ id: r.id, name: r.name })) });
+        } catch (e) {
+          return err(`Erreur lors de l'assignation de rôles : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 3. promote_staff / demote_staff
+    server.registerTool(
+      'promote_staff',
+      {
+        description: 'Ajoute un membre au staff de Kotbo en BDD et attribue ses rôles de modération.',
+        inputSchema: {
+          member: z.string().describe('Nom, mention ou ID du membre'),
+          grade: z.string().describe('Grade global (ex: "Modérateur", "Administrateur", "Direction")'),
+          display_name: z.string().optional().describe('Nom d\'affichage dans l\'organigramme staff'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, grade, display_name, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        const guild = client.guilds.cache.get(guildId);
+        const discordMember = await guild?.members.fetch(resolved.userId).catch(() => null);
+        if (!discordMember) return err('Membre introuvable sur Discord');
+
+        try {
+          const staffRecord = await addStaffMember(
+            guildId,
+            resolved.userId,
+            grade,
+            discordMember.user.tag,
+            discordMember.user.username,
+            display_name || discordMember.displayName,
+            discordMember.displayAvatarURL()
+          );
+
+          // Synchroniser les rôles Discord correspondants
+          const { syncStaffDiscordRoles } = await import('../../services/staff/staffManagementService.js');
+          await syncStaffDiscordRoles(guildId, resolved.userId, client).catch(() => null);
+
+          await audit(key_name, 'Promotion Staff MCP', resolved.label, `Grade appliqué: ${grade}`);
+          return ok({ ok: true, userId: resolved.userId, grade, staffId: staffRecord?.id ?? null });
+        } catch (e) {
+          return err(`Erreur lors de la promotion staff : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'demote_staff',
+      {
+        description: 'Retire un membre du staff de Kotbo en BDD et retire ses rôles de modération.',
+        inputSchema: {
+          member: z.string().describe('Nom, mention ou ID du membre'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          await removeStaffMember(guildId, resolved.userId);
+
+          // Synchroniser/retirer les rôles de modération
+          const { syncStaffDiscordRoles } = await import('../../services/staff/staffManagementService.js');
+          await syncStaffDiscordRoles(guildId, resolved.userId, client).catch(() => null);
+
+          await audit(key_name, 'Destitution Staff MCP', resolved.label, 'Membre retiré du staff');
+          return ok({ ok: true, userId: resolved.userId });
+        } catch (e) {
+          return err(`Erreur lors de la destitution staff : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 4. get_nickname_moderation_config / update_nickname_moderation_config
+    server.registerTool(
+      'get_nickname_moderation_config',
+      {
+        description: 'Récupère les réglages de modération automatique de pseudos.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async () => {
+        const guild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            autoNicknameModerationEnabled: true,
+            nicknameModerationWhitelist: true,
+            nicknameModerationBypass: true,
+            nickModOnJoin: true,
+            nickModOnUpdate: true,
+            nickModCheckInvisible: true,
+            nickModCheckGlobal: true,
+            nickModCheckCustom: true,
+          }
+        });
+        return ok(guild);
+      })
+    );
+
+    server.registerTool(
+      'update_nickname_moderation_config',
+      {
+        description: 'Met à jour la configuration de modération automatique de pseudos.',
+        inputSchema: {
+          enabled: z.boolean().optional(),
+          on_join: z.boolean().optional(),
+          on_update: z.boolean().optional(),
+          check_invisible: z.boolean().optional(),
+          check_global: z.boolean().optional(),
+          check_custom: z.boolean().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ enabled, on_join, on_update, check_invisible, check_global, check_custom, key_name }) => {
+        try {
+          await prisma.guild.update({
+            where: { id: guildId },
+            data: {
+              ...(enabled !== undefined ? { autoNicknameModerationEnabled: enabled } : {}),
+              ...(on_join !== undefined ? { nickModOnJoin: on_join } : {}),
+              ...(on_update !== undefined ? { nickModOnUpdate: on_update } : {}),
+              ...(check_invisible !== undefined ? { nickModCheckInvisible: check_invisible } : {}),
+              ...(check_global !== undefined ? { nickModCheckGlobal: check_global } : {}),
+              ...(check_custom !== undefined ? { nickModCheckCustom: check_custom } : {}),
+            }
+          });
+
+          await audit(key_name, 'Configuration pseudos MCP', 'Mise à jour des paramètres de modération de pseudos', '');
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 5. add_blocked_nickname_word / remove_blocked_nickname_word
+    server.registerTool(
+      'add_blocked_nickname_word',
+      {
+        description: 'Ajoute un mot interdit/regex dans la blacklist de pseudos du serveur.',
+        inputSchema: {
+          word: z.string().describe('Le mot ou le motif regex interdit'),
+          category: z.string().default('custom').describe('Catégorie du mot (ex: racist, toxic, custom)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ word, category, key_name }) => {
+        try {
+          const bw = await prisma.bannedWord.create({
+            data: {
+              guildId,
+              word,
+              category,
+              enabled: true
+            }
+          });
+
+          await audit(key_name, 'Blacklist pseudos MCP', word, `Catégorie: ${category}`);
+          return ok({ ok: true, wordId: bw.id, word });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'remove_blocked_nickname_word',
+      {
+        description: 'Supprime un mot de la blacklist de pseudos du serveur.',
+        inputSchema: {
+          word: z.string().describe('Le mot exact à enlever de la blacklist'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ word, key_name }) => {
+        try {
+          await prisma.bannedWord.deleteMany({
+            where: { guildId, word }
+          });
+
+          await audit(key_name, 'Whitelist pseudos MCP', word, 'Retiré de la blacklist');
+          return ok({ ok: true, word });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 6. run_nickname_rescan
+    server.registerTool(
+      'run_nickname_rescan',
+      {
+        description: 'Exécute un scan massif des pseudos des membres du serveur et renomme ceux non conformes.',
+        inputSchema: {
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ key_name }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        try {
+          const { scanAndModeratePseudos } = await import('../../services/moderation/nicknameModerationService.js');
+          const scanRes = await scanAndModeratePseudos(guild);
+
+          await audit(key_name, 'Rescan pseudos MCP', 'Scan manuel déclenché par l\'IA', `Scannés: ${scanRes.scannedCount} | Renommés: ${scanRes.renamedCount}`);
+          return ok(scanRes);
+        } catch (e) {
+          return err(`Erreur rescan: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 7. get_leveling_config / update_leveling_config
+    server.registerTool(
+      'get_leveling_config',
+      {
+        description: 'Récupère la configuration du système de progression et leveling (XP).',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async () => {
+        const config = await prisma.levelConfig.findUnique({
+          where: { guildId },
+          select: {
+            enabled: true,
+            xpMin: true,
+            xpMax: true,
+            cooldownSeconds: true,
+            vocalXpPerMin: true,
+            levelUpChannelId: true,
+            levelUpMessage: true,
+            stackRewards: true,
+            ignoredChannels: true,
+            ignoredRoles: true,
+          }
+        });
+        return ok(config);
+      })
+    );
+
+    server.registerTool(
+      'update_leveling_config',
+      {
+        description: 'Met à jour les paramètres de progression/gains d\'XP du serveur.',
+        inputSchema: {
+          enabled: z.boolean().optional(),
+          xp_min: z.number().int().min(1).optional(),
+          xp_max: z.number().int().min(1).optional(),
+          cooldown: z.number().int().min(0).optional(),
+          vocal_xp: z.number().int().min(0).optional(),
+          announce_channel: z.string().optional().describe('ID salon, "DM", ou vide (même salon)'),
+          announce_message: z.string().optional().describe('Message (ex: "Félicitations {user} ! Tu passes au niveau **{level}** ! 🎉")'),
+          stack_rewards: z.boolean().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ enabled, xp_min, xp_max, cooldown, vocal_xp, announce_channel, announce_message, stack_rewards, key_name }) => {
+        try {
+          await prisma.levelConfig.update({
+            where: { guildId },
+            data: {
+              ...(enabled !== undefined ? { enabled } : {}),
+              ...(xp_min !== undefined ? { xpMin: xp_min } : {}),
+              ...(xp_max !== undefined ? { xpMax: xp_max } : {}),
+              ...(cooldown !== undefined ? { cooldownSeconds: cooldown } : {}),
+              ...(vocal_xp !== undefined ? { vocalXpPerMin: vocal_xp } : {}),
+              ...(announce_channel !== undefined ? { levelUpChannelId: announce_channel || null } : {}),
+              ...(announce_message !== undefined ? { levelUpMessage: announce_message } : {}),
+              ...(stack_rewards !== undefined ? { stackRewards: stack_rewards } : {}),
+            }
+          });
+
+          await audit(key_name, 'Configuration progression MCP', 'Mise à jour de la config de progression', '');
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 8. create_level_role_reward / remove_level_role_reward
+    server.registerTool(
+      'create_level_role_reward',
+      {
+        description: 'Configure ou met à jour un rôle Discord offert à un niveau spécifique.',
+        inputSchema: {
+          level: z.number().int().min(1).describe('Niveau requis'),
+          role: z.string().describe('Nom ou ID du rôle Discord'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ level, role, key_name }) => {
+        const guild = client.guilds.cache.get(guildId);
+        const rId = SNOWFLAKE.test(role) ? role : null;
+        const discordRole = rId ? guild?.roles.cache.get(rId) : guild?.roles.cache.find(r => r.name.toLowerCase() === role.toLowerCase());
+        if (!discordRole) return err(`Rôle "${role}" introuvable`);
+
+        try {
+          const reward = await prisma.levelRoleReward.upsert({
+            where: { guildId_level: { guildId, level } },
+            update: { roleId: discordRole.id },
+            create: { guildId, level, roleId: discordRole.id }
+          });
+
+          await audit(key_name, 'Configuration progression MCP', `Récompense niveau ${level}`, `Rôle: ${discordRole.name}`);
+          return ok({ ok: true, rewardId: reward.id, level, roleName: discordRole.name });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'remove_level_role_reward',
+      {
+        description: 'Supprime la récompense de rôle pour un niveau.',
+        inputSchema: {
+          level: z.number().int().min(1).describe('Niveau requis'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ level, key_name }) => {
+        try {
+          await prisma.levelRoleReward.deleteMany({
+            where: { guildId, level }
+          });
+
+          await audit(key_name, 'Configuration progression MCP', `Suppression récompense niveau ${level}`, '');
+          return ok({ ok: true, level });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 9. update_economy_config
+    server.registerTool(
+      'update_economy_config',
+      {
+        description: 'Configure le système d\'économie RPG de Kotbo.',
+        inputSchema: {
+          currency_name: z.string().optional().describe('Nom de la monnaie (ex: "Kotcoins")'),
+          currency_emoji: z.string().optional().describe('Emoji de la monnaie'),
+          daily_min: z.number().int().min(0).optional(),
+          daily_max: z.number().int().min(0).optional(),
+          max_energy: z.number().int().min(1).optional(),
+          energy_recovery_per_hour: z.number().int().min(0).optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ currency_name, currency_emoji, daily_min, daily_max, max_energy, energy_recovery_per_hour, key_name }) => {
+        try {
+          await prisma.economyConfig.upsert({
+            where: { guildId },
+            update: {
+              ...(currency_name !== undefined ? { currencyName: currency_name } : {}),
+              ...(currency_emoji !== undefined ? { currencyEmoji: currency_emoji } : {}),
+              ...(daily_min !== undefined ? { dailyRewardMin: daily_min } : {}),
+              ...(daily_max !== undefined ? { dailyRewardMax: daily_max } : {}),
+              ...(max_energy !== undefined ? { maxEnergy: max_energy } : {}),
+              ...(energy_recovery_per_hour !== undefined ? { energyRecoveryPerHour: energy_recovery_per_hour } : {}),
+            },
+            create: {
+              guildId,
+              currencyName: currency_name || 'Pièces',
+              currencyEmoji: currency_emoji || '🪙',
+              dailyRewardMin: daily_min || 50,
+              dailyRewardMax: daily_max || 150,
+              maxEnergy: max_energy || 100,
+              energyRecoveryPerHour: energy_recovery_per_hour || 10,
+            }
+          });
+
+          await audit(key_name, 'Configuration économie MCP', 'Mise à jour des paramètres d\'économie', '');
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 10. create_rpg_shop_item
+    server.registerTool(
+      'create_rpg_shop_item',
+      {
+        description: 'Crée un nouvel objet dans la boutique RPG.',
+        inputSchema: {
+          id: z.string().describe('ID unique de l\'objet (ex: "iron_sword")'),
+          name: z.string().describe('Nom de l\'objet'),
+          description: z.string().describe('Description de ses effets'),
+          type: z.enum(['WEAPON', 'ARMOR', 'POTION', 'USABLE', 'MATERIAL', 'QUEST']),
+          price: z.number().int().min(0).describe('Prix d\'achat'),
+          purchasable: z.boolean().default(true),
+          atk_bonus: z.number().int().default(0),
+          def_bonus: z.number().int().default(0),
+          hp_restore: z.number().int().default(0),
+          energy_restore: z.number().int().default(0),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ id, name, description, type, price, purchasable, atk_bonus, def_bonus, hp_restore, energy_restore, key_name }) => {
+        try {
+          const item = await prisma.rpgItem.upsert({
+            where: { guildId_id: { guildId, id } },
+            update: {
+              name,
+              description,
+              type,
+              price,
+              purchasable,
+              atkBonus: atk_bonus,
+              defBonus: def_bonus,
+              hpRestore: hp_restore,
+              energyRestore: energy_restore,
+            },
+            create: {
+              guildId,
+              id,
+              name,
+              description,
+              type,
+              price,
+              purchasable,
+              atkBonus: atk_bonus,
+              defBonus: def_bonus,
+              hpRestore: hp_restore,
+              energyRestore: energy_restore,
+            }
+          });
+
+          await audit(key_name, 'Configuration économie MCP', `Nouvel objet boutique RPG : ${name}`, `Type: ${type} | Prix: ${price}`);
+          return ok({ ok: true, itemId: item.id, name });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 11. admin_reset_economy
+    server.registerTool(
+      'admin_reset_economy',
+      {
+        description: 'Réinitialise l\'économie du serveur. Requiert une validation staff si déclenché directement.',
+        inputSchema: {
+          component: z.enum(['all', 'profiles', 'items', 'config', 'guilds']).default('all'),
+          approved_by_staff: z.boolean().default(false).describe('Indique si un bouton Discord a déjà approuvé cette demande'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ component, approved_by_staff, key_name }) => {
+        if (!approved_by_staff) {
+          return err('Action critique rejetée. Utilisez request_staff_approval pour soumettre le reset à la validation humaine du staff.');
+        }
+
+        try {
+          const { adminResetGuildEconomy } = await import('../../services/features/economyService.js');
+          await adminResetGuildEconomy(guildId, component);
+
+          await audit(key_name, 'Réinitialisation Économie MCP', `Reset de component: ${component}`, 'Action validée par le staff');
+          return ok({ ok: true, message: `L'économie (${component}) a été réinitialisée avec succès.` });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 12. admin_adjust_coins
+    server.registerTool(
+      'admin_adjust_coins',
+      {
+        description: 'Crédite ou débite des pièces RPG à un membre.',
+        inputSchema: {
+          member: z.string().describe('Nom, mention ou ID du membre'),
+          amount: z.number().int().describe('Nombre de pièces (positif pour ajouter, négatif pour retirer)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, amount, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const profile = await prisma.rpgProfile.upsert({
+            where: { guildId_userId: { guildId, userId: resolved.userId } },
+            update: { balance: { increment: amount } },
+            create: { guildId, userId: resolved.userId, balance: Math.max(0, amount) }
+          });
+
+          await audit(key_name, 'Ajustement monnaie MCP', resolved.label, `Montant: ${amount}`);
+          return ok({ ok: true, userId: resolved.userId, newBalance: profile.balance });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 13. admin_adjust_xp
+    server.registerTool(
+      'admin_adjust_xp',
+      {
+        description: 'Crédite ou retire de l\'XP de leveling/progression à un membre.',
+        inputSchema: {
+          member: z.string().describe('Nom, mention ou ID du membre'),
+          amount: z.number().int().describe('Montant d\'XP (positif pour ajouter, négatif pour retirer)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, amount, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          await addXp(guildId, resolved.userId, amount, client);
+          const currentLevel = await prisma.memberLevel.findUnique({
+            where: { guildId_userId: { guildId, userId: resolved.userId } },
+            select: { level: true, xp: true }
+          });
+
+          await audit(key_name, 'Ajustement XP MCP', resolved.label, `XP: ${amount}`);
+          return ok({ ok: true, userId: resolved.userId, level: currentLevel?.level, xp: currentLevel?.xp });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 14. add_automod_regex_rule / remove_automod_regex_rule
+    server.registerTool(
+      'add_automod_regex_rule',
+      {
+        description: 'Ajoute un filtre regex ou un mot banni à l\'AutoMod.',
+        inputSchema: {
+          word: z.string().describe('Le mot ou le motif regex banni'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ word, key_name }) => {
+        try {
+          const config = await prisma.autoModConfig.findUnique({ where: { guildId } });
+          const currentWords = config?.customWords || [];
+          if (!currentWords.includes(word)) {
+            currentWords.push(word);
+            await prisma.autoModConfig.update({
+              where: { guildId },
+              data: { customWords: currentWords }
+            });
+          }
+
+          await audit(key_name, 'AutoMod règle MCP', word, 'Règle regex ajoutée');
+          return ok({ ok: true, word });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'remove_automod_regex_rule',
+      {
+        description: 'Retire une règle de mot banni/regex de l\'AutoMod.',
+        inputSchema: {
+          word: z.string().describe('La règle à retirer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ word, key_name }) => {
+        try {
+          const config = await prisma.autoModConfig.findUnique({ where: { guildId } });
+          const currentWords = config?.customWords || [];
+          const filtered = currentWords.filter(w => w !== word);
+          await prisma.autoModConfig.update({
+            where: { guildId },
+            data: { customWords: filtered }
+          });
+
+          await audit(key_name, 'AutoMod règle MCP', word, 'Règle regex retirée');
+          return ok({ ok: true, word });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+  }
+
+  // ── SYSTEM & SAFETY (NEW) ──────────────────────────────────────────────────
+  if (shouldRegister('WRITE_MESSAGES')) {
+    // 1. request_staff_approval
+    server.registerTool(
+      'request_staff_approval',
+      {
+        description: 'Soumet une action critique (comme réinitialiser l\'économie ou bannir) à l\'approbation manuelle du Staff via un bouton Discord.',
+        inputSchema: {
+          action_name: z.string().describe('Nom court de l\'action (ex: "reset_economy", "ban_member")'),
+          details: z.string().describe('Détails textuels décrivant l\'action demandée par l\'IA'),
+          channel: z.string().optional().describe('Salon où envoyer la demande (défaut: salon de logs)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ action_name, details, channel, key_name }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        // Récupérer le salon de logs
+        let targetChannel: TextChannel | null = null;
+        if (channel) {
+          const resolved = resolveChannel(guildId, client, channel);
+          if (resolved.ok) targetChannel = resolved.channel;
+        }
+
+        if (!targetChannel) {
+          const config = await prisma.guild.findUnique({ where: { id: guildId }, select: { logChannelId: true } });
+          const ch = config?.logChannelId ? guild.channels.cache.get(config.logChannelId) : null;
+          if (ch instanceof TextChannel) targetChannel = ch;
+        }
+
+        if (!targetChannel) {
+          // Fallback sur le premier salon texte disponible si aucun salon de log configuré
+          const fallback = guild.channels.cache.find(c => c instanceof TextChannel && c.permissionsFor(guild.members.me!).has(PermissionFlagsBits.SendMessages));
+          if (fallback instanceof TextChannel) targetChannel = fallback;
+        }
+
+        if (!targetChannel) return err('Aucun salon textuel trouvé pour envoyer la demande.');
+
+        try {
+          const { randomBytes } = await import('crypto');
+          const requestId = `mcp_approve:${randomBytes(8).toString('hex')}`;
+          
+          // Stocker temporairement la demande d'approbation en base (si une table existe, ou en log)
+          // Pour éviter de surcharger le schema, on crée un log d'audit spécifique en statut PENDING
+          await prisma.dashboardAuditLog.create({
+            data: {
+              guildId,
+              user: `MCP[${key_name || 'agent'}]`,
+              action: `Demande d'approbation : ${action_name}`,
+              context: requestId,
+              module: 'MCP',
+              eventType: 'Action',
+              details: `PENDING - Détails : ${details}`,
+              dateIso: new Date(),
+            }
+          });
+
+          const embed = new EmbedBuilder()
+            .setTitle(`⚠️ Demande d'autorisation critique · IA`)
+            .setDescription(`L'agent IA demande l'autorisation d'exécuter l'action suivante :\n\n**Action :** \`${action_name}\`\n**Détails :**\n${details}`)
+            .setColor(0xd97757) // Orange
+            .setTimestamp()
+            .setFooter({ text: `ID Demande : ${requestId}` });
+
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId(`mcp_approve:ok:${requestId}`).setLabel('Approuver').setStyle(ButtonStyle.Success).setEmoji('✅'),
+            new ButtonBuilder().setCustomId(`mcp_approve:no:${requestId}`).setLabel('Rejeter').setStyle(ButtonStyle.Danger).setEmoji('❌')
+          );
+
+          await targetChannel.send({
+            content: '🔔 **Alerte Staff :** Une action IA requiert votre validation.',
+            embeds: [embed],
+            components: [row]
+          });
+
+          return ok({ ok: true, pendingApproval: true, requestId, message: "La demande d'approbation a été envoyée au staff." });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // 2. generate_server_digest
+    server.registerTool(
+      'generate_server_digest',
+      {
+        description: 'Publie un digest/récapitulatif rédigé par l\'IA dans un salon textuel.',
+        inputSchema: {
+          channel: z.string().describe('Salon cible'),
+          title: z.string().default('Récapitulatif Hebdomadaire'),
+          content: z.string().describe('Texte du digest/récapitulatif rédigé par l\'IA'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ channel, title, content, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        const embed = new EmbedBuilder()
+          .setTitle(title)
+          .setDescription(content)
+          .setColor(0x5865F2)
+          .setTimestamp();
+
+        try {
+          const sent = await resolved.channel.send({ embeds: [embed] });
+          await audit(key_name, 'Publication Digest MCP', title, `Salon: #${resolved.channel.name}`);
+          return ok({ ok: true, messageId: sent.id });
+        } catch (e) {
+          return err(`Erreur d'envoi : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+  }
+
+  if (shouldRegister('READ_STATS')) {
+    // 3. search_audit_logs
+    server.registerTool(
+      'search_audit_logs',
+      {
+        description: 'Fouille les logs d\'audit du dashboard pour identifier les actions passées.',
+        inputSchema: {
+          query: z.string().optional().describe('Terme de recherche optionnel'),
+          limit: z.number().int().min(1).max(100).default(20),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ query, limit }) => {
+        try {
+          const logs = await prisma.dashboardAuditLog.findMany({
+            where: {
+              guildId,
+              ...(query ? {
+                OR: [
+                  { action: { contains: query, mode: 'insensitive' } },
+                  { details: { contains: query, mode: 'insensitive' } },
+                  { user: { contains: query, mode: 'insensitive' } },
+                  { module: { contains: query, mode: 'insensitive' } },
+                ]
+              } : {})
+            },
+            orderBy: { dateIso: 'desc' },
+            take: limit,
+          });
+
+          return ok(logs.map(l => ({
+            id: l.id,
+            user: l.user,
+            action: l.action,
+            module: l.module,
+            details: l.details,
+            timestamp: l.dateIso.toISOString(),
+          })));
+        } catch (e) {
+          return err(`Erreur de recherche : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
   }
 }
+

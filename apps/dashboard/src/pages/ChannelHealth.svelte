@@ -1,5 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { router } from 'tinro';
+import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 import { authStore } from '../lib/stores/auth.svelte';
 import Papicon from '../lib/components/Papicon.svelte';
 import {
@@ -19,7 +21,13 @@ let analysis: any = $state(null);
 let analysisLoading = $state(false);
 let configDraft: any = $state(null);
 let savingConfig = $state(false);
+const healthTabs = ['overview', 'alerts', 'config'] as const;
 let activeTab = $state<'overview' | 'alerts' | 'config'>('overview');
+
+$effect(() => {
+  const _path = $router.path;
+  activeTab = resolveTabFromUrl('/channel-health', healthTabs, 'overview') as typeof activeTab;
+});
 
 const statusLabels: Record<string, { label: string; color: string; icon: string }> = {
   HEALTHY:    { label: 'Sain',          color: '#57f287', icon: 'check-circle' },
@@ -138,16 +146,16 @@ onMount(load);
   </div>
 
   <div class="tabs">
-    <button class="tab" class:active={activeTab === 'overview'} onclick={() => activeTab = 'overview'}>
+    <button class="tab" class:active={activeTab === 'overview'} onclick={() => gotoTab('/channel-health', 'overview', 'overview')}>
       <Papicon name="pie-chart" size={16} /> Vue d'ensemble
     </button>
-    <button class="tab" class:active={activeTab === 'alerts'} onclick={() => activeTab = 'alerts'}>
+    <button class="tab" class:active={activeTab === 'alerts'} onclick={() => gotoTab('/channel-health', 'alerts', 'overview')}>
       <Papicon name="bell" size={16} /> Alertes
       {#if data?.pendingAlerts?.length > 0}
         <span class="badge">{data.pendingAlerts.length}</span>
       {/if}
     </button>
-    <button class="tab" class:active={activeTab === 'config'} onclick={() => activeTab = 'config'}>
+    <button class="tab" class:active={activeTab === 'config'} onclick={() => gotoTab('/channel-health', 'config', 'overview')}>
       <Papicon name="settings" size={16} /> Configuration
     </button>
   </div>
@@ -172,7 +180,7 @@ onMount(load);
             <Papicon name="activity" size={48} />
             <h3>Moniteur de santé désactivé</h3>
             <p>Activez le moniteur pour analyser automatiquement l'activité de vos salons et recevoir des recommandations.</p>
-            <button class="btn btn-primary" onclick={() => { activeTab = 'config'; if (configDraft) configDraft.enabled = true; }}>
+            <button class="btn btn-primary" onclick={() => { gotoTab('/channel-health', 'config', 'overview'); if (configDraft) configDraft.enabled = true; }}>
               Activer le moniteur
             </button>
           </div>

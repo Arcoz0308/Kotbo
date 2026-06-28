@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { portal } from '../lib/actions/portal';
@@ -43,7 +45,14 @@
   import { toast } from '../lib/stores/toast.svelte';
   import * as XLSX from 'xlsx';
 
+  const sanctionTabs = ['sanctions', 'settings'] as const;
   let activeTab = $state('sanctions');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/sanctions', sanctionTabs, 'sanctions');
+  });
+
   const saveAction = createAsyncActionState();
 
   let selectedTableIndex = $state(0);
@@ -1032,7 +1041,7 @@
   <div class="space-y-8">
     <div class="flex border-b border-outline-variant/10">
       <button 
-        onclick={() => activeTab = 'sanctions'}
+        onclick={() => gotoTab('/sanctions', 'sanctions', 'sanctions')}
         class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'sanctions' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Historique
@@ -1042,7 +1051,7 @@
       </button>
       {#if canManageSettings}
         <button 
-          onclick={() => activeTab = 'settings'}
+          onclick={() => gotoTab('/sanctions', 'settings', 'sanctions')}
           class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'settings' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
         >
           Configuration

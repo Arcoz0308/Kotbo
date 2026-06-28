@@ -1,6 +1,8 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -11,8 +13,6 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
-  import { router } from 'tinro';
-  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 
   // Config State
   let config = $state({
@@ -369,7 +369,7 @@
     <!-- Tab Switcher -->
     <div class="flex border-b border-outline-variant/20 mb-8 overflow-x-auto no-scrollbar">
       <button 
-        onclick={() => activeTab = 'auto-thread'}
+        onclick={() => gotoTab('/channels-management', 'auto-thread', 'auto-thread')}
         class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'auto-thread' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Auto-Thread
@@ -379,7 +379,7 @@
       </button>
 
       <button 
-        onclick={() => activeTab = 'stats'}
+        onclick={() => gotoTab('/channels-management', 'stats', 'auto-thread')}
         class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'stats' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Salons Stats
@@ -389,7 +389,7 @@
       </button>
 
       <button 
-        onclick={() => activeTab = 'temp-voice'}
+        onclick={() => gotoTab('/channels-management', 'temp-voice', 'auto-thread')}
         class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'temp-voice' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Créer son salon
@@ -399,7 +399,7 @@
       </button>
 
       <button 
-        onclick={() => activeTab = 'honeypot'}
+        onclick={() => gotoTab('/channels-management', 'honeypot', 'auto-thread')}
         class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'honeypot' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Salon Honeypot

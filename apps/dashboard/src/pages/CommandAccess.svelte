@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { updateCommandAccessSettings } from '../lib/api';
@@ -23,7 +25,13 @@
   let savedRestrictions = $state<any[]>([]);
   let commandSearch = $state('');
   let catalogFilter = $state<string>('all');
+  const cmdTabs = ['doc', 'permissions'] as const;
   let activeTab = $state<'doc' | 'permissions'>('doc');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/command-access', cmdTabs, 'doc') as typeof activeTab;
+  });
 
   // Permission selection state
   let channelMode = $state<'neutral' | 'allowedOnly' | 'blockedOnly'>('neutral');
@@ -735,7 +743,7 @@
           <div class="tab-group self-start">
             <button
               type="button"
-              onclick={() => activeTab = 'doc'}
+              onclick={() => gotoTab('/command-access', 'doc', 'doc')}
               class="tab-button {activeTab === 'doc' ? 'active' : ''}"
             >
               <Papicon icon="Paper" size={14} />
@@ -743,7 +751,7 @@
             </button>
             <button
               type="button"
-              onclick={() => activeTab = 'permissions'}
+              onclick={() => gotoTab('/command-access', 'permissions', 'doc')}
               class="tab-button {activeTab === 'permissions' ? 'active' : ''}"
             >
               <Papicon icon="Lock" size={14} />

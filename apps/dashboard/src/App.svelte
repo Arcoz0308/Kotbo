@@ -50,7 +50,6 @@
   import StaffManagement from "./pages/StaffManagement.svelte";
   import Members from "./pages/Members.svelte";
   import Recruitment from "./pages/Recruitment.svelte";
-  import RecruitmentForms from "./pages/RecruitmentForms.svelte";
   import FormBuilder from "./pages/FormBuilder.svelte";
   import FormResponses from "./pages/FormResponses.svelte";
   import CustomForms from "./pages/CustomForms.svelte";
@@ -140,7 +139,6 @@
     if (path.startsWith("/logs")) return "logs";
     if (path.startsWith("/activity")) return "activity";
     if (path.startsWith("/recruitment")) return "recruitment";
-    if (path.startsWith("/recruitment-forms")) return "recruitment";
     if (path.startsWith("/tickets")) return "tickets";
     if (path.startsWith("/tutoring")) return "tutoring";
     if (path.startsWith("/meetings")) return "absences";
@@ -210,7 +208,9 @@
       authStore.setToken(token);
 
       window.history.replaceState({}, document.title, window.location.pathname);
-      router.goto("/");
+      if (!isPublicPage) {
+        router.goto("/");
+      }
     }
 
     if (
@@ -770,18 +770,6 @@
             </Route>
             <Route path="/recruitment">
               <Recruitment />
-            </Route>
-            <Route path="/recruitment-forms">
-              <RecruitmentForms />
-            </Route>
-            <Route path="/recruitment-forms/builder/new">
-              <FormBuilder formId={null} />
-            </Route>
-            <Route path="/recruitment-forms/builder/:formId" let:meta>
-              <FormBuilder formId={meta.params.formId} />
-            </Route>
-            <Route path="/recruitment-forms/:formId/responses" let:meta>
-              <FormResponses formId={meta.params.formId} />
             </Route>
             <Route path="/forms">
               <CustomForms />

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { authStore } from '../lib/stores/auth.svelte';
   import { 
     API_BASE_URL, 
@@ -44,8 +46,17 @@
   
   let loading = $state(true);
   let error = $state('');
+  const profileTabs = ['staff_overview', 'staff_activity', 'community_overview', 'api_keys'] as const;
   let activeTab = $state('staff_overview');
-  
+
+  const profileBase = $derived(userId ? `/profile/${userId}` : '/profile');
+
+  $effect(() => {
+    const _path = $router.path;
+    const tab = resolveTabFromUrl(profileBase, profileTabs, 'staff_overview');
+    activeTab = tab;
+  });
+
   // API Keys Form
   let showNewKeyForm = $state(false);
   let newKeyName = $state('Ma clé API');
@@ -515,7 +526,7 @@
       <div class="flex gap-1 bg-surface-container-lowest/80 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/10 overflow-x-auto no-scrollbar">
         {#each tabs as tab}
           <button 
-            onclick={() => activeTab = tab.id} 
+            onclick={() => gotoTab(profileBase, tab.id, 'staff_overview')}
             class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeTab === tab.id ? 'bg-primary text-on-primary  scale-[1.05]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           >
             <span class="flex items-center gap-2 pointer-events-none">

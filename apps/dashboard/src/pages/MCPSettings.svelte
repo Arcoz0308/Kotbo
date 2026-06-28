@@ -9,15 +9,20 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
 
   const PERMISSIONS = [
-    { value: 'READ_STATS',      label: 'Stats serveur',   desc: 'Membres, messages, activité' },
-    { value: 'READ_MEMBERS',    label: 'Membres',          desc: 'Profils, recherche, messages récents' },
-    { value: 'READ_SANCTIONS',  label: 'Sanctions',        desc: 'Liste et historique' },
-    { value: 'READ_STAFF',      label: 'Staff',            desc: 'Liste et profils du staff' },
-    { value: 'READ_TICKETS',    label: 'Tickets',          desc: 'Liste des tickets ouverts' },
-    { value: 'READ_COMMUNITY',  label: 'Communauté',       desc: 'Classements, suggestions, événements, giveaways' },
-    { value: 'WRITE_SANCTIONS', label: 'Sanctionner',      desc: '⚠ Appliquer / lever des sanctions via IA' },
-    { value: 'WRITE_MESSAGES',  label: 'Envoyer messages', desc: '⚠ Poster des messages dans un salon en tant que bot' },
-    { value: 'WRITE_TICKETS',   label: 'Gérer tickets',    desc: '⚠ Répondre et fermer des tickets via IA' },
+    { value: 'READ_STATS',      label: 'Stats serveur',     desc: 'Membres, messages, activité' },
+    { value: 'READ_MEMBERS',    label: 'Membres',            desc: 'Profils, recherche, messages récents' },
+    { value: 'READ_SANCTIONS',  label: 'Sanctions',          desc: 'Liste et historique' },
+    { value: 'READ_STAFF',      label: 'Staff',              desc: 'Liste et profils du staff' },
+    { value: 'READ_TICKETS',    label: 'Tickets',            desc: 'Liste des tickets ouverts' },
+    { value: 'READ_COMMUNITY',  label: 'Communauté',         desc: 'Classements, suggestions, événements, quêtes, réputation' },
+    { value: 'READ_ECONOMY',    label: 'Économie',           desc: 'Profils RPG, boutique, marketplace, classements économiques' },
+    { value: 'READ_MODERATION', label: 'Modération',         desc: 'AutoMod, mots bannis, réponses auto, CodePolice' },
+    { value: 'READ_ANALYTICS',  label: 'Analytics',          desc: 'Stats par salon, heatmap horaire, Pulse, prédictions' },
+    { value: 'WRITE_SANCTIONS', label: 'Sanctionner',        desc: '⚠ Appliquer / lever des sanctions via IA' },
+    { value: 'WRITE_MESSAGES',  label: 'Envoyer messages',   desc: '⚠ Poster des messages dans un salon en tant que bot' },
+    { value: 'WRITE_TICKETS',   label: 'Gérer tickets',      desc: '⚠ Répondre et fermer des tickets via IA' },
+    { value: 'WRITE_COMMUNITY', label: 'Gérer communauté',   desc: '⚠ Répondre aux suggestions, gérer événements et giveaways' },
+    { value: 'WRITE_MEMBERS',   label: 'Gérer membres',      desc: '⚠ Notes modérateur, ajout/retrait de rôles, niveaux, invitations' },
   ] as const;
 
   type McpKey = {
@@ -77,6 +82,8 @@
   let expandedKeyId = $state<string | null>(null);
 
   const guildId = $derived(authStore.selectedGuildId ?? '');
+  const readPermissions = $derived(PERMISSIONS.filter((p) => p.value.startsWith('READ_')));
+  const writePermissions = $derived(PERMISSIONS.filter((p) => p.value.startsWith('WRITE_')));
   const endpointUrl = $derived(guildId ? `${API_BASE_URL}/api/mcp/${guildId}` : '');
   const aiGuides = $derived({
     claude: {
@@ -648,29 +655,55 @@
       </div>
 
       <div>
-        <p class="text-sm font-medium text-gray-300 mb-2">Permissions</p>
-        <div class="space-y-1.5">
-          {#each PERMISSIONS as perm}
-            <label
-              for="perm-{perm.value}"
-              class="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-all
-                {newKeyPerms.includes(perm.value)
-                  ? perm.value.startsWith('WRITE_') ? 'border-red-500/30 bg-red-500/5' : 'border-primary/25 bg-primary/5'
-                  : 'border-white/6 hover:border-white/12'}"
-            >
-              <input
-                id="perm-{perm.value}"
-                type="checkbox"
-                checked={newKeyPerms.includes(perm.value)}
-                onchange={() => togglePerm(perm.value)}
-                class="mt-0.5 accent-primary"
-              />
-              <div>
-                <span class="text-sm font-medium text-white">{perm.label}</span>
-                <p class="text-xs text-gray-600 mt-0.5">{perm.desc}</p>
-              </div>
-            </label>
-          {/each}
+        <p class="text-sm font-medium text-gray-300 mb-3">Permissions</p>
+        <div class="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+          <!-- Lecture Section -->
+          <div>
+            <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">Lecture (READ)</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {#each readPermissions as perm}
+                <div class="flex items-center justify-between p-2.5 rounded-lg border border-white/5 bg-black/20 hover:border-white/10 hover:bg-white/[0.01] transition-all">
+                  <div class="min-w-0 pr-3">
+                    <span class="text-xs font-semibold text-white">{perm.label}</span>
+                    <p class="text-[10px] text-gray-500 mt-0.5 leading-normal">{perm.desc}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onclick={() => togglePerm(perm.value)}
+                    class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {newKeyPerms.includes(perm.value) ? 'bg-primary' : 'bg-white/10'}"
+                  >
+                    <span
+                      class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ease-in-out {newKeyPerms.includes(perm.value) ? 'translate-x-4' : 'translate-x-0'}"
+                    ></span>
+                  </button>
+                </div>
+              {/each}
+            </div>
+          </div>
+
+          <!-- Ecriture Section -->
+          <div>
+            <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">Écriture & Actions (WRITE)</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {#each writePermissions as perm}
+                <div class="flex items-center justify-between p-2.5 rounded-lg border border-white/5 bg-black/20 hover:border-white/10 hover:bg-white/[0.01] transition-all">
+                  <div class="min-w-0 pr-3">
+                    <span class="text-xs font-semibold text-white">{perm.label}</span>
+                    <p class="text-[10px] text-gray-500 mt-0.5 leading-normal">{perm.desc}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onclick={() => togglePerm(perm.value)}
+                    class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {newKeyPerms.includes(perm.value) ? 'bg-red-500/80 hover:bg-red-500' : 'bg-white/10'}"
+                  >
+                    <span
+                      class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ease-in-out {newKeyPerms.includes(perm.value) ? 'translate-x-4' : 'translate-x-0'}"
+                    ></span>
+                  </button>
+                </div>
+              {/each}
+            </div>
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -21,7 +23,13 @@
   const saveAction = createAsyncActionState();
   const rewardAction = createAsyncActionState();
   let loading = $state(false);
+  const levelingTabs = ['config', 'leaderboard', 'import'] as const;
   let activeTab = $state<'config' | 'leaderboard' | 'import'>('config');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/leveling', levelingTabs, 'config') as typeof activeTab;
+  });
   let copySuccess = $state(false);
 
   const canManageSettings = $derived(
@@ -376,7 +384,7 @@
   <nav class="flex gap-2 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-2 w-fit">
     <button
       id="tab-config"
-      onclick={() => activeTab = 'config'}
+      onclick={() => gotoTab('/leveling', 'config', 'config')}
       class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary  ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
     >
       <Papicon icon="Settings" size={16} />
@@ -384,7 +392,7 @@
     </button>
     <button
       id="tab-leaderboard"
-      onclick={() => activeTab = 'leaderboard'}
+      onclick={() => gotoTab('/leveling', 'leaderboard', 'config')}
       class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'leaderboard' ? 'bg-tertiary text-on-tertiary shadow-lg shadow-tertiary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
     >
       <Papicon icon="Grades" size={16} />
@@ -398,7 +406,7 @@
     {#if canManageSettings}
       <button
         id="tab-import"
-        onclick={() => activeTab = 'import'}
+        onclick={() => gotoTab('/leveling', 'import', 'config')}
         class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'import' ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
       >
         <Papicon icon="Upload" size={16} />

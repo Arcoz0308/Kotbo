@@ -2,6 +2,41 @@ import { Message, EmbedBuilder, Client, TextChannel } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
+interface WeightedMessage {
+  message: string;
+  weight: number;
+}
+
+function parseWeightedResponses(response: string | null): WeightedMessage[] | null {
+  if (!response || !response.trim()) return null;
+  try {
+    const parsed = JSON.parse(response);
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].message !== undefined) {
+      return parsed.filter((m: any) => m.message && m.weight > 0) as WeightedMessage[];
+    }
+  } catch {}
+  return null;
+}
+
+function pickWeightedResponse(responses: WeightedMessage[]): string {
+  const totalWeight = responses.reduce((sum, r) => sum + r.weight, 0);
+  let random = Math.random() * totalWeight;
+  for (const r of responses) {
+    random -= r.weight;
+    if (random <= 0) return r.message;
+  }
+  return responses[responses.length - 1].message;
+}
+
+function resolveResponse(response: string | null): string | null {
+  if (!response || !response.trim()) return null;
+  const weighted = parseWeightedResponses(response);
+  if (weighted && weighted.length > 0) {
+    return pickWeightedResponse(weighted);
+  }
+  return response;
+}
+
 interface AutoResponse {
   id: string;
   guildId: string;
@@ -115,7 +150,7 @@ export async function handleAutoResponse(message: Message) {
         }
 
         // 3. Envoi de la réponse si elle existe
-        const responseText = item.response;
+        const responseText = resolveResponse(item.response);
         if (responseText && responseText.trim()) {
           const isJson = responseText.startsWith('{') && responseText.endsWith('}');
           let sendPayload: string | { embeds: EmbedBuilder[] } = responseText;
@@ -126,7 +161,6 @@ export async function handleAutoResponse(message: Message) {
               const embed = new EmbedBuilder(embedData);
               sendPayload = { embeds: [embed] };
             } catch (e) {
-              // Si parsing échoue, on envoie en brut
               sendPayload = responseText;
             }
           }
@@ -250,38 +284,41 @@ export async function handleFormTrigger(
           });
 
           if (candidature) {
+            const rejectMessage = resolveResponse(item.response) || 'Rejet automatique via déclencheur';
             const { rejectCandidature: performReject } = await import('../staff/recruitmentService.js');
             await performReject(
               client,
               guildId,
               candidature.id,
-              item.response || 'Rejet automatique via déclencheur',
+              rejectMessage,
               client.user?.id || 'system'
             ).catch(err => {
               logger.error('AutoResponseService', `Erreur lors du rejet de la candidature ${candidature.id}:`, err);
             });
           }
-        } else if (item.response && item.response.trim()) {
-          // Envoyer la réponse par DM à l'utilisateur
-          try {
-            const discordUser = await client.users.fetch(userId);
-            if (discordUser) {
-              const isJson = item.response.startsWith('{') && item.response.endsWith('}');
-              let sendPayload: string | { embeds: EmbedBuilder[] } = item.response;
+        } else {
+          const resolvedFormResponse = resolveResponse(item.response);
+          if (resolvedFormResponse && resolvedFormResponse.trim()) {
+            try {
+              const discordUser = await client.users.fetch(userId);
+              if (discordUser) {
+                const isJson = resolvedFormResponse.startsWith('{') && resolvedFormResponse.endsWith('}');
+                let sendPayload: string | { embeds: EmbedBuilder[] } = resolvedFormResponse;
 
-              if (isJson) {
-                try {
-                  const embedData = JSON.parse(item.response);
-                  const embed = new EmbedBuilder(embedData);
-                  sendPayload = { embeds: [embed] };
-                } catch {
-                  sendPayload = item.response;
+                if (isJson) {
+                  try {
+                    const embedData = JSON.parse(resolvedFormResponse);
+                    const embed = new EmbedBuilder(embedData);
+                    sendPayload = { embeds: [embed] };
+                  } catch {
+                    sendPayload = resolvedFormResponse;
+                  }
                 }
+                await discordUser.send(sendPayload).catch(() => null);
               }
-              await discordUser.send(sendPayload).catch(() => null);
+            } catch (e) {
+              logger.error('AutoResponseService', `Impossible d'envoyer la réponse DM pour trigger de formulaire:`, e);
             }
-          } catch (e) {
-            logger.error('AutoResponseService', `Impossible d'envoyer la réponse DM pour trigger de formulaire:`, e);
           }
         }
       }
@@ -356,21 +393,21 @@ export async function handleTicketTrigger(
           }
         }
 
-        // Envoyer la réponse par DM à l'utilisateur
-        if (item.response && item.response.trim()) {
+        const resolvedTicketResponse = resolveResponse(item.response);
+        if (resolvedTicketResponse && resolvedTicketResponse.trim()) {
           try {
             const discordUser = await client.users.fetch(userId);
             if (discordUser) {
-              const isJson = item.response.startsWith('{') && item.response.endsWith('}');
-              let sendPayload: string | { embeds: EmbedBuilder[] } = item.response;
+              const isJson = resolvedTicketResponse.startsWith('{') && resolvedTicketResponse.endsWith('}');
+              let sendPayload: string | { embeds: EmbedBuilder[] } = resolvedTicketResponse;
 
               if (isJson) {
                 try {
-                  const embedData = JSON.parse(item.response);
+                  const embedData = JSON.parse(resolvedTicketResponse);
                   const embed = new EmbedBuilder(embedData);
                   sendPayload = { embeds: [embed] };
                 } catch {
-                  sendPayload = item.response;
+                  sendPayload = resolvedTicketResponse;
                 }
               }
               await discordUser.send(sendPayload).catch(() => null);

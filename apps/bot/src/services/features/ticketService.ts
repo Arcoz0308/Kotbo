@@ -22,7 +22,8 @@ import {
   type GuildMember,
   type Guild,
   type ThreadChannel,
-  Message
+  Message,
+  ComponentType
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -1342,21 +1343,42 @@ async function logTicketEvent(
   }
 }
 
+/**
+ * Finds the initial welcome message of a ticket.
+ */
+export async function findTicketWelcomeMessage(
+  channel: TextChannel | ThreadChannel,
+  ticketId: string
+): Promise<Message | null> {
+  try {
+    const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    if (!messages) return null;
+    return messages.find(msg => 
+      msg.author.bot && 
+      msg.embeds.length > 0 && 
+      msg.embeds[0].footer?.text?.includes(`Ticket ID: ${ticketId}`)
+    ) || null;
+  } catch (err) {
+    logger.error('Ticket', `Error finding welcome message for ticket ${ticketId}:`, err);
+    return null;
+  }
+}
+
 export async function closeTicket(
   client: Client,
   ticketId: string,
   closedByUserId: string,
   closedByUsername: string
-): Promise<void> {
+): Promise<any> {
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId }
   });
-  if (!ticket || ticket.status === 'CLOSED') return;
+  if (!ticket || ticket.status === 'CLOSED') return ticket || null;
 
   const guildConfig = await prisma.guild.findUnique({
     where: { id: ticket.guildId }
   });
-  if (!guildConfig) return;
+  if (!guildConfig) return null;
 
   // Mettre à jour en BDD
   const updatedTicket = await prisma.ticket.update({
@@ -1389,6 +1411,38 @@ export async function closeTicket(
         logger.error('Ticket', 'Error removing opener permissions from closed channel:', err);
       }
 
+      // Mettre à jour l'embed de bienvenue s'il existe
+      try {
+        const welcomeMessage = await findTicketWelcomeMessage(ticketChannel, ticketId);
+        if (welcomeMessage) {
+          const oldEmbed = welcomeMessage.embeds[0];
+          if (oldEmbed) {
+            const updatedEmbed = EmbedBuilder.from(oldEmbed)
+              .setColor(COLORS.danger as unknown)
+              .setFields([
+                { name: 'Statut', value: `🔒 Fermé par <@${closedByUserId}>`, inline: true }
+              ]);
+
+            // Disable all button components on the welcome message
+            const disabledComponents = welcomeMessage.components.map(row => {
+              const newRow = new ActionRowBuilder<ButtonBuilder>();
+              row.components.forEach(comp => {
+                if (comp.type === ComponentType.Button) {
+                  const btn = ButtonBuilder.from(comp as any);
+                  btn.setDisabled(true);
+                  newRow.addComponents(btn);
+                }
+              });
+              return newRow;
+            }).filter(row => row.components.length > 0);
+
+            await welcomeMessage.edit({ embeds: [updatedEmbed], components: disabledComponents }).catch(() => null);
+          }
+        }
+      } catch (err) {
+        logger.error('Ticket', 'Error updating welcome embed on close:', err);
+      }
+
       const closeEmbed = new EmbedBuilder()
         .setTitle('🔒 Ticket Fermé')
         .setDescription(`Le ticket a été fermé par <@${closedByUserId}>.\n\nLes membres du personnel peuvent maintenant exporter la transcription ou supprimer définitivement le salon.`)
@@ -1414,6 +1468,8 @@ export async function closeTicket(
   } catch (err) {
     logger.error('Ticket', 'Erreur envoi sondage satisfaction:', err);
   }
+
+  return updatedTicket;
 }
 
 export async function renameChannelToClosed(client: Client, channelId: string): Promise<void> {

@@ -967,6 +967,38 @@ export async function registerObservedTimeoutSanction(params: {
   return sanction;
 }
 
+export async function resolveActiveTimeoutSanction(params: {
+  guildId: string;
+  targetUserId: string;
+  resolutionNote?: string;
+}) {
+  const now = new Date();
+  const activeTimeouts = await prisma.sanction.findMany({
+    where: {
+      guildId: params.guildId,
+      targetUserId: params.targetUserId,
+      type: SanctionType.TIMEOUT,
+      status: SanctionStatus.ACTIVE,
+    },
+  });
+
+  if (activeTimeouts.length === 0) return;
+
+  await prisma.sanction.updateMany({
+    where: {
+      id: { in: activeTimeouts.map((t) => t.id) },
+    },
+    data: {
+      status: SanctionStatus.RESOLVED,
+      resolvedAt: now,
+      nextActionAt: null,
+      resolutionNote: params.resolutionNote ?? 'Timeout retiré/levé.',
+    },
+  });
+
+  logger.info('Sanctions', `Timeout résolu pour ${params.targetUserId} sur la guilde ${params.guildId}`);
+}
+
 export async function processScheduledSanctions(client: Client): Promise<void> {
   try {
     await processTimeoutRenewals(client);

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { API_BASE_URL } from '../lib/api';
+  import { authStore } from '../lib/stores/auth.svelte';
 
   let { formId }: { formId: string } = $props();
 
@@ -179,6 +180,27 @@
     }
     answers = { ...answers, [id]: { ...current } };
   }
+
+  function loginWithDiscord() {
+    window.location.href = `${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
+  }
+
+  $effect(() => {
+    if (authStore.user && form?.structure?.fields) {
+      if (authStore.user.id) {
+        const idField = form.structure.fields.find(f => f.id === 'discord_id' || f.label.toLowerCase().includes('discord id'));
+        if (idField && !answers[idField.id]) {
+          answers[idField.id] = authStore.user.id;
+        }
+      }
+      if (authStore.user.username) {
+        const userField = form.structure.fields.find(f => f.id === 'discord_username' || f.label.toLowerCase().includes('pseudo discord') || f.label.toLowerCase().includes('discord username') || f.label.toLowerCase().includes('nom discord'));
+        if (userField && !answers[userField.id]) {
+          answers[userField.id] = authStore.user.username;
+        }
+      }
+    }
+  });
 </script>
 
 <svelte:head>
@@ -260,6 +282,55 @@
           {/if}
         </div>
       </div>
+
+      <!-- Discord association section -->
+      {#if !authStore.isAuthenticated}
+        <div class="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 127.14 96.36">
+                <path d="M107.7,8.07A105.15,105.15,0,0,0,77.26,0a77.19,77.19,0,0,0-3.3,6.83A96.67,96.67,0,0,0,53.22,6.83,77.19,77.19,0,0,0,49.88,0,105.15,105.15,0,0,0,19.44,8.07C3.66,31.58-1.86,54.65,1,77.53A105.73,105.73,0,0,0,32,96.36a77.7,77.7,0,0,0,6.63-10.85,68.43,68.43,0,0,1-10.5-5c.9-.65,1.76-1.34,2.58-2a75.58,75.58,0,0,0,72.9,0c.82.71,1.68,1.4,2.58,2a68.69,68.69,0,0,1-10.5,5,77.7,77.7,0,0,0,6.63,10.85,105.73,105.73,0,0,0,31-18.83C129.87,49.86,124.15,26.91,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53S36.18,40.36,42.45,40.36,53.83,46,53.83,53,48.72,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.24,60,73.24,53S78.41,40.36,84.69,40.36,96.07,46,96.07,53,91,65.69,84.69,65.69Z"/>
+              </svg>
+            </div>
+            <div>
+              <h4 class="font-semibold text-on-surface text-sm">Connexion Discord recommandée</h4>
+              <p class="text-xs text-on-surface-variant/70 mt-0.5">Associez votre compte Discord pour préremplir votre ID et votre pseudo automatiquement.</p>
+            </div>
+          </div>
+          <button
+            onclick={loginWithDiscord}
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-md shrink-0 flex items-center gap-2"
+          >
+            Se connecter
+          </button>
+        </div>
+      {:else}
+        <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 flex items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
+          <div class="flex items-center gap-3">
+            {#if authStore.user?.avatar}
+              <img 
+                src="https://cdn.discordapp.com/avatars/{authStore.user.id}/{authStore.user.avatar}.png" 
+                alt="Avatar" 
+                class="w-10 h-10 rounded-full shrink-0 border border-emerald-500/30" 
+              />
+            {:else}
+              <div class="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 border border-emerald-500/30 font-semibold text-sm">
+                {authStore.user?.username?.charAt(0).toUpperCase()}
+              </div>
+            {/if}
+            <div>
+              <h4 class="font-semibold text-on-surface text-sm">Connecté avec Discord</h4>
+              <p class="text-xs text-on-surface-variant/70 mt-0.5">En tant que <span class="font-bold text-emerald-500">{authStore.user?.username}</span> (ID: {authStore.user?.id})</p>
+            </div>
+          </div>
+          <button
+            onclick={() => authStore.logout()}
+            class="px-3 py-1.5 border border-outline-variant/35 text-on-surface-variant hover:bg-surface-hover hover:text-on-surface rounded-lg text-xs font-semibold transition-all shrink-0"
+          >
+            Déconnexion
+          </button>
+        </div>
+      {/if}
 
       <!-- Fields -->
       {#each currentFields as field (field.id)}

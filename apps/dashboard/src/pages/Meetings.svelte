@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
   import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase, updateModuleStatus, updateGlobalSettings, fetchFeatureConfigurations, updateFeatureConfiguration, fetchStaffConfig, updateStaffConfig } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
@@ -9,7 +10,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
-  import FormTextarea from '../lib/components/FormTextarea.svelte';
+  import DiscordMarkdownEditor from '../lib/components/DiscordMarkdownEditor.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
@@ -407,9 +408,13 @@
                 {/if}
               </div>
 
-              <p class="text-on-surface-variant text-sm line-clamp-3 mb-6 min-h-12">
-                {meeting.description || 'Aucune description fournie.'}
-              </p>
+              <div class="text-on-surface-variant text-sm line-clamp-3 mb-6 min-h-12">
+                {#if meeting.description}
+                  {@html parseDiscordEmojisAndMarkdown(meeting.description)}
+                {:else}
+                  <span class="italic opacity-60">Aucune description fournie.</span>
+                {/if}
+              </div>
 
               <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-lg">
                 <div class="text-center">
@@ -484,7 +489,7 @@
       aria-label="Fermer la modale"
     ></div>
     
-    <div class="relative w-full max-w-xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter">
+    <div class="relative w-full max-w-3xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-primary/5">
         <div>
           <h3 class="text-2xl font-semibold text-on-surface">{editMode ? 'Modifier' : 'Planifier'} une Réunion</h3>
@@ -527,13 +532,14 @@
         </div>
 
         <div>
-          <label for="meeting-desc" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Ordre du jour / Description</label>
-          <FormTextarea 
+          <DiscordMarkdownEditor
             id="meeting-desc"
             bind:value={meetingDesc}
-            placeholder="Détails de la réunion, points à aborder..."
-            rows={5}
-            className="w-full resize-none"
+            label="Ordre du jour / Description"
+            placeholder="Rédigez l'ordre du jour de la réunion..."
+            rows={10}
+            agendaMode={true}
+            disabled={saving}
           />
         </div>
 
@@ -599,8 +605,10 @@
 
       <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
         {#if selectedMeeting.description}
-           <div class="p-4 bg-surface-container-low rounded-lg border border-outline-variant/30">
-              <p class="text-sm text-on-surface whitespace-pre-wrap">{selectedMeeting.description}</p>
+           <div class="p-4 bg-[#2f3136] rounded-lg border border-white/5">
+              <div class="text-sm text-[#dcddde] leading-relaxed whitespace-pre-wrap break-words discord-preview">
+                {@html parseDiscordEmojisAndMarkdown(selectedMeeting.description)}
+              </div>
            </div>
         {/if}
 

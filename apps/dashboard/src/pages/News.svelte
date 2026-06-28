@@ -1,6 +1,8 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -30,7 +32,13 @@
   let isEditing = $state(false);
 
   // Tab State
+  const newsTabs = ['articles', 'configs'] as const;
   let activeTab = $state<'articles' | 'configs'>('articles');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/news', newsTabs, 'articles') as typeof activeTab;
+  });
   let categoryConfigs = $state<any[]>([]);
   let loadingConfigs = $state(false);
 
@@ -520,7 +528,7 @@
     <!-- Tab Switcher -->
     <div class="flex border-b border-outline-variant/20 mb-8 shrink-0">
       <button 
-        onclick={() => activeTab = 'articles'}
+        onclick={() => gotoTab('/news', 'articles', 'articles')}
         class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'articles' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Articles
@@ -530,7 +538,7 @@
       </button>
       {#if !isPublicView}
         <button 
-          onclick={() => activeTab = 'configs'}
+          onclick={() => gotoTab('/news', 'configs', 'articles')}
           class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'configs' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
         >
           Flux & Salons par Catégorie

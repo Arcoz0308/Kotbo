@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -67,7 +69,13 @@
 
   let newWord = $state('');
   let newCategory = $state('custom');
+  const nickTabs = ['custom', 'global'] as const;
   let activeTab = $state<'custom' | 'global'>('custom');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/nickname-moderation', nickTabs, 'custom') as typeof activeTab;
+  });
 
   let newWhitelistItem = $state('');
   let newBypassItem = $state('');
@@ -445,7 +453,7 @@
       <div class="tab-group w-fit">
         {#each [{ key: 'custom', label: `Personnalisés (${customWords.length})` }, { key: 'global', label: `Globaux (${globalWords.length})` }] as tab}
           <button
-            onclick={() => activeTab = tab.key as 'custom' | 'global'}
+            onclick={() => gotoTab('/nickname-moderation', tab.key, 'custom')}
             class="tab-button {activeTab === tab.key ? 'active' : ''}"
           >
             {tab.label}

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -22,7 +24,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  let activeTab = $state('config'); // config | items | players
+  const economyTabs = ['config', 'items', 'players'] as const;
+  let activeTab = $state('config');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/economy', economyTabs, 'config');
+  });
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.economy?.canConfigure
@@ -302,21 +310,21 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <!-- Navigation Tabs -->
   <div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-lg border border-outline-variant/10 w-fit">
     <button 
-      onclick={() => activeTab = 'config'}
+      onclick={() => gotoTab('/economy', 'config', 'config')}
       class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
     >
       <Papicon icon="settings" size={14} />
       Configuration
     </button>
-    <button 
-      onclick={() => activeTab = 'items'}
+    <button
+      onclick={() => gotoTab('/economy', 'items', 'config')}
       class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'items' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
     >
       <Papicon icon="package" size={14} />
       Objets Boutique
     </button>
-    <button 
-      onclick={() => activeTab = 'players'}
+    <button
+      onclick={() => gotoTab('/economy', 'players', 'config')}
       class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'players' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
     >
       <Papicon icon="users" size={14} />

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, scanSuspectedDetections, fetchSuspectedDetections, fetchChannelsManagementConfig, updateChannelsManagementConfig, linkDetectedAccount, dismissDetection } from '../lib/api';
@@ -15,8 +17,6 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
-  import { router } from 'tinro';
-  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 
   // ── Tabs ──
   type Tab = 'links' | 'detections' | 'verification' | 'config';
@@ -288,11 +288,6 @@
   }
 
   onMount(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    if (tab === 'detections' || tab === 'verification' || tab === 'config' || tab === 'links') {
-      activeTab = tab;
-    }
     loadData(); loadDetections(); loadConfig(); loadVerifConfig();
   });
 </script>
@@ -330,7 +325,7 @@
       { key: 'config', label: 'Configuration', icon: 'Settings' },
     ] as tab (tab.key)}
       <button
-        onclick={() => activeTab = tab.key as Tab}
+        onclick={() => gotoTab('/double-accounts', tab.key, 'links')}
         class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all whitespace-nowrap {activeTab === tab.key ? 'bg-surface text-primary shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
       >
         <Papicon icon={tab.icon} size={14} />

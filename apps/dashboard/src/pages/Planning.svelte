@@ -1,6 +1,8 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import {
@@ -58,7 +60,13 @@
   // Modals
   let creationModalOpen = $state(false);
   let detailModalOpen = $state(false);
+  const planningTabs = ['meeting', 'absence', 'call', 'task'] as const;
   let currentTab = $state<'meeting' | 'absence' | 'call' | 'task'>('meeting');
+
+  $effect(() => {
+    const _path = $router.path;
+    currentTab = resolveTabFromUrl('/planning', planningTabs, 'meeting') as typeof currentTab;
+  });
 
   // Selection dates
   let selectedStartDate = $state(new Date());
@@ -719,7 +727,7 @@
             <!-- Add Task -->
             <div class="px-3 py-3 border-t border-outline-variant/15 shrink-0">
               <button
-                onclick={() => { currentTab = 'task'; openCreateModal(new Date()); }}
+                onclick={() => { gotoTab('/planning', 'task', 'meeting'); openCreateModal(new Date()); }}
                 class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-semibold text-purple-400 hover:bg-purple-500/10 transition-colors"
               >
                 <Papicon icon="plus" size={14} />
@@ -757,7 +765,7 @@
               { key: 'task', label: 'Tâche', icon: 'check-square', color: 'purple' }
             ] as { key, label, icon, color }}
               <button
-                onclick={() => currentTab = key as any}
+                onclick={() => gotoTab('/planning', key, 'meeting')}
                 class="flex-1 py-2 text-[11px] font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 whitespace-nowrap
                   {currentTab === key
                     ? (color === 'emerald' ? 'bg-emerald-500 text-white shadow-sm' :

@@ -1,5 +1,5 @@
 import { AuditLogEvent, Events, type Client, type GuildAuditLogsEntry } from 'discord.js';
-import { registerBanSanction, registerKickSanction, registerObservedTimeoutSanction } from '../services/moderation/sanctionService.js';
+import { registerBanSanction, registerKickSanction, registerObservedTimeoutSanction, resolveActiveTimeoutSanction } from '../services/moderation/sanctionService.js';
 import { logger } from '../utils/logger.js';
 
 type Actor = {
@@ -110,16 +110,25 @@ export function registerModerationAuditListener(client: Client): void {
       }
 
       if (action === AuditLogEvent.MemberUpdate) {
-        const timeoutUntil = readTimeoutUntil(entry);
-        if (!timeoutUntil || timeoutUntil.getTime() <= Date.now() + 1000) return;
-
-        await registerObservedTimeoutSanction({
-          guildId: guild.id,
-          target,
-          moderator,
-          reason: entry.reason?.trim() || MANUAL_REASON_BY_ACTION.TIMEOUT,
-          expiresAt: timeoutUntil,
-        });
+        const timeoutChange = entry.changes.find((change) => change.key === 'communication_disabled_until');
+        if (timeoutChange) {
+          const timeoutUntil = readTimeoutUntil(entry);
+          if (!timeoutUntil || timeoutUntil.getTime() <= Date.now() + 1000) {
+            await resolveActiveTimeoutSanction({
+              guildId: guild.id,
+              targetUserId: targetId,
+              resolutionNote: entry.reason?.trim() || 'Retrait du timeout via Discord.',
+            });
+          } else {
+            await registerObservedTimeoutSanction({
+              guildId: guild.id,
+              target,
+              moderator,
+              reason: entry.reason?.trim() || MANUAL_REASON_BY_ACTION.TIMEOUT,
+              expiresAt: timeoutUntil,
+            });
+          }
+        }
       }
     } catch (error) {
       logger.error('Modération', `Erreur de synchronisation des sanctions depuis l'audit Discord (guilde ${guild.id}):`, error);

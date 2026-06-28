@@ -1,12 +1,20 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { fetchMarketplaceData } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
   let loading = $state(true);
   let data: any = $state(null);
+  const marketTabs = ['listings', 'history'] as const;
   let tab = $state<'listings' | 'history'>('listings');
+
+  $effect(() => {
+    const _path = $router.path;
+    tab = resolveTabFromUrl('/marketplace', marketTabs, 'listings') as typeof tab;
+  });
 
   async function load() {
     loading = true;
@@ -85,11 +93,11 @@
   </div>
 
   <div class="tabs">
-    <button class="tab" class:active={tab === 'listings'} onclick={() => tab = 'listings'}>
+    <button class="tab" class:active={tab === 'listings'} onclick={() => gotoTab('/marketplace', 'listings', 'listings')}>
       <Papicon name="grid" size={14} />
       Annonces ({data.activeListings.length})
     </button>
-    <button class="tab" class:active={tab === 'history'} onclick={() => tab = 'history'}>
+    <button class="tab" class:active={tab === 'history'} onclick={() => gotoTab('/marketplace', 'history', 'listings')}>
       <Papicon name="clock" size={14} />
       Historique ({data.recentTransactions.length})
     </button>

@@ -18,7 +18,7 @@ import {
   StringSelectMenuBuilder,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { canManageTicket, renameTicketChannel, renameChannelToClosed, renameChannelToOpen } from '../../services/features/ticketService.js';
+import { canManageTicket, renameTicketChannel, renameChannelToClosed, renameChannelToOpen, closeTicket } from '../../services/features/ticketService.js';
 import { buildMemberCasePanel } from '../../services/moderation/memberCaseService.js';
 import { generateTranscript } from '../../services/features/transcriptService.js';
 import { COLORS, successEmbed, errorEmbed } from '../../utils/embeds.js';
@@ -263,35 +263,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       return;
     }
 
-    await prisma.ticket.update({
-      where: { id: ticket.id },
-      data: {
-        status: 'CLOSED',
-        closedById: interaction.user.id,
-        closedByName: interaction.user.username,
-        closedAt: new Date(),
-      },
-    });
-
-    await channel.permissionOverwrites.edit(ticket.userId, {
-      ViewChannel: false,
-      SendMessages: false,
-    }).catch(() => null);
-
-    await renameChannelToClosed(interaction.client, channel.id).catch(() => null);
-
-    const closeEmbed = new EmbedBuilder()
-      .setTitle('🔒 Ticket Fermé')
-      .setDescription(`Le ticket a été fermé par <@${interaction.user.id}>.`)
-      .setColor(COLORS.danger as unknown)
-      .setTimestamp();
-
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`ticket:reopen:${ticket.id}`).setLabel('Réouvrir').setStyle(ButtonStyle.Success).setEmoji('🔓'),
-      new ButtonBuilder().setCustomId(`ticket:delete:${ticket.id}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
-    );
-
-    await channel.send({ embeds: [closeEmbed], components: [row] }).catch(() => null);
+    await closeTicket(interaction.client, ticket.id, interaction.user.id, interaction.user.username);
 
     await interaction.reply({
       content: '✅ Ticket fermé.',

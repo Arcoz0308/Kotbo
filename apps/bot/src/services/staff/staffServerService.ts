@@ -382,7 +382,7 @@ export async function autoSetupRoleMappings(
       } else {
         const newRole = await staffGuild.roles.create({
           name: mainDiscordRole.name,
-          color: mainDiscordRole.color,
+          colors: mainDiscordRole.color,
           hoist: mainDiscordRole.hoist,
           mentionable: mainDiscordRole.mentionable,
           reason: 'Kotbo StaffServer: Auto-création lors du setup',
@@ -509,7 +509,20 @@ export async function fullSyncStaffRoles(linkId: string, client: Client): Promis
   let synced = 0;
   let errors = 0;
 
-  const sourceMembers = await sourceGuild.members.fetch();
+  let sourceMembers;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      sourceMembers = await sourceGuild.members.fetch();
+      break;
+    } catch (err: any) {
+      if (err?.name === 'GatewayRateLimitError' && err?.data?.retry_after && attempt < 2) {
+        await new Promise((r) => setTimeout(r, err.data.retry_after * 1000 + 500));
+        continue;
+      }
+      throw err;
+    }
+  }
+  if (!sourceMembers) return { synced: 0, errors: 0 };
 
   for (const [userId, sourceMember] of sourceMembers) {
     if (sourceMember.user.bot) continue;

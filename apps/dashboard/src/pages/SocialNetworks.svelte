@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -17,7 +19,13 @@
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
+  const socialTabs = ['youtube', 'twitch'] as const;
   let activeTab = $state<'youtube' | 'twitch'>('youtube');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl('/social-networks', socialTabs, 'youtube') as typeof activeTab;
+  });
 
   // Cast type to prevent 'never' compiler errors
   let availableChannels = $state<Array<{ id: string; name: string }>>([]);
@@ -232,7 +240,7 @@
       <!-- Tab switcher -->
       <div class="flex bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/20">
         <button
-          onclick={() => activeTab = 'youtube'}
+          onclick={() => gotoTab('/social-networks', 'youtube', 'youtube')}
           class="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 {activeTab === 'youtube' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 scale-[1.03]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
         >
           <!-- YouTube Logo SVG -->
@@ -242,7 +250,7 @@
           <span>YouTube</span>
         </button>
         <button
-          onclick={() => activeTab = 'twitch'}
+          onclick={() => gotoTab('/social-networks', 'twitch', 'youtube')}
           class="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 {activeTab === 'twitch' ? 'bg-[#9146FF] text-white shadow-lg shadow-[#9146FF]/20 scale-[1.03]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
         >
           <!-- Twitch Logo SVG -->
