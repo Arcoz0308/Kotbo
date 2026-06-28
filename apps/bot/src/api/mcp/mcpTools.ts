@@ -2188,7 +2188,7 @@ export function registerMcpTools(
         const [invites, invited] = await Promise.all([
           prisma.guildInvite.findMany({
             where: { guildId, inviterId: resolved.userId },
-            select: { code: true, usedCount: true, createdAt: true },
+            select: { code: true, uses: true, createdAt: true },
           }),
           prisma.memberInvite.findMany({
             where: { guildId, inviterId: resolved.userId },
@@ -2207,7 +2207,7 @@ export function registerMcpTools(
           leftInvited: left,
           inviteCodes: invites.map((i) => ({
             code: i.code,
-            usedCount: i.usedCount,
+            usedCount: i.uses,
             createdAt: i.createdAt.toISOString(),
           })),
         });
