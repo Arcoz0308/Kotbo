@@ -1280,6 +1280,92 @@ export function registerMcpTools(
         );
       })
     );
+
+    server.registerTool(
+      'get_custom_forms',
+      {
+        description: 'Liste les formulaires personnalisés du serveur. Requiert READ_COMMUNITY.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async () => {
+        try {
+          const forms = await prisma.customForm.findMany({
+            where: { guildId },
+            orderBy: { createdAt: 'desc' },
+          });
+          return ok(forms);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_custom_form',
+      {
+        description: 'Récupère les détails d\'un formulaire personnalisé par son ID. Requiert READ_COMMUNITY.',
+        inputSchema: {
+          form_id: z.string().describe('ID du formulaire'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ form_id }) => {
+        try {
+          const form = await prisma.customForm.findFirst({
+            where: { id: form_id, guildId },
+          });
+          if (!form) return err('Formulaire introuvable');
+          return ok(form);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_custom_form_submissions',
+      {
+        description: 'Récupère les soumissions de réponses pour un formulaire personnalisé. Requiert READ_COMMUNITY.',
+        inputSchema: {
+          form_id: z.string().describe('ID du formulaire'),
+          limit: z.number().int().min(1).max(100).default(50),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ form_id, limit }) => {
+        try {
+          const submissions = await prisma.customFormSubmission.findMany({
+            where: { formId: form_id, guildId },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+          });
+          return ok(submissions);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_scheduled_tasks',
+      {
+        description: 'Liste les tâches planifiées automatiques (Cron). Requiert READ_COMMUNITY.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async () => {
+        try {
+          const tasks = await prisma.scheduledTask.findMany({
+            where: { guildId },
+            orderBy: { createdAt: 'desc' },
+          });
+          return ok(tasks);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
   }
 
   // ── READ_ECONOMY ──────────────────────────────────────────────────────────
@@ -2127,11 +2213,27 @@ export function registerMcpTools(
       },
       guard('WRITE_COMMUNITY', async ({ name, description, is_recruitment, questions, key_name }) => {
         try {
+          const mappedFields = questions.map((q: any) => ({
+            id: q.id,
+            label: q.label,
+            type: q.type === 'text' ? 'short_text'
+                : q.type === 'select' ? 'dropdown'
+                : q.type === 'checkbox' ? 'checkboxes'
+                : 'paragraph',
+            required: q.required ?? true,
+            description: q.placeholder || undefined,
+            options: q.options || undefined,
+          }));
+
           const form = await createCustomForm(guildId, {
             name,
             description,
             isRecruitment: is_recruitment,
-            structure: { fields: questions },
+            structure: {
+              title: name,
+              description: description || undefined,
+              fields: mappedFields,
+            },
           });
 
           await audit(key_name, 'Création formulaire MCP', name, `Questions: ${questions.length}`);
@@ -2394,6 +2496,435 @@ export function registerMcpTools(
 
           await audit(key_name, 'Création tâche planifiée MCP', name, `Cron: ${cron}`);
           return ok({ ok: true, taskId: task.id, name });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_custom_form',
+      {
+        description: 'Met à jour un formulaire personnalisé existant. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          form_id: z.string().describe('ID du formulaire à modifier'),
+          name: z.string().optional().describe('Nouveau nom du formulaire'),
+          description: z.string().optional().describe('Nouvelle description'),
+          is_recruitment: z.boolean().optional().describe("Indique s'il s'agit d'un formulaire de recrutement"),
+          is_active: z.boolean().optional().describe("Activer ou désactiver le formulaire"),
+          questions: z.array(z.object({
+            id: z.string().describe('Identifiant unique de la question'),
+            label: z.string().describe('Intitulé de la question'),
+            type: z.enum(['text', 'paragraph', 'select', 'checkbox']).default('text'),
+            required: z.boolean().default(true),
+            placeholder: z.string().optional(),
+            options: z.array(z.string()).optional(),
+          })).optional().describe('Nouvelle liste complète des questions (si fournie, remplace l\'ancienne)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ form_id, name, description, is_recruitment, is_active, questions, key_name }) => {
+        try {
+          const existing = await prisma.customForm.findFirst({ where: { id: form_id, guildId } });
+          if (!existing) return err('Formulaire introuvable');
+
+          const updateData: any = {};
+          if (name !== undefined) updateData.name = name;
+          if (description !== undefined) updateData.description = description;
+          if (is_recruitment !== undefined) updateData.isRecruitment = is_recruitment;
+          if (is_active !== undefined) updateData.isActive = is_active;
+
+          if (questions !== undefined) {
+            const mappedFields = questions.map((q: any) => ({
+              id: q.id,
+              label: q.label,
+              type: q.type === 'text' ? 'short_text'
+                  : q.type === 'select' ? 'dropdown'
+                  : q.type === 'checkbox' ? 'checkboxes'
+                  : 'paragraph',
+              required: q.required ?? true,
+              description: q.placeholder || undefined,
+              options: q.options || undefined,
+            }));
+            updateData.structure = {
+              title: name || existing.name,
+              description: description || existing.description || undefined,
+              fields: mappedFields,
+            };
+          }
+
+          await updateCustomForm(form_id, guildId, updateData);
+          await audit(key_name, 'Mise à jour formulaire MCP', name || existing.name, `ID: ${form_id}`);
+          return ok({ ok: true, formId: form_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_custom_form',
+      {
+        description: 'Supprime un formulaire personnalisé. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          form_id: z.string().describe('ID du formulaire à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ form_id, key_name }) => {
+        try {
+          const existing = await prisma.customForm.findFirst({ where: { id: form_id, guildId } });
+          if (!existing) return err('Formulaire introuvable');
+
+          await deleteCustomForm(form_id, guildId);
+          await audit(key_name, 'Suppression formulaire MCP', existing.name, `ID: ${form_id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_custom_event',
+      {
+        description: 'Met à jour un événement existant. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          event_id: z.string().describe('ID de l\'événement à modifier'),
+          title: z.string().optional().describe('Nouveau titre'),
+          description: z.string().optional().describe('Nouvelle description'),
+          start_time: z.string().optional().describe('Nouvelle date/heure de début (format ISO)'),
+          end_time: z.string().optional().describe('Nouvelle date/heure de fin (format ISO)'),
+          location: z.string().optional().describe('Nouveau lieu ou lien de l\'événement'),
+          announcement_channel: z.string().optional().describe('Nouveau salon d\'annonce'),
+          form_id: z.string().optional().describe('Nouveau formulaire lié'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ event_id, title, description, start_time, end_time, location, announcement_channel, form_id, key_name }) => {
+        try {
+          const existing = await prisma.event.findFirst({ where: { id: event_id, guildId } });
+          if (!existing) return err('Événement introuvable');
+
+          const updateData: any = {};
+          if (title !== undefined) updateData.title = title;
+          if (description !== undefined) updateData.description = description;
+          if (start_time !== undefined) updateData.startDate = new Date(start_time);
+          if (end_time !== undefined) updateData.endDate = new Date(end_time);
+          if (location !== undefined) updateData.location = location;
+          if (announcement_channel !== undefined) {
+            const resolvedAnn = resolveChannel(guildId, client, announcement_channel);
+            if (resolvedAnn.ok) {
+              updateData.announcementChannelId = resolvedAnn.channel.id;
+            }
+          }
+          if (form_id !== undefined) updateData.formId = form_id || null;
+
+          await prisma.event.update({
+            where: { id: event_id },
+            data: updateData,
+          });
+
+          await audit(key_name, 'Mise à jour événement MCP', title || existing.title, `ID: ${event_id}`);
+          return ok({ ok: true, eventId: event_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_event',
+      {
+        description: 'Supprime un événement du serveur. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          event_id: z.string().describe('ID de l\'événement à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ event_id, key_name }) => {
+        try {
+          const existing = await prisma.event.findFirst({ where: { id: event_id, guildId } });
+          if (!existing) return err('Événement introuvable');
+
+          await prisma.event.delete({ where: { id: event_id } });
+          await audit(key_name, 'Suppression événement MCP', existing.title, `ID: ${event_id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_giveaway',
+      {
+        description: 'Met à jour un giveaway actif. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          giveaway_id: z.string().describe('ID du giveaway à modifier'),
+          prize: z.string().optional().describe('Nouveau lot'),
+          description: z.string().optional().describe('Nouvelle description'),
+          duration_minutes: z.number().int().min(1).optional().describe('Ajuster le temps restant en minutes à partir de maintenant'),
+          winner_count: z.number().int().min(1).optional().describe('Nombre de gagnants'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ giveaway_id, prize, description, duration_minutes, winner_count, key_name }) => {
+        try {
+          const existing = await prisma.giveaway.findFirst({ where: { id: giveaway_id, guildId } });
+          if (!existing) return err('Giveaway introuvable');
+          if (existing.ended) return err('Impossible de modifier un giveaway terminé');
+
+          const updateData: any = {};
+          if (prize !== undefined) updateData.prize = prize;
+          if (description !== undefined) updateData.description = description;
+          if (duration_minutes !== undefined) {
+            const endsAt = new Date();
+            endsAt.setMinutes(endsAt.getMinutes() + duration_minutes);
+            updateData.endsAt = endsAt;
+          }
+          if (winner_count !== undefined) updateData.winnerCount = winner_count;
+
+          await prisma.giveaway.update({
+            where: { id: giveaway_id },
+            data: updateData,
+          });
+
+          await audit(key_name, 'Mise à jour giveaway MCP', prize || existing.prize, `ID: ${giveaway_id}`);
+          return ok({ ok: true, giveawayId: giveaway_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_giveaway',
+      {
+        description: 'Supprime un giveaway. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          giveaway_id: z.string().describe('ID du giveaway à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ giveaway_id, key_name }) => {
+        try {
+          const existing = await prisma.giveaway.findFirst({ where: { id: giveaway_id, guildId } });
+          if (!existing) return err('Giveaway introuvable');
+
+          await prisma.giveaway.delete({ where: { id: giveaway_id } });
+          await audit(key_name, 'Suppression giveaway MCP', existing.prize, `ID: ${giveaway_id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_quest_definition',
+      {
+        description: 'Met à jour une quête existante. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          quest_id: z.string().describe('ID de la quête à modifier'),
+          name: z.string().optional(),
+          description: z.string().optional(),
+          type: z.enum(['MESSAGE_COUNT', 'VOICE_TIME_MINUTES', 'REPUTATION_GIVEN', 'REPUTATION_RECEIVED', 'INVITE_COUNT']).optional(),
+          frequency: z.enum(['DAILY', 'WEEKLY', 'SEASONAL']).optional(),
+          target: z.number().int().min(1).optional().describe('Objectif quantitatif'),
+          reward_coins: z.number().int().optional(),
+          reward_xp: z.number().int().optional(),
+          enabled: z.boolean().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ quest_id, name, description, type, frequency, target, reward_coins, reward_xp, enabled, key_name }) => {
+        try {
+          const existing = await prisma.questDefinition.findFirst({ where: { id: quest_id, guildId } });
+          if (!existing) return err('Quête introuvable');
+
+          const updateData: any = {};
+          if (name !== undefined) updateData.name = name;
+          if (description !== undefined) updateData.description = description;
+          if (type !== undefined) updateData.type = type;
+          if (frequency !== undefined) updateData.frequency = frequency;
+          if (target !== undefined) updateData.target = target;
+          if (reward_coins !== undefined) updateData.rewardCoins = reward_coins;
+          if (reward_xp !== undefined) updateData.rewardXp = reward_xp;
+          if (enabled !== undefined) updateData.enabled = enabled;
+
+          await prisma.questDefinition.update({
+            where: { id: quest_id },
+            data: updateData,
+          });
+
+          await audit(key_name, 'Mise à jour quête MCP', name || existing.name, `ID: ${quest_id}`);
+          return ok({ ok: true, questId: quest_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_quest_definition',
+      {
+        description: 'Supprime une définition de quête. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          quest_id: z.string().describe('ID de la quête à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ quest_id, key_name }) => {
+        try {
+          const existing = await prisma.questDefinition.findFirst({ where: { id: quest_id, guildId } });
+          if (!existing) return err('Quête introuvable');
+
+          await prisma.questDefinition.delete({ where: { id: quest_id } });
+          await audit(key_name, 'Suppression quête MCP', existing.name, `ID: ${quest_id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_auto_response',
+      {
+        description: 'Met à jour un déclencheur de réponse automatique existant. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          auto_response_id: z.string().describe('ID de la réponse automatique à modifier'),
+          trigger: z.string().optional(),
+          response: z.string().optional(),
+          trigger_type: z.enum(['MESSAGE', 'FORM', 'TICKET']).optional(),
+          match_type: z.enum(['EXACT', 'CONTAINS', 'REGEX']).optional(),
+          role_to_add: z.string().optional(),
+          role_to_remove: z.string().optional(),
+          delete_trigger: z.boolean().optional(),
+          enabled: z.boolean().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ auto_response_id, trigger, response, trigger_type, match_type, role_to_add, role_to_remove, delete_trigger, enabled, key_name }) => {
+        try {
+          const existing = await prisma.autoResponse.findFirst({ where: { id: auto_response_id, guildId } });
+          if (!existing) return err('Réponse automatique introuvable');
+
+          const updateData: any = {};
+          if (trigger !== undefined) updateData.trigger = trigger;
+          if (response !== undefined) updateData.response = response;
+          if (trigger_type !== undefined) updateData.triggerType = trigger_type;
+          if (match_type !== undefined) updateData.matchType = match_type;
+          if (role_to_add !== undefined) updateData.roleIdToAdd = role_to_add || null;
+          if (role_to_remove !== undefined) updateData.roleIdToRemove = role_to_remove || null;
+          if (delete_trigger !== undefined) updateData.deleteTrigger = delete_trigger;
+          if (enabled !== undefined) updateData.enabled = enabled;
+
+          await prisma.autoResponse.update({
+            where: { id: auto_response_id },
+            data: updateData,
+          });
+
+          await audit(key_name, 'Mise à jour AutoResponse MCP', trigger || existing.trigger, `ID: ${auto_response_id}`);
+          return ok({ ok: true, autoResponseId: auto_response_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_auto_response',
+      {
+        description: 'Supprime un déclencheur de réponse automatique. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          auto_response_id: z.string().describe('ID de la réponse automatique à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ auto_response_id, key_name }) => {
+        try {
+          const existing = await prisma.autoResponse.findFirst({ where: { id: auto_response_id, guildId } });
+          if (!existing) return err('Réponse automatique introuvable');
+
+          await prisma.autoResponse.delete({ where: { id: auto_response_id } });
+          await audit(key_name, 'Suppression AutoResponse MCP', existing.trigger, `ID: ${auto_response_id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_scheduled_task',
+      {
+        description: 'Met à jour une tâche planifiée existante. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          task_id: z.string().describe('ID de la tâche à modifier'),
+          name: z.string().optional(),
+          type: z.enum(['CHANNEL_RESET', 'SERVER_BACKUP', 'DATA_EXPORT']).optional(),
+          cron: z.string().optional().describe('Expression Cron standard'),
+          target_id: z.string().optional().describe('ID Discord cible (ex: salon)'),
+          enabled: z.boolean().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ task_id, name, type, cron, target_id, enabled, key_name }) => {
+        try {
+          const existing = await prisma.scheduledTask.findFirst({ where: { id: task_id, guildId } });
+          if (!existing) return err('Tâche planifiée introuvable');
+
+          const updateData: any = {};
+          if (name !== undefined) updateData.name = name;
+          if (type !== undefined) updateData.type = type;
+          if (cron !== undefined) updateData.cron = cron;
+          if (target_id !== undefined) updateData.targetId = target_id || null;
+          if (enabled !== undefined) updateData.enabled = enabled;
+
+          await prisma.scheduledTask.update({
+            where: { id: task_id },
+            data: updateData,
+          });
+
+          await audit(key_name, 'Mise à jour tâche planifiée MCP', name || existing.name, `ID: ${task_id}`);
+          return ok({ ok: true, taskId: task_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_scheduled_task',
+      {
+        description: 'Supprime une tâche planifiée. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          task_id: z.string().describe('ID de la tâche à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ task_id, key_name }) => {
+        try {
+          const existing = await prisma.scheduledTask.findFirst({ where: { id: task_id, guildId } });
+          if (!existing) return err('Tâche planifiée introuvable');
+
+          await prisma.scheduledTask.delete({ where: { id: task_id } });
+          await audit(key_name, 'Suppression tâche planifiée MCP', existing.name, `ID: ${task_id}`);
+          return ok({ ok: true });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -2690,6 +3221,36 @@ export function registerMcpTools(
           return ok({ ok: true });
         } catch (e) {
           return err(`Erreur d'envoi du panel : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_ticket_type',
+      {
+        description: 'Supprime un type/sujet de ticket configuré. Requiert WRITE_TICKETS.',
+        inputSchema: {
+          id: z.string().describe('ID unique du type de ticket à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_TICKETS', async ({ id, key_name }) => {
+        try {
+          const guild = await prisma.guild.findUnique({ where: { id: guildId }, select: { ticketTypes: true } });
+          const currentTypes: any[] = Array.isArray(guild?.ticketTypes) ? (guild.ticketTypes as any[]) : [];
+
+          const filtered = currentTypes.filter(t => t.id !== id);
+
+          await prisma.guild.update({
+            where: { id: guildId },
+            data: { ticketTypes: filtered }
+          });
+
+          await audit(key_name, 'Configuration tickets MCP', `Type de ticket supprimé: ${id}`, `ID: ${id}`);
+          return ok({ ok: true, ticketTypes: filtered });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }
       })
     );
@@ -3216,6 +3777,145 @@ export function registerMcpTools(
           return ok({ ok: true, itemId: item.id, name });
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_rpg_shop_item',
+      {
+        description: 'Supprime un objet de la boutique RPG. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          id: z.string().describe('ID unique de l\'objet à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ id, key_name }) => {
+        try {
+          const existing = await prisma.rpgItem.findUnique({
+            where: { guildId_id: { guildId, id } }
+          });
+          if (!existing) return err('Objet introuvable');
+
+          await prisma.rpgItem.delete({
+            where: { guildId_id: { guildId, id } }
+          });
+
+          await audit(key_name, 'Configuration économie MCP', `Objet boutique RPG supprimé: ${existing.name}`, `ID: ${id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_role',
+      {
+        description: 'Crée un nouveau rôle sur le serveur Discord. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          name: z.string().describe('Nom du rôle'),
+          color: z.string().optional().describe('Couleur hexadécimale (ex: "#FF0000")'),
+          hoist: z.boolean().optional().describe('Afficher les membres ayant ce rôle séparément des autres'),
+          mentionable: z.boolean().optional().describe('Permettre à tout le monde de mentionner ce rôle'),
+          reason: z.string().optional().describe('Raison de la création (pour l\'audit Discord)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ name, color, hoist, mentionable, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const role = await guild.roles.create({
+            name,
+            color: color || undefined,
+            hoist: hoist ?? false,
+            mentionable: mentionable ?? false,
+            reason: reason || 'Créé via MCP',
+          });
+
+          await audit(key_name, 'Création rôle MCP', name, `ID: ${role.id}`);
+          return ok({ ok: true, roleId: role.id, name: role.name });
+        } catch (e) {
+          return err(`Erreur lors de la création du rôle : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_role',
+      {
+        description: 'Met à jour les propriétés d\'un rôle existant sur le serveur Discord. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          role: z.string().describe('Nom ou ID du rôle à modifier'),
+          name: z.string().optional().describe('Nouveau nom du rôle'),
+          color: z.string().optional().describe('Nouvelle couleur hexadécimale (ex: "#00FF00")'),
+          hoist: z.boolean().optional().describe('Afficher les membres ayant ce rôle séparément'),
+          mentionable: z.boolean().optional().describe('Rendre le rôle mentionnable'),
+          reason: z.string().optional().describe('Raison de la modification'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ role, name, color, hoist, mentionable, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const roleId = SNOWFLAKE.test(role) ? role : null;
+          const discordRole = roleId
+            ? guild.roles.cache.get(roleId)
+            : guild.roles.cache.find((r) => r.name.toLowerCase() === role.toLowerCase());
+
+          if (!discordRole) return err(`Rôle « ${role} » introuvable`);
+
+          const updated = await discordRole.edit({
+            name: name !== undefined ? name : undefined,
+            color: color !== undefined ? color : undefined,
+            hoist: hoist !== undefined ? hoist : undefined,
+            mentionable: mentionable !== undefined ? mentionable : undefined,
+          }, reason || 'Modifié via MCP');
+
+          await audit(key_name, 'Mise à jour rôle MCP', discordRole.name, `ID: ${discordRole.id}`);
+          return ok({ ok: true, roleId: discordRole.id, name: updated.name });
+        } catch (e) {
+          return err(`Erreur lors de la modification du rôle : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_role',
+      {
+        description: 'Supprime un rôle existant sur le serveur Discord. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          role: z.string().describe('Nom ou ID du rôle à supprimer'),
+          reason: z.string().optional().describe('Raison de la suppression'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ role, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const roleId = SNOWFLAKE.test(role) ? role : null;
+          const discordRole = roleId
+            ? guild.roles.cache.get(roleId)
+            : guild.roles.cache.find((r) => r.name.toLowerCase() === role.toLowerCase());
+
+          if (!discordRole) return err(`Rôle « ${role} » introuvable`);
+
+          await discordRole.delete(reason || 'Supprimé via MCP');
+
+          await audit(key_name, 'Suppression rôle MCP', discordRole.name, `ID: ${discordRole.id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur lors de la suppression du rôle : ${e instanceof Error ? e.message : String(e)}`);
         }
       })
     );

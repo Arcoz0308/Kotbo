@@ -6,6 +6,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import Chart from '../lib/components/charts/Chart.svelte';
 
   let { formId }: { formId: string } = $props();
 
@@ -18,7 +19,7 @@
     createdAt: string;
   }
 
-  interface FormInfo { id: string; name: string; _count?: { submissions?: number } };
+  interface FormInfo { id: string; name: string; structure?: any; _count?: { submissions?: number } };
 
   let form = $state<FormInfo | null>(null);
   let responses = $state<Submission[]>([]);
@@ -26,6 +27,108 @@
   let error = $state('');
   let selectedResponse = $state<Submission | null>(null);
   let searchQuery = $state('');
+  let activeTab = $state<'list' | 'analytics'>('list');
+
+  const analytics = $derived(() => {
+    if (!form || !form.structure || !form.structure.fields || !responses.length) return [];
+    
+    return form.structure.fields.map((field: any) => {
+      const fieldId = field.id;
+      const label = field.label;
+      const type = field.type;
+      
+      const fieldResponses = responses.map(r => r.data?.[fieldId]).filter(v => v !== undefined && v !== null && v !== '');
+      const totalResponses = fieldResponses.length;
+      
+      if (['multiple_choice', 'dropdown', 'checkboxes'].includes(type) || field.options?.length) {
+        const optionsCount: Record<string, number> = {};
+        // Initialize options with 0
+        if (field.options) {
+          field.options.forEach((opt: string) => {
+            optionsCount[opt] = 0;
+          });
+        }
+        
+        fieldResponses.forEach(val => {
+          if (Array.isArray(val)) {
+            val.forEach(v => {
+              const strVal = String(v);
+              optionsCount[strVal] = (optionsCount[strVal] ?? 0) + 1;
+            });
+          } else {
+            const strVal = String(val);
+            optionsCount[strVal] = (optionsCount[strVal] ?? 0) + 1;
+          }
+        });
+        
+        return {
+          fieldId,
+          label,
+          type,
+          optionsCount,
+          totalResponses
+        };
+      } else if (type === 'number') {
+        const nums = fieldResponses.map(Number).filter(n => !isNaN(n));
+        if (nums.length === 0) return { fieldId, label, type, totalResponses: 0 };
+        const min = Math.min(...nums);
+        const max = Math.max(...nums);
+        const sum = nums.reduce((a, b) => a + b, 0);
+        const average = parseFloat((sum / nums.length).toFixed(2));
+        return {
+          fieldId,
+          label,
+          type,
+          totalResponses,
+          min,
+          max,
+          average
+        };
+      } else {
+        // Text responses
+        const textResponses = fieldResponses.map(String);
+        return {
+          fieldId,
+          label,
+          type,
+          totalResponses,
+          recentResponses: textResponses
+        };
+      }
+    });
+  });
+
+  function getChartData(fieldAnalytics: any) {
+    const labels = Object.keys(fieldAnalytics.optionsCount || {});
+    const counts = Object.values(fieldAnalytics.optionsCount || {});
+    
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Nombre de réponses',
+          data: counts,
+          backgroundColor: [
+            'rgba(99, 102, 241, 0.6)',
+            'rgba(16, 185, 129, 0.6)',
+            'rgba(245, 158, 11, 0.6)',
+            'rgba(239, 68, 68, 0.6)',
+            'rgba(139, 92, 246, 0.6)',
+            'rgba(236, 72, 153, 0.6)',
+          ],
+          borderColor: [
+            'rgb(99, 102, 241)',
+            'rgb(16, 185, 129)',
+            'rgb(245, 158, 11)',
+            'rgb(239, 68, 68)',
+            'rgb(139, 92, 246)',
+            'rgb(236, 72, 153)',
+          ],
+          borderWidth: 1
+        }
+      ]
+    };
+  }
 
   const filtered = $derived(responses.filter(r => {
     const q = searchQuery.toLowerCase();
@@ -123,64 +226,156 @@
       </button>
     </div>
 
-    <!-- Filters -->
-    <div class="flex flex-wrap gap-3">
-      <div class="relative flex-1 min-w-48">
-        <Papicon icon="search" size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
-        <input bind:value={searchQuery} placeholder="Rechercher par ID, utilisateur, tag…"
-          class="w-full bg-surface-container rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 transition-all" />
+    <!-- Tabs Switch -->
+    {#if form && responses.length > 0}
+      <div class="flex border-b border-outline-variant/10 mb-4 gap-1">
+        <button 
+          onclick={() => activeTab = 'list'} 
+          class="px-5 py-3 border-b-2 font-semibold text-xs transition-all uppercase tracking-wider {activeTab === 'list' ? 'border-primary text-primary bg-primary/5 rounded-t-xl' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-hover/30 rounded-t-xl'}"
+        >
+          <span class="flex items-center gap-2">
+            <Papicon icon="assignment" size={16} />
+            Individuel ({filtered.length})
+          </span>
+        </button>
+        <button 
+          onclick={() => activeTab = 'analytics'} 
+          class="px-5 py-3 border-b-2 font-semibold text-xs transition-all uppercase tracking-wider {activeTab === 'analytics' ? 'border-primary text-primary bg-primary/5 rounded-t-xl' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-hover/30 rounded-t-xl'}"
+        >
+          <span class="flex items-center gap-2">
+            <Papicon icon="pie_chart" size={16} />
+            Statistiques
+          </span>
+        </button>
       </div>
-    </div>
+    {/if}
 
-    <!-- Table -->
     {#if loading}
       <div class="flex items-center justify-center py-20">
         <div class="w-10 h-10 border-3 border-primary/20 border-t-primary rounded-full animate-spin"></div>
       </div>
     {:else if error}
       <div class="rounded-lg bg-rose-500/10 border border-rose-500/20 p-5 text-rose-600 text-sm">{error}</div>
-    {:else if filtered.length === 0}
+    {:else if responses.length === 0}
       <div class="rounded-lg border-2 border-dashed border-outline-variant/20 p-16 text-center text-on-surface-variant/40">
         <Papicon icon="inbox" size={48} class="mb-3" />
         <p class="text-sm font-sans">Aucune réponse trouvée</p>
       </div>
     {:else}
-      <div class="rounded-lg border border-outline-variant/20 overflow-hidden shadow-sm">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="bg-surface-container-low/60 border-b border-outline-variant/10">
-              <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">ID</th>
-              <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Utilisateur Discord</th>
-              <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Date de Soumission</th>
-              <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each filtered as r}
-              <tr class="border-b border-outline-variant/5 hover:bg-surface-container-low/40 transition-colors cursor-pointer"
-                onclick={() => selectedResponse = r}>
-                <td class="px-5 py-3 font-mono text-xs text-on-surface-variant/50">{r.id.slice(0,8)}…</td>
-                <td class="px-5 py-3">
-                  {#if r.username}
-                    <span class="font-semibold text-on-surface font-sans">{r.username}</span>
-                    {#if r.userTag}<span class="text-xs text-on-surface-variant/40 ml-1 font-mono">({r.userTag})</span>{/if}
-                  {:else if r.userId}
-                    <span class="font-mono text-xs text-on-surface">{r.userId}</span>
-                  {:else}
-                    <span class="text-on-surface-variant/30 italic font-sans">Anonyme</span>
-                  {/if}
-                </td>
-                <td class="px-5 py-3 text-xs text-on-surface-variant/50 font-sans">{formatDate(r.createdAt)}</td>
-                <td class="px-5 py-3 text-right">
-                  <Papicon icon="chevron_right" size={16} class="text-on-surface-variant/30 inline-block" />
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      {#if activeTab === 'list'}
+        <!-- Filters -->
+        <div class="flex flex-wrap gap-3 mb-4">
+          <div class="relative flex-1 min-w-48">
+            <Papicon icon="search" size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
+            <input bind:value={searchQuery} placeholder="Rechercher par ID, utilisateur, tag…"
+              class="w-full bg-surface-container rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 transition-all" />
+          </div>
+        </div>
 
-      <p class="text-xs text-on-surface-variant/40 text-right font-sans">{filtered.length} résultat{filtered.length !== 1 ? 's' : ''}</p>
+        {#if filtered.length === 0}
+          <div class="rounded-lg border-2 border-dashed border-outline-variant/20 p-16 text-center text-on-surface-variant/40">
+            <Papicon icon="inbox" size={48} class="mb-3" />
+            <p class="text-sm font-sans">Aucune réponse correspondante</p>
+          </div>
+        {:else}
+          <div class="rounded-lg border border-outline-variant/20 overflow-hidden shadow-sm">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-container-low/60 border-b border-outline-variant/10">
+                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">ID</th>
+                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Utilisateur Discord</th>
+                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Date de Soumission</th>
+                  <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each filtered as r}
+                  <tr class="border-b border-outline-variant/5 hover:bg-surface-container-low/40 transition-colors cursor-pointer"
+                    onclick={() => selectedResponse = r}>
+                    <td class="px-5 py-3 font-mono text-xs text-on-surface-variant/50">{r.id.slice(0,8)}…</td>
+                    <td class="px-5 py-3">
+                      {#if r.username}
+                        <span class="font-semibold text-on-surface font-sans">{r.username}</span>
+                        {#if r.userTag}<span class="text-xs text-on-surface-variant/40 ml-1 font-mono">({r.userTag})</span>{/if}
+                      {:else if r.userId}
+                        <span class="font-mono text-xs text-on-surface">{r.userId}</span>
+                      {:else}
+                        <span class="text-on-surface-variant/30 italic font-sans">Anonyme</span>
+                      {/if}
+                    </td>
+                    <td class="px-5 py-3 text-xs text-on-surface-variant/50 font-sans">{formatDate(r.createdAt)}</td>
+                    <td class="px-5 py-3 text-right">
+                      <Papicon icon="chevron_right" size={16} class="text-on-surface-variant/30 inline-block" />
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+
+          <p class="text-xs text-on-surface-variant/40 text-right font-sans">{filtered.length} résultat{filtered.length !== 1 ? 's' : ''}</p>
+        {/if}
+      {:else if activeTab === 'analytics'}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {#each analytics() as item}
+            <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-6 space-y-4 flex flex-col justify-between">
+              <div>
+                <div class="flex items-start justify-between border-b border-outline-variant/5 pb-2 mb-4">
+                  <h4 class="font-semibold text-on-surface font-sans text-sm">{item.label}</h4>
+                  <span class="text-[10px] font-semibold text-on-surface-variant/50 bg-surface-container px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ml-2">
+                    {item.totalResponses} réponse{item.totalResponses !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                
+                {#if ['multiple_choice', 'dropdown', 'checkboxes'].includes(item.type) || item.optionsCount}
+                  <div class="h-[250px]">
+                    <Chart 
+                      data={getChartData(item)} 
+                      type="bar" 
+                      height={250} 
+                      options={{ 
+                        indexAxis: 'y',
+                        plugins: { legend: { display: false } },
+                        scales: {
+                          x: { ticks: { precision: 0 } }
+                        }
+                      }} 
+                    />
+                  </div>
+                {:else if item.type === 'number'}
+                  <div class="grid grid-cols-3 gap-3 text-center my-4">
+                    <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
+                      <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold block mb-1">Moyenne</span>
+                      <span class="text-lg font-bold text-primary">{item.average ?? 0}</span>
+                    </div>
+                    <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
+                      <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold block mb-1">Min</span>
+                      <span class="text-lg font-bold text-on-surface">{item.min ?? 0}</span>
+                    </div>
+                    <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
+                      <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold block mb-1">Max</span>
+                      <span class="text-lg font-bold text-on-surface">{item.max ?? 0}</span>
+                    </div>
+                  </div>
+                {:else}
+                  <!-- Text responses list -->
+                  <div class="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {#if item.recentResponses && item.recentResponses.length > 0}
+                      {#each item.recentResponses as resp}
+                        <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3 text-xs text-on-surface font-sans leading-relaxed">
+                          {resp}
+                        </div>
+                      {/each}
+                    {:else}
+                      <span class="text-xs italic text-on-surface-variant/40">Aucune réponse</span>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 </ModulePage>

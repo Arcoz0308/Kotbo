@@ -17,6 +17,7 @@ interface CustomFormCreateBody {
   name: string;
   description?: string;
   structure?: CustomFormStructure;
+  isRecruitment?: boolean;
 }
 
 interface CustomFormUpdateBody {
@@ -72,6 +73,7 @@ export async function handleCustomFormRoutes(
         name: body.name,
         description: body.description,
         structure: body.structure || { title: body.name, fields: [] },
+        isRecruitment: body.isRecruitment,
       });
 
       json(res, 201, { form });
