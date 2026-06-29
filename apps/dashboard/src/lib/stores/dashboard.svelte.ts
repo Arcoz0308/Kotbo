@@ -2,6 +2,9 @@ import { fetchGuildState, API_BASE_URL, fetchApprenticeProgress } from '../api';
 import { authStore } from './auth.svelte';
 
 class DashboardStore {
+  private retryTimer: any = null;
+  private retryCount = 0;
+
   state = $state({
     guildName: 'Kotbo',
     configChannelId: '',
@@ -182,6 +185,7 @@ class DashboardStore {
         this.state.isTutor = !!data.member?.isTutor;
         authStore.member = data.member;
         this.state.error = null;
+        this.clearRetry();
       }
     } catch (err) {
       if (err?.status === 404) {
@@ -196,12 +200,28 @@ class DashboardStore {
         this.state.error = "L'API du bot a rencontré une erreur interne.";
       } else {
         console.error('DashboardStore sync error:', err);
-        this.state.error = "Impossible de joindre l'API du bot. Vérifiez que le service est bien démarré.";
+        this.state.error = "api_unreachable";
+        this.scheduleRetry();
       }
     } finally {
       this.state.loading = false;
       this.isRefreshing = false;
     }
+  }
+
+  private scheduleRetry() {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryCount++;
+    const delay = Math.min(5000 * this.retryCount, 30000);
+    this.retryTimer = setTimeout(() => this.refresh(), delay);
+  }
+
+  clearRetry() {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.retryCount = 0;
   }
 }
 

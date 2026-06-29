@@ -1226,3 +1226,169 @@ export async function getRichestPlayers(guildId: string, limit = 10) {
   });
   return richest;
 }
+
+// ============================================================================
+// PÊCHE
+// ============================================================================
+
+type FishEntry = {
+  name: string;
+  emoji: string;
+  rarity: string;
+  value: number;
+  xp: number;
+};
+
+const FISH_TABLE: { weight: number; rarity: string; fish: Omit<FishEntry, 'rarity'>[] }[] = [
+  { weight: 60, rarity: 'COMMON', fish: [
+    { name: 'Sardine', emoji: '🐟', value: 5, xp: 5 },
+    { name: 'Truite', emoji: '🐟', value: 8, xp: 5 },
+    { name: 'Maquereau', emoji: '🐟', value: 6, xp: 5 },
+    { name: 'Perche', emoji: '🐟', value: 7, xp: 5 },
+  ]},
+  { weight: 25, rarity: 'UNCOMMON', fish: [
+    { name: 'Saumon', emoji: '🐠', value: 15, xp: 8 },
+    { name: 'Thon', emoji: '🐠', value: 20, xp: 8 },
+    { name: 'Espadon', emoji: '🐠', value: 18, xp: 10 },
+  ]},
+  { weight: 10, rarity: 'RARE', fish: [
+    { name: 'Poisson-Lune', emoji: '🌙', value: 40, xp: 15 },
+    { name: 'Barracuda', emoji: '🦈', value: 50, xp: 15 },
+  ]},
+  { weight: 4, rarity: 'EPIC', fish: [
+    { name: 'Coelacanthe', emoji: '🐡', value: 100, xp: 25 },
+    { name: 'Poisson d\'Or', emoji: '✨', value: 120, xp: 30 },
+  ]},
+  { weight: 1, rarity: 'LEGENDARY', fish: [
+    { name: 'Léviathan Miniature', emoji: '🐋', value: 300, xp: 60 },
+    { name: 'Kraken Bébé', emoji: '🦑', value: 500, xp: 80 },
+  ]},
+];
+
+const RARITY_COLORS: Record<string, string> = {
+  COMMON: '⬜', UNCOMMON: '🟩', RARE: '🟦', EPIC: '🟪', LEGENDARY: '🟨'
+};
+
+function rollFish(): FishEntry {
+  const totalWeight = FISH_TABLE.reduce((s, t) => s + t.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const tier of FISH_TABLE) {
+    roll -= tier.weight;
+    if (roll <= 0) {
+      const picked = tier.fish[Math.floor(Math.random() * tier.fish.length)];
+      return { ...picked, rarity: tier.rarity };
+    }
+  }
+  const fallback = FISH_TABLE[0].fish[0];
+  return { ...fallback, rarity: 'COMMON' };
+}
+
+export { RARITY_COLORS };
+
+export async function fish(guildId: string, userId: string) {
+  const config = await getOrCreateEconomyConfig(guildId);
+  if (!config.enabled) throw new Error("Le module d'économie est désactivé sur ce serveur.");
+
+  const profile = await getOrCreateRpgProfile(guildId, userId);
+
+  // Cooldown 5 minutes
+  if (profile.lastFish) {
+    const diff = Date.now() - profile.lastFish.getTime();
+    if (diff < 5 * 60 * 1000) {
+      const remaining = Math.ceil((5 * 60 * 1000 - diff) / 1000);
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+      return { success: false as const, cooldown: true, remainingMin: mins, remainingSec: secs };
+    }
+  }
+
+  // Coûte 5 énergie
+  if (profile.energy < 5) {
+    return { success: false as const, cooldown: false, noEnergy: true };
+  }
+
+  const caught = rollFish();
+
+  await prisma.rpgProfile.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: {
+      balance: { increment: caught.value },
+      xp: { increment: caught.xp },
+      energy: { decrement: 5 },
+      totalFishCaught: { increment: 1 },
+      lastFish: new Date()
+    }
+  });
+
+  await prisma.rpgFishCatch.create({
+    data: {
+      guildId,
+      userId,
+      fishName: caught.name,
+      fishEmoji: caught.emoji,
+      rarity: caught.rarity,
+      value: caught.value
+    }
+  });
+
+  await checkLevelUp(guildId, userId);
+
+  const updatedProfile = await prisma.rpgProfile.findUnique({
+    where: { guildId_userId: { guildId, userId } }
+  });
+
+  return {
+    success: true as const,
+    fish: caught,
+    rarityIcon: RARITY_COLORS[caught.rarity] || '⬜',
+    newBalance: updatedProfile?.balance ?? profile.balance + caught.value,
+    totalFishCaught: updatedProfile?.totalFishCaught ?? profile.totalFishCaught + 1
+  };
+}
+
+// ============================================================================
+// LEADERBOARDS RPG
+// ============================================================================
+
+export async function getTopByLevel(guildId: string, limit = 10) {
+  return prisma.rpgProfile.findMany({
+    where: { guildId },
+    orderBy: [{ level: 'desc' }, { xp: 'desc' }],
+    take: limit
+  });
+}
+
+export async function getTopByMonstersKilled(guildId: string, limit = 10) {
+  return prisma.rpgProfile.findMany({
+    where: { guildId, totalMonstersKilled: { gt: 0 } },
+    orderBy: { totalMonstersKilled: 'desc' },
+    take: limit
+  });
+}
+
+export async function getTopByFishCaught(guildId: string, limit = 10) {
+  return prisma.rpgProfile.findMany({
+    where: { guildId, totalFishCaught: { gt: 0 } },
+    orderBy: { totalFishCaught: 'desc' },
+    take: limit
+  });
+}
+
+export async function getTopByItems(guildId: string, limit = 10) {
+  const profiles = await prisma.rpgProfile.findMany({
+    where: { guildId },
+    include: {
+      inventory: true
+    }
+  });
+
+  return profiles
+    .map(p => ({
+      userId: p.userId,
+      level: p.level,
+      totalItems: p.inventory.reduce((sum, inv) => sum + inv.quantity, 0)
+    }))
+    .filter(p => p.totalItems > 0)
+    .sort((a, b) => b.totalItems - a.totalItems)
+    .slice(0, limit);
+}

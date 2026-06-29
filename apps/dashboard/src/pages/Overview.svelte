@@ -4,7 +4,8 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { staffStore } from '../lib/stores/staff.svelte';
-  import { fetchAnalytics, fetchUserSettings, updateUserSettings } from '../lib/api';
+  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog } from '../lib/api';
+  import type { ChangelogCommit } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import LineChart from '../lib/components/LineChart.svelte';
@@ -69,6 +70,8 @@
   let presetDescription = $state('');
   let loadingPresets = $state(false);
   let presetImportJson = $state('');
+  let changelogCommits = $state<ChangelogCommit[]>([]);
+  let changelogLoading = $state(false);
 
   function getStorageKey(): string {
     const guildId = authStore.selectedGuildId || 'default';
@@ -436,6 +439,19 @@
     localStorage.setItem(`staff_notes_${guildId}`, staffNotes);
   }
 
+  function formatRelativeDate(isoDate: string): string {
+    const diff = Date.now() - new Date(isoDate).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "À l'instant";
+    if (minutes < 60) return `il y a ${minutes}min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `il y a ${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'Hier';
+    if (days < 30) return `il y a ${days}j`;
+    return new Date(isoDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+
   // Clock & Weather logic
   let currentTime = $state('');
   let currentDate = $state('');
@@ -451,8 +467,20 @@
       loadLayout();
       loadStaffNotes();
       handleImportFromUrl();
+      loadChangelog();
     }
   });
+
+  async function loadChangelog() {
+    changelogLoading = true;
+    try {
+      changelogCommits = await fetchChangelog(10);
+    } catch {
+      changelogCommits = [];
+    } finally {
+      changelogLoading = false;
+    }
+  }
 
   async function handleImportFromUrl() {
     if (typeof window === 'undefined') return;
@@ -693,6 +721,30 @@
       className="rounded-lg! px-3.5! py-2! bg-primary text-white text-sm"
     />
   </div>
+
+  <!-- API unreachable banner -->
+  {#if dashboardStore.state.error === 'api_unreachable'}
+    <div class="bg-amber-500/10 border border-amber-500/20 px-4 py-3 rounded-lg text-amber-400 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-md bg-amber-500/20 flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium">L'API est en cours de redémarrage</p>
+          <p class="text-xs opacity-70">Reconnexion automatique en cours, veuillez patienter...</p>
+        </div>
+      </div>
+      <button
+        onclick={() => dashboardStore.refresh()}
+        class="px-3 py-1.5 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 rounded-md transition-colors cursor-pointer shrink-0"
+      >
+        Réessayer
+      </button>
+    </div>
+  {/if}
 
   <!-- Error modules alert -->
   {#if errorModulesCount > 0}
@@ -1329,6 +1381,7 @@
             </div>
           </div>
         {:else if item.id === 'news'}
+          {@const maxNewsItems = (item.rowSpan || 1) >= 2 ? 6 : 3}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1338,23 +1391,38 @@
                 <h3 class="text-sm font-medium text-on-surface">Nouveautés Kotbo</h3>
               </div>
             </div>
-            <div class="space-y-2 grow text-xs flex flex-col justify-center">
-              <div class="p-2 rounded-lg bg-surface-container/60 hover:bg-surface-container transition-colors">
-                <div class="flex justify-between text-[10px] text-primary mb-0.5">
-                  <span class="font-medium">Mise à jour v5.56</span>
-                  <span>Aujourd'hui</span>
+            <div class="space-y-2 grow text-xs flex flex-col overflow-y-auto" style="scrollbar-width: thin;">
+              {#if changelogLoading}
+                <div class="flex items-center justify-center grow">
+                  <span class="text-on-surface-variant text-[11px]">Chargement...</span>
                 </div>
-                <p class="font-medium text-on-surface text-[11px]">Nouveau mode Bento !</p>
-                <p class="text-[10px] text-on-surface-variant mt-0.5 leading-tight">Personnalisez votre dashboard en réorganisant vos modules.</p>
-              </div>
-              <div class="p-2 rounded-lg bg-surface-container/60 hover:bg-surface-container transition-colors">
-                <div class="flex justify-between text-[10px] text-secondary mb-0.5">
-                  <span class="font-medium">Astuce du jour</span>
-                  <span>Hier</span>
+              {:else if changelogCommits.length === 0}
+                <div class="flex items-center justify-center grow">
+                  <span class="text-on-surface-variant text-[11px]">Aucune mise à jour disponible</span>
                 </div>
-                <p class="font-medium text-on-surface text-[11px]">Filtre AutoMod</p>
-                <p class="text-[10px] text-on-surface-variant mt-0.5 leading-tight">Activez AutoMod pour bloquer les spams et liens suspects.</p>
-              </div>
+              {:else}
+                {#each changelogCommits.slice(0, maxNewsItems) as commit}
+                  {@const typeColors: Record<string, string> = { feat: 'text-emerald-400', fix: 'text-amber-400', refactor: 'text-blue-400', perf: 'text-cyan-400', test: 'text-violet-400' }}
+                  {@const typeBgColors: Record<string, string> = { feat: 'bg-emerald-500/15', fix: 'bg-amber-500/15', refactor: 'bg-blue-500/15', perf: 'bg-cyan-500/15', test: 'bg-violet-500/15' }}
+                  {@const typeLabels: Record<string, string> = { feat: 'Nouveauté', fix: 'Correction', refactor: 'Refacto', perf: 'Perf', test: 'Test' }}
+                  {@const typeColor = typeColors[commit.type] || 'text-purple-400'}
+                  {@const typeBg = typeBgColors[commit.type] || 'bg-purple-500/15'}
+                  {@const typeLabel = typeLabels[commit.type] || commit.type}
+                  {@const relDate = formatRelativeDate(commit.date)}
+                  <div class="p-2 rounded-lg bg-surface-container/60 hover:bg-surface-container transition-colors">
+                    <div class="flex items-center justify-between mb-0.5">
+                      <span class="inline-flex items-center px-1.5 py-px rounded-full text-[9px] font-medium {typeBg} {typeColor}">
+                        {typeLabel}{commit.scope ? ` (${commit.scope})` : ''}
+                      </span>
+                      <span class="text-[9px] text-on-surface-variant">{relDate}</span>
+                    </div>
+                    <p class="font-medium text-on-surface text-[11px] leading-snug">{commit.title}</p>
+                    {#if commit.description}
+                      <p class="text-[10px] text-on-surface-variant mt-0.5 leading-tight line-clamp-2">{commit.description}</p>
+                    {/if}
+                  </div>
+                {/each}
+              {/if}
             </div>
           </div>
         {:else if item.id === 'quickGuide'}

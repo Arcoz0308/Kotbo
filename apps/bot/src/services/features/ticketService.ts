@@ -834,7 +834,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         );
 
         await thread.send({
-          content: staffMention ? `${staffMention} 🔔 Nouveau ticket en MP.` : '🔔 Nouveau ticket en MP.',
+          content: '🔔 Nouveau ticket en MP.',
           embeds: [staffEmbed],
           components: [row]
         });
@@ -908,7 +908,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         );
 
         await thread.send({
-          content: `${staffMention ? `${staffMention} ` : ''}<@${user.id}> 🔔 Bienvenue dans votre ticket d'assistance.`,
+          content: `🔔 Bienvenue dans votre ticket d'assistance.`,
           embeds: [welcomeEmbed],
           components: [row]
         });
@@ -1009,7 +1009,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         );
 
         await ticketChannel.send({
-          content: `${staffMention ? `${staffMention} ` : ''}<@${user.id}> 🔔 Bienvenue dans votre ticket d'assistance.`,
+          content: `🔔 Bienvenue dans votre ticket d'assistance.`,
           embeds: [welcomeEmbed],
           components: [row]
         });
@@ -1138,7 +1138,7 @@ async function handleDmDirectTicket(
   );
 
   await thread.send({
-    content: staffMention ? `${staffMention} 🔔 Nouveau ticket en MP.` : '🔔 Nouveau ticket en MP.',
+    content: '🔔 Nouveau ticket en MP.',
     embeds: [staffEmbed],
     components: [row],
   });

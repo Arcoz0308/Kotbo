@@ -462,8 +462,10 @@ async function getWebhookClient(destChannel: TextChannel, webhookId: string): Pr
 
 async function saveMessageMapping(linkId: string, sourceMessageId: string, sourceChannelId: string, relayedMessageId: string, relayedChannelId: string, webhookId?: string | null) {
   logger.debug(TAG, `Saving mapping: ${sourceMessageId} → ${relayedMessageId} (webhook: ${webhookId ?? 'none'})`);
-  await prisma.channelLinkMessage.create({
-    data: { channelLinkId: linkId, sourceMessageId, sourceChannelId, relayedMessageId, relayedChannelId, webhookId },
+  await prisma.channelLinkMessage.upsert({
+    where: { channelLinkId_sourceMessageId: { channelLinkId: linkId, sourceMessageId } },
+    update: { relayedMessageId, relayedChannelId, webhookId },
+    create: { channelLinkId: linkId, sourceMessageId, sourceChannelId, relayedMessageId, relayedChannelId, webhookId },
   }).catch((err) => logger.warn(TAG, 'Impossible de sauvegarder le mapping message', err));
 }
 
@@ -669,7 +671,7 @@ export async function relayMessageDelete(message: Message, client: Client): Prom
         if (relayedMsg?.deletable) await relayedMsg.delete().catch(() => null);
       }
 
-      await prisma.channelLinkMessage.delete({ where: { id: mapping.id } }).catch(() => null);
+      await prisma.channelLinkMessage.deleteMany({ where: { id: mapping.id } });
     } catch (err) {
       logger.error(TAG, `Erreur relay delete ${message.id}`, err);
     }

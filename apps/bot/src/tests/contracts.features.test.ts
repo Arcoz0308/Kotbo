@@ -52,7 +52,7 @@ describe('Contrats des features', () => {
     const registrySource = readModuleSource(registryPath);
     const commandFiles = listSourceFiles('commands');
 
-    const unregistered = new Set(['rpgEconomy', 'backup']);
+    const unregistered = new Set(['backup']);
 
     for (const file of commandFiles) {
       const normalized = file.replace(/\\/g, '/');

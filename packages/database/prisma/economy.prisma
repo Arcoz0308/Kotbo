@@ -46,6 +46,13 @@ model RpgProfile {
   armorId   String?
   potionId  String?
 
+  // Combat & Pêche
+  totalMonstersKilled Int      @default(0)
+  totalBossesKilled   Int      @default(0)
+  totalFishCaught     Int      @default(0)
+  lastFish            DateTime?
+  lastBattle          DateTime?
+
   // État de voyage
   isTraveling    Boolean   @default(false)
   travelDestination String?
@@ -57,6 +64,8 @@ model RpgProfile {
   rpgGuildId String?
   rpgGuild   RpgGuild? @relation(fields: [rpgGuildId], references: [id], onDelete: SetNull)
   inventory  RpgInventoryItem[]
+  battles    RpgBattle[]
+  fishCatches RpgFishCatch[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -84,6 +93,10 @@ model RpgItem {
   hpRestore   Int      @default(0)
   energyRestore Int    @default(0)
   
+  // Rareté et niveau requis
+  rarity        String   @default("COMMON") // COMMON | UNCOMMON | RARE | EPIC | LEGENDARY
+  levelRequired Int      @default(0)
+
   // Prix d'achat en boutique
   price       Int      @default(0)
   purchasable Boolean  @default(true)
@@ -150,7 +163,8 @@ model RpgDrop {
   id        String   @id @default(cuid())
   guildId   String
   amount    Int
-  type      String   // COINS | XP
+  type      String   // COINS | XP | ITEM
+  itemId    String?  // Si type = ITEM
   claimed   Boolean  @default(false)
   claimedBy String?
   createdAt DateTime @default(now())
@@ -158,4 +172,87 @@ model RpgDrop {
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("rpg_drops")
+}
+
+// ============================================================================
+// MONSTRES & COMBAT
+// ============================================================================
+
+model RpgMonster {
+  id          String   @id @default(cuid())
+  guildId     String?  // null = global (monstres par défaut)
+  name        String
+  description String
+  emoji       String   @default("👹")
+
+  level       Int      @default(1)
+  health      Int      @default(50)
+  attack      Int      @default(8)
+  defense     Int      @default(5)
+  speed       Int      @default(5)
+
+  xpReward    Int      @default(20)
+  coinReward  Int      @default(10)
+
+  // Drops possibles : [{ itemName, emoji, chance (0-1), coinBonus? }]
+  drops       Json     @default("[]")
+
+  isBoss           Boolean @default(false)
+  bossRespawnHours Int?
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  battles RpgBattle[]
+
+  @@map("rpg_monsters")
+}
+
+model RpgBattle {
+  id          String   @id @default(cuid())
+  guildId     String
+  userId      String
+
+  monsterId   String
+  monsterName String
+  won         Boolean
+
+  damageDealt Int      @default(0)
+  damageTaken Int      @default(0)
+  xpEarned    Int      @default(0)
+  coinsEarned Int      @default(0)
+  itemDropped String?
+
+  createdAt DateTime @default(now())
+
+  guild   Guild      @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  profile RpgProfile @relation(fields: [guildId, userId], references: [guildId, userId], onDelete: Cascade)
+  monster RpgMonster @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, userId])
+  @@index([guildId, createdAt])
+  @@map("rpg_battles")
+}
+
+// ============================================================================
+// PÊCHE
+// ============================================================================
+
+model RpgFishCatch {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+
+  fishName  String
+  fishEmoji String
+  rarity    String   // COMMON | UNCOMMON | RARE | EPIC | LEGENDARY
+  value     Int
+
+  createdAt DateTime @default(now())
+
+  guild   Guild      @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  profile RpgProfile @relation(fields: [guildId, userId], references: [guildId, userId], onDelete: Cascade)
+
+  @@index([guildId, userId])
+  @@index([guildId, createdAt])
+  @@map("rpg_fish_catches")
 }

@@ -223,6 +223,9 @@ model Guild {
   rpgItems                 RpgItem[]
   rpgAdventureEvents       RpgAdventureEvent[]
   rpgDrops                 RpgDrop[]
+  rpgMonsters              RpgMonster[]
+  rpgBattles               RpgBattle[]
+  rpgFishCatches           RpgFishCatch[]
 
   staffTasks StaffTask[]
   staffCalls StaffCall[]

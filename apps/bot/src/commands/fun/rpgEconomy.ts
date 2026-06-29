@@ -2,6 +2,7 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  type AutocompleteInteraction,
   MessageFlags,
   EmbedBuilder,
   ActionRowBuilder,
@@ -28,8 +29,17 @@ import {
   depositToRpgGuildTreasury,
   getOrCreateEconomyConfig,
   sellShopItem,
-  adminSetStats
+  adminSetStats,
+  fish,
+  RARITY_COLORS,
 } from '../../services/features/economyService.js';
+import {
+  findRandomMonster,
+  findBoss,
+  listBosses,
+  listDiscoveredMonsters,
+  simulateBattle,
+} from '../../services/features/combatService.js';
 
 // Local interfaces to satisfy ESLint without using any
 interface LocalRpgItem {
@@ -1076,3 +1086,308 @@ async function rpgAdminExecute(interaction: ChatInputCommandInteraction) {
 }
 
 export const rpgAdminCommand = { data: rpgAdminData, execute: rpgAdminExecute } satisfies SlashCommandDefinition;
+
+
+// ============================================================================
+// RPG-FIGHT — Combat contre un monstre aléatoire
+// ============================================================================
+
+const rpgFightData = new SlashCommandBuilder()
+  .setName('rpg-fight')
+  .setDescription('⚔️ Combattre un monstre aléatoire adapté à votre niveau');
+
+async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
+  if (!await checkEconomyEnabled(interaction)) return;
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+
+  const config = await getOrCreateEconomyConfig(guildId);
+  if (!config.rpgEnabled) {
+    await interaction.reply({ embeds: [errorEmbed('RPG désactivé', "Le système RPG n'est pas activé.")], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  const profile = await getOrCreateRpgProfile(guildId, userId);
+
+  if (profile.lastBattle) {
+    const diff = Date.now() - profile.lastBattle.getTime();
+    if (diff < 2 * 60 * 1000) {
+      const remaining = Math.ceil((2 * 60 * 1000 - diff) / 1000);
+      await interaction.reply({ embeds: [errorEmbed('Cooldown', `Vous devez attendre encore **${remaining}s** avant de combattre à nouveau.`)], flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+  }
+
+  if (profile.energy < 15) {
+    await interaction.reply({ embeds: [errorEmbed('Énergie insuffisante', `Il vous faut **15 énergie** pour combattre. Vous avez **${profile.energy}**.`)], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (profile.health <= 5) {
+    await interaction.reply({ embeds: [errorEmbed('PV trop bas', 'Vos PV sont trop bas pour combattre. Reposez-vous ou utilisez une potion !')], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  await interaction.deferReply();
+
+  await prisma.rpgProfile.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: { energy: { decrement: 15 } }
+  });
+
+  const monster = await findRandomMonster(guildId, profile.level);
+  if (!monster) {
+    await interaction.editReply({ embeds: [errorEmbed('Aucun monstre', 'Aucun monstre disponible pour votre niveau.')] });
+    return;
+  }
+
+  const result = await simulateBattle(profile, monster);
+  const turnSummary = result.turns.slice(-6).map(t => {
+    const who = t.attacker === 'player' ? '🗡️ Vous' : `${monster.emoji} ${monster.name}`;
+    const crit = t.critical ? ' **CRITIQUE !**' : '';
+    return `${who} inflige **${t.damage}** dégâts${crit}`;
+  }).join('\n');
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${result.won ? '🏆 Victoire' : '💀 Défaite'} — ${monster.emoji} ${monster.name}`)
+    .setDescription(
+      `${monster.description}\n\n` +
+      `**Résumé du combat** (${result.turns.length} tours)\n${turnSummary}`
+    )
+    .setColor(result.won ? COLORS.success : COLORS.danger)
+    .addFields(
+      { name: '💥 Dégâts infligés', value: `${result.totalDamageDealt}`, inline: true },
+      { name: '🩸 Dégâts reçus', value: `${result.totalDamageTaken}`, inline: true },
+      { name: '❤️ PV restants', value: `${result.playerHpRemaining} / ${profile.maxHealth}`, inline: true },
+      { name: '⭐ XP gagné', value: `+${result.xpEarned}`, inline: true },
+      { name: `${config.currencyEmoji} Pièces gagnées`, value: `+${result.coinsEarned}`, inline: true },
+    )
+    .setTimestamp();
+
+  if (result.itemDropped) {
+    embed.addFields({ name: '🎁 Drop !', value: `${result.itemDropEmoji || '📦'} **${result.itemDropped}**`, inline: true });
+  }
+
+  if (result.levelUp) {
+    embed.addFields({ name: '🎉 NIVEAU SUPÉRIEUR !', value: `Vous passez au **Niveau ${result.levelUp}** !` });
+  }
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+export const rpgFightCommand = { data: rpgFightData, execute: rpgFightExecute } satisfies SlashCommandDefinition;
+
+
+// ============================================================================
+// RPG-BOSS — Combat de boss
+// ============================================================================
+
+const rpgBossData = new SlashCommandBuilder()
+  .setName('rpg-boss')
+  .setDescription('🐲 Affronter un boss puissant')
+  .addStringOption(option =>
+    option.setName('boss').setDescription('Nom du boss à affronter').setRequired(true).setAutocomplete(true)
+  );
+
+async function rpgBossExecute(interaction: ChatInputCommandInteraction) {
+  if (!await checkEconomyEnabled(interaction)) return;
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+
+  const config = await getOrCreateEconomyConfig(guildId);
+  if (!config.rpgEnabled) {
+    await interaction.reply({ embeds: [errorEmbed('RPG désactivé', "Le système RPG n'est pas activé.")], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  const bossName = interaction.options.getString('boss', true);
+  const boss = await findBoss(guildId, bossName);
+  if (!boss) {
+    await interaction.reply({ embeds: [errorEmbed('Boss introuvable', `Aucun boss nommé **${bossName}** n'a été trouvé.`)], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  const profile = await getOrCreateRpgProfile(guildId, userId);
+
+  if (profile.level < boss.level) {
+    await interaction.reply({ embeds: [errorEmbed('Niveau insuffisant', `Ce boss requiert le **Niveau ${boss.level}**. Vous êtes Niveau **${profile.level}**.`)], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (profile.energy < 30) {
+    await interaction.reply({ embeds: [errorEmbed('Énergie insuffisante', `Il vous faut **30 énergie** pour un boss. Vous avez **${profile.energy}**.`)], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (profile.health <= 10) {
+    await interaction.reply({ embeds: [errorEmbed('PV trop bas', 'Vos PV sont trop bas pour affronter un boss !')], flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  await interaction.deferReply();
+
+  await prisma.rpgProfile.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: { energy: { decrement: 30 } }
+  });
+
+  const result = await simulateBattle(profile, boss);
+  const turnSummary = result.turns.slice(-8).map(t => {
+    const who = t.attacker === 'player' ? '🗡️ Vous' : `${boss.emoji} ${boss.name}`;
+    const crit = t.critical ? ' **CRITIQUE !**' : '';
+    return `${who} inflige **${t.damage}** dégâts${crit}`;
+  }).join('\n');
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${result.won ? '👑 Boss Vaincu !' : '💀 Défaite contre le Boss'} — ${boss.emoji} ${boss.name}`)
+    .setDescription(
+      `${boss.description}\n\n` +
+      `**Résumé du combat** (${result.turns.length} tours)\n${turnSummary}`
+    )
+    .setColor(result.won ? COLORS.success : COLORS.danger)
+    .addFields(
+      { name: '💥 Dégâts infligés', value: `${result.totalDamageDealt}`, inline: true },
+      { name: '🩸 Dégâts reçus', value: `${result.totalDamageTaken}`, inline: true },
+      { name: '❤️ PV restants', value: `${result.playerHpRemaining} / ${profile.maxHealth}`, inline: true },
+      { name: '⭐ XP gagné', value: `+${result.xpEarned}`, inline: true },
+      { name: `${config.currencyEmoji} Pièces gagnées`, value: `+${result.coinsEarned}`, inline: true },
+    )
+    .setTimestamp();
+
+  if (result.itemDropped) {
+    embed.addFields({ name: '🎁 Drop de Boss !', value: `${result.itemDropEmoji || '📦'} **${result.itemDropped}**` });
+  }
+
+  if (result.levelUp) {
+    embed.addFields({ name: '🎉 NIVEAU SUPÉRIEUR !', value: `Vous passez au **Niveau ${result.levelUp}** !` });
+  }
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+async function rpgBossAutocomplete(interaction: AutocompleteInteraction) {
+  const guildId = interaction.guildId;
+  if (!guildId) return;
+  const focused = interaction.options.getFocused().toLowerCase();
+  const bosses = await listBosses(guildId);
+  const filtered = bosses
+    .filter(b => b.name.toLowerCase().includes(focused))
+    .slice(0, 25)
+    .map(b => ({ name: `${b.emoji} ${b.name} (Niv. ${b.level})`, value: b.name }));
+  await interaction.respond(filtered);
+}
+
+export const rpgBossCommand = { data: rpgBossData, execute: rpgBossExecute, autocomplete: rpgBossAutocomplete } satisfies SlashCommandDefinition;
+
+
+// ============================================================================
+// RPG-BESTIARY — Bestiaire des monstres découverts
+// ============================================================================
+
+const rpgBestiaryData = new SlashCommandBuilder()
+  .setName('rpg-bestiary')
+  .setDescription('📖 Consulter votre bestiaire de monstres découverts');
+
+async function rpgBestiaryExecute(interaction: ChatInputCommandInteraction) {
+  if (!await checkEconomyEnabled(interaction)) return;
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+
+  await interaction.deferReply();
+
+  const discovered = await listDiscoveredMonsters(guildId, userId);
+
+  if (discovered.length === 0) {
+    await interaction.editReply({ embeds: [errorEmbed('Bestiaire vide', 'Vous n\'avez encore vaincu aucun monstre. Utilisez `/rpg-fight` pour commencer !')] });
+    return;
+  }
+
+  const allMonsters = await prisma.rpgMonster.count({
+    where: { OR: [{ guildId: null }, { guildId }] }
+  });
+
+  const lines = discovered.map(m => {
+    const bossTag = m.isBoss ? ' 👑 **BOSS**' : '';
+    return `${m.emoji} **${m.name}**${bossTag} — Niv. ${m.level} | ❤️ ${m.health} | ⚔️ ${m.attack} | 🛡️ ${m.defense}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📖 Bestiaire — ${interaction.user.displayName}`)
+    .setDescription(`**${discovered.length}/${allMonsters}** créatures découvertes\n\n${lines.join('\n')}`)
+    .setColor(COLORS.primary)
+    .setTimestamp();
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+export const rpgBestiaryCommand = { data: rpgBestiaryData, execute: rpgBestiaryExecute } satisfies SlashCommandDefinition;
+
+
+// ============================================================================
+// FISH — Pêche
+// ============================================================================
+
+const fishData = new SlashCommandBuilder()
+  .setName('fish')
+  .setDescription('🎣 Pêcher un poisson et gagner des pièces');
+
+async function fishExecute(interaction: ChatInputCommandInteraction) {
+  if (!await checkEconomyEnabled(interaction)) return;
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+
+  const config = await getOrCreateEconomyConfig(guildId);
+
+  try {
+    const result = await fish(guildId, userId);
+
+    if (!result.success) {
+      if (result.cooldown) {
+        await interaction.reply({
+          embeds: [errorEmbed('Canne au repos', `Vous devez attendre encore **${result.remainingMin}m ${result.remainingSec}s** avant de pêcher.`)],
+          flags: [MessageFlags.Ephemeral]
+        });
+        return;
+      }
+      if (result.noEnergy) {
+        await interaction.reply({
+          embeds: [errorEmbed('Pas d\'énergie', 'Il vous faut **5 énergie** pour pêcher.')],
+          flags: [MessageFlags.Ephemeral]
+        });
+        return;
+      }
+      return;
+    }
+
+    const rarityLabels: Record<string, string> = {
+      COMMON: 'Commun', UNCOMMON: 'Peu commun', RARE: 'Rare', EPIC: 'Épique', LEGENDARY: '✨ LÉGENDAIRE ✨'
+    };
+
+    const embed = new EmbedBuilder()
+      .setTitle('🎣 Prise !')
+      .setDescription(
+        `${result.fish.emoji} Vous avez pêché un **${result.fish.name}** !\n\n` +
+        `${result.rarityIcon} Rareté : **${rarityLabels[result.fish.rarity] || result.fish.rarity}**`
+      )
+      .setColor(
+        result.fish.rarity === 'LEGENDARY' ? 0xffd700 :
+        result.fish.rarity === 'EPIC' ? 0x9b59b6 :
+        result.fish.rarity === 'RARE' ? 0x3498db :
+        result.fish.rarity === 'UNCOMMON' ? 0x2ecc71 :
+        COLORS.primary
+      )
+      .addFields(
+        { name: `${config.currencyEmoji} Valeur`, value: `**+${result.fish.value}** ${config.currencyName}`, inline: true },
+        { name: '⭐ XP', value: `**+${result.fish.xp}**`, inline: true },
+        { name: '🐟 Total pêché', value: `${result.totalFishCaught} poissons`, inline: true },
+      )
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : 'Erreur lors de la pêche.';
+    await interaction.reply({ embeds: [errorEmbed('Erreur', errMsg)], flags: [MessageFlags.Ephemeral] });
+  }
+}
+
+export const fishCommand = { data: fishData, execute: fishExecute } satisfies SlashCommandDefinition;
