@@ -147,13 +147,7 @@ const [command, userId] = process.argv.slice(2);
 
 if (!command || !userId) {
   const baseRedirect = process.env.DISCORD_REDIRECT_URI ?? "http://localhost:8787/api/auth/discord/callback";
-  const callbackUrl = `${new URL(baseRedirect).origin}/api/auth/widget/callback`;
-  const oauthUrl =
-    `https://discord.com/oauth2/authorize` +
-    `?client_id=${APP_ID}` +
-    `&response_type=code` +
-    `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
-    `&scope=openid+sdk.social_layer`;
+  const loginUrl = `${new URL(baseRedirect).origin}/api/auth/discord/login`;
 
   console.log(`Usage:
   bun run apps/bot/scripts/linked-roles.ts push <userId>    # Pousse les données widget
@@ -161,12 +155,9 @@ if (!command || !userId) {
 
 Prérequis:
   1. Activer Social SDK : Developer Portal → Games → Social SDK
-  2. L'utilisateur doit autoriser l'app via cette URL OAuth2 :
+  2. L'utilisateur doit se connecter au dashboard (les scopes widget sont inclus dans le login) :
 
-     ${oauthUrl}
-
-     Scopes requis : openid, sdk.social_layer
-     response_type : code (authorization code grant)
+     ${loginUrl}
 
 Variables d'env (dans .env) :
   DISCORD_TOKEN      — Token du bot

@@ -40,23 +40,11 @@ const data = new SlashCommandBuilder()
       .setDescription('Voir le statut de ton widget'),
   );
 
-function getWidgetCallbackUrl(): string {
+function getDashboardLoginUrl(): string {
   const baseRedirect = process.env.DISCORD_REDIRECT_URI ?? '';
   if (!baseRedirect) return '';
   const base = new URL(baseRedirect).origin;
-  return `${base}/api/auth/widget/callback`;
-}
-
-function getOAuthUrl(): string {
-  const appId = process.env.DISCORD_CLIENT_ID ?? '';
-  const callbackUrl = getWidgetCallbackUrl();
-  return (
-    `https://discord.com/oauth2/authorize` +
-    `?client_id=${appId}` +
-    `&response_type=code` +
-    `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
-    `&scope=openid+sdk.social_layer`
-  );
+  return `${base}/api/auth/discord/login?returnTo=/widget`;
 }
 
 async function execute(interaction: ChatInputCommandInteraction) {
@@ -98,7 +86,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         .addTextDisplayComponents(text(
           `Widget activé en base mais la mise à jour Discord a échoué.\n\n` +
           `${E.arrow} **As-tu autorisé Kotbo sur ton profil ?**\n` +
-          `${E.dot} [Clique ici pour autoriser](${getOAuthUrl()})`
+          `${E.dot} [Clique ici pour autoriser](${getDashboardLoginUrl()})`
         ))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
         .addTextDisplayComponents(text(`${E.error} Erreur: \`${result.error}\``))
@@ -195,7 +183,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         `${E.arrow} **Activé depuis** · ${since}`,
       ].join('\n')))
       .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`${E.link} [Autoriser Kotbo sur ton profil](${getOAuthUrl()})`))
+      .addTextDisplayComponents(text(`${E.link} [Autoriser Kotbo sur ton profil](${getDashboardLoginUrl()})`))
       .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
       .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Widget`));
 

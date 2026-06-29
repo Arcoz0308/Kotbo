@@ -100,6 +100,28 @@
         "type": 1,
         "name": "user.staffRankHero",
         "value": "Fondateur"
+      },
+      {
+        "type": 1,
+        "name": "serveur.name",
+        "value": "Azuria"
+      },
+      {
+        "type": 3,
+        "name": "server.images.invite",
+        "value": {
+          "url": "<URL to server.images.invite.png>"
+        }
+      },
+      {
+        "type": 1,
+        "name": "server.invite.name",
+        "value": "Azuria"
+      },
+      {
+        "type": 1,
+        "name": "server.invite.description",
+        "value": "discord.gg/azuria"
       }
     ]
   }

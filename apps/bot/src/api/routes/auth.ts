@@ -64,7 +64,7 @@ export async function handleAuthRoutes(
       }
       res.setHeader('Set-Cookie', cookies);
 
-      const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}&response_type=code&scope=identify%20guilds&state=${state}`;
+      const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}&response_type=code&scope=identify%20guilds%20openid%20sdk.social_layer&state=${state}`;
       res.writeHead(302, { Location: discordUrl });
       res.end();
       return true;
@@ -147,43 +147,6 @@ export async function handleAuthRoutes(
       }
       return true;
     }
-  }
-
-  // GET /api/auth/widget/callback — OAuth2 code grant for Social Layer SDK
-  if (parts[2] === 'widget' && parts[3] === 'callback' && method === 'GET') {
-    const code = url.searchParams.get('code');
-    const dashboardUrl = getDashboardUrl();
-
-    if (!code) {
-      res.writeHead(302, { Location: `${dashboardUrl}/widget?oauth=error` });
-      res.end();
-      return true;
-    }
-
-    try {
-      const apiBase = `${url.protocol}//${url.host}`;
-      const redirectUri = `${apiBase}/api/auth/widget/callback`;
-
-      await fetch('https://discord.com/api/oauth2/token', {
-        method: 'POST',
-        body: new URLSearchParams({
-          client_id: getDiscordClientId(),
-          client_secret: getDiscordClientSecret(),
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: redirectUri,
-        }),
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-
-      res.writeHead(302, { Location: `${dashboardUrl}/widget?oauth=success` });
-      res.end();
-    } catch (err) {
-      logger.error('Auth', 'Widget OAuth callback error:', err);
-      res.writeHead(302, { Location: `${dashboardUrl}/widget?oauth=error` });
-      res.end();
-    }
-    return true;
   }
 
   return false;

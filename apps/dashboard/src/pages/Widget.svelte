@@ -171,27 +171,6 @@
       </div>
     </div>
 
-    <!-- OAuth2 card -->
-    <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
-      <h3 class="text-base font-semibold flex items-center gap-2.5">
-        <Papicon icon="link" size={18} />
-        Autorisation OAuth2
-      </h3>
-      <p class="text-sm text-on-surface-variant leading-relaxed">
-        Pour que le widget s'affiche sur ton profil Discord, tu dois d'abord autoriser Kotbo
-        via le lien ci-dessous (scopes : <code class="bg-surface-container-high/50 px-1.5 py-0.5 rounded text-xs">openid</code> + <code class="bg-surface-container-high/50 px-1.5 py-0.5 rounded text-xs">sdk.social_layer</code>).
-      </p>
-      {#if data?.oauthUrl}
-        <a
-          href={data.oauthUrl}
-          class="inline-flex px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all items-center gap-2"
-        >
-          <Papicon icon="external-link" size={14} />
-          Autoriser Kotbo sur mon profil
-        </a>
-      {/if}
-    </div>
-
     <!-- How it works card -->
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
       <h3 class="text-base font-semibold flex items-center gap-2.5">
@@ -201,7 +180,7 @@
       <div class="flex flex-col gap-4">
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">1</span>
-          <span class="text-sm text-on-surface-variant leading-relaxed">Clique sur le lien OAuth2 pour autoriser Kotbo sur ton profil Discord</span>
+          <span class="text-sm text-on-surface-variant leading-relaxed">Connecte-toi au dashboard — l'autorisation widget est incluse automatiquement lors de la connexion Discord</span>
         </div>
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">2</span>

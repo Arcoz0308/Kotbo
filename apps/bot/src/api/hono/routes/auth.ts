@@ -66,7 +66,7 @@ authRouter.openapi(loginRoute, (c) => {
     `?client_id=${getDiscordClientId()}`,
     `&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}`,
     `&response_type=code`,
-    `&scope=identify%20guilds`,
+    `&scope=identify%20guilds%20openid%20sdk.social_layer`,
     `&state=${state}`,
   ].join('');
 

@@ -75,6 +75,16 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
 
   const voiceMinutes = Math.floor(voiceSeconds / 60);
 
+  const inviteImageUrl = guild.splashURL({ size: 256 }) ?? guild.bannerURL({ size: 256 }) ?? guildIconUrl;
+  let inviteUrl = '';
+  if (guild.vanityURLCode) {
+    inviteUrl = `discord.gg/${guild.vanityURLCode}`;
+  } else {
+    const invites = await guild.invites.fetch().catch(() => null);
+    const permanent = invites?.find(i => i.maxAge === 0);
+    if (permanent) inviteUrl = `discord.gg/${permanent.code}`;
+  }
+
   const dynamic: DynamicField[] = [
     { type: 3, name: 'serveur.logo', value: { url: guildIconUrl } },
     { type: 1, name: 'user.staffRank', value: formatGrade(staffMember.grade) },
@@ -95,6 +105,9 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
     { type: 1, name: 'user.statStaffScore.description', value: `${staffScore} points` },
     { type: 1, name: 'user.staffRankHero', value: formatGrade(staffMember.grade) },
     { type: 1, name: 'serveur.name', value: guildName },
+    { type: 3, name: 'server.images.invite', value: { url: inviteImageUrl } },
+    { type: 1, name: 'server.invite.name', value: guildName },
+    { type: 1, name: 'server.invite.description', value: inviteUrl },
   ];
 
   return { data: { dynamic } };

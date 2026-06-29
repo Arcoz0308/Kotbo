@@ -15,14 +15,6 @@ import {
 import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceContext.js';
 import prisma from '../../utils/db.js';
 
-interface DiscordGuild {
-  id: string;
-  name: string;
-  icon: string | null;
-  owner: boolean;
-  permissions: string;
-}
-
 export async function handleUserRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -59,51 +51,6 @@ export async function handleUserRoutes(
   // GET /api/user/guilds
   if (parts[2] === 'guilds' && method === 'GET') {
     try {
-      const authHeader = req.headers.authorization;
-      const token = authHeader?.split(' ')[1];
-      if (!token) {
-        json(res, 401, { error: 'Token manquant' });
-        return true;
-      }
-
-      const decoded = jwt.decode(token) as AuthClaims | null;
-      if (!decoded || !decoded.discordToken) {
-        json(res, 400, { error: 'Token Discord manquant dans le JWT' });
-        return true;
-      }
-
-      const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
-        headers: { Authorization: `Bearer ${decoded.discordToken}` },
-      });
-
-      if (!guildsResponse.ok) {
-        const status = guildsResponse.status;
-        const errorText = await guildsResponse.text();
-        logger.error('API', `Discord API error (${status}): ${errorText}`);
-        json(res, status === 401 ? 401 : 500, { error: 'Erreur lors de la récupération des serveurs depuis Discord' });
-        return true;
-      }
-
-      const userGuilds = await guildsResponse.json() as DiscordGuild[];
-      if (!Array.isArray(userGuilds)) {
-        logger.error('API', 'Discord did not return an array of guilds', userGuilds);
-        json(res, 500, { error: 'Réponse Discord invalide' });
-        return true;
-      }
-
-      const userGuildPermissions = new Map<string, bigint>();
-      const userGuildsById = new Map<string, DiscordGuild>();
-
-      for (const guild of userGuilds) {
-        userGuildsById.set(guild.id, guild);
-        if (guild.permissions === undefined || guild.permissions === null) continue;
-        try {
-          userGuildPermissions.set(guild.id, BigInt(guild.permissions));
-        } catch {
-          // ignore
-        }
-      }
-
       // For white-label instances, only show guilds bound to this instance
       let instanceGuildIds: Set<string> | null = null;
       if (isWhiteLabelInstance()) {
@@ -131,15 +78,15 @@ export async function handleUserRoutes(
         // White-label: skip guilds not bound to this instance
         if (instanceGuildIds && !instanceGuildIds.has(guildId)) continue;
 
-        const isMember = userGuildsById.has(guildId);
-        if (!isMember && !isGlobalAdmin) continue;
-
         const activated = isGuildActivated(guildId);
         if (!activated && !isGlobalAdmin) continue;
 
-        const perms = userGuildPermissions.get(guildId) ?? BigInt(0);
+        const member = await botGuild.members.fetch(user.userId).catch(() => null);
+        if (!member && !isGlobalAdmin) continue;
+
+        const perms = member?.permissions.bitfield ?? BigInt(0);
         const isAdmin = hasDashboardAdminPermission(perms);
-        
+
         let hasAccess = isGlobalAdmin || isAdmin;
         let accessLevel: Exclude<DashboardAccessLevel, 'none'> = (isGlobalAdmin || isAdmin) ? 'admin' : 'moderator';
 
@@ -161,12 +108,11 @@ export async function handleUserRoutes(
         }
 
         if (hasAccess) {
-          const sourceGuild = userGuildsById.get(guildId);
           accessibleGuildsList.push({
             id: guildId,
-            name: sourceGuild?.name ?? botGuild.name ?? guildId,
-            icon: sourceGuild ? (sourceGuild.icon ?? null) : (botGuild.icon ?? null),
-            owner: sourceGuild ? !!sourceGuild.owner : false,
+            name: botGuild.name ?? guildId,
+            icon: botGuild.icon ?? null,
+            owner: botGuild.ownerId === user.userId,
             botPresent: true,
             accessLevel
           });

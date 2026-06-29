@@ -28,20 +28,9 @@ export async function handleWidgetRoutes(
 
       const mySubscription = subscriptions.find((s) => s.userId === user.userId);
 
-      const appId = process.env.DISCORD_CLIENT_ID ?? '';
-      const baseRedirect = process.env.DISCORD_REDIRECT_URI ?? '';
-      const callbackUrl = baseRedirect ? `${new URL(baseRedirect).origin}/api/auth/widget/callback` : '';
-      const oauthUrl =
-        `https://discord.com/oauth2/authorize` +
-        `?client_id=${appId}` +
-        `&response_type=code` +
-        `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
-        `&scope=openid+sdk.social_layer`;
-
       json(res, 200, {
         subscriptions,
         mySubscription: mySubscription ?? null,
-        oauthUrl,
       });
     } catch (err) {
       logger.error('WidgetAPI', 'Error fetching widget data:', err);
