@@ -576,7 +576,7 @@
                   {#if log.avatarUrl}
                     <img src={log.avatarUrl} alt="" class="w-8 h-8 rounded-full" />
                   {:else}
-                    <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">?</div>
+                    <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary"><Papicon icon="user" size={16} /></div>
                   {/if}
                   <div>
                     <p class="font-bold text-on-surface text-sm">{log.title}</p>

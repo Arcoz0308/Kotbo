@@ -63,7 +63,10 @@
   async function loadData() {
     loading = true;
     error = '';
-    try { linkedAccounts = await fetchLinkedAccounts(); }
+    try {
+      const res = await fetchLinkedAccounts();
+      linkedAccounts = res?.data ?? [];
+    }
     catch (err: any) { error = err.message || 'Erreur chargement'; }
     finally { loading = false; }
   }

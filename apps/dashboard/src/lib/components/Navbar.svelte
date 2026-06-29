@@ -142,7 +142,7 @@
 
     {#if authStore.member?.roles}
       <div class="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container border border-outline-variant">
-        <Papicon icon={selectedGuild?.accessLevel === 'moderator' ? 'user' : selectedGuild?.accessLevel === 'admin' ? 'crown' : 'none'} size={14} class="text-on-surface-variant" />
+        <Papicon icon={selectedGuild?.accessLevel === 'moderator' ? 'user' : selectedGuild?.accessLevel === 'admin' ? 'crown' : 'shield'} size={14} class="text-on-surface-variant" />
         <span class="text-[11px] font-medium text-on-surface-variant">{highestRole}</span>
       </div>
     {/if}
