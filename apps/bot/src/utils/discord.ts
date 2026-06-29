@@ -35,6 +35,7 @@ export async function fetchAllMembers(guild: Guild): Promise<Collection<string, 
 
       for (const [id, member] of chunk.entries()) {
         allMembers.set(id, member);
+        guild.members.cache.set(id, member);
       }
 
       // Collect the keys to find the last ID in lexicographical (snowflake) order

@@ -154,15 +154,37 @@ export const syncStaffHierarchyMembership = async (guildId: string, userId: stri
     return { updated: 0 };
   }
 
-  await Promise.all(memberships.map((membership) =>
-    prisma.staffMemberHierarchyGrade.upsert({
+  const existingGrades = await prisma.staffMemberHierarchyGrade.findMany({
+    where: { staffMemberId: staffMember.id, hierarchyId: { in: memberships.map((m) => m.hierarchyId) } },
+    select: { hierarchyId: true, grade: true },
+  });
+  const existingGradeMap = new Map(existingGrades.map((g) => [g.hierarchyId, g.grade]));
+
+  const staffRoles = await prisma.staffRole.findMany({
+    where: { guildId, enabled: true, hierarchyId: { in: memberships.map((m) => m.hierarchyId) } },
+    select: { name: true, hierarchyId: true, level: true },
+  });
+  const roleLevelMap = new Map(staffRoles.map((r) => [`${r.hierarchyId}:${r.name}`, r.level]));
+
+  let updated = 0;
+  await Promise.all(memberships.map(async (membership) => {
+    const existingGrade = existingGradeMap.get(membership.hierarchyId);
+    if (existingGrade) {
+      const existingLevel = roleLevelMap.get(`${membership.hierarchyId}:${existingGrade}`) ?? 0;
+      const newLevel = roleLevelMap.get(`${membership.hierarchyId}:${membership.grade}`) ?? 0;
+      // Ne pas écraser un grade manuellement défini qui est supérieur au grade Discord
+      if (newLevel <= existingLevel) return;
+    }
+
+    await prisma.staffMemberHierarchyGrade.upsert({
       where: { staffMemberId_hierarchyId: { staffMemberId: staffMember.id, hierarchyId: membership.hierarchyId } },
       update: { grade: membership.grade },
       create: { staffMemberId: staffMember.id, hierarchyId: membership.hierarchyId, grade: membership.grade },
-    })
-  ));
+    });
+    updated++;
+  }));
 
-  return { updated: memberships.length };
+  return { updated };
 };
 
 export const syncStaffHierarchyMemberships = async (guildId: string) => {
@@ -856,7 +878,7 @@ export const endTestingPeriod = async (
 export const getStaffRoles = async (guildId: string) => {
   return prisma.staffRole.findMany({
     where: { guildId, enabled: true },
-    orderBy: [{ sortOrder: 'asc' }, { level: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ level: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
   });
 };
 
@@ -929,7 +951,7 @@ export const deleteStaffRole = async (guildId: string, roleId: string) => {
   // Reorder remaining roles to keep sortOrder contiguous
   const remainingRoles = await prisma.staffRole.findMany({
     where: { guildId },
-    orderBy: [{ sortOrder: 'asc' }, { level: 'asc' }, { createdAt: 'asc' }]
+    orderBy: [{ level: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }]
   });
 
   await prisma.$transaction(
@@ -1083,7 +1105,7 @@ export const getStaffHierarchies = async (guildId: string) => {
     include: {
       roles: {
         where: { enabled: true },
-        orderBy: [{ sortOrder: 'asc' }, { level: 'asc' }],
+        orderBy: [{ level: 'desc' }, { sortOrder: 'asc' }],
       },
       memberGrades: {
         include: { staffMember: { select: { id: true, userId: true, username: true, displayName: true, avatarUrl: true, grade: true } } }
@@ -1132,7 +1154,7 @@ export const createStaffHierarchy = async (
       parentHierarchyId: parentHierarchyId ?? null,
     },
     include: {
-      roles: { where: { enabled: true }, orderBy: [{ sortOrder: 'asc' }, { level: 'asc' }] },
+      roles: { where: { enabled: true }, orderBy: [{ level: 'desc' }, { sortOrder: 'asc' }] },
     },
   });
 };
@@ -1187,7 +1209,7 @@ export const updateStaffHierarchy = async (
       ...(parentHierarchyRelation ? { parentHierarchy: parentHierarchyRelation } : {}),
     },
     include: {
-      roles: { where: { enabled: true }, orderBy: [{ sortOrder: 'asc' }, { level: 'asc' }] },
+      roles: { where: { enabled: true }, orderBy: [{ level: 'desc' }, { sortOrder: 'asc' }] },
     },
   });
 };

@@ -113,7 +113,7 @@ const data = new SlashCommandBuilder()
         option
           .setName('raison')
           .setDescription('Raison de la sanction')
-          .setRequired(true)
+          .setRequired(false)
       )
       .addIntegerOption((option) =>
         option
@@ -121,6 +121,7 @@ const data = new SlashCommandBuilder()
           .setDescription('Forcer un palier spécifique (ex: 3 pour T3) (optionnel)')
           .setRequired(false)
           .setMinValue(1)
+          .setAutocomplete(true)
       ),
   );
 
@@ -381,6 +382,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
         embeds: [view.embed],
         components: [view.row, view.caseRow],
         fetchReply: true,
+        flags: [MessageFlags.Ephemeral],
       });
 
       const collector = reply.createMessageComponentCollector({
@@ -448,6 +450,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
           ),
         ],
         components: [buildMemberCaseActionRow(targetUser.id)],
+        flags: [MessageFlags.Ephemeral],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -496,6 +499,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
           ),
         ],
         components: [buildMemberCaseActionRow(targetUser.id)],
+        flags: [MessageFlags.Ephemeral],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -523,6 +527,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
       await interaction.reply({
         embeds: [successEmbed('Kick exécuté', `${targetUser.tag} a été exclu du serveur.`).addFields({ name: 'Raison', value: reason })],
         components: [buildMemberCaseActionRow(targetUser.id)],
+        flags: [MessageFlags.Ephemeral],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -546,6 +551,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
       await interaction.reply({
         embeds: [successEmbed('Ban exécuté', `${targetUser.tag} a été banni définitivement.`).addFields({ name: 'Raison', value: reason })],
         components: [buildMemberCaseActionRow(targetUser.id)],
+        flags: [MessageFlags.Ephemeral],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -589,6 +595,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
           ),
         ],
         components: [buildMemberCaseActionRow(targetUser.id)],
+        flags: [MessageFlags.Ephemeral],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -633,6 +640,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
           ),
         ],
         components: [buildMemberCaseActionRow(targetUser.id)],
+        flags: [MessageFlags.Ephemeral],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -643,7 +651,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
     }
 
     if (subcommand === 'tableau') {
-      const reason = interaction.options.getString('raison', true).trim();
+      const reason = interaction.options.getString('raison')?.trim() || null;
       const tableName = interaction.options.getString('nom', true).trim();
       const bypassLevel = interaction.options.getInteger('bypass');
 
@@ -652,7 +660,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
         return;
       }
 
-      await interaction.deferReply();
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
       try {
         const result = await applyProgressiveSanction({
@@ -710,28 +718,79 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
 }
 
 async function autocomplete(interaction: AutocompleteInteraction) {
-  const focusedValue = interaction.options.getFocused().toLowerCase();
+  const focusedOption = interaction.options.getFocused(true);
   const guildId = interaction.guildId!;
 
   try {
     await getOrCreateDefaultTables(guildId);
 
-    const tables = await prisma.sanctionTable.findMany({
-      where: {
-        guildId,
-        name: { contains: focusedValue, mode: 'insensitive' },
-      },
-      take: 25,
-    });
+    if (focusedOption.name === 'nom') {
+      const focusedValue = String(focusedOption.value).toLowerCase();
+      const tables = await prisma.sanctionTable.findMany({
+        where: {
+          guildId,
+          name: { contains: focusedValue, mode: 'insensitive' },
+        },
+        take: 25,
+      });
 
-    await interaction.respond(
-      tables.map((table) => ({
-        name: table.name,
-        value: table.name,
-      }))
-    );
-  } catch {
+      await interaction.respond(
+        tables.map((table) => ({
+          name: table.name,
+          value: table.name,
+        }))
+      );
+      return;
+    }
+
+    if (focusedOption.name === 'bypass') {
+      const tableName = interaction.options.getString('nom');
+      if (!tableName) {
+        await interaction.respond([]);
+        return;
+      }
+
+      const table = await prisma.sanctionTable.findFirst({
+        where: {
+          guildId,
+          name: { equals: tableName, mode: 'insensitive' },
+        },
+        include: {
+          tiers: {
+            orderBy: { level: 'asc' },
+          },
+        },
+      });
+
+      if (!table || !table.tiers || table.tiers.length === 0) {
+        await interaction.respond([]);
+        return;
+      }
+
+      const choices = table.tiers.map((tier) => {
+        const actionLabel = sanctionTypeLabel(tier.action);
+        const durationLabel = tier.durationSeconds ? ` (${formatDurationFr(tier.durationSeconds * 1000)})` : '';
+        const name = `T${tier.level} - ${actionLabel}${durationLabel}`;
+        return {
+          name,
+          value: tier.level,
+        };
+      });
+
+      const query = String(focusedOption.value).toLowerCase();
+      const filtered = choices.filter((c) => c.name.toLowerCase().includes(query));
+
+      await interaction.respond(filtered.slice(0, 25));
+      return;
+    }
+
     await interaction.respond([]);
+  } catch {
+    try {
+      await interaction.respond([]);
+    } catch {
+      // ignore
+    }
   }
 }
 

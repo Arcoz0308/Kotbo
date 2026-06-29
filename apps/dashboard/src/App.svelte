@@ -7,6 +7,7 @@
   import { dashboardStore } from "./lib/stores/dashboard.svelte";
   import { brandingStore } from "./lib/stores/branding.svelte";
   import { themeStore } from "./lib/stores/theme.svelte";
+  import { userPrefs } from "./lib/stores/userPreferences.svelte";
   import { toast } from "./lib/stores/toast.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
   import InviteDetailsModal from "./lib/components/invitations/InviteDetailsModal.svelte";
@@ -18,6 +19,12 @@
 
   let globalError = $state<{ message: string; stack?: string } | null>(null);
   let showKeyboardShortcuts = $state(false);
+
+  $effect(() => {
+    if (authStore.selectedGuildId && authStore.isAuthenticated) {
+      userPrefs.syncFromDatabase();
+    }
+  });
 
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";

@@ -175,3 +175,45 @@ model NotificationTarget {
   @@index([guildId, featureConfigId])
   @@map("notification_targets")
 }
+
+model DashboardUserSettings {
+  guildId   String
+  userId    String
+
+  bentoLayout Json?       // Array of LayoutItem: [{ id, colSpan, rowSpan, visible }]
+  themeId     String      @default("dark")
+  customTheme Json?       // Custom theme colors/settings
+  accentColor String      @default("violet")
+  sidebarBehavior String  @default("auto")
+  compactMode Boolean     @default(false)
+
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([guildId, userId])
+  @@map("dashboard_user_settings")
+}
+
+// Presets de disposition Bento — sauvegardés par utilisateur, partageables
+model DashboardLayoutPreset {
+  id          String   @id @default(cuid())
+
+  guildId     String
+  creatorId   String   // Discord userId du créateur
+
+  name        String
+  description String?  @default("")
+  layout      Json     // Array<LayoutItem>
+  isPublic    Boolean  @default(false)
+  shareToken  String?  @unique // Token unique pour import par URL
+
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([guildId, creatorId])
+  @@map("dashboard_layout_presets")
+}

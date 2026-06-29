@@ -183,6 +183,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let containerDragOverId = $state<string | null>(null);
   let newRoleHierarchyId = $state('');
   let newRoleIsResponsable = $state(false);
+  let newRoleLevel = $state(100);
+
+  // Edit Role Modal state
+  let showEditRoleModal = $state(false);
+  let editingRole = $state<StaffRole | null>(null);
+  let editRoleName = $state('');
+  let editRoleLevel = $state(100);
+  let editRoleColor = $state('');
+  let editRoleDiscordRoleId = $state('');
+  let editRoleHierarchyId = $state('');
+  let editRoleIsResponsable = $state(false);
 
   let showWarnForm = $state(false);
   let warnLookupQuery = $state('');
@@ -269,8 +280,6 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     if (!roleIds.length) return null;
 
     const matchingRole = getOrderedStaffRoles()
-      .slice()
-      .reverse()
       .find((role) => role.discordRoleId && roleIds.includes(role.discordRoleId));
 
     return matchingRole?.name ?? null;
@@ -308,11 +317,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   function getOrderedStaffRoles() {
     return [...staffRoles].sort((left, right) => {
+      const levelDelta = (right.level ?? 0) - (left.level ?? 0);
+      if (levelDelta !== 0) return levelDelta;
+
       const sortDelta = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
       if (sortDelta !== 0) return sortDelta;
-
-      const levelDelta = (left.level ?? 0) - (right.level ?? 0);
-      if (levelDelta !== 0) return levelDelta;
 
       return new Date(left.createdAt ?? 0).getTime() - new Date(right.createdAt ?? 0).getTime();
     });
@@ -1201,7 +1210,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         },
         body: JSON.stringify({
           name: matchedDiscordRole?.name || nextRoleName,
-          level: getNextHierarchyRoleLevel(newRoleHierarchyId || null),
+          level: Number(newRoleLevel),
           discordRoleId: matchedDiscordRole?.id,
           hierarchyId: newRoleHierarchyId || undefined,
           isResponsable: newRoleIsResponsable
@@ -1217,9 +1226,46 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       roleSuggestionsOpen = false;
       newRoleHierarchyId = '';
       newRoleIsResponsable = false;
+      newRoleLevel = 100;
       await loadStaffRoles();
     } catch (err) {
       toast.error('Erreur lors de la création du rôle');
+    }
+  }
+
+  function openEditRoleModal(role: StaffRole) {
+    editingRole = role;
+    editRoleName = role.name;
+    editRoleLevel = role.level;
+    editRoleColor = role.color || '';
+    editRoleDiscordRoleId = role.discordRoleId || '';
+    editRoleHierarchyId = role.hierarchyId || '';
+    editRoleIsResponsable = role.isResponsable;
+    showEditRoleModal = true;
+  }
+
+  async function saveRoleEdit() {
+    if (!editingRole || !guildId) return;
+
+    try {
+      const data = {
+        name: editRoleName,
+        level: Number(editRoleLevel),
+        color: editRoleColor || null,
+        discordRoleId: editRoleDiscordRoleId || null,
+        hierarchyId: editRoleHierarchyId || null,
+        isResponsable: editRoleIsResponsable
+      };
+
+      const ok = await updateStaffRole(editingRole.id, data, guildId);
+      if (ok) {
+        toast.success("Rôle mis à jour !");
+        showEditRoleModal = false;
+        editingRole = null;
+        await loadStaffRoles();
+      }
+    } catch (err) {
+      toast.error("Erreur lors de la mise à jour du rôle.");
     }
   }
 
@@ -1768,7 +1814,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {#if showAddRoleForm}
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="flex flex-col gap-6">
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="relative">
                   <label for="staff-role-search" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
                   <div class="relative">
@@ -1816,6 +1862,18 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       <option value={h.id}>{h.name}</option>
                     {/each}
                   </select>
+                </div>
+
+                <div>
+                  <label for="role-level-input" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Poids / Niveau du rôle</label>
+                  <input
+                    id="role-level-input"
+                    type="number"
+                    min="1"
+                    max="10000"
+                    bind:value={newRoleLevel}
+                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                  />
                 </div>
 
                 <div class="flex items-center gap-3 pt-6">
@@ -1943,7 +2001,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                                   <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-semibold uppercase tracking-wider">Chef</span>
                                 {/if}
                                 <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
-                                  Niveau {getHierarchyRoleLevel(role)}
+                                  Poids : {role.level}
                                 </span>
                               </h5>
                               <p class="mt-0.5 truncate text-xs font-medium text-on-surface-variant/75">
@@ -1957,6 +2015,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                           </div>
                           <div class="flex items-center gap-2 shrink-0">
                             {#if rolesAccess.canConfigure}
+                              <button
+                                onclick={() => openEditRoleModal(role)}
+                                class="inline-flex items-center justify-center rounded-xl p-2 text-primary transition-colors hover:bg-primary/15 border border-primary/20 bg-primary/5"
+                                title="Modifier le rôle"
+                              >
+                                <Papicon icon="edit" size={16} />
+                              </button>
                               <button
                                 onclick={() => removeStaffRole(role.id, role.name)}
                                 class="inline-flex items-center justify-center rounded-xl p-2 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
@@ -2036,7 +2101,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                             <h5 class="text-sm font-semibold text-on-surface flex items-center gap-2">
                               {role.name}
                               <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
-                                Niveau {getHierarchyRoleLevel(role)}
+                                Poids : {role.level}
                               </span>
                             </h5>
                             <p class="mt-0.5 truncate text-xs font-medium text-on-surface-variant/75">
@@ -2050,6 +2115,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                           {#if rolesAccess.canConfigure}
+                            <button
+                              onclick={() => openEditRoleModal(role)}
+                              class="inline-flex items-center justify-center rounded-xl p-2 text-primary transition-colors hover:bg-primary/15 border border-primary/20 bg-primary/5"
+                              title="Modifier le rôle"
+                            >
+                              <Papicon icon="edit" size={16} />
+                            </button>
                             <button
                               onclick={() => removeStaffRole(role.id, role.name)}
                               class="inline-flex items-center justify-center rounded-xl p-2 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
@@ -3100,6 +3172,111 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </button>
         <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
           {isSavingMemberHierarchyGrade ? 'Ajout...' : 'Ajouter'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal Éditer un Rôle -->
+{#if showEditRoleModal && editingRole}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div
+      class="absolute inset-0 bg-surface-container-lowest/80 transition-opacity"
+      role="button"
+      tabindex="0"
+      aria-label="Fermer"
+      onclick={() => { showEditRoleModal = false; editingRole = null; }}
+      onkeydown={(e) => { if (e.key === 'Escape') { showEditRoleModal = false; editingRole = null; } }}
+    ></div>
+
+    <div class="relative w-full max-w-lg rounded-xl border border-outline-variant/30 bg-surface p-8 shadow-sm animate-in zoom-in-95 duration-200">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">
+          Modifier le rôle
+        </h3>
+        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+          <Papicon icon="x" size={20} />
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label for="edit-role-name" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Nom du rôle</label>
+          <input
+            id="edit-role-name"
+            type="text"
+            bind:value={editRoleName}
+            class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+          />
+        </div>
+
+        <div>
+          <label for="edit-role-level" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Poids / Niveau du rôle</label>
+          <input
+            id="edit-role-level"
+            type="number"
+            min="1"
+            max="10000"
+            bind:value={editRoleLevel}
+            class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+          />
+        </div>
+
+        <div>
+          <label for="edit-role-color" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Couleur (Hex ou CSS, optionnel)</label>
+          <input
+            id="edit-role-color"
+            type="text"
+            placeholder="#3b82f6"
+            bind:value={editRoleColor}
+            class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+          />
+        </div>
+
+        <div>
+          <label for="edit-role-discord" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Rôle Discord lié</label>
+          <select
+            id="edit-role-discord"
+            bind:value={editRoleDiscordRoleId}
+            class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+          >
+            <option value="">-- Aucun --</option>
+            {#each availableDiscordRoles as dr}
+              <option value={dr.id}>{dr.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label for="edit-role-hierarchy" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Hiérarchie associée</label>
+          <select
+            id="edit-role-hierarchy"
+            bind:value={editRoleHierarchyId}
+            class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+          >
+            <option value="">-- Aucune (Hors Hiérarchie) --</option>
+            {#each hierarchies as h}
+              <option value={h.id}>{h.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
+          <ToggleSwitch
+            checked={editRoleIsResponsable}
+            onToggle={(v: boolean) => editRoleIsResponsable = v}
+          />
+          <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/70">Chef de hiérarchie</span>
+        </div>
+      </div>
+
+      <div class="mt-8 flex justify-end gap-3">
+        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-semibold uppercase tracking-wider text-on-surface transition-all">
+          Annuler
+        </button>
+        <button onclick={saveRoleEdit} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white transition-all hover:active:scale-[0.98]">
+          Enregistrer
         </button>
       </div>
     </div>

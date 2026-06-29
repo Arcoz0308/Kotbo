@@ -1015,7 +1015,7 @@ export const createPoll = async (
       'Nouveau sondage staff',
       `Un nouveau sondage est disponible : "${title}".`,
       'INFO',
-      '/polls'
+      '/staff-management/polls'
     ).catch(() => null)));
   }
 
@@ -1579,6 +1579,76 @@ export const getCalls = async (guildId: string) => {
   });
 };
 
+async function resolveInviteeCUIDs(client: Client, guildId: string, ids: string[]): Promise<string[]> {
+  const cuids: string[] = [];
+
+  for (const idOrUserId of ids) {
+    if (!idOrUserId) continue;
+
+    // 1. Check if it's already a valid CUID for an existing StaffMember in this guild
+    let member = await prisma.staffMember.findFirst({
+      where: {
+        id: idOrUserId,
+        guildId
+      }
+    });
+
+    if (!member) {
+      // 2. Check if it's a Discord userId for an existing StaffMember in this guild
+      member = await prisma.staffMember.findFirst({
+        where: {
+          userId: idOrUserId,
+          guildId
+        }
+      });
+    }
+
+    if (!member) {
+      // 3. Create a new StaffMember record
+      let username: string | null = null;
+      let displayName: string | null = null;
+      let avatarUrl: string | null = null;
+      try {
+        const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+        if (discordGuild) {
+          const memberObj = await discordGuild.members.fetch(idOrUserId).catch(() => null);
+          if (memberObj) {
+            username = memberObj.user.username;
+            displayName = memberObj.displayName || memberObj.user.globalName || username;
+            avatarUrl = memberObj.user.displayAvatarURL() || '';
+          } else {
+            const userObj = await client.users.fetch(idOrUserId).catch(() => null);
+            if (userObj) {
+              username = userObj.username;
+              displayName = userObj.globalName || username;
+              avatarUrl = userObj.displayAvatarURL() || '';
+            }
+          }
+        }
+      } catch (err) {
+        logger.error('StaffLeadership', `Erreur lors de la récupération des infos Discord pour le membre invité ${idOrUserId}: ${err}`);
+      }
+
+      member = await prisma.staffMember.create({
+        data: {
+          guildId,
+          userId: idOrUserId,
+          grade: 'Staff',
+          username,
+          displayName,
+          avatarUrl
+        }
+      });
+    }
+
+    if (member && !cuids.includes(member.id)) {
+      cuids.push(member.id);
+    }
+  }
+
+  return cuids;
+}
+
 export const createCall = async (
   client: Client,
   guildId: string,
@@ -1590,9 +1660,11 @@ export const createCall = async (
   channelType?: string | null,
   discordChannelId?: string | null,
   isTempChannel: boolean = true,
-  inviteeUserIds: string[] = [] // StaffMember IDs (CUIDs)
+  inviteeUserIds: string[] = [] // StaffMember IDs (CUIDs) or Discord User IDs
 ) => {
   try {
+    const finalInviteeCUIDs = await resolveInviteeCUIDs(client, guildId, inviteeUserIds);
+
     const creator = await prisma.staffMember.findUnique({
       where: { guildId_userId: { guildId, userId: createdByUserId } }
     });
@@ -1628,7 +1700,7 @@ export const createCall = async (
       ];
 
       const inviteeStaff = await prisma.staffMember.findMany({
-        where: { id: { in: inviteeUserIds } }
+        where: { id: { in: finalInviteeCUIDs } }
       });
 
       for (const invitee of inviteeStaff) {
@@ -1640,7 +1712,7 @@ export const createCall = async (
 
       let type = ChannelType.GuildVoice;
       if (channelType === 'STAGE') type = ChannelType.GuildStageVoice;
-      
+
       const newChannel = await discordGuild.channels.create({
         name: `call-${title.toLowerCase().replace(/\s+/g, '-')}`.slice(0, 100),
         type,
@@ -1651,6 +1723,12 @@ export const createCall = async (
 
       finalChannelId = newChannel.id;
     }
+
+    const validInvitees = await prisma.staffMember.findMany({
+      where: { id: { in: finalInviteeCUIDs } },
+      select: { id: true }
+    });
+    const validInviteeIds = validInvitees.map(m => m.id);
 
     const call = await prisma.staffCall.create({
       data: {
@@ -1665,7 +1743,7 @@ export const createCall = async (
         discordChannelId: finalChannelId ?? null,
         isTempChannel,
         invitees: {
-          create: inviteeUserIds.map(id => ({ staffUserId: id }))
+          create: validInviteeIds.map(id => ({ staffUserId: id }))
         }
       },
       include: {
@@ -1675,7 +1753,7 @@ export const createCall = async (
     });
 
     const inviteeStaff = await prisma.staffMember.findMany({
-      where: { id: { in: inviteeUserIds } }
+      where: { id: { in: finalInviteeCUIDs } }
     });
 
     const timeLabel = scheduledAt.toLocaleString('fr-FR');
@@ -1716,7 +1794,7 @@ export const updateCall = async (
   });
   if (!existingCall) throw new Error("Appel introuvable.");
 
-  const updatePayload: unknown = {};
+  const updatePayload: Record<string, unknown> = {};
   if (data.title) updatePayload.title = data.title;
   if (data.description !== undefined) updatePayload.description = data.description;
   if (data.scheduledAt) updatePayload.scheduledAt = data.scheduledAt;
@@ -1728,9 +1806,14 @@ export const updateCall = async (
   }
 
   if (data.invitees) {
+    const resolvedCUIDs = await resolveInviteeCUIDs(client, guildId, data.invitees);
+    const validMembers = await prisma.staffMember.findMany({
+      where: { id: { in: resolvedCUIDs } },
+      select: { id: true }
+    });
     await prisma.staffCallInvitee.deleteMany({ where: { callId: id } });
     updatePayload.invitees = {
-      create: data.invitees.map(uid => ({ staffUserId: uid }))
+      create: validMembers.map(m => ({ staffUserId: m.id }))
     };
   }
 

@@ -138,7 +138,7 @@ export async function applyProgressiveSanction(params: {
   moderator: Actor;
   tableName: string;
   bypassLevel?: number | null;
-  reason: string;
+  reason?: string | null;
   guild: Guild;
   member: GuildMember | null;
   client: Client;
@@ -150,8 +150,13 @@ export async function applyProgressiveSanction(params: {
     bypassLevel: params.bypassLevel,
   });
 
-  const actionReason = `[Tableau: ${table.name} - Tier T${targetLevel}] ${params.reason}`;
-  const customReason = tier?.customReason ? `${tier.customReason} | ${params.reason}` : actionReason;
+  const cleanReason = params.reason?.trim();
+  const actionReason = cleanReason
+    ? `[Tableau: ${table.name} - Tier T${targetLevel}] ${cleanReason}`
+    : `[Tableau: ${table.name} - Tier T${targetLevel}]`;
+  const customReason = tier?.customReason
+    ? (cleanReason ? `${tier.customReason} | ${cleanReason}` : tier.customReason)
+    : actionReason;
 
   if (!tier) {
     // Default fallback if no tiers configured

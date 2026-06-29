@@ -139,7 +139,7 @@ async function dashboardRequest(path: string, options: {
       throw error;
     }
 
-    if (method !== 'GET' && response.ok) {
+    if (method !== 'GET' && response.ok && !options.silent) {
       toast.success('Opération réussie');
     }
 
@@ -147,7 +147,7 @@ async function dashboardRequest(path: string, options: {
   } catch (error) {
     if (!options.silent) {
       console.error(errorContext, error);
-      toast.error(error.message || 'Erreur réseau ou serveur');
+      toast.error((error as any).message || 'Erreur réseau ou serveur');
     }
     throw error;
   }
@@ -2566,3 +2566,86 @@ export async function unbindGuildFromInstance(instanceId: string, guildId: strin
   }
   return res.json();
 }
+
+// ============================================================================
+// USER SETTINGS & LAYOUTS (BENTO / THEME)
+// ============================================================================
+
+export async function fetchUserSettings(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/user-settings', { method: 'GET', guildId, errorContext: 'API Error (Get User Settings):', silent: true });
+}
+
+export async function updateUserSettings(settings: {
+  bentoLayout?: any;
+  themeId?: string;
+  customTheme?: any;
+  accentColor?: string;
+  sidebarBehavior?: string;
+  compactMode?: boolean;
+}, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/user-settings', {
+    method: 'PUT',
+    payload: settings,
+    guildId,
+    errorContext: 'API Error (Update User Settings):',
+    silent: true
+  });
+}
+
+// ============================================================================
+// BENTO LAYOUT PRESETS
+// ============================================================================
+
+export interface LayoutPreset {
+  id: string;
+  name: string;
+  description?: string;
+  creatorId: string;
+  guildId: string;
+  layout: any[];
+  isPublic: boolean;
+  shareToken?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchLayoutPresets(guildId = authStore.selectedGuildId): Promise<LayoutPreset[]> {
+  const data = await dashboardRequest('/layout-presets', { method: 'GET', guildId, errorContext: 'API Error (Fetch Presets):', silent: true });
+  return data?.presets || [];
+}
+
+export async function createLayoutPreset(preset: { name: string; description?: string; layout: any[]; isPublic?: boolean }, guildId = authStore.selectedGuildId): Promise<LayoutPreset | null> {
+  const data = await dashboardRequest('/layout-presets', { method: 'POST', payload: preset, guildId, errorContext: 'API Error (Create Preset):' });
+  return data?.preset || null;
+}
+
+export async function deleteLayoutPreset(presetId: string, guildId = authStore.selectedGuildId): Promise<boolean> {
+  return dashboardMutation(`/layout-presets/${presetId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Preset):' });
+}
+
+export async function shareLayoutPreset(presetId: string, guildId = authStore.selectedGuildId): Promise<{ shareToken: string; shareUrl: string } | null> {
+  const data = await dashboardRequest(`/layout-presets/${presetId}/share`, { method: 'POST', guildId, errorContext: 'API Error (Share Preset):' });
+  return data || null;
+}
+
+export async function applyLayoutPreset(presetId: string, guildId = authStore.selectedGuildId): Promise<any | null> {
+  const data = await dashboardRequest(`/layout-presets/${presetId}/apply`, { method: 'POST', guildId, errorContext: 'API Error (Apply Preset):' });
+  return data?.layout || null;
+}
+
+export async function fetchSharedLayoutPreset(shareToken: string): Promise<LayoutPreset | null> {
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/presets/shared/${shareToken}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.preset || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function importLayoutPreset(preset: { name: string; description?: string; layout: any[] }, guildId = authStore.selectedGuildId): Promise<LayoutPreset | null> {
+  const data = await dashboardRequest('/layout-presets/import', { method: 'POST', payload: preset, guildId, errorContext: 'API Error (Import Preset):' });
+  return data?.preset || null;
+}
+

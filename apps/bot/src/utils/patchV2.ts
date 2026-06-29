@@ -1,5 +1,6 @@
 import * as discord from 'discord.js';
 import { E } from './emojis.js';
+import { getClient } from './client.js';
 
 const COLORS_RAW = {
   primary: 0x5865f2,
@@ -13,11 +14,68 @@ const COLORS_RAW = {
 
 const EMOJI_PREFIX_REGEX = /^(?:<a?:\w+:\d+>|[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/;
 
-// Mentions don't resolve inside Components V2 TextDisplay \u2014 strip them
-export function stripMentions(text: string): string {
+function getClientSafe(): discord.Client | null {
+  try {
+    return getClient();
+  } catch {
+    return null;
+  }
+}
+
+// Mentions don't resolve inside Components V2 TextDisplay — strip them
+export function stripMentions(text: string, context?: any): string {
+  const client = getClientSafe() || context?.client;
+  
+  let guild = context?.guild;
+  if (!guild && context?.channel && 'guild' in context.channel) {
+    guild = context.channel.guild;
+  }
+  if (!guild && client && context?.guildId) {
+    guild = client.guilds.cache.get(context.guildId);
+  }
+
   return text
-    .replace(/<@&(\d+)>/g, '@r\u00F4le')
-    .replace(/<@!?(\d+)>/g, '@utilisateur');
+    .replace(/<@&(\d+)>/g, (match, roleId) => {
+      if (guild) {
+        const role = guild.roles.cache.get(roleId);
+        if (role) {
+          return `@${role.name}`;
+        }
+      }
+      if (client) {
+        const role = client.roles?.cache?.get(roleId);
+        if (role) return `@${role.name}`;
+
+        for (const g of client.guilds.cache.values()) {
+          const role = g.roles.cache.get(roleId);
+          if (role) {
+            return `@${role.name}`;
+          }
+        }
+      }
+      return '@r\u00F4le';
+    })
+    .replace(/<@!?(\d+)>/g, (match, userId) => {
+      if (guild) {
+        const member = guild.members.cache.get(userId);
+        if (member) {
+          return `@${member.displayName}`;
+        }
+      }
+      if (client) {
+        const user = client.users.cache.get(userId);
+        if (user) {
+          return `@${user.displayName || user.username}`;
+        }
+        for (const g of client.guilds.cache.values()) {
+          const member = g.members.cache.get(userId);
+          if (member) {
+            return `@${member.displayName || member.user.username}`;
+          }
+        }
+      }
+      return '@utilisateur';
+    });
 }
 
 function getEmojiForTitle(title: string): string | null {
@@ -64,7 +122,7 @@ function getEmojiForTitle(title: string): string | null {
   return null;
 }
 
-export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Record<string, unknown>): discord.ContainerBuilder {
+export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Record<string, unknown>, context?: any): discord.ContainerBuilder {
   const isEmbedBuilder = (val: unknown): val is { toJSON: () => discord.APIEmbed } => {
     return val !== null && typeof val === 'object' && 'toJSON' in val && typeof (val as { toJSON: unknown }).toJSON === 'function';
   };
@@ -96,7 +154,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
   if (authorHeader || title) {
     fullTitle = `${authorHeader}### ${title || 'Info'}`;
   }
-  fullTitle = stripMentions(fullTitle);
+  fullTitle = stripMentions(fullTitle, context);
 
   // Text section + thumbnail accessory
   if (fullTitle) {
@@ -118,7 +176,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
 
   // Description
   if (data.description) {
-    c.addTextDisplayComponents(new discord.TextDisplayBuilder().setContent(stripMentions(data.description)));
+    c.addTextDisplayComponents(new discord.TextDisplayBuilder().setContent(stripMentions(data.description, context)));
   }
 
   // Fields
@@ -127,7 +185,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
     for (const field of data.fields) {
       if (field.name && field.value) {
         c.addTextDisplayComponents(
-          new discord.TextDisplayBuilder().setContent(stripMentions(`**${field.name}**\n${field.value}`))
+          new discord.TextDisplayBuilder().setContent(stripMentions(`**${field.name}**\n${field.value}`, context))
         );
       }
     }
@@ -145,7 +203,7 @@ export function embedToV2(embed: discord.EmbedBuilder | discord.APIEmbed | Recor
   // Footer
   if (data.footer?.text) {
     c.addSeparatorComponents(new discord.SeparatorBuilder().setDivider(false).setSpacing(discord.SeparatorSpacingSize.Small));
-    c.addTextDisplayComponents(new discord.TextDisplayBuilder().setContent(stripMentions(`-# ${data.footer.text}`)));
+    c.addTextDisplayComponents(new discord.TextDisplayBuilder().setContent(stripMentions(`-# ${data.footer.text}`, context)));
   }
 
   return c;
@@ -173,7 +231,7 @@ function patchFlags(flags: unknown): unknown {
   return [flags, IsComponentsV2];
 }
 
-function transformPayload(options: unknown): unknown {
+function transformPayload(options: unknown, context?: any): unknown {
   if (!options || typeof options !== 'object') {
     return options;
   }
@@ -186,7 +244,7 @@ function transformPayload(options: unknown): unknown {
   // If options is a single EmbedBuilder or custom object resembling an embed
   if (options instanceof discord.EmbedBuilder || (hasToJSON && !hasContent && !hasEmbeds && !hasComponents)) {
     return {
-      components: [embedToV2(options as discord.EmbedBuilder)],
+      components: [embedToV2(options as discord.EmbedBuilder, context)],
       flags: [discord.MessageFlags.IsComponentsV2],
     };
   }
@@ -198,7 +256,7 @@ function transformPayload(options: unknown): unknown {
       const containers: discord.ContainerBuilder[] = [];
       for (const embed of payload.embeds) {
         if (embed) {
-          containers.push(embedToV2(embed as discord.EmbedBuilder));
+          containers.push(embedToV2(embed as discord.EmbedBuilder, context));
         }
       }
 
@@ -208,7 +266,7 @@ function transformPayload(options: unknown): unknown {
 
         if (payload.content) {
           newComponents.push(
-            new discord.TextDisplayBuilder().setContent(stripMentions(payload.content))
+            new discord.TextDisplayBuilder().setContent(stripMentions(payload.content, context))
           );
           delete payload.content;
         }
@@ -254,7 +312,7 @@ for (const patch of patches) {
     if (typeof original !== 'function') continue;
 
     proto[method] = function (this: unknown, options: unknown, ...args: unknown[]) {
-      const transformed = transformPayload(options);
+      const transformed = transformPayload(options, this);
       return (original as (...args: unknown[]) => unknown).call(this, transformed, ...args);
     };
   }

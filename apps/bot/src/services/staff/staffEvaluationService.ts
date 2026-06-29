@@ -131,7 +131,7 @@ export async function getEvaluationsDashboardData(guildId: string) {
       take: 100,
     }),
     prismaRead.staffMember.findMany({
-      where: { guildId, isActive: true },
+      where: { guildId },
       select: { userId: true, displayName: true },
     }),
   ]);
@@ -157,7 +157,7 @@ export async function getEvaluationsDashboardData(guildId: string) {
 
 export async function generateAllStaffEvaluations(guildId: string, periodDays = 30) {
   const staffMembers = await prismaRead.staffMember.findMany({
-    where: { guildId, isActive: true },
+    where: { guildId },
     select: { userId: true },
   });
 

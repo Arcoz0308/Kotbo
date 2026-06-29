@@ -382,7 +382,7 @@ export async function autoSetupRoleMappings(
       } else {
         const newRole = await staffGuild.roles.create({
           name: mainDiscordRole.name,
-          colors: mainDiscordRole.color,
+          color: mainDiscordRole.color,
           hoist: mainDiscordRole.hoist,
           mentionable: mainDiscordRole.mentionable,
           reason: 'Kotbo StaffServer: Auto-création lors du setup',

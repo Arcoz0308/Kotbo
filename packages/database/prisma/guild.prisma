@@ -152,6 +152,7 @@ model Guild {
   tutoringConfig TutoringConfig?
   tutoringItems TutoringItem[]
   dashboardFeatureConfigs DashboardFeatureConfig[]
+  layoutPresets DashboardLayoutPreset[]
   logEventConfigs GuildLogEventConfig[]
   events Event[]
   customForms CustomForm[]
@@ -279,6 +280,7 @@ model Guild {
   // Quests
   questDefinitions QuestDefinition[]
   questProgress QuestProgress[]
+  dashboardUserSettings DashboardUserSettings[]
 
   @@map("guilds")
 }

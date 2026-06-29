@@ -1,6 +1,6 @@
 {
   "name": "@kotbo/bot",
-  "version": "7.24",
+  "version": "8.25",
   "private": true,
   "scripts": {
     "migrate:deploy": "cd ../.. && bun run db:migrate:deploy",

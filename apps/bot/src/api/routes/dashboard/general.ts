@@ -83,6 +83,26 @@ export async function handleGeneralRoutes(
     return true;
   }
 
+  // GET /api/dashboard/presets/shared/:token — public access by share token
+  if (parts.length === 5 && parts[2] === 'presets' && parts[3] === 'shared' && method === 'GET') {
+    const shareToken = parts[4];
+    try {
+      const preset = await prisma.dashboardLayoutPreset.findUnique({
+        where: { shareToken },
+        select: { id: true, name: true, description: true, creatorId: true, guildId: true, layout: true, isPublic: true, shareToken: true, createdAt: true, updatedAt: true }
+      });
+      if (!preset || !preset.isPublic) {
+        json(res, 404, { error: 'Preset partagé introuvable.' });
+        return true;
+      }
+      json(res, 200, { preset });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error fetching shared preset ${shareToken}:`, err);
+      json(res, 500, { error: 'Erreur lors de la récupération du preset partagé.' });
+    }
+    return true;
+  }
+
   return false;
 }
 
@@ -219,6 +239,236 @@ export async function handleGuildGeneralRoutes(
     } catch (err) {
       logger.error('GeneralAPI', `Error activating guild ${guildId}:`, err);
       json(res, 500, { error: "Erreur lors de l'activation du serveur." });
+    }
+    return true;
+  }
+
+  // GET /api/dashboard/guilds/:guildId/user-settings
+  if (parts.length === 5 && parts[4] === 'user-settings' && method === 'GET') {
+    try {
+      const settings = await prisma.dashboardUserSettings.findUnique({
+        where: {
+          guildId_userId: {
+            guildId,
+            userId: user.userId
+          }
+        }
+      });
+      
+      if (!settings) {
+        json(res, 200, {
+          bentoLayout: null,
+          themeId: 'dark',
+          customTheme: null,
+          accentColor: 'violet',
+          sidebarBehavior: 'auto',
+          compactMode: false
+        });
+        return true;
+      }
+      
+      json(res, 200, {
+        bentoLayout: settings.bentoLayout,
+        themeId: settings.themeId,
+        customTheme: settings.customTheme,
+        accentColor: settings.accentColor,
+        sidebarBehavior: settings.sidebarBehavior,
+        compactMode: settings.compactMode
+      });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error fetching user-settings for ${guildId} / ${user.userId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la récupération des préférences.' });
+    }
+    return true;
+  }
+
+  // PUT /api/dashboard/guilds/:guildId/user-settings
+  if (parts.length === 5 && parts[4] === 'user-settings' && method === 'PUT') {
+    try {
+      const body = await readJsonBody<any>(req);
+      const settings = await prisma.dashboardUserSettings.upsert({
+        where: {
+          guildId_userId: {
+            guildId,
+            userId: user.userId
+          }
+        },
+        create: {
+          guildId,
+          userId: user.userId,
+          bentoLayout: body?.bentoLayout ?? null,
+          themeId: body?.themeId ?? 'dark',
+          customTheme: body?.customTheme ?? null,
+          accentColor: body?.accentColor ?? 'violet',
+          sidebarBehavior: body?.sidebarBehavior ?? 'auto',
+          compactMode: body?.compactMode ?? false
+        },
+        update: {
+          bentoLayout: body?.bentoLayout !== undefined ? body.bentoLayout : undefined,
+          themeId: body?.themeId !== undefined ? body.themeId : undefined,
+          customTheme: body?.customTheme !== undefined ? body.customTheme : undefined,
+          accentColor: body?.accentColor !== undefined ? body.accentColor : undefined,
+          sidebarBehavior: body?.sidebarBehavior !== undefined ? body.sidebarBehavior : undefined,
+          compactMode: body?.compactMode !== undefined ? body.compactMode : undefined
+        }
+      });
+      
+      json(res, 200, {
+        ok: true,
+        settings: {
+          bentoLayout: settings.bentoLayout,
+          themeId: settings.themeId,
+          customTheme: settings.customTheme,
+          accentColor: settings.accentColor,
+          sidebarBehavior: settings.sidebarBehavior,
+          compactMode: settings.compactMode
+        }
+      });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error updating user-settings for ${guildId} / ${user.userId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour des préférences.' });
+    }
+    return true;
+  }
+
+  // ============================================================================
+  // BENTO LAYOUT PRESETS
+  // ============================================================================
+
+  // GET /api/dashboard/guilds/:guildId/layout-presets
+  if (parts.length === 5 && parts[4] === 'layout-presets' && method === 'GET') {
+    try {
+      const presets = await prisma.dashboardLayoutPreset.findMany({
+        where: { guildId, creatorId: user.userId },
+        orderBy: { updatedAt: 'desc' }
+      });
+      json(res, 200, { presets });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error fetching presets for ${guildId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la récupération des presets.' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/layout-presets
+  if (parts.length === 5 && parts[4] === 'layout-presets' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ name: string; description?: string; layout: any[]; isPublic?: boolean }>(req);
+      if (!body?.name || !body?.layout) {
+        json(res, 400, { error: 'Nom et layout requis.' });
+        return true;
+      }
+      const preset = await prisma.dashboardLayoutPreset.create({
+        data: {
+          guildId,
+          creatorId: user.userId,
+          name: body.name,
+          description: body.description || '',
+          layout: body.layout,
+          isPublic: body.isPublic ?? false
+        }
+      });
+      json(res, 201, { preset });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error creating preset for ${guildId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la création du preset.' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/layout-presets/import
+  if (parts.length === 6 && parts[4] === 'layout-presets' && parts[5] === 'import' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ name: string; description?: string; layout: any[] }>(req);
+      if (!body?.name || !body?.layout) {
+        json(res, 400, { error: 'Nom et layout requis.' });
+        return true;
+      }
+      const preset = await prisma.dashboardLayoutPreset.create({
+        data: {
+          guildId,
+          creatorId: user.userId,
+          name: body.name,
+          description: body.description || 'Importé',
+          layout: body.layout,
+          isPublic: false
+        }
+      });
+      json(res, 201, { preset });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error importing preset for ${guildId}:`, err);
+      json(res, 500, { error: 'Erreur lors de l\'import du preset.' });
+    }
+    return true;
+  }
+
+  // DELETE /api/dashboard/guilds/:guildId/layout-presets/:presetId
+  if (parts.length === 6 && parts[4] === 'layout-presets' && method === 'DELETE') {
+    const presetId = parts[5];
+    try {
+      const existing = await prisma.dashboardLayoutPreset.findFirst({
+        where: { id: presetId, guildId, creatorId: user.userId }
+      });
+      if (!existing) {
+        json(res, 404, { error: 'Preset introuvable ou accès refusé.' });
+        return true;
+      }
+      await prisma.dashboardLayoutPreset.delete({ where: { id: presetId } });
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error deleting preset ${presetId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la suppression du preset.' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/layout-presets/:presetId/share
+  if (parts.length === 7 && parts[4] === 'layout-presets' && parts[6] === 'share' && method === 'POST') {
+    const presetId = parts[5];
+    try {
+      const existing = await prisma.dashboardLayoutPreset.findFirst({
+        where: { id: presetId, guildId, creatorId: user.userId }
+      });
+      if (!existing) {
+        json(res, 404, { error: 'Preset introuvable ou accès refusé.' });
+        return true;
+      }
+      // Generate a unique share token
+      const shareToken = existing.shareToken ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+      const updated = await prisma.dashboardLayoutPreset.update({
+        where: { id: presetId },
+        data: { shareToken, isPublic: true }
+      });
+      json(res, 200, { shareToken: updated.shareToken, shareUrl: `/overview?importPreset=${updated.shareToken}` });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error sharing preset ${presetId}:`, err);
+      json(res, 500, { error: 'Erreur lors du partage du preset.' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/layout-presets/:presetId/apply
+  if (parts.length === 7 && parts[4] === 'layout-presets' && parts[6] === 'apply' && method === 'POST') {
+    const presetId = parts[5];
+    try {
+      // User can apply their own presets or public ones
+      const preset = await prisma.dashboardLayoutPreset.findFirst({
+        where: { id: presetId, guildId, OR: [{ creatorId: user.userId }, { isPublic: true }] }
+      });
+      if (!preset) {
+        json(res, 404, { error: 'Preset introuvable ou accès refusé.' });
+        return true;
+      }
+      // Apply by updating user settings
+      await prisma.dashboardUserSettings.upsert({
+        where: { guildId_userId: { guildId, userId: user.userId } },
+        create: { guildId, userId: user.userId, bentoLayout: preset.layout },
+        update: { bentoLayout: preset.layout }
+      });
+      json(res, 200, { ok: true, layout: preset.layout });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error applying preset ${presetId}:`, err);
+      json(res, 500, { error: 'Erreur lors de l\'application du preset.' });
     }
     return true;
   }

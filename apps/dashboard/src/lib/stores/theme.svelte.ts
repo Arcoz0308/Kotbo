@@ -539,6 +539,33 @@ function createThemeStore() {
     applyAccentVars();
   }
 
+  async function syncThemeToDb(id: ThemeId, colors: CustomThemeColors) {
+    try {
+      const { authStore } = await import('./auth.svelte');
+      if (!authStore.selectedGuildId || !authStore.token) return;
+      const { updateUserSettings } = await import('../api');
+      await updateUserSettings({
+        themeId: id,
+        customTheme: id === 'custom' ? colors : null
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  async function syncAccentToDb(accent: AccentColorId) {
+    try {
+      const { authStore } = await import('./auth.svelte');
+      if (!authStore.selectedGuildId || !authStore.token) return;
+      const { updateUserSettings } = await import('../api');
+      await updateUserSettings({
+        accentColor: accent
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
+
   applyAll();
 
   return {
@@ -550,6 +577,7 @@ function createThemeStore() {
       themeId = value ? 'dark' : 'light';
       localStorage.setItem(THEME_KEY, themeId);
       applyAll();
+      syncThemeToDb(themeId, customColors);
     },
 
     get themeId() {
@@ -560,6 +588,7 @@ function createThemeStore() {
       themeId = id;
       localStorage.setItem(THEME_KEY, id);
       applyAll();
+      syncThemeToDb(id, customColors);
     },
 
     get mode(): ThemeMode {
@@ -574,11 +603,13 @@ function createThemeStore() {
       customColors = { ...colors };
       localStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(customColors));
       if (themeId === 'custom') applyAll();
+      syncThemeToDb(themeId, customColors);
     },
 
     setAccent(accent: AccentColorId) {
       currentAccent = accent;
       applyAccentVars();
+      syncAccentToDb(accent);
     },
 
     toggle() {
@@ -586,6 +617,7 @@ function createThemeStore() {
       themeId = mode === 'dark' ? 'light' : 'dark';
       localStorage.setItem(THEME_KEY, themeId);
       applyAll();
+      syncThemeToDb(themeId, customColors);
     },
   };
 }

@@ -136,17 +136,63 @@ class UserPreferencesStore {
     this.applyUiPreferences();
   }
 
+  async syncFromDatabase() {
+    try {
+      const { fetchUserSettings } = await import('../api');
+      const data = await fetchUserSettings();
+      if (data) {
+        if (data.themeId) {
+          this.prefs.theme = data.themeId;
+          themeStore.themeId = data.themeId;
+        }
+        if (data.customTheme) {
+          themeStore.setCustomColors(data.customTheme);
+        }
+        if (data.accentColor) {
+          this.prefs.accentColor = data.accentColor;
+          themeStore.setAccent(data.accentColor);
+        }
+        if (data.sidebarBehavior) {
+          this.prefs.sidebarBehavior = data.sidebarBehavior;
+        }
+        if (data.compactMode !== undefined) {
+          this.prefs.compactMode = data.compactMode;
+        }
+        this.applyPreferences();
+        this.save();
+      }
+    } catch (e) {
+      console.warn("Failed to sync preferences from database:", e);
+    }
+  }
+
+  async syncToDatabase() {
+    try {
+      const { updateUserSettings } = await import('../api');
+      await updateUserSettings({
+        themeId: this.prefs.theme,
+        customTheme: themeStore.themeId === 'custom' ? themeStore.customColors : null,
+        accentColor: this.prefs.accentColor,
+        sidebarBehavior: this.prefs.sidebarBehavior,
+        compactMode: this.prefs.compactMode
+      });
+    } catch (e) {
+      console.warn("Failed to sync preferences to database:", e);
+    }
+  }
+
   set<K extends keyof UserPrefs>(key: K, value: UserPrefs[K]) {
     this.prefs[key] = value;
     this.save();
-
     this.applyPreferences();
+    this.syncToDatabase();
   }
 
   reset() {
     this.prefs = { ...DEFAULT_PREFS };
     this.save();
     this.applyPreferences();
+    this.syncToDatabase();
   }
 }
 
