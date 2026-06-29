@@ -822,7 +822,7 @@ export async function handleMCPRoutes(
       const dest = new URL(redirectUri);
       dest.searchParams.set('code', code);
       if (state) dest.searchParams.set('state', state);
-      dest.searchParams.set('iss', base);
+      dest.searchParams.set('iss', resource ?? base);
 
       res.setHeader('Location', dest.toString());
       res.statusCode = 302;
@@ -887,8 +887,10 @@ export async function handleMCPRoutes(
     const dest = new URL(redirect_uri);
     dest.searchParams.set('code', code);
     if (state) dest.searchParams.set('state', state);
-    dest.searchParams.set('iss', base);
+    const issuer = resource ?? base;
+    dest.searchParams.set('iss', issuer);
 
+    mcpLog(req, 'authorize_post_redirect', { guildId, redirectUri: redirect_uri, iss: issuer, base, resource: resource ?? null });
     res.setHeader('Location', dest.toString());
     res.statusCode = 302;
     res.end();
