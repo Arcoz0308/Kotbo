@@ -55,12 +55,19 @@
 
   function getStatusBadge(status: string) {
     const map: Record<string, { label: string; cls: string }> = {
-      UPCOMING: { label: 'A venir', cls: 'badge-info' },
-      ACTIVE: { label: 'En cours', cls: 'badge-success' },
-      ENDED: { label: 'Terminee', cls: 'badge-warning' },
-      ARCHIVED: { label: 'Archivee', cls: 'badge-muted' },
+      UPCOMING: { label: 'A venir', cls: 'bg-primary/10 text-primary' },
+      ACTIVE: { label: 'En cours', cls: 'bg-emerald-500/10 text-emerald-500' },
+      ENDED: { label: 'Terminee', cls: 'bg-amber-500/10 text-amber-500' },
+      ARCHIVED: { label: 'Archivee', cls: 'bg-surface-container-high/40 text-on-surface-variant' },
     };
-    return map[status] ?? { label: status, cls: '' };
+    return map[status] ?? { label: status, cls: 'bg-surface-container-high/40 text-on-surface-variant' };
+  }
+
+  function getDotColor(status: string): string {
+    if (status === 'ACTIVE') return 'bg-emerald-500';
+    if (status === 'UPCOMING') return 'bg-primary';
+    if (status === 'ENDED') return 'bg-amber-500';
+    return 'bg-on-surface-variant/40';
   }
 
   function getMedal(index: number): string {
@@ -73,92 +80,122 @@
   onMount(load);
 </script>
 
-<div class="page-header">
-  <div class="header-left">
-    <h1><Papicon name="flag" size={24} /> Saisons de Leveling</h1>
-    <p class="subtitle">Classements competitifs avec recompenses de fin de saison</p>
+<!-- ======================== HEADER ======================== -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+  <div>
+    <h1 class="text-lg font-semibold flex items-center gap-2.5">
+      <Papicon icon="flag" size={24} />
+      Saisons de Leveling
+    </h1>
+    <p class="text-xs text-on-surface-variant/60 mt-1">Classements competitifs avec recompenses de fin de saison</p>
   </div>
-  <button class="btn btn-primary" onclick={() => showCreate = !showCreate}>
-    <Papicon name="plus" size={16} /> Nouvelle saison
+  <button
+    class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+    onclick={() => showCreate = !showCreate}
+  >
+    <Papicon icon="plus" size={16} />
+    Nouvelle saison
   </button>
 </div>
 
+<!-- ======================== CREATE FORM ======================== -->
 {#if showCreate}
-  <div class="card create-form">
-    <h3>Creer une saison</h3>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Nom</label>
-        <input type="text" bind:value={newSeason.name} placeholder="Saison 1 --- Ete 2026" />
+  <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4 mb-6">
+    <h3 class="text-base font-semibold flex items-center gap-2.5">Creer une saison</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nom</label>
+        <input
+          type="text"
+          bind:value={newSeason.name}
+          placeholder="Saison 1 --- Ete 2026"
+          class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm"
+        />
       </div>
-      <div class="form-group">
-        <label>Date de debut</label>
-        <input type="date" bind:value={newSeason.startDate} />
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date de debut</label>
+        <input
+          type="date"
+          bind:value={newSeason.startDate}
+          class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm"
+        />
       </div>
-      <div class="form-group">
-        <label>Date de fin</label>
-        <input type="date" bind:value={newSeason.endDate} />
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date de fin</label>
+        <input
+          type="date"
+          bind:value={newSeason.endDate}
+          class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm"
+        />
       </div>
     </div>
-    <div class="form-actions">
-      <button class="btn btn-secondary" onclick={() => showCreate = false}>Annuler</button>
-      <button class="btn btn-primary" onclick={handleCreate}>Creer</button>
+    <div class="flex justify-end gap-2 pt-2">
+      <button
+        class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all"
+        onclick={() => showCreate = false}
+      >Annuler</button>
+      <button
+        class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        onclick={handleCreate}
+      >Creer</button>
     </div>
   </div>
 {/if}
 
+<!-- ======================== CONTENT ======================== -->
 {#if loading}
-  <div class="loading-container"><div class="spinner"></div></div>
+  <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    <p class="text-sm">Chargement des donnees...</p>
+  </div>
 {:else if data}
+
+  <!-- ==================== HERO: ACTIVE SEASON ==================== -->
   {#if data.activeSeason}
-    <div class="hero-season">
-      <div class="hero-content">
-        <div class="hero-top">
-          <div class="hero-title-area">
-            <h2 class="hero-name">{data.activeSeason.name}</h2>
-            <span class="badge badge-success">En cours</span>
+    <div class="rounded-xl p-[2px] mb-6" style="background: linear-gradient(135deg, var(--primary-color), #10b981, var(--primary-color))">
+      <div class="bg-surface-container-low rounded-xl p-6 space-y-4">
+        <!-- Top: name + badge + dates -->
+        <div>
+          <div class="flex items-center gap-3 mb-1">
+            <h2 class="text-xl font-bold text-on-surface">{data.activeSeason.name}</h2>
+            <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider rounded-full">En cours</span>
           </div>
-          <p class="hero-dates">
-            <Papicon name="calendar" size={14} />
+          <p class="flex items-center gap-1.5 text-xs text-on-surface-variant/60">
+            <Papicon icon="calendar" size={14} />
             {new Date(data.activeSeason.startDate).toLocaleDateString('fr-FR')}
-            ---
+            &mdash;
             {new Date(data.activeSeason.endDate).toLocaleDateString('fr-FR')}
           </p>
         </div>
 
+        <!-- Leaderboard -->
         {#if data.activeLeaderboard.length > 0}
-          <div class="leaderboard">
-            <h4>
-              <Papicon name="crown" size={16} />
+          <div class="space-y-3">
+            <h4 class="text-sm font-semibold flex items-center gap-2 text-on-surface-variant">
+              <Papicon icon="crown" size={16} />
               Classement actuel
             </h4>
-            <div class="lb-entries">
+            <div class="space-y-0.5">
               {#each data.activeLeaderboard as entry, i}
-                {#if i < 3}
-                  <div class="lb-row lb-top">
-                    <span class="lb-medal">{getMedal(i)}</span>
-                    <span class="lb-rank">#{entry.rank}</span>
-                    <span class="lb-user">{entry.userId}</span>
-                    <span class="lb-level">Niv. {entry.level}</span>
-                    <span class="lb-xp">{entry.xp.toLocaleString()} XP</span>
-                  </div>
-                {:else}
-                  <div class="lb-row">
-                    <span class="lb-medal"></span>
-                    <span class="lb-rank">#{entry.rank}</span>
-                    <span class="lb-user">{entry.userId}</span>
-                    <span class="lb-level">Niv. {entry.level}</span>
-                    <span class="lb-xp">{entry.xp.toLocaleString()} XP</span>
-                  </div>
-                {/if}
+                <div class="grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}" style="grid-template-columns: 28px 40px 1fr 80px 100px;">
+                  <span class="text-base leading-none">{getMedal(i)}</span>
+                  <span class="font-semibold text-on-surface-variant">#{entry.rank}</span>
+                  <span class="font-mono text-xs text-on-surface-variant/60">{entry.userId}</span>
+                  <span class="text-primary font-medium text-xs">Niv. {entry.level}</span>
+                  <span class="text-right text-xs text-on-surface-variant/60">{entry.xp.toLocaleString()} XP</span>
+                </div>
               {/each}
             </div>
           </div>
         {/if}
 
-        <div class="hero-actions">
-          <button class="btn btn-danger" onclick={() => handleEnd(data.activeSeason.id)}>
-            <Papicon name="x" size={14} />
+        <!-- End season button -->
+        <div class="pt-2">
+          <button
+            class="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-xl text-xs font-bold hover:bg-rose-500/20 transition-all flex items-center gap-2"
+            onclick={() => handleEnd(data.activeSeason.id)}
+          >
+            <Papicon icon="x" size={14} />
             Terminer la saison
           </button>
         </div>
@@ -166,44 +203,43 @@
     </div>
   {/if}
 
+  <!-- ==================== ALL SEASONS TIMELINE ==================== -->
   {#if data.seasons.length > 0}
-    <div class="section-header">
-      <h3>Toutes les saisons</h3>
-    </div>
+    <h3 class="text-base font-semibold flex items-center gap-2.5 mb-4">Toutes les saisons</h3>
 
-    <div class="timeline">
+    <div class="relative pl-6">
+      <!-- Vertical line -->
+      <div class="absolute left-1.75 top-0 bottom-0 w-0.5 bg-outline-variant/30"></div>
+
       {#each data.seasons as season}
-        <div class="timeline-item">
-          <div class="timeline-dot" class:dot-active={season.status === 'ACTIVE'} class:dot-upcoming={season.status === 'UPCOMING'} class:dot-ended={season.status === 'ENDED'} class:dot-archived={season.status === 'ARCHIVED'}></div>
-          <div class="season-card">
-            <div class="season-card-top">
-              <div class="season-card-info">
-                <h4>#{season.number} --- {season.name}</h4>
-                {#if season.status === 'ACTIVE'}
-                  <span class="badge badge-success">{getStatusBadge(season.status).label}</span>
-                {:else if season.status === 'UPCOMING'}
-                  <span class="badge badge-info">{getStatusBadge(season.status).label}</span>
-                {:else if season.status === 'ENDED'}
-                  <span class="badge badge-warning">{getStatusBadge(season.status).label}</span>
-                {:else}
-                  <span class="badge badge-muted">{getStatusBadge(season.status).label}</span>
-                {/if}
-              </div>
+        {@const badge = getStatusBadge(season.status)}
+        <div class="relative mb-3">
+          <!-- Dot -->
+          <div class="absolute -left-6 top-4.5 w-3 h-3 rounded-full border-2 border-surface z-10 {getDotColor(season.status)}"></div>
+
+          <!-- Card -->
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 hover:border-primary/30 transition-colors">
+            <div class="flex items-center gap-3 mb-2">
+              <h4 class="text-sm font-semibold text-on-surface">#{season.number} &mdash; {season.name}</h4>
+              <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full {badge.cls}">{badge.label}</span>
             </div>
-            <div class="season-card-meta">
-              <span class="season-date-range">
-                <Papicon name="calendar" size={13} />
-                {new Date(season.startDate).toLocaleDateString('fr-FR')} --- {new Date(season.endDate).toLocaleDateString('fr-FR')}
+            <div class="flex flex-wrap gap-4 text-xs text-on-surface-variant/60">
+              <span class="flex items-center gap-1">
+                <Papicon icon="calendar" size={13} />
+                {new Date(season.startDate).toLocaleDateString('fr-FR')} &mdash; {new Date(season.endDate).toLocaleDateString('fr-FR')}
               </span>
-              <span class="season-participants">
-                <Papicon name="users" size={13} />
+              <span class="flex items-center gap-1">
+                <Papicon icon="users" size={13} />
                 {season._count?.snapshots ?? 0} participants
               </span>
             </div>
             {#if season.status === 'UPCOMING'}
-              <div class="season-card-actions">
-                <button class="btn btn-sm btn-primary" onclick={() => handleStart(season.id)}>
-                  <Papicon name="zap" size={13} />
+              <div class="mt-3">
+                <button
+                  class="px-4 py-2 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5"
+                  onclick={() => handleStart(season.id)}
+                >
+                  <Papicon icon="zap" size={13} />
                   Demarrer
                 </button>
               </div>
@@ -213,110 +249,10 @@
       {/each}
     </div>
   {:else}
-    <div class="empty-state">
-      <Papicon name="flag" size={48} />
-      <p>Aucune saison creee. Cliquez sur "Nouvelle saison" pour commencer.</p>
+    <!-- Empty state -->
+    <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+      <Papicon icon="flag" size={48} />
+      <p class="text-sm">Aucune saison creee. Cliquez sur "Nouvelle saison" pour commencer.</p>
     </div>
   {/if}
 {/if}
-
-<style>
-  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
-  .header-left h1 { display: flex; align-items: center; gap: 0.5rem; font-size: 1.5rem; margin: 0; }
-  .subtitle { color: var(--color-text-muted); margin: 0.25rem 0 0; font-size: 0.875rem; }
-
-  .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
-  .card h3 { margin: 0 0 1rem; font-size: 0.95rem; }
-
-  .create-form { margin-bottom: 1rem; }
-  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-  .form-group label { display: block; font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0.25rem; }
-  .form-group input { width: 100%; padding: 0.5rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text); }
-  .form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
-
-  /* Hero active season */
-  .hero-season {
-    background: var(--color-surface);
-    border: 2px solid transparent;
-    border-radius: 14px;
-    padding: 2px;
-    margin-bottom: 1.5rem;
-    background-image: linear-gradient(var(--color-surface), var(--color-surface)),
-                       linear-gradient(135deg, var(--color-primary), var(--color-success), var(--color-primary));
-    background-origin: border-box;
-    background-clip: padding-box, border-box;
-  }
-  .hero-content { padding: 1.5rem; }
-  .hero-top { margin-bottom: 1.25rem; }
-  .hero-title-area { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem; }
-  .hero-name { margin: 0; font-size: 1.25rem; font-weight: 700; }
-  .hero-dates { display: flex; align-items: center; gap: 0.4rem; color: var(--color-text-muted); font-size: 0.85rem; margin: 0; }
-  .hero-actions { margin-top: 1rem; }
-
-  /* Leaderboard */
-  .leaderboard h4 { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--color-text-secondary); }
-  .lb-entries { display: flex; flex-direction: column; gap: 0.25rem; }
-  .lb-row {
-    display: grid; grid-template-columns: 28px 40px 1fr 80px 100px;
-    align-items: center; padding: 0.5rem 0.6rem; border-radius: 8px; font-size: 0.85rem;
-  }
-  .lb-row:hover { background: var(--color-bg); }
-  .lb-top { background: rgba(255, 255, 255, 0.03); }
-  .lb-medal { font-size: 1.1rem; line-height: 1; }
-  .lb-rank { font-weight: 600; color: var(--color-text-secondary); }
-  .lb-user { font-family: monospace; font-size: 0.8rem; color: var(--color-text-muted); }
-  .lb-level { color: var(--color-primary); font-weight: 500; }
-  .lb-xp { text-align: right; color: var(--color-text-muted); }
-
-  /* Section header */
-  .section-header { margin-bottom: 1rem; }
-  .section-header h3 { margin: 0; font-size: 1rem; color: var(--color-text-secondary); }
-
-  /* Timeline */
-  .timeline { position: relative; padding-left: 24px; }
-  .timeline::before {
-    content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
-    width: 2px; background: var(--color-border);
-  }
-
-  .timeline-item { position: relative; margin-bottom: 0.75rem; }
-  .timeline-dot {
-    position: absolute; left: -20px; top: 18px;
-    width: 12px; height: 12px; border-radius: 50%;
-    background: var(--color-border); border: 2px solid var(--color-bg);
-    z-index: 1;
-  }
-  .dot-active { background: var(--color-success); }
-  .dot-upcoming { background: var(--color-primary); }
-  .dot-ended { background: var(--color-warning); }
-  .dot-archived { background: var(--color-text-muted); }
-
-  .season-card {
-    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px;
-    padding: 1rem 1.25rem;
-  }
-  .season-card:hover { border-color: var(--color-primary); }
-
-  .season-card-top { display: flex; justify-content: space-between; align-items: center; }
-  .season-card-info { display: flex; align-items: center; gap: 0.75rem; }
-  .season-card-info h4 { margin: 0; font-size: 0.95rem; font-weight: 600; }
-
-  .season-card-meta { display: flex; gap: 1.5rem; margin-top: 0.5rem; flex-wrap: wrap; }
-  .season-date-range, .season-participants { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--color-text-muted); }
-
-  .season-card-actions { margin-top: 0.75rem; }
-
-  .badge { padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
-  .badge-success { background: rgba(87, 242, 135, 0.15); color: var(--color-success); }
-  .badge-info { background: rgba(88, 101, 242, 0.15); color: var(--color-primary); }
-  .badge-warning { background: rgba(254, 231, 92, 0.15); color: var(--color-warning); }
-  .badge-muted { background: var(--color-border); color: var(--color-text-muted); }
-
-  .loading-container, .empty-state { display: flex; flex-direction: column; align-items: center; padding: 4rem; color: var(--color-text-muted); gap: 1rem; }
-
-  @media (max-width: 768px) {
-    .lb-row { grid-template-columns: 28px 36px 1fr 60px 80px; font-size: 0.8rem; }
-    .season-card-meta { flex-direction: column; gap: 0.35rem; }
-    .hero-title-area { flex-wrap: wrap; }
-  }
-</style>

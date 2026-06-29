@@ -189,6 +189,18 @@ export async function registerCrons(client: Client): Promise<void> {
       const { expireOldProgress } = await import('../services/community/questService.js');
       await expireOldProgress();
     },
+    'widget-refresh': async () => {
+      logger.debug('Cron', 'Rafraîchissement des widgets staff...');
+      const { refreshAllStaffWidgets } = await import('../services/integrations/widgetService.js');
+      const guilds = await prisma.widgetSubscription.findMany({
+        where: { enabled: true },
+        select: { guildId: true },
+        distinct: ['guildId'],
+      });
+      for (const { guildId } of guilds) {
+        await refreshAllStaffWidgets(guildId);
+      }
+    },
     'dc-scan': async () => {
       const featureConfigs = await prisma.dashboardFeatureConfig.findMany({
         where: { featureKey: 'double_accounts', enabled: true },
@@ -383,6 +395,21 @@ export async function registerCrons(client: Client): Promise<void> {
       await expireOldProgress();
     }, 2000);
   }, { timezone: 'Europe/Paris' });
+
+  // 🎨 Widget: Refresh des widgets staff toutes les 30 minutes
+  cron.schedule('*/30 * * * *', async () => {
+    await runCronJob('widget-refresh', async () => {
+      const { refreshAllStaffWidgets } = await import('../services/integrations/widgetService.js');
+      const guilds = await prisma.widgetSubscription.findMany({
+        where: { enabled: true },
+        select: { guildId: true },
+        distinct: ['guildId'],
+      });
+      for (const { guildId } of guilds) {
+        await refreshAllStaffWidgets(guildId);
+      }
+    }, 5000);
+  });
 
   // 📊 Stats: Ping all instances every 6 hours
   cron.schedule('0 */6 * * *', async () => {

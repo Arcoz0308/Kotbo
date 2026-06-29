@@ -25,12 +25,12 @@
   };
 
   const questTemplates = [
-    { name: 'Bavard du jour', type: 'SEND_MESSAGES', target: 50, rewardCoins: 100, rewardXp: 50, frequency: 'DAILY', description: 'Envoyez 50 messages aujourd\'hui', icon: 'chat', color: 'var(--color-primary)' },
-    { name: 'Vocaliste', type: 'VOICE_MINUTES', target: 30, rewardCoins: 75, rewardXp: 40, frequency: 'DAILY', description: 'Passez 30 minutes en vocal', icon: 'mic', color: 'var(--color-success)' },
-    { name: 'Réacteur', type: 'REACT_MESSAGES', target: 20, rewardCoins: 50, rewardXp: 25, frequency: 'DAILY', description: 'Réagissez à 20 messages', icon: 'heart', color: 'var(--color-pink, #eb459e)' },
-    { name: 'Champion', type: 'WIN_GAME', target: 3, rewardCoins: 150, rewardXp: 75, frequency: 'WEEKLY', description: 'Gagnez 3 parties cette semaine', icon: 'crown', color: 'var(--color-warning)' },
-    { name: 'Philanthrope', type: 'GIVE_REP', target: 5, rewardCoins: 100, rewardXp: 50, frequency: 'WEEKLY', description: 'Donnez 5 +rep cette semaine', icon: 'star', color: 'var(--color-success)' },
-    { name: 'Créateur', type: 'CREATE_THREADS', target: 3, rewardCoins: 80, rewardXp: 40, frequency: 'WEEKLY', description: 'Créez 3 threads cette semaine', icon: 'edit', color: 'var(--color-primary)' },
+    { name: 'Bavard du jour', type: 'SEND_MESSAGES', target: 50, rewardCoins: 100, rewardXp: 50, frequency: 'DAILY', description: 'Envoyez 50 messages aujourd\'hui', icon: 'MessageSquare', color: 'primary' },
+    { name: 'Vocaliste', type: 'VOICE_MINUTES', target: 30, rewardCoins: 75, rewardXp: 40, frequency: 'DAILY', description: 'Passez 30 minutes en vocal', icon: 'Mic', color: 'emerald-500' },
+    { name: 'Réacteur', type: 'REACT_MESSAGES', target: 20, rewardCoins: 50, rewardXp: 25, frequency: 'DAILY', description: 'Réagissez à 20 messages', icon: 'Heart', color: 'pink-500' },
+    { name: 'Champion', type: 'WIN_GAME', target: 3, rewardCoins: 150, rewardXp: 75, frequency: 'WEEKLY', description: 'Gagnez 3 parties cette semaine', icon: 'Crown', color: 'amber-500' },
+    { name: 'Philanthrope', type: 'GIVE_REP', target: 5, rewardCoins: 100, rewardXp: 50, frequency: 'WEEKLY', description: 'Donnez 5 +rep cette semaine', icon: 'Star', color: 'emerald-500' },
+    { name: 'Créateur', type: 'CREATE_THREADS', target: 3, rewardCoins: 80, rewardXp: 40, frequency: 'WEEKLY', description: 'Créez 3 threads cette semaine', icon: 'PenLine', color: 'primary' },
   ];
 
   function openTemplates() {
@@ -102,322 +102,258 @@
   onMount(load);
 </script>
 
-<div class="page-header">
-  <div class="header-left">
-    <h1><Papicon name="compass" size={24} /> Quetes</h1>
-    <p class="subtitle">Quetes quotidiennes et hebdomadaires avec recompenses</p>
+<!-- Header -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+  <div>
+    <h1 class="text-lg font-semibold flex items-center gap-2.5">
+      <Papicon icon="Compass" size={24} /> Quetes
+    </h1>
+    <p class="text-xs text-on-surface-variant/60 mt-1">Quetes quotidiennes et hebdomadaires avec recompenses</p>
   </div>
-  <button class="btn btn-primary" onclick={openTemplates}>
-    <Papicon name="plus" size={16} /> Nouvelle quete
+  <button
+    class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+    onclick={openTemplates}
+  >
+    <Papicon icon="Plus" size={16} /> Nouvelle quete
   </button>
 </div>
 
+<!-- Template Picker -->
 {#if showTemplates}
-  <div class="card template-picker">
-    <div class="template-header">
-      <h3>Choisir un modele</h3>
-      <p class="template-subtitle">Selectionnez un modele pre-configure ou creez une quete personnalisee</p>
+  <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4 mb-4">
+    <div>
+      <h3 class="text-base font-semibold flex items-center gap-2.5">Choisir un modele</h3>
+      <p class="text-xs text-on-surface-variant/60 mt-1">Selectionnez un modele pre-configure ou creez une quete personnalisee</p>
     </div>
-    <div class="template-grid">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {#each questTemplates as tpl}
-        <button class="template-card" onclick={() => selectTemplate(tpl)} style="--tpl-color: {tpl.color}">
-          <div class="template-icon">
-            <Papicon name={tpl.icon} size={22} />
+        <button
+          class="flex flex-col gap-3 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4 text-left transition-all hover:border-{tpl.color}/40 hover:bg-surface-container-high/40 hover:-translate-y-0.5 border-l-3 border-l-{tpl.color} cursor-pointer"
+          onclick={() => selectTemplate(tpl)}
+        >
+          <div class="text-{tpl.color}">
+            <Papicon icon={tpl.icon} size={22} />
           </div>
-          <div class="template-info">
-            <span class="template-name">{tpl.name}</span>
-            <span class="template-desc">{tpl.description}</span>
+          <div class="flex flex-col gap-0.5">
+            <span class="font-semibold text-sm text-on-surface">{tpl.name}</span>
+            <span class="text-xs text-on-surface-variant/60">{tpl.description}</span>
           </div>
-          <div class="template-meta">
-            <span class="badge" class:badge-daily={tpl.frequency === 'DAILY'} class:badge-weekly={tpl.frequency === 'WEEKLY'}>
-              {tpl.frequency === 'DAILY' ? 'Quotidienne' : 'Hebdomadaire'}
-            </span>
-            <span class="template-rewards">{tpl.rewardCoins} coins / {tpl.rewardXp} XP</span>
+          <div class="flex items-center gap-2 flex-wrap">
+            {#if tpl.frequency === 'DAILY'}
+              <span class="px-2.5 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider rounded-full">Quotidienne</span>
+            {:else}
+              <span class="px-2.5 py-0.5 bg-pink-500/10 text-pink-500 text-[10px] font-bold uppercase tracking-wider rounded-full">Hebdomadaire</span>
+            {/if}
+            <span class="text-[10px] text-on-surface-variant/40">{tpl.rewardCoins} coins / {tpl.rewardXp} XP</span>
           </div>
         </button>
       {/each}
-      <button class="template-card template-custom" onclick={openBlankForm}>
-        <div class="template-icon custom-icon">
-          <Papicon name="plus" size={22} />
+      <button
+        class="flex flex-col gap-3 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-4 text-left transition-all hover:border-on-surface-variant/30 hover:bg-surface-container-high/40 hover:-translate-y-0.5 border-l-3 border-l-outline-variant/20 cursor-pointer"
+        onclick={openBlankForm}
+      >
+        <div class="text-on-surface-variant/40">
+          <Papicon icon="Plus" size={22} />
         </div>
-        <div class="template-info">
-          <span class="template-name">Personnalisee</span>
-          <span class="template-desc">Creez une quete sur-mesure</span>
+        <div class="flex flex-col gap-0.5">
+          <span class="font-semibold text-sm text-on-surface">Personnalisee</span>
+          <span class="text-xs text-on-surface-variant/60">Creez une quete sur-mesure</span>
         </div>
       </button>
     </div>
-    <div class="form-actions">
-      <button class="btn btn-secondary" onclick={() => showTemplates = false}>Annuler</button>
+    <div class="flex justify-end">
+      <button
+        class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2"
+        onclick={() => showTemplates = false}
+      >
+        Annuler
+      </button>
     </div>
   </div>
 {/if}
 
+<!-- Create Form -->
 {#if showCreate}
-  <div class="card create-form">
-    <h3>Creer une quete</h3>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Nom</label>
-        <input type="text" bind:value={newQuest.name} placeholder="Bavard du jour" />
+  <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4 mb-4">
+    <h3 class="text-base font-semibold flex items-center gap-2.5">Creer une quete</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nom</label>
+        <input type="text" bind:value={newQuest.name} placeholder="Bavard du jour" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
-      <div class="form-group">
-        <label>Description</label>
-        <input type="text" bind:value={newQuest.description} placeholder="Envoyez 50 messages aujourd'hui" />
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Description</label>
+        <input type="text" bind:value={newQuest.description} placeholder="Envoyez 50 messages aujourd'hui" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
-      <div class="form-group">
-        <label>Type</label>
-        <select bind:value={newQuest.type}>
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Type</label>
+        <select bind:value={newQuest.type} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors">
           {#each Object.entries(questTypes) as [key, label]}
             <option value={key}>{label}</option>
           {/each}
         </select>
       </div>
-      <div class="form-group">
-        <label>Frequence</label>
-        <select bind:value={newQuest.frequency}>
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Frequence</label>
+        <select bind:value={newQuest.frequency} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors">
           <option value="DAILY">Quotidienne</option>
           <option value="WEEKLY">Hebdomadaire</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>Objectif</label>
-        <input type="number" bind:value={newQuest.target} min="1" />
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Objectif</label>
+        <input type="number" bind:value={newQuest.target} min="1" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
-      <div class="form-group">
-        <label>Recompense (coins)</label>
-        <input type="number" bind:value={newQuest.rewardCoins} min="0" />
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompense (coins)</label>
+        <input type="number" bind:value={newQuest.rewardCoins} min="0" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
-      <div class="form-group">
-        <label>Recompense (XP)</label>
-        <input type="number" bind:value={newQuest.rewardXp} min="0" />
+      <div class="space-y-1">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompense (XP)</label>
+        <input type="number" bind:value={newQuest.rewardXp} min="0" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
     </div>
-    <div class="form-actions">
-      <button class="btn btn-secondary" onclick={() => showCreate = false}>Annuler</button>
-      <button class="btn btn-primary" onclick={handleCreate}>Creer</button>
+    <div class="flex justify-end gap-2">
+      <button
+        class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2"
+        onclick={() => showCreate = false}
+      >
+        Annuler
+      </button>
+      <button
+        class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        onclick={handleCreate}
+      >
+        Creer
+      </button>
     </div>
   </div>
 {/if}
 
+<!-- Loading -->
 {#if loading}
-  <div class="loading-container"><div class="spinner"></div></div>
+  <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+    <div class="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent"></div>
+    <p class="text-sm">Chargement...</p>
+  </div>
 {:else if data}
-  <div class="stats-bar">
-    <div class="stat">
-      <div class="stat-icon" style="color: var(--color-primary)">
-        <Papicon name="compass" size={20} />
+  <!-- Stats Row -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
+      <div class="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+        <Papicon icon="Compass" size={20} />
       </div>
-      <div class="stat-content">
-        <span class="stat-value">{data.definitions.length}</span>
-        <span class="stat-label">Quetes configurees</span>
-      </div>
-    </div>
-    <div class="stat">
-      <div class="stat-icon" style="color: var(--color-success)">
-        <Papicon name="check" size={20} />
-      </div>
-      <div class="stat-content">
-        <span class="stat-value">{data.definitions.filter((q: any) => q.enabled).length}</span>
-        <span class="stat-label">Quetes actives</span>
+      <div class="flex flex-col">
+        <span class="text-xl font-bold text-on-surface">{data.definitions.length}</span>
+        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Quetes configurees</span>
       </div>
     </div>
-    <div class="stat">
-      <div class="stat-icon" style="color: var(--color-warning)">
-        <Papicon name="star" size={20} />
+    <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
+      <div class="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+        <Papicon icon="Check" size={20} />
       </div>
-      <div class="stat-content">
-        <span class="stat-value">{data.totalClaimed}</span>
-        <span class="stat-label">Recompenses reclamees</span>
+      <div class="flex flex-col">
+        <span class="text-xl font-bold text-on-surface">{data.definitions.filter((q: any) => q.enabled).length}</span>
+        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Quetes actives</span>
+      </div>
+    </div>
+    <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
+      <div class="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+        <Papicon icon="Star" size={20} />
+      </div>
+      <div class="flex flex-col">
+        <span class="text-xl font-bold text-on-surface">{data.totalClaimed}</span>
+        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompenses reclamees</span>
       </div>
     </div>
   </div>
 
+  <!-- Quest List or Empty State -->
   {#if data.definitions.length === 0}
-    <div class="empty-state">
-      <Papicon name="compass" size={48} />
-      <p>Aucune quete configuree. Cliquez sur "Nouvelle quete" pour commencer.</p>
+    <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+      <Papicon icon="Compass" size={48} />
+      <p class="text-sm">Aucune quete configuree. Cliquez sur "Nouvelle quete" pour commencer.</p>
     </div>
   {:else}
-    <div class="quests-list">
+    <div class="space-y-3">
       {#each data.definitions as quest}
-        {#if quest.frequency === 'DAILY'}
-          <div class="card quest-card daily-border" class:disabled={!quest.enabled}>
-            <div class="quest-header">
-              <div class="quest-info">
-                <h4>{quest.name}</h4>
-                <p class="quest-desc">{quest.description}</p>
-              </div>
-              <div class="quest-badges">
-                <span class="badge badge-daily">Quotidienne</span>
-                <span class="badge badge-type">{questTypes[quest.type] ?? quest.type}</span>
-              </div>
+        <div
+          class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 space-y-3 transition-all {quest.frequency === 'DAILY' ? 'border-l-3 border-l-primary' : 'border-l-3 border-l-pink-500'} {!quest.enabled ? 'opacity-50' : ''}"
+        >
+          <!-- Quest Header -->
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h4 class="text-sm font-semibold text-on-surface">{quest.name}</h4>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">{quest.description}</p>
             </div>
-            <div class="quest-details">
-              <div class="quest-detail-item">
-                <Papicon name="flag" size={14} />
-                <span>Objectif: <strong>{quest.target}</strong></span>
-              </div>
-              <div class="quest-detail-item">
-                <Papicon name="dollar-sign" size={14} />
-                <span>Coins: <strong>{quest.rewardCoins}</strong></span>
-              </div>
-              <div class="quest-detail-item">
-                <Papicon name="trending-up" size={14} />
-                <span>XP: <strong>{quest.rewardXp}</strong></span>
-              </div>
-            </div>
-            <div class="quest-progress-section">
-              <div class="quest-participations">
-                <Papicon name="users" size={14} />
-                <span>{quest._count?.progress ?? 0} participations</span>
-              </div>
-              {#if (quest._count?.progress ?? 0) > 0}
-                <div class="progress-bar-track">
-                  <div class="progress-bar-fill daily-fill" style="width: {Math.min(100, ((quest._count?.progress ?? 0) / Math.max(quest.target, 1)) * 100)}%"></div>
-                </div>
+            <div class="flex items-center gap-2 shrink-0">
+              {#if quest.frequency === 'DAILY'}
+                <span class="px-2.5 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider rounded-full">Quotidienne</span>
+              {:else}
+                <span class="px-2.5 py-0.5 bg-pink-500/10 text-pink-500 text-[10px] font-bold uppercase tracking-wider rounded-full">Hebdomadaire</span>
               {/if}
-            </div>
-            <div class="quest-actions">
-              <button class="btn btn-sm" class:btn-success={!quest.enabled} class:btn-secondary={quest.enabled} onclick={() => handleToggle(quest)}>
-                {quest.enabled ? 'Desactiver' : 'Activer'}
-              </button>
-              <button class="btn btn-sm btn-danger" onclick={() => handleDelete(quest.id)}>Supprimer</button>
+              <span class="px-2.5 py-0.5 bg-surface-container-high/40 text-on-surface-variant/60 text-[10px] font-bold uppercase tracking-wider rounded-full">{questTypes[quest.type] ?? quest.type}</span>
             </div>
           </div>
-        {:else}
-          <div class="card quest-card weekly-border" class:disabled={!quest.enabled}>
-            <div class="quest-header">
-              <div class="quest-info">
-                <h4>{quest.name}</h4>
-                <p class="quest-desc">{quest.description}</p>
-              </div>
-              <div class="quest-badges">
-                <span class="badge badge-weekly">Hebdomadaire</span>
-                <span class="badge badge-type">{questTypes[quest.type] ?? quest.type}</span>
-              </div>
+
+          <!-- Quest Details -->
+          <div class="flex flex-wrap gap-4 text-xs text-on-surface-variant/60">
+            <div class="flex items-center gap-1.5">
+              <Papicon icon="Flag" size={14} />
+              <span>Objectif: <strong class="text-on-surface">{quest.target}</strong></span>
             </div>
-            <div class="quest-details">
-              <div class="quest-detail-item">
-                <Papicon name="flag" size={14} />
-                <span>Objectif: <strong>{quest.target}</strong></span>
-              </div>
-              <div class="quest-detail-item">
-                <Papicon name="dollar-sign" size={14} />
-                <span>Coins: <strong>{quest.rewardCoins}</strong></span>
-              </div>
-              <div class="quest-detail-item">
-                <Papicon name="trending-up" size={14} />
-                <span>XP: <strong>{quest.rewardXp}</strong></span>
-              </div>
+            <div class="flex items-center gap-1.5">
+              <Papicon icon="DollarSign" size={14} />
+              <span>Coins: <strong class="text-on-surface">{quest.rewardCoins}</strong></span>
             </div>
-            <div class="quest-progress-section">
-              <div class="quest-participations">
-                <Papicon name="users" size={14} />
-                <span>{quest._count?.progress ?? 0} participations</span>
-              </div>
-              {#if (quest._count?.progress ?? 0) > 0}
-                <div class="progress-bar-track">
-                  <div class="progress-bar-fill weekly-fill" style="width: {Math.min(100, ((quest._count?.progress ?? 0) / Math.max(quest.target, 1)) * 100)}%"></div>
-                </div>
-              {/if}
-            </div>
-            <div class="quest-actions">
-              <button class="btn btn-sm" class:btn-success={!quest.enabled} class:btn-secondary={quest.enabled} onclick={() => handleToggle(quest)}>
-                {quest.enabled ? 'Desactiver' : 'Activer'}
-              </button>
-              <button class="btn btn-sm btn-danger" onclick={() => handleDelete(quest.id)}>Supprimer</button>
+            <div class="flex items-center gap-1.5">
+              <Papicon icon="TrendingUp" size={14} />
+              <span>XP: <strong class="text-on-surface">{quest.rewardXp}</strong></span>
             </div>
           </div>
-        {/if}
+
+          <!-- Progress -->
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div class="flex items-center gap-1.5 text-xs text-on-surface-variant/60 shrink-0">
+              <Papicon icon="Users" size={14} />
+              <span>{quest._count?.progress ?? 0} participations</span>
+            </div>
+            {#if (quest._count?.progress ?? 0) > 0}
+              <div class="h-2 bg-surface-container-high rounded-full overflow-hidden w-full max-w-50 sm:max-w-50">
+                <div
+                  class="h-2 rounded-full transition-all duration-500"
+                  style="width: {Math.min(100, ((quest._count?.progress ?? 0) / Math.max(quest.target, 1)) * 100)}%; background: {quest.frequency === 'DAILY' ? 'var(--color-primary, #6750a4)' : '#ec4899'}"
+                ></div>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Actions -->
+          <div class="flex gap-2">
+            {#if quest.enabled}
+              <button
+                class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2"
+                onclick={() => handleToggle(quest)}
+              >
+                Desactiver
+              </button>
+            {:else}
+              <button
+                class="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-xl text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center gap-2"
+                onclick={() => handleToggle(quest)}
+              >
+                Activer
+              </button>
+            {/if}
+            <button
+              class="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-xl text-xs font-bold hover:bg-rose-500/20 transition-all flex items-center gap-2"
+              onclick={() => handleDelete(quest.id)}
+            >
+              Supprimer
+            </button>
+          </div>
+        </div>
       {/each}
     </div>
   {/if}
 {/if}
-
-<style>
-  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
-  .header-left h1 { display: flex; align-items: center; gap: 0.5rem; font-size: 1.5rem; margin: 0; }
-  .subtitle { color: var(--color-text-muted); margin: 0.25rem 0 0; font-size: 0.875rem; }
-
-  .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
-  .card h3 { margin: 0 0 1rem; font-size: 0.95rem; }
-
-  /* Template picker */
-  .template-picker { margin-bottom: 1rem; }
-  .template-header { margin-bottom: 1.25rem; }
-  .template-subtitle { color: var(--color-text-muted); font-size: 0.85rem; margin: 0.25rem 0 0; }
-  .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
-  .template-card {
-    display: flex; flex-direction: column; gap: 0.75rem;
-    background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 10px;
-    padding: 1rem; cursor: pointer; text-align: left; transition: all 0.2s;
-    border-left: 3px solid var(--tpl-color, var(--color-border));
-  }
-  .template-card:hover { border-color: var(--tpl-color, var(--color-primary)); background: var(--color-surface); transform: translateY(-1px); }
-  .template-icon { color: var(--tpl-color, var(--color-primary)); }
-  .template-info { display: flex; flex-direction: column; gap: 0.2rem; }
-  .template-name { font-weight: 600; font-size: 0.9rem; color: var(--color-text); }
-  .template-desc { font-size: 0.8rem; color: var(--color-text-muted); }
-  .template-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-  .template-rewards { font-size: 0.75rem; color: var(--color-text-muted); }
-  .template-custom { border-left-color: var(--color-border); }
-  .custom-icon { color: var(--color-text-muted); }
-
-  /* Create form */
-  .create-form { margin-bottom: 1rem; }
-  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
-  .form-group label { display: block; font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0.25rem; }
-  .form-group input, .form-group select { width: 100%; padding: 0.5rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text); }
-  .form-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
-
-  /* Stats bar */
-  .stats-bar { display: flex; gap: 1rem; margin-bottom: 1.25rem; }
-  .stat {
-    flex: 1; display: flex; align-items: center; gap: 0.75rem;
-    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 0.85rem 1rem;
-  }
-  .stat-icon { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; background: var(--color-bg); flex-shrink: 0; }
-  .stat-content { display: flex; flex-direction: column; }
-  .stat-value { font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
-  .stat-label { font-size: 0.72rem; color: var(--color-text-muted); }
-
-  /* Quest cards */
-  .quests-list { display: flex; flex-direction: column; }
-  .quest-card.disabled { opacity: 0.5; }
-  .quest-card.daily-border { border-left: 3px solid var(--color-primary); }
-  .quest-card.weekly-border { border-left: 3px solid var(--color-pink, #eb459e); }
-
-  .quest-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
-  .quest-info h4 { margin: 0; font-size: 1rem; }
-  .quest-desc { margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--color-text-muted); }
-  .quest-badges { display: flex; gap: 0.5rem; flex-shrink: 0; }
-
-  .quest-details { display: flex; gap: 1.5rem; margin: 0.75rem 0; flex-wrap: wrap; }
-  .quest-detail-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--color-text-muted); }
-
-  .quest-progress-section { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
-  .quest-participations { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--color-text-muted); flex-shrink: 0; }
-  .progress-bar-track { flex: 1; height: 6px; background: var(--color-bg); border-radius: 3px; overflow: hidden; max-width: 200px; }
-  .progress-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-  .progress-bar-fill.daily-fill { background: var(--color-primary); }
-  .progress-bar-fill.weekly-fill { background: var(--color-pink, #eb459e); }
-
-  .quest-actions { display: flex; gap: 0.5rem; }
-
-  .badge { padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
-  .badge-daily { background: rgba(88, 101, 242, 0.15); color: var(--color-primary); }
-  .badge-weekly { background: rgba(235, 69, 158, 0.15); color: var(--color-pink, #eb459e); }
-  .badge-type { background: var(--color-border); color: var(--color-text-muted); }
-
-  .empty-state, .loading-container { display: flex; flex-direction: column; align-items: center; padding: 4rem; color: var(--color-text-muted); gap: 1rem; }
-
-  @media (max-width: 768px) {
-    .stats-bar { flex-direction: column; }
-    .template-grid { grid-template-columns: 1fr; }
-    .quest-header { flex-direction: column; }
-    .quest-badges { flex-wrap: wrap; }
-    .quest-details { flex-direction: column; gap: 0.5rem; }
-    .quest-progress-section { flex-direction: column; align-items: flex-start; }
-    .progress-bar-track { max-width: 100%; width: 100%; }
-  }
-</style>

@@ -1,5 +1,15 @@
-import { SlashCommandBuilder, EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
-import { COLORS } from '../../utils/embeds.js';
+import {
+  SlashCommandBuilder,
+  ContainerBuilder,
+  SectionBuilder,
+  ThumbnailBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
+  type ChatInputCommandInteraction,
+} from 'discord.js';
+import { COLORS_RAW, text, errorContainer } from '../../utils/embeds.js';
+import { E, rankEmoji } from '../../utils/emojis.js';
 import { giveRep, getReputation, getReputationLeaderboard } from '../../services/community/reputationService.js';
 import { incrementQuestProgress } from '../../services/community/questService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
@@ -33,39 +43,48 @@ export const repCommand = {
 
       if (!result.success) {
         await interaction.reply({
-          embeds: [new EmbedBuilder().setColor(COLORS.danger).setDescription(`❌ ${result.error}`)],
-          ephemeral: true,
+          components: [errorContainer('Impossible', result.error)],
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
         });
         return;
       }
 
       incrementQuestProgress(guildId, interaction.user.id, 'GIVE_REP').catch(() => {});
 
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.success)
-        .setDescription(`✨ ${interaction.user} a donné un **+rep** à ${target}${reason ? ` — *${reason}*` : ''}`)
-        .setFooter({ text: `${target.username} a maintenant ${result.newTotal} rep` })
-        .setTimestamp();
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.success)
+        .addTextDisplayComponents(text(`### ${E.star} +Rep !`))
+        .addTextDisplayComponents(text(
+          `@${interaction.user.username} a donné un **+rep** à @${target.username}` +
+          (reason ? `\n${E.dot} *${reason}*` : '')
+        ))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · @${target.username} a maintenant ${result.newTotal} rep`));
 
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
 
     if (subcommand === 'check') {
       const target = interaction.options.getUser('membre') ?? interaction.user;
       const profile = await getReputation(guildId, target.id);
 
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.primary)
-        .setTitle(`Réputation de ${target.username}`)
-        .addFields(
-          { name: 'Total', value: `**${profile.totalRep}** rep`, inline: true },
-          { name: 'Rang', value: `#${profile.rank}`, inline: true },
-          { name: 'Votes restants', value: `${3 - profile.votesGivenToday}/3`, inline: true },
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.primary)
+        .addSectionComponents(
+          new SectionBuilder()
+            .addTextDisplayComponents(text(`### ${E.star} Réputation · @${target.username}`))
+            .setThumbnailAccessory(new ThumbnailBuilder({ media: { url: target.displayAvatarURL() } }))
         )
-        .setThumbnail(target.displayAvatarURL())
-        .setTimestamp();
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text([
+          `${E.arrow} **Total** · **${profile.totalRep}** rep`,
+          `${E.arrow} **Rang** · #${profile.rank}`,
+          `${E.arrow} **Votes restants** · ${3 - profile.votesGivenToday}/3`,
+        ].join('\n')))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Réputation`));
 
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
 
     if (subcommand === 'top') {
@@ -73,25 +92,31 @@ export const repCommand = {
       const lb = await getReputationLeaderboard(guildId, 10);
 
       if (lb.entries.length === 0) {
-        await interaction.editReply({
-          embeds: [new EmbedBuilder().setColor(COLORS.info).setDescription('Aucune réputation enregistrée pour le moment.')],
-        });
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.dark)
+          .addTextDisplayComponents(text(`### ${E.trophy} Classement Réputation`))
+          .addTextDisplayComponents(text(`${E.info} Aucune réputation enregistrée pour le moment.`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+          .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Réputation`));
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
         return;
       }
 
       const lines = lb.entries.map((e) => {
-        const medal = e.rank <= 3 ? ['🥇', '🥈', '🥉'][e.rank - 1] : `**#${e.rank}**`;
-        return `${medal} <@${e.userId}> — **${e.totalRep}** rep`;
+        const medal = rankEmoji(e.rank);
+        return `${medal} @${e.userId} — **${e.totalRep}** rep`;
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.primary)
-        .setTitle('🏆 Classement Réputation')
-        .setDescription(lines.join('\n'))
-        .setFooter({ text: `${lb.totalVoters} votants au total` })
-        .setTimestamp();
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.primary)
+        .addTextDisplayComponents(text(`### ${E.trophy} Classement Réputation`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(lines.join('\n')))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · ${lb.totalVoters} votants au total`));
 
-      await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
   },
 } satisfies SlashCommandDefinition;

@@ -1,5 +1,13 @@
-import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, type ChatInputCommandInteraction } from 'discord.js';
-import { COLORS } from '../../utils/embeds.js';
+import {
+  SlashCommandBuilder,
+  ContainerBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
+  type ChatInputCommandInteraction,
+} from 'discord.js';
+import { COLORS_RAW, text, successContainer, errorContainer } from '../../utils/embeds.js';
+import { E, buildProgressBar } from '../../utils/emojis.js';
 import { getAvailableQuests, claimQuestReward } from '../../services/community/questService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 
@@ -21,13 +29,18 @@ export const questsCommand = {
     const userId = interaction.user.id;
 
     if (subcommand === 'list') {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const quests = await getAvailableQuests(guildId, userId);
 
       if (quests.length === 0) {
-        await interaction.editReply({
-          embeds: [new EmbedBuilder().setColor(COLORS.info).setDescription('Aucune quête disponible pour le moment.')],
-        });
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.dark)
+          .addTextDisplayComponents(text(`### ${E.fire} Quêtes`))
+          .addTextDisplayComponents(text(`${E.info} Aucune quête disponible pour le moment.`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+          .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Quêtes`));
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
         return;
       }
 
@@ -36,32 +49,44 @@ export const questsCommand = {
 
       const formatQuest = (q: any) => {
         const progress = q.progress;
-        const bar = buildProgressBar(progress.current, progress.target);
-        const status = progress.status === 'CLAIMED' ? '✅' : progress.status === 'COMPLETED' ? '🎉' : '📋';
+        const pct = Math.min((progress.current / progress.target) * 100, 100);
+        const bar = buildProgressBar(pct, 8);
+        const statusIcon = progress.status === 'CLAIMED' ? E.success
+          : progress.status === 'COMPLETED' ? E.star
+          : E.dot;
         const rewards = [];
-        if (q.rewardCoins > 0) rewards.push(`${q.rewardCoins} coins`);
-        if (q.rewardXp > 0) rewards.push(`${q.rewardXp} XP`);
-        return `${status} **${q.name}**\n${q.description}\n${bar} ${progress.current}/${progress.target} — ${rewards.join(' + ')}`;
+        if (q.rewardCoins > 0) rewards.push(`${q.rewardCoins} ${E.coins}`);
+        if (q.rewardXp > 0) rewards.push(`${q.rewardXp} ${E.xp}`);
+        return `${statusIcon} **${q.name}**\n${q.description}\n${bar} \`${progress.current}/${progress.target}\` — ${rewards.join(' + ')}`;
       };
 
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.primary)
-        .setTitle('📋 Quêtes')
-        .setTimestamp();
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.primary)
+        .addTextDisplayComponents(text(`### ${E.fire} Quêtes`));
 
       if (daily.length > 0) {
-        embed.addFields({ name: '📅 Quotidiennes', value: daily.map(formatQuest).join('\n\n') });
+        container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+        container.addTextDisplayComponents(text(`**${E.calendar} Quotidiennes**`));
+        container.addTextDisplayComponents(text(daily.map(formatQuest).join('\n\n')));
       }
+
       if (weekly.length > 0) {
-        embed.addFields({ name: '📆 Hebdomadaires', value: weekly.map(formatQuest).join('\n\n') });
+        container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+        container.addTextDisplayComponents(text(`**${E.calendar} Hebdomadaires**`));
+        container.addTextDisplayComponents(text(weekly.map(formatQuest).join('\n\n')));
       }
 
       const claimable = quests.filter((q: any) => q.progress.status === 'COMPLETED');
-      if (claimable.length > 0) {
-        embed.setFooter({ text: `${claimable.length} récompense(s) à réclamer ! Utilisez /quests claim` });
-      }
 
-      await interaction.editReply({ embeds: [embed] });
+      container
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(
+          claimable.length > 0
+            ? `-# ${E.kotbo} Kotbo · ${claimable.length} récompense(s) à réclamer — /quests claim`
+            : `-# ${E.kotbo} Kotbo · Quêtes`
+        ));
+
+      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
 
     if (subcommand === 'claim') {
@@ -70,31 +95,24 @@ export const questsCommand = {
 
       if (!result.success) {
         await interaction.reply({
-          embeds: [new EmbedBuilder().setColor(COLORS.danger).setDescription(`❌ ${result.error}`)],
-          ephemeral: true,
+          components: [errorContainer('Réclamation impossible', result.error)],
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
         });
         return;
       }
 
       const rewards = [];
-      if (result.coins && result.coins > 0) rewards.push(`**${result.coins}** coins`);
-      if (result.xp && result.xp > 0) rewards.push(`**${result.xp}** XP`);
+      if (result.coins && result.coins > 0) rewards.push(`**${result.coins}** ${E.coins}`);
+      if (result.xp && result.xp > 0) rewards.push(`**${result.xp}** ${E.xp}`);
 
-      await interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(COLORS.success)
-            .setDescription(`🎉 Quête terminée ! Vous avez reçu ${rewards.join(' et ')}.`)
-            .setTimestamp(),
-        ],
-      });
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.success)
+        .addTextDisplayComponents(text(`### ${E.trophy} Quête terminée !`))
+        .addTextDisplayComponents(text(`Vous avez reçu ${rewards.join(' et ')}.`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Quêtes`));
+
+      await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
   },
 } satisfies SlashCommandDefinition;
-
-function buildProgressBar(current: number, target: number): string {
-  const pct = Math.min(current / target, 1);
-  const filled = Math.round(pct * 10);
-  const empty = 10 - filled;
-  return '▓'.repeat(filled) + '░'.repeat(empty);
-}

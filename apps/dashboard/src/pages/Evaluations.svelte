@@ -33,10 +33,10 @@
   }
 
   function getScoreColor(score: number): string {
-    if (score >= 80) return 'var(--color-success)';
-    if (score >= 60) return 'var(--color-primary)';
-    if (score >= 40) return 'var(--color-warning)';
-    return 'var(--color-danger)';
+    if (score >= 80) return '#10b981';
+    if (score >= 60) return 'var(--primary-color)';
+    if (score >= 40) return '#f59e0b';
+    return '#f43f5e';
   }
 
   function getTrendIcon(trend: string): string {
@@ -45,129 +45,158 @@
     return 'minus';
   }
 
+  function getTrendClass(trend: string): string {
+    if (trend === 'UP') return 'text-emerald-500';
+    if (trend === 'DOWN') return 'text-rose-500';
+    return 'text-on-surface-variant';
+  }
+
   onMount(load);
 </script>
 
-<div class="page-header">
-  <div class="header-left">
-    <h1><Papicon name="award" size={24} /> Évaluations Staff</h1>
-    <p class="subtitle">Rapports de performance automatisés</p>
+<!-- ======================== HEADER ======================== -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+  <div>
+    <h1 class="text-lg font-semibold flex items-center gap-2.5">
+      <Papicon icon="award" size={24} />
+      Evaluations Staff
+    </h1>
+    <p class="text-xs text-on-surface-variant/60 mt-1">Rapports de performance automatises</p>
   </div>
-  <button class="btn btn-primary" onclick={handleGenerateAll} disabled={generating}>
-    <Papicon name="zap" size={16} /> {generating ? 'Génération...' : 'Générer toutes'}
+  <button
+    class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+    onclick={handleGenerateAll}
+    disabled={generating}
+  >
+    <Papicon icon="zap" size={16} />
+    {generating ? 'Generation...' : 'Generer toutes'}
   </button>
 </div>
 
+<!-- ======================== CONTENT ======================== -->
 {#if loading}
-  <div class="loading-container"><div class="spinner"></div></div>
+  <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    <p class="text-sm">Chargement des donnees...</p>
+  </div>
 {:else if data}
+
+  <!-- ==================== OVERVIEW METRICS ==================== -->
   {#if data.averageScore > 0}
-    <div class="card overview-card">
-      <div class="overview-grid">
-        <div class="overview-item">
-          <span class="overview-value" style="color: {getScoreColor(data.averageScore)}">{data.averageScore}</span>
-          <span class="overview-label">Score moyen</span>
+    <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 mb-6">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
+          <div class="w-20 h-20 rounded-full border-[5px] flex flex-col items-center justify-center mx-auto mb-2" style="border-color: {getScoreColor(data.averageScore)}">
+            <span class="text-2xl font-bold text-on-surface leading-none">{data.averageScore}</span>
+            <span class="text-[10px] text-on-surface-variant/60">/100</span>
+          </div>
+          <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Score moyen</div>
         </div>
-        <div class="overview-item">
-          <span class="overview-value">{data.latestByStaff.length}</span>
-          <span class="overview-label">Staff évalués</span>
+        <div class="bg-surface-container-high/30 rounded-xl p-4 text-center flex flex-col items-center justify-center">
+          <span class="text-3xl font-bold text-on-surface">{data.latestByStaff.length}</span>
+          <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Staff evalues</div>
         </div>
-        <div class="overview-item">
-          <span class="overview-value">{data.evaluations.length}</span>
-          <span class="overview-label">Évaluations totales</span>
+        <div class="bg-surface-container-high/30 rounded-xl p-4 text-center flex flex-col items-center justify-center">
+          <span class="text-3xl font-bold text-on-surface">{data.evaluations.length}</span>
+          <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Evaluations totales</div>
         </div>
       </div>
     </div>
   {/if}
 
+  <!-- ==================== SCORE TABLE ==================== -->
   {#if data.latestByStaff.length > 0}
-    <div class="card evals-card">
-      <h3>Dernières évaluations par staff</h3>
-      <div class="evals-table">
-        <div class="table-header">
-          <span>Staff</span>
-          <span>Activité</span>
-          <span>Modération</span>
-          <span>Présence</span>
-          <span>Global</span>
-          <span>Tendance</span>
-          <span>Période</span>
-        </div>
-        {#each data.latestByStaff as ev}
-          <div class="table-row">
-            <span class="staff-id">{ev.staffUserId}</span>
-            <span style="color: {getScoreColor(ev.activityScore)}">{ev.activityScore}</span>
-            <span style="color: {getScoreColor(ev.moderationScore)}">{ev.moderationScore}</span>
-            <span style="color: {getScoreColor(ev.presenceScore)}">{ev.presenceScore}</span>
-            <span class="overall" style="color: {getScoreColor(ev.overallScore)}">{ev.overallScore}</span>
-            <span class="trend" class:trend-up={ev.trend === 'UP'} class:trend-down={ev.trend === 'DOWN'}>
-              <Papicon name={getTrendIcon(ev.trend)} size={14} />
-              {ev.trendDelta > 0 ? '+' : ''}{ev.trendDelta}
-            </span>
-            <span class="period">{new Date(ev.periodStart).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} — {new Date(ev.periodEnd).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</span>
-          </div>
-        {/each}
+    <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4 mb-6">
+      <h3 class="text-base font-semibold flex items-center gap-2.5">Dernieres evaluations par staff</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-outline-variant/10">
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Staff</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Activite</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Moderation</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Presence</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Global</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Tendance</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Periode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each data.latestByStaff as ev}
+              <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
+                <td class="px-3 py-2.5 font-mono text-xs text-on-surface-variant/60">{ev.staffUserId}</td>
+                <td class="px-3 py-2.5">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold" style="color: {getScoreColor(ev.activityScore)}">{ev.activityScore}</span>
+                    <div class="flex-1 min-w-12">
+                      <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                        <div class="h-1.5 rounded-full transition-all duration-500" style="width: {ev.activityScore}%; background: {getScoreColor(ev.activityScore)}"></div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-3 py-2.5">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold" style="color: {getScoreColor(ev.moderationScore)}">{ev.moderationScore}</span>
+                    <div class="flex-1 min-w-12">
+                      <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                        <div class="h-1.5 rounded-full transition-all duration-500" style="width: {ev.moderationScore}%; background: {getScoreColor(ev.moderationScore)}"></div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-3 py-2.5">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold" style="color: {getScoreColor(ev.presenceScore)}">{ev.presenceScore}</span>
+                    <div class="flex-1 min-w-12">
+                      <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                        <div class="h-1.5 rounded-full transition-all duration-500" style="width: {ev.presenceScore}%; background: {getScoreColor(ev.presenceScore)}"></div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-3 py-2.5">
+                  <span class="text-sm font-bold" style="color: {getScoreColor(ev.overallScore)}">{ev.overallScore}</span>
+                </td>
+                <td class="px-3 py-2.5">
+                  <span class="flex items-center gap-1 text-xs font-semibold {getTrendClass(ev.trend)}">
+                    <Papicon icon={getTrendIcon(ev.trend)} size={14} />
+                    {ev.trendDelta > 0 ? '+' : ''}{ev.trendDelta}
+                  </span>
+                </td>
+                <td class="px-3 py-2.5 text-xs text-on-surface-variant/60">
+                  {new Date(ev.periodStart).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} &mdash; {new Date(ev.periodEnd).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       </div>
     </div>
   {:else}
-    <div class="empty-state">
-      <Papicon name="award" size={48} />
-      <p>Aucune évaluation générée. Cliquez sur "Générer toutes" pour créer les premières évaluations.</p>
+    <!-- Empty state -->
+    <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+      <Papicon icon="award" size={48} />
+      <p class="text-sm">Aucune evaluation generee. Cliquez sur "Generer toutes" pour creer les premieres evaluations.</p>
     </div>
   {/if}
 
+  <!-- ==================== HISTORY ==================== -->
   {#if data.evaluations.length > data.latestByStaff.length}
-    <div class="card history-card">
-      <h3>Historique complet</h3>
-      <div class="history-list">
+    <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
+      <h3 class="text-base font-semibold flex items-center gap-2.5">Historique complet</h3>
+      <div class="space-y-0.5">
         {#each data.evaluations as ev}
-          <div class="history-row">
-            <span class="staff-id">{ev.staffUserId}</span>
-            <span class="score" style="color: {getScoreColor(ev.overallScore)}">{ev.overallScore}/100</span>
-            <span class="details">
+          <div class="flex items-center gap-3 py-2.5 px-3 border-b border-outline-variant/5 last:border-b-0 hover:bg-surface-container-high/10 transition-colors rounded-lg">
+            <span class="font-mono text-xs text-on-surface-variant/60 shrink-0">{ev.staffUserId}</span>
+            <span class="text-sm font-bold shrink-0" style="color: {getScoreColor(ev.overallScore)}">{ev.overallScore}/100</span>
+            <span class="flex-1 text-xs text-on-surface-variant/60 truncate">
               {ev.totalMessages} msg, {Math.round(ev.totalVoiceMinutes / 60)}h vocal, {ev.sanctionsHandled} sanctions, {ev.ticketsResolved} tickets
             </span>
-            <span class="date">{new Date(ev.createdAt).toLocaleDateString('fr-FR')}</span>
+            <span class="text-xs text-on-surface-variant/60 shrink-0">{new Date(ev.createdAt).toLocaleDateString('fr-FR')}</span>
           </div>
         {/each}
       </div>
     </div>
   {/if}
 {/if}
-
-<style>
-  .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
-  .header-left h1 { display: flex; align-items: center; gap: 0.5rem; font-size: 1.5rem; margin: 0; }
-  .subtitle { color: var(--color-text-muted); margin: 0.25rem 0 0; font-size: 0.875rem; }
-
-  .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
-  .card h3 { margin: 0 0 1rem; font-size: 0.95rem; color: var(--color-text-secondary); }
-
-  .overview-card { margin-bottom: 1rem; }
-  .overview-grid { display: flex; gap: 2rem; justify-content: center; }
-  .overview-item { display: flex; flex-direction: column; align-items: center; }
-  .overview-value { font-size: 2rem; font-weight: 700; }
-  .overview-label { font-size: 0.8rem; color: var(--color-text-muted); }
-
-  .table-header, .table-row { display: grid; grid-template-columns: 1fr 70px 80px 70px 60px 80px 120px; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
-  .table-header { font-weight: 600; color: var(--color-text-muted); font-size: 0.8rem; border-bottom: 1px solid var(--color-border); }
-  .table-row { border-bottom: 1px solid var(--color-border); }
-  .table-row:last-child { border-bottom: none; }
-  .table-row:hover { background: var(--color-bg); border-radius: 6px; }
-  .staff-id { font-family: monospace; font-size: 0.8rem; }
-  .overall { font-weight: 700; }
-
-  .trend { display: flex; align-items: center; gap: 0.25rem; }
-  .trend-up { color: var(--color-success); }
-  .trend-down { color: var(--color-danger); }
-  .period { font-size: 0.8rem; color: var(--color-text-muted); }
-
-  .history-list { display: flex; flex-direction: column; gap: 0.25rem; }
-  .history-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0; font-size: 0.85rem; border-bottom: 1px solid var(--color-border); }
-  .history-row:last-child { border-bottom: none; }
-  .score { font-weight: 600; }
-  .details { flex: 1; color: var(--color-text-muted); font-size: 0.8rem; }
-  .date { color: var(--color-text-muted); font-size: 0.8rem; }
-
-  .loading-container, .empty-state { display: flex; flex-direction: column; align-items: center; padding: 4rem; color: var(--color-text-muted); gap: 1rem; }
-</style>

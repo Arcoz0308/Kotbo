@@ -1,5 +1,13 @@
-import { SlashCommandBuilder, EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
-import { COLORS } from '../../utils/embeds.js';
+import {
+  SlashCommandBuilder,
+  ContainerBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
+  type ChatInputCommandInteraction,
+} from 'discord.js';
+import { COLORS_RAW, text, successContainer, errorContainer } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 import {
   createListing,
   buyListing,
@@ -60,21 +68,27 @@ export const marketCommand = {
       const result = await createListing(guildId, userId, { itemId, quantity, price, type, durationHours });
 
       if (!result.success) {
-        await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.danger).setDescription(`❌ ${result.error}`)], ephemeral: true });
+        await interaction.reply({
+          components: [errorContainer('Échec', result.error)],
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        });
         return;
       }
 
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.success)
-        .setTitle('📦 Annonce créée')
-        .setDescription(`**${itemId}** x${quantity} mis en vente pour **${price}** coins`)
-        .addFields(
-          { name: 'Type', value: type === 'AUCTION' ? 'Enchère' : 'Prix fixe', inline: true },
-          { name: 'Expire dans', value: `${durationHours}h`, inline: true },
-        )
-        .setTimestamp();
+      const typeLabel = type === 'AUCTION' ? 'Enchère' : 'Prix fixe';
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.success)
+        .addTextDisplayComponents(text(`### ${E.success} Annonce créée`))
+        .addTextDisplayComponents(text(`**${itemId}** x${quantity} mis en vente pour **${price}** ${E.coins}`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text([
+          `${E.arrow} **Type** · ${typeLabel}`,
+          `${E.arrow} **Expire dans** · ${durationHours}h`,
+        ].join('\n')))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
 
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
 
     if (subcommand === 'buy') {
@@ -83,11 +97,17 @@ export const marketCommand = {
 
       const result = await buyListing(guildId, userId, listingId);
       if (!result.success) {
-        await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLORS.danger).setDescription(`❌ ${result.error}`)] });
+        await interaction.editReply({
+          components: [errorContainer('Achat échoué', result.error)],
+          flags: MessageFlags.IsComponentsV2,
+        });
         return;
       }
 
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLORS.success).setDescription('✅ Achat effectué avec succès !')] });
+      await interaction.editReply({
+        components: [successContainer('Achat effectué', 'L\'objet a été ajouté à votre inventaire.')],
+        flags: MessageFlags.IsComponentsV2,
+      });
     }
 
     if (subcommand === 'bid') {
@@ -96,11 +116,17 @@ export const marketCommand = {
 
       const result = await placeBid(guildId, userId, listingId, amount);
       if (!result.success) {
-        await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.danger).setDescription(`❌ ${result.error}`)], ephemeral: true });
+        await interaction.reply({
+          components: [errorContainer('Enchère refusée', result.error)],
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        });
         return;
       }
 
-      await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.success).setDescription(`✅ Enchère de **${amount}** coins placée !`)] });
+      await interaction.reply({
+        components: [successContainer('Enchère placée', `Votre enchère de **${amount}** ${E.coins} a été enregistrée.`)],
+        flags: MessageFlags.IsComponentsV2,
+      });
     }
 
     if (subcommand === 'cancel') {
@@ -108,11 +134,17 @@ export const marketCommand = {
       const result = await cancelListing(guildId, userId, listingId);
 
       if (!result.success) {
-        await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.danger).setDescription(`❌ ${result.error}`)], ephemeral: true });
+        await interaction.reply({
+          components: [errorContainer('Annulation impossible', result.error)],
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        });
         return;
       }
 
-      await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLORS.success).setDescription('✅ Annonce annulée. L\'objet a été retourné à votre inventaire.')] });
+      await interaction.reply({
+        components: [successContainer('Annonce annulée', 'L\'objet a été retourné à votre inventaire.')],
+        flags: MessageFlags.IsComponentsV2,
+      });
     }
 
     if (subcommand === 'list') {
@@ -120,46 +152,72 @@ export const marketCommand = {
       const data = await getActiveListings(guildId);
 
       if (data.listings.length === 0) {
-        await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLORS.info).setDescription('Aucune annonce active pour le moment.')] });
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.dark)
+          .addTextDisplayComponents(text(`### ${E.coins} Marché`))
+          .addTextDisplayComponents(text(`${E.info} Aucune annonce active pour le moment.`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+          .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
         return;
       }
 
       const lines = data.listings.slice(0, 10).map((l: any) => {
-        const typeLabel = l.type === 'AUCTION' ? `Enchère (${l.currentBid ?? l.price} coins)` : `${l.price} coins`;
-        return `\`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${typeLabel}`;
+        const typeLabel = l.type === 'AUCTION'
+          ? `${E.fire} Enchère (${l.currentBid ?? l.price} ${E.coins})`
+          : `${l.price} ${E.coins}`;
+        return `${E.dot} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${typeLabel}`;
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.primary)
-        .setTitle('🏪 Marché — Annonces actives')
-        .setDescription(lines.join('\n'))
-        .setFooter({ text: `${data.total} annonces au total` })
-        .setTimestamp();
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.primary)
+        .addTextDisplayComponents(text(`### ${E.coins} Marché — Annonces actives`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(lines.join('\n')))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · ${data.total} annonces au total`));
 
-      await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
 
     if (subcommand === 'my') {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const listings = await getMyListings(guildId, userId);
 
       if (listings.length === 0) {
-        await interaction.editReply({ embeds: [new EmbedBuilder().setColor(COLORS.info).setDescription('Vous n\'avez aucune annonce.')] });
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.dark)
+          .addTextDisplayComponents(text(`### ${E.profile} Mes annonces`))
+          .addTextDisplayComponents(text(`${E.info} Vous n'avez aucune annonce.`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+          .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
         return;
       }
 
+      const statusIcons: Record<string, string> = {
+        ACTIVE: E.online,
+        SOLD: E.success,
+        CANCELLED: E.error,
+        EXPIRED: E.clock,
+      };
+
       const lines = listings.map((l: any) => {
-        const status = { ACTIVE: '🟢', SOLD: '✅', CANCELLED: '❌', EXPIRED: '⏰' }[l.status] ?? '❓';
-        return `${status} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${l.price} coins`;
+        const icon = statusIcons[l.status] ?? E.dot;
+        return `${icon} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${l.price} ${E.coins}`;
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.primary)
-        .setTitle('📦 Mes annonces')
-        .setDescription(lines.join('\n'))
-        .setTimestamp();
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.primary)
+        .addTextDisplayComponents(text(`### ${E.profile} Mes annonces`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(lines.join('\n')))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
 
-      await interaction.editReply({ embeds: [embed] });
+      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
     }
   },
 } satisfies SlashCommandDefinition;

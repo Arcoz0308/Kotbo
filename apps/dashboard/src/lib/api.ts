@@ -2556,6 +2556,27 @@ export async function deleteQuest(questId: string, guildId = authStore.selectedG
   return dashboardMutation(`/quests/${questId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Quest):' });
 }
 
+// ── Widget (Social Layer SDK) ───────────────────────────────────────────
+export async function fetchWidgetData(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/widget', { guildId, errorContext: 'API Error (Widget):' });
+}
+
+export async function activateWidget(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/widget/activate', { method: 'POST', guildId, errorContext: 'API Error (Activate Widget):' });
+}
+
+export async function deactivateWidget(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/widget/deactivate', { method: 'POST', guildId, errorContext: 'API Error (Deactivate Widget):' });
+}
+
+export async function refreshWidget(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/widget/refresh', { method: 'POST', guildId, errorContext: 'API Error (Refresh Widget):' });
+}
+
+export async function refreshAllWidgets(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/widget/refresh-all', { method: 'POST', guildId, errorContext: 'API Error (Refresh All Widgets):' });
+}
+
 export async function unbindGuildFromInstance(instanceId: string, guildId: string) {
   const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel/${instanceId}/guilds/${guildId}`, {
     method: 'DELETE',

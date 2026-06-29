@@ -37,6 +37,7 @@ import { handlePredictionRoutes } from './dashboard/predictions.js';
 import { handleEvaluationRoutes } from './dashboard/evaluations.js';
 import { handleMarketplaceRoutes } from './dashboard/marketplace.js';
 import { handleQuestRoutes } from './dashboard/quests.js';
+import { handleWidgetRoutes } from './dashboard/widget.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -235,6 +236,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleQuestRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleWidgetRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

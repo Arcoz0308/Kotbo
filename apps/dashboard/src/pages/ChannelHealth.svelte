@@ -130,650 +130,362 @@ async function handleArchive(channelId: string) {
 onMount(load);
 </script>
 
-<div class="channel-health">
-  <div class="page-header">
-    <div class="header-left">
-      <Papicon name="activity" size={24} />
-      <h1>Santé des Salons</h1>
-      <span class="beta-badge">BETA</span>
-    </div>
-    <div class="header-actions">
-      <button class="btn btn-secondary" onclick={runAnalysis} disabled={analysisLoading}>
-        <Papicon name="refresh-cw" size={16} />
-        {analysisLoading ? 'Analyse...' : 'Lancer une analyse'}
-      </button>
-    </div>
+<!-- ======================== HEADER ======================== -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+  <div>
+    <h1 class="text-lg font-semibold flex items-center gap-2.5">
+      <Papicon icon="activity" size={24} />
+      Santé des Salons
+      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary">BETA</span>
+    </h1>
   </div>
-
-  <div class="tabs">
-    <button class="tab" class:active={activeTab === 'overview'} onclick={() => gotoTab('/channel-health', 'overview', 'overview')}>
-      <Papicon name="pie-chart" size={16} /> Vue d'ensemble
-    </button>
-    <button class="tab" class:active={activeTab === 'alerts'} onclick={() => gotoTab('/channel-health', 'alerts', 'overview')}>
-      <Papicon name="bell" size={16} /> Alertes
-      {#if data?.pendingAlerts?.length > 0}
-        <span class="badge">{data.pendingAlerts.length}</span>
-      {/if}
-    </button>
-    <button class="tab" class:active={activeTab === 'config'} onclick={() => gotoTab('/channel-health', 'config', 'overview')}>
-      <Papicon name="settings" size={16} /> Configuration
+  <div class="flex items-center gap-3">
+    <button
+      class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2"
+      onclick={runAnalysis}
+      disabled={analysisLoading}
+    >
+      <Papicon icon="refresh-cw" size={16} />
+      {analysisLoading ? 'Analyse...' : 'Lancer une analyse'}
     </button>
   </div>
-
-  {#if loading}
-    <div class="loading-state">
-      <div class="spinner"></div>
-      <p>Chargement...</p>
-    </div>
-  {:else if error}
-    <div class="error-state">
-      <Papicon name="alert-circle" size={32} />
-      <p>{error}</p>
-      <button class="btn btn-primary" onclick={load}>Réessayer</button>
-    </div>
-  {:else}
-
-    {#if activeTab === 'overview'}
-      <div class="overview-grid">
-        {#if !data?.config?.enabled}
-          <div class="empty-state card">
-            <Papicon name="activity" size={48} />
-            <h3>Moniteur de santé désactivé</h3>
-            <p>Activez le moniteur pour analyser automatiquement l'activité de vos salons et recevoir des recommandations.</p>
-            <button class="btn btn-primary" onclick={() => { gotoTab('/channel-health', 'config', 'overview'); if (configDraft) configDraft.enabled = true; }}>
-              Activer le moniteur
-            </button>
-          </div>
-        {:else if analysis}
-          <!-- Summary Cards -->
-          <div class="summary-cards">
-            {#each Object.entries(statusLabels) as [status, info]}
-              {@const count = analysis[status.toLowerCase()]?.length ?? 0}
-              <div class="summary-card" style="--accent: {info.color}">
-                <div class="card-icon">
-                  <Papicon name={info.icon} size={20} />
-                </div>
-                <div class="card-content">
-                  <span class="card-value">{count}</span>
-                  <span class="card-label">{info.label}</span>
-                </div>
-              </div>
-            {/each}
-          </div>
-
-          <!-- Channel List -->
-          <div class="card channels-list">
-            <h3>Tous les salons analysés</h3>
-            <div class="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Salon</th>
-                    <th>Statut</th>
-                    <th>Msg/jour</th>
-                    <th>Users</th>
-                    <th>Total msgs</th>
-                    <th>Tendance</th>
-                    <th>Confiance</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each analysis.channels ?? [] as ch}
-                    {@const info = statusLabels[ch.status] ?? statusLabels.HEALTHY}
-                    <tr>
-                      <td class="channel-name">#{ch.channelName}</td>
-                      <td>
-                        <span class="status-badge" style="--color: {info.color}">{info.label}</span>
-                      </td>
-                      <td>{ch.avgMsgPerDay.toFixed(1)}</td>
-                      <td>{ch.uniqueUsersAvg.toFixed(0)}</td>
-                      <td>{ch.totalMessages.toLocaleString()}</td>
-                      <td>
-                        {#if ch.trend === 'UP'}↗️
-                        {:else if ch.trend === 'DOWN'}↘️
-                        {:else}➡️
-                        {/if}
-                      </td>
-                      <td>{ch.confidence}%</td>
-                      <td class="actions-cell">
-                        {#if ch.status === 'OVERLOADED'}
-                          <button class="btn btn-sm btn-warning" onclick={() => handleSplit(ch.channelId)}>Split</button>
-                        {:else if ch.status === 'DEAD'}
-                          <button class="btn btn-sm btn-secondary" onclick={() => handleArchive(ch.channelId)}>Archiver</button>
-                        {/if}
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        {:else}
-          <div class="empty-state card">
-            <Papicon name="bar-chart" size={48} />
-            <h3>Aucune analyse disponible</h3>
-            <p>Cliquez sur "Lancer une analyse" pour évaluer la santé de vos salons.</p>
-          </div>
-        {/if}
-      </div>
-    {/if}
-
-    {#if activeTab === 'alerts'}
-      <div class="alerts-section">
-        {#if data?.pendingAlerts?.length === 0 && data?.history?.length === 0}
-          <div class="empty-state card">
-            <Papicon name="check-circle" size={48} />
-            <h3>Aucune alerte</h3>
-            <p>Tous vos salons sont en bonne santé. Les alertes apparaîtront ici lorsque des recommandations seront détectées.</p>
-          </div>
-        {:else}
-          {#if data?.pendingAlerts?.length > 0}
-            <h3 class="section-title">Alertes en attente ({data.pendingAlerts.length})</h3>
-            <div class="alerts-grid">
-              {#each data.pendingAlerts as alert}
-                <div class="alert-card card">
-                  <div class="alert-header">
-                    <span class="alert-type">{alertTypeLabels[alert.type] ?? alert.type}</span>
-                    <span class="confidence-badge">{alert.confidence}%</span>
-                  </div>
-                  <h4>#{alert.channelName ?? alert.channelId}</h4>
-                  <p class="alert-reason">{alert.reason}</p>
-                  <div class="alert-metrics">
-                    <span>{alert.avgMsgPerDay?.toFixed(1)} msg/jour</span>
-                    <span>{alert.uniqueUsersAvg?.toFixed(0)} users</span>
-                    <span>{alert.analysisPeriod}j d'analyse</span>
-                  </div>
-                  <div class="alert-actions">
-                    <button class="btn btn-sm btn-primary" onclick={() => handleResolve(alert.id, 'APPLIED')}>
-                      Appliquer
-                    </button>
-                    <button class="btn btn-sm btn-secondary" onclick={() => handleResolve(alert.id, 'DISMISSED')}>
-                      Ignorer
-                    </button>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-
-          {#if data?.history?.length > 0}
-            <h3 class="section-title" style="margin-top: 2rem;">Historique</h3>
-            <div class="table-wrapper card">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Salon</th>
-                    <th>Type</th>
-                    <th>Statut</th>
-                    <th>Confiance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each data.history as alert}
-                    {@const statusInfo = alertStatusLabels[alert.status] ?? { label: alert.status, color: '#747f8d' }}
-                    <tr>
-                      <td>{new Date(alert.createdAt).toLocaleDateString('fr-FR')}</td>
-                      <td>#{alert.channelName ?? alert.channelId}</td>
-                      <td>{alertTypeLabels[alert.type] ?? alert.type}</td>
-                      <td>
-                        <span class="status-badge" style="--color: {statusInfo.color}">{statusInfo.label}</span>
-                      </td>
-                      <td>{alert.confidence}%</td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-          {/if}
-        {/if}
-      </div>
-    {/if}
-
-    {#if activeTab === 'config' && configDraft}
-      <div class="config-section card">
-        <h3>Configuration du moniteur</h3>
-
-        <div class="config-grid">
-          <div class="config-group">
-            <label class="toggle-label">
-              <input type="checkbox" bind:checked={configDraft.enabled} />
-              <span>Moniteur activé</span>
-            </label>
-          </div>
-
-          <div class="config-group">
-            <label>Période d'analyse (jours)</label>
-            <input type="number" bind:value={configDraft.analysisPeriodDays} min={7} max={90} />
-          </div>
-
-          <div class="config-group">
-            <label>Mode surcharge (split)</label>
-            <select bind:value={configDraft.splitMode}>
-              <option value="NOTIFY">Notification seulement</option>
-              <option value="AUTO">Automatique</option>
-            </select>
-          </div>
-
-          <div class="config-group">
-            <label>Mode inactivité (archivage)</label>
-            <select bind:value={configDraft.archiveMode}>
-              <option value="NOTIFY">Notification seulement</option>
-              <option value="AUTO">Automatique</option>
-            </select>
-          </div>
-
-          <hr class="divider" />
-
-          <h4>Seuils de surcharge</h4>
-
-          <div class="config-group">
-            <label>Messages/heure (moyenne)</label>
-            <input type="number" bind:value={configDraft.overloadMsgPerHour} min={10} />
-          </div>
-
-          <div class="config-group">
-            <label>Utilisateurs uniques (moyenne)</label>
-            <input type="number" bind:value={configDraft.overloadUniqueUsers} min={5} />
-          </div>
-
-          <hr class="divider" />
-
-          <h4>Seuils de sous-utilisation</h4>
-
-          <div class="config-group">
-            <label>Messages/jour (max pour sous-utilisé)</label>
-            <input type="number" bind:value={configDraft.underusedMsgPerDay} min={1} />
-          </div>
-
-          <div class="config-group">
-            <label>Utilisateurs uniques (max)</label>
-            <input type="number" bind:value={configDraft.underusedUniqueUsers} min={1} />
-          </div>
-
-          <div class="config-group">
-            <label>Messages/semaine (max pour mort)</label>
-            <input type="number" bind:value={configDraft.deadMsgPerWeek} min={0} />
-          </div>
-
-          <hr class="divider" />
-
-          <h4>Digest hebdomadaire</h4>
-
-          <div class="config-group">
-            <label class="toggle-label">
-              <input type="checkbox" bind:checked={configDraft.weeklyDigestEnabled} />
-              <span>Rapport hebdomadaire activé</span>
-            </label>
-          </div>
-
-          <div class="config-group">
-            <label>Jour du rapport</label>
-            <select bind:value={configDraft.weeklyDigestDay}>
-              <option value={0}>Dimanche</option>
-              <option value={1}>Lundi</option>
-              <option value={2}>Mardi</option>
-              <option value={3}>Mercredi</option>
-              <option value={4}>Jeudi</option>
-              <option value={5}>Vendredi</option>
-              <option value={6}>Samedi</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="config-actions">
-          <button class="btn btn-primary" onclick={saveConfig} disabled={savingConfig}>
-            {savingConfig ? 'Sauvegarde...' : 'Sauvegarder'}
-          </button>
-        </div>
-      </div>
-    {:else if activeTab === 'config' && !configDraft}
-      <div class="config-section card">
-        <h3>Configuration du moniteur</h3>
-        <p>Le moniteur n'est pas encore configuré pour ce serveur.</p>
-        <button class="btn btn-primary" onclick={() => { configDraft = { enabled: true, analysisPeriodDays: 14, splitMode: 'NOTIFY', archiveMode: 'NOTIFY', overloadMsgPerHour: 120, overloadUniqueUsers: 80, underusedMsgPerDay: 5, underusedUniqueUsers: 3, deadMsgPerWeek: 2, weeklyDigestEnabled: true, weeklyDigestDay: 1 }; }}>
-          Initialiser la configuration
-        </button>
-      </div>
-    {/if}
-
-  {/if}
 </div>
 
-<style>
-.channel-health {
-  padding: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
+<!-- ======================== TABS ======================== -->
+<div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-xl border border-outline-variant/10 w-fit mb-6">
+  <button
+    class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {activeTab === 'overview' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+    onclick={() => gotoTab('/channel-health', 'overview', 'overview')}
+  >
+    <Papicon icon="pie-chart" size={15} /> Vue d'ensemble
+  </button>
+  <button
+    class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {activeTab === 'alerts' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+    onclick={() => gotoTab('/channel-health', 'alerts', 'overview')}
+  >
+    <Papicon icon="bell" size={15} /> Alertes
+    {#if data?.pendingAlerts?.length > 0}
+      <span class="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">{data.pendingAlerts.length}</span>
+    {/if}
+  </button>
+  <button
+    class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+    onclick={() => gotoTab('/channel-health', 'config', 'overview')}
+  >
+    <Papicon icon="settings" size={15} /> Configuration
+  </button>
+</div>
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
+<!-- ======================== CONTENT ======================== -->
+{#if loading}
+  <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    <p class="text-sm">Chargement...</p>
+  </div>
+{:else if error}
+  <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
+    <Papicon icon="alert-circle" size={32} />
+    <p class="text-sm">{error}</p>
+    <button class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2" onclick={load}>Réessayer</button>
+  </div>
+{:else}
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
+  <!-- ==================== TAB: OVERVIEW ==================== -->
+  {#if activeTab === 'overview'}
+    {#if !data?.config?.enabled}
+      <!-- Disabled state -->
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
+        <Papicon icon="activity" size={48} />
+        <h3 class="text-base font-semibold text-on-surface">Moniteur de santé désactivé</h3>
+        <p class="text-sm text-on-surface-variant/60 max-w-md">Activez le moniteur pour analyser automatiquement l'activité de vos salons et recevoir des recommandations.</p>
+        <button
+          class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+          onclick={() => { gotoTab('/channel-health', 'config', 'overview'); if (configDraft) configDraft.enabled = true; }}
+        >
+          Activer le moniteur
+        </button>
+      </div>
+    {:else if analysis}
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {#each Object.entries(statusLabels) as [status, info]}
+          {@const count = analysis[status.toLowerCase()]?.length ?? 0}
+          <div class="flex items-center gap-4 p-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl" style="border-left: 3px solid {info.color}">
+            <div style="color: {info.color}">
+              <Papicon icon={info.icon} size={20} />
+            </div>
+            <div>
+              <span class="text-2xl font-bold text-on-surface block">{count}</span>
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">{info.label}</span>
+            </div>
+          </div>
+        {/each}
+      </div>
 
-.header-left h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary, #fff);
-  margin: 0;
-}
+      <!-- Channel List -->
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
+        <h3 class="text-base font-semibold flex items-center gap-2.5">
+          <Papicon icon="hash" size={18} />
+          Tous les salons analysés
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-outline-variant/10">
+                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Salon</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Statut</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Msg/jour</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Users</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Total msgs</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Tendance</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Confiance</th>
+                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each analysis.channels ?? [] as ch}
+                {@const info = statusLabels[ch.status] ?? statusLabels.HEALTHY}
+                <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
+                  <td class="px-3 py-2.5 text-sm font-semibold">#{ch.channelName}</td>
+                  <td class="px-3 py-2.5 text-sm">
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style="background: color-mix(in srgb, {info.color} 15%, transparent); color: {info.color}">{info.label}</span>
+                  </td>
+                  <td class="px-3 py-2.5 text-sm">{ch.avgMsgPerDay.toFixed(1)}</td>
+                  <td class="px-3 py-2.5 text-sm">{ch.uniqueUsersAvg.toFixed(0)}</td>
+                  <td class="px-3 py-2.5 text-sm">{ch.totalMessages.toLocaleString()}</td>
+                  <td class="px-3 py-2.5 text-sm">
+                    {#if ch.trend === 'UP'}↗️
+                    {:else if ch.trend === 'DOWN'}↘️
+                    {:else}➡️
+                    {/if}
+                  </td>
+                  <td class="px-3 py-2.5 text-sm">{ch.confidence}%</td>
+                  <td class="px-3 py-2.5 text-sm whitespace-nowrap">
+                    {#if ch.status === 'OVERLOADED'}
+                      <button class="px-3 py-1.5 bg-amber-500/10 text-amber-500 rounded-lg text-xs font-bold hover:bg-amber-500/20 transition-all" onclick={() => handleSplit(ch.channelId)}>Split</button>
+                    {:else if ch.status === 'DEAD'}
+                      <button class="px-3 py-1.5 bg-surface-container-high/40 text-on-surface-variant rounded-lg text-xs font-bold hover:bg-surface-container-high/60 transition-all" onclick={() => handleArchive(ch.channelId)}>Archiver</button>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {:else}
+      <!-- No analysis yet -->
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
+        <Papicon icon="bar-chart" size={48} />
+        <h3 class="text-base font-semibold text-on-surface">Aucune analyse disponible</h3>
+        <p class="text-sm text-on-surface-variant/60 max-w-md">Cliquez sur "Lancer une analyse" pour évaluer la santé de vos salons.</p>
+      </div>
+    {/if}
+  {/if}
 
-.beta-badge {
-  background: linear-gradient(135deg, #5865f2, #7289da);
-  color: white;
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.05em;
-}
+  <!-- ==================== TAB: ALERTS ==================== -->
+  {#if activeTab === 'alerts'}
+    {#if data?.pendingAlerts?.length === 0 && data?.history?.length === 0}
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
+        <Papicon icon="check-circle" size={48} />
+        <h3 class="text-base font-semibold text-on-surface">Aucune alerte</h3>
+        <p class="text-sm text-on-surface-variant/60 max-w-md">Tous vos salons sont en bonne santé. Les alertes apparaîtront ici lorsque des recommandations seront détectées.</p>
+      </div>
+    {:else}
+      {#if data?.pendingAlerts?.length > 0}
+        <h3 class="text-base font-semibold flex items-center gap-2.5 mb-4">
+          <Papicon icon="bell" size={18} />
+          Alertes en attente ({data.pendingAlerts.length})
+        </h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          {#each data.pendingAlerts as alert}
+            <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 space-y-3 border-l-[3px]" style="border-left-color: #fee75c">
+              <div class="flex justify-between items-center">
+                <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400">{alertTypeLabels[alert.type] ?? alert.type}</span>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary">{alert.confidence}%</span>
+              </div>
+              <h4 class="text-sm font-semibold text-on-surface">#{alert.channelName ?? alert.channelId}</h4>
+              <p class="text-xs text-on-surface-variant/60">{alert.reason}</p>
+              <div class="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">
+                <span>{alert.avgMsgPerDay?.toFixed(1)} msg/jour</span>
+                <span>{alert.uniqueUsersAvg?.toFixed(0)} users</span>
+                <span>{alert.analysisPeriod}j d'analyse</span>
+              </div>
+              <div class="flex gap-2 pt-1">
+                <button class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'APPLIED')}>
+                  Appliquer
+                </button>
+                <button class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'DISMISSED')}>
+                  Ignorer
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
 
-.tabs {
-  display: flex;
-  gap: 0.25rem;
-  background: rgba(255,255,255,0.04);
-  border-radius: 12px;
-  padding: 4px;
-  margin-bottom: 1.5rem;
-}
+      {#if data?.history?.length > 0}
+        <h3 class="text-base font-semibold flex items-center gap-2.5 mb-4 mt-8">
+          <Papicon icon="clock" size={18} />
+          Historique
+        </h3>
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-outline-variant/10">
+                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date</th>
+                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Salon</th>
+                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Type</th>
+                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Statut</th>
+                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Confiance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each data.history as alert}
+                  {@const statusInfo = alertStatusLabels[alert.status] ?? { label: alert.status, color: '#747f8d' }}
+                  <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
+                    <td class="px-3 py-2.5 text-sm">{new Date(alert.createdAt).toLocaleDateString('fr-FR')}</td>
+                    <td class="px-3 py-2.5 text-sm">#{alert.channelName ?? alert.channelId}</td>
+                    <td class="px-3 py-2.5 text-sm">{alertTypeLabels[alert.type] ?? alert.type}</td>
+                    <td class="px-3 py-2.5 text-sm">
+                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style="background: color-mix(in srgb, {statusInfo.color} 15%, transparent); color: {statusInfo.color}">{statusInfo.label}</span>
+                    </td>
+                    <td class="px-3 py-2.5 text-sm">{alert.confidence}%</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {/if}
+    {/if}
+  {/if}
 
-.tab {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary, #b5bac1);
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-}
+  <!-- ==================== TAB: CONFIG ==================== -->
+  {#if activeTab === 'config' && configDraft}
+    <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-6">
+      <h3 class="text-base font-semibold flex items-center gap-2.5">
+        <Papicon icon="settings" size={18} />
+        Configuration du moniteur
+      </h3>
 
-.tab:hover { background: rgba(255,255,255,0.06); }
-.tab.active {
-  background: rgba(88, 101, 242, 0.2);
-  color: #5865f2;
-}
+      <div class="space-y-5">
+        <!-- General -->
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" class="w-[18px] h-[18px] accent-primary" bind:checked={configDraft.enabled} />
+          <span class="text-sm text-on-surface">Moniteur activé</span>
+        </label>
 
-.badge {
-  background: #ed4245;
-  color: white;
-  font-size: 0.7rem;
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-weight: 700;
-}
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Période d'analyse (jours)</label>
+          <input type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.analysisPeriodDays} min={7} max={90} />
+        </div>
 
-.card {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
-  padding: 1.5rem;
-  backdrop-filter: blur(12px);
-}
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Mode surcharge (split)</label>
+          <select class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.splitMode}>
+            <option value="NOTIFY">Notification seulement</option>
+            <option value="AUTO">Automatique</option>
+          </select>
+        </div>
 
-.empty-state {
-  text-align: center;
-  padding: 3rem 2rem;
-  color: var(--text-secondary, #b5bac1);
-}
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Mode inactivité (archivage)</label>
+          <select class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.archiveMode}>
+            <option value="NOTIFY">Notification seulement</option>
+            <option value="AUTO">Automatique</option>
+          </select>
+        </div>
 
-.empty-state h3 {
-  margin: 1rem 0 0.5rem;
-  color: var(--text-primary, #fff);
-}
+        <!-- Divider: Overload thresholds -->
+        <hr class="border-outline-variant/10" />
 
-.loading-state, .error-state {
-  text-align: center;
-  padding: 3rem;
-  color: var(--text-secondary, #b5bac1);
-}
+        <h4 class="text-sm font-semibold text-on-surface flex items-center gap-2">
+          <Papicon icon="alert-triangle" size={16} />
+          Seuils de surcharge
+        </h4>
 
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255,255,255,0.1);
-  border-top-color: #5865f2;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto 1rem;
-}
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Messages/heure (moyenne)</label>
+          <input type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.overloadMsgPerHour} min={10} />
+        </div>
 
-@keyframes spin { to { transform: rotate(360deg); } }
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Utilisateurs uniques (moyenne)</label>
+          <input type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.overloadUniqueUsers} min={5} />
+        </div>
 
-.summary-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
+        <!-- Divider: Underuse thresholds -->
+        <hr class="border-outline-variant/10" />
 
-.summary-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
-  border-left: 3px solid var(--accent);
-}
+        <h4 class="text-sm font-semibold text-on-surface flex items-center gap-2">
+          <Papicon icon="alert-circle" size={16} />
+          Seuils de sous-utilisation
+        </h4>
 
-.card-icon { color: var(--accent); }
-.card-value { font-size: 1.5rem; font-weight: 700; color: var(--text-primary, #fff); display: block; }
-.card-label { font-size: 0.8rem; color: var(--text-secondary, #b5bac1); }
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Messages/jour (max pour sous-utilisé)</label>
+          <input type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.underusedMsgPerDay} min={1} />
+        </div>
 
-.channels-list h3 {
-  margin: 0 0 1rem;
-  color: var(--text-primary, #fff);
-}
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Utilisateurs uniques (max)</label>
+          <input type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.underusedUniqueUsers} min={1} />
+        </div>
 
-.table-wrapper {
-  overflow-x: auto;
-}
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Messages/semaine (max pour mort)</label>
+          <input type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.deadMsgPerWeek} min={0} />
+        </div>
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+        <!-- Divider: Weekly digest -->
+        <hr class="border-outline-variant/10" />
 
-th, td {
-  padding: 0.625rem 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  font-size: 0.85rem;
-}
+        <h4 class="text-sm font-semibold text-on-surface flex items-center gap-2">
+          <Papicon icon="mail" size={16} />
+          Digest hebdomadaire
+        </h4>
 
-th {
-  color: var(--text-secondary, #b5bac1);
-  font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" class="w-[18px] h-[18px] accent-primary" bind:checked={configDraft.weeklyDigestEnabled} />
+          <span class="text-sm text-on-surface">Rapport hebdomadaire activé</span>
+        </label>
 
-td { color: var(--text-primary, #fff); }
+        <div class="space-y-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Jour du rapport</label>
+          <select class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.weeklyDigestDay}>
+            <option value={0}>Dimanche</option>
+            <option value={1}>Lundi</option>
+            <option value={2}>Mardi</option>
+            <option value={3}>Mercredi</option>
+            <option value={4}>Jeudi</option>
+            <option value={5}>Vendredi</option>
+            <option value={6}>Samedi</option>
+          </select>
+        </div>
+      </div>
 
-.channel-name { font-weight: 600; }
+      <div class="flex justify-end pt-2">
+        <button class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2" onclick={saveConfig} disabled={savingConfig}>
+          {savingConfig ? 'Sauvegarde...' : 'Sauvegarder'}
+        </button>
+      </div>
+    </div>
+  {:else if activeTab === 'config' && !configDraft}
+    <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
+      <h3 class="text-base font-semibold flex items-center gap-2.5">
+        <Papicon icon="settings" size={18} />
+        Configuration du moniteur
+      </h3>
+      <p class="text-sm text-on-surface-variant/60">Le moniteur n'est pas encore configuré pour ce serveur.</p>
+      <button
+        class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        onclick={() => { configDraft = { enabled: true, analysisPeriodDays: 14, splitMode: 'NOTIFY', archiveMode: 'NOTIFY', overloadMsgPerHour: 120, overloadUniqueUsers: 80, underusedMsgPerDay: 5, underusedUniqueUsers: 3, deadMsgPerWeek: 2, weeklyDigestEnabled: true, weeklyDigestDay: 1 }; }}
+      >
+        Initialiser la configuration
+      </button>
+    </div>
+  {/if}
 
-.status-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--color) 20%, transparent);
-  color: var(--color);
-}
-
-.actions-cell { white-space: nowrap; }
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-primary { background: #5865f2; color: white; }
-.btn-primary:hover:not(:disabled) { background: #4752c4; }
-.btn-secondary { background: rgba(255,255,255,0.08); color: var(--text-primary, #fff); }
-.btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
-.btn-warning { background: #fee75c; color: #1e1e1e; }
-.btn-sm { padding: 0.25rem 0.625rem; font-size: 0.75rem; }
-
-.section-title {
-  color: var(--text-primary, #fff);
-  font-size: 1rem;
-  margin-bottom: 1rem;
-}
-
-.alerts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1rem;
-}
-
-.alert-card {
-  border-left: 3px solid #fee75c;
-}
-
-.alert-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.alert-type {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #fee75c;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.confidence-badge {
-  background: rgba(88, 101, 242, 0.2);
-  color: #5865f2;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.alert-card h4 {
-  margin: 0 0 0.5rem;
-  color: var(--text-primary, #fff);
-}
-
-.alert-reason {
-  color: var(--text-secondary, #b5bac1);
-  font-size: 0.85rem;
-  margin-bottom: 0.75rem;
-}
-
-.alert-metrics {
-  display: flex;
-  gap: 1rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary, #b5bac1);
-  margin-bottom: 1rem;
-}
-
-.alert-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.config-section h3 {
-  margin: 0 0 1.5rem;
-  color: var(--text-primary, #fff);
-}
-
-.config-section h4 {
-  margin: 1rem 0 0.75rem;
-  color: var(--text-primary, #fff);
-  font-size: 0.9rem;
-}
-
-.config-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.config-group label {
-  display: block;
-  font-size: 0.8rem;
-  color: var(--text-secondary, #b5bac1);
-  margin-bottom: 0.375rem;
-}
-
-.config-group input[type="number"],
-.config-group select {
-  width: 100%;
-  max-width: 300px;
-  padding: 0.5rem 0.75rem;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 8px;
-  color: var(--text-primary, #fff);
-  font-size: 0.85rem;
-}
-
-.config-group select option {
-  background: #2b2d31;
-  color: #fff;
-}
-
-.toggle-label {
-  display: flex !important;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-}
-
-.toggle-label input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: #5865f2;
-}
-
-.toggle-label span {
-  font-size: 0.875rem;
-  color: var(--text-primary, #fff);
-}
-
-.divider {
-  border: none;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  margin: 0.5rem 0;
-}
-
-.config-actions {
-  margin-top: 1.5rem;
-  display: flex;
-  justify-content: flex-end;
-}
-</style>
+{/if}

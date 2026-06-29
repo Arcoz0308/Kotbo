@@ -1,0 +1,106 @@
+{
+  "data": {
+    "dynamic": [
+      {
+        "type": 3,
+        "name": "serveur.logo",
+        "value": {
+          "url": "<URL to serveur.logo.png>"
+        }
+      },
+      {
+        "type": 1,
+        "name": "user.staffRank",
+        "value": "Fondateur"
+      },
+      {
+        "type": 1,
+        "name": "server.name",
+        "value": "Azuria"
+      },
+      {
+        "type": 1,
+        "name": "serveur.membersCount",
+        "value": "1 250"
+      },
+      {
+        "type": 1,
+        "name": "user.staffSinceTo",
+        "value": "01/01/2024"
+      },
+      {
+        "type": 3,
+        "name": "user.statMessage.image",
+        "value": {
+          "url": "<URL to user.statMessage.image.png>"
+        }
+      },
+      {
+        "type": 1,
+        "name": "user.statMessage.title",
+        "value": "Message count :"
+      },
+      {
+        "type": 1,
+        "name": "user.statMessage.description",
+        "value": "12 450"
+      },
+      {
+        "type": 3,
+        "name": "user.statVocal.image",
+        "value": {
+          "url": "<URL to user.statVocal.image.png>"
+        }
+      },
+      {
+        "type": 1,
+        "name": "user.statVocal.title",
+        "value": "Vocal Count :"
+      },
+      {
+        "type": 1,
+        "name": "user.statVocal.description",
+        "value": "340 min"
+      },
+      {
+        "type": 3,
+        "name": "user.level.image",
+        "value": {
+          "url": "<URL to user.level.image.png>"
+        }
+      },
+      {
+        "type": 1,
+        "name": "user.level.title",
+        "value": "Level :"
+      },
+      {
+        "type": 1,
+        "name": "user.level.description",
+        "value": "42 lvl"
+      },
+      {
+        "type": 3,
+        "name": "user.statStaffScore.image",
+        "value": {
+          "url": "<URL to user.statStaffScore.image.png>"
+        }
+      },
+      {
+        "type": 1,
+        "name": "user.statStaffScore.title",
+        "value": "Staff Score :"
+      },
+      {
+        "type": 1,
+        "name": "user.statStaffScore.description",
+        "value": "98 points"
+      },
+      {
+        "type": 1,
+        "name": "user.staffRankHero",
+        "value": "Fondateur"
+      }
+    ]
+  }
+}

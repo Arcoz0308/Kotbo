@@ -107,6 +107,7 @@
   import Evaluations from "./pages/Evaluations.svelte";
   import Marketplace from "./pages/Marketplace.svelte";
   import Quests from "./pages/Quests.svelte";
+  import Widget from "./pages/Widget.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -181,6 +182,7 @@
     if (path.startsWith("/channel-health")) return "channel_health";
     if (path.startsWith("/channel-links")) return "channel_links";
     if (path.startsWith("/staff-server")) return "staff_server";
+    if (path.startsWith("/widget")) return "dashboard";
     if (path.startsWith("/admin")) return "centralized_config";
     return null;
   }
@@ -761,6 +763,9 @@
             </Route>
             <Route path="/quests">
               <Quests />
+            </Route>
+            <Route path="/widget">
+              <Widget />
             </Route>
             <Route path="/channel-links">
               <ChannelLinks />
