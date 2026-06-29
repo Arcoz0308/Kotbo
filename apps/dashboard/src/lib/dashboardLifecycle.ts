@@ -30,9 +30,12 @@ function waitForBrowserIdle(): Promise<void> {
   });
 }
 
+const AUTO_REFRESH_INTERVAL = 10 * 60 * 1000;
+
 class DashboardLifecycleManager {
   private socket: WebSocket | null = null;
   private reconnectTimer: any = null;
+  private autoRefreshTimer: any = null;
   private intentionallyClosed = false;
   private isConnecting = false;
   private initialized = false;
@@ -52,6 +55,13 @@ class DashboardLifecycleManager {
     window.addEventListener('kotbo-dashboard-refresh-request', () => {
       dashboardStore.refresh();
     });
+
+    // Auto-refresh every 10 minutes
+    this.autoRefreshTimer = setInterval(() => {
+      if (authStore.token && authStore.selectedGuildId) {
+        dashboardStore.refresh();
+      }
+    }, AUTO_REFRESH_INTERVAL);
 
     // Start connection
     this.connect();
@@ -143,6 +153,7 @@ class DashboardLifecycleManager {
   destroy() {
     this.intentionallyClosed = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
     if (this.socket) {
       this.socket.close();
       this.socket = null;

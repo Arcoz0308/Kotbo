@@ -7,21 +7,10 @@ import {
   json,
   getMissingOAuthConfig,
   getDiscordClientId,
-  getDiscordClientSecret,
   getDiscordRedirectUri,
   getDashboardUrl,
   getJwtSecret,
 } from '../shared.js';
-
-interface DiscordTokenResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_token?: string;
-  scope: string;
-  error?: string;
-  error_description?: string;
-}
 
 interface DiscordUserResponse {
   id: string;
@@ -29,6 +18,41 @@ interface DiscordUserResponse {
   avatar: string | null;
   global_name?: string | null;
 }
+
+function parseCookies(req: IncomingMessage): Record<string, string> {
+  if (!req.headers.cookie) return {};
+  return Object.fromEntries(req.headers.cookie.split(';').map(c => {
+    const [k, ...v] = c.trim().split('=');
+    return [k, v.join('=')];
+  }));
+}
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+const BRIDGE_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script>
+(function(){
+  var h=window.location.hash.substring(1);
+  if(!h){window.location.href='/login?error=no_token';return;}
+  var p=new URLSearchParams(h);
+  var t=p.get('access_token'),s=p.get('state');
+  if(!t||!s){window.location.href='/login?error=no_token';return;}
+  fetch('/api/auth/discord/token-exchange',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({access_token:t,state:s}),
+    credentials:'same-origin'
+  }).then(function(r){return r.json()}).then(function(d){
+    window.location.href=d.redirect||'/login?error=auth_failed';
+  }).catch(function(){window.location.href='/login?error=auth_failed';});
+})();
+</script></body></html>`;
 
 export async function handleAuthRoutes(
   req: IncomingMessage,
@@ -57,40 +81,57 @@ export async function handleAuthRoutes(
 
       const returnTo = url.searchParams.get('returnTo');
       const state = crypto.randomBytes(16).toString('hex');
-      
+
       const cookies = [`kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`];
       if (returnTo) {
         cookies.push(`kotbo_oauth_return_to=${encodeURIComponent(returnTo)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`);
       }
       res.setHeader('Set-Cookie', cookies);
 
-      const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}&response_type=code&scope=identify%20guilds%20openid%20sdk.social_layer&state=${state}`;
+      const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}&response_type=token&scope=identify%20guilds%20openid%20sdk.social_layer&state=${state}`;
       res.writeHead(302, { Location: discordUrl });
       res.end();
       return true;
     }
 
-    // GET /api/auth/discord/callback
+    // GET /api/auth/discord/callback — bridge page for implicit grant (reads fragment client-side)
     if (parts[3] === 'callback' && method === 'GET') {
-      const missingOAuth = getMissingOAuthConfig({ includeSecret: true });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(BRIDGE_HTML);
+      return true;
+    }
+
+    // POST /api/auth/discord/token-exchange — receives access_token from bridge page
+    if (parts[3] === 'token-exchange' && method === 'POST') {
+      const missingOAuth = getMissingOAuthConfig();
       if (missingOAuth.length > 0) {
-        json(res, 500, {
-          error: 'Configuration OAuth invalide côté serveur.',
-          missing: missingOAuth,
-        });
+        json(res, 500, { error: 'Configuration OAuth invalide côté serveur.', missing: missingOAuth });
         return true;
       }
 
       const dashboardUrl = getDashboardUrl();
-      const cookies = req.headers.cookie ? Object.fromEntries(req.headers.cookie.split(';').map(c => c.trim().split('='))) : {};
+
+      let body: { access_token?: string; state?: string };
+      try {
+        body = JSON.parse(await readBody(req));
+      } catch {
+        json(res, 400, { error: 'Corps JSON invalide' });
+        return true;
+      }
+
+      const { access_token: accessToken, state: urlState } = body;
+      if (!accessToken || !urlState) {
+        json(res, 400, { redirect: `${dashboardUrl}/login?error=no_token` });
+        return true;
+      }
+
+      const cookies = parseCookies(req);
       const cookieState = cookies['kotbo_oauth_state'];
       const returnTo = cookies['kotbo_oauth_return_to'] ? decodeURIComponent(cookies['kotbo_oauth_return_to']) : '';
-      const urlState = url.searchParams.get('state');
 
-      if (!cookieState || !urlState || cookieState !== urlState) {
-        logger.warn('Auth', 'OAuth state verification failed');
-        res.writeHead(302, { Location: `${dashboardUrl}/login?error=invalid_state` });
-        res.end();
+      if (!cookieState || cookieState !== urlState) {
+        logger.warn('Auth', 'OAuth state verification failed (token-exchange)');
+        json(res, 200, { redirect: `${dashboardUrl}/login?error=invalid_state` });
         return true;
       }
 
@@ -99,51 +140,26 @@ export async function handleAuthRoutes(
         'kotbo_oauth_return_to=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0'
       ]);
 
-      const code = url.searchParams.get('code');
-      if (!code) {
-        res.writeHead(302, { Location: `${dashboardUrl}/login?error=no_code` });
-        res.end();
-        return true;
-      }
-
       try {
-        const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
-          method: 'POST',
-          body: new URLSearchParams({
-            client_id: getDiscordClientId(),
-            client_secret: getDiscordClientSecret(),
-            grant_type: 'authorization_code',
-            code,
-            redirect_uri: getDiscordRedirectUri(),
-          }),
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        });
-
-        const tokenData = await tokenResponse.json() as DiscordTokenResponse;
-        if (tokenData.error) throw new Error(tokenData.error_description);
-
         const userResponse = await fetch('https://discord.com/api/users/@me', {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
         const userData = await userResponse.json() as DiscordUserResponse;
+
+        if (!userData.id) throw new Error('Discord user fetch failed');
 
         const token = jwt.sign({
           userId: userData.id,
           username: userData.username,
           avatar: userData.avatar,
-          discordToken: tokenData.access_token
+          discordToken: accessToken,
         }, getJwtSecret(), { expiresIn: '7d' });
 
         const returnToUrl = returnTo ? `${returnTo.startsWith('/') ? '' : '/'}${returnTo}` : '';
-        res.writeHead(302, { Location: `${dashboardUrl}${returnToUrl}#token=${token}` });
-        res.end();
+        json(res, 200, { redirect: `${dashboardUrl}${returnToUrl}#token=${token}` });
       } catch (err) {
-        logger.error('Auth', 'Discord callback error:', err);
-        if (err instanceof Error) {
-          logger.error('Auth', `Message: ${err.message}`);
-        }
-        res.writeHead(302, { Location: `${dashboardUrl}/login?error=auth_failed` });
-        res.end();
+        logger.error('Auth', 'Token exchange error:', err);
+        json(res, 200, { redirect: `${dashboardUrl}/login?error=auth_failed` });
       }
       return true;
     }

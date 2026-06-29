@@ -142,6 +142,12 @@ export async function pushWidgetForUser(guildId: string, userId: string): Promis
 
     if (!res.ok) {
       const body = await res.text();
+      let parsed: { code?: number } = {};
+      try { parsed = JSON.parse(body); } catch {}
+      if (parsed.code === 40106) {
+        logger.warn(TAG, `Identité 40106 pour ${userId} sur ${guildId}: l'utilisateur doit (ré-)autoriser via OAuth2`);
+        return { ok: false, error: 'Tu dois autoriser Kotbo sur ton profil Discord avant d\'activer le widget.' };
+      }
       logger.error(TAG, `PATCH échoué pour ${userId} sur ${guildId}: ${res.status} ${body}`);
       return { ok: false, error: `Discord API ${res.status}: ${body}` };
     }
@@ -177,6 +183,13 @@ export async function clearWidgetForUser(userId: string): Promise<{ ok: boolean;
 
     if (!res.ok) {
       const body = await res.text();
+      let parsed: { code?: number } = {};
+      try { parsed = JSON.parse(body); } catch {}
+      // 40106 = identity belongs to another user, 10069 = unknown identity — nothing to clear
+      if (parsed.code === 40106 || parsed.code === 10069 || res.status === 404) {
+        logger.info(TAG, `Clear widget ignoré pour ${userId} (code ${parsed.code ?? res.status}): pas d'identité liée`);
+        return { ok: true };
+      }
       logger.error(TAG, `Clear widget échoué pour ${userId}: ${res.status} ${body}`);
       return { ok: false, error: `Discord API ${res.status}: ${body}` };
     }
