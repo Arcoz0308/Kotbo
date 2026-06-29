@@ -1407,7 +1407,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     },
     {
       label: "Sondages Actifs",
-      value: polls.filter(p => !p.closesAt || new Date(p.closesAt) > new Date()).length.toString(),
+      value: polls.filter(p => p.status !== 'CLOSED' && (!p.closesAt || new Date(p.closesAt) > new Date())).length.toString(),
       note: "en cours",
       icon: "bar-chart-2",
       color: "bg-slate-500/10 text-slate-600",
@@ -2538,12 +2538,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           {:else}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {#each polls as poll (poll.id)}
-                {@const isClosed = poll.closesAt && new Date(poll.closesAt) < new Date()}
+                {@const isClosed = poll.status === 'CLOSED' || (poll.closesAt && new Date(poll.closesAt) < new Date())}
                 {@const totalWeight = (poll.options as any[]).reduce((sum: number, opt: any) => {
                   const optVotes = (poll.votes as any[] | undefined)?.filter((v: any) => v.optionId === opt.id) || [];
                   return sum + optVotes.reduce((s: number, v: any) => s + (v.weight || 1), 0);
                 }, 0)}
-                {@const userVote = (poll.votes as any[] | undefined)?.find((v: any) => v.staffUserId === authStore.user?.id)}
+                {@const userVote = (poll.votes as any[] | undefined)?.find((v: any) => v.staffMember?.userId === authStore.user?.id)}
                 <div class="bg-surface-container px-6 py-6 rounded-xl border border-outline-variant/10 group transition-all hover:border-primary/20">
                   <div class="flex items-start justify-between gap-4">
                     <div class="space-y-1">
@@ -2557,7 +2557,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       </div>
                       <h4 class="text-lg font-semibold text-on-surface tracking-tight leading-tight">{poll.title}</h4>
                     </div>
-                    {#if !isClosed && accessLevel === 'admin'}
+                    {#if !isClosed && (accessLevel === 'admin' || canManageSettings)}
                        <button onclick={() => closePoll(poll.id)} class="p-2 text-on-surface-variant/40 hover:text-rose-500 transition-colors" title="Clôturer maintenant">
                          <Papicon icon="x" size={20} />
                        </button>

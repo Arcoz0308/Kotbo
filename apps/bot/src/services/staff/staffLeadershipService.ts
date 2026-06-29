@@ -967,7 +967,7 @@ export const getPolls = async (guildId: string) => {
     include: {
       options: { include: { _count: { select: { votes: true } } } },
       author: { select: { username: true, displayName: true } },
-      votes: { select: { staffUserId: true, weight: true } } // needed to compute results visually if access logic permits
+      votes: { select: { staffUserId: true, optionId: true, weight: true, staffMember: { select: { userId: true } } } }
     },
     orderBy: { createdAt: 'desc' },
   });
