@@ -4061,21 +4061,33 @@ export function registerMcpTools(
           color: z.string().optional().describe('Couleur hexadécimale (ex: "#FF0000")'),
           hoist: z.boolean().optional().describe('Afficher les membres ayant ce rôle séparément des autres'),
           mentionable: z.boolean().optional().describe('Permettre à tout le monde de mentionner ce rôle'),
+          permissions: z.array(z.string()).optional().describe('Liste de permissions Discord à accorder (ex: ["ManageGuild","KickMembers","BanMembers"])'),
           reason: z.string().optional().describe('Raison de la création (pour l\'audit Discord)'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_MEMBERS', async ({ name, color, hoist, mentionable, reason, key_name }) => {
+      guard('WRITE_MEMBERS', async ({ name, color, hoist, mentionable, permissions, reason, key_name }) => {
         try {
           const guild = client.guilds.cache.get(guildId);
           if (!guild) return err('Serveur Discord introuvable');
+
+          let permBits: bigint | undefined;
+          if (permissions && permissions.length > 0) {
+            permBits = 0n;
+            for (const p of permissions) {
+              const bit = (PermissionFlagsBits as any)[p];
+              if (bit === undefined) return err(`Permission inconnue : « ${p} ». Exemples valides : ViewChannel, SendMessages, Administrator, ManageGuild…`);
+              permBits |= bit;
+            }
+          }
 
           const role = await guild.roles.create({
             name,
             color: color || undefined,
             hoist: hoist ?? false,
             mentionable: mentionable ?? false,
+            permissions: permBits !== undefined ? permBits : undefined,
             reason: reason || 'Créé via MCP',
           });
 
@@ -4158,6 +4170,1016 @@ export function registerMcpTools(
           return ok({ ok: true });
         } catch (e) {
           return err(`Erreur lors de la suppression du rôle : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+  }
+
+  // ── READ_STATS — Permissions, invitations, emojis, stickers, webhooks, réglages ──
+  if (shouldRegister('READ_STATS')) {
+
+    server.registerTool(
+      'get_role_permissions',
+      {
+        description: 'Retourne la liste des permissions globales d\'un rôle. Requiert READ_STATS.',
+        inputSchema: {
+          role: z.string().describe('Nom ou ID du rôle'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ role }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const roleId = SNOWFLAKE.test(role) ? role : null;
+        const discordRole = roleId
+          ? guild.roles.cache.get(roleId)
+          : guild.roles.cache.find((r) => r.name.toLowerCase() === role.toLowerCase());
+
+        if (!discordRole) return err(`Rôle « ${role} » introuvable`);
+
+        const permNames = Object.entries(PermissionFlagsBits)
+          .filter(([, bit]) => discordRole.permissions.has(bit))
+          .map(([name]) => name);
+
+        return ok({
+          roleId: discordRole.id,
+          name: discordRole.name,
+          bitfield: discordRole.permissions.bitfield.toString(),
+          permissions: permNames,
+        });
+      })
+    );
+
+    server.registerTool(
+      'get_invites',
+      {
+        description: 'Liste les invitations actives du serveur. Requiert READ_STATS.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async () => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const invites = await guild.invites.fetch();
+          return ok(
+            invites.map((inv) => ({
+              code: inv.code,
+              url: inv.url,
+              channelId: inv.channel?.id ?? null,
+              channelName: inv.channel?.name ?? null,
+              inviterId: inv.inviter?.id ?? null,
+              inviterTag: inv.inviter?.tag ?? null,
+              uses: inv.uses,
+              maxUses: inv.maxUses,
+              maxAge: inv.maxAge,
+              temporary: inv.temporary,
+              createdAt: inv.createdAt?.toISOString() ?? null,
+              expiresAt: inv.expiresAt?.toISOString() ?? null,
+            }))
+          );
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_emojis',
+      {
+        description: 'Liste les emojis personnalisés du serveur. Requiert READ_STATS.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async () => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const emojis = await guild.emojis.fetch();
+        return ok(
+          emojis.map((e) => ({
+            id: e.id,
+            name: e.name,
+            animated: e.animated,
+            url: e.url,
+            creatorId: e.author?.id ?? null,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_stickers',
+      {
+        description: 'Liste les stickers personnalisés du serveur. Requiert READ_STATS.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async () => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const stickers = await guild.stickers.fetch();
+        return ok(
+          stickers.map((s) => ({
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            tags: s.tags,
+            format: s.format,
+            url: s.url,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_webhooks',
+      {
+        description: 'Liste les webhooks du serveur ou d\'un salon spécifique. Requiert READ_STATS.',
+        inputSchema: {
+          channel: z.string().optional().describe('Nom, mention <#id> ou ID du salon (optionnel — si omis, liste tous les webhooks du serveur)'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ channel }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          let webhooks;
+          if (channel) {
+            const resolved = resolveChannel(guildId, client, channel);
+            if (!resolved.ok) return resolved.response;
+            webhooks = await resolved.channel.fetchWebhooks();
+          } else {
+            webhooks = await guild.fetchWebhooks();
+          }
+
+          return ok(
+            webhooks.map((w) => ({
+              id: w.id,
+              name: w.name,
+              channelId: w.channelId,
+              creatorId: w.owner?.id ?? null,
+              creatorTag: w.owner?.tag ?? null,
+              url: w.url,
+              avatar: w.avatarURL(),
+            }))
+          );
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_guild_settings',
+      {
+        description: 'Retourne les réglages globaux du serveur Discord (icône, bannière, vérification, AFK, vanity URL, etc.). Requiert READ_STATS.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async () => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        return ok({
+          name: guild.name,
+          icon: guild.iconURL({ size: 512 }),
+          banner: guild.bannerURL({ size: 512 }),
+          splash: guild.splashURL({ size: 512 }),
+          verificationLevel: guild.verificationLevel,
+          defaultMessageNotifications: guild.defaultMessageNotifications,
+          explicitContentFilter: guild.explicitContentFilter,
+          afkChannelId: guild.afkChannelId,
+          afkChannelName: guild.afkChannel?.name ?? null,
+          afkTimeout: guild.afkTimeout,
+          systemChannelId: guild.systemChannelId,
+          systemChannelName: guild.systemChannel?.name ?? null,
+          rulesChannelId: guild.rulesChannelId,
+          rulesChannelName: guild.rulesChannel?.name ?? null,
+          vanityURLCode: guild.vanityURLCode,
+          preferredLocale: guild.preferredLocale,
+          premiumTier: guild.premiumTier,
+          premiumSubscriptionCount: guild.premiumSubscriptionCount,
+          description: guild.description,
+          features: guild.features,
+        });
+      })
+    );
+  }
+
+  // ── READ_MEMBERS — Vocal, messages épinglés, threads ──────────────────
+  if (shouldRegister('READ_MEMBERS')) {
+
+    server.registerTool(
+      'get_voice_state',
+      {
+        description: 'Retourne l\'état vocal d\'un membre (salon, mute, deafen, stream, caméra). Requiert READ_MEMBERS.',
+        inputSchema: {
+          member: z.string().describe('Nom, @mention ou ID du membre'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_MEMBERS', async ({ member }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const rm = await resolveMember(guildId, member);
+        if (!rm.ok) return rm.response;
+
+        const guildMember = await guild.members.fetch(rm.userId).catch(() => null);
+        if (!guildMember) return err(`Membre « ${member} » introuvable sur le serveur`);
+
+        const vs = guildMember.voice;
+        if (!vs.channel) return ok({ connected: false, userId: rm.userId });
+
+        return ok({
+          connected: true,
+          userId: rm.userId,
+          channelId: vs.channel.id,
+          channelName: vs.channel.name,
+          serverMute: vs.serverMute,
+          serverDeaf: vs.serverDeaf,
+          selfMute: vs.selfMute,
+          selfDeaf: vs.selfDeaf,
+          streaming: vs.streaming,
+          selfVideo: vs.selfVideo,
+        });
+      })
+    );
+
+    server.registerTool(
+      'get_pinned_messages',
+      {
+        description: 'Liste les messages épinglés d\'un salon. Requiert READ_MEMBERS.',
+        inputSchema: {
+          channel: z.string().describe('Nom, mention <#id> ou ID du salon'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_MEMBERS', async ({ channel }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const pins = await resolved.channel.messages.fetchPinned();
+          return ok(
+            pins.map((m) => ({
+              id: m.id,
+              authorId: m.author.id,
+              authorTag: m.author.tag,
+              content: m.content.slice(0, 500),
+              createdAt: m.createdAt.toISOString(),
+              embeds: m.embeds.length,
+              attachments: m.attachments.size,
+            }))
+          );
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_threads',
+      {
+        description: 'Liste les threads actifs et archivés d\'un salon. Requiert READ_MEMBERS.',
+        inputSchema: {
+          channel: z.string().describe('Nom, mention <#id> ou ID du salon parent'),
+          include_archived: z.boolean().default(false).describe('Inclure les threads archivés'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_MEMBERS', async ({ channel, include_archived }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const active = await resolved.channel.threads.fetchActive();
+          const threads = [...active.threads.values()].map((t) => ({
+            id: t.id,
+            name: t.name,
+            archived: t.archived,
+            locked: t.locked,
+            memberCount: t.memberCount,
+            messageCount: t.messageCount,
+            createdAt: t.createdAt?.toISOString() ?? null,
+            autoArchiveDuration: t.autoArchiveDuration,
+          }));
+
+          if (include_archived) {
+            const archived = await resolved.channel.threads.fetchArchived();
+            for (const t of archived.threads.values()) {
+              threads.push({
+                id: t.id,
+                name: t.name,
+                archived: t.archived,
+                locked: t.locked,
+                memberCount: t.memberCount,
+                messageCount: t.messageCount,
+                createdAt: t.createdAt?.toISOString() ?? null,
+                autoArchiveDuration: t.autoArchiveDuration,
+              });
+            }
+          }
+
+          return ok(threads);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+  }
+
+  // ── WRITE_MEMBERS — Permissions rôle, vocal, invitations, emojis, stickers, webhooks, serveur ──
+  if (shouldRegister('WRITE_MEMBERS')) {
+
+    server.registerTool(
+      'update_role_permissions',
+      {
+        description: 'Ajoute ou retire des permissions globales sur un rôle existant. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          role: z.string().describe('Nom ou ID du rôle à modifier'),
+          allow: z.array(z.string()).default([]).describe('Permissions à ajouter (ex: ["ManageGuild","KickMembers"])'),
+          deny: z.array(z.string()).default([]).describe('Permissions à retirer (ex: ["BanMembers"])'),
+          reason: z.string().optional().describe('Raison de la modification'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ role, allow, deny, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const roleId = SNOWFLAKE.test(role) ? role : null;
+          const discordRole = roleId
+            ? guild.roles.cache.get(roleId)
+            : guild.roles.cache.find((r) => r.name.toLowerCase() === role.toLowerCase());
+
+          if (!discordRole) return err(`Rôle « ${role} » introuvable`);
+
+          let bits = discordRole.permissions.bitfield;
+          for (const p of allow) {
+            const bit = (PermissionFlagsBits as any)[p];
+            if (bit === undefined) return err(`Permission inconnue : « ${p} »`);
+            bits |= bit;
+          }
+          for (const p of deny) {
+            const bit = (PermissionFlagsBits as any)[p];
+            if (bit === undefined) return err(`Permission inconnue : « ${p} »`);
+            bits &= ~bit;
+          }
+
+          await discordRole.setPermissions(bits, reason || 'Permissions modifiées via MCP');
+
+          const newPerms = Object.entries(PermissionFlagsBits)
+            .filter(([, bit]) => discordRole.permissions.has(bit))
+            .map(([name]) => name);
+
+          await audit(key_name, 'Permissions rôle MCP', discordRole.name, `allow: [${allow}] | deny: [${deny}]`);
+          return ok({ ok: true, roleId: discordRole.id, name: discordRole.name, permissions: newPerms });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // ── Contrôle vocal ──────────────────────────────────────────────────────
+
+    server.registerTool(
+      'move_member_voice',
+      {
+        description: 'Déplace un membre vers un autre salon vocal. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          member: z.string().describe('Nom, @mention ou ID du membre'),
+          channel: z.string().describe('Nom ou ID du salon vocal de destination'),
+          reason: z.string().optional().describe('Raison du déplacement'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, channel, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const rm = await resolveMember(guildId, member);
+          if (!rm.ok) return rm.response;
+
+          const guildMember = await guild.members.fetch(rm.userId).catch(() => null);
+          if (!guildMember) return err(`Membre « ${member} » introuvable`);
+          if (!guildMember.voice.channel) return err(`Le membre n'est pas connecté en vocal`);
+
+          const chId = SNOWFLAKE.test(channel) ? channel : null;
+          const targetChannel = chId
+            ? guild.channels.cache.get(chId)
+            : guild.channels.cache.find((c) => c.name.toLowerCase() === channel.toLowerCase() && c.isVoiceBased());
+
+          if (!targetChannel || !targetChannel.isVoiceBased()) return err(`Salon vocal « ${channel} » introuvable`);
+
+          await guildMember.voice.setChannel(targetChannel, reason || 'Déplacé via MCP');
+
+          await audit(key_name, 'Déplacement vocal MCP', rm.label, `Vers #${targetChannel.name}`);
+          return ok({ ok: true, userId: rm.userId, channelId: targetChannel.id, channelName: targetChannel.name });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'set_member_voice_mute',
+      {
+        description: 'Mute ou démute un membre côté serveur en vocal. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          member: z.string().describe('Nom, @mention ou ID du membre'),
+          muted: z.boolean().describe('true pour mute, false pour démute'),
+          reason: z.string().optional().describe('Raison'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, muted, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const rm = await resolveMember(guildId, member);
+          if (!rm.ok) return rm.response;
+
+          const guildMember = await guild.members.fetch(rm.userId).catch(() => null);
+          if (!guildMember) return err(`Membre « ${member} » introuvable`);
+          if (!guildMember.voice.channel) return err(`Le membre n'est pas connecté en vocal`);
+
+          await guildMember.voice.setMute(muted, reason || 'Via MCP');
+
+          await audit(key_name, muted ? 'Mute vocal MCP' : 'Démute vocal MCP', rm.label, '');
+          return ok({ ok: true, userId: rm.userId, muted });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'set_member_voice_deafen',
+      {
+        description: 'Rend sourd ou annule la surdité serveur d\'un membre en vocal. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          member: z.string().describe('Nom, @mention ou ID du membre'),
+          deafened: z.boolean().describe('true pour deafen, false pour annuler'),
+          reason: z.string().optional().describe('Raison'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, deafened, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const rm = await resolveMember(guildId, member);
+          if (!rm.ok) return rm.response;
+
+          const guildMember = await guild.members.fetch(rm.userId).catch(() => null);
+          if (!guildMember) return err(`Membre « ${member} » introuvable`);
+          if (!guildMember.voice.channel) return err(`Le membre n'est pas connecté en vocal`);
+
+          await guildMember.voice.setDeaf(deafened, reason || 'Via MCP');
+
+          await audit(key_name, deafened ? 'Deafen vocal MCP' : 'Undeafen vocal MCP', rm.label, '');
+          return ok({ ok: true, userId: rm.userId, deafened });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'disconnect_member_voice',
+      {
+        description: 'Déconnecte un membre du salon vocal. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          member: z.string().describe('Nom, @mention ou ID du membre'),
+          reason: z.string().optional().describe('Raison de la déconnexion'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const rm = await resolveMember(guildId, member);
+          if (!rm.ok) return rm.response;
+
+          const guildMember = await guild.members.fetch(rm.userId).catch(() => null);
+          if (!guildMember) return err(`Membre « ${member} » introuvable`);
+          if (!guildMember.voice.channel) return err(`Le membre n'est pas connecté en vocal`);
+
+          await guildMember.voice.disconnect(reason || 'Déconnecté via MCP');
+
+          await audit(key_name, 'Déconnexion vocale MCP', rm.label, '');
+          return ok({ ok: true, userId: rm.userId });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // ── Invitations ─────────────────────────────────────────────────────────
+
+    server.registerTool(
+      'create_invite',
+      {
+        description: 'Crée un lien d\'invitation pour un salon. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          channel: z.string().describe('Nom, mention <#id> ou ID du salon'),
+          max_uses: z.number().int().min(0).default(0).describe('Nombre max d\'utilisations (0 = illimité)'),
+          max_age: z.number().int().min(0).default(86400).describe('Durée de vie en secondes (0 = permanent, défaut 24h)'),
+          temporary: z.boolean().default(false).describe('Membership temporaire (le membre est expulsé quand il se déconnecte)'),
+          reason: z.string().optional().describe('Raison (pour l\'audit)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ channel, max_uses, max_age, temporary, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const chId = SNOWFLAKE.test(channel) ? channel : null;
+          const mentionMatch = channel.match(MENTION_CHANNEL);
+          const resolvedId = mentionMatch ? mentionMatch[1] : chId;
+          const ch = resolvedId
+            ? guild.channels.cache.get(resolvedId)
+            : guild.channels.cache.find((c) => c.name.toLowerCase() === channel.replace(/^#/, '').toLowerCase());
+
+          if (!ch) return err(`Salon « ${channel} » introuvable`);
+
+          const invite = await ch.createInvite({
+            maxUses: max_uses,
+            maxAge: max_age,
+            temporary,
+            reason: reason || 'Créé via MCP',
+          });
+
+          await audit(key_name, 'Création invitation MCP', `#${ch.name}`, `Code: ${invite.code}`);
+          return ok({
+            ok: true,
+            code: invite.code,
+            url: invite.url,
+            channelId: ch.id,
+            channelName: ch.name,
+            maxUses: invite.maxUses,
+            maxAge: invite.maxAge,
+            temporary: invite.temporary,
+            expiresAt: invite.expiresAt?.toISOString() ?? null,
+          });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_invite',
+      {
+        description: 'Révoque une invitation active du serveur. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          code: z.string().describe('Code de l\'invitation à révoquer'),
+          reason: z.string().optional().describe('Raison de la révocation'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ code, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const invites = await guild.invites.fetch();
+          const invite = invites.find((i) => i.code === code);
+          if (!invite) return err(`Invitation « ${code} » introuvable ou déjà expirée`);
+
+          await invite.delete(reason || 'Révoqué via MCP');
+
+          await audit(key_name, 'Suppression invitation MCP', code, `Salon: ${invite.channel?.name ?? '?'}`);
+          return ok({ ok: true, code });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // ── Emojis & stickers ───────────────────────────────────────────────────
+
+    server.registerTool(
+      'create_emoji',
+      {
+        description: 'Crée un emoji personnalisé sur le serveur. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          name: z.string().describe('Nom de l\'emoji (sans les deux-points)'),
+          image_url: z.string().describe('URL de l\'image (PNG, JPG, GIF — max 256 Ko)'),
+          reason: z.string().optional().describe('Raison de la création'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ name, image_url, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const emoji = await guild.emojis.create({ attachment: image_url, name, reason: reason || 'Créé via MCP' });
+
+          await audit(key_name, 'Création emoji MCP', name, `ID: ${emoji.id}`);
+          return ok({ ok: true, emojiId: emoji.id, name: emoji.name, url: emoji.url });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_emoji',
+      {
+        description: 'Renomme un emoji personnalisé. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          emoji: z.string().describe('Nom ou ID de l\'emoji à modifier'),
+          name: z.string().describe('Nouveau nom de l\'emoji'),
+          reason: z.string().optional().describe('Raison de la modification'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ emoji, name, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const emojis = await guild.emojis.fetch();
+          const target = SNOWFLAKE.test(emoji)
+            ? emojis.get(emoji)
+            : emojis.find((e) => e.name?.toLowerCase() === emoji.toLowerCase());
+
+          if (!target) return err(`Emoji « ${emoji} » introuvable`);
+
+          const updated = await target.edit({ name, reason: reason || 'Modifié via MCP' });
+
+          await audit(key_name, 'Modification emoji MCP', `${emoji} → ${name}`, `ID: ${target.id}`);
+          return ok({ ok: true, emojiId: updated.id, name: updated.name });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_emoji',
+      {
+        description: 'Supprime un emoji personnalisé du serveur. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          emoji: z.string().describe('Nom ou ID de l\'emoji à supprimer'),
+          reason: z.string().optional().describe('Raison de la suppression'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ emoji, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const emojis = await guild.emojis.fetch();
+          const target = SNOWFLAKE.test(emoji)
+            ? emojis.get(emoji)
+            : emojis.find((e) => e.name?.toLowerCase() === emoji.toLowerCase());
+
+          if (!target) return err(`Emoji « ${emoji} » introuvable`);
+
+          const emojiName = target.name;
+          await target.delete(reason || 'Supprimé via MCP');
+
+          await audit(key_name, 'Suppression emoji MCP', emojiName ?? emoji, `ID: ${target.id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_sticker',
+      {
+        description: 'Crée un sticker personnalisé sur le serveur. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          name: z.string().describe('Nom du sticker'),
+          image_url: z.string().describe('URL de l\'image (PNG, APNG, Lottie — max 512 Ko)'),
+          tags: z.string().describe('Emoji associé / tags (ex: "wave")'),
+          description: z.string().optional().describe('Description du sticker'),
+          reason: z.string().optional().describe('Raison de la création'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ name, image_url, tags, description, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const sticker = await guild.stickers.create({
+            file: image_url,
+            name,
+            tags,
+            description: description || '',
+            reason: reason || 'Créé via MCP',
+          });
+
+          await audit(key_name, 'Création sticker MCP', name, `ID: ${sticker.id}`);
+          return ok({ ok: true, stickerId: sticker.id, name: sticker.name, url: sticker.url });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_sticker',
+      {
+        description: 'Modifie un sticker personnalisé du serveur. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          sticker: z.string().describe('Nom ou ID du sticker à modifier'),
+          name: z.string().optional().describe('Nouveau nom'),
+          tags: z.string().optional().describe('Nouveau tag emoji'),
+          description: z.string().optional().describe('Nouvelle description'),
+          reason: z.string().optional().describe('Raison de la modification'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ sticker, name, tags, description, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const stickers = await guild.stickers.fetch();
+          const target = SNOWFLAKE.test(sticker)
+            ? stickers.get(sticker)
+            : stickers.find((s) => s.name.toLowerCase() === sticker.toLowerCase());
+
+          if (!target) return err(`Sticker « ${sticker} » introuvable`);
+
+          const updated = await target.edit({
+            name: name ?? undefined,
+            tags: tags ?? undefined,
+            description: description ?? undefined,
+            reason: reason || 'Modifié via MCP',
+          });
+
+          await audit(key_name, 'Modification sticker MCP', target.name, `ID: ${target.id}`);
+          return ok({ ok: true, stickerId: updated.id, name: updated.name });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_sticker',
+      {
+        description: 'Supprime un sticker personnalisé du serveur. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          sticker: z.string().describe('Nom ou ID du sticker à supprimer'),
+          reason: z.string().optional().describe('Raison de la suppression'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ sticker, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const stickers = await guild.stickers.fetch();
+          const target = SNOWFLAKE.test(sticker)
+            ? stickers.get(sticker)
+            : stickers.find((s) => s.name.toLowerCase() === sticker.toLowerCase());
+
+          if (!target) return err(`Sticker « ${sticker} » introuvable`);
+
+          const stickerName = target.name;
+          await target.delete(reason || 'Supprimé via MCP');
+
+          await audit(key_name, 'Suppression sticker MCP', stickerName, `ID: ${target.id}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_thread',
+      {
+        description: 'Supprime un thread. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          thread: z.string().describe('ID du thread à supprimer'),
+          reason: z.string().optional().describe('Raison de la suppression'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ thread, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const threadChannel = guild.channels.cache.get(thread);
+          if (!threadChannel?.isThread()) return err(`Thread « ${thread} » introuvable`);
+
+          const threadName = threadChannel.name;
+          await threadChannel.delete(reason || 'Supprimé via MCP');
+
+          await audit(key_name, 'Suppression thread MCP', threadName, `ID: ${thread}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // ── Webhooks ────────────────────────────────────────────────────────────
+
+    server.registerTool(
+      'create_webhook',
+      {
+        description: 'Crée un webhook dans un salon. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          channel: z.string().describe('Nom, mention <#id> ou ID du salon'),
+          name: z.string().describe('Nom du webhook'),
+          reason: z.string().optional().describe('Raison de la création'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ channel, name, reason, key_name }) => {
+        try {
+          const resolved = resolveChannel(guildId, client, channel);
+          if (!resolved.ok) return resolved.response;
+
+          const webhook = await resolved.channel.createWebhook({ name, reason: reason || 'Créé via MCP' });
+
+          await audit(key_name, 'Création webhook MCP', name, `ID: ${webhook.id} dans #${resolved.channel.name}`);
+          return ok({ ok: true, webhookId: webhook.id, name: webhook.name, url: webhook.url, channelId: resolved.channel.id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_webhook',
+      {
+        description: 'Modifie un webhook existant (nom ou salon). Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          webhook: z.string().describe('ID du webhook à modifier'),
+          name: z.string().optional().describe('Nouveau nom'),
+          channel: z.string().optional().describe('Nom ou ID du nouveau salon'),
+          reason: z.string().optional().describe('Raison de la modification'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ webhook, name, channel, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const webhooks = await guild.fetchWebhooks();
+          const target = webhooks.get(webhook);
+          if (!target) return err(`Webhook « ${webhook} » introuvable`);
+
+          const editData: { name?: string; channel?: string; reason?: string } = {};
+          if (name) editData.name = name;
+          if (channel) {
+            const resolved = resolveChannel(guildId, client, channel);
+            if (!resolved.ok) return resolved.response;
+            editData.channel = resolved.channel.id;
+          }
+
+          const updated = await target.edit({ ...editData, reason: reason || 'Modifié via MCP' });
+
+          await audit(key_name, 'Modification webhook MCP', target.name ?? webhook, `ID: ${webhook}`);
+          return ok({ ok: true, webhookId: updated.id, name: updated.name, channelId: updated.channelId });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_webhook',
+      {
+        description: 'Supprime un webhook. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          webhook: z.string().describe('ID du webhook à supprimer'),
+          reason: z.string().optional().describe('Raison de la suppression'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ webhook, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const webhooks = await guild.fetchWebhooks();
+          const target = webhooks.get(webhook);
+          if (!target) return err(`Webhook « ${webhook} » introuvable`);
+
+          const webhookName = target.name;
+          await target.delete(reason || 'Supprimé via MCP');
+
+          await audit(key_name, 'Suppression webhook MCP', webhookName ?? webhook, `ID: ${webhook}`);
+          return ok({ ok: true });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // ── Réglages globaux du serveur ─────────────────────────────────────────
+
+    server.registerTool(
+      'update_guild_settings',
+      {
+        description: 'Modifie les réglages globaux du serveur Discord. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          name: z.string().optional().describe('Nouveau nom du serveur'),
+          icon_url: z.string().optional().describe('URL de la nouvelle icône'),
+          banner_url: z.string().optional().describe('URL de la nouvelle bannière (niveau de boost requis)'),
+          splash_url: z.string().optional().describe('URL du nouveau splash d\'invitation'),
+          verification_level: z.enum(['0', '1', '2', '3', '4']).optional().describe('Niveau de vérification (0=Aucun, 1=Faible, 2=Moyen, 3=Élevé, 4=Très élevé)'),
+          afk_channel: z.string().optional().describe('Nom ou ID du salon AFK'),
+          afk_timeout: z.enum(['60', '300', '900', '1800', '3600']).optional().describe('Timeout AFK en secondes'),
+          default_message_notifications: z.enum(['0', '1']).optional().describe('Notifications par défaut (0=Tous les messages, 1=Seulement les mentions)'),
+          system_channel: z.string().optional().describe('Nom ou ID du salon système'),
+          preferred_locale: z.string().optional().describe('Locale du serveur (ex: "fr", "en-US")'),
+          description: z.string().optional().describe('Description du serveur'),
+          reason: z.string().optional().describe('Raison de la modification'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ name, icon_url, banner_url, splash_url, verification_level, afk_channel, afk_timeout, default_message_notifications, system_channel, preferred_locale, description, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const editData: Record<string, any> = {};
+          if (name !== undefined) editData.name = name;
+          if (icon_url !== undefined) editData.icon = icon_url;
+          if (banner_url !== undefined) editData.banner = banner_url;
+          if (splash_url !== undefined) editData.splash = splash_url;
+          if (verification_level !== undefined) editData.verificationLevel = parseInt(verification_level, 10);
+          if (default_message_notifications !== undefined) editData.defaultMessageNotifications = parseInt(default_message_notifications, 10);
+          if (preferred_locale !== undefined) editData.preferredLocale = preferred_locale;
+          if (description !== undefined) editData.description = description;
+          if (afk_timeout !== undefined) editData.afkTimeout = parseInt(afk_timeout, 10);
+
+          if (afk_channel !== undefined) {
+            const ch = SNOWFLAKE.test(afk_channel)
+              ? guild.channels.cache.get(afk_channel)
+              : guild.channels.cache.find((c) => c.name.toLowerCase() === afk_channel.toLowerCase() && c.isVoiceBased());
+            if (!ch) return err(`Salon AFK « ${afk_channel} » introuvable`);
+            editData.afkChannel = ch.id;
+          }
+
+          if (system_channel !== undefined) {
+            const ch = SNOWFLAKE.test(system_channel)
+              ? guild.channels.cache.get(system_channel)
+              : guild.channels.cache.find((c) => c.name.toLowerCase() === system_channel.toLowerCase() && c.isTextBased());
+            if (!ch) return err(`Salon système « ${system_channel} » introuvable`);
+            editData.systemChannel = ch.id;
+          }
+
+          if (Object.keys(editData).length === 0) return err('Aucune modification spécifiée');
+
+          await guild.edit({ ...editData, reason: reason || 'Modifié via MCP' });
+
+          const changes = Object.keys(editData).join(', ');
+          await audit(key_name, 'Réglages serveur MCP', changes, `Modifié : ${changes}`);
+          return ok({ ok: true, modified: Object.keys(editData) });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }
       })
     );
@@ -4426,6 +5448,169 @@ export function registerMcpTools(
           return ok({ ok: true, messageId: sent.id });
         } catch (e) {
           return err(`Erreur d'envoi : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    // ── Messages épinglés & threads ─────────────────────────────────────────
+
+    server.registerTool(
+      'pin_message',
+      {
+        description: 'Épingle un message dans un salon. Requiert WRITE_MESSAGES.',
+        inputSchema: {
+          channel: z.string().describe('Nom, mention <#id> ou ID du salon'),
+          message_id: z.string().describe('ID du message à épingler'),
+          reason: z.string().optional().describe('Raison'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ channel, message_id, reason, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const msg = await resolved.channel.messages.fetch(message_id);
+          await msg.pin(reason || 'Épinglé via MCP');
+
+          await audit(key_name, 'Épinglage message MCP', `#${resolved.channel.name}`, `Message: ${message_id}`);
+          return ok({ ok: true, messageId: message_id, channelId: resolved.channel.id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'unpin_message',
+      {
+        description: 'Désépingle un message d\'un salon. Requiert WRITE_MESSAGES.',
+        inputSchema: {
+          channel: z.string().describe('Nom, mention <#id> ou ID du salon'),
+          message_id: z.string().describe('ID du message à désépingler'),
+          reason: z.string().optional().describe('Raison'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ channel, message_id, reason, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const msg = await resolved.channel.messages.fetch(message_id);
+          await msg.unpin(reason || 'Désépinglé via MCP');
+
+          await audit(key_name, 'Désépinglage message MCP', `#${resolved.channel.name}`, `Message: ${message_id}`);
+          return ok({ ok: true, messageId: message_id, channelId: resolved.channel.id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_thread',
+      {
+        description: 'Crée un thread dans un salon (à partir d\'un message existant ou non). Requiert WRITE_MESSAGES.',
+        inputSchema: {
+          channel: z.string().describe('Nom, mention <#id> ou ID du salon parent'),
+          name: z.string().describe('Nom du thread'),
+          message_id: z.string().optional().describe('ID du message à partir duquel créer le thread (optionnel)'),
+          auto_archive_duration: z.enum(['60', '1440', '4320', '10080']).default('1440').describe('Durée avant archivage auto (en minutes) : 60, 1440, 4320, 10080'),
+          reason: z.string().optional().describe('Raison de la création'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ channel, name, message_id, auto_archive_duration, reason, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const duration = parseInt(auto_archive_duration, 10) as 60 | 1440 | 4320 | 10080;
+
+          let thread;
+          if (message_id) {
+            const msg = await resolved.channel.messages.fetch(message_id);
+            thread = await msg.startThread({
+              name,
+              autoArchiveDuration: duration,
+              reason: reason || 'Créé via MCP',
+            });
+          } else {
+            thread = await resolved.channel.threads.create({
+              name,
+              autoArchiveDuration: duration,
+              reason: reason || 'Créé via MCP',
+            });
+          }
+
+          await audit(key_name, 'Création thread MCP', name, `ID: ${thread.id} dans #${resolved.channel.name}`);
+          return ok({ ok: true, threadId: thread.id, name: thread.name, channelId: resolved.channel.id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'archive_thread',
+      {
+        description: 'Archive ou désarchive un thread. Requiert WRITE_MESSAGES.',
+        inputSchema: {
+          thread: z.string().describe('ID du thread'),
+          archived: z.boolean().default(true).describe('true pour archiver, false pour désarchiver'),
+          reason: z.string().optional().describe('Raison'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ thread, archived, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const threadChannel = guild.channels.cache.get(thread);
+          if (!threadChannel?.isThread()) return err(`Thread « ${thread} » introuvable`);
+
+          await threadChannel.setArchived(archived, reason || 'Via MCP');
+
+          await audit(key_name, archived ? 'Archivage thread MCP' : 'Désarchivage thread MCP', threadChannel.name, `ID: ${thread}`);
+          return ok({ ok: true, threadId: thread, archived });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'lock_thread',
+      {
+        description: 'Verrouille ou déverrouille un thread. Requiert WRITE_MESSAGES.',
+        inputSchema: {
+          thread: z.string().describe('ID du thread'),
+          locked: z.boolean().default(true).describe('true pour verrouiller, false pour déverrouiller'),
+          reason: z.string().optional().describe('Raison'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ thread, locked, reason, key_name }) => {
+        try {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) return err('Serveur Discord introuvable');
+
+          const threadChannel = guild.channels.cache.get(thread);
+          if (!threadChannel?.isThread()) return err(`Thread « ${thread} » introuvable`);
+
+          await threadChannel.setLocked(locked, reason || 'Via MCP');
+
+          await audit(key_name, locked ? 'Verrouillage thread MCP' : 'Déverrouillage thread MCP', threadChannel.name, `ID: ${thread}`);
+          return ok({ ok: true, threadId: thread, locked });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }
       })
     );
