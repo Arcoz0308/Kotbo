@@ -1104,12 +1104,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       return;
     }
     
-    if (currentIdx >= getOrderedStaffRoles().length - 1) {
+    if (currentIdx <= 0) {
       toast.warning('Grade maximum atteint');
       return;
     }
 
-    const newGrade = getOrderedStaffRoles()[currentIdx + 1].name;
+    const newGrade = getOrderedStaffRoles()[currentIdx - 1].name;
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
@@ -1139,12 +1139,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       return;
     }
     
-    if (currentIdx <= 0) {
+    if (currentIdx >= getOrderedStaffRoles().length - 1) {
       toast.warning('Grade minimum atteint');
       return;
     }
 
-    const newGrade = getOrderedStaffRoles()[currentIdx - 1].name;
+    const newGrade = getOrderedStaffRoles()[currentIdx + 1].name;
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
@@ -1688,9 +1688,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         onclick={() => promoteStaff(member.userId)}
                         disabled={(() => {
                           const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
-                          return idx === -1 || idx >= orderedStaffRoles.length - 1;
+                          return idx <= 0;
                         })()}
-                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
                         title="Promouvoir"
                       >
                         <Papicon icon="chevrons-up" size={20} />
@@ -1699,9 +1699,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         onclick={() => demoteStaff(member.userId)}
                         disabled={(() => {
                           const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
-                          return idx <= 0;
+                          return idx === -1 || idx >= orderedStaffRoles.length - 1;
                         })()}
-                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) === -1 || orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
                         title="Rétrograder"
                       >
                         <Papicon icon="chevrons-down" size={20} />
@@ -3282,5 +3282,4 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     </div>
   </div>
 {/if}
-
 
