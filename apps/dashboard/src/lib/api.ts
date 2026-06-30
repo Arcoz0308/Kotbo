@@ -2562,19 +2562,23 @@ export async function fetchWidgetData(guildId = authStore.selectedGuildId) {
 }
 
 export async function activateWidget(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/widget/activate', { method: 'POST', guildId, errorContext: 'API Error (Activate Widget):' });
+  return dashboardRequest('/widget/activate', { method: 'POST', guildId, errorContext: 'API Error (Activate Widget):', silent: true });
+}
+
+export async function installWidgetOnProfile(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/widget/install', { method: 'POST', guildId, errorContext: 'API Error (Install Widget):', silent: true });
 }
 
 export async function deactivateWidget(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/widget/deactivate', { method: 'POST', guildId, errorContext: 'API Error (Deactivate Widget):' });
+  return dashboardRequest('/widget/deactivate', { method: 'POST', guildId, errorContext: 'API Error (Deactivate Widget):', silent: true });
 }
 
 export async function refreshWidget(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/widget/refresh', { method: 'POST', guildId, errorContext: 'API Error (Refresh Widget):' });
+  return dashboardRequest('/widget/refresh', { method: 'POST', guildId, errorContext: 'API Error (Refresh Widget):', silent: true });
 }
 
 export async function refreshAllWidgets(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/widget/refresh-all', { method: 'POST', guildId, errorContext: 'API Error (Refresh All Widgets):' });
+  return dashboardRequest('/widget/refresh-all', { method: 'POST', guildId, errorContext: 'API Error (Refresh All Widgets):', silent: true });
 }
 
 export async function unbindGuildFromInstance(instanceId: string, guildId: string) {
@@ -2689,4 +2693,3 @@ export async function fetchChangelog(limit = 20): Promise<ChangelogCommit[]> {
     return [];
   }
 }
-

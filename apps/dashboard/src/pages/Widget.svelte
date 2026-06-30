@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchWidgetData, activateWidget, deactivateWidget, refreshWidget, refreshAllWidgets } from '../lib/api';
+  import { fetchWidgetData, activateWidget, deactivateWidget, installWidgetOnProfile, refreshWidget, refreshAllWidgets } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -29,12 +29,30 @@
       const result = await activateWidget();
       if (result?.pushResult?.ok === false) {
         toast.warning(result.pushResult.error || 'Widget activé mais la synchronisation Discord a échoué.');
+      } else if (result?.installResult?.ok === false) {
+        toast.warning(result.installResult.error || 'Stats synchronisées, mais Discord a refusé l’ajout au profil.');
       } else {
-        toast.success('Widget activé avec succès !');
+        toast.success('Widget synchronisé et ajouté au profil Discord !');
       }
       await load();
     } catch {
       toast.error('Erreur lors de l\'activation');
+    } finally {
+      acting = false;
+    }
+  }
+
+  async function handleInstall() {
+    acting = true;
+    try {
+      const result = await installWidgetOnProfile();
+      if (result?.installResult?.ok) {
+        toast.success('Kotbo a été ajouté à ton Profile Board Discord !');
+      } else {
+        toast.warning(result?.installResult?.error || 'Discord a refusé l’ajout du widget au profil.');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de l’ajout au profil Discord.');
     } finally {
       acting = false;
     }
@@ -71,7 +89,12 @@
     acting = true;
     try {
       const result = await refreshAllWidgets();
-      toast.success(`Widgets rafraîchis : ${result?.success ?? 0} OK, ${result?.failed ?? 0} échoués`);
+      const failures = Array.isArray(result?.failures) ? result.failures : [];
+      if (failures.length > 0) {
+        toast.warning(`Widgets : ${result?.success ?? 0} OK, ${result?.failed ?? 0} échoués — ${failures.map((f: any) => `${f.userId}: ${f.error}`).join(' · ')}`);
+      } else {
+        toast.success(`Widgets rafraîchis : ${result?.success ?? 0} OK`);
+      }
     } catch {
       toast.error('Erreur lors du rafraîchissement global');
     } finally {
@@ -134,6 +157,14 @@
       <div class="flex flex-col gap-3">
         {#if isActive}
           <button
+            class="px-5 py-2.5 bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+            onclick={handleInstall}
+            disabled={acting}
+          >
+            <Papicon icon="external-link" size={14} />
+            Ajouter à mon profil Discord
+          </button>
+          <button
             class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
             onclick={handleRefresh}
             disabled={acting}
@@ -184,7 +215,7 @@
         </div>
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">2</span>
-          <span class="text-sm text-on-surface-variant leading-relaxed">Active le widget via le bouton ci-dessus ou la commande <code class="bg-surface-container-high/50 px-1.5 py-0.5 rounded text-xs">/widget activer</code></span>
+          <span class="text-sm text-on-surface-variant leading-relaxed">Active le widget, puis utilise « Ajouter à mon profil Discord ». La commande <code class="bg-surface-container-high/50 px-1.5 py-0.5 rounded text-xs">/widget activer</code> synchronise les données mais ne possède pas ton autorisation web.</span>
         </div>
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">3</span>

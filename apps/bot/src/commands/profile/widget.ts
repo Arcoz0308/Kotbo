@@ -99,7 +99,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const container = new ContainerBuilder()
       .setAccentColor(COLORS_RAW.success)
       .addTextDisplayComponents(text(`### ${E.success} Widget activé`))
-      .addTextDisplayComponents(text(`Tes stats staff sont désormais visibles sur ton profil Discord.`))
+      .addTextDisplayComponents(text(
+        `Tes stats staff sont synchronisées. Pour ajouter Kotbo à ton Profile Board, ` +
+        `[ouvre le dashboard](${getDashboardLoginUrl()}).`
+      ))
       .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
       .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Widget`));
 
