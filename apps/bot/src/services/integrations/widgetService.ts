@@ -28,32 +28,8 @@ interface DiscordApiError {
   message?: string;
 }
 
-interface DiscordProfileWidget {
-  data?: {
-    type?: string;
-    application_id?: string;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-}
-
-export interface WidgetOperationResult {
-  ok: boolean;
-  error?: string;
-}
-
 function getWidgetProfileUrl(appId: string, userId: string, identityId: string): string {
   return `${API}/applications/${appId}/users/${userId}/identities/${encodeURIComponent(identityId)}/profile`;
-}
-
-async function readDiscordError(response: Response): Promise<string> {
-  const body = await response.text();
-  try {
-    const parsed = JSON.parse(body) as DiscordApiError;
-    return parsed.message ? `${parsed.message}${parsed.code ? ` (code ${parsed.code})` : ''}` : body;
-  } catch {
-    return body || `HTTP ${response.status}`;
-  }
 }
 
 function formatGrade(grade: string): string {
@@ -252,69 +228,6 @@ export async function clearWidgetForUser(userId: string): Promise<{ ok: boolean;
   } catch (err) {
     logger.error(TAG, `Erreur réseau clear widget ${userId}:`, err);
     return { ok: false, error: String(err) };
-  }
-}
-
-/**
- * Adds the application widget to the authenticated user's Profile Board.
- * Discord currently exposes this through its desktop client API rather than
- * the documented bot API, so failures are returned verbatim and never treated
- * as a successful installation.
- */
-export async function installWidgetOnDiscordProfile(
-  discordToken: string | undefined,
-  userId: string,
-  appId: string,
-): Promise<WidgetOperationResult> {
-  if (!discordToken) {
-    return { ok: false, error: 'Reconnecte-toi au dashboard pour renouveler l’autorisation Discord.' };
-  }
-
-  const headers = {
-    Authorization: `Bearer ${discordToken}`,
-    'Content-Type': 'application/json',
-  };
-
-  try {
-    const profileResponse = await fetch(`${API}/users/${userId}/profile`, { headers });
-    if (!profileResponse.ok) {
-      const detail = await readDiscordError(profileResponse);
-      return {
-        ok: false,
-        error: `Discord refuse la lecture du Profile Board (${profileResponse.status}) : ${detail}`,
-      };
-    }
-
-    const profile = await profileResponse.json() as { widgets?: DiscordProfileWidget[] };
-    const widgets = Array.isArray(profile.widgets) ? [...profile.widgets] : [];
-    const alreadyInstalled = widgets.some((widget) =>
-      widget.data?.type === 'application' && String(widget.data.application_id) === appId
-    );
-
-    if (alreadyInstalled) {
-      return { ok: true };
-    }
-
-    widgets.unshift({ data: { type: 'application', application_id: appId } });
-    const updateResponse = await fetch(`${API}/users/@me/widgets`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ widgets }),
-    });
-
-    if (!updateResponse.ok) {
-      const detail = await readDiscordError(updateResponse);
-      return {
-        ok: false,
-        error: `Discord refuse l’ajout au Profile Board (${updateResponse.status}) : ${detail}`,
-      };
-    }
-
-    logger.info(TAG, `Application widget ${appId} ajoutée au Profile Board de ${userId}`);
-    return { ok: true };
-  } catch (err) {
-    logger.error(TAG, `Erreur installation Profile Board pour ${userId}:`, err);
-    return { ok: false, error: `Erreur réseau Discord : ${String(err)}` };
   }
 }
 

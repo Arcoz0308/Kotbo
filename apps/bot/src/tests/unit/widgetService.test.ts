@@ -69,7 +69,7 @@ for (const [relativePath, factory] of moduleMocks) {
 const fetchMock = mock(async () => new Response(null, { status: 204 }));
 globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-const { installWidgetOnDiscordProfile, pushWidgetForUser } = await import('../../services/integrations/widgetService.js');
+const { pushWidgetForUser } = await import('../../services/integrations/widgetService.js');
 
 describe('widgetService identities', () => {
   beforeEach(() => {
@@ -117,55 +117,5 @@ describe('widgetService identities', () => {
     expect(result.error).toContain('déjà liée à un autre compte Discord');
     expect(result.error).not.toContain('autoriser');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('Discord Profile Board installation', () => {
-  beforeEach(() => {
-    fetchMock.mockReset();
-  });
-
-  test('preserves existing widgets and prepends the Kotbo application widget', async () => {
-    const existingWidget = { data: { type: 'favorite_game', application_id: 'existing-app' } };
-    fetchMock
-      .mockImplementationOnce(async () => Response.json({ widgets: [existingWidget] }))
-      .mockImplementationOnce(async () => Response.json({ widgets: [] }));
-
-    const result = await installWidgetOnDiscordProfile('oauth-token', userId, 'kotbo-app');
-
-    expect(result).toEqual({ ok: true });
-    expect(String(fetchMock.mock.calls[0]?.[0])).toEndWith(`/users/${userId}/profile`);
-    expect(String(fetchMock.mock.calls[1]?.[0])).toEndWith('/users/@me/widgets');
-
-    const options = fetchMock.mock.calls[1]?.[1] as RequestInit;
-    const payload = JSON.parse(String(options.body));
-    expect(payload.widgets).toEqual([
-      { data: { type: 'application', application_id: 'kotbo-app' } },
-      existingWidget,
-    ]);
-  });
-
-  test('does not duplicate an application widget already on the profile', async () => {
-    fetchMock.mockImplementationOnce(async () => Response.json({
-      widgets: [{ data: { type: 'application', application_id: 'kotbo-app' } }],
-    }));
-
-    const result = await installWidgetOnDiscordProfile('oauth-token', userId, 'kotbo-app');
-
-    expect(result).toEqual({ ok: true });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  test('reports when Discord rejects OAuth access to the Profile Board', async () => {
-    fetchMock.mockImplementationOnce(async () => new Response(
-      JSON.stringify({ code: 50026, message: 'Missing required OAuth2 scope' }),
-      { status: 403 },
-    ));
-
-    const result = await installWidgetOnDiscordProfile('oauth-token', userId, 'kotbo-app');
-
-    expect(result.ok).toBeFalse();
-    expect(result.error).toContain('Discord refuse la lecture du Profile Board (403)');
-    expect(result.error).toContain('Missing required OAuth2 scope');
   });
 });

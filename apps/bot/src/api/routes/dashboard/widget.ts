@@ -1,12 +1,11 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
-import { getDiscordClientId, json, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import prisma from '../../../utils/db.js';
 import {
   pushWidgetForUser,
   clearWidgetForUser,
-  installWidgetOnDiscordProfile,
   refreshAllStaffWidgets,
 } from '../../../services/integrations/widgetService.js';
 
@@ -54,25 +53,10 @@ export async function handleWidgetRoutes(
       });
 
       const result = await pushWidgetForUser(guildId, user.userId);
-      const installResult = result.ok
-        ? await installWidgetOnDiscordProfile(user.discordToken, user.userId, getDiscordClientId())
-        : { ok: false, error: 'Installation ignorée car la synchronisation des données a échoué.' };
-      json(res, 200, { success: result.ok && installResult.ok, pushResult: result, installResult });
+      json(res, 200, { success: result.ok, pushResult: result });
     } catch (err) {
       logger.error('WidgetAPI', 'Error activating widget:', err);
       json(res, 500, { error: 'Erreur lors de l\'activation du widget' });
-    }
-    return true;
-  }
-
-  // POST /api/dashboard/guilds/:guildId/widget/install — ajouter Kotbo au Profile Board Discord
-  if (parts.length === 6 && parts[5] === 'install' && method === 'POST') {
-    try {
-      const result = await installWidgetOnDiscordProfile(user.discordToken, user.userId, getDiscordClientId());
-      json(res, 200, { success: result.ok, installResult: result });
-    } catch (err) {
-      logger.error('WidgetAPI', 'Error installing widget on Discord profile:', err);
-      json(res, 500, { error: 'Erreur lors de l’ajout du widget au profil Discord' });
     }
     return true;
   }

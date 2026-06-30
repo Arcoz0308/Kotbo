@@ -2565,10 +2565,6 @@ export async function activateWidget(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/widget/activate', { method: 'POST', guildId, errorContext: 'API Error (Activate Widget):', silent: true });
 }
 
-export async function installWidgetOnProfile(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/widget/install', { method: 'POST', guildId, errorContext: 'API Error (Install Widget):', silent: true });
-}
-
 export async function deactivateWidget(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/widget/deactivate', { method: 'POST', guildId, errorContext: 'API Error (Deactivate Widget):', silent: true });
 }

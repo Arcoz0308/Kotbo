@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchWidgetData, activateWidget, deactivateWidget, installWidgetOnProfile, refreshWidget, refreshAllWidgets } from '../lib/api';
+  import { fetchWidgetData, activateWidget, deactivateWidget, refreshWidget, refreshAllWidgets } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
   let loading = $state(true);
   let acting = $state(false);
+  let copyingScript = $state(false);
   let data: any = $state(null);
 
   const isActive = $derived(data?.mySubscription?.enabled === true);
@@ -29,10 +30,8 @@
       const result = await activateWidget();
       if (result?.pushResult?.ok === false) {
         toast.warning(result.pushResult.error || 'Widget activé mais la synchronisation Discord a échoué.');
-      } else if (result?.installResult?.ok === false) {
-        toast.warning(result.installResult.error || 'Stats synchronisées, mais Discord a refusé l’ajout au profil.');
       } else {
-        toast.success('Widget synchronisé et ajouté au profil Discord !');
+        toast.success('Données synchronisées. Copie maintenant le script Vencord pour ajouter le widget à ton profil.');
       }
       await load();
     } catch {
@@ -42,19 +41,17 @@
     }
   }
 
-  async function handleInstall() {
-    acting = true;
+  async function handleCopyVencordScript() {
+    copyingScript = true;
     try {
-      const result = await installWidgetOnProfile();
-      if (result?.installResult?.ok) {
-        toast.success('Kotbo a été ajouté à ton Profile Board Discord !');
-      } else {
-        toast.warning(result?.installResult?.error || 'Discord a refusé l’ajout du widget au profil.');
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erreur lors de l’ajout au profil Discord.');
+      const response = await fetch('/kotbo-widget-vencord.js', { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      await navigator.clipboard.writeText(await response.text());
+      toast.success('Script copié. Colle-le dans la console DevTools de Discord/Vencord.');
+    } catch {
+      toast.error('Impossible de copier le script. Ouvre le fichier avec le lien puis copie son contenu.');
     } finally {
-      acting = false;
+      copyingScript = false;
     }
   }
 
@@ -157,14 +154,6 @@
       <div class="flex flex-col gap-3">
         {#if isActive}
           <button
-            class="px-5 py-2.5 bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-            onclick={handleInstall}
-            disabled={acting}
-          >
-            <Papicon icon="external-link" size={14} />
-            Ajouter à mon profil Discord
-          </button>
-          <button
             class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
             onclick={handleRefresh}
             disabled={acting}
@@ -215,14 +204,54 @@
         </div>
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">2</span>
-          <span class="text-sm text-on-surface-variant leading-relaxed">Active le widget, puis utilise « Ajouter à mon profil Discord ». La commande <code class="bg-surface-container-high/50 px-1.5 py-0.5 rounded text-xs">/widget activer</code> synchronise les données mais ne possède pas ton autorisation web.</span>
+          <span class="text-sm text-on-surface-variant leading-relaxed">Active le widget ici ou avec <code class="bg-surface-container-high/50 px-1.5 py-0.5 rounded text-xs">/widget activer</code> pour synchroniser tes statistiques.</span>
         </div>
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">3</span>
-          <span class="text-sm text-on-surface-variant leading-relaxed">Tes stats staff s'affichent sur ton profil et se rafraîchissent automatiquement toutes les 30 minutes</span>
+          <span class="text-sm text-on-surface-variant leading-relaxed">Copie le script Vencord ci-dessous, exécute-le une fois dans Discord, puis recharge avec <kbd class="font-mono text-xs">Ctrl+R</kbd>.</span>
         </div>
       </div>
     </div>
+
+    {#if isActive}
+      <section class="lg:col-span-2 relative overflow-hidden rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-6">
+        <div class="absolute -right-12 -top-16 h-44 w-44 rounded-full bg-amber-400/10 blur-3xl pointer-events-none"></div>
+        <div class="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div class="space-y-3">
+            <div class="flex items-center gap-2 text-amber-400">
+              <Papicon icon="terminal" size={18} />
+              <span class="text-[10px] font-bold uppercase tracking-[0.18em]">Installation locale · Vencord</span>
+            </div>
+            <h3 class="text-base font-semibold text-on-surface">Ajouter Kotbo à ton Profile Board</h3>
+            <p class="max-w-2xl text-sm leading-relaxed text-on-surface-variant">
+              Discord refuse cette modification via OAuth. Le script utilise uniquement ta session locale dans Discord,
+              conserve tes widgets actuels et n’extrait aucun token.
+            </p>
+            <ol class="grid gap-2 text-xs text-on-surface-variant sm:grid-cols-3">
+              <li><span class="mr-1.5 font-mono text-amber-400">01</span> Ouvre Discord/Vencord</li>
+              <li><span class="mr-1.5 font-mono text-amber-400">02</span> DevTools avec Ctrl+Shift+I</li>
+              <li><span class="mr-1.5 font-mono text-amber-400">03</span> Colle dans Console</li>
+            </ol>
+          </div>
+          <div class="flex min-w-56 flex-col gap-2">
+            <button
+              class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-400 px-5 py-3 text-xs font-bold uppercase tracking-wider text-black transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
+              onclick={handleCopyVencordScript}
+              disabled={copyingScript}
+            >
+              <Papicon icon={copyingScript ? 'loader' : 'copy'} size={15} />
+              {copyingScript ? 'Copie…' : 'Copier le script'}
+            </button>
+            <a
+              href="/kotbo-widget-vencord.js"
+              target="_blank"
+              rel="noreferrer"
+              class="text-center text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
+            >Voir le fichier avant de l’exécuter</a>
+          </div>
+        </div>
+      </section>
+    {/if}
 
     <!-- Active staff list card -->
     {#if data?.subscriptions?.length > 0}
