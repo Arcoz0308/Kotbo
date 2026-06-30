@@ -1,33 +1,58 @@
 /**
  * Kotbo — installation du widget dans le Profile Board Discord.
  *
- * À exécuter dans la console DevTools de Discord Desktop avec Vencord.
- * Ce script utilise uniquement la session Discord locale : il ne lit, ne copie
+ * À exécuter dans la console DevTools du Portail Développeur Discord :
+ * https://discord.com/developers/applications
+ *
+ * Ce script utilise uniquement la session Discord du navigateur : il ne lit, ne copie
  * et ne transmet aucun token.
  */
 (async function installKotboProfileWidget() {
   "use strict";
 
   const KOTBO_APPLICATION_ID = "1481651387317354598";
-  const discordChunks = globalThis.webpackChunkdiscord_app;
+  const discordChunks = globalThis.webpackChunkdiscord_developers;
 
   if (!discordChunks) {
-    throw new Error("Ce script doit être exécuté dans la console de Discord Desktop, pas dans un navigateur classique.");
+    throw new Error(
+      "Ouvre https://discord.com/developers/applications dans ce navigateur, puis exécute le script dans la console de cet onglet.",
+    );
   }
 
-  const webpackRequire = discordChunks.push([[Symbol()], {}, require => require]);
+  const moduleCache = discordChunks.push([[Symbol()], {}, require => require.c]);
   discordChunks.pop();
 
-  const modules = Object.values(webpackRequire.c);
-  const api = modules
-    .map(module => module?.exports?.Bo)
-    .find(candidate => typeof candidate?.get === "function" && typeof candidate?.put === "function");
-  const userStore = modules
-    .map(module => module?.exports?.A)
-    .find(candidate => typeof candidate?.getCurrentUser === "function");
+  function findByProps(...properties) {
+    for (const module of Object.values(moduleCache)) {
+      try {
+        if (!module.exports || module.exports === globalThis) continue;
+
+        if (properties.every(property => module.exports?.[property])) {
+          return module.exports;
+        }
+
+        for (const exported of Object.values(module.exports)) {
+          if (
+            exported &&
+            exported[Symbol.toStringTag] !== "IntlMessagesProxy" &&
+            properties.every(property => exported?.[property])
+          ) {
+            return exported;
+          }
+        }
+      } catch {
+        // Certains modules Discord utilisent des getters qui peuvent lever une exception.
+      }
+    }
+
+    return null;
+  }
+
+  const api = findByProps("get", "put");
+  const userStore = findByProps("getCurrentUser");
 
   if (!api || !userStore) {
-    throw new Error("Modules Discord introuvables. Mets Discord et Vencord à jour, redémarre, puis réessaie.");
+    throw new Error("Modules du Portail Développeur introuvables. Recharge la page puis réessaie.");
   }
 
   const currentUser = userStore.getCurrentUser();
