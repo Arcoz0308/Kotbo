@@ -39,12 +39,14 @@ interface DynamicField {
 }
 
 interface WidgetPayload {
+  username: string;
   data: { dynamic: DynamicField[] };
 }
 
 // ─── Build widget data ────────────────────────────────────────────────────────
 
 function buildWidgetData(overrides: {
+  username: string;
   serverName: string;
   serverLogoUrl: string;
   membersCount: string;
@@ -65,6 +67,7 @@ function buildWidgetData(overrides: {
   staffScoreDesc: string;
 }): WidgetPayload {
   return {
+    username: overrides.username,
     data: {
       dynamic: [
         { type: 3, name: "serveur.logo", value: { url: overrides.serverLogoUrl } },
@@ -93,7 +96,7 @@ function buildWidgetData(overrides: {
 // ─── PATCH widget profile ─────────────────────────────────────────────────────
 
 async function patchWidgetProfile(userId: string, payload: WidgetPayload) {
-  const url = `${API}/applications/${APP_ID}/users/${userId}/identities/0/profile`;
+  const url = `${API}/applications/${APP_ID}/users/${userId}/identities/${encodeURIComponent(userId)}/profile`;
 
   console.log("[Widget] PATCH", url);
 
@@ -120,7 +123,7 @@ async function patchWidgetProfile(userId: string, payload: WidgetPayload) {
 // ─── Clear widget profile ─────────────────────────────────────────────────────
 
 async function clearWidgetProfile(userId: string) {
-  const url = `${API}/applications/${APP_ID}/users/${userId}/identities/0/profile`;
+  const url = `${API}/applications/${APP_ID}/users/${userId}/identities/${encodeURIComponent(userId)}/profile`;
 
   console.log("[Widget] DELETE", url);
 
@@ -168,6 +171,7 @@ Variables d'env (dans .env) :
 
 if (command === "push") {
   const payload = buildWidgetData({
+    username: userId,
     serverName: "Azuria",
     serverLogoUrl: "https://kotbo.fr/assets/azuria-logo.png",
     membersCount: "1 250 membres",

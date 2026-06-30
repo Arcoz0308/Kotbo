@@ -14,7 +14,6 @@ import { pushWidgetForUser, clearWidgetForUser } from '../../services/integratio
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { COLORS_RAW, text, successContainer, errorContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
-import { logger } from '../../utils/logger.js';
 
 const data = new SlashCommandBuilder()
   .setName('widget')
@@ -82,11 +81,11 @@ async function execute(interaction: ChatInputCommandInteraction) {
     if (!result.ok) {
       const container = new ContainerBuilder()
         .setAccentColor(COLORS_RAW.warning)
-        .addTextDisplayComponents(text(`### ${E.warning} Widget — Autorisation requise`))
+        .addTextDisplayComponents(text(`### ${E.warning} Widget — Synchronisation échouée`))
         .addTextDisplayComponents(text(
           `Widget activé en base mais la mise à jour Discord a échoué.\n\n` +
-          `${E.arrow} **As-tu autorisé Kotbo sur ton profil ?**\n` +
-          `${E.dot} [Clique ici pour autoriser](${getDashboardLoginUrl()})`
+          `${E.arrow} **Si tu as retiré l'accès à Kotbo, autorise-le de nouveau.**\n` +
+          `${E.dot} [Réautoriser Kotbo](${getDashboardLoginUrl()})`
         ))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
         .addTextDisplayComponents(text(`${E.error} Erreur: \`${result.error}\``))

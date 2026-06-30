@@ -28,7 +28,7 @@
     try {
       const result = await activateWidget();
       if (result?.pushResult?.ok === false) {
-        toast.warning('Widget activé mais la synchro Discord a échoué. As-tu autorisé Kotbo ?');
+        toast.warning(result.pushResult.error || 'Widget activé mais la synchronisation Discord a échoué.');
       } else {
         toast.success('Widget activé avec succès !');
       }

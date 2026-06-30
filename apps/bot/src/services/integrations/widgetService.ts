@@ -19,14 +19,17 @@ interface DynamicField {
 }
 
 interface WidgetPayload {
+  username: string;
   data: { dynamic: DynamicField[] };
 }
 
-function formatVoiceTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  if (hours > 0) return `${hours}h en vocal`;
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m en vocal`;
+interface DiscordApiError {
+  code?: number;
+  message?: string;
+}
+
+function getWidgetProfileUrl(appId: string, userId: string, identityId: string): string {
+  return `${API}/applications/${appId}/users/${userId}/identities/${encodeURIComponent(identityId)}/profile`;
 }
 
 function formatGrade(grade: string): string {
@@ -53,12 +56,12 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
   if (!staffMember) return null;
 
   const level = memberLevel ? getLevelFromXp(memberLevel.xp) : 0;
-  const xp = memberLevel?.xp ?? 0;
   const messageCount = memberProfile?.messageCount ?? 0;
   const voiceSeconds = memberProfile?.voiceTimeSeconds ?? 0;
   const memberCount = guild.memberCount;
   const guildName = guild.name;
   const guildIconUrl = guild.iconURL({ size: 256 }) ?? '';
+  const username = guild.members.cache.get(userId)?.user.username ?? memberProfile?.username ?? userId;
 
   const staffSince = staffMember.joinedStaffAt
     ? staffMember.joinedStaffAt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -110,7 +113,7 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
     { type: 1, name: 'server.invite.description', value: inviteUrl },
   ];
 
-  return { data: { dynamic } };
+  return { username, data: { dynamic } };
 }
 
 export async function pushWidgetForUser(guildId: string, userId: string): Promise<{ ok: boolean; error?: string }> {
@@ -125,8 +128,6 @@ export async function pushWidgetForUser(guildId: string, userId: string): Promis
     return { ok: false, error: 'DISCORD_TOKEN ou DISCORD_CLIENT_ID manquant' };
   }
 
-  const url = `${API}/applications/${appId}/users/${userId}/identities/0/profile`;
-
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bot ${botToken}`,
@@ -134,26 +135,44 @@ export async function pushWidgetForUser(guildId: string, userId: string): Promis
   };
 
   try {
-    let res = await fetch(url, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    // The identity is an external-account identifier and must be unique per
+    // Discord user. The former constant "0" made the first user claim the
+    // identity and caused every subsequent user to receive Discord error 40106.
+    // Keep "0" only as a compatibility fallback for that first legacy user.
+    const identityIds = [userId, '0'];
+    for (const [index, identityId] of identityIds.entries()) {
+      const res = await fetch(getWidgetProfileUrl(appId, userId, identityId), {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok) {
+      if (res.ok) {
+        logger.info(TAG, `Widget mis à jour pour ${userId} sur ${guildId} (identité ${identityId})`);
+        return { ok: true };
+      }
+
       const body = await res.text();
-      let parsed: { code?: number } = {};
-      try { parsed = JSON.parse(body); } catch {}
+      let parsed: DiscordApiError = {};
+      try { parsed = JSON.parse(body); } catch { /* Preserve the raw Discord response below. */ }
+
+      if (parsed.code === 40113 && index === 0) {
+        logger.info(TAG, `Identité unique indisponible pour ${userId}; tentative avec l'identité legacy 0`);
+        continue;
+      }
+
       if (parsed.code === 40106) {
-        logger.warn(TAG, `Identité 40106 pour ${userId} sur ${guildId}: l'utilisateur doit (ré-)autoriser via OAuth2`);
-        return { ok: false, error: 'Tu dois autoriser Kotbo sur ton profil Discord avant d\'activer le widget.' };
+        logger.warn(TAG, `Conflit d'identité Discord 40106 pour ${userId} sur ${guildId}: ${body}`);
+        return {
+          ok: false,
+          error: 'Une identité Kotbo est déjà liée à un autre compte Discord. Contacte un administrateur.',
+        };
       }
       logger.error(TAG, `PATCH échoué pour ${userId} sur ${guildId}: ${res.status} ${body}`);
       return { ok: false, error: `Discord API ${res.status}: ${body}` };
     }
 
-    logger.info(TAG, `Widget mis à jour pour ${userId} sur ${guildId}`);
-    return { ok: true };
+    return { ok: false, error: 'Impossible de sélectionner une identité Discord pour ce widget.' };
   } catch (err) {
     logger.error(TAG, `Erreur réseau widget ${userId}:`, err);
     return { ok: false, error: String(err) };
@@ -167,25 +186,36 @@ export async function clearWidgetForUser(userId: string): Promise<{ ok: boolean;
     return { ok: false, error: 'DISCORD_TOKEN ou DISCORD_CLIENT_ID manquant' };
   }
 
-  const url = `${API}/applications/${appId}/users/${userId}/identities/0/profile`;
   const emptyPayload = { data: { dynamic: [] } };
 
   try {
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bot ${botToken}`,
-        'User-Agent': 'DiscordBot (https://kotbo.fr, 1.0.0)',
-      },
-      body: JSON.stringify(emptyPayload),
-    });
+    const identityIds = [userId, '0'];
+    for (const [index, identityId] of identityIds.entries()) {
+      const res = await fetch(getWidgetProfileUrl(appId, userId, identityId), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bot ${botToken}`,
+          'User-Agent': 'DiscordBot (https://kotbo.fr, 1.0.0)',
+        },
+        body: JSON.stringify(emptyPayload),
+      });
 
-    if (!res.ok) {
+      if (res.ok) {
+        logger.info(TAG, `Widget vidé pour ${userId} (identité ${identityId})`);
+        return { ok: true };
+      }
+
       const body = await res.text();
-      let parsed: { code?: number } = {};
-      try { parsed = JSON.parse(body); } catch {}
-      // 40106 = identity belongs to another user, 10069 = unknown identity — nothing to clear
+      let parsed: DiscordApiError = {};
+      try { parsed = JSON.parse(body); } catch { /* Preserve the raw Discord response below. */ }
+
+      if (parsed.code === 40113 && index === 0) {
+        logger.info(TAG, `Clear via identité unique indisponible pour ${userId}; tentative legacy 0`);
+        continue;
+      }
+
+      // A conflicting or absent identity means this user has no widget to clear.
       if (parsed.code === 40106 || parsed.code === 10069 || res.status === 404) {
         logger.info(TAG, `Clear widget ignoré pour ${userId} (code ${parsed.code ?? res.status}): pas d'identité liée`);
         return { ok: true };
@@ -194,8 +224,7 @@ export async function clearWidgetForUser(userId: string): Promise<{ ok: boolean;
       return { ok: false, error: `Discord API ${res.status}: ${body}` };
     }
 
-    logger.info(TAG, `Widget vidé pour ${userId}`);
-    return { ok: true };
+    return { ok: false, error: 'Impossible de sélectionner une identité Discord pour ce widget.' };
   } catch (err) {
     logger.error(TAG, `Erreur réseau clear widget ${userId}:`, err);
     return { ok: false, error: String(err) };
