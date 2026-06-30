@@ -44,10 +44,10 @@
   async function handleCopyVencordScript() {
     copyingScript = true;
     try {
-      const response = await fetch('/kotbo-widget-vencord.js', { cache: 'no-store' });
+      const response = await fetch('/kotbo-widget-discord-v2.js', { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       await navigator.clipboard.writeText(await response.text());
-      toast.success('Script copié. Colle-le dans la console du Portail Développeur Discord.');
+      toast.success('Script copié. Colle-le dans la console DevTools de Discord/Vencord.');
     } catch {
       toast.error('Impossible de copier le script. Ouvre le fichier avec le lien puis copie son contenu.');
     } finally {
@@ -208,7 +208,7 @@
         </div>
         <div class="flex items-start gap-3">
           <span class="shrink-0 w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center text-xs font-bold">3</span>
-          <span class="text-sm text-on-surface-variant leading-relaxed">Copie le script ci-dessous, exécute-le une fois sur le Portail Développeur Discord, puis recharge Discord avec <kbd class="font-mono text-xs">Ctrl+R</kbd>.</span>
+          <span class="text-sm text-on-surface-variant leading-relaxed">Copie le script ci-dessous, exécute-le une fois dans Discord/Vencord, puis recharge avec <kbd class="font-mono text-xs">Ctrl+R</kbd>.</span>
         </div>
       </div>
     </div>
@@ -220,19 +220,16 @@
           <div class="space-y-3">
             <div class="flex items-center gap-2 text-amber-400">
               <Papicon icon="terminal" size={18} />
-              <span class="text-[10px] font-bold uppercase tracking-[0.18em]">Installation locale · Portail Discord</span>
+              <span class="text-[10px] font-bold uppercase tracking-[0.18em]">Installation locale · Discord/Vencord</span>
             </div>
             <h3 class="text-base font-semibold text-on-surface">Ajouter Kotbo à ton Profile Board</h3>
             <p class="max-w-2xl text-sm leading-relaxed text-on-surface-variant">
-              Discord refuse cette modification via OAuth. Le script utilise uniquement ta session du Portail Développeur,
+              Discord refuse cette modification via OAuth. Le script utilise uniquement ta session locale Discord,
               conserve tes widgets actuels et n’extrait aucun token.
             </p>
             <ol class="grid gap-2 text-xs text-on-surface-variant sm:grid-cols-2 lg:grid-cols-4">
-              <li>
-                <span class="mr-1.5 font-mono text-amber-400">01</span>
-                <a href="https://discord.com/developers/applications" target="_blank" rel="noreferrer" class="underline underline-offset-2">Ouvre le Portail Discord</a>
-              </li>
-              <li><span class="mr-1.5 font-mono text-amber-400">02</span> DevTools navigateur avec F12</li>
+              <li><span class="mr-1.5 font-mono text-amber-400">01</span> Ouvre Discord/Vencord</li>
+              <li><span class="mr-1.5 font-mono text-amber-400">02</span> DevTools avec Ctrl+Shift+I</li>
               <li><span class="mr-1.5 font-mono text-amber-400">03</span> Si demandé, tape « allow pasting »</li>
               <li><span class="mr-1.5 font-mono text-amber-400">04</span> Colle le script dans Console</li>
             </ol>
@@ -247,7 +244,7 @@
               {copyingScript ? 'Copie…' : 'Copier le script'}
             </button>
             <a
-              href="/kotbo-widget-vencord.js"
+              href="/kotbo-widget-discord-v2.js"
               target="_blank"
               rel="noreferrer"
               class="text-center text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
