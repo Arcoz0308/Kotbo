@@ -12,7 +12,8 @@ import {
 
 export const authRouter = new OpenAPIHono();
 
-const BRIDGE_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script>
+function createBridgeHtml(nonce: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script nonce="${nonce}">
 (function(){
   var h=window.location.hash.substring(1);
   if(!h){window.location.href='/login?error=no_token';return;}
@@ -29,6 +30,7 @@ const BRIDGE_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><bo
   }).catch(function(){window.location.href='/login?error=auth_failed';});
 })();
 </script></body></html>`;
+}
 
 function parseCookies(cookieHeader: string): Record<string, string> {
   if (!cookieHeader) return {};
@@ -114,7 +116,12 @@ const callbackRoute = createRoute({
 });
 
 authRouter.openapi(callbackRoute, (c) => {
-  return c.html(BRIDGE_HTML);
+  const nonce = crypto.randomBytes(16).toString('base64');
+  c.header(
+    'Content-Security-Policy',
+    `default-src 'self'; script-src 'nonce-${nonce}'; base-uri 'none'; frame-ancestors 'none'`,
+  );
+  return c.html(createBridgeHtml(nonce));
 });
 
 // ---------------------------------------------------------------------------

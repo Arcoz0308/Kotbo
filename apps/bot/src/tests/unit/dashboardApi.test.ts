@@ -1060,6 +1060,24 @@ describe('Modular Routers Unit Tests', () => {
       expect(res.statusCode).toBe(302);
       expect(res.getHeader('location')).toContain('discord.com/api/oauth2/authorize');
     });
+
+    test('legacy Discord callback authorizes only its nonce-protected bridge script', async () => {
+      const req = createMockRequest({ method: 'GET', url: '/api/auth/discord/callback' });
+      const res = createMockResponse();
+      const parts = splitPath(req.url!);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleAuthRoutes(req, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+
+      const csp = String(res.getHeader('content-security-policy'));
+      const nonce = csp.match(/script-src 'nonce-([^']+)'/)?.[1];
+      expect(nonce).toBeTruthy();
+      expect(csp).not.toContain("'unsafe-inline'");
+      expect(res.body).toContain(`<script nonce="${nonce}">`);
+    });
+
   });
 
   describe('3. Error Routes', () => {

@@ -36,7 +36,8 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-const BRIDGE_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script>
+function createBridgeHtml(nonce: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script nonce="${nonce}">
 (function(){
   var h=window.location.hash.substring(1);
   if(!h){window.location.href='/login?error=no_token';return;}
@@ -53,6 +54,7 @@ const BRIDGE_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><bo
   }).catch(function(){window.location.href='/login?error=auth_failed';});
 })();
 </script></body></html>`;
+}
 
 export async function handleAuthRoutes(
   req: IncomingMessage,
@@ -96,8 +98,12 @@ export async function handleAuthRoutes(
 
     // GET /api/auth/discord/callback — bridge page for implicit grant (reads fragment client-side)
     if (parts[3] === 'callback' && method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(BRIDGE_HTML);
+      const nonce = crypto.randomBytes(16).toString('base64');
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': `default-src 'self'; script-src 'nonce-${nonce}'; base-uri 'none'; frame-ancestors 'none'`,
+      });
+      res.end(createBridgeHtml(nonce));
       return true;
     }
 
