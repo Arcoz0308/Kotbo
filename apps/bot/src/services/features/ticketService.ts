@@ -833,11 +833,8 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
           new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
 
-        await thread.send({
-          content: staffMention ?? '🔔 Nouveau ticket en MP.',
-          embeds: [staffEmbed],
-          components: [row]
-        });
+        if (staffMention) await thread.send({ content: staffMention });
+        await thread.send({ embeds: [staffEmbed], components: [row] });
 
         const dmEmbed = new EmbedBuilder()
           .setTitle(`🎫 Ticket ouvert · ${guild.name}`)
@@ -907,11 +904,9 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
           new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
 
-        await thread.send({
-          content: [`<@${user.id}>`, staffMention].filter(Boolean).join(' '),
-          embeds: [welcomeEmbed],
-          components: [row]
-        });
+        const pingContent = [`<@${user.id}>`, staffMention].filter(Boolean).join(' ');
+        await thread.send({ content: pingContent });
+        await thread.send({ embeds: [welcomeEmbed], components: [row] });
 
         await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
         await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
@@ -1008,11 +1003,9 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
           new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
 
-        await ticketChannel.send({
-          content: [`<@${user.id}>`, staffMention].filter(Boolean).join(' '),
-          embeds: [welcomeEmbed],
-          components: [row]
-        });
+        const pingContent = [`<@${user.id}>`, staffMention].filter(Boolean).join(' ');
+        await ticketChannel.send({ content: pingContent });
+        await ticketChannel.send({ embeds: [welcomeEmbed], components: [row] });
 
         await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
         await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
@@ -1137,11 +1130,8 @@ async function handleDmDirectTicket(
     new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
   );
 
-  await thread.send({
-    content: staffMention ?? '🔔 Nouveau ticket en MP.',
-    embeds: [staffEmbed],
-    components: [row],
-  });
+  if (staffMention) await thread.send({ content: staffMention });
+  await thread.send({ embeds: [staffEmbed], components: [row] });
 
   const dmEmbed = new EmbedBuilder()
     .setTitle(`🎫 Ticket ouvert · ${guild.name}`)
