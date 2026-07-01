@@ -265,10 +265,16 @@ function transformPayload(options: unknown, context?: any): unknown {
         const newComponents: unknown[] = [];
 
         if (payload.content) {
-          newComponents.push(
-            new discord.TextDisplayBuilder().setContent(stripMentions(payload.content, context))
-          );
-          delete payload.content;
+          const hasMentions = /<@[!&]?\d+>/.test(payload.content);
+          if (hasMentions) {
+            // Keep as real message content so Discord sends actual ping notifications.
+            // TextDisplay components never trigger pings regardless of allowed_mentions.
+          } else {
+            newComponents.push(
+              new discord.TextDisplayBuilder().setContent(stripMentions(payload.content, context))
+            );
+            delete payload.content;
+          }
         }
 
         newComponents.push(...containers);
