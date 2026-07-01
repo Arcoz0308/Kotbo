@@ -18,6 +18,8 @@ import {
   TextInputStyle,
   MessageFlags,
   ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
   SeparatorSpacingSize,
   type GuildMember,
   type Guild,
@@ -891,12 +893,16 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 
         await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id, channelId: thread.id } });
 
-        const welcomeEmbed = new EmbedBuilder()
-          .setTitle(`🎫 Ticket d'Assistance · ${ticketType.label}`)
-          .setDescription(`Bonjour <@${user.id}> !\n${staffMention ? `Le personnel ${staffMention} va prendre en charge votre demande rapidement.` : 'Un membre du personnel va prendre en charge votre demande rapidement.'}\n\n**Description du problème :**\n${description}`)
-          .setColor(COLORS.primary as unknown)
-          .setTimestamp()
-          .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+        const welcomeDesc = staffMention
+          ? `Bonjour <@${user.id}> !\nLe personnel ${staffMention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.`
+          : `Bonjour <@${user.id}> !\nUn membre du personnel va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.`;
+
+        const welcomeContainer = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.primary)
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`### 🎫 Ticket d'Assistance · ${ticketType.label}`))
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`${welcomeDesc}\n\n**Description du problème :**\n${description}`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Kotbo · Ticket ID: ${ticket.id}`));
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
@@ -904,9 +910,11 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
           new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
 
-        const pingContent = [`<@${user.id}>`, staffMention].filter(Boolean).join(' ');
-        await thread.send({ content: pingContent });
-        await thread.send({ embeds: [welcomeEmbed], components: [row] });
+        await thread.send({
+          components: [welcomeContainer, row],
+          flags: MessageFlags.IsComponentsV2,
+          allowedMentions: { users: [user.id], roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
+        });
 
         await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
         await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
@@ -990,12 +998,16 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
           }
         });
 
-        const welcomeEmbed = new EmbedBuilder()
-          .setTitle(`🎫 Ticket d'Assistance · ${ticketType.label}`)
-          .setDescription(`Bonjour <@${user.id}> !\n${staffMention ? `Le personnel ${staffMention} va prendre en charge votre demande rapidement.` : 'Un membre du personnel va prendre en charge votre demande rapidement.'} En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n${description}`)
-          .setColor(COLORS.primary as unknown)
-          .setTimestamp()
-          .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+        const welcomeDesc = staffMention
+          ? `Bonjour <@${user.id}> !\nLe personnel ${staffMention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.`
+          : `Bonjour <@${user.id}> !\nUn membre du personnel va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.`;
+
+        const welcomeContainer = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.primary)
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`### 🎫 Ticket d'Assistance · ${ticketType.label}`))
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`${welcomeDesc}\n\n**Description du problème :**\n${description}`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Kotbo · Ticket ID: ${ticket.id}`));
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
@@ -1003,9 +1015,11 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
           new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
 
-        const pingContent = [`<@${user.id}>`, staffMention].filter(Boolean).join(' ');
-        await ticketChannel.send({ content: pingContent });
-        await ticketChannel.send({ embeds: [welcomeEmbed], components: [row] });
+        await ticketChannel.send({
+          components: [welcomeContainer, row],
+          flags: MessageFlags.IsComponentsV2,
+          allowedMentions: { users: [user.id], roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
+        });
 
         await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
         await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
