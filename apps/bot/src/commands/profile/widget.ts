@@ -43,7 +43,7 @@ function getDashboardLoginUrl(): string {
   const baseRedirect = process.env.DISCORD_REDIRECT_URI ?? '';
   if (!baseRedirect) return '';
   const base = new URL(baseRedirect).origin;
-  return `${base}/api/auth/discord/login?returnTo=/widget`;
+  return `${base}/api/auth/discord/widget-login?returnTo=/widget`;
 }
 
 async function execute(interaction: ChatInputCommandInteraction) {

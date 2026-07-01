@@ -90,6 +90,32 @@ export async function handleAuthRoutes(
       }
       res.setHeader('Set-Cookie', cookies);
 
+      const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}&response_type=token&scope=identify%20guilds&state=${state}`;
+      res.writeHead(302, { Location: discordUrl });
+      res.end();
+      return true;
+    }
+
+    // GET /api/auth/discord/widget-login — OAuth avec scopes widget (sdk.social_layer)
+    if (parts[3] === 'widget-login' && method === 'GET') {
+      const missingOAuth = getMissingOAuthConfig();
+      if (missingOAuth.length > 0) {
+        json(res, 500, {
+          error: 'Configuration OAuth invalide côté serveur.',
+          missing: missingOAuth,
+        });
+        return true;
+      }
+
+      const returnTo = url.searchParams.get('returnTo');
+      const state = crypto.randomBytes(16).toString('hex');
+
+      const cookies = [`kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`];
+      if (returnTo) {
+        cookies.push(`kotbo_oauth_return_to=${encodeURIComponent(returnTo)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`);
+      }
+      res.setHeader('Set-Cookie', cookies);
+
       const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}&response_type=token&scope=identify%20guilds%20openid%20sdk.social_layer&state=${state}`;
       res.writeHead(302, { Location: discordUrl });
       res.end();

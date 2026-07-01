@@ -94,6 +94,65 @@ authRouter.openapi(loginRoute, (c) => {
     `?client_id=${getDiscordClientId()}`,
     `&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}`,
     `&response_type=token`,
+    `&scope=identify%20guilds`,
+    `&state=${state}`,
+  ].join('');
+
+  return c.redirect(discordUrl, 302);
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/auth/discord/widget-login — OAuth avec scopes widget (sdk.social_layer)
+// ---------------------------------------------------------------------------
+
+const widgetLoginRoute = createRoute({
+  method:  'get',
+  path:    '/api/auth/discord/widget-login',
+  summary: 'Démarre le flux OAuth2 Discord avec scopes widget (sdk.social_layer)',
+  tags:    ['Auth'],
+  request: {
+    query: z.object({
+      returnTo: z.string().optional(),
+    }),
+  },
+  responses: {
+    302: { description: 'Redirection vers Discord OAuth avec scopes widget' },
+    500: {
+      description: 'Configuration OAuth incomplète',
+      content: {
+        'application/json': {
+          schema: z.object({ error: z.string(), missing: z.array(z.string()) }),
+        },
+      },
+    },
+  },
+});
+
+authRouter.openapi(widgetLoginRoute, (c) => {
+  const missingOAuth = getMissingOAuthConfig();
+  if (missingOAuth.length > 0) {
+    return c.json({ error: 'Configuration OAuth invalide côté serveur.', missing: missingOAuth }, 500);
+  }
+
+  const { returnTo } = c.req.valid('query');
+  const state = crypto.randomBytes(16).toString('hex');
+
+  c.header(
+    'Set-Cookie',
+    `kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`,
+  );
+  if (returnTo) {
+    c.res.headers.append(
+      'Set-Cookie',
+      `kotbo_oauth_return_to=${encodeURIComponent(returnTo)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`
+    );
+  }
+
+  const discordUrl = [
+    `https://discord.com/api/oauth2/authorize`,
+    `?client_id=${getDiscordClientId()}`,
+    `&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}`,
+    `&response_type=token`,
     `&scope=identify%20guilds%20openid%20sdk.social_layer`,
     `&state=${state}`,
   ].join('');
