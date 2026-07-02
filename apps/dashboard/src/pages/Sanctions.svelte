@@ -1716,6 +1716,7 @@
                 bind:links={evidenceLinks}
                 labelId="report-evidence-label"
                 inputIdPrefix="report-evidence"
+                sanctionId={selectedSanctionId}
               />
             </div>
 

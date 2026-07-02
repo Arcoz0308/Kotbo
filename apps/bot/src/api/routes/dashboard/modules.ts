@@ -8,6 +8,8 @@ import {
   ButtonBuilder,
   ButtonStyle,
   TextChannel,
+  type Message,
+  type Guild,
 } from 'discord.js';
 import { SanctionType } from '@prisma/client';
 import prisma from '../../../utils/db.js';
@@ -48,6 +50,7 @@ import { invalidateNicknameModerationCache } from '../../../events/nicknameModer
 import { invalidateAutoThreadCache } from '../../../events/autoThread.js';
 import { updateGuildStats } from '../../../events/stats.js';
 import { invalidateBannedWordsCache } from '../../../services/moderation/bannedWordsService.js';
+import { generateTranscriptFromMessages, resolveMentionsToText, embedToApiShape } from '../../../services/features/transcriptService.js';
 
 import { parseDiscordMarkdown, extractMediaUrls } from '../../shared.js';
 import {
@@ -280,6 +283,88 @@ function parseEvidenceLinks(value: unknown): string[] {
   return value
     .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
     .filter((entry) => /^https?:\/\//i.test(entry));
+}
+
+const MAX_EVIDENCE_MESSAGES = 50;
+const MAX_SCAN_MESSAGES = 400;
+
+async function resolveEvidenceChannel(client: Client, guildId: string, channelId: string): Promise<{ channel: TextChannel } | { error: string }> {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) {
+    return { error: 'Serveur Discord introuvable.' };
+  }
+
+  let channel = guild.channels.cache.get(channelId) ?? null;
+  if (!channel) {
+    channel = await guild.channels.fetch(channelId).catch(() => null);
+  }
+  if (!channel) {
+    return { error: 'Salon introuvable sur ce serveur.' };
+  }
+
+  if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
+    return { error: 'Ce type de salon n’est pas encore pris en charge.' };
+  }
+
+  const textChannel = channel as TextChannel;
+  const me = guild.members.me;
+  if (!me || !textChannel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory])) {
+    return { error: "Le bot n'a pas accès à ce salon." };
+  }
+
+  return { channel: textChannel };
+}
+
+async function fetchUserMessagesInChannel(channel: TextChannel, authorId: string): Promise<{ messages: Message[]; truncated: boolean }> {
+  const matched: Message[] = [];
+  let scanned = 0;
+  let cursor: string | undefined;
+
+  while (matched.length < MAX_EVIDENCE_MESSAGES && scanned < MAX_SCAN_MESSAGES) {
+    const batch = await channel.messages.fetch({ limit: 100, before: cursor });
+    if (batch.size === 0) break;
+
+    for (const msg of batch.values()) {
+      scanned++;
+      if (msg.author.id === authorId) {
+        matched.push(msg);
+        if (matched.length >= MAX_EVIDENCE_MESSAGES) break;
+      }
+    }
+
+    cursor = batch.last()?.id;
+    if (batch.size < 100) break;
+  }
+
+  return {
+    messages: matched.sort((a, b) => a.createdTimestamp - b.createdTimestamp),
+    truncated: matched.length < MAX_EVIDENCE_MESSAGES && scanned >= MAX_SCAN_MESSAGES,
+  };
+}
+
+function serializeEvidenceMessage(msg: Message, guild?: Guild) {
+  return {
+    id: msg.id,
+    content: msg.content ? resolveMentionsToText(msg.content, guild) : '',
+    createdAt: msg.createdAt.toISOString(),
+    attachments: [...msg.attachments.values()].map((attachment) => ({
+      url: attachment.url,
+      name: attachment.name,
+      contentType: attachment.contentType,
+      size: attachment.size,
+      kind: attachment.contentType?.startsWith('image/')
+        ? 'image' as const
+        : attachment.contentType?.startsWith('video/')
+          ? 'video' as const
+          : 'file' as const,
+    })),
+    embeds: msg.embeds.map((embed) => embedToApiShape(embed, guild)),
+    stickers: [...msg.stickers.values()].map((sticker) => ({
+      id: sticker.id,
+      name: sticker.name,
+      url: sticker.url,
+    })),
+  };
 }
 
 function formatSanctionDurationLabel(seconds: number | null): string | null {
@@ -947,6 +1032,163 @@ export async function handleModulesRoutes(
     } catch (err) {
       logger.error('SanctionsAPI', 'Error patching report:', err);
       json(res, 500, { error: 'Erreur lors de la modification du rapport' });
+    }
+    return true;
+  }
+
+  // GET /api/dashboard/guilds/:guildId/sanctions/reports/discord-messages
+  if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'reports' && parts[6] === 'discord-messages' && method === 'GET') {
+    try {
+      const sanctionId = url.searchParams.get('sanctionId')?.trim() ?? '';
+      const channelIdsRaw = url.searchParams.get('channelIds')?.trim() ?? '';
+
+      if (!sanctionId) {
+        json(res, 400, { error: 'sanctionId est obligatoire.' });
+        return true;
+      }
+
+      const channelIds = [...new Set(channelIdsRaw.split(',').map((id) => id.trim()).filter(Boolean))];
+      if (channelIds.length === 0) {
+        json(res, 400, { error: 'Au moins un salon doit être sélectionné.' });
+        return true;
+      }
+      if (channelIds.length > 10) {
+        json(res, 400, { error: '10 salons maximum par recherche.' });
+        return true;
+      }
+
+      const sanction = await prisma.sanction.findFirst({ where: { id: sanctionId, guildId } });
+      if (!sanction) {
+        json(res, 404, { error: 'Sanction introuvable sur ce serveur.' });
+        return true;
+      }
+
+      if (sanction.moderatorUserId !== user.userId && access.level !== 'admin') {
+        json(res, 403, { error: 'Seule la personne qui a appliqué la sanction peut importer des preuves.' });
+        return true;
+      }
+
+      const channels = await Promise.all(channelIds.map(async (channelId) => {
+        const resolved = await resolveEvidenceChannel(client, guildId, channelId);
+        if ('error' in resolved) {
+          return { channelId, error: resolved.error };
+        }
+        try {
+          const { messages, truncated } = await fetchUserMessagesInChannel(resolved.channel, sanction.targetUserId);
+          return {
+            channelId,
+            channelName: resolved.channel.name,
+            messages: messages.map((msg) => serializeEvidenceMessage(msg, resolved.channel.guild)),
+            truncated,
+          };
+        } catch (err) {
+          logger.error('SanctionsAPI', `Error fetching evidence messages for channel ${channelId}:`, err);
+          return { channelId, error: 'Erreur lors de la récupération des messages.' };
+        }
+      }));
+
+      json(res, 200, { targetTag: sanction.targetTag, channels });
+    } catch (err) {
+      logger.error('SanctionsAPI', 'Error listing discord evidence messages:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération des messages Discord' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/sanctions/reports/discord-transcripts
+  if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'reports' && parts[6] === 'discord-transcripts' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{
+        sanctionId?: string;
+        selections?: Array<{ channelId?: string; messageIds?: string[] }>;
+      }>(req);
+
+      const sanctionId = body?.sanctionId?.trim() ?? '';
+      if (!sanctionId) {
+        json(res, 400, { error: 'sanctionId est obligatoire.' });
+        return true;
+      }
+
+      const selections = Array.isArray(body?.selections) ? body.selections : [];
+      if (selections.length === 0) {
+        json(res, 400, { error: 'Aucun message sélectionné.' });
+        return true;
+      }
+
+      const sanction = await prisma.sanction.findFirst({ where: { id: sanctionId, guildId } });
+      if (!sanction) {
+        json(res, 404, { error: 'Sanction introuvable sur ce serveur.' });
+        return true;
+      }
+
+      if (sanction.moderatorUserId !== user.userId && access.level !== 'admin') {
+        json(res, 403, { error: 'Seule la personne qui a appliqué la sanction peut importer des preuves.' });
+        return true;
+      }
+
+      const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+      const results: Array<{ channelId: string; channelName: string; url: string; count: number }> = [];
+      const errors: Array<{ channelId: string; error: string }> = [];
+
+      await Promise.all(selections.map(async (selection) => {
+        const channelId = selection?.channelId?.trim() ?? '';
+        const messageIds = Array.isArray(selection?.messageIds)
+          ? [...new Set(selection.messageIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))]
+          : [];
+
+        if (!channelId || messageIds.length === 0) {
+          errors.push({ channelId: channelId || 'inconnu', error: 'Sélection invalide.' });
+          return;
+        }
+        if (messageIds.length > MAX_EVIDENCE_MESSAGES) {
+          errors.push({ channelId, error: `Maximum ${MAX_EVIDENCE_MESSAGES} messages par salon.` });
+          return;
+        }
+
+        const resolved = await resolveEvidenceChannel(client, guildId, channelId);
+        if ('error' in resolved) {
+          errors.push({ channelId, error: resolved.error });
+          return;
+        }
+
+        try {
+          const fetched = await Promise.all(messageIds.map((id) => resolved.channel.messages.fetch(id).catch(() => null)));
+          const validMessages = fetched.filter((msg): msg is Message<true> => msg !== null && msg.author.id === sanction.targetUserId);
+
+          if (validMessages.length === 0) {
+            errors.push({ channelId, error: 'Aucun message valide à transcrire.' });
+            return;
+          }
+
+          validMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+          const transcript = await generateTranscriptFromMessages(resolved.channel, validMessages);
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Génération transcription (preuve sanction)',
+            context: getGuildName(client, guildId),
+            module: 'Sanctions',
+            eventType: 'Manuel',
+            details: `Transcription ${transcript.id} générée pour #${resolved.channel.name} (${transcript.count} messages, sanction ${sanctionId}).`,
+            channelId: resolved.channel.id
+          });
+
+          results.push({
+            channelId,
+            channelName: resolved.channel.name,
+            url: `${dashboardUrl}${transcript.url}`,
+            count: transcript.count,
+          });
+        } catch (err) {
+          logger.error('SanctionsAPI', `Error generating evidence transcript for channel ${channelId}:`, err);
+          errors.push({ channelId, error: 'Erreur lors de la génération de la transcription.' });
+        }
+      }));
+
+      json(res, 200, { results, errors });
+    } catch (err) {
+      logger.error('SanctionsAPI', 'Error generating discord evidence transcripts:', err);
+      json(res, 500, { error: 'Erreur lors de la génération des transcriptions' });
     }
     return true;
   }

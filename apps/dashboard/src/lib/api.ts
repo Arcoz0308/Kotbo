@@ -295,6 +295,25 @@ export async function updateSanctionReport(reportId, report, guildId = authStore
   });
 }
 
+export async function fetchSanctionDiscordMessages(sanctionId: string, channelIds: string[], guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/sanctions/reports/discord-messages?sanctionId=${encodeURIComponent(sanctionId)}&channelIds=${channelIds.map(encodeURIComponent).join(',')}`, {
+    method: 'GET',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Discord Evidence Preview):'
+  });
+}
+
+export async function generateSanctionDiscordTranscripts(sanctionId: string, selections: Array<{ channelId: string; messageIds: string[] }>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/sanctions/reports/discord-transcripts', {
+    method: 'POST',
+    payload: { sanctionId, selections },
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Discord Evidence Transcript):'
+  });
+}
+
 
 export async function deleteSanction(sanctionId, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/sanctions/${sanctionId}`, {

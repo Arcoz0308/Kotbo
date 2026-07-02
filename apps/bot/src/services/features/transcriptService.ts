@@ -1,4 +1,4 @@
-import { type TextChannel, type Message, type Guild } from 'discord.js';
+import { type TextChannel, type Message, type Guild, type Embed } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
@@ -245,6 +245,54 @@ export function parseMarkdown(text: string, guild?: Guild): string {
   });
 
   return escaped;
+}
+
+/**
+ * Resolves Discord mentions (<@id>, <#id>, <@&id>) in raw (non-escaped) message
+ * text into plain readable text (@Pseudo, #salon, @Rôle) — no HTML produced.
+ * Used by API responses that are rendered client-side without {@html}.
+ */
+export function resolveMentionsToText(text: string, guild?: Guild): string {
+  if (!guild) {
+    return text
+      .replace(/<@!?(\d+)>/g, '@Utilisateur')
+      .replace(/<#(\d+)>/g, '#salon')
+      .replace(/<@&(\d+)>/g, '@Rôle');
+  }
+
+  return text
+    .replace(/<@!?(\d+)>/g, (_, id) => {
+      const member = guild.members.cache.get(id);
+      const user = guild.client.users.cache.get(id);
+      return `@${member?.displayName || user?.username || 'Utilisateur inconnu'}`;
+    })
+    .replace(/<#(\d+)>/g, (_, id) => `#${guild.channels.cache.get(id)?.name || 'salon-inconnu'}`)
+    .replace(/<@&(\d+)>/g, (_, id) => `@${guild.roles.cache.get(id)?.name || 'rôle-inconnu'}`);
+}
+
+/**
+ * Builds a plain-data representation of a Discord embed (no HTML), suitable
+ * for client-side Svelte rendering without {@html}.
+ */
+export function embedToApiShape(embed: Embed, guild?: Guild): ParsedTranscriptEmbed {
+  return {
+    color: embed.hexColor,
+    authorName: embed.author?.name ?? null,
+    authorIconUrl: embed.author?.iconURL ?? null,
+    authorUrl: embed.author?.url ?? null,
+    title: embed.title,
+    url: embed.url,
+    description: embed.description ? resolveMentionsToText(embed.description, guild) : null,
+    fields: (embed.fields ?? []).map((f) => ({
+      name: f.name,
+      value: resolveMentionsToText(f.value, guild),
+      inline: f.inline ?? false,
+    })),
+    thumbnailUrl: embed.thumbnail?.url ?? null,
+    imageUrl: embed.image?.url ?? null,
+    footerText: embed.footer?.text ?? null,
+    footerIconUrl: embed.footer?.iconURL ?? null,
+  };
 }
 
 /**

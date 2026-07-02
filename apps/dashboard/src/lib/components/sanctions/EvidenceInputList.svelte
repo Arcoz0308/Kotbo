@@ -1,20 +1,28 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import DiscordEvidencePicker from './DiscordEvidencePicker.svelte';
   import { normalizeEvidenceLinks } from '../../sanctions/evidenceLinks';
+  import { authStore } from '../../stores/auth.svelte.ts';
 
-  let { 
+  let {
     links = $bindable([]),
     disabled = false,
     placeholder = "Lien de preuve (https://...)",
     labelId = '',
-    inputIdPrefix = ''
+    inputIdPrefix = '',
+    guildId = authStore.selectedGuildId,
+    sanctionId = null
   } = $props<{
     links: string[];
     disabled?: boolean;
     placeholder?: string;
     labelId?: string;
     inputIdPrefix?: string;
+    guildId?: string;
+    sanctionId?: string | null;
   }>();
+
+  let pickerOpen = $state(false);
 
   const initialLinks = normalizeEvidenceLinks(links, true);
   if (initialLinks.length !== links.length || initialLinks.some((link, index) => link !== links[index])) {
@@ -71,13 +79,38 @@
   {/each}
 
   {#if !disabled}
-    <button
-      type="button"
-      onclick={addLink}
-      class="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
-    >
-      <Papicon icon="plus" size={14} />
-      Ajouter une preuve
-    </button>
+    <div class="flex flex-col sm:flex-row gap-2">
+      <button
+        type="button"
+        onclick={addLink}
+        class="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
+      >
+        <Papicon icon="plus" size={14} />
+        Ajouter une preuve
+      </button>
+
+      {#if sanctionId}
+        <button
+          type="button"
+          onclick={() => (pickerOpen = true)}
+          class="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
+        >
+          <Papicon icon="message-square" size={14} />
+          Importer depuis Discord
+        </button>
+      {/if}
+    </div>
   {/if}
 </div>
+
+{#if sanctionId}
+  <DiscordEvidencePicker
+    bind:open={pickerOpen}
+    {guildId}
+    {sanctionId}
+    onImport={(urls) => {
+      const existing = normalizeEvidenceLinks(links, false).filter((l) => l.trim().length > 0);
+      links = [...existing, ...urls];
+    }}
+  />
+{/if}

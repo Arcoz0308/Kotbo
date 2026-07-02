@@ -1847,7 +1847,7 @@
 
                  <div class="space-y-1.5">
                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
-                   <EvidenceInputList bind:links={editReportData.evidenceLinks} />
+                   <EvidenceInputList bind:links={editReportData.evidenceLinks} sanctionId={viewingReportSanctionId} />
                  </div>
 
                  <div class="space-y-1.5">
