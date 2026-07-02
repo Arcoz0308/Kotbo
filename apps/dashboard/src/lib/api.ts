@@ -295,8 +295,9 @@ export async function updateSanctionReport(reportId, report, guildId = authStore
   });
 }
 
-export async function fetchSanctionDiscordMessages(sanctionId: string, channelIds: string[], guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/sanctions/reports/discord-messages?sanctionId=${encodeURIComponent(sanctionId)}&channelIds=${channelIds.map(encodeURIComponent).join(',')}`, {
+export async function fetchSanctionDiscordMessages(sanctionId: string, limit: number, guildId = authStore.selectedGuildId) {
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
+  return dashboardRequest(`/sanctions/reports/discord-messages?sanctionId=${encodeURIComponent(sanctionId)}&limit=${safeLimit}`, {
     method: 'GET',
     guildId,
     silent: true,

@@ -12,6 +12,7 @@ import {
   type Guild,
 } from 'discord.js';
 import { SanctionType } from '@prisma/client';
+import pLimit from 'p-limit';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS, successEmbed } from '../../../utils/embeds.js';
@@ -285,8 +286,16 @@ function parseEvidenceLinks(value: unknown): string[] {
     .filter((entry) => /^https?:\/\//i.test(entry));
 }
 
-const MAX_EVIDENCE_MESSAGES = 50;
+const MAX_EVIDENCE_MESSAGES = 200;
 const MAX_SCAN_MESSAGES = 400;
+const EVIDENCE_CHANNEL_CONCURRENCY = 5;
+
+interface FetchedEvidenceChannel {
+  channelId: string;
+  channelName: string;
+  rawMessages: Message[];
+  truncated: boolean;
+}
 
 async function resolveEvidenceChannel(client: Client, guildId: string, channelId: string): Promise<{ channel: TextChannel } | { error: string }> {
   const guild = client.guilds.cache.get(guildId);
@@ -315,12 +324,17 @@ async function resolveEvidenceChannel(client: Client, guildId: string, channelId
   return { channel: textChannel };
 }
 
-async function fetchUserMessagesInChannel(channel: TextChannel, authorId: string): Promise<{ messages: Message[]; truncated: boolean }> {
+async function fetchUserMessagesInChannel(
+  channel: TextChannel,
+  authorId: string,
+  limit = MAX_EVIDENCE_MESSAGES,
+): Promise<{ messages: Message[]; truncated: boolean }> {
   const matched: Message[] = [];
   let scanned = 0;
   let cursor: string | undefined;
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_EVIDENCE_MESSAGES);
 
-  while (matched.length < MAX_EVIDENCE_MESSAGES && scanned < MAX_SCAN_MESSAGES) {
+  while (matched.length < safeLimit && scanned < MAX_SCAN_MESSAGES) {
     const batch = await channel.messages.fetch({ limit: 100, before: cursor });
     if (batch.size === 0) break;
 
@@ -328,7 +342,7 @@ async function fetchUserMessagesInChannel(channel: TextChannel, authorId: string
       scanned++;
       if (msg.author.id === authorId) {
         matched.push(msg);
-        if (matched.length >= MAX_EVIDENCE_MESSAGES) break;
+        if (matched.length >= safeLimit) break;
       }
     }
 
@@ -338,7 +352,7 @@ async function fetchUserMessagesInChannel(channel: TextChannel, authorId: string
 
   return {
     messages: matched.sort((a, b) => a.createdTimestamp - b.createdTimestamp),
-    truncated: matched.length < MAX_EVIDENCE_MESSAGES && scanned >= MAX_SCAN_MESSAGES,
+    truncated: matched.length < safeLimit && scanned >= MAX_SCAN_MESSAGES,
   };
 }
 
@@ -1040,20 +1054,13 @@ export async function handleModulesRoutes(
   if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'reports' && parts[6] === 'discord-messages' && method === 'GET') {
     try {
       const sanctionId = url.searchParams.get('sanctionId')?.trim() ?? '';
-      const channelIdsRaw = url.searchParams.get('channelIds')?.trim() ?? '';
+      const requestedLimit = Number.parseInt(url.searchParams.get('limit') ?? '', 10);
+      const messageLimit = Number.isFinite(requestedLimit)
+        ? Math.min(Math.max(requestedLimit, 1), MAX_EVIDENCE_MESSAGES)
+        : 50;
 
       if (!sanctionId) {
         json(res, 400, { error: 'sanctionId est obligatoire.' });
-        return true;
-      }
-
-      const channelIds = [...new Set(channelIdsRaw.split(',').map((id) => id.trim()).filter(Boolean))];
-      if (channelIds.length === 0) {
-        json(res, 400, { error: 'Au moins un salon doit être sélectionné.' });
-        return true;
-      }
-      if (channelIds.length > 10) {
-        json(res, 400, { error: '10 salons maximum par recherche.' });
         return true;
       }
 
@@ -1068,26 +1075,74 @@ export async function handleModulesRoutes(
         return true;
       }
 
-      const channels = await Promise.all(channelIds.map(async (channelId) => {
-        const resolved = await resolveEvidenceChannel(client, guildId, channelId);
-        if ('error' in resolved) {
-          return { channelId, error: resolved.error };
-        }
-        try {
-          const { messages, truncated } = await fetchUserMessagesInChannel(resolved.channel, sanction.targetUserId);
-          return {
-            channelId,
-            channelName: resolved.channel.name,
-            messages: messages.map((msg) => serializeEvidenceMessage(msg, resolved.channel.guild)),
-            truncated,
-          };
-        } catch (err) {
-          logger.error('SanctionsAPI', `Error fetching evidence messages for channel ${channelId}:`, err);
-          return { channelId, error: 'Erreur lors de la récupération des messages.' };
-        }
-      }));
+      const guild = client.guilds.cache.get(guildId);
+      if (!guild) {
+        json(res, 404, { error: 'Serveur Discord introuvable.' });
+        return true;
+      }
 
-      json(res, 200, { targetTag: sanction.targetTag, channels });
+      const me = guild.members.me;
+      const searchableChannels = [...guild.channels.cache.values()].filter((channel): channel is TextChannel => {
+        if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
+          return false;
+        }
+        return Boolean(me && channel.permissionsFor(me).has([
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+        ]));
+      });
+
+      const concurrencyLimit = pLimit(EVIDENCE_CHANNEL_CONCURRENCY);
+      let failedChannelCount = 0;
+      const fetchedChannels: Array<FetchedEvidenceChannel | null> = await Promise.all(
+        searchableChannels.map((channel) => concurrencyLimit(async (): Promise<FetchedEvidenceChannel | null> => {
+          try {
+            const { messages, truncated } = await fetchUserMessagesInChannel(channel, sanction.targetUserId, messageLimit);
+            return {
+              channelId: channel.id,
+              channelName: channel.name,
+              rawMessages: messages,
+              truncated,
+            };
+          } catch (err) {
+            failedChannelCount++;
+            logger.error('SanctionsAPI', `Error fetching evidence messages for channel ${channel.id}:`, err);
+            return null;
+          }
+        })),
+      );
+
+      const successfulChannels = fetchedChannels.filter(
+        (channel): channel is FetchedEvidenceChannel => channel !== null,
+      );
+
+      const newestMessages = successfulChannels
+        .flatMap((channel) => channel.rawMessages.map((message) => ({ channel, message })))
+        .sort((a, b) => b.message.createdTimestamp - a.message.createdTimestamp)
+        .slice(0, messageLimit);
+
+      const includedMessageIds = new Set(newestMessages.map(({ message }) => message.id));
+      const channels = successfulChannels
+        .map((channel) => ({
+          channelId: channel.channelId,
+          channelName: channel.channelName,
+          messages: channel.rawMessages
+            .filter((message) => includedMessageIds.has(message.id))
+            .sort((a, b) => b.createdTimestamp - a.createdTimestamp)
+            .map((message) => serializeEvidenceMessage(message, guild)),
+          truncated: channel.truncated,
+        }))
+        .filter((channel) => channel.messages.length > 0)
+        .sort((a, b) => a.channelName.localeCompare(b.channelName, 'fr'));
+
+      json(res, 200, {
+        targetTag: sanction.targetTag,
+        channels,
+        messageCount: newestMessages.length,
+        searchedChannelCount: searchableChannels.length,
+        failedChannelCount,
+        truncatedChannelCount: successfulChannels.filter((channel) => channel.truncated).length,
+      });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error listing discord evidence messages:', err);
       json(res, 500, { error: 'Erreur lors de la récupération des messages Discord' });
@@ -1112,6 +1167,14 @@ export async function handleModulesRoutes(
       const selections = Array.isArray(body?.selections) ? body.selections : [];
       if (selections.length === 0) {
         json(res, 400, { error: 'Aucun message sélectionné.' });
+        return true;
+      }
+
+      const totalSelectedMessages = selections.reduce((total, selection) => (
+        total + (Array.isArray(selection?.messageIds) ? selection.messageIds.length : 0)
+      ), 0);
+      if (totalSelectedMessages > MAX_EVIDENCE_MESSAGES) {
+        json(res, 400, { error: `Maximum ${MAX_EVIDENCE_MESSAGES} messages par transcription.` });
         return true;
       }
 
@@ -1140,11 +1203,6 @@ export async function handleModulesRoutes(
           errors.push({ channelId: channelId || 'inconnu', error: 'Sélection invalide.' });
           return;
         }
-        if (messageIds.length > MAX_EVIDENCE_MESSAGES) {
-          errors.push({ channelId, error: `Maximum ${MAX_EVIDENCE_MESSAGES} messages par salon.` });
-          return;
-        }
-
         const resolved = await resolveEvidenceChannel(client, guildId, channelId);
         if ('error' in resolved) {
           errors.push({ channelId, error: resolved.error });
