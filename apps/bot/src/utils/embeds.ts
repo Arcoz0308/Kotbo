@@ -15,7 +15,6 @@ import {
   type APIEmbedField,
 } from 'discord.js';
 import { E } from './emojis.js';
-import { stripMentions } from './patchV2.js';
 
 // ─────────────────────────────────────────────────────────────
 // Color Palette
@@ -54,7 +53,7 @@ export function v2(...containers: ContainerBuilder[]) {
 // V2 Text Shorthand
 // ─────────────────────────────────────────────────────────────
 export function text(content: string) {
-  return new TextDisplayBuilder().setContent(stripMentions(content));
+  return new TextDisplayBuilder().setContent(content);
 }
 
 export function separator(divider = true, spacing: SeparatorSpacingSize = SeparatorSpacingSize.Small) {

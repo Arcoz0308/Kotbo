@@ -146,6 +146,25 @@ function resolveButtonStyle(style?: TicketPanelTypeConfig['buttonStyle']): Butto
   }
 }
 
+/**
+ * Rebuilds the welcome message's V2 container with an updated status line.
+ * The welcome message is Components V2 only (no embeds), so status updates
+ * (claim/close/reopen) must edit the container directly instead of touching
+ * a non-existent `.embeds[0]`.
+ */
+function buildTicketStatusContainer(
+  ticket: { id: string; ticketTypeLabel?: string | null },
+  bodyText: string,
+  color: number,
+): ContainerBuilder {
+  return new ContainerBuilder()
+    .setAccentColor(color)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`### 🎫 Ticket d'Assistance · ${ticket.ticketTypeLabel || 'Ticket'}`))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(bodyText))
+    .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Kotbo · Ticket ID: ${ticket.id}`));
+}
+
 export async function renameTicketChannel(
   client: Client,
   ticket: { id: string; guildId: string; channelId: string | null; userId: string; username: string; reason: string; description: string },
@@ -507,43 +526,40 @@ export async function handleTicketButton(client: Client, customId: string, inter
       }
     });
 
-    // Mettre à jour l'embed de bienvenue
+    // Mettre à jour le container V2 du message de bienvenue (Components V2 uniquement, pas d'embeds)
     const ticketChannel = interaction.channel as TextChannel;
     if (ticketChannel) {
       try {
-        const welcomeMessage = await ticketChannel.messages.fetch(interaction.message.id);
-        const oldEmbed = welcomeMessage.embeds[0];
-        if (oldEmbed) {
-          const updatedEmbed = EmbedBuilder.from(oldEmbed)
-            .setColor(COLORS.warning as unknown)
-            .setDescription(`Ce ticket est actuellement pris en charge par **${user.username}**.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`)
-            .setFields([
-              { name: 'Statut', value: `🛠️ Pris en charge par <@${user.id}>`, inline: true }
-            ]);
+        const bodyText = `Ce ticket est actuellement pris en charge par <@${user.id}>.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`;
+        const updatedContainer = buildTicketStatusContainer(ticket, bodyText, COLORS_RAW.warning);
 
-          const componentsList: ButtonBuilder[] = [];
-          
-          if (allowOverclaim && overclaimPermission !== 'NONE') {
-            componentsList.push(
-              new ButtonBuilder().setCustomId(`ticket:claim:${ticketId}`).setLabel('Sur-revendiquer').setStyle(ButtonStyle.Primary).setEmoji('🛠️')
-            );
-          }
+        const componentsList: ButtonBuilder[] = [];
 
+        if (allowOverclaim && overclaimPermission !== 'NONE') {
           componentsList.push(
-            new ButtonBuilder().setCustomId(`ticket:info:${ticketId}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
-            new ButtonBuilder().setCustomId(`ticket:close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+            new ButtonBuilder().setCustomId(`ticket:claim:${ticketId}`).setLabel('Sur-revendiquer').setStyle(ButtonStyle.Primary).setEmoji('🛠️')
           );
-
-          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(componentsList);
-
-          await welcomeMessage.edit({ embeds: [updatedEmbed], components: [row] });
         }
+
+        componentsList.push(
+          new ButtonBuilder().setCustomId(`ticket:info:${ticketId}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+          new ButtonBuilder().setCustomId(`ticket:close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+        );
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(componentsList);
+
+        await interaction.message.edit({
+          components: [updatedContainer, row],
+          flags: MessageFlags.IsComponentsV2,
+          allowedMentions: { users: [user.id, ticket.userId] },
+        });
       } catch (err) {
-        logger.error('Ticket', 'Error updating welcome embed:', err);
+        logger.error('Ticket', 'Error updating welcome message container:', err);
       }
 
       await ticketChannel.send({
-        embeds: [successEmbed('Pris en charge', `Ce ticket est désormais pris en charge par <@${user.id}>.`)]
+        embeds: [successEmbed('Pris en charge', `Ce ticket est désormais pris en charge par <@${user.id}>.`)],
+        allowedMentions: { users: [user.id] },
       });
     }
 
@@ -632,9 +648,33 @@ export async function handleTicketButton(client: Client, customId: string, inter
         logger.error('Ticket', 'Error restoring opener permissions:', err);
       }
 
+      // Restaurer le container V2 du message de bienvenue (ré-active les boutons désactivés à la fermeture)
+      try {
+        const welcomeMessage = await findTicketWelcomeMessage(ticketChannel, ticketId);
+        if (welcomeMessage) {
+          const bodyText = `Ce ticket a été réouvert par <@${user.id}>.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`;
+          const updatedContainer = buildTicketStatusContainer(ticket, bodyText, COLORS_RAW.primary);
+
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId(`ticket:claim:${ticketId}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
+            new ButtonBuilder().setCustomId(`ticket:info:${ticketId}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+            new ButtonBuilder().setCustomId(`ticket:close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+          );
+
+          await welcomeMessage.edit({
+            components: [updatedContainer, row],
+            flags: MessageFlags.IsComponentsV2,
+            allowedMentions: { users: [user.id, ticket.userId] },
+          }).catch(() => null);
+        }
+      } catch (err) {
+        logger.error('Ticket', 'Error restoring welcome message container on reopen:', err);
+      }
+
       // Supprimer le message d'interaction précédent ou juste en envoyer un nouveau
       await ticketChannel.send({
-        embeds: [successEmbed('Ticket Réouvert', `Le ticket a été réouvert par <@${user.id}>. Le créateur a de nouveau accès au salon.`)]
+        embeds: [successEmbed('Ticket Réouvert', `Le ticket a été réouvert par <@${user.id}>. Le créateur a de nouveau accès au salon.`)],
+        allowedMentions: { users: [user.id, ticket.userId] },
       });
     }
 
@@ -835,7 +875,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
           new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
 
-        if (staffMention) await thread.send({ content: staffMention });
+        if (staffMention) await thread.send({ content: staffMention, allowedMentions: { roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] } });
         await thread.send({ embeds: [staffEmbed], components: [row] });
 
         const dmEmbed = new EmbedBuilder()
@@ -1144,7 +1184,7 @@ async function handleDmDirectTicket(
     new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
   );
 
-  if (staffMention) await thread.send({ content: staffMention });
+  if (staffMention) await thread.send({ content: staffMention, allowedMentions: { roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] } });
   await thread.send({ embeds: [staffEmbed], components: [row] });
 
   const dmEmbed = new EmbedBuilder()
@@ -1358,11 +1398,22 @@ export async function findTicketWelcomeMessage(
   try {
     const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
     if (!messages) return null;
-    return messages.find(msg => 
-      msg.author.bot && 
-      msg.embeds.length > 0 && 
-      msg.embeds[0].footer?.text?.includes(`Ticket ID: ${ticketId}`)
-    ) || null;
+    const marker = `Ticket ID: ${ticketId}`;
+
+    return messages.find(msg => {
+      if (!msg.author.bot) return false;
+
+      for (const component of msg.components as unknown[]) {
+        const c = component as { type: ComponentType; content?: string; components?: { type: ComponentType; content?: string }[] };
+        if (c.type === ComponentType.TextDisplay && c.content?.includes(marker)) return true;
+        if (c.type === ComponentType.Container && c.components) {
+          for (const nested of c.components) {
+            if (nested.type === ComponentType.TextDisplay && nested.content?.includes(marker)) return true;
+          }
+        }
+      }
+      return false;
+    }) || null;
   } catch (err) {
     logger.error('Ticket', `Error finding welcome message for ticket ${ticketId}:`, err);
     return null;
@@ -1416,36 +1467,35 @@ export async function closeTicket(
         logger.error('Ticket', 'Error removing opener permissions from closed channel:', err);
       }
 
-      // Mettre à jour l'embed de bienvenue s'il existe
+      // Mettre à jour le container V2 du message de bienvenue s'il existe
       try {
         const welcomeMessage = await findTicketWelcomeMessage(ticketChannel, ticketId);
         if (welcomeMessage) {
-          const oldEmbed = welcomeMessage.embeds[0];
-          if (oldEmbed) {
-            const updatedEmbed = EmbedBuilder.from(oldEmbed)
-              .setColor(COLORS.danger as unknown)
-              .setFields([
-                { name: 'Statut', value: `🔒 Fermé par <@${closedByUserId}>`, inline: true }
-              ]);
+          const bodyText = `Ce ticket a été fermé par <@${closedByUserId}>.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`;
+          const updatedContainer = buildTicketStatusContainer(ticket, bodyText, COLORS_RAW.danger);
 
-            // Disable all button components on the welcome message
-            const disabledComponents = welcomeMessage.components.map(row => {
+          // Disable all button components carried over from the original message
+          const disabledRows = welcomeMessage.components
+            .filter((component: any) => component.type === ComponentType.ActionRow)
+            .map((actionRow: any) => {
               const newRow = new ActionRowBuilder<ButtonBuilder>();
-              row.components.forEach(comp => {
+              for (const comp of actionRow.components) {
                 if (comp.type === ComponentType.Button) {
-                  const btn = ButtonBuilder.from(comp as any);
-                  btn.setDisabled(true);
-                  newRow.addComponents(btn);
+                  newRow.addComponents(ButtonBuilder.from(comp as any).setDisabled(true));
                 }
-              });
+              }
               return newRow;
-            }).filter(row => row.components.length > 0);
+            })
+            .filter((row: ActionRowBuilder<ButtonBuilder>) => row.components.length > 0);
 
-            await welcomeMessage.edit({ embeds: [updatedEmbed], components: disabledComponents }).catch(() => null);
-          }
+          await welcomeMessage.edit({
+            components: [updatedContainer, ...disabledRows],
+            flags: MessageFlags.IsComponentsV2,
+            allowedMentions: { users: [closedByUserId, ticket.userId] },
+          }).catch(() => null);
         }
       } catch (err) {
-        logger.error('Ticket', 'Error updating welcome embed on close:', err);
+        logger.error('Ticket', 'Error updating welcome message container on close:', err);
       }
 
       const closeEmbed = new EmbedBuilder()
@@ -1459,7 +1509,7 @@ export async function closeTicket(
         new ButtonBuilder().setCustomId(`ticket:delete:${ticketId}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
       );
 
-      await ticketChannel.send({ embeds: [closeEmbed], components: [row], allowedMentions: { parse: [] } }).catch(() => null);
+      await ticketChannel.send({ embeds: [closeEmbed], components: [row], allowedMentions: { users: [closedByUserId] } }).catch(() => null);
     }
   }
 
