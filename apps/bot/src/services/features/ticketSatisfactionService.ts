@@ -35,7 +35,7 @@ export async function sendSatisfactionSurvey(client: Client, guildId: string, ti
       new ButtonBuilder().setCustomId(`satisfaction:${guildId}:${ticketId}:5`).setEmoji('🤩').setLabel('5').setStyle(ButtonStyle.Success),
     );
 
-    await user.send({ embeds: [embed], components: [row] }).catch(() => {
+    await user.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } }).catch(() => {
       logger.debug('TicketSatisfaction', `Impossible d'envoyer le sondage à ${userId} (DM fermés)`);
     });
   } catch (error) {

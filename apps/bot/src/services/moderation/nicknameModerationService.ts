@@ -179,7 +179,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
           .setFooter({ text: 'Automod | Rescan des pseudos' })
           .setTimestamp();
 
-        await logChannel.send({ embeds: [embed] }).catch(() => null);
+        await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
 
       // Audit dashboard

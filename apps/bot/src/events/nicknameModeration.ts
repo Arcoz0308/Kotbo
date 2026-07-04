@@ -128,7 +128,7 @@ async function checkAndRename(member: GuildMember): Promise<void> {
           .setFooter({ text: 'Automod | Modération des pseudos' })
           .setTimestamp();
 
-        await logChannel.send({ embeds: [embed] }).catch(() => null);
+        await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
 

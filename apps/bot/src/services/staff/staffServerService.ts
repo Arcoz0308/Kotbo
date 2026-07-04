@@ -315,7 +315,7 @@ async function sendSyncLog(
       iconURL: sourceMember.user.displayAvatarURL(),
     })
     .setDescription(
-      `**Membre :** ${sourceMember.user.tag} (\`${sourceMember.user.id}\`)\n` +
+      `**Membre :** ${sourceMember.user.tag} (<@${sourceMember.user.id}>)\n` +
       `**Source :** ${sourceMember.guild.name}\n` +
       `**Cible :** ${targetMember.guild.name}\n\n` +
       actions.join('\n'),
@@ -330,7 +330,7 @@ async function sendSyncLog(
       for (const guild of client.guilds.cache.values()) {
         const channel = guild.channels.cache.get(channelId);
         if (channel instanceof TextChannel) {
-          await channel.send({ embeds: [embed] }).catch(() => null);
+          await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
           break;
         }
       }

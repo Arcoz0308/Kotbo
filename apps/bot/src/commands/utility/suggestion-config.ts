@@ -187,7 +187,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         return;
       }
 
-      await targetChannel.send({ embeds: [embed], components: [row] });
+      await targetChannel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
 
       await interaction.editReply({
         embeds: [

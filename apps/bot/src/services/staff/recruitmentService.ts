@@ -341,7 +341,7 @@ export async function approveCandidature(
       .setEmoji('🗑️'),
   );
 
-  await ticketChannel.send({ embeds: [embed], components: [actionRow] });
+  await ticketChannel.send({ embeds: [embed], components: [actionRow], allowedMentions: { parse: [] } });
 
   // Send the mention + availability message
   await ticketChannel.send({
@@ -407,7 +407,7 @@ export async function rejectCandidature(
           .setFooter({ text: `Kotbo · Recrutement · ${discordGuild.name}` })
           .setTimestamp();
 
-        await member.send({ embeds: [embed] }).catch(err => {
+        await member.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(err => {
           logger.warn('Recruitment', `Impossible d'envoyer un MP à ${candidature.discordId}: ${err.message}`);
         });
       }
@@ -464,7 +464,7 @@ export async function sendAutoRejectDM(
         .setFooter({ text: `Kotbo · Recrutement Automatique · ${discordGuild.name}` })
         .setTimestamp();
 
-      await member.send({ embeds: [embed] }).catch(err => {
+      await member.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(err => {
         logger.warn('Recruitment', `Impossible d'envoyer le MP d'auto-refus à ${discordId}: ${err.message}`);
       });
     }
@@ -514,7 +514,7 @@ export async function completeOral(
             .setFooter({ text: `Kotbo · Recrutement · ${discordGuild.name}` })
             .setTimestamp();
 
-          await member.send({ embeds: [embed] }).catch(err => {
+          await member.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(err => {
             logger.warn('Recruitment', `Impossible d'envoyer le MP oral échoué à ${candidature.discordId}: ${err.message}`);
           });
         }

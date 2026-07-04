@@ -579,7 +579,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
           ? message.attachments.filter((a) => !a.contentType?.startsWith('image/')).map((a) => ({ attachment: a.url, name: a.name ?? 'file' }))
           : [];
 
-        const sent = await (destChannel as TextChannel).send({ embeds: [embed], files });
+        const sent = await (destChannel as TextChannel).send({ embeds: [embed], files, allowedMentions: { parse: [] } });
         await saveMessageMapping(link.id, message.id, message.channel.id, sent.id, relay.destChannelId);
       }
     } catch (err) {
@@ -915,7 +915,7 @@ export async function relayThreadMessage(message: Message, client: Client): Prom
         const img = link.relayImages ? message.attachments.find((a) => a.contentType?.startsWith('image/')) : undefined;
         if (img) embed.setImage(img.url);
 
-        await destThread.send({ embeds: [embed], files });
+        await destThread.send({ embeds: [embed], files, allowedMentions: { parse: [] } });
       }
     } catch (err) {
       logger.error(TAG, `Erreur relay thread message ${message.id}`, err);
@@ -990,7 +990,7 @@ export async function relayPollMessage(message: Message, client: Client): Promis
         embed.addFields({ name: 'Expire', value: `<t:${Math.floor(poll.expiresAt.getTime() / 1000)}:R>`, inline: true });
       }
 
-      const sent = await (destChannel as TextChannel).send({ embeds: [embed] });
+      const sent = await (destChannel as TextChannel).send({ embeds: [embed], allowedMentions: { parse: [] } });
       await saveMessageMapping(link.id, message.id, message.channel.id, sent.id, relay.destChannelId);
     } catch (err) {
       logger.error(TAG, `Erreur relay poll ${message.id}`, err);

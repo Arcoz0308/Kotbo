@@ -692,7 +692,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
       for (const dmUserId of usersToDm) {
         try {
           const dmUser = await client.users.fetch(dmUserId);
-          if (dmUser) await dmUser.send({ embeds: [dmEmbed] });
+          if (dmUser) await dmUser.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } });
         } catch (err) {
           // Ignorer si les MPs sont bloqués
         }
@@ -847,9 +847,9 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 
         try {
           const dmUser = await client.users.fetch(user.id);
-          await dmUser.send({ embeds: [dmEmbed] });
+          await dmUser.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } });
         } catch {
-          await thread.send({ embeds: [errorEmbed('MP bloqués', `<@${user.id}> a ses messages privés désactivés. Le ticket ne pourra pas fonctionner en mode MP.`)] });
+          await thread.send({ embeds: [errorEmbed('MP bloqués', `<@${user.id}> a ses messages privés désactivés. Le ticket ne pourra pas fonctionner en mode MP.`)], allowedMentions: { parse: [] } });
         }
 
         await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
@@ -1159,10 +1159,11 @@ async function handleDmDirectTicket(
     .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
   try {
-    await user.send({ embeds: [dmEmbed] });
+    await user.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } });
   } catch {
     await thread.send({
       embeds: [errorEmbed('MP bloqués', `<@${user.id}> a ses messages privés désactivés.`)],
+      allowedMentions: { parse: [] },
     });
   }
 
@@ -1202,7 +1203,7 @@ export async function relayDmToThread(client: Client, message: Message): Promise
       .setTimestamp();
 
     const files = message.attachments.map(a => a.url);
-    await (thread as ThreadChannel).send({ embeds: [relayEmbed], files });
+    await (thread as ThreadChannel).send({ embeds: [relayEmbed], files, allowedMentions: { parse: [] } });
 
     await message.react('✅').catch(() => null);
   } catch (err) {
@@ -1240,7 +1241,7 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
       .setFooter({ text: `Ticket: ${ticket.reason}` });
 
     const files = message.attachments.map(a => a.url);
-    await dmUser.send({ embeds: [relayEmbed], files });
+    await dmUser.send({ embeds: [relayEmbed], files, allowedMentions: { parse: [] } });
   } catch (err) {
     logger.error('Ticket', 'Error relaying thread to DM:', err);
   }
@@ -1341,7 +1342,7 @@ async function logTicketEvent(
   }
 
   try {
-    await logChannel.send({ embeds: [embed] });
+    await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } });
   } catch (err) {
     logger.error('Ticket', 'Error sending to ticket log channel:', err);
   }
@@ -1458,7 +1459,7 @@ export async function closeTicket(
         new ButtonBuilder().setCustomId(`ticket:delete:${ticketId}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
       );
 
-      await ticketChannel.send({ embeds: [closeEmbed], components: [row] }).catch(() => null);
+      await ticketChannel.send({ embeds: [closeEmbed], components: [row], allowedMentions: { parse: [] } }).catch(() => null);
     }
   }
 

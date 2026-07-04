@@ -795,14 +795,14 @@ async function applySanction(message: Message, action: string, reason: string, c
           .setTitle('🛡️ Sanction AutoMod')
           .setDescription(`L'utilisateur <@${target.id}> a déclenché une alerte de sécurité.`)
           .addFields(
-            { name: 'Utilisateur', value: `${target.tag} (${target.id})`, inline: true },
+            { name: 'Utilisateur', value: `${target.tag} (<@${target.id}>)`, inline: true },
             { name: 'Action', value: action, inline: true },
             { name: 'Raison', value: reason, inline: false },
             { name: 'Salon', value: `<#${message.channel.id}>`, inline: true }
           )
           .setColor('#ED4245')
           .setTimestamp();
-        await (logChannel as unknown).send({ embeds: [embed] }).catch(() => null);
+        await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
   } catch (err) {
@@ -1009,7 +1009,7 @@ async function triggerGhostPingAlert(
           .setTitle('🛡️ Alerte AutoMod (Ghost Ping)')
           .setDescription(`Un ghost ping a été détecté dans le salon <#${message.channel.id}>.`)
           .addFields(
-            { name: 'Utilisateur', value: `${author.tag} (${author.id})`, inline: true },
+            { name: 'Utilisateur', value: `${author.tag} (<@${author.id}>)`, inline: true },
             { name: 'Cibles mentionnées', value: targetsString || 'Inconnues', inline: true },
             { name: 'Action', value: action, inline: true },
             { name: "Type d'infraction", value: isEdit ? 'Modification de message' : 'Suppression de message', inline: true }
@@ -1023,7 +1023,7 @@ async function triggerGhostPingAlert(
           embed.addFields({ name: 'Message original', value: contentSnippet, inline: false });
         }
 
-        await (logChannel as unknown).send({ embeds: [embed] }).catch(() => null);
+        await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
   } catch (err) {
@@ -1121,14 +1121,14 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
             .setTitle('🤖 Bot bloqué (Mode Sécurisé)')
             .setDescription(`Le bot **${member.user.tag}** a été ${action === 'BAN' ? 'banni' : 'expulsé'} automatiquement.`)
             .addFields(
-              { name: 'Bot', value: `${member.user.tag} (${member.id})`, inline: true },
+              { name: 'Bot', value: `${member.user.tag} (<@${member.id}>)`, inline: true },
               { name: 'Ajouté par', value: addedById ? `<@${addedById}>` : 'Inconnu', inline: true },
               { name: 'Action', value: action, inline: true },
               { name: 'Raison', value: 'Seul le propriétaire du serveur peut ajouter des bots en mode sécurisé.', inline: false },
             )
             .setColor('#ED4245')
             .setTimestamp();
-          await (logChannel as unknown).send({ embeds: [embed] }).catch(() => null);
+          await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
         }
       }
     } catch (err) {

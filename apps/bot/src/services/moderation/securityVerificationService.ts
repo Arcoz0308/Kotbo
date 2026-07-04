@@ -119,7 +119,7 @@ export async function sendVerificationDM(
   );
 
   try {
-    await member.send({ embeds: [embed], components: [row] });
+    await member.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
     logger.info('SecurityVerif', `DM de vérification envoyé à ${member.user.tag} sur ${guild.name}`);
     return true;
   } catch {
@@ -170,7 +170,7 @@ export async function sendVerificationEmbed(
       .setEmoji('🔐'),
   );
 
-  await channel.send({ embeds: [embed], components: [row] });
+  await channel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
   return true;
 }
 
@@ -449,7 +449,7 @@ async function notifyStaffOfDuplicate(
   if (targetChannelId) {
     const channel = await guild.channels.fetch(targetChannelId).catch(() => null) as TextChannel | null;
     if (channel) {
-      await channel.send({ embeds: [embed], components }).catch(() => null);
+      await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } }).catch(() => null);
     }
   }
 

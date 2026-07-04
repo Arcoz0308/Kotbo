@@ -81,7 +81,7 @@ export async function createSuggestion(guildId: string, userId: string, username
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(upvoteBtn, downvoteBtn);
 
-  const message = await channel.send({ embeds: [embed], components: [row] }).catch(() => null);
+  const message = await channel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } }).catch(() => null);
   
   if (message) {
     await prisma.suggestion.update({

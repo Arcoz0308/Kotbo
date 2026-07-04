@@ -1999,7 +1999,7 @@ export async function handleModulesRoutes(
                 .setTimestamp()
                 .setFooter({ text: 'Système de protection Kotbo' });
 
-              await newHoneypot.send({ embeds: [honeyEmbed] }).catch(() => null);
+              await newHoneypot.send({ embeds: [honeyEmbed], allowedMentions: { parse: [] } }).catch(() => null);
             }
           }
 
@@ -5482,10 +5482,10 @@ export async function handleModulesRoutes(
 
           const headerEmbed = new EmbedBuilder()
             .setTitle('📜 Historique restauré')
-            .setDescription(`Ce ticket a été restauré depuis une transcription par **${user.username || 'Staff'}**.\nLes messages ci-dessous sont une restitution de la conversation d'origine.`)
+            .setDescription(`Ce ticket a été restauré depuis une transcription par **${user.username || 'Staff'}** (<@${user.userId}>).\nLes messages ci-dessous sont une restitution de la conversation d'origine.`)
             .setColor(COLORS.primary as unknown)
             .setTimestamp();
-          await ticketChannel.send({ embeds: [headerEmbed] });
+          await ticketChannel.send({ embeds: [headerEmbed], allowedMentions: { parse: [] } });
 
           for (const msg of parsedMessages) {
             if (!msg.content && !msg.username && msg.embeds.length === 0 && msg.imageUrls.length === 0) continue;
@@ -5533,6 +5533,7 @@ export async function handleModulesRoutes(
                 username: `${webhookName} (historique)`,
                 avatarURL: msg.avatarUrl || undefined,
                 embeds: discordEmbeds.length > 0 ? discordEmbeds.slice(0, 10) : undefined,
+                allowedMentions: { parse: [] },
               });
             } catch (sendErr: unknown) {
               logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${sendErr.message}`);
@@ -5545,7 +5546,7 @@ export async function handleModulesRoutes(
         // Send separator + welcome back embed
         const restoreEmbed = new EmbedBuilder()
           .setTitle('🔄 Ticket Restauré')
-          .setDescription(`Ce ticket a été réouvert par **${user.username || "Staff"}** depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || "Aucune"}`)
+          .setDescription(`Ce ticket a été réouvert par **${user.username || "Staff"}** (<@${user.userId}>) depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || "Aucune"}`)
           .setColor(COLORS.primary as unknown)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
@@ -5554,7 +5555,7 @@ export async function handleModulesRoutes(
           new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
           new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
-        await ticketChannel.send({ embeds: [restoreEmbed], components: [row] });
+        await ticketChannel.send({ embeds: [restoreEmbed], components: [row], allowedMentions: { parse: [] } });
 
         await prisma.ticket.update({
           where: { id: ticketId },
@@ -5585,7 +5586,7 @@ export async function handleModulesRoutes(
               ])
               .setTimestamp()
               .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
-            await logCh.send({ embeds: [logEmbed] }).catch(() => {});
+            await logCh.send({ embeds: [logEmbed], allowedMentions: { parse: [] } }).catch(() => {});
           }
         }
 
@@ -5649,7 +5650,7 @@ export async function handleModulesRoutes(
           for (const dmUserId of usersToDm) {
             try {
               const dmUser = await client.users.fetch(dmUserId);
-              if (dmUser) await dmUser.send({ embeds: [dmEmbed] });
+              if (dmUser) await dmUser.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } });
             } catch { /* ignored */ }
           }
 
@@ -5667,7 +5668,7 @@ export async function handleModulesRoutes(
                 ])
                 .setTimestamp()
                 .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
-              await logCh.send({ embeds: [logEmbed] }).catch(() => {});
+              await logCh.send({ embeds: [logEmbed], allowedMentions: { parse: [] } }).catch(() => {});
             }
           }
 

@@ -192,7 +192,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
               .setStyle(ButtonStyle.Danger)
           );
 
-          await logChannel.send({ content: `${staffPing} <@${u1.id}> <@${u2.id}>`, embeds: [embed], components: [row] });
+          await logChannel.send({ content: `${staffPing} <@${u1.id}> <@${u2.id}>`, embeds: [embed], components: [row], allowedMentions: { parse: [] } });
         }
       }
 
@@ -227,10 +227,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
       .setFooter({ text: `Serveur : ${guild.name}` });
 
     try {
-      await u1.send({ embeds: [dmEmbed] }).catch(() => null);
+      await u1.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } }).catch(() => null);
     } catch { /* ignored */ }
     try {
-      await u2.send({ embeds: [dmEmbed] }).catch(() => null);
+      await u2.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } }).catch(() => null);
     } catch { /* ignored */ }
 
     return interaction.reply({
@@ -312,7 +312,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         .setStyle(ButtonStyle.Danger)
     );
 
-    await logChannel.send({ embeds: [embed], components: [row] });
+    await logChannel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
 
     return interaction.reply({
       content: '✅ Ta déclaration a été envoyée aux modérateurs pour validation. Merci de ta bonne foi !',
@@ -338,10 +338,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
       .setFooter({ text: `Serveur : ${interaction.guild?.name || 'Kotbo'}` });
 
     try {
-      await u1.send({ embeds: [dmEmbed] }).catch(() => null);
+      await u1.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } }).catch(() => null);
     } catch { /* ignored */ }
     try {
-      await u2.send({ embeds: [dmEmbed] }).catch(() => null);
+      await u2.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } }).catch(() => null);
     } catch { /* ignored */ }
 
     return interaction.reply({

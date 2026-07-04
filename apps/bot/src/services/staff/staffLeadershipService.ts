@@ -1244,9 +1244,9 @@ export const createNotification = async (
               .setURL(fullLink)
           );
           
-          await user.send({ embeds: [embed], components: [row] }).catch(() => null);
+          await user.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } }).catch(() => null);
         } else {
-          await user.send({ embeds: [embed] }).catch(() => null);
+          await user.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
         }
       }
     } catch (error) {

@@ -160,10 +160,10 @@ export function registerHoneypotListener(client: Client): void {
         if (logChannel && logChannel instanceof TextChannel) {
           const embed = errorEmbed(
             logTitle,
-            `L'utilisateur **${author.tag}** (\`${author.id}\`) a été ${actionText} car il a écrit dans le salon piège <#${channelId}>.\n\n` +
+            `L'utilisateur **${author.tag}** (<@${author.id}>) a été ${actionText} car il a écrit dans le salon piège <#${channelId}>.\n\n` +
             `**Message supprimé :**\n\`\`\`\n${message.content.slice(0, 1000) || '[Pas de texte/média]'}\n\`\`\``
           );
-          await logChannel.send({ embeds: [embed] }).catch(() => null);
+          await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
         }
       }
     } catch (err) {

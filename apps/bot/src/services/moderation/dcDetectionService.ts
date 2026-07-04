@@ -492,7 +492,7 @@ async function reportSuspectedDC(member: GuildMember, evidence: DetectionEvidenc
       .setStyle(ButtonStyle.Secondary),
   );
 
-  await (logChannel as unknown).send({ embeds: [embed], components: [row] });
+  await (logChannel as unknown).send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
 }
 
 export async function handleDCInteraction(interaction: unknown): Promise<void> {
@@ -540,9 +540,9 @@ export async function handleDCInteraction(interaction: unknown): Promise<void> {
       .setTimestamp();
 
     const u1 = await interaction.client.users.fetch(userId).catch(() => null);
-    if (u1) await u1.send({ embeds: [dmEmbed] }).catch(() => null);
+    if (u1) await u1.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } }).catch(() => null);
     const u2 = await interaction.client.users.fetch(altId).catch(() => null);
-    if (u2) await u2.send({ embeds: [dmEmbed] }).catch(() => null);
+    if (u2) await u2.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } }).catch(() => null);
 
     await interaction.update({
       content: `✅ <@${userId}> lié à <@${altId}> par <@${interaction.user.id}>.`,

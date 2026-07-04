@@ -492,7 +492,7 @@ async function propagateSanction(client: Client, originalGuildId: string, sancti
         )
         .setTimestamp();
 
-      await (channel as unknown).send({ embeds: [embed] }).catch(() => null);
+      await (channel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
     } catch (err) {
       logger.debug('Sanctions', `Error propagating sanction to guild ${guildConfig.id}: ${String(err)}`);
     }

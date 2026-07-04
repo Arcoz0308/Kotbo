@@ -136,11 +136,11 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
       await existingMessage.edit({ embeds: [embed], components });
       mode = 'updated';
     } else {
-      const sentMessage = await channel.send({ embeds: [embed], components });
+      const sentMessage = await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } });
       messageId = sentMessage.id;
     }
   } else {
-    const sentMessage = await channel.send({ embeds: [embed], components });
+    const sentMessage = await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } });
     messageId = sentMessage.id;
   }
 
