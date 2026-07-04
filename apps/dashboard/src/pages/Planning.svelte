@@ -22,7 +22,9 @@
     updateAbsenceStatus,
     deleteAbsence,
     fetchStaffRoles,
-    searchDiscordMembers
+    searchDiscordMembers,
+    fetchCallPermissionConfig,
+    updateCallPermissionConfig
   } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
@@ -97,6 +99,21 @@
   let formInviteeMemberIds = $state<string[]>([]);
   let selectedMembers = $state<Map<string, any>>(new Map());
 
+  // Call creation permissions ("qui peut créer des appels")
+  let callPermConfig = $state<any>(null);
+  let callPermCanCreate = $state(true);
+  let permissionModalOpen = $state(false);
+  let permMode = $state<'EVERYONE' | 'RESTRICTED'>('EVERYONE');
+  let permRoleIds = $state<string[]>([]);
+  let permUserIds = $state<string[]>([]);
+  let permSelectedUsersMap = $state<Map<string, any>>(new Map());
+  let permMemberSearchQuery = $state('');
+  let permMemberSearchResults = $state<any[]>([]);
+  let permMemberSearchLoading = $state(false);
+  let permMemberSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let permError = $state('');
+  let permSaving = $state(false);
+
   async function searchMembers(query: string) {
     if (!query.trim()) {
       memberSearchResults = [];
@@ -133,6 +150,76 @@
       const next = new Map(selectedMembers);
       next.set(member.id, member);
       selectedMembers = next;
+    }
+  }
+
+  // Call creation permissions
+  function togglePermRole(roleId: string) {
+    permRoleIds = permRoleIds.includes(roleId) ? permRoleIds.filter(id => id !== roleId) : [...permRoleIds, roleId];
+  }
+
+  function togglePermUser(member: any) {
+    if (permUserIds.includes(member.id)) {
+      permUserIds = permUserIds.filter(id => id !== member.id);
+      const next = new Map(permSelectedUsersMap);
+      next.delete(member.id);
+      permSelectedUsersMap = next;
+    } else {
+      permUserIds = [...permUserIds, member.id];
+      const next = new Map(permSelectedUsersMap);
+      next.set(member.id, member);
+      permSelectedUsersMap = next;
+    }
+  }
+
+  async function searchPermMembers(query: string) {
+    if (!query.trim()) {
+      permMemberSearchResults = [];
+      return;
+    }
+    permMemberSearchLoading = true;
+    try {
+      const data = await searchDiscordMembers(query, 15);
+      permMemberSearchResults = (data?.members || []).filter((m: any) => !permUserIds.includes(m.id));
+    } catch (e) {
+      console.error('Permission member search error:', e);
+      permMemberSearchResults = [];
+    } finally {
+      permMemberSearchLoading = false;
+    }
+  }
+
+  function handlePermMemberSearchInput(value: string) {
+    permMemberSearchQuery = value;
+    if (permMemberSearchTimeout) clearTimeout(permMemberSearchTimeout);
+    permMemberSearchTimeout = setTimeout(() => searchPermMembers(value), 300);
+  }
+
+  function openPermissionModal() {
+    permMode = callPermConfig?.mode || 'EVERYONE';
+    permRoleIds = [...(callPermConfig?.allowedRoleIds || [])];
+    permUserIds = [...(callPermConfig?.allowedUserIds || [])];
+    permMemberSearchQuery = '';
+    permMemberSearchResults = [];
+    permError = '';
+    permissionModalOpen = true;
+  }
+
+  async function savePermissionConfig() {
+    permSaving = true;
+    permError = '';
+    try {
+      await updateCallPermissionConfig({ mode: permMode, allowedRoleIds: permRoleIds, allowedUserIds: permUserIds });
+      const data = await fetchCallPermissionConfig().catch(() => null);
+      if (data) {
+        callPermConfig = data.config;
+        callPermCanCreate = data.canCreate;
+      }
+      permissionModalOpen = false;
+    } catch (e: any) {
+      permError = e?.message || 'Erreur lors de la mise à jour.';
+    } finally {
+      permSaving = false;
     }
   }
 
@@ -291,12 +378,25 @@
   async function loadData() {
     loading = true;
     try {
-      const [membersData, rolesData] = await Promise.all([
+      const [membersData, rolesData, callPermData] = await Promise.all([
         fetchStaffMembers(),
-        fetchStaffRoles()
+        fetchStaffRoles(),
+        fetchCallPermissionConfig().catch(() => null)
       ]);
       allStaff = membersData?.members || [];
       allRoles = rolesData?.roles || [];
+
+      if (callPermData) {
+        callPermConfig = callPermData.config;
+        callPermCanCreate = callPermData.canCreate;
+
+        const usersMap = new Map();
+        for (const uid of callPermData.config?.allowedUserIds || []) {
+          const staff = allStaff.find((s: any) => s.userId === uid);
+          if (staff) usersMap.set(uid, { id: uid, username: staff.username, displayName: staff.displayName, avatarUrl: staff.avatarUrl });
+        }
+        permSelectedUsersMap = usersMap;
+      }
 
       if (myStaffRecord) {
         selectedStaffIds = [myStaffRecord.id];
@@ -398,6 +498,7 @@
           confirmIndefinite: !selectedEndDate
         });
       } else if (currentTab === 'call') {
+        if (!callPermCanCreate) { formError = "Vous n'avez pas la permission de planifier des appels."; saving = false; return; }
         await createCall({
           title: formTitle,
           description: formDescription,
@@ -515,6 +616,17 @@
         <span class="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] font-bold flex items-center justify-center">{pendingTaskCount}</span>
       {/if}
     </button>
+
+    {#if isAdmin}
+      <button
+        onclick={openPermissionModal}
+        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all border bg-surface-container border-outline-variant/20 text-on-surface-variant hover:text-on-surface"
+        title="Qui peut créer des appels ?"
+      >
+        <Papicon icon="shield" size={14} />
+        Permissions appels
+      </button>
+    {/if}
 
     <ActionButton
       onClick={() => openCreateModal(new Date())}
@@ -763,7 +875,7 @@
               { key: 'call', label: 'Appel', icon: 'phone', color: 'green' },
               { key: 'absence', label: 'Absence', icon: 'sun', color: 'amber' },
               { key: 'task', label: 'Tâche', icon: 'check-square', color: 'purple' }
-            ] as { key, label, icon, color }}
+            ].filter(t => t.key !== 'call' || callPermCanCreate) as { key, label, icon, color }}
               <button
                 onclick={() => gotoTab('/planning', key, 'meeting')}
                 class="flex-1 py-2 text-[11px] font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 whitespace-nowrap
@@ -1074,10 +1186,15 @@
               </div>
               {#if raw.invitees && raw.invitees.length > 0}
                 <div class="flex items-start gap-2">
-                  <Papicon icon="users" size={12} class="mt-0.5 text-on-surface-variant" />
-                  <div class="flex flex-wrap gap-1">
+                  <Papicon icon="users" size={12} class="mt-1 text-on-surface-variant" />
+                  <div class="flex flex-wrap gap-1.5">
                     {#each raw.invitees as invitee}
-                      <span class="px-2 py-0.5 rounded bg-surface-container-high text-[10px] font-semibold">
+                      <span class="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-surface-container-high text-[10px] font-semibold">
+                        <img
+                          src={invitee.staffMember?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(invitee.staffMember?.displayName || invitee.staffMember?.username || '?')}`}
+                          alt=""
+                          class="w-4 h-4 rounded-full"
+                        />
                         {invitee.staffMember?.displayName || invitee.staffMember?.username || 'Membre'}
                       </span>
                     {/each}
@@ -1099,7 +1216,11 @@
               </div>
               {#if raw.assignee}
                 <div class="flex items-center gap-1.5">
-                  <Papicon icon="user" size={12} class="text-on-surface-variant" />
+                  <img
+                    src={raw.assignee.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(raw.assignee.displayName || raw.assignee.username || '?')}`}
+                    alt=""
+                    class="w-4 h-4 rounded-full"
+                  />
                   <span class="font-medium">{raw.assignee.displayName || raw.assignee.username}</span>
                 </div>
               {/if}
@@ -1107,6 +1228,14 @@
           {/if}
 
           {#if currentItemDetail.type === 'absence'}
+            <div class="flex items-center gap-2.5 mb-3">
+              <img
+                src={currentItemDetail.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentItemDetail.staffName || raw.staffMember?.username || '?')}`}
+                alt=""
+                class="w-7 h-7 rounded-full border border-outline-variant/20"
+              />
+              <span class="text-xs font-bold text-on-surface">{currentItemDetail.staffName || raw.staffMember?.username || 'Membre inconnu'}</span>
+            </div>
             <div class="flex items-center gap-4 text-xs mb-4">
               <div class="flex items-center gap-1.5">
                 <Papicon icon="tag" size={12} class="text-on-surface-variant" />
@@ -1130,6 +1259,140 @@
           </button>
           <button onclick={() => detailModalOpen = false} class="px-4 py-1.5 rounded-md text-[11px] font-semibold text-on-surface-variant hover:bg-surface-hover transition-colors">
             Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ===== CALL PERMISSIONS MODAL ===== -->
+  {#if permissionModalOpen}
+    <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
+      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => permissionModalOpen = false} aria-label="Fermer"></button>
+
+      <div class="relative w-full max-w-lg bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200">
+        <div class="px-6 py-4 border-b border-outline-variant/15 bg-surface-container-low flex justify-between items-center">
+          <h3 class="text-sm font-bold text-on-surface">Qui peut créer des appels ?</h3>
+          <button onclick={() => permissionModalOpen = false} class="w-7 h-7 rounded-md hover:bg-surface-hover flex items-center justify-center transition-colors">
+            <Papicon icon="x" size={16} />
+          </button>
+        </div>
+
+        <div class="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+          <div class="flex bg-surface-container/50 p-0.5 rounded-lg border border-outline-variant/15 gap-0.5">
+            <button
+              onclick={() => permMode = 'EVERYONE'}
+              class="flex-1 py-2 text-[11px] font-semibold rounded-md transition-all {permMode === 'EVERYONE' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
+            >
+              Tout le monde
+            </button>
+            <button
+              onclick={() => permMode = 'RESTRICTED'}
+              class="flex-1 py-2 text-[11px] font-semibold rounded-md transition-all {permMode === 'RESTRICTED' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
+            >
+              Rôles / membres précis
+            </button>
+          </div>
+
+          {#if permMode === 'RESTRICTED'}
+            <div>
+              <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Rôles autorisés</span>
+              {#if (dashboardStore.state.discordRoles || []).length === 0}
+                <p class="text-[10px] text-on-surface-variant/40">Aucun rôle Discord chargé.</p>
+              {:else}
+                <div class="flex flex-wrap gap-1.5">
+                  {#each dashboardStore.state.discordRoles as role}
+                    <button
+                      onclick={() => togglePermRole(role.id)}
+                      class="px-2.5 py-1 rounded-md text-[10px] font-semibold border transition-colors {permRoleIds.includes(role.id) ? 'bg-primary/15 border-primary/30 text-primary' : 'bg-surface-container-high/30 border-outline-variant/15 text-on-surface-variant hover:bg-surface-container-high/50'}"
+                    >
+                      @{role.name}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+
+            <div>
+              <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Membres autorisés</span>
+
+              {#if permUserIds.length > 0}
+                <div class="flex flex-wrap gap-1.5 mb-2">
+                  {#each permUserIds as uid}
+                    {@const u = permSelectedUsersMap.get(uid)}
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-cyan-500/15 border border-cyan-500/25 rounded-md text-[10px] font-semibold text-cyan-300">
+                      {#if u}
+                        <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName || u.username || '?')}`} alt="" class="w-3.5 h-3.5 rounded-full" />
+                      {/if}
+                      {u ? (u.displayName || u.username) : uid}
+                      <button onclick={() => togglePermUser({ id: uid, ...(u || {}) })} class="ml-0.5 w-3.5 h-3.5 rounded-full hover:bg-cyan-500/30 flex items-center justify-center transition-colors">
+                        <Papicon icon="x" size={8} />
+                      </button>
+                    </span>
+                  {/each}
+                </div>
+              {/if}
+
+              <div class="relative">
+                <div class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                  {#if permMemberSearchLoading}
+                    <div class="w-3.5 h-3.5 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                  {:else}
+                    <Papicon icon="search" size={12} class="text-on-surface-variant/40" />
+                  {/if}
+                </div>
+                <input
+                  type="text"
+                  value={permMemberSearchQuery}
+                  oninput={(e) => handlePermMemberSearchInput((e.target as HTMLInputElement).value)}
+                  placeholder="Rechercher un membre..."
+                  class="w-full pl-8 pr-3 py-2 bg-surface-container-high/30 rounded-md border border-outline-variant/15 text-[11px] font-medium text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:border-primary/50 transition-colors"
+                />
+              </div>
+
+              {#if permMemberSearchResults.length > 0}
+                <div class="mt-2 max-h-32 overflow-y-auto custom-scrollbar rounded-md border border-outline-variant/15 bg-surface-container/50">
+                  {#each permMemberSearchResults as member}
+                    <button
+                      onclick={() => togglePermUser(member)}
+                      class="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-all hover:bg-surface-hover/50"
+                    >
+                      <img src={member.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.displayName || member.username || '?')}&size=24`} alt="" class="w-5 h-5 rounded-full shrink-0" />
+                      <div class="flex-1 min-w-0">
+                        <span class="text-[11px] font-semibold text-on-surface truncate block">{member.displayName || member.username}</span>
+                      </div>
+                    </button>
+                  {/each}
+                </div>
+              {:else if permMemberSearchQuery.trim() && !permMemberSearchLoading}
+                <p class="mt-2 text-[10px] text-on-surface-variant/40 text-center py-2">Aucun membre trouvé</p>
+              {/if}
+            </div>
+          {:else}
+            <p class="text-[11px] text-on-surface-variant/60">Tous les membres ayant accès au dashboard staff pourront planifier des appels.</p>
+          {/if}
+
+          {#if permError}
+            <div class="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[11px] font-semibold">
+              <Papicon icon="alert-circle" size={14} />
+              {permError}
+            </div>
+          {/if}
+        </div>
+
+        <div class="px-6 py-3.5 border-t border-outline-variant/15 bg-surface-container-low flex justify-end gap-2">
+          <button onclick={() => permissionModalOpen = false} class="px-4 py-2 rounded-lg text-[11px] font-semibold text-on-surface-variant hover:bg-surface-hover transition-colors">
+            Annuler
+          </button>
+          <button
+            onclick={savePermissionConfig}
+            disabled={permSaving}
+            class="px-5 py-2 rounded-lg text-[11px] font-semibold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-md"
+          >
+            {#if permSaving}
+              <div class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+            {/if}
+            Enregistrer
           </button>
         </div>
       </div>

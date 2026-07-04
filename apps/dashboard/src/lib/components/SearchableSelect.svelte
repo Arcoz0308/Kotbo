@@ -81,7 +81,7 @@
     on:focus={() => !disabled && (open = true)}
     on:blur={() => setTimeout(() => (open = false), 150)}
     on:keydown={handleKeydown}
-    class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+    class="w-full bg-surface-container-high text-on-surface text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     autocomplete="off"
     disabled={disabled}
   />
@@ -91,14 +91,14 @@
   {/if}
 
   {#if open}
-    <div class="absolute left-0 right-0 mt-2 z-20 rounded-lg border border-outline-variant/20 bg-surface-container-high p-2 shadow-sm max-h-56 overflow-auto">
+    <div class="absolute left-0 right-0 mt-2 z-20 rounded-lg border border-outline-variant/20 bg-surface-container-high text-on-surface p-2 shadow-sm max-h-56 overflow-auto">
       {#if filtered.length === 0}
         <div class="px-4 py-2 text-xs text-on-surface-variant">Aucun résultat</div>
       {/if}
       {#each filtered as opt, i (opt.id)}
         <button
           type="button"
-          class="w-full text-left px-4 py-2 rounded-xl hover:bg-surface-container-low transition-colors flex justify-between {i === highlighted ? 'ring-1 ring-inset ring-primary bg-surface-container-low' : ''}"
+          class="w-full text-left text-on-surface px-4 py-2 rounded-xl hover:bg-surface-container-low transition-colors flex justify-between {i === highlighted ? 'ring-1 ring-inset ring-primary bg-surface-container-low' : ''}"
           on:click={() => select(opt)}
           on:mouseenter={() => (highlighted = i)}
         >

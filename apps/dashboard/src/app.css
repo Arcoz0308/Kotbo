@@ -121,6 +121,21 @@
     @apply bg-background font-body text-on-surface antialiased transition-colors duration-200;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+
+  /* Native <select> — le navigateur affiche souvent une liste blanche en mode sombre */
+  :root.dark select {
+    color-scheme: dark;
+  }
+
+  select option {
+    background-color: var(--surface-container);
+    color: var(--on-surface);
+  }
+
+  select option:checked {
+    background-color: var(--surface-container-high);
+    color: var(--on-surface);
+  }
 }
 
 

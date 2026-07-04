@@ -9,6 +9,8 @@ import {
   registerSoftbanSanction,
   registerTimeoutSanction,
 } from '../services/moderation/sanctionService.js';
+import { generateTranscript } from '../services/features/transcriptService.js';
+import { getDashboardUrl } from '../api/shared.js';
 
 export function registerHoneypotListener(client: Client): void {
   client.on(Events.MessageCreate, async (message: Message) => {
@@ -35,17 +37,66 @@ export function registerHoneypotListener(client: Client): void {
         return;
       }
 
+      // 1. Generate the transcript of the honeypot channel (which includes the spammer's messages)
+      let transcriptLink: string | null = null;
+      try {
+        const textChannel = message.channel as TextChannel;
+        const transcriptData = await generateTranscript(textChannel);
+        const dashboardUrl = getDashboardUrl();
+        transcriptLink = `${dashboardUrl.replace(/\/$/, '')}/transcripts/${transcriptData.id}`;
+      } catch (err) {
+        logger.error('Honeypot', `Impossible de générer le transcript pour la détection honeypot dans la guilde ${guild.id}:`, err);
+      }
+
       // Delete the message immediately to prevent spam spread
       await message.delete().catch(() => null);
 
-      const reason = 'Kotbo Honeypot: Sent a message in the restricted honeypot channel (possible hacked account / spam bot).';
+      let reason = 'Kotbo Honeypot: Sent a message in the restricted honeypot channel (possible hacked account / spam bot).';
+      if (transcriptLink) {
+        reason += `\nProof/Transcript: ${transcriptLink}`;
+      }
+
       const target = { id: author.id, tag: author.tag };
       const moderator = { id: client.user!.id, tag: client.user!.tag };
+      const evidenceLinks = transcriptLink ? [transcriptLink] : [];
 
       const sanctionType = guildConfig.honeypotSanction || 'TIMEOUT';
 
       let actionText = 'exclu temporairement (Timeout 28 jours)';
       let logTitle = '🚨 Détection Honeypot : Timeout appliqué';
+
+      // Reinvite logic (for KICK or SOFTBAN)
+      let inviteUrl: string | null = null;
+      if ((sanctionType === 'KICK' || sanctionType === 'SOFTBAN') && guildConfig.honeypotReinvite) {
+        try {
+          const targetChannel = (guildConfig.publicChannelId ? guild.channels.cache.get(guildConfig.publicChannelId) : null) ||
+                                guild.systemChannel ||
+                                guild.rulesChannel ||
+                                guild.channels.cache.find(c => c.isTextBased() && c.type === 0 && c.permissionsFor(client.user!)?.has('CreateInstantInvite'));
+          if (targetChannel && 'createInvite' in targetChannel && typeof targetChannel.createInvite === 'function') {
+            const invite = await targetChannel.createInvite({
+              maxAge: 24 * 60 * 60,
+              maxUses: 1,
+              reason: 'Kotbo Honeypot: Automatic reinvite'
+            });
+            inviteUrl = invite.url;
+          }
+        } catch (err) {
+          logger.error('Honeypot', `Impossible de créer une invitation automatique pour la guilde ${guild.id}:`, err);
+        }
+
+        if (inviteUrl) {
+          try {
+            const actionVerb = sanctionType === 'KICK' ? 'exclu' : 'exclu temporairement (softban)';
+            await member.send(
+              `Bonjour, vous avez été ${actionVerb} de **${guild.name}** car vous avez envoyé un message dans un salon piège (Honeypot).\n` +
+              `S'il s'agit d'une erreur, vous pouvez rejoindre à nouveau le serveur en utilisant ce lien d'invitation unique (valable 24h) : ${inviteUrl}`
+            );
+          } catch (err) {
+            logger.warn('Honeypot', `Impossible d'envoyer le message de réinvitation en DM à ${author.tag} (${author.id}) :`, err);
+          }
+        }
+      }
 
       if (sanctionType === 'BAN') {
         await member.ban({
@@ -58,43 +109,13 @@ export function registerHoneypotListener(client: Client): void {
           moderator,
           reason,
           client,
+          evidenceLinks,
         }).catch(() => null);
 
         actionText = 'banni du serveur';
         logTitle = '🚨 Détection Honeypot : Compte banni';
         logger.warn('Honeypot', `Utilisateur banni car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
       } else if (sanctionType === 'KICK') {
-        let inviteUrl: string | null = null;
-        if (guildConfig.honeypotReinvite) {
-          try {
-            const targetChannel = (guildConfig.publicChannelId ? guild.channels.cache.get(guildConfig.publicChannelId) : null) ||
-                                  guild.systemChannel ||
-                                  guild.rulesChannel ||
-                                  guild.channels.cache.find(c => c.isTextBased() && c.type === 0 && c.permissionsFor(client.user!)?.has('CreateInstantInvite'));
-            if (targetChannel && 'createInvite' in targetChannel && typeof targetChannel.createInvite === 'function') {
-              const invite = await targetChannel.createInvite({
-                maxAge: 24 * 60 * 60,
-                maxUses: 1,
-                reason: 'Kotbo Honeypot: Automatic reinvite'
-              });
-              inviteUrl = invite.url;
-            }
-          } catch (err) {
-            logger.error('Honeypot', `Impossible de créer une invitation automatique pour la guilde ${guild.id}:`, err);
-          }
-        }
-
-        if (inviteUrl) {
-          try {
-            await member.send(
-              `Bonjour, vous avez été exclu de **${guild.name}** car vous avez envoyé un message dans un salon piège (Honeypot).\n` +
-              `S'il s'agit d'une erreur, vous pouvez rejoindre à nouveau le serveur en utilisant ce lien d'invitation unique (valable 24h) : ${inviteUrl}`
-            );
-          } catch (err) {
-            logger.warn('Honeypot', `Impossible d'envoyer le message de réinvitation en DM à ${author.tag} (${author.id}) :`, err);
-          }
-        }
-
         await member.kick(reason);
         await registerKickSanction({
           guildId: guild.id,
@@ -102,6 +123,7 @@ export function registerHoneypotListener(client: Client): void {
           moderator,
           reason,
           client,
+          evidenceLinks,
         }).catch(() => null);
 
         actionText = 'exclu (kick)';
@@ -119,6 +141,7 @@ export function registerHoneypotListener(client: Client): void {
           moderator,
           reason,
           client,
+          evidenceLinks,
         }).catch(() => null);
 
         actionText = 'softban (ban + déban immédiat)';
@@ -131,6 +154,7 @@ export function registerHoneypotListener(client: Client): void {
           moderator,
           reason,
           client,
+          evidenceLinks,
         }).catch(() => null);
 
         actionText = 'averti (warn)';
@@ -147,6 +171,7 @@ export function registerHoneypotListener(client: Client): void {
           durationMs,
           member,
           client,
+          evidenceLinks,
         }).catch(() => null);
 
         actionText = 'exclu temporairement (Timeout 28 jours)';
@@ -158,11 +183,13 @@ export function registerHoneypotListener(client: Client): void {
       if (guildConfig.logChannelId) {
         const logChannel = guild.channels.cache.get(guildConfig.logChannelId);
         if (logChannel && logChannel instanceof TextChannel) {
-          const embed = errorEmbed(
-            logTitle,
-            `L'utilisateur **${author.tag}** (<@${author.id}>) a été ${actionText} car il a écrit dans le salon piège <#${channelId}>.\n\n` +
-            `**Message supprimé :**\n\`\`\`\n${message.content.slice(0, 1000) || '[Pas de texte/média]'}\n\`\`\``
-          );
+          let embedDescription = `L'utilisateur **${author.tag}** (<@${author.id}>) a été ${actionText} car il a écrit dans le salon piège <#${channelId}>.\n\n` +
+            `**Message supprimé :**\n\`\`\`\n${message.content.slice(0, 1000) || '[Pas de texte/média]'}\n\`\`\``;
+          
+          if (transcriptLink) {
+            embedDescription += `\n\n**Transcription (Preuve) :**\n🌐 [Consulter le transcript](${transcriptLink})`;
+          }
+          const embed = errorEmbed(logTitle, embedDescription);
           await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
         }
       }

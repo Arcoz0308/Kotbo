@@ -5,6 +5,7 @@
   import { API_BASE_URL } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { ALLOWED_FONTS, loadGoogleFont, themeStyleVars, type FormTheme } from '../lib/formTheme';
 
   // ── Props ──────────────────────────────────────────────────────────────────
   let { formId = null }: { formId?: string | null } = $props();
@@ -64,6 +65,11 @@
   let dragOverId = $state<string | null>(null);
   let dragSourceId = $state<string | null>(null);
 
+  // Apparence (formulaires autonomes uniquement)
+  let theme = $state<FormTheme>({});
+  let customCss = $state('');
+  let showAppearance = $state(false);
+
   const PALETTE = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#0ea5e9','#1d4ed8','#374151'];
 
   const FIELD_TYPES: { type: FieldType; label: string; icon: string }[] = [
@@ -107,6 +113,8 @@
           headerColor = structure.headerColor || '#6366f1';
           sections = structure.sections || [{ id: 'section_0', title: 'Section 1', description: '' }];
           fields = structure.fields || [];
+          theme = (form.theme as FormTheme) || {};
+          customCss = form.customCss || '';
         }
       } catch { /* ignore */ }
     }
@@ -119,10 +127,14 @@
     // Access reactive state to subscribe
     void formName; void formDescription; void headerColor;
     void JSON.stringify(sections); void JSON.stringify(fields);
+    void JSON.stringify(theme); void customCss;
     if (loading) return;
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => { void save(true); }, 2000);
   });
+
+  // Charge la police du thème pour l'aperçu
+  $effect(() => { if (theme.fontFamily) loadGoogleFont(theme.fontFamily); });
 
   // ── Actions ────────────────────────────────────────────────────────────────
   function uid() { return `f_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; }
@@ -244,6 +256,10 @@
     if (!authStore.selectedGuildId) return;
     saving = true;
     const structure = { title: formName, description: formDescription, headerColor, sections, fields };
+    // Le thème n'existe que sur les formulaires autonomes (CustomForm)
+    const appearance = isCustomFormMode
+      ? { theme: Object.keys(theme).length ? theme : null, customCss: customCss.trim() || null }
+      : {};
     try {
       if (formId && formId !== 'new') {
         // Update existing
@@ -253,7 +269,7 @@
         await fetch(endpoint, {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: formName, description: formDescription, structure }),
+          body: JSON.stringify({ name: formName, description: formDescription, structure, ...appearance }),
         });
         if (!silent) toast.success('Formulaire enregistré !');
       } else {
@@ -264,7 +280,7 @@
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: formName, description: formDescription, structure, template: 'custom' }),
+          body: JSON.stringify({ name: formName, description: formDescription, structure, template: 'custom', ...appearance }),
         });
         if (res.ok) {
           const data = await res.json();
@@ -296,7 +312,11 @@
   </div>
 {:else if showPreview}
   <!-- ── PREVIEW MODE ───────────────────────────────────────────────────────── -->
-  <div class="min-h-screen bg-surface/50">
+  <div class="min-h-screen bg-surface/50 pf-root"
+    style="{themeStyleVars(theme, headerColor)};{theme.backgroundColor ? `background:${theme.backgroundColor};` : ''}{theme.fontFamily ? `font-family:var(--form-font);` : ''}{theme.textColor ? `color:${theme.textColor};` : ''}">
+    {#if customCss.trim()}
+      {@html `<style>${customCss.replace(/<\/style/gi, '')}</style>`}
+    {/if}
     <div class="sticky top-0 z-50 bg-surface border-b border-outline-variant/20 px-6 py-3 flex items-center justify-between">
       <span class="font-semibold text-on-surface">Aperçu du formulaire</span>
       <button onclick={() => showPreview = false}
@@ -305,12 +325,23 @@
       </button>
     </div>
     <div class="max-w-2xl mx-auto p-6 space-y-4 pt-8">
+      <!-- Bannière / logo du thème -->
+      {#if theme.bannerUrl}
+        <div class="pf-banner rounded-xl overflow-hidden shadow-lg" style="border-radius:var(--form-radius,12px)">
+          <img src={theme.bannerUrl} alt="Bannière" class="w-full h-40 object-cover" />
+        </div>
+      {/if}
       <!-- Header card -->
-      <div class="rounded-lg overflow-hidden shadow-lg">
-        <div class="h-2" style="background:{headerColor}"></div>
-        <div class="bg-surface border border-outline-variant/20 p-6 rounded-b-2xl">
-          <h1 class="text-2xl font-semibold text-on-surface">{formName}</h1>
+      <div class="pf-card rounded-lg overflow-hidden shadow-lg" style="border-radius:var(--form-radius,12px)">
+        <div class="h-2" style="background:var(--form-color)"></div>
+        <div class="border border-outline-variant/20 p-6 rounded-b-2xl"
+          style="background:{theme.cardColor || 'var(--color-surface, #fff)'};{theme.glass ? 'backdrop-filter:blur(12px);background:color-mix(in srgb, ' + (theme.cardColor || '#151823') + ' 70%, transparent);' : ''}">
+          {#if theme.logoUrl}
+            <img src={theme.logoUrl} alt="Logo" class="w-14 h-14 rounded-2xl object-cover mb-3 shadow" />
+          {/if}
+          <h1 class="text-2xl font-semibold text-on-surface" style={theme.textColor ? `color:${theme.textColor}` : ''}>{formName}</h1>
           {#if formDescription}<p class="text-on-surface-variant/70 mt-2 text-sm">{formDescription}</p>{/if}
+          {#if theme.welcomeText}<p class="mt-3 text-sm" style="color:var(--form-color)">{theme.welcomeText}</p>{/if}
         </div>
       </div>
 
@@ -484,6 +515,104 @@
             {/each}
           </div>
         </div>
+
+        <!-- Apparence (formulaires autonomes uniquement) -->
+        {#if isCustomFormMode}
+          <div class="border-b border-outline-variant/10">
+            <button onclick={() => showAppearance = !showAppearance}
+              class="w-full p-4 flex items-center justify-between hover:bg-surface-container/50 transition-colors">
+              <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-2">
+                <Papicon icon="palette" size={14} /> Apparence
+              </p>
+              <Papicon icon={showAppearance ? 'expand_less' : 'expand_more'} size={16} />
+            </button>
+            {#if showAppearance}
+              <div class="px-4 pb-4 space-y-3">
+                <div>
+                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Bannière (URL https)</p>
+                  <input bind:value={theme.bannerUrl} placeholder="https://…/banniere.png"
+                    class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20 focus:border-primary" />
+                </div>
+                <div>
+                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Logo / icône (URL https)</p>
+                  <input bind:value={theme.logoUrl} placeholder="https://…/logo.png"
+                    class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20 focus:border-primary" />
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Accent</p>
+                    <input type="color" value={theme.accentColor || headerColor}
+                      oninput={(e) => theme.accentColor = (e.currentTarget as HTMLInputElement).value}
+                      class="w-full h-8 rounded-lg bg-surface-container border border-outline-variant/20 cursor-pointer" />
+                  </div>
+                  <div>
+                    <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Fond</p>
+                    <input type="color" value={theme.backgroundColor || '#0b0d12'}
+                      oninput={(e) => theme.backgroundColor = (e.currentTarget as HTMLInputElement).value}
+                      class="w-full h-8 rounded-lg bg-surface-container border border-outline-variant/20 cursor-pointer" />
+                  </div>
+                  <div>
+                    <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Cartes</p>
+                    <input type="color" value={theme.cardColor || '#151823'}
+                      oninput={(e) => theme.cardColor = (e.currentTarget as HTMLInputElement).value}
+                      class="w-full h-8 rounded-lg bg-surface-container border border-outline-variant/20 cursor-pointer" />
+                  </div>
+                  <div>
+                    <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Texte</p>
+                    <input type="color" value={theme.textColor || '#e5e7eb'}
+                      oninput={(e) => theme.textColor = (e.currentTarget as HTMLInputElement).value}
+                      class="w-full h-8 rounded-lg bg-surface-container border border-outline-variant/20 cursor-pointer" />
+                  </div>
+                </div>
+                <div>
+                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Police</p>
+                  <select value={theme.fontFamily || ''}
+                    onchange={(e) => { const v = (e.currentTarget as HTMLSelectElement).value; theme.fontFamily = v || undefined; if (v) loadGoogleFont(v); }}
+                    class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20">
+                    <option value="">Par défaut</option>
+                    {#each ALLOWED_FONTS as font}
+                      <option value={font}>{font}</option>
+                    {/each}
+                  </select>
+                </div>
+                <div>
+                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">
+                    Arrondi des cartes : {theme.borderRadius ?? 12}px
+                  </p>
+                  <input type="range" min="0" max="32" value={theme.borderRadius ?? 12}
+                    oninput={(e) => theme.borderRadius = Number((e.currentTarget as HTMLInputElement).value)}
+                    class="w-full accent-primary" />
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={theme.glass ?? false}
+                    onchange={(e) => theme.glass = (e.currentTarget as HTMLInputElement).checked}
+                    class="accent-primary w-4 h-4 rounded" />
+                  <span class="text-xs text-on-surface/80">Effet verre (glassmorphism)</span>
+                </label>
+                <div>
+                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Texte d'accueil</p>
+                  <textarea bind:value={theme.welcomeText} rows="2" placeholder="Affiché sous l'en-tête du formulaire"
+                    class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20 focus:border-primary resize-none"></textarea>
+                </div>
+                <div>
+                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">Message de confirmation</p>
+                  <textarea bind:value={theme.confirmationText} rows="2" placeholder="Affiché après l'envoi"
+                    class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs outline-none border border-outline-variant/20 focus:border-primary resize-none"></textarea>
+                </div>
+                <div>
+                  <p class="text-[11px] font-semibold text-on-surface-variant/60 mb-1">CSS custom (avancé)</p>
+                  <textarea bind:value={customCss} rows="6" spellcheck="false"
+                    placeholder={'.pf-card { border: 1px solid gold; }'}
+                    class="w-full bg-surface-container rounded-lg px-3 py-2 text-[11px] font-mono outline-none border border-outline-variant/20 focus:border-primary resize-y"></textarea>
+                  <p class="text-[10px] text-on-surface-variant/50 mt-1 leading-snug">
+                    Sanitizé côté serveur : pas d'@import, d'url() externes ni de position:fixed.
+                    Classes dispo : .pf-root, .pf-card, .pf-banner, .pf-field, .pf-submit
+                  </p>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
 
         <!-- Sections -->
         <div class="p-4 border-b border-outline-variant/10">

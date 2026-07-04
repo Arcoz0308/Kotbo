@@ -12,12 +12,16 @@ import {
   getCustomFormSubmissions,
   type CustomFormStructure,
 } from '../../../services/features/customFormService.js';
+import { sanitizeCustomCss, sanitizeFormTheme } from '../../../utils/formCustomization.js';
 
 interface CustomFormCreateBody {
   name: string;
   description?: string;
   structure?: CustomFormStructure;
   isRecruitment?: boolean;
+  requiresDiscordAuth?: boolean;
+  theme?: unknown;
+  customCss?: string | null;
 }
 
 interface CustomFormUpdateBody {
@@ -26,6 +30,9 @@ interface CustomFormUpdateBody {
   structure?: CustomFormStructure;
   isActive?: boolean;
   isRecruitment?: boolean;
+  requiresDiscordAuth?: boolean;
+  theme?: unknown;
+  customCss?: string | null;
 }
 
 /**
@@ -74,6 +81,9 @@ export async function handleCustomFormRoutes(
         description: body.description,
         structure: body.structure || { title: body.name, fields: [] },
         isRecruitment: body.isRecruitment,
+        requiresDiscordAuth: body.requiresDiscordAuth,
+        theme: sanitizeFormTheme(body.theme),
+        customCss: sanitizeCustomCss(body.customCss),
       });
 
       json(res, 201, { form });
@@ -124,6 +134,12 @@ export async function handleCustomFormRoutes(
             structure: body.structure ? (body.structure as unknown as Prisma.InputJsonValue) : undefined,
             isActive: body.isActive !== undefined ? body.isActive : undefined,
             isRecruitment: body.isRecruitment !== undefined ? body.isRecruitment : undefined,
+            requiresDiscordAuth: body.requiresDiscordAuth !== undefined ? body.requiresDiscordAuth : undefined,
+            // Le thème et le CSS sont sanitizés côté serveur : null efface, undefined ignore
+            theme: body.theme !== undefined
+              ? ((sanitizeFormTheme(body.theme) ?? Prisma.JsonNull) as Prisma.InputJsonValue)
+              : undefined,
+            customCss: body.customCss !== undefined ? sanitizeCustomCss(body.customCss) : undefined,
           },
         });
 

@@ -1,8 +1,22 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { Client, TextChannel, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, GuildScheduledEventPrivacyLevel, GuildScheduledEventEntityType, PermissionFlagsBits } from 'discord.js';
+import {
+  Client,
+  TextChannel,
+  ChannelType,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  GuildScheduledEventPrivacyLevel,
+  GuildScheduledEventEntityType,
+  PermissionFlagsBits,
+  type Message,
+  type Guild,
+} from 'discord.js';
 import type { McpKeyPermission, SanctionType, SanctionStatus } from '@prisma/client';
-import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
+import { LinkedAccountType, LinkedAccountStatus, Prisma } from '@prisma/client';
+import pLimit from 'p-limit';
 import prisma from '../../utils/db.js';
 import {
   registerWarnSanction,
@@ -14,14 +28,113 @@ import { renameChannelToClosed, closeTicket } from '../../services/features/tick
 import { getPredictionData } from '../../services/analytics/predictionService.js';
 import { getPulseDashboardData } from '../../services/analytics/pulseService.js';
 import { getHourlyHeatmapData } from '../../services/analytics/dashboardAnalyticsService.js';
+import {
+  getModuleStatsSummary,
+  getModuleActivationStats,
+  getModuleUsageStats,
+  getModulePerformanceStats,
+  KOTBO_MODULES,
+  setModuleActivation,
+} from '../../services/analytics/moduleStatsService.js';
 
 // Services Kotbo additionnels pour les outils MCP
 import { createCustomEvent } from '../../services/features/eventService.js';
-import { createCustomForm } from '../../services/features/customFormService.js';
+import { createCustomForm, deleteCustomForm } from '../../services/features/customFormService.js';
+import {
+  getSeasonsDashboardData,
+  createSeason,
+  startSeason,
+  endSeason,
+  getSeasonLeaderboard,
+} from '../../services/progression/seasonService.js';
+import {
+  getEvaluationsDashboardData,
+  generateStaffEvaluation,
+  generateAllStaffEvaluations,
+  updateEvaluationNote,
+} from '../../services/staff/staffEvaluationService.js';
+import {
+  getChannelHealthDashboardData,
+  analyzeGuildChannelHealth,
+  resolveHealthAlert,
+  upsertChannelHealthConfig,
+  createSplitChannel,
+  archiveChannel,
+} from '../../services/analytics/channelHealthService.js';
+import {
+  pushWidgetForUser,
+  clearWidgetForUser,
+  refreshAllStaffWidgets,
+} from '../../services/integrations/widgetService.js';
+import {
+  generateTranscriptFromMessages,
+  resolveMentionsToText,
+  embedToApiShape,
+} from '../../services/features/transcriptService.js';
+import { sanitizeCustomCss, sanitizeFormTheme } from '../../utils/formCustomization.js';
+import {
+  getCallPermissionConfig,
+  updateCallPermissionConfig,
+  getAbsences,
+  createAbsence,
+  updateAbsenceStatus,
+  deleteAbsence,
+  getMeetings,
+  createMeeting,
+  updateMeeting,
+  deleteMeeting,
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  getPolls,
+  createPoll,
+  castPollVote,
+  getCalls,
+  createCall,
+  updateCall,
+  deleteCall,
+  getTasks,
+  createTask,
+  updateTask,
+  deleteTask,
+  getManagerNotes,
+  createManagerNote,
+  deleteManagerNote,
+  getStaffAlertsAndProgression,
+  getStaffCalendarData,
+} from '../../services/staff/staffLeadershipService.js';
 import { addStaffMember, removeStaffMember } from '../../services/staff/staffManagementService.js';
+import {
+  getStaffRoles,
+  createStaffRole,
+  reorderStaffRoles,
+  deleteStaffRole,
+  updateStaffRole,
+  createAPIKey,
+  getAPIKeys,
+  deleteAPIKey,
+  generateAPIKey,
+  hashAPIKey,
+  getStaffHierarchies,
+  createStaffHierarchy,
+  updateStaffHierarchy,
+  deleteStaffHierarchy,
+  addMemberToHierarchy,
+  removeMemberFromHierarchy,
+  syncStaffHierarchyMemberships,
+  importRoleMembers,
+} from '../../services/staff/staffManagementService.js';
 import { addXp } from '../../services/progression/levelingService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../services/features/giveawayService.js';
 import { linkAccounts, unlinkAccounts, getAllLinkedUserIds } from '../../services/moderation/altAccountService.js';
+import {
+  decideAppeal,
+  requestAppealInfo,
+  getAppealConfig,
+  upsertAppealConfig,
+  ensureDefaultAppealForm,
+  getAppealDetail,
+} from '../../services/moderation/banAppealService.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type McpToolHandler = (args: any) => Promise<ReturnType<typeof ok> | ReturnType<typeof err>> | ReturnType<typeof ok> | ReturnType<typeof err>;
@@ -170,6 +283,91 @@ function resolveChannel(guildId: string, client: Client, raw: string): ChannelRe
   }
 
   return { ok: true, channel: matches.first() as TextChannel };
+}
+
+type StaffMemberResolution =
+  | { ok: true; staffMember: { id: string; userId: string; label: string } }
+  | { ok: false; response: ReturnType<typeof err> };
+
+async function resolveStaffMemberRecord(guildId: string, client: Client, raw: string): Promise<StaffMemberResolution> {
+  const resolved = await resolveMember(guildId, raw);
+  if (!resolved.ok) return resolved.response;
+
+  const staffMember = await prisma.staffMember.findUnique({
+    where: { guildId_userId: { guildId, userId: resolved.userId } },
+    select: { id: true, userId: true, username: true, displayName: true },
+  });
+
+  if (!staffMember) {
+    return { ok: false, response: err('Membre du staff introuvable') };
+  }
+
+  return {
+    ok: true,
+    staffMember: {
+      id: staffMember.id,
+      userId: staffMember.userId,
+      label: staffMember.displayName ?? staffMember.username ?? staffMember.userId,
+    },
+  };
+}
+
+const MAX_EVIDENCE_MESSAGES = 200;
+const MAX_SCAN_MESSAGES = 400;
+const EVIDENCE_CHANNEL_CONCURRENCY = 5;
+
+async function fetchUserMessagesInChannel(
+  channel: TextChannel,
+  authorId: string,
+  limit = MAX_EVIDENCE_MESSAGES,
+): Promise<{ messages: Message[]; truncated: boolean }> {
+  const matched: Message[] = [];
+  let scanned = 0;
+  let cursor: string | undefined;
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_EVIDENCE_MESSAGES);
+
+  while (matched.length < safeLimit && scanned < MAX_SCAN_MESSAGES) {
+    const batch = await channel.messages.fetch({ limit: 100, before: cursor });
+    if (batch.size === 0) break;
+
+    for (const msg of batch.values()) {
+      scanned++;
+      if (msg.author.id === authorId) {
+        matched.push(msg);
+        if (matched.length >= safeLimit) break;
+      }
+    }
+
+    cursor = batch.last()?.id;
+    if (batch.size < 100) break;
+  }
+
+  return {
+    messages: matched.sort((a, b) => a.createdTimestamp - b.createdTimestamp),
+    truncated: matched.length < safeLimit && scanned >= MAX_SCAN_MESSAGES,
+  };
+}
+
+function serializeEvidenceMessage(msg: Message, guild?: Guild) {
+  return {
+    id: msg.id,
+    content: msg.content ? resolveMentionsToText(msg.content, guild) : '',
+    createdAt: msg.createdAt.toISOString(),
+    attachments: [...msg.attachments.values()].map((attachment) => ({
+      url: attachment.url,
+      name: attachment.name,
+      contentType: attachment.contentType,
+      size: attachment.size,
+    })),
+    embeds: msg.embeds.map((embed) => embedToApiShape(embed, guild)),
+  };
+}
+
+function parseEvidenceLinks(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter((entry) => /^https?:\/\//i.test(entry));
 }
 
 const oauthSecuritySchemes = [
@@ -517,6 +715,99 @@ export function registerMcpTools(
         });
       })
     );
+
+    server.registerTool(
+      'get_sanction_reports',
+      {
+        description: 'Liste les rapports de sanction (preuves documentées) du serveur. Requiert READ_SANCTIONS.',
+        inputSchema: {
+          sanction_id: z.string().optional().describe('Filtrer par ID de sanction liée'),
+          limit: z.number().int().min(1).max(100).default(50),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_SANCTIONS', async ({ sanction_id, limit }) => {
+        const reports = await prisma.sanctionReport.findMany({
+          where: { guildId, ...(sanction_id ? { sanctionId: sanction_id } : {}) },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+        });
+        return ok(reports);
+      })
+    );
+
+    server.registerTool(
+      'get_sanction_discord_evidence',
+      {
+        description:
+          'Recherche les messages Discord d\'un membre sanctionné dans tous les salons accessibles, pour constituer des preuves. Requiert READ_SANCTIONS.',
+        inputSchema: {
+          sanction_id: z.string().describe('ID de la sanction concernée'),
+          limit: z.number().int().min(1).max(200).default(50).describe('Nombre max de messages à retourner'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_SANCTIONS', async ({ sanction_id, limit }) => {
+        const sanction = await prisma.sanction.findFirst({ where: { id: sanction_id, guildId } });
+        if (!sanction) return err('Sanction introuvable');
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const me = guild.members.me;
+        const searchableChannels = [...guild.channels.cache.values()].filter((channel): channel is TextChannel => {
+          if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) return false;
+          return Boolean(me && channel.permissionsFor(me).has([
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.ReadMessageHistory,
+          ]));
+        });
+
+        const concurrencyLimit = pLimit(EVIDENCE_CHANNEL_CONCURRENCY);
+        let failedChannelCount = 0;
+        const fetchedChannels = await Promise.all(
+          searchableChannels.map((channel) => concurrencyLimit(async () => {
+            try {
+              const { messages, truncated } = await fetchUserMessagesInChannel(channel, sanction.targetUserId, limit);
+              return { channelId: channel.id, channelName: channel.name, rawMessages: messages, truncated };
+            } catch {
+              failedChannelCount++;
+              return null;
+            }
+          })),
+        );
+
+        const successfulChannels = fetchedChannels.filter((c): c is NonNullable<typeof c> => c !== null);
+        const newestMessages = successfulChannels
+          .flatMap((channel) => channel.rawMessages.map((message) => ({ channel, message })))
+          .sort((a, b) => b.message.createdTimestamp - a.message.createdTimestamp)
+          .slice(0, limit);
+
+        const includedMessageIds = new Set(newestMessages.map(({ message }) => message.id));
+        const channels = successfulChannels
+          .map((channel) => ({
+            channelId: channel.channelId,
+            channelName: channel.channelName,
+            messages: channel.rawMessages
+              .filter((message) => includedMessageIds.has(message.id))
+              .sort((a, b) => b.createdTimestamp - a.createdTimestamp)
+              .map((message) => serializeEvidenceMessage(message, guild)),
+            truncated: channel.truncated,
+          }))
+          .filter((channel) => channel.messages.length > 0)
+          .sort((a, b) => a.channelName.localeCompare(b.channelName, 'fr'));
+
+        return ok({
+          sanctionId: sanction.id,
+          targetTag: sanction.targetTag,
+          targetUserId: sanction.targetUserId,
+          channels,
+          messageCount: newestMessages.length,
+          searchedChannelCount: searchableChannels.length,
+          failedChannelCount,
+        });
+      })
+    );
   }
 
   // ── READ_STAFF ────────────────────────────────────────────────────────────
@@ -607,6 +898,247 @@ export function registerMcpTools(
             voiceMinutes: a.voiceMinutes,
           })),
         });
+      })
+    );
+
+    server.registerTool(
+      'get_staff_evaluations',
+      {
+        description: 'Récupère les évaluations de performance du staff (scores activité, modération, présence). Requiert READ_STAFF.',
+        inputSchema: {
+          member: z.string().optional().describe('Filtrer par membre staff : nom, mention ou ID'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async ({ member }) => {
+        try {
+          if (member) {
+            const resolved = await resolveMember(guildId, member);
+            if (!resolved.ok) return resolved.response;
+            const evaluations = await prisma.staffEvaluation.findMany({
+              where: { guildId, staffUserId: resolved.userId },
+              orderBy: { periodEnd: 'desc' },
+              take: 20,
+            });
+            return ok({ staffUserId: resolved.userId, evaluations });
+          }
+          const data = await getEvaluationsDashboardData(guildId);
+          return ok(data);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_call_permission_config',
+      {
+        description: 'Récupère la configuration des permissions pour planifier des appels staff (mode EVERYONE ou RESTRICTED). Requiert READ_STAFF.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          const config = await getCallPermissionConfig(guildId);
+          return ok(config);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_absences',
+      {
+        description: 'Liste les absences staff du serveur.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          return ok(await getAbsences(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_meetings',
+      {
+        description: 'Liste les réunions staff du serveur.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          return ok(await getMeetings(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_notifications',
+      {
+        description: 'Liste les notifications staff d’un membre donné.',
+        inputSchema: {
+          member: z.string().describe('Nom, mention ou ID Discord du membre'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          return ok(await getNotifications(guildId, resolved.userId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_polls',
+      {
+        description: 'Liste les sondages staff du serveur.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          return ok(await getPolls(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_calls',
+      {
+        description: 'Liste les appels staff planifiés.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          return ok(await getCalls(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_tasks',
+      {
+        description: 'Liste les tâches staff du serveur.',
+        inputSchema: {
+          assignee: z.string().optional().describe('Filtrer par membre assigné'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async ({ assignee }) => {
+        try {
+          const assigneeId = assignee ? (await resolveMember(guildId, assignee)).ok ? (await resolveMember(guildId, assignee)).userId : null : undefined;
+          if (assignee && !assigneeId) return err('Membre introuvable');
+          return ok(await getTasks(guildId, assigneeId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_roles',
+      {
+        description: 'Liste les rôles staff configurés.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          return ok(await getStaffRoles(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_hierarchies',
+      {
+        description: 'Liste les hiérarchies staff configurées.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          return ok(await getStaffHierarchies(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_api_keys',
+      {
+        description: 'Liste les clés API staff actives du serveur.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          return ok(await getAPIKeys(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_alerts',
+      {
+        description: 'Récupère les alertes et la progression du staff.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async () => {
+        try {
+          return ok(await getStaffAlertsAndProgression(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_staff_calendar_data',
+      {
+        description: 'Récupère les données de calendrier staff sur une période donnée.',
+        inputSchema: {
+          start: z.string().describe('Date de début ISO'),
+          end: z.string().describe('Date de fin ISO'),
+          staff_ids: z.array(z.string()).optional().describe('Filtre optionnel sur les membres staff'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async ({ start, end, staff_ids }) => {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+          return err('Période invalide');
+        }
+
+        try {
+          return ok(await getStaffCalendarData(guildId, startDate, endDate, staff_ids));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
       })
     );
   }
@@ -820,6 +1352,405 @@ export function registerMcpTools(
         return ok({ ok: true, userId, actions });
       })
     );
+
+    server.registerTool(
+      'decide_ban_appeal',
+      {
+        description: 'Tranche une demande d\'appel de bannissement (Accepter, Refuser ou Refuser Définitivement). Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          appeal_id: z.string().describe('ID unique de la demande d\'appel'),
+          decision: z.enum(['ACCEPTED', 'DENIED', 'DENIED_PERMANENT']).describe('La décision à appliquer'),
+          reason: z.string().optional().describe('Raison de la décision (transmise au membre)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ appeal_id, decision, reason, key_name }) => {
+        try {
+          const staffUserId = 'mcp_agent';
+          const staffTag = `MCP[${key_name ?? 'agent'}]`;
+
+          const res = await decideAppeal(client, {
+            appealId: appeal_id,
+            guildId,
+            decision,
+            staffUserId,
+            staffTag,
+            reason,
+          });
+
+          if (!res.ok) return err(res.error || 'Erreur inconnue');
+
+          await audit(key_name, 'Appel de ban tranché', `ID: ${appeal_id} | Décision: ${decision}`, reason || '(sans raison)');
+          return ok({ ok: true, appealId: appeal_id, status: res.appeal.status });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'request_ban_appeal_info',
+      {
+        description: 'Demande des informations complémentaires à l\'auteur d\'un appel par MP. Met l\'appel en statut NEEDS_INFO. Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          appeal_id: z.string().describe('ID unique de la demande d\'appel'),
+          question: z.string().min(1).max(1000).describe('La question à poser au membre'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ appeal_id, question, key_name }) => {
+        try {
+          const staffUserId = 'mcp_agent';
+          const staffTag = `MCP[${key_name ?? 'agent'}]`;
+
+          const res = await requestAppealInfo(client, {
+            appealId: appeal_id,
+            guildId,
+            question,
+            staffUserId,
+            staffTag,
+          });
+
+          if (!res.ok) return err(res.error || 'Erreur inconnue');
+
+          await audit(key_name, 'Infos d\'appel demandées', `ID: ${appeal_id}`, question);
+          return ok({ ok: true, appealId: appeal_id, status: res.appeal.status });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'blacklist_ban_appeal',
+      {
+        description: 'Ajoute un membre banni à la liste noire des appels pour lui interdire définitivement d\'en soumettre un. Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          user_id: z.string().describe('ID Discord du membre à blacklister'),
+          reason: z.string().optional().describe('Motif du blacklist'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ user_id, reason, key_name }) => {
+        try {
+          const staffUserId = 'mcp_agent';
+          const staffTag = `MCP[${key_name ?? 'agent'}]`;
+
+          // @ts-expect-error - Prisma client needs to be regenerated by user to recognize banAppealBlacklist
+          const blacklist = await prisma.banAppealBlacklist.upsert({
+            where: { guildId_userId: { guildId, userId: user_id } },
+            create: {
+              guildId,
+              userId: user_id,
+              reason: reason || 'Ajouté via MCP',
+              addedByUserId: staffUserId,
+              addedByTag: staffTag,
+            },
+            update: {
+              reason: reason || 'Ajouté via MCP',
+              addedByUserId: staffUserId,
+              addedByTag: staffTag,
+            },
+          });
+
+          await audit(key_name, 'Membre blacklisté des appels', `ID: ${user_id}`, reason || '(sans motif)');
+          return ok({ ok: true, blacklist });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'unblacklist_ban_appeal',
+      {
+        description: 'Retire un membre de la liste noire des appels de bannissement. Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          user_id: z.string().describe('ID Discord du membre à retirer de la liste noire'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ user_id, key_name }) => {
+        try {
+          // @ts-expect-error - Prisma client needs to be regenerated by user to recognize banAppealBlacklist
+          const deleted = await prisma.banAppealBlacklist.deleteMany({
+            where: { guildId, userId: user_id },
+          });
+
+          await audit(key_name, 'Membre retiré de la blacklist des appels', `ID: ${user_id}`, '');
+          return ok({ ok: true, count: deleted.count });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_ban_appeal_blacklist',
+      {
+        description: 'Liste les membres blacklistés des appels de bannissement. Requiert READ_MODERATION.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_MODERATION', async () => {
+        try {
+          const entries = await prisma.banAppealBlacklist.findMany({
+            where: { guildId },
+            orderBy: { createdAt: 'desc' },
+          });
+          return ok({ entries, count: entries.length });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_sanction',
+      {
+        description: 'Supprime une entrée de sanction de la base de données (sans lever la sanction Discord). Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          sanction_id: z.string().describe('ID de la sanction à supprimer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ sanction_id, key_name }) => {
+        try {
+          const sanction = await prisma.sanction.findFirst({
+            where: { id: sanction_id, guildId },
+            select: { id: true, type: true, targetTag: true, targetUserId: true },
+          });
+          if (!sanction) return err('Sanction introuvable');
+
+          await prisma.sanction.delete({ where: { id: sanction.id } });
+          await audit(
+            key_name,
+            'Suppression sanction MCP',
+            sanction.targetTag ?? sanction.targetUserId,
+            `ID: ${sanction.id} | Type: ${sanction.type}`
+          );
+          return ok({ ok: true, sanctionId: sanction.id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_ban_appeal_config',
+      {
+        description: 'Met à jour la configuration des appels de bannissement sur le serveur. Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          enabled: z.boolean().optional().describe('Activer ou désactiver les appels'),
+          form_id: z.string().nullable().optional().describe('ID du formulaire personnalisé à lier'),
+          staff_channel_id: z.string().nullable().optional().describe('Salon staff qui reçoit les demandes'),
+          invite_channel_id: z.string().nullable().optional().describe('Salon d\'invitation de retour pour les appels acceptés'),
+          cooldown_days: z.number().int().min(0).optional().describe('Jours de cooldown avant de pouvoir soumettre un nouvel appel'),
+          welcome_text: z.string().nullable().optional().describe('Texte d\'accueil sur la page publique'),
+          accept_message: z.string().nullable().optional().describe('DM envoyé en cas d\'acceptation'),
+          deny_message: z.string().nullable().optional().describe('DM envoyé en cas de refus'),
+          create_default_form: z.boolean().optional().describe('Crée automatiquement le formulaire d\'appel par défaut si absent'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ enabled, form_id, staff_channel_id, invite_channel_id, cooldown_days, welcome_text, accept_message, deny_message, create_default_form, key_name }) => {
+        try {
+          const updateData: any = {};
+          if (enabled !== undefined) updateData.enabled = enabled;
+          if (form_id !== undefined) updateData.formId = form_id;
+          if (staff_channel_id !== undefined) updateData.staffChannelId = staff_channel_id;
+          if (invite_channel_id !== undefined) updateData.inviteChannelId = invite_channel_id;
+          if (cooldown_days !== undefined) updateData.cooldownDays = cooldown_days;
+          if (welcome_text !== undefined) updateData.welcomeText = welcome_text;
+          if (accept_message !== undefined) updateData.acceptMessage = accept_message;
+          if (deny_message !== undefined) updateData.denyMessage = deny_message;
+
+          if (form_id) {
+            const form = await prisma.customForm.findFirst({ where: { id: form_id, guildId }, select: { id: true } });
+            if (!form) return err('Formulaire introuvable sur ce serveur');
+          }
+
+          await upsertAppealConfig(guildId, updateData);
+
+          if (create_default_form) {
+            await ensureDefaultAppealForm(guildId);
+          }
+
+          const config = await getAppealConfig(guildId);
+
+          await audit(key_name, 'Configuration appels mise à jour', '', JSON.stringify(updateData));
+          return ok(config);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_sanction_report',
+      {
+        description: 'Crée un rapport de sanction documenté avec preuves. Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          sanction_id: z.string().describe('ID de la sanction liée'),
+          incident_at: z.string().describe('Date/heure de l\'incident (ISO 8601)'),
+          broken_rules: z.string().describe('Règles enfreintes'),
+          detailed_reason: z.string().describe('Motif détaillé'),
+          evidence_links: z.array(z.string().url()).min(1).describe('Liens de preuves (URLs https)'),
+          additional_notes: z.string().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ sanction_id, incident_at, broken_rules, detailed_reason, evidence_links, additional_notes, key_name }) => {
+        try {
+          const sanction = await prisma.sanction.findFirst({ where: { id: sanction_id, guildId } });
+          if (!sanction) return err('Sanction introuvable');
+
+          const existingReport = await prisma.sanctionReport.findFirst({ where: { guildId, sanctionId: sanction_id } });
+          if (existingReport) return err('Un rapport existe déjà pour cette sanction');
+
+          const parsedDate = new Date(incident_at);
+          if (Number.isNaN(parsedDate.getTime())) return err('Date d\'incident invalide');
+
+          const report = await prisma.sanctionReport.create({
+            data: {
+              guildId,
+              sanctionId: sanction_id,
+              staffPseudo: sanction.moderatorTag ?? 'MCP Agent',
+              incidentAt: parsedDate,
+              memberPseudo: sanction.targetTag ?? sanction.targetUserId,
+              memberReference: sanction.targetUserId,
+              sanctionType: sanction.type,
+              sanctionDurationLabel: sanction.durationSeconds ? `${sanction.durationSeconds}s` : null,
+              brokenRules: broken_rules,
+              detailedReason: detailed_reason,
+              evidenceLinks: evidence_links,
+              additionalNotes: additional_notes ?? null,
+              createdByUserId: 'mcp_agent',
+              createdByTag: `MCP[${key_name ?? 'agent'}]`,
+            },
+          });
+
+          await audit(key_name, 'Création rapport sanction MCP', sanction.targetTag ?? sanction.targetUserId, `Rapport ${report.id}`);
+          return ok({ ok: true, reportId: report.id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_sanction_report',
+      {
+        description: 'Met à jour un rapport de sanction existant. Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          report_id: z.string().describe('ID du rapport'),
+          broken_rules: z.string().optional(),
+          detailed_reason: z.string().optional(),
+          evidence_links: z.array(z.string().url()).optional(),
+          additional_notes: z.string().nullable().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ report_id, broken_rules, detailed_reason, evidence_links, additional_notes, key_name }) => {
+        try {
+          const existing = await prisma.sanctionReport.findFirst({ where: { id: report_id, guildId } });
+          if (!existing) return err('Rapport introuvable');
+
+          const report = await prisma.sanctionReport.update({
+            where: { id: report_id },
+            data: {
+              ...(broken_rules !== undefined ? { brokenRules: broken_rules } : {}),
+              ...(detailed_reason !== undefined ? { detailedReason: detailed_reason } : {}),
+              ...(evidence_links !== undefined ? { evidenceLinks: parseEvidenceLinks(evidence_links) } : {}),
+              ...(additional_notes !== undefined ? { additionalNotes: additional_notes } : {}),
+            },
+          });
+
+          await audit(key_name, 'Mise à jour rapport sanction MCP', report_id, '');
+          return ok({ ok: true, report });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'import_sanction_discord_transcripts',
+      {
+        description:
+          'Génère des transcriptions HTML à partir de messages Discord sélectionnés, pour les joindre comme preuves à une sanction. Requiert WRITE_SANCTIONS.',
+        inputSchema: {
+          sanction_id: z.string().describe('ID de la sanction concernée'),
+          selections: z.array(z.object({
+            channel: z.string().describe('Salon (nom, mention ou ID)'),
+            message_ids: z.array(z.string()).min(1).describe('IDs des messages à transcrire'),
+          })).min(1),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ sanction_id, selections, key_name }) => {
+        try {
+          const sanction = await prisma.sanction.findFirst({ where: { id: sanction_id, guildId } });
+          if (!sanction) return err('Sanction introuvable');
+
+          const totalMessages = selections.reduce((sum, s) => sum + s.message_ids.length, 0);
+          if (totalMessages > MAX_EVIDENCE_MESSAGES) {
+            return err(`Maximum ${MAX_EVIDENCE_MESSAGES} messages par import`);
+          }
+
+          const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+          const results: Array<{ channelId: string; channelName: string; url: string; count: number }> = [];
+          const errors: Array<{ channel: string; error: string }> = [];
+
+          for (const selection of selections) {
+            const resolved = resolveChannel(guildId, client, selection.channel);
+            if (!resolved.ok) {
+              errors.push({ channel: selection.channel, error: 'Salon introuvable' });
+              continue;
+            }
+
+            try {
+              const fetched = await Promise.all(
+                selection.message_ids.map((id) => resolved.channel.messages.fetch(id).catch(() => null)),
+              );
+              const validMessages = fetched.filter(
+                (msg): msg is Message<true> => msg !== null && msg.author.id === sanction.targetUserId,
+              );
+
+              if (validMessages.length === 0) {
+                errors.push({ channel: selection.channel, error: 'Aucun message valide' });
+                continue;
+              }
+
+              validMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+              const transcript = await generateTranscriptFromMessages(resolved.channel, validMessages);
+              results.push({
+                channelId: resolved.channel.id,
+                channelName: resolved.channel.name,
+                url: `${dashboardUrl}${transcript.url}`,
+                count: transcript.count,
+              });
+            } catch {
+              errors.push({ channel: selection.channel, error: 'Erreur de transcription' });
+            }
+          }
+
+          await audit(key_name, 'Import preuves Discord MCP', sanction_id, `${results.length} transcription(s)`);
+          return ok({ results, errors });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
   }
 
   // ── READ_STATS : navigation du serveur ────────────────────────────────────
@@ -855,6 +1786,26 @@ export function registerMcpTools(
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((c) => ({ id: c.id, name: c.name, type: kindOf(c), parentId: c.parentId }))
         );
+      })
+    );
+
+    server.registerTool(
+      'get_widget_subscriptions',
+      {
+        description: 'Liste les abonnements au widget Discord de profil staff pour ce serveur. Requiert READ_STATS.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async () => {
+        try {
+          const subscriptions = await prisma.widgetSubscription.findMany({
+            where: { guildId },
+            orderBy: { createdAt: 'desc' },
+          });
+          return ok({ subscriptions, activeCount: subscriptions.filter((s) => s.enabled).length });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
       })
     );
 
@@ -1445,6 +2396,133 @@ export function registerMcpTools(
         }
       })
     );
+
+    server.registerTool(
+      'get_seasons',
+      {
+        description: 'Récupère les saisons de leveling (actives, à venir, terminées) et le classement en cours. Requiert READ_COMMUNITY.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async () => {
+        try {
+          const data = await getSeasonsDashboardData(guildId);
+          return ok(data);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_season_leaderboard',
+      {
+        description: 'Récupère le classement d\'une saison de leveling spécifique. Requiert READ_COMMUNITY.',
+        inputSchema: {
+          season_id: z.string().describe('ID de la saison'),
+          limit: z.number().int().min(1).max(100).default(20),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ season_id, limit }) => {
+        try {
+          const leaderboard = await getSeasonLeaderboard(guildId, season_id, limit);
+          return ok({ seasonId: season_id, leaderboard });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_module_activation_stats',
+      {
+        description: 'Récupère l’état d’activation des modules Kotbo.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async () => {
+        try {
+          return ok(await getModuleActivationStats(guildId));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_module_usage_stats',
+      {
+        description: 'Récupère les statistiques d’utilisation des modules Kotbo.',
+        inputSchema: {
+          module_name: z.string().optional().describe('Nom du module Kotbo'),
+          start_date: z.string().optional().describe('Date de début ISO'),
+          end_date: z.string().optional().describe('Date de fin ISO'),
+          period_days: z.number().int().min(1).max(365).optional().describe('Fenêtre temporelle en jours'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ module_name, start_date, end_date, period_days }) => {
+        try {
+          const data = await getModuleUsageStats({
+            guildId,
+            moduleName: module_name ? (KOTBO_MODULES.includes(module_name as never) ? (module_name as never) : undefined) : undefined,
+            startDate: start_date,
+            endDate: end_date,
+            periodDays: period_days,
+          });
+          return ok(data);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_module_performance_stats',
+      {
+        description: 'Récupère les performances des modules Kotbo.',
+        inputSchema: {
+          module_name: z.string().optional().describe('Nom du module Kotbo'),
+          start_date: z.string().optional().describe('Date de début ISO'),
+          end_date: z.string().optional().describe('Date de fin ISO'),
+          period_days: z.number().int().min(1).max(365).optional().describe('Fenêtre temporelle en jours'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ module_name, start_date, end_date, period_days }) => {
+        try {
+          const data = await getModulePerformanceStats({
+            guildId,
+            moduleName: module_name ? (KOTBO_MODULES.includes(module_name as never) ? (module_name as never) : undefined) : undefined,
+            startDate: start_date,
+            endDate: end_date,
+            periodDays: period_days,
+          });
+          return ok(data);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_module_stats_summary',
+      {
+        description: 'Récupère un résumé global des statistiques modules.',
+        inputSchema: {
+          period_days: z.number().int().min(1).max(365).default(30),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ period_days }) => {
+        try {
+          return ok(await getModuleStatsSummary({ guildId, periodDays: period_days }));
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
   }
 
   // ── READ_ECONOMY ──────────────────────────────────────────────────────────
@@ -1789,6 +2867,68 @@ export function registerMcpTools(
         );
       })
     );
+
+    server.registerTool(
+      'get_ban_appeals',
+      {
+        description: 'Liste les demandes d\'appel de bannissement (Ban Appeals) reçues sur le serveur. Requiert READ_MODERATION.',
+        inputSchema: {
+          status: z.enum(['PENDING', 'NEEDS_INFO', 'ACCEPTED', 'DENIED', 'DENIED_PERMANENT']).optional().describe('Filtre par statut de la demande'),
+          limit: z.number().int().min(1).max(200).default(50),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_MODERATION', async ({ status, limit }) => {
+        try {
+          // @ts-expect-error - Prisma client needs to be regenerated by user to recognize banAppeal
+          const appeals = await prisma.banAppeal.findMany({
+            where: { guildId, ...(status ? { status } : {}) },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+          });
+          return ok(appeals);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_ban_appeal',
+      {
+        description: 'Récupère les détails d\'un appel de bannissement spécifique avec son historique et ses sanctions liées. Requiert READ_MODERATION.',
+        inputSchema: {
+          appeal_id: z.string().describe('ID unique de la demande d\'appel'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_MODERATION', async ({ appeal_id }) => {
+        try {
+          const detail = await getAppealDetail(appeal_id, guildId);
+          if (!detail) return err('Appel introuvable');
+          return ok(detail);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'get_ban_appeal_config',
+      {
+        description: 'Récupère la configuration actuelle des appels de bannissement sur le serveur. Requiert READ_MODERATION.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_MODERATION', async () => {
+        try {
+          const config = await getAppealConfig(guildId);
+          return ok(config);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
   }
 
   // ── READ_ANALYTICS ────────────────────────────────────────────────────────
@@ -1919,6 +3059,40 @@ export function registerMcpTools(
         return ok(data);
       })
     );
+
+    server.registerTool(
+      'get_channel_health',
+      {
+        description: 'Récupère la configuration et les alertes de santé des salons (Channel Health). Requiert READ_ANALYTICS.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_ANALYTICS', async () => {
+        try {
+          const data = await getChannelHealthDashboardData(guildId);
+          return ok(data);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'analyze_channel_health',
+      {
+        description: 'Lance une analyse de santé des salons (surcharge, sous-utilisation, morts). Requiert READ_ANALYTICS.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_ANALYTICS', async () => {
+        try {
+          const summary = await analyzeGuildChannelHealth(client, guildId);
+          return ok(summary ?? { channels: [], overloaded: [], underused: [], dead: [], healthy: [] });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
   }
 
   // ── WRITE_COMMUNITY ───────────────────────────────────────────────────────
@@ -2020,6 +3194,273 @@ export function registerMcpTools(
         await audit(key_name, 'Annonce giveaway MCP', `Giveaway: ${giveaway.prize}`, `Salon: #${resolved.channel.name}`);
 
         return ok({ ok: true, giveawayId: giveaway.id, messageId: msg.id, channelName: resolved.channel.name });
+      })
+    );
+
+    server.registerTool(
+      'create_season',
+      {
+        description: 'Crée une nouvelle saison de leveling. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          name: z.string().describe('Nom de la saison'),
+          start_date: z.string().describe('Date de début (ISO 8601)'),
+          end_date: z.string().describe('Date de fin (ISO 8601)'),
+          top_role_id: z.string().optional().describe('Rôle attribué au #1 du classement'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ name, start_date, end_date, top_role_id, key_name }) => {
+        try {
+          const season = await createSeason(guildId, {
+            name,
+            startDate: new Date(start_date),
+            endDate: new Date(end_date),
+            topRoleId: top_role_id,
+          });
+          await audit(key_name, 'Création saison MCP', name, `ID: ${season.id}`);
+          return ok({ ok: true, season });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'start_season',
+      {
+        description: 'Démarre une saison de leveling (met fin aux autres saisons actives). Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          season_id: z.string().describe('ID de la saison à démarrer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ season_id, key_name }) => {
+        try {
+          const success = await startSeason(guildId, season_id);
+          if (!success) return err('Impossible de démarrer la saison');
+          await audit(key_name, 'Démarrage saison MCP', season_id, '');
+          return ok({ ok: true, seasonId: season_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'end_season',
+      {
+        description: 'Termine une saison active, fige le classement et distribue les récompenses. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          season_id: z.string().describe('ID de la saison à terminer'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ season_id, key_name }) => {
+        try {
+          const success = await endSeason(client, guildId, season_id);
+          if (!success) return err('Impossible de terminer la saison');
+          await audit(key_name, 'Fin de saison MCP', season_id, '');
+          return ok({ ok: true, seasonId: season_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_channel_health_config',
+      {
+        description: 'Met à jour la configuration du module Channel Health. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          enabled: z.boolean().optional(),
+          alert_channel: z.string().nullable().optional().describe('Salon d\'alertes (nom, mention ou ID)'),
+          split_mode: z.boolean().optional(),
+          archive_mode: z.boolean().optional(),
+          analysis_period_days: z.number().int().optional(),
+          overload_msg_per_hour: z.number().optional(),
+          underused_msg_per_day: z.number().optional(),
+          dead_msg_per_week: z.number().optional(),
+          weekly_digest_enabled: z.boolean().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ enabled, alert_channel, split_mode, archive_mode, analysis_period_days, overload_msg_per_hour, underused_msg_per_day, dead_msg_per_week, weekly_digest_enabled, key_name }) => {
+        try {
+          const updatePayload: Record<string, unknown> = {};
+          if (enabled !== undefined) updatePayload.enabled = enabled;
+          if (split_mode !== undefined) updatePayload.splitMode = split_mode;
+          if (archive_mode !== undefined) updatePayload.archiveMode = archive_mode;
+          if (analysis_period_days !== undefined) updatePayload.analysisPeriodDays = analysis_period_days;
+          if (overload_msg_per_hour !== undefined) updatePayload.overloadMsgPerHour = overload_msg_per_hour;
+          if (underused_msg_per_day !== undefined) updatePayload.underusedMsgPerDay = underused_msg_per_day;
+          if (dead_msg_per_week !== undefined) updatePayload.deadMsgPerWeek = dead_msg_per_week;
+          if (weekly_digest_enabled !== undefined) updatePayload.weeklyDigestEnabled = weekly_digest_enabled;
+
+          if (alert_channel !== undefined) {
+            if (alert_channel === null) {
+              updatePayload.alertChannelId = null;
+            } else {
+              const resolved = resolveChannel(guildId, client, alert_channel);
+              if (!resolved.ok) return resolved.response;
+              updatePayload.alertChannelId = resolved.channel.id;
+            }
+          }
+
+          const config = await upsertChannelHealthConfig(guildId, updatePayload);
+          await audit(key_name, 'Config Channel Health MCP', '', JSON.stringify(updatePayload));
+          return ok(config);
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'resolve_channel_health_alert',
+      {
+        description: 'Marque une alerte Channel Health comme appliquée ou ignorée. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          alert_id: z.string().describe('ID de l\'alerte'),
+          action: z.enum(['APPLIED', 'DISMISSED']).describe('Action à enregistrer'),
+          note: z.string().optional(),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ alert_id, action, note, key_name }) => {
+        try {
+          const success = await resolveHealthAlert(alert_id, action, 'mcp_agent', note);
+          if (!success) return err('Alerte introuvable');
+          await audit(key_name, 'Résolution alerte Channel Health MCP', alert_id, action);
+          return ok({ ok: true, alertId: alert_id, action });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'split_overloaded_channel',
+      {
+        description: 'Crée un salon jumeau pour alléger un salon surchargé (Channel Health). Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          channel: z.string().describe('Salon surchargé (nom, mention ou ID)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ channel, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const newChannelId = await createSplitChannel(client, guildId, resolved.channel.id);
+          if (!newChannelId) return err('Impossible de créer le salon jumeau');
+          await audit(key_name, 'Split salon MCP', resolved.channel.name, `Nouveau salon: ${newChannelId}`);
+          return ok({ ok: true, sourceChannelId: resolved.channel.id, newChannelId });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'archive_inactive_channel',
+      {
+        description: 'Archive un salon inactif via Channel Health. Requiert WRITE_COMMUNITY.',
+        inputSchema: {
+          channel: z.string().describe('Salon à archiver (nom, mention ou ID)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ channel, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const success = await archiveChannel(client, guildId, resolved.channel.id);
+          if (!success) return err('Impossible d\'archiver le salon');
+          await audit(key_name, 'Archivage salon MCP', resolved.channel.name, resolved.channel.id);
+          return ok({ ok: true, channelId: resolved.channel.id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+  }
+
+  if (shouldRegister('WRITE_COMMUNITY')) {
+    server.registerTool(
+      'set_module_activation',
+      {
+        description: 'Active ou désactive un module Kotbo.',
+        inputSchema: {
+          module_name: z.string().describe('Nom du module Kotbo'),
+          enabled: z.boolean().describe('État cible'),
+          config: z.record(z.unknown()).optional().describe('Configuration associée au module'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_COMMUNITY', async ({ module_name, enabled, config }) => {
+        const normalizedModule = module_name.trim();
+        if (!KOTBO_MODULES.includes(normalizedModule as never)) {
+          return err(`Module Kotbo inconnu : ${module_name}`);
+        }
+
+        try {
+          await setModuleActivation(guildId, normalizedModule as never, enabled, config);
+
+          if (normalizedModule === 'leveling') {
+            await prisma.levelConfig.upsert({
+              where: { guildId },
+              create: { guildId, enabled },
+              update: { enabled },
+            });
+          }
+
+          const updates: Record<string, unknown> = {};
+          if (normalizedModule === 'codePolice') updates.codePoliceEnabled = enabled;
+          if (normalizedModule === 'dailyAlgo') updates.dailyAlgoEnabled = enabled;
+          if (normalizedModule === 'translation') updates.translationEnabled = enabled;
+          if (normalizedModule === 'sanction') {
+            updates.sanctionSyncEnabled = enabled;
+            updates.sanctionReportEnabled = enabled;
+          }
+          if (normalizedModule === 'nicknameModeration') updates.autoNicknameModerationEnabled = enabled;
+          if (normalizedModule === 'autoThread') updates.autoThreadEnabled = enabled;
+          if (normalizedModule === 'fun') updates.funEnabled = enabled;
+
+          if (Object.keys(updates).length > 0) {
+            await prisma.guild.update({ where: { id: guildId }, data: updates });
+          }
+
+          await prisma.dashboardFeatureConfig.upsert({
+            where: { guildId_featureKey: { guildId, featureKey: normalizedModule } },
+            create: {
+              guildId,
+              featureKey: normalizedModule,
+              featureName: normalizedModule,
+              enabled,
+              loggingEnabled: true,
+              userActivityTracking: true,
+              notifyViaDiscordChannel: true,
+              metadata: config ?? {},
+            },
+            update: {
+              enabled,
+              metadata: config ?? {},
+            },
+          });
+
+          return ok({ ok: true, moduleName: normalizedModule, enabled });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
       })
     );
   }
@@ -2352,6 +3793,843 @@ export function registerMcpTools(
     );
   }
 
+  // ── WRITE_MEMBERS — Leadership / planning staff ──────────────────────────
+  if (shouldRegister('WRITE_MEMBERS')) {
+    server.registerTool(
+      'create_staff_absence',
+      {
+        description: 'Crée une absence staff.',
+        inputSchema: {
+          staff_member: z.string().describe('Membre staff absent'),
+          superior_member: z.string().describe('Supérieur qui traite l’absence'),
+          start_date: z.string().describe('Date de début ISO'),
+          end_date: z.string().optional().describe('Date de fin ISO'),
+          reason: z.string().describe('Motif'),
+          type: z.string().describe('Type d’absence'),
+          message: z.string().optional().describe('Message complémentaire'),
+          notify_on_mention: z.boolean().optional().describe('Notifier lors des mentions'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ staff_member, superior_member, start_date, end_date, reason, type, message, notify_on_mention }) => {
+        const staff = await resolveStaffMemberRecord(guildId, client, staff_member);
+        if (!staff.ok) return staff.response;
+        const superior = await resolveStaffMemberRecord(guildId, client, superior_member);
+        if (!superior.ok) return superior.response;
+
+        const startDate = new Date(start_date);
+        const parsedEndDate = end_date ? new Date(end_date) : undefined;
+        if (Number.isNaN(startDate.getTime()) || (parsedEndDate && Number.isNaN(parsedEndDate.getTime()))) {
+          return err('Dates invalides');
+        }
+
+        try {
+          const absence = await createAbsence({
+            guildId,
+            staffMemberId: staff.staffMember.id,
+            startDate,
+            endDate: parsedEndDate,
+            reason,
+            type,
+            message,
+            superiorUserId: superior.staffMember.userId,
+            notifyOnMention: notify_on_mention,
+          });
+          return ok({ ok: true, absence });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_staff_absence_status',
+      {
+        description: 'Met à jour le statut d’une absence staff.',
+        inputSchema: {
+          absence_id: z.string().describe('ID de l’absence'),
+          status: z.enum(['ACKNOWLEDGED', 'APPROVED', 'REJECTED', 'CANCELED', 'ENDED']),
+          note: z.string().optional().describe('Note de décision'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ absence_id, status, note }) => {
+        try {
+          const absence = await updateAbsenceStatus(guildId, absence_id, status, 'mcp_agent', note);
+          return ok({ ok: true, absence });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_staff_absence',
+      {
+        description: 'Supprime une absence staff.',
+        inputSchema: { absence_id: z.string().describe('ID de l’absence') },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ absence_id }) => {
+        try {
+          await deleteAbsence(guildId, absence_id);
+          return ok({ ok: true, absenceId: absence_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_staff_meeting',
+      {
+        description: 'Crée une réunion staff.',
+        inputSchema: {
+          creator_member: z.string().describe('Membre staff créateur'),
+          title: z.string().describe('Titre de la réunion'),
+          description: z.string().optional().describe('Description'),
+          scheduled_at: z.string().describe('Date de réunion ISO'),
+          ended_at: z.string().optional().describe('Date de fin ISO'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ creator_member, title, description, scheduled_at, ended_at }) => {
+        const creator = await resolveStaffMemberRecord(guildId, client, creator_member);
+        if (!creator.ok) return creator.response;
+
+        const scheduledAt = new Date(scheduled_at);
+        const parsedEndedAt = ended_at ? new Date(ended_at) : undefined;
+        if (Number.isNaN(scheduledAt.getTime()) || (parsedEndedAt && Number.isNaN(parsedEndedAt.getTime()))) {
+          return err('Dates de réunion invalides');
+        }
+
+        try {
+          const meeting = await createMeeting(client, guildId, creator.staffMember.userId, title, description ?? '', scheduledAt, parsedEndedAt);
+          return ok({ ok: true, meeting });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_staff_meeting',
+      {
+        description: 'Met à jour une réunion staff.',
+        inputSchema: {
+          meeting_id: z.string().describe('ID de la réunion'),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          scheduled_at: z.string().optional(),
+          ended_at: z.string().optional(),
+          status: z.enum(['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED']).optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ meeting_id, title, description, scheduled_at, ended_at, status }) => {
+        try {
+          const data: { title?: string; description?: string | null; scheduledAt?: Date; endedAt?: Date; status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' } = {};
+          if (title !== undefined) data.title = title;
+          if (description !== undefined) data.description = description;
+          if (scheduled_at !== undefined) data.scheduledAt = new Date(scheduled_at);
+          if (ended_at !== undefined) data.endedAt = new Date(ended_at);
+          if (status !== undefined) data.status = status;
+          const meeting = await updateMeeting(client, guildId, meeting_id, data);
+          return ok({ ok: true, meeting });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_staff_meeting',
+      {
+        description: 'Supprime une réunion staff.',
+        inputSchema: {
+          meeting_id: z.string().describe('ID de la réunion'),
+          delete_event: z.boolean().optional(),
+          delete_message: z.boolean().optional(),
+          delete_notifications: z.boolean().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ meeting_id, delete_event, delete_message, delete_notifications }) => {
+        try {
+          await deleteMeeting(client, guildId, meeting_id, {
+            deleteEvent: delete_event ?? false,
+            deleteMessage: delete_message ?? false,
+            deleteNotifications: delete_notifications ?? false,
+          });
+          return ok({ ok: true, meetingId: meeting_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'mark_staff_notification_read',
+      {
+        description: 'Marque une notification staff comme lue.',
+        inputSchema: {
+          member: z.string().describe('Membre concerné'),
+          notification_id: z.string().describe('ID de la notification'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, notification_id }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        try {
+          await markNotificationRead(notification_id, resolved.userId);
+          return ok({ ok: true, notificationId: notification_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'mark_all_staff_notifications_read',
+      {
+        description: 'Marque toutes les notifications staff comme lues.',
+        inputSchema: { member: z.string().describe('Membre concerné') },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        try {
+          await markAllNotificationsRead(guildId, resolved.userId);
+          return ok({ ok: true, userId: resolved.userId });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_staff_poll',
+      {
+        description: 'Crée un sondage staff.',
+        inputSchema: {
+          creator_member: z.string().describe('Créateur staff'),
+          title: z.string().describe('Titre'),
+          description: z.string().optional(),
+          options: z.array(z.string()).min(2).describe('Options de vote'),
+          closes_at: z.string().optional().describe('Date de clôture ISO'),
+          is_anonymous: z.boolean().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ creator_member, title, description, options, closes_at, is_anonymous }) => {
+        const creator = await resolveStaffMemberRecord(guildId, client, creator_member);
+        if (!creator.ok) return creator.response;
+
+        try {
+          const poll = await createPoll(
+            guildId,
+            creator.staffMember.id,
+            title.trim(),
+            description?.trim() || '',
+            options.map((option) => option.trim()).filter(Boolean),
+            is_anonymous ?? true,
+            closes_at ? new Date(closes_at) : undefined
+          );
+          return ok({ ok: true, poll });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'vote_staff_poll',
+      {
+        description: 'Vote sur un sondage staff.',
+        inputSchema: {
+          member: z.string().describe('Votant'),
+          poll_id: z.string().describe('ID du sondage'),
+          option_id: z.string().describe('ID de l’option'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, poll_id, option_id }) => {
+        const voter = await resolveStaffMemberRecord(guildId, client, member);
+        if (!voter.ok) return voter.response;
+
+        try {
+          const vote = await castPollVote(poll_id, voter.staffMember.id, option_id);
+          return ok({ ok: true, vote });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'close_staff_poll',
+      {
+        description: 'Ferme un sondage staff.',
+        inputSchema: { poll_id: z.string().describe('ID du sondage') },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ poll_id }) => {
+        try {
+          const result = await prisma.staffPoll.updateMany({ where: { id: poll_id, guildId }, data: { status: 'CLOSED' } });
+          if (result.count === 0) return err('Sondage introuvable');
+          return ok({ ok: true, pollId: poll_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_staff_task',
+      {
+        description: 'Crée une tâche staff.',
+        inputSchema: {
+          creator_member: z.string().describe('Créateur staff'),
+          assignee: z.string().describe('Assigné'),
+          title: z.string().describe('Titre'),
+          description: z.string().optional(),
+          priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
+          due_date: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ creator_member, assignee, title, description, priority, due_date }) => {
+        const creator = await resolveStaffMemberRecord(guildId, client, creator_member);
+        if (!creator.ok) return creator.response;
+        const assigneeMember = await resolveStaffMemberRecord(guildId, client, assignee);
+        if (!assigneeMember.ok) return assigneeMember.response;
+
+        try {
+          const task = await createTask(
+            guildId,
+            creator.staffMember.userId,
+            title.trim(),
+            description?.trim() || null,
+            priority,
+            due_date ? new Date(due_date) : null,
+            assigneeMember.staffMember.id
+          );
+          return ok({ ok: true, task });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_staff_task',
+      {
+        description: 'Met à jour une tâche staff.',
+        inputSchema: {
+          task_id: z.string().describe('ID de la tâche'),
+          title: z.string().optional(),
+          description: z.string().nullable().optional(),
+          status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED']).optional(),
+          priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+          due_date: z.string().nullable().optional(),
+          assignee: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ task_id, title, description, status, priority, due_date, assignee }) => {
+        try {
+          const updateData: { title?: string; description?: string | null; status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED'; priority?: 'LOW' | 'MEDIUM' | 'HIGH'; dueDate?: Date | null; assigneeId?: string } = {};
+          if (title !== undefined) updateData.title = title;
+          if (description !== undefined) updateData.description = description;
+          if (status !== undefined) updateData.status = status;
+          if (priority !== undefined) updateData.priority = priority;
+          if (due_date !== undefined) updateData.dueDate = due_date ? new Date(due_date) : null;
+          if (assignee !== undefined) {
+            const assigneeMember = await resolveStaffMemberRecord(guildId, client, assignee);
+            if (!assigneeMember.ok) return assigneeMember.response;
+            updateData.assigneeId = assigneeMember.staffMember.id;
+          }
+          const task = await updateTask(task_id, updateData);
+          return ok({ ok: true, task });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_staff_task',
+      {
+        description: 'Supprime une tâche staff.',
+        inputSchema: { task_id: z.string().describe('ID de la tâche') },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ task_id }) => {
+        try {
+          await deleteTask(task_id);
+          return ok({ ok: true, taskId: task_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_staff_call',
+      {
+        description: 'Crée un appel staff.',
+        inputSchema: {
+          creator_member: z.string().describe('Créateur staff'),
+          title: z.string().describe('Titre'),
+          scheduled_at: z.string().describe('Date ISO'),
+          description: z.string().optional(),
+          channel_mode: z.string().default('CREATE_NEW'),
+          channel_type: z.string().optional(),
+          discord_channel_id: z.string().optional(),
+          is_temp_channel: z.boolean().optional(),
+          invitees: z.array(z.string()).optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ creator_member, title, description, scheduled_at, channel_mode, channel_type, discord_channel_id, is_temp_channel, invitees }) => {
+        const creator = await resolveStaffMemberRecord(guildId, client, creator_member);
+        if (!creator.ok) return creator.response;
+
+        const scheduledAt = new Date(scheduled_at);
+        if (Number.isNaN(scheduledAt.getTime())) return err('Date d’appel invalide');
+
+        try {
+          const call = await createCall(
+            client,
+            guildId,
+            creator.staffMember.userId,
+            title.trim(),
+            description?.trim() || null,
+            scheduledAt,
+            channel_mode,
+            channel_type || null,
+            discord_channel_id || null,
+            is_temp_channel !== false,
+            invitees || []
+          );
+          return ok({ ok: true, call });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_staff_call',
+      {
+        description: 'Met à jour un appel staff.',
+        inputSchema: {
+          call_id: z.string().describe('ID de l’appel'),
+          title: z.string().optional(),
+          description: z.string().nullable().optional(),
+          scheduled_at: z.string().optional(),
+          ended_at: z.string().optional(),
+          status: z.enum(['SCHEDULED', 'ACTIVE', 'COMPLETED', 'CANCELED']).optional(),
+          invitees: z.array(z.string()).optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ call_id, title, description, scheduled_at, ended_at, status, invitees }) => {
+        try {
+          const data: { title?: string; description?: string | null; scheduledAt?: Date; endedAt?: Date; status?: 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED'; invitees?: string[] } = {};
+          if (title !== undefined) data.title = title;
+          if (description !== undefined) data.description = description;
+          if (scheduled_at !== undefined) data.scheduledAt = new Date(scheduled_at);
+          if (ended_at !== undefined) data.endedAt = new Date(ended_at);
+          if (status !== undefined) data.status = status;
+          if (invitees !== undefined) data.invitees = invitees;
+          const call = await updateCall(client, guildId, call_id, data);
+          return ok({ ok: true, call });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_staff_call',
+      {
+        description: 'Supprime un appel staff.',
+        inputSchema: { call_id: z.string().describe('ID de l’appel') },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ call_id }) => {
+        try {
+          await deleteCall(client, guildId, call_id);
+          return ok({ ok: true, callId: call_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_call_permissions',
+      {
+        description: 'Met à jour la configuration des permissions d’appel staff.',
+        inputSchema: {
+          mode: z.enum(['EVERYONE', 'RESTRICTED']),
+          allowed_role_ids: z.array(z.string()).default([]),
+          allowed_user_ids: z.array(z.string()).default([]),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ mode, allowed_role_ids, allowed_user_ids }) => {
+        try {
+          const config = await updateCallPermissionConfig(guildId, {
+            mode,
+            allowedRoleIds: allowed_role_ids,
+            allowedUserIds: allowed_user_ids,
+          });
+          return ok({ ok: true, config });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_staff_role',
+      {
+        description: 'Crée un rôle staff.',
+        inputSchema: {
+          name: z.string(),
+          level: z.number().int(),
+          discord_role_id: z.string().optional(),
+          color: z.string().optional(),
+          hierarchy_id: z.string().optional(),
+          is_responsable: z.boolean().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ name, level, discord_role_id, color, hierarchy_id, is_responsable }) => {
+        try {
+          const role = await createStaffRole(guildId, name, level, discord_role_id, color, hierarchy_id, is_responsable);
+          return ok({ ok: true, role });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_staff_role',
+      {
+        description: 'Met à jour un rôle staff.',
+        inputSchema: {
+          role_id: z.string(),
+          name: z.string().optional(),
+          level: z.number().int().optional(),
+          discord_role_id: z.string().nullable().optional(),
+          color: z.string().nullable().optional(),
+          hierarchy_id: z.string().nullable().optional(),
+          is_responsable: z.boolean().optional(),
+          sort_order: z.number().int().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ role_id, ...body }) => {
+        try {
+          const role = await updateStaffRole(guildId, role_id, body);
+          if (!role) return err('Rôle staff introuvable');
+          return ok({ ok: true, role });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'reorder_staff_roles',
+      {
+        description: 'Réordonne les rôles staff.',
+        inputSchema: { ordered_role_ids: z.array(z.string()).min(1) },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ ordered_role_ids }) => {
+        try {
+          await reorderStaffRoles(guildId, ordered_role_ids);
+          return ok({ ok: true, count: ordered_role_ids.length });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_staff_role',
+      {
+        description: 'Supprime un rôle staff.',
+        inputSchema: { role_id: z.string() },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ role_id }) => {
+        try {
+          const deleted = await deleteStaffRole(guildId, role_id);
+          if (!deleted) return err('Rôle staff introuvable');
+          return ok({ ok: true, role: deleted });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_staff_hierarchy',
+      {
+        description: 'Crée une hiérarchie staff.',
+        inputSchema: {
+          name: z.string(),
+          description: z.string().optional(),
+          color: z.string().optional(),
+          icon: z.string().optional(),
+          discord_role_id: z.string().optional(),
+          responsable_user_id: z.string().optional(),
+          parent_hierarchy_id: z.string().nullable().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ name, description, color, icon, discord_role_id, responsable_user_id, parent_hierarchy_id }) => {
+        try {
+          const hierarchy = await createStaffHierarchy(guildId, name, description, color, icon, discord_role_id, responsable_user_id, parent_hierarchy_id ?? null);
+          return ok({ ok: true, hierarchy });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_staff_hierarchy',
+      {
+        description: 'Met à jour une hiérarchie staff.',
+        inputSchema: {
+          hierarchy_id: z.string(),
+          name: z.string().optional(),
+          description: z.string().nullable().optional(),
+          color: z.string().nullable().optional(),
+          icon: z.string().nullable().optional(),
+          discord_role_id: z.string().nullable().optional(),
+          responsable_user_id: z.string().nullable().optional(),
+          parent_hierarchy_id: z.string().nullable().optional(),
+          enabled: z.boolean().optional(),
+          sort_order: z.number().int().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ hierarchy_id, ...body }) => {
+        try {
+          const hierarchy = await updateStaffHierarchy(guildId, hierarchy_id, body);
+          if (!hierarchy) return err('Hiérarchie introuvable');
+          return ok({ ok: true, hierarchy });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_staff_hierarchy',
+      {
+        description: 'Supprime une hiérarchie staff.',
+        inputSchema: { hierarchy_id: z.string() },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ hierarchy_id }) => {
+        try {
+          const deleted = await deleteStaffHierarchy(guildId, hierarchy_id);
+          if (!deleted) return err('Hiérarchie introuvable');
+          return ok({ ok: true, hierarchy: deleted });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'add_staff_member_to_hierarchy',
+      {
+        description: 'Ajoute ou met à jour le grade d’un membre dans une hiérarchie staff.',
+        inputSchema: {
+          member: z.string(),
+          hierarchy_id: z.string().optional(),
+          grade: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, hierarchy_id, grade }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        try {
+          const result = await addMemberToHierarchy(guildId, resolved.userId, hierarchy_id ?? null, grade ?? null);
+          return ok({ ok: true, result });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'remove_staff_member_from_hierarchy',
+      {
+        description: 'Retire un membre d’une hiérarchie staff.',
+        inputSchema: {
+          member: z.string(),
+          hierarchy_id: z.string(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, hierarchy_id }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        try {
+          const result = await removeMemberFromHierarchy(guildId, resolved.userId, hierarchy_id);
+          return ok({ ok: true, result });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'import_staff_role_members',
+      {
+        description: 'Importe les membres d’un rôle Discord dans une hiérarchie staff.',
+        inputSchema: {
+          hierarchy_id: z.string(),
+          discord_role_id: z.string(),
+          grade: z.string(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ hierarchy_id, discord_role_id, grade }) => {
+        try {
+          const result = await importRoleMembers(guildId, hierarchy_id, discord_role_id, grade);
+          return ok({ ok: true, result });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'sync_staff_hierarchies',
+      {
+        description: 'Synchronise les appartenances hiérarchiques staff depuis les rôles Discord.',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async () => {
+        try {
+          const result = await syncStaffHierarchyMemberships(guildId);
+          return ok({ ok: true, result });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_staff_api_key',
+      {
+        description: 'Crée une clé API staff.',
+        inputSchema: {
+          creator_member: z.string(),
+          name: z.string().optional(),
+          permissions: z.array(z.string()).optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ creator_member, name, permissions }) => {
+        const creator = await resolveStaffMemberRecord(guildId, client, creator_member);
+        if (!creator.ok) return creator.response;
+
+        try {
+          const { fullKey, displayKey } = generateAPIKey();
+          const keyHash = hashAPIKey(fullKey);
+          const apiKey = await createAPIKey(
+            guildId,
+            creator.staffMember.userId,
+            keyHash,
+            displayKey,
+            name ?? 'Mon clé API',
+            permissions ?? ['daily_algo:create_exercise']
+          );
+          return ok({ ok: true, apiKey, fullKey });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_staff_api_key',
+      {
+        description: 'Désactive une clé API staff.',
+        inputSchema: { key_id: z.string() },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ key_id }) => {
+        try {
+          const key = await deleteAPIKey(key_id);
+          return ok({ ok: true, key });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'create_manager_note',
+      {
+        description: 'Crée une note manager sur un membre staff.',
+        inputSchema: {
+          member: z.string(),
+          creator_member: z.string(),
+          content: z.string().describe('Contenu de la note'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, creator_member, content }) => {
+        const target = await resolveMember(guildId, member);
+        if (!target.ok) return target.response;
+        const creator = await resolveMember(guildId, creator_member);
+        if (!creator.ok) return creator.response;
+
+        try {
+          const note = await createManagerNote(guildId, target.userId, creator.userId, content);
+          return ok({ ok: true, note });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'delete_manager_note',
+      {
+        description: 'Supprime une note manager.',
+        inputSchema: { note_id: z.string() },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ note_id }) => {
+        try {
+          await deleteManagerNote(note_id);
+          return ok({ ok: true, noteId: note_id });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+  }
+
   // ── WRITE_COMMUNITY (NEW) ──────────────────────────────────────────────────
   if (shouldRegister('WRITE_COMMUNITY')) {
     // 1. create_custom_event
@@ -2414,6 +4692,9 @@ export function registerMcpTools(
           name: z.string().describe('Nom du formulaire'),
           description: z.string().optional().describe('Description du formulaire'),
           is_recruitment: z.boolean().default(false).describe("Indique s'il s'agit d'un formulaire de recrutement"),
+          requires_discord_auth: z.boolean().default(false).describe('Exiger une connexion Discord pour soumettre'),
+          theme: z.record(z.unknown()).optional().describe('Thème visuel (couleurs, bannière, police…)'),
+          custom_css: z.string().nullable().optional().describe('CSS personnalisé (sanitisé côté serveur)'),
           questions: z.array(z.object({
             id: z.string().optional().describe('Identifiant unique de la question (généré automatiquement si omis)'),
             label: z.string().describe('Intitulé de la question'),
@@ -2426,7 +4707,7 @@ export function registerMcpTools(
         },
         _meta: toolMeta,
       },
-      guard('WRITE_COMMUNITY', async ({ name, description, is_recruitment, questions, key_name }) => {
+      guard('WRITE_COMMUNITY', async ({ name, description, is_recruitment, requires_discord_auth, theme, custom_css, questions, key_name }) => {
         try {
           const mappedFields = questions.map((q: any, i: number) => ({
             id: q.id || q.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30) || `field_${i}`,
@@ -2445,6 +4726,9 @@ export function registerMcpTools(
             name,
             description,
             isRecruitment: is_recruitment,
+            requiresDiscordAuth: requires_discord_auth,
+            theme: sanitizeFormTheme(theme),
+            customCss: sanitizeCustomCss(custom_css),
             structure: {
               title: name,
               description: description || undefined,
@@ -2742,6 +5026,9 @@ export function registerMcpTools(
           description: z.string().optional().describe('Nouvelle description'),
           is_recruitment: z.boolean().optional().describe("Indique s'il s'agit d'un formulaire de recrutement"),
           is_active: z.boolean().optional().describe("Activer ou désactiver le formulaire"),
+          requires_discord_auth: z.boolean().optional().describe('Exiger une connexion Discord pour soumettre'),
+          theme: z.record(z.unknown()).nullable().optional().describe('Thème visuel (null pour effacer)'),
+          custom_css: z.string().nullable().optional().describe('CSS personnalisé (null pour effacer)'),
           questions: z.array(z.object({
             id: z.string().optional().describe('Identifiant unique de la question (généré automatiquement si omis)'),
             label: z.string().describe('Intitulé de la question'),
@@ -2754,7 +5041,7 @@ export function registerMcpTools(
         },
         _meta: toolMeta,
       },
-      guard('WRITE_COMMUNITY', async ({ form_id, name, description, is_recruitment, is_active, questions, key_name }) => {
+      guard('WRITE_COMMUNITY', async ({ form_id, name, description, is_recruitment, is_active, requires_discord_auth, theme, custom_css, questions, key_name }) => {
         try {
           const existing = await prisma.customForm.findFirst({ where: { id: form_id, guildId } });
           if (!existing) return err('Formulaire introuvable');
@@ -2764,6 +5051,13 @@ export function registerMcpTools(
           if (description !== undefined) updateData.description = description;
           if (is_recruitment !== undefined) updateData.isRecruitment = is_recruitment;
           if (is_active !== undefined) updateData.isActive = is_active;
+          if (requires_discord_auth !== undefined) updateData.requiresDiscordAuth = requires_discord_auth;
+          if (theme !== undefined) {
+            updateData.theme = theme === null
+              ? Prisma.JsonNull
+              : ((sanitizeFormTheme(theme) ?? Prisma.JsonNull) as Prisma.InputJsonValue);
+          }
+          if (custom_css !== undefined) updateData.customCss = sanitizeCustomCss(custom_css);
 
           if (questions !== undefined) {
             const mappedFields = questions.map((q: any, i: number) => ({
@@ -2785,7 +5079,14 @@ export function registerMcpTools(
             };
           }
 
-          await updateCustomForm(form_id, guildId, updateData);
+          const prismaData: Record<string, unknown> = { ...updateData };
+          if (updateData.structure) {
+            prismaData.structure = updateData.structure as Prisma.InputJsonValue;
+          }
+          await prisma.customForm.updateMany({
+            where: { id: form_id, guildId },
+            data: prismaData,
+          });
           await audit(key_name, 'Mise à jour formulaire MCP', name || (existing as any).name, `ID: ${form_id}`);
           return ok({ ok: true, formId: form_id });
         } catch (e) {
@@ -3400,11 +5701,20 @@ export function registerMcpTools(
           category_id: z.string().optional().describe('Catégorie spécifique pour ranger ce type de ticket'),
           staff_role_id: z.string().optional().describe('Rôle staff spécifique pour ce type de ticket'),
           emoji: z.string().optional().describe('Emoji du type'),
+          fields: z.array(z.object({
+            id: z.string().describe('ID unique de l\'input/question'),
+            label: z.string().describe('Intitulé de la question'),
+            placeholder: z.string().optional().describe('Texte d\'aide / placeholder'),
+            style: z.enum(['SHORT', 'PARAGRAPH']).default('SHORT').describe('Type d\'input (SHORT ou PARAGRAPH)'),
+            required: z.boolean().default(true),
+            max_length: z.number().int().optional(),
+            min_length: z.number().int().optional(),
+          })).optional().describe('Champs personnalisés du formulaire modal (max 5 champs)'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_TICKETS', async ({ id, label, description, category_id, staff_role_id, emoji, key_name }) => {
+      guard('WRITE_TICKETS', async ({ id, label, description, category_id, staff_role_id, emoji, fields, key_name }) => {
         try {
           const guild = await prisma.guild.findUnique({ where: { id: guildId }, select: { ticketTypes: true } });
           const currentTypes: any[] = Array.isArray(guild?.ticketTypes) ? (guild.ticketTypes as any[]) : [];
@@ -3418,6 +5728,7 @@ export function registerMcpTools(
             categoryId: category_id || null,
             staffRoleId: staff_role_id || null,
             emoji: emoji || null,
+            fields: fields || null,
           });
 
           await prisma.guild.update({
@@ -3633,6 +5944,187 @@ export function registerMcpTools(
           return ok({ ok: true, userId: resolved.userId });
         } catch (e) {
           return err(`Erreur lors de la destitution staff : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'generate_staff_evaluation',
+      {
+        description: 'Génère une évaluation de performance pour un ou tous les membres staff. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          member: z.string().optional().describe('Membre staff cible (nom, mention ou ID). Omis = tous les staff.'),
+          period_days: z.number().int().min(7).max(365).default(30).describe('Période analysée en jours'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, period_days, key_name }) => {
+        try {
+          if (member) {
+            const resolved = await resolveMember(guildId, member);
+            if (!resolved.ok) return resolved.response;
+            const evaluation = await generateStaffEvaluation(guildId, resolved.userId, period_days);
+            await audit(key_name, 'Évaluation staff MCP', resolved.label, `Score: ${evaluation.overallScore}`);
+            return ok({ ok: true, evaluation });
+          }
+          const evaluations = await generateAllStaffEvaluations(guildId, period_days);
+          await audit(key_name, 'Évaluations staff MCP (batch)', '', `${evaluations.length} évaluation(s)`);
+          return ok({ ok: true, count: evaluations.length, evaluations });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_staff_evaluation_note',
+      {
+        description: 'Ajoute ou met à jour la note manager sur une évaluation staff. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          evaluation_id: z.string().describe('ID de l\'évaluation'),
+          manager_note: z.string().describe('Note du manager'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ evaluation_id, manager_note, key_name }) => {
+        try {
+          const existing = await prisma.staffEvaluation.findFirst({ where: { id: evaluation_id, guildId } });
+          if (!existing) return err('Évaluation introuvable');
+          const updated = await updateEvaluationNote(evaluation_id, manager_note);
+          await audit(key_name, 'Note évaluation staff MCP', evaluation_id, manager_note.slice(0, 200));
+          return ok({ ok: true, evaluation: updated });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'update_call_permission_config',
+      {
+        description: 'Configure qui peut planifier des appels staff (EVERYONE ou RESTRICTED par rôles/membres). Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          mode: z.enum(['EVERYONE', 'RESTRICTED']).describe('Mode de permission'),
+          allowed_role_ids: z.array(z.string()).optional().describe('Rôles autorisés (mode RESTRICTED)'),
+          allowed_user_ids: z.array(z.string()).optional().describe('Membres autorisés (mode RESTRICTED)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ mode, allowed_role_ids, allowed_user_ids, key_name }) => {
+        try {
+          const config = await updateCallPermissionConfig(guildId, {
+            mode,
+            allowedRoleIds: allowed_role_ids ?? [],
+            allowedUserIds: allowed_user_ids ?? [],
+          });
+          await audit(key_name, 'Config permissions appels MCP', mode, `Rôles: ${config.allowedRoleIds.length}, Membres: ${config.allowedUserIds.length}`);
+          return ok({ ok: true, config });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'activate_widget',
+      {
+        description: 'Active le widget Discord de profil staff pour un membre. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          member: z.string().describe('Membre staff (nom, mention ou ID)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          await prisma.widgetSubscription.upsert({
+            where: { guildId_userId: { guildId, userId: resolved.userId } },
+            update: { enabled: true },
+            create: { guildId, userId: resolved.userId, enabled: true },
+          });
+          const result = await pushWidgetForUser(guildId, resolved.userId);
+          await audit(key_name, 'Activation widget MCP', resolved.label, result.ok ? 'OK' : 'Échec push');
+          return ok({ ok: true, userId: resolved.userId, pushResult: result });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'deactivate_widget',
+      {
+        description: 'Désactive le widget Discord de profil staff pour un membre. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          member: z.string().describe('Membre staff (nom, mention ou ID)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          await prisma.widgetSubscription.updateMany({
+            where: { guildId, userId: resolved.userId },
+            data: { enabled: false },
+          });
+          const result = await clearWidgetForUser(resolved.userId);
+          await audit(key_name, 'Désactivation widget MCP', resolved.label, '');
+          return ok({ ok: true, userId: resolved.userId, clearResult: result });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'refresh_widget',
+      {
+        description: 'Rafraîchit le widget Discord de profil staff pour un membre. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          member: z.string().describe('Membre staff (nom, mention ou ID)'),
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ member, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+
+        try {
+          const result = await pushWidgetForUser(guildId, resolved.userId);
+          await audit(key_name, 'Refresh widget MCP', resolved.label, result.ok ? 'OK' : 'Échec');
+          return ok({ ok: true, userId: resolved.userId, pushResult: result });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })
+    );
+
+    server.registerTool(
+      'refresh_all_widgets',
+      {
+        description: 'Rafraîchit les widgets Discord de tous les staff abonnés actifs du serveur. Requiert WRITE_MEMBERS.',
+        inputSchema: {
+          key_name: z.string().optional(),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MEMBERS', async ({ key_name }) => {
+        try {
+          const result = await refreshAllStaffWidgets(guildId);
+          await audit(key_name, 'Refresh widgets MCP (global)', guildId, `${result.success ?? 0} succès`);
+          return ok({ ok: true, ...result });
+        } catch (e) {
+          return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }
       })
     );

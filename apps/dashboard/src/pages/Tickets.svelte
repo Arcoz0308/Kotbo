@@ -69,6 +69,17 @@
   let ticketInactivityEnabled = $state(false);
   let ticketInactivityHours = $state(24);
   let ticketInactivityMessage = $state("Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !");
+  let ticketEmbedThumbnail = $state('');
+  let ticketEmbedImage = $state('');
+  let ticketEmbedFooter = $state('');
+  let ticketEmbedAuthorName = $state('');
+  let ticketEmbedAuthorIcon = $state('');
+  let ticketWelcomeTitle = $state('');
+  let ticketWelcomeDesc = $state('');
+  let ticketWelcomeColor = $state('');
+  let ticketWelcomeThumbnail = $state('');
+  let ticketWelcomeImage = $state('');
+  let ticketWelcomeFooter = $state('');
   let ticketTypes = $state<Array<{
     id: string;
     label: string;
@@ -80,10 +91,21 @@
     mode: '' | 'CHANNEL' | 'DM' | 'THREAD';
     anonymous: boolean;
     staffServerRelay: boolean;
+    formEnabled: boolean;
+    formCustomFields: Array<{
+      id: string;
+      label: string;
+      placeholder: string;
+      style: 'SHORT' | 'PARAGRAPH' | 'SELECT' | 'RADIO' | 'FILE';
+      required: boolean;
+      choices?: string[];
+      choicesString?: string;
+    }>;
   }>>([]);
 
   // Config sections accordion
   let expandedConfigSection = $state<string | null>('mode');
+  let expandedTicketTypeIndex = $state<number | null>(null);
   let showMobileChat = $state(false);
 
   // Satisfaction State
@@ -146,7 +168,18 @@
     ticketInactivityEnabled,
     ticketInactivityHours,
     ticketInactivityMessage,
-    ticketTypes
+    ticketTypes,
+    ticketEmbedThumbnail,
+    ticketEmbedImage,
+    ticketEmbedFooter,
+    ticketEmbedAuthorName,
+    ticketEmbedAuthorIcon,
+    ticketWelcomeTitle,
+    ticketWelcomeDesc,
+    ticketWelcomeColor,
+    ticketWelcomeThumbnail,
+    ticketWelcomeImage,
+    ticketWelcomeFooter
   });
 
   useUnsavedChanges({
@@ -177,6 +210,17 @@
     ticketInactivityHours = savedSettingsConfig.ticketInactivityHours;
     ticketInactivityMessage = savedSettingsConfig.ticketInactivityMessage;
     ticketTypes = JSON.parse(JSON.stringify(savedSettingsConfig.ticketTypes));
+    ticketEmbedThumbnail = savedSettingsConfig.ticketEmbedThumbnail;
+    ticketEmbedImage = savedSettingsConfig.ticketEmbedImage;
+    ticketEmbedFooter = savedSettingsConfig.ticketEmbedFooter;
+    ticketEmbedAuthorName = savedSettingsConfig.ticketEmbedAuthorName;
+    ticketEmbedAuthorIcon = savedSettingsConfig.ticketEmbedAuthorIcon;
+    ticketWelcomeTitle = savedSettingsConfig.ticketWelcomeTitle;
+    ticketWelcomeDesc = savedSettingsConfig.ticketWelcomeDesc;
+    ticketWelcomeColor = savedSettingsConfig.ticketWelcomeColor;
+    ticketWelcomeThumbnail = savedSettingsConfig.ticketWelcomeThumbnail;
+    ticketWelcomeImage = savedSettingsConfig.ticketWelcomeImage;
+    ticketWelcomeFooter = savedSettingsConfig.ticketWelcomeFooter;
   }
 
   function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'config') {
@@ -210,6 +254,16 @@
       mode: '' as '' | 'CHANNEL' | 'DM' | 'THREAD',
       anonymous: false,
       staffServerRelay: false,
+      formEnabled: true,
+      formCustomFields: [] as Array<{
+        id: string;
+        label: string;
+        placeholder: string;
+        style: 'SHORT' | 'PARAGRAPH' | 'SELECT' | 'RADIO' | 'FILE';
+        required: boolean;
+        choices?: string[];
+        choicesString?: string;
+      }>
     };
   }
 
@@ -224,6 +278,16 @@
     mode: '' | 'CHANNEL' | 'DM' | 'THREAD';
     anonymous: boolean;
     staffServerRelay: boolean;
+    formEnabled: boolean;
+    formCustomFields: Array<{
+      id: string;
+      label: string;
+      placeholder: string;
+      style: 'SHORT' | 'PARAGRAPH' | 'SELECT' | 'RADIO' | 'FILE';
+      required: boolean;
+      choices?: string[];
+      choicesString?: string;
+    }>;
   }> {
     if (Array.isArray(config?.ticketTypes) && config.ticketTypes.length > 0) {
       return config.ticketTypes
@@ -241,20 +305,87 @@
           mode: item.mode === 'CHANNEL' || item.mode === 'DM' || item.mode === 'THREAD' ? item.mode : '',
           anonymous: item.anonymous === true,
           staffServerRelay: item.staffServerRelay === true,
+          formEnabled: item.formEnabled !== undefined ? item.formEnabled : true,
+          formCustomFields: Array.isArray(item.formCustomFields)
+            ? item.formCustomFields.map((f: any) => ({
+                id: f.id,
+                label: f.label || '',
+                placeholder: f.placeholder || '',
+                style: f.style || 'SHORT',
+                required: f.required !== false,
+                choices: Array.isArray(f.choices) ? f.choices : [],
+                choicesString: Array.isArray(f.choices) ? f.choices.join(', ') : '',
+              }))
+            : [],
         }));
     }
 
       return [createTicketTypeDraft(0, config)];
   }
 
+  function addCustomField(typeIndex: number) {
+    const ticketType = ticketTypes[typeIndex];
+    if (!ticketType.formCustomFields) {
+      ticketType.formCustomFields = [];
+    }
+    if (ticketType.formCustomFields.length >= 5) {
+      toast.error("Discord limite les formulaires (Modals) à 5 champs maximum.");
+      return;
+    }
+    const newId = 'field_' + Math.random().toString(36).substring(2, 10);
+    ticketType.formCustomFields = [...ticketType.formCustomFields, {
+      id: newId,
+      label: `Question ${ticketType.formCustomFields.length + 1}`,
+      placeholder: '',
+      style: 'SHORT',
+      required: true
+    }];
+  }
+
+  function removeCustomField(typeIndex: number, fieldId: string) {
+    const ticketType = ticketTypes[typeIndex];
+    ticketType.formCustomFields = ticketType.formCustomFields.filter(f => f.id !== fieldId);
+  }
+
   function addTicketType() {
     ticketTypes = [...ticketTypes, createTicketTypeDraft(ticketTypes.length)];
+    expandedTicketTypeIndex = ticketTypes.length - 1; // Expands the newly created ticket type
   }
 
   function removeTicketType(index: number) {
     ticketTypes = ticketTypes.filter((_, currentIndex) => currentIndex !== index);
+    if (expandedTicketTypeIndex === index) {
+      expandedTicketTypeIndex = null;
+    } else if (expandedTicketTypeIndex !== null && expandedTicketTypeIndex > index) {
+      expandedTicketTypeIndex--;
+    }
     if (ticketTypes.length === 0) {
       ticketTypes = [createTicketTypeDraft(0)];
+      expandedTicketTypeIndex = 0;
+    }
+  }
+
+  function moveTicketType(index: number, direction: 'UP' | 'DOWN') {
+    if (direction === 'UP' && index > 0) {
+      const temp = ticketTypes[index];
+      ticketTypes[index] = ticketTypes[index - 1];
+      ticketTypes[index - 1] = temp;
+      ticketTypes = [...ticketTypes];
+      if (expandedTicketTypeIndex === index) {
+        expandedTicketTypeIndex = index - 1;
+      } else if (expandedTicketTypeIndex === index - 1) {
+        expandedTicketTypeIndex = index;
+      }
+    } else if (direction === 'DOWN' && index < ticketTypes.length - 1) {
+      const temp = ticketTypes[index];
+      ticketTypes[index] = ticketTypes[index + 1];
+      ticketTypes[index + 1] = temp;
+      ticketTypes = [...ticketTypes];
+      if (expandedTicketTypeIndex === index) {
+        expandedTicketTypeIndex = index + 1;
+      } else if (expandedTicketTypeIndex === index + 1) {
+        expandedTicketTypeIndex = index;
+      }
     }
   }
 
@@ -298,6 +429,17 @@
       ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
       ticketInactivityMessage = config.ticketInactivityMessage || "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !";
       ticketTypes = normalizeTicketTypes(config);
+      ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
+      ticketEmbedImage = config.ticketEmbedImage || '';
+      ticketEmbedFooter = config.ticketEmbedFooter || '';
+      ticketEmbedAuthorName = config.ticketEmbedAuthorName || '';
+      ticketEmbedAuthorIcon = config.ticketEmbedAuthorIcon || '';
+      ticketWelcomeTitle = config.ticketWelcomeTitle || "🎫 Ticket d'Assistance · {type_label}";
+      ticketWelcomeDesc = config.ticketWelcomeDesc || "Bonjour {user} !\nLe personnel {staff_mention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n{description}";
+      ticketWelcomeColor = config.ticketWelcomeColor || '#5865F2';
+      ticketWelcomeThumbnail = config.ticketWelcomeThumbnail || '';
+      ticketWelcomeImage = config.ticketWelcomeImage || '';
+      ticketWelcomeFooter = config.ticketWelcomeFooter || 'Kotbo · Ticket ID: {ticket_id}';
       savedSettingsConfig = {
         ticketCategoryId,
         ticketLogChannelId,
@@ -315,7 +457,18 @@
         ticketInactivityEnabled,
         ticketInactivityHours,
         ticketInactivityMessage,
-        ticketTypes: JSON.parse(JSON.stringify(ticketTypes))
+        ticketTypes: JSON.parse(JSON.stringify(ticketTypes)),
+        ticketEmbedThumbnail,
+        ticketEmbedImage,
+        ticketEmbedFooter,
+        ticketEmbedAuthorName,
+        ticketEmbedAuthorIcon,
+        ticketWelcomeTitle,
+        ticketWelcomeDesc,
+        ticketWelcomeColor,
+        ticketWelcomeThumbnail,
+        ticketWelcomeImage,
+        ticketWelcomeFooter
       };
     } catch (err: any) {
       error = err.message || 'Une erreur est survenue';
@@ -590,7 +743,18 @@
           ticketOverclaimPermission,
           ticketInactivityEnabled,
           ticketInactivityHours,
-          ticketInactivityMessage
+          ticketInactivityMessage,
+          ticketEmbedThumbnail,
+          ticketEmbedImage,
+          ticketEmbedFooter,
+          ticketEmbedAuthorName,
+          ticketEmbedAuthorIcon,
+          ticketWelcomeTitle,
+          ticketWelcomeDesc,
+          ticketWelcomeColor,
+          ticketWelcomeThumbnail,
+          ticketWelcomeImage,
+          ticketWelcomeFooter
         })
       });
       if (!res.ok) throw new Error('Erreur lors de la sauvegarde');
@@ -1179,58 +1343,7 @@
         </button>
       </div>
 
-      <!-- ─── Section 1: Mode de fonctionnement ──────────────────────────── -->
-      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
-        <button onclick={() => toggleConfigSection('mode')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
-              <Papicon icon="radio" size={18} />
-            </div>
-            <div>
-              <p class="text-sm font-semibold text-on-surface">Mode de fonctionnement</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Salon, MP ou Thread — comment les tickets sont créés</p>
-            </div>
-          </div>
-          <Papicon icon={expandedConfigSection === 'mode' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
-        </button>
-        {#if expandedConfigSection === 'mode'}
-          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {#each [
-                { value: 'CHANNEL', label: 'Salon', icon: 'hash', desc: 'Crée un salon textuel privé par ticket' },
-                { value: 'DM', label: 'Messages Privés', icon: 'mail', desc: 'Le bot communique en MP avec l\'utilisateur' },
-                { value: 'THREAD', label: 'Thread privé', icon: 'message-circle', desc: 'Crée un fil privé dans un salon' }
-              ] as modeOption}
-                <button
-                  onclick={() => ticketMode = modeOption.value as any}
-                  class="p-4 rounded-xl border-2 text-left transition-all {ticketMode === modeOption.value ? 'border-primary bg-primary/5' : 'border-outline-variant/10 hover:border-outline-variant/30 bg-surface-container/20'}"
-                >
-                  <div class="flex items-center gap-2.5 mb-2">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center {ticketMode === modeOption.value ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
-                      <Papicon icon={modeOption.icon} size={16} />
-                    </div>
-                    <span class="text-sm font-semibold {ticketMode === modeOption.value ? 'text-primary' : 'text-on-surface'}">{modeOption.label}</span>
-                  </div>
-                  <p class="text-[10px] text-on-surface-variant/60 leading-relaxed">{modeOption.desc}</p>
-                </button>
-              {/each}
-            </div>
-
-            {#if ticketMode === 'DM'}
-              <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon de relais staff (les threads MP y sont créés)</span>
-                <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full" />
-              </label>
-              <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15">
-                <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
-                <p class="text-[10px] text-amber-500/80 leading-relaxed">En mode MP, les messages de l'utilisateur sont relayés dans un thread et inversement. L'utilisateur doit avoir ses MP activés.</p>
-              </div>
-            {/if}
-          </div>
-        {/if}
-      </div>
-
-      <!-- ─── Section 2: Salons & Rôles ──────────────────────────────────── -->
+      <!-- ─── Section 1: Salons & Rôles ──────────────────────────────────── -->
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('channels')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
@@ -1239,7 +1352,7 @@
             </div>
             <div>
               <p class="text-sm font-semibold text-on-surface">Salons & Rôles</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Catégorie, logs, rôle staff et sur-revendication</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Catégorie par défaut, logs, relais MP, rôle staff et sur-revendication</p>
             </div>
           </div>
           <Papicon icon={expandedConfigSection === 'channels' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1247,12 +1360,10 @@
         {#if expandedConfigSection === 'channels'}
           <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {#if ticketMode === 'CHANNEL'}
-                <label class="block">
-                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Catégorie des tickets</span>
-                  <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner" className="w-full" />
-                </label>
-              {/if}
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Catégorie des tickets par défaut</span>
+                <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner" className="w-full" />
+              </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon du panel d'ouverture</span>
                 <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner" className="w-full" />
@@ -1262,8 +1373,12 @@
                 <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner" className="w-full" />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle Staff Support</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle Staff Support par défaut</span>
                 <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner" className="w-full" />
+              </label>
+              <label class="block col-span-1 md:col-span-2">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon de relais des messages privés (Mode MP)</span>
+                <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full" />
               </label>
             </div>
 
@@ -1319,10 +1434,36 @@
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description</span>
               <FormTextarea bind:value={ticketEmbedDesc} placeholder="Cliquez pour obtenir de l'aide..." className="w-full h-20" />
             </label>
-            <label class="block">
-              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur</span>
-              <FormColorPicker bind:value={ticketEmbedColor} />
-            </label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Miniature (Thumbnail URL)</span>
+                <FormInput type="text" bind:value={ticketEmbedThumbnail} placeholder="https://..." className="w-full" />
+              </label>
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Grande Image (Image URL)</span>
+                <FormInput type="text" bind:value={ticketEmbedImage} placeholder="https://..." className="w-full" />
+              </label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Auteur - Nom</span>
+                <FormInput type="text" bind:value={ticketEmbedAuthorName} placeholder="Kotbo Support" className="w-full" />
+              </label>
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Auteur - Icône (URL)</span>
+                <FormInput type="text" bind:value={ticketEmbedAuthorIcon} placeholder="https://..." className="w-full" />
+              </label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur</span>
+                <FormColorPicker bind:value={ticketEmbedColor} />
+              </label>
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte de bas de page (Footer)</span>
+                <FormInput type="text" bind:value={ticketEmbedFooter} placeholder="Kotbo • Système de tickets" className="w-full" />
+              </label>
+            </div>
 
             <div class="border-t border-outline-variant/10 pt-4">
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-3 block">Type d'interaction</span>
@@ -1345,6 +1486,58 @@
                   </button>
                 {/each}
               </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+
+
+      <!-- ─── Section: Message d'accueil dans le ticket ──────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('welcome')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
+              <Papicon icon="message-square" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">Message d'accueil dans le ticket</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Personnaliser l'embed/container envoyé lors de la création du ticket</p>
+            </div>
+          </div>
+          <Papicon icon={expandedConfigSection === 'welcome' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
+        </button>
+        {#if expandedConfigSection === 'welcome'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label class="block col-span-1 md:col-span-2">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Titre (Placeholders : {'{type_label}'})</span>
+                <FormInput type="text" bind:value={ticketWelcomeTitle} placeholder="🎫 Ticket d'Assistance · {'{type_label}'}" className="w-full" />
+              </label>
+            </div>
+            <label class="block">
+              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description (Placeholders : {'{user}'}, {'{staff_mention}'}, {'{reason}'}, {'{description}'})</span>
+              <FormTextarea bind:value={ticketWelcomeDesc} placeholder="Bonjour {'{user}'} !\nLe personnel {'{staff_mention}'} va prendre en charge..." className="w-full h-32" />
+            </label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Miniature (Thumbnail URL)</span>
+                <FormInput type="text" bind:value={ticketWelcomeThumbnail} placeholder="https://..." className="w-full" />
+              </label>
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Grande Image (Image URL)</span>
+                <FormInput type="text" bind:value={ticketWelcomeImage} placeholder="https://..." className="w-full" />
+              </label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur de l'embed</span>
+                <FormColorPicker bind:value={ticketWelcomeColor} />
+              </label>
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte de bas de page (Footer)</span>
+                <FormInput type="text" bind:value={ticketWelcomeFooter} placeholder="Kotbo · Ticket ID: {'{ticket_id}'}" className="w-full" />
+              </label>
             </div>
           </div>
         {/if}
@@ -1394,7 +1587,7 @@
         {/if}
       </div>
 
-      <!-- ─── Section 5: Types de tickets ────────────────────────────────── -->
+      <!-- ─── Section 2: Types de tickets ────────────────────────────────── -->
       <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
         <button onclick={() => toggleConfigSection('types')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
           <div class="flex items-center gap-3">
@@ -1403,7 +1596,7 @@
             </div>
             <div>
               <p class="text-sm font-semibold text-on-surface">Types de tickets</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{ticketTypes.length} type{ticketTypes.length > 1 ? 's' : ''} — {ticketEmbedType === 'DROPDOWN' ? 'chaque type apparaît comme option du menu' : 'chaque type a son bouton'}, rôle et catégorie</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{ticketTypes.length} type{ticketTypes.length > 1 ? 's' : ''} — configurez les boutons, salons, rôles et formulaires par type de ticket</p>
             </div>
           </div>
           <Papicon icon={expandedConfigSection === 'types' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1414,91 +1607,269 @@
               <button onclick={addTicketType}
                 class="px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform flex items-center gap-1.5"
               >
-                <Papicon icon="plus" size={13} /> Ajouter
+                <Papicon icon="plus" size={13} /> Ajouter un type
               </button>
             </div>
 
-            <div class="space-y-4">
+            <div class="space-y-3">
               {#each ticketTypes as ticketType, index}
-                <div class="rounded-xl border border-outline-variant/10 bg-surface-container/20 p-4 space-y-3">
-                  <div class="flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2">
-                      <span class="text-lg">{ticketType.emoji || '📩'}</span>
-                      <span class="text-sm font-semibold text-on-surface">{ticketType.label || `Type #${index + 1}`}</span>
-                    </div>
-                    <button onclick={() => removeTicketType(index)}
-                      class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[9px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-colors"
+                {@const isExpanded = expandedTicketTypeIndex === index}
+                <div class="rounded-xl border transition-all {isExpanded ? 'border-primary/40 bg-surface-container/35 shadow-lg shadow-primary/5' : 'border-outline-variant/10 bg-surface-container/15 hover:border-outline-variant/20'}">
+                  
+                  <!-- Accordion Header -->
+                  <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3.5 gap-3">
+                    <button
+                      onclick={() => expandedTicketTypeIndex = isExpanded ? null : index}
+                      class="flex-1 flex flex-wrap items-center gap-2.5 text-left outline-none"
                     >
-                      Supprimer
-                    </button>
-                  </div>
+                      <span class="text-lg shrink-0">{ticketType.emoji || '📩'}</span>
+                      <div class="min-w-0 flex-1">
+                        <span class="text-sm font-semibold text-on-surface block truncate">{ticketType.label || `Type #${index + 1}`}</span>
+                        
+                        <!-- Badges summary of configuration -->
+                        <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                          <!-- Mode badge -->
+                          {#if ticketType.mode === 'CHANNEL'}
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-blue-500/10 text-blue-400 border border-blue-500/15">Salon</span>
+                          {:else if ticketType.mode === 'DM'}
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-purple-500/10 text-purple-400 border border-purple-500/15">Message Privé</span>
+                          {:else if ticketType.mode === 'THREAD'}
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-amber-500/10 text-amber-400 border border-amber-500/15">Thread</span>
+                          {:else}
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-surface-container-high text-on-surface-variant/60 border border-outline-variant/10">Mode global</span>
+                          {/if}
 
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label class="block">
-                      <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Texte du bouton</span>
-                      <FormInput type="text" bind:value={ticketType.label} placeholder="Support technique" className="w-full" />
-                    </label>
-                    <div class="grid grid-cols-2 gap-3">
-                      <label class="block">
-                        <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Emoji</span>
-                        <div class="flex gap-1.5">
-                          <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
-                          <EmojiPicker bind:value={ticketType.emoji} />
+                          <!-- Staff Role Badge -->
+                          {#if ticketType.staffRoleId}
+                            {@const role = discordRoles.find(r => r.id === ticketType.staffRoleId)}
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">Staff: @{role?.name || 'Inconnu'}</span>
+                          {:else}
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">Staff hérité</span>
+                          {/if}
+
+                          <!-- Form Enabled Badge -->
+                          {#if ticketType.formEnabled}
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/15">Avec Formulaire ({(ticketType.formCustomFields || []).length} question{(ticketType.formCustomFields || []).length > 1 ? 's' : ''})</span>
+                          {:else}
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">Création Directe</span>
+                          {/if}
                         </div>
-                      </label>
+                      </div>
+                    </button>
+
+                    <!-- Reorder & Delete actions in header -->
+                    <div class="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                      <!-- Reordering buttons -->
+                      <button
+                        onclick={() => moveTicketType(index, 'UP')}
+                        disabled={index === 0}
+                        class="p-1.5 rounded-lg border border-outline-variant/10 text-on-surface-variant hover:bg-white/5 disabled:opacity-30 transition-colors"
+                        title="Monter"
+                      >
+                        <Papicon icon="arrow-up" size={13} />
+                      </button>
+                      <button
+                        onclick={() => moveTicketType(index, 'DOWN')}
+                        disabled={index === ticketTypes.length - 1}
+                        class="p-1.5 rounded-lg border border-outline-variant/10 text-on-surface-variant hover:bg-white/5 disabled:opacity-30 transition-colors"
+                        title="Descendre"
+                      >
+                        <Papicon icon="arrow-down" size={13} />
+                      </button>
+
+                      <div class="w-px h-5 bg-outline-variant/10 mx-1"></div>
+
+                      <!-- Edit expansion toggle button -->
+                      <button
+                        onclick={() => expandedTicketTypeIndex = isExpanded ? null : index}
+                        class="px-2.5 py-1.5 rounded-lg border text-[9px] font-semibold uppercase tracking-wider transition-colors {isExpanded ? 'bg-primary text-white border-primary' : 'bg-surface-container text-on-surface hover:bg-white/5 border-outline-variant/10'}"
+                      >
+                        {isExpanded ? 'Fermer' : 'Modifier'}
+                      </button>
+
+                      <!-- Delete button -->
+                      <button
+                        onclick={() => removeTicketType(index)}
+                        class="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/15 transition-all"
+                        title="Supprimer"
+                      >
+                        <Papicon icon="trash-2" size={13} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Accordion Content -->
+                  {#if isExpanded}
+                    <div class="px-4 pb-4 pt-3 border-t border-outline-variant/10 bg-surface-container-low/10 space-y-4 animate-fade-in">
+                      
+                      <!-- Button label, emoji, style select -->
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="block">
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Libellé du Bouton / Option</span>
+                          <FormInput type="text" bind:value={ticketType.label} placeholder="Support technique" className="w-full" />
+                        </label>
+                        <div class="grid grid-cols-2 gap-3">
+                          <label class="block">
+                            <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Emoji</span>
+                            <div class="flex gap-1.5">
+                              <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
+                              <EmojiPicker bind:value={ticketType.emoji} />
+                            </div>
+                          </label>
+                          <label class="block">
+                            <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Couleur bouton (Style)</span>
+                            <FormSelect bind:value={ticketType.buttonStyle} className="w-full">
+                              <option value="PRIMARY">Bleu (Primaire)</option>
+                              <option value="SECONDARY">Gris (Secondaire)</option>
+                              <option value="SUCCESS">Vert (Succès)</option>
+                              <option value="DANGER">Rouge (Danger)</option>
+                            </FormSelect>
+                          </label>
+                        </div>
+                      </div>
+
                       <label class="block">
-                        <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Style</span>
-                        <FormSelect bind:value={ticketType.buttonStyle} className="w-full">
-                          <option value="PRIMARY">Primaire</option>
-                          <option value="SECONDARY">Secondaire</option>
-                          <option value="SUCCESS">Succès</option>
-                          <option value="DANGER">Danger</option>
-                        </FormSelect>
+                        <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Description de l'option (menu déroulant)</span>
+                        <FormTextarea bind:value={ticketType.description} placeholder="Sélectionnez cette option si vous rencontrez un problème..." className="w-full h-16" />
                       </label>
-                    </div>
-                  </div>
 
-                  <label class="block">
-                    <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Description</span>
-                    <FormTextarea bind:value={ticketType.description} placeholder="Décrit ce type de ticket..." className="w-full h-16" />
-                  </label>
-
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label class="block">
-                      <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Catégorie</span>
-                      <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner" className="w-full" />
-                    </label>
-                    <label class="block">
-                      <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Rôle staff</span>
-                      <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner" className="w-full" />
-                    </label>
-                  </div>
-
-                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-outline-variant/10">
-                    <label class="block">
-                      <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Mode du ticket</span>
-                      <FormSelect bind:value={ticketType.mode} className="w-full">
-                        <option value="">Par défaut (global)</option>
-                        <option value="CHANNEL">Salon</option>
-                        <option value="DM">Message Privé</option>
-                        <option value="THREAD">Thread</option>
-                      </FormSelect>
-                    </label>
-                    <div class="flex items-center gap-2 pt-4">
-                      <ToggleSwitch checked={ticketType.anonymous} onToggle={(v) => { ticketType.anonymous = v; }} size="sm" />
-                      <div>
-                        <span class="text-xs font-medium text-on-surface">Anonyme</span>
-                        <p class="text-[10px] text-on-surface-variant/50">Masque l'identité en mode MP</p>
+                      <!-- Salons & Rôles targets -->
+                      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <label class="block">
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Mode d'ouverture</span>
+                          <FormSelect bind:value={ticketType.mode} className="w-full">
+                            <option value="">Par défaut (global)</option>
+                            <option value="CHANNEL">Nouveau Salon</option>
+                            <option value="DM">Messages Privés (MP)</option>
+                            <option value="THREAD">Thread (Fil de discussion)</option>
+                          </FormSelect>
+                        </label>
+                        <label class="block">
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Catégorie cible (Salons / Threads)</span>
+                          <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner (hérité par défaut)" className="w-full" />
+                        </label>
+                        <label class="block">
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Rôle Staff spécifique</span>
+                          <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner (hérité par défaut)" className="w-full" />
+                        </label>
                       </div>
-                    </div>
-                    <div class="flex items-center gap-2 pt-4">
-                      <ToggleSwitch checked={ticketType.staffServerRelay} onToggle={(v) => { ticketType.staffServerRelay = v; }} size="sm" />
-                      <div>
-                        <span class="text-xs font-medium text-on-surface">Relay staff server</span>
-                        <p class="text-[10px] text-on-surface-variant/50">Crée le thread sur le serveur staff</p>
+
+                      <!-- Toggle Options -->
+                      {#if ticketType.mode === 'DM' || (ticketType.mode === '' && ticketMode === 'DM')}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                          <div class="flex items-center gap-2.5 p-1">
+                            <ToggleSwitch checked={ticketType.anonymous} onToggle={(v) => { ticketType.anonymous = v; }} size="sm" />
+                            <div>
+                              <span class="text-xs font-semibold text-on-surface">Anonymat du Staff</span>
+                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">Masque l'identité du staff en mode MP</p>
+                            </div>
+                          </div>
+                          <div class="flex items-center gap-2.5 p-1">
+                            <ToggleSwitch checked={ticketType.staffServerRelay} onToggle={(v) => { ticketType.staffServerRelay = v; }} size="sm" />
+                            <div>
+                              <span class="text-xs font-semibold text-on-surface">Créer le fil sur le serveur staff</span>
+                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">Pour le mode MP / relais staff externe</p>
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
+
+                      <!-- Modal Form Configurator -->
+                      <div class="pt-4 border-t border-outline-variant/10 mt-3">
+                        <label class="flex items-center gap-3 cursor-pointer p-1 rounded-xl transition-colors">
+                          <input type="checkbox" bind:checked={ticketType.formEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                          <div>
+                            <span class="text-xs font-bold text-on-surface">Activer le formulaire de questions pour ce type</span>
+                            <p class="text-[10px] text-on-surface-variant/60">Affiche une pop-up de questions lors du clic.</p>
+                          </div>
+                        </label>
+
+                        {#if ticketType.formEnabled}
+                          <div class="space-y-4 pt-4 pl-7">
+                            <div class="flex items-center justify-between">
+                              <span class="text-xs font-bold text-on-surface-variant/80">Questions personnalisées (Maximum 5)</span>
+                              <button
+                                onclick={() => addCustomField(index)}
+                                disabled={(ticketType.formCustomFields || []).length >= 5}
+                                class="px-2 py-1 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 rounded-lg text-[9px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1"
+                              >
+                                <Papicon icon="plus" size={11} /> Ajouter une question
+                              </button>
+                            </div>
+
+                            {#if !(ticketType.formCustomFields || []).length}
+                              <div class="p-4 rounded-xl border border-dashed border-outline-variant/20 bg-surface-container/10 text-center">
+                                <p class="text-xs text-on-surface-variant/60">Aucune question configurée pour ce type.</p>
+                                <p class="text-[10px] text-on-surface-variant/40 mt-1">Le modal utilisera par défaut : "Sujet" et "Description".</p>
+                              </div>
+                            {:else}
+                              <div class="space-y-3">
+                                {#each ticketType.formCustomFields as field, fieldIndex}
+                                  <div class="p-3 rounded-lg border border-outline-variant/10 bg-surface-container/10 space-y-3 relative group">
+                                    <div class="flex items-center justify-between">
+                                      <span class="text-[10px] font-bold text-primary">Question #{fieldIndex + 1}</span>
+                                      <button
+                                        onclick={() => removeCustomField(index, field.id)}
+                                        class="text-rose-500 hover:text-rose-400 p-1 rounded-lg hover:bg-rose-500/10 transition-colors"
+                                      >
+                                        <Papicon icon="trash-2" size={13} />
+                                      </button>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <label class="block">
+                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">Question / Label</span>
+                                        <FormInput type="text" bind:value={field.label} placeholder="Quel est votre problème ?" className="w-full" />
+                                      </label>
+                                      <label class="block">
+                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">Indication / Placeholder</span>
+                                        <FormInput type="text" bind:value={field.placeholder} placeholder="Détaillez ici..." className="w-full" />
+                                      </label>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <label class="block">
+                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">Type de réponse</span>
+                                        <FormSelect bind:value={field.style} className="w-full">
+                                          <option value="SHORT">Ligne courte (ex: Nom, Pseudo) [Modal]</option>
+                                          <option value="PARAGRAPH">Paragraphe long (ex: Description) [Modal]</option>
+                                          <option value="SELECT">Menu déroulant (ex: Catégories) [Interactif]</option>
+                                          <option value="RADIO">Boutons radios (ex: Oui/Non) [Interactif]</option>
+                                          <option value="FILE">Fichier joint (ex: Capture d'écran) [Interactif]</option>
+                                        </FormSelect>
+                                      </label>
+                                      <label class="flex items-center gap-2 cursor-pointer pt-5">
+                                        <input type="checkbox" bind:checked={field.required} class="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                                        <span class="text-[9px] font-bold text-on-surface">Champ obligatoire</span>
+                                      </label>
+                                    </div>
+
+                                    {#if field.style === 'SELECT' || field.style === 'RADIO'}
+                                      <div class="pt-1">
+                                        <label class="block">
+                                          <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">Choix / Options (séparés par des virgules)</span>
+                                          <FormInput
+                                            type="text"
+                                            bind:value={field.choicesString}
+                                            placeholder="Choix A, Choix B, Choix C"
+                                            className="w-full"
+                                            oninput={() => {
+                                              field.choices = field.choicesString ? field.choicesString.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                            }}
+                                          />
+                                        </label>
+                                      </div>
+                                    {/if}
+                                  </div>
+                                {/each}
+                              </div>
+                            {/if}
+                          </div>
+                        {/if}
                       </div>
+
                     </div>
-                  </div>
+                  {/if}
                 </div>
               {/each}
             </div>

@@ -4851,6 +4851,19 @@ export async function handleModulesRoutes(
             ticketMode: true,
             ticketDmRelayChannelId: true,
             ticketTypes: true,
+            ticketFormEnabled: true,
+            ticketFormCustomFields: true,
+            ticketEmbedThumbnail: true,
+            ticketEmbedImage: true,
+            ticketEmbedFooter: true,
+            ticketEmbedAuthorName: true,
+            ticketEmbedAuthorIcon: true,
+            ticketWelcomeTitle: true,
+            ticketWelcomeDesc: true,
+            ticketWelcomeColor: true,
+            ticketWelcomeThumbnail: true,
+            ticketWelcomeImage: true,
+            ticketWelcomeFooter: true,
             ticketAllowOverclaim: true,
             ticketOverclaimPermission: true,
             ticketInactivityEnabled: true,
@@ -4927,7 +4940,7 @@ export async function handleModulesRoutes(
       }
 
       try {
-        const body = await readJsonBody<unknown>(req);
+        const body = await readJsonBody<any>(req);
         const updated = await prisma.guild.update({
           where: { id: guildId },
           data: {
@@ -4942,6 +4955,19 @@ export async function handleModulesRoutes(
             ticketEmbedType: body.ticketEmbedType === 'DROPDOWN' ? 'DROPDOWN' : 'BUTTONS',
             ticketMode: body.ticketMode === 'DM' || body.ticketMode === 'THREAD' ? body.ticketMode : 'CHANNEL',
             ticketDmRelayChannelId: body.ticketDmRelayChannelId || null,
+            ticketFormEnabled: body.ticketFormEnabled ?? true,
+            ticketFormCustomFields: body.ticketFormCustomFields !== undefined ? body.ticketFormCustomFields : null,
+            ticketEmbedThumbnail: body.ticketEmbedThumbnail || null,
+            ticketEmbedImage: body.ticketEmbedImage || null,
+            ticketEmbedFooter: body.ticketEmbedFooter || null,
+            ticketEmbedAuthorName: body.ticketEmbedAuthorName || null,
+            ticketEmbedAuthorIcon: body.ticketEmbedAuthorIcon || null,
+            ticketWelcomeTitle: body.ticketWelcomeTitle || "🎫 Ticket d'Assistance · {type_label}",
+            ticketWelcomeDesc: body.ticketWelcomeDesc || "Bonjour {user} !\nLe personnel {staff_mention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n{description}",
+            ticketWelcomeColor: body.ticketWelcomeColor || "#5865F2",
+            ticketWelcomeThumbnail: body.ticketWelcomeThumbnail || null,
+            ticketWelcomeImage: body.ticketWelcomeImage || null,
+            ticketWelcomeFooter: body.ticketWelcomeFooter || "Kotbo · Ticket ID: {ticket_id}",
             ...(body.ticketTypes !== undefined
               ? {
                   ticketTypes: Array.isArray(body.ticketTypes)
@@ -5033,6 +5059,19 @@ export async function handleModulesRoutes(
             ticketMode: true,
             ticketDmRelayChannelId: true,
             ticketTypes: true,
+            ticketFormEnabled: true,
+            ticketFormCustomFields: true,
+            ticketEmbedThumbnail: true,
+            ticketEmbedImage: true,
+            ticketEmbedFooter: true,
+            ticketEmbedAuthorName: true,
+            ticketEmbedAuthorIcon: true,
+            ticketWelcomeTitle: true,
+            ticketWelcomeDesc: true,
+            ticketWelcomeColor: true,
+            ticketWelcomeThumbnail: true,
+            ticketWelcomeImage: true,
+            ticketWelcomeFooter: true,
             ticketAllowOverclaim: true,
             ticketOverclaimPermission: true,
             ticketInactivityEnabled: true,

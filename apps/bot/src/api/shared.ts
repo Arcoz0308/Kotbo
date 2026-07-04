@@ -174,6 +174,19 @@ export const CORS_EXTRA_ORIGINS: string[] = (process.env.CORS_ALLOWED_ORIGINS ||
   .split(',')
   .map(s => { try { return new URL(s.trim()).origin; } catch { return s.trim().replace(/\/$/, ''); } })
   .filter(Boolean);
+
+/** Landing kotbo.fr, dashboard dash.kotbo.fr et autres sous-domaines *.kotbo.fr */
+export function isKotboPublicOrigin(candidate: string): boolean {
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') return true;
+    return parsed.hostname === 'kotbo.fr' || parsed.hostname.endsWith('.kotbo.fr');
+  } catch {
+    return false;
+  }
+}
+
 export const DEFAULT_TRANSLATION_TARGET_LANG = 'FR';
 export const DISCORD_CLIENT_OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
 
@@ -203,6 +216,7 @@ export const getClientIp = (req: IncomingMessage): string => {
 export const configRateLimiter = new Map<string, number[]>();
 export const errorReportRateLimiter = new Map<string, number[]>();
 export const feedbackReportRateLimiter = new Map<string, number[]>();
+export const partnershipRateLimiter = new Map<string, number[]>();
 
 export const checkRateLimit = (limiterMap: Map<string, number[]>, ip: string, limit: number, windowMs: number): boolean => {
   const now = Date.now();

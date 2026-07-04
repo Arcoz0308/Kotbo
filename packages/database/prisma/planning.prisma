@@ -84,3 +84,23 @@ model StaffCallInvitee {
   @@unique([callId, staffUserId])
   @@map("staff_call_invitees")
 }
+
+enum CallPermissionMode {
+  EVERYONE
+  RESTRICTED
+}
+
+// Contrôle qui peut planifier des appels depuis le Planning: tout le monde, ou une liste de rôles/membres Discord précise.
+model CallPermissionConfig {
+  guildId        String             @id
+  mode           CallPermissionMode @default(EVERYONE)
+  allowedRoleIds String[]           @default([])
+  allowedUserIds String[]           @default([])
+
+  guild          Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@map("call_permission_configs")
+}

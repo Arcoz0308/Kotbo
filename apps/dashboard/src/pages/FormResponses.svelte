@@ -18,7 +18,7 @@
     createdAt: string;
   }
 
-  interface FormInfo { id: string; name: string; submissionsCount: number; }
+  interface FormInfo { id: string; name: string; submissionsCount: number; structure?: { fields?: { id: string; label: string }[] }; }
 
   let form = $state<FormInfo | null>(null);
   let responses = $state<Candidature[]>([]);
@@ -39,6 +39,10 @@
     REJECTED: 'bg-rose-500/15 text-rose-600',
     AUTO_REJECTED: 'bg-rose-500/10 text-rose-500',
   };
+
+  const fieldLabelMap = $derived<Record<string, string>>(
+    Object.fromEntries((form?.structure?.fields || []).map((f) => [f.id, f.label]))
+  );
 
   const filtered = $derived(responses.filter(r => {
     const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
@@ -277,7 +281,7 @@
           <div class="space-y-3">
             {#each Object.entries(selectedResponse.data || {}) as [key, value]}
               <div class="bg-surface-container/60 rounded-xl p-3">
-                <p class="text-xs font-bold text-on-surface-variant/50 mb-1">{key}</p>
+                <p class="text-xs font-bold text-on-surface-variant/50 mb-1">{fieldLabelMap[key] || key}</p>
                 <p class="text-sm text-on-surface">
                   {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? '—')}
                 </p>

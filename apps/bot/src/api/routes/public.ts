@@ -677,6 +677,8 @@ export async function handlePublicRoutes(
         description: form.description,
         structure: form.structure,
         guildId: form.guildId,
+        // Les formulaires de recrutement (legacy) exigent systématiquement une connexion Discord.
+        requiresDiscordAuth: true,
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public form ${parts[3]}:`, err);
@@ -699,6 +701,13 @@ export async function handlePublicRoutes(
         return true;
       }
 
+      // Les formulaires de recrutement exigent systématiquement une connexion Discord.
+      const auth = verifyAuth(req);
+      if (!auth) {
+        json(res, 401, { error: 'Vous devez vous connecter avec Discord pour soumettre ce formulaire.' });
+        return true;
+      }
+
       const body = await readJsonBody<{
         data: Record<string, unknown>;
         discordId?: string;
@@ -710,6 +719,9 @@ export async function handlePublicRoutes(
         json(res, 400, { error: 'Les données de réponse sont requises' });
         return true;
       }
+
+      body.discordId = auth.userId;
+      body.username = auth.username || body.username;
 
       // Create the candidature
       const candidature = await prisma.recruitmentCandidature.create({
@@ -784,6 +796,10 @@ export async function handlePublicRoutes(
           description: true,
           structure: true,
           guildId: true,
+          isRecruitment: true,
+          requiresDiscordAuth: true,
+          theme: true,
+          customCss: true,
         },
       });
 
@@ -792,12 +808,20 @@ export async function handlePublicRoutes(
         return true;
       }
 
+      // Défense en profondeur : le CSS est déjà sanitizé à la sauvegarde,
+      // on le repasse au sanitizer avant de le servir.
+      const { sanitizeCustomCss, sanitizeFormTheme } = await import('../../utils/formCustomization.js');
+
       json(res, 200, {
         id: form.id,
         name: form.name,
         description: form.description,
         structure: form.structure,
         guildId: form.guildId,
+        theme: sanitizeFormTheme(form.theme),
+        customCss: sanitizeCustomCss(form.customCss),
+        // Un formulaire de recrutement exige systématiquement la connexion Discord.
+        requiresDiscordAuth: Boolean(form.isRecruitment || form.requiresDiscordAuth),
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public custom form ${parts[3]}:`, err);
@@ -821,6 +845,13 @@ export async function handlePublicRoutes(
         return true;
       }
 
+      const authRequired = Boolean(form.isRecruitment || form.requiresDiscordAuth);
+      const auth = verifyAuth(req);
+      if (authRequired && !auth) {
+        json(res, 401, { error: 'Vous devez vous connecter avec Discord pour soumettre ce formulaire.' });
+        return true;
+      }
+
       const body = await readJsonBody<{
         data: Record<string, string>;
         discordId?: string;
@@ -838,8 +869,8 @@ export async function handlePublicRoutes(
       const submission = await submitCustomForm(
         formId,
         form.guildId,
-        body.discordId || '',
-        body.username || undefined,
+        auth?.userId || body.discordId || '',
+        auth?.username || body.username || undefined,
         body.userTag || undefined,
         body.data,
         client
@@ -849,6 +880,160 @@ export async function handlePublicRoutes(
     } catch (err) {
       logger.error('PublicAPI', `Error submitting custom form ${parts[3]}:`, err);
       json(res, 500, { error: 'Erreur lors de la soumission du formulaire' });
+    }
+    return true;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // APPELS DE BANNISSEMENT (page publique type appeals.gg)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // GET /api/public/appeal/:guildId - Config + formulaire + état du visiteur connecté
+  if (parts[2] === 'appeal' && parts[3] && !parts[4] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{15,20}$/.test(guildId)) {
+      json(res, 400, { error: 'Identifiant de serveur invalide' });
+      return true;
+    }
+    try {
+      const {
+        getAppealConfig,
+        getAppealEligibility,
+      } = await import('../../services/moderation/banAppealService.js');
+      const { sanitizeCustomCss, sanitizeFormTheme } = await import('../../utils/formCustomization.js');
+
+      const config = await getAppealConfig(guildId);
+      if (!config?.enabled) {
+        json(res, 404, { error: "Ce serveur n'accepte pas les demandes de débannissement" });
+        return true;
+      }
+
+      const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      if (!guild) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+
+      // État du visiteur si connecté via Discord OAuth
+      let viewer: Record<string, unknown> | null = null;
+      const auth = verifyAuth(req);
+      if (auth) {
+        const eligibility = await getAppealEligibility(client, guildId, auth.userId);
+        // @ts-expect-error - Prisma client needs to be regenerated by user to recognize banAppeal
+        const latestAppeal = await prisma.banAppeal.findFirst({
+          where: { guildId, userId: auth.userId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true, status: true, createdAt: true, decidedAt: true,
+            decisionReason: true, infoRequest: true, infoResponse: true,
+          },
+        });
+        viewer = { userId: auth.userId, username: auth.username, eligibility, latestAppeal };
+      }
+
+      json(res, 200, {
+        guildId,
+        guildName: guild.name,
+        guildIcon: guild.iconURL({ size: 256 }),
+        welcomeText: config.welcomeText || null,
+        cooldownDays: config.cooldownDays,
+        form: config.form
+          ? {
+              id: config.form.id,
+              structure: config.form.structure,
+              theme: sanitizeFormTheme(config.form.theme),
+              customCss: sanitizeCustomCss(config.form.customCss),
+            }
+          : null,
+        viewer,
+      });
+    } catch (err) {
+      logger.error('PublicAPI', `Error fetching appeal config for guild ${guildId}:`, err);
+      json(res, 500, { error: 'Erreur lors du chargement de la page d\'appel' });
+    }
+    return true;
+  }
+
+  // POST /api/public/appeal/:guildId/submit - Soumettre un appel (OAuth obligatoire, rate limited)
+  if (parts[2] === 'appeal' && parts[3] && parts[4] === 'submit' && method === 'POST') {
+    if (!checkPublicFormRateLimit(req, res)) return true;
+    const guildId = parts[3];
+    if (!/^\d{15,20}$/.test(guildId)) {
+      json(res, 400, { error: 'Identifiant de serveur invalide' });
+      return true;
+    }
+    try {
+      const auth = verifyAuth(req);
+      if (!auth) {
+        json(res, 401, { error: 'Vous devez vous connecter avec Discord pour soumettre un appel.' });
+        return true;
+      }
+
+      const { getAppealConfig, submitAppeal } = await import('../../services/moderation/banAppealService.js');
+      const config = await getAppealConfig(guildId);
+      if (!config?.enabled) {
+        json(res, 404, { error: "Ce serveur n'accepte pas les demandes de débannissement" });
+        return true;
+      }
+
+      const body = await readJsonBody<{ data: Record<string, unknown> }>(req);
+      if (!body?.data || typeof body.data !== 'object') {
+        json(res, 400, { error: 'Les réponses du formulaire sont requises' });
+        return true;
+      }
+
+      const result = await submitAppeal(client, guildId, {
+        id: auth.userId,
+        tag: auth.username,
+        avatar: auth.avatar ?? null,
+      }, body.data);
+
+      if (!result.ok) {
+        const messages: Record<string, string> = {
+          not_banned: "Ce compte Discord n'est pas banni de ce serveur.",
+          blacklisted: 'Tu ne peux plus soumettre de demande de débannissement pour ce serveur.',
+          active_appeal: 'Tu as déjà une demande en cours de traitement.',
+          cooldown: 'Ta dernière demande a été refusée récemment, tu dois attendre avant de réessayer.',
+        };
+        json(res, 403, { error: messages[result.blockedBy] || 'Soumission impossible', blockedBy: result.blockedBy });
+        return true;
+      }
+
+      json(res, 201, { ok: true, id: result.appeal.id });
+    } catch (err) {
+      logger.error('PublicAPI', `Error submitting appeal for guild ${guildId}:`, err);
+      json(res, 500, { error: "Erreur lors de la soumission de l'appel" });
+    }
+    return true;
+  }
+
+  // POST /api/public/appeal/:guildId/info-response - Répondre à une demande d'infos du staff
+  if (parts[2] === 'appeal' && parts[3] && parts[4] === 'info-response' && method === 'POST') {
+    if (!checkPublicFormRateLimit(req, res)) return true;
+    const guildId = parts[3];
+    try {
+      const auth = verifyAuth(req);
+      if (!auth) {
+        json(res, 401, { error: 'Vous devez vous connecter avec Discord.' });
+        return true;
+      }
+
+      const body = await readJsonBody<{ response: string }>(req);
+      if (!body?.response || typeof body.response !== 'string' || !body.response.trim()) {
+        json(res, 400, { error: 'La réponse est requise' });
+        return true;
+      }
+
+      const { submitAppealInfoResponse } = await import('../../services/moderation/banAppealService.js');
+      const result = await submitAppealInfoResponse(client, guildId, auth.userId, body.response.trim());
+      if (!result.ok) {
+        json(res, 404, { error: result.error });
+        return true;
+      }
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('PublicAPI', `Error submitting appeal info response for guild ${guildId}:`, err);
+      json(res, 500, { error: 'Erreur lors de l\'envoi de la réponse' });
     }
     return true;
   }

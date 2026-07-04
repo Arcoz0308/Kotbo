@@ -79,8 +79,12 @@
           </div>
           <div>
             <div class="flex items-center gap-2 mt-1">
-              {#if event.avatarUrl}
-                <img src={event.avatarUrl} alt="" class="w-5 h-5 rounded-full" />
+              {#if event.type !== 'meeting'}
+                <img
+                  src={event.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(event.staffName || '?')}`}
+                  alt=""
+                  class="w-5 h-5 rounded-full"
+                />
               {/if}
               <span class="text-sm font-bold text-on-surface-variant">{event.staffName || (event.type === 'meeting' ? 'Réunion Collective' : 'Membre inconnu')}</span>
             </div>

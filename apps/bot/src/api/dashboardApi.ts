@@ -11,12 +11,14 @@ import {
   getDiscordClientId,
   getDashboardOrigin,
   CORS_EXTRA_ORIGINS,
+  isKotboPublicOrigin,
   splitPath,
   parseDiscordMarkdown,
   extractMediaUrls,
   configRateLimiter,
   errorReportRateLimiter,
   feedbackReportRateLimiter,
+  partnershipRateLimiter,
   setDashboardStateBroadcaster,
   type DashboardSanctionType,
   BunServerResponse,
@@ -29,6 +31,7 @@ import { handlePublicRoutes } from './routes/public.js';
 import { handleAuthRoutes } from './routes/auth.js';
 import { handleReportErrorRoute } from './routes/error.js';
 import { handleReportFeedbackRoute } from './routes/feedback.js';
+import { handlePartnershipRoute } from './routes/partnership.js';
 import { handleUserRoutes } from './routes/user.js';
 import { handleAdminRoutes } from './routes/admin.js';
 import { handleDashboardRoutes } from './routes/dashboard.js';
@@ -134,6 +137,7 @@ export const startDashboardApi = async (client: Client) => {
     cleanLimiter(configRateLimiter, 60 * 1000);
     cleanLimiter(errorReportRateLimiter, 15 * 60 * 1000);
     cleanLimiter(feedbackReportRateLimiter, 15 * 60 * 1000);
+    cleanLimiter(partnershipRateLimiter, 60 * 60 * 1000);
     cleanLimiter(mcpRateLimiter, 60 * 1000);
   }, 10 * 60 * 1000).unref();
 
@@ -245,7 +249,7 @@ export const startDashboardApi = async (client: Client) => {
             if (originStr) {
               let normalizedOrigin: string;
               try { normalizedOrigin = new URL(originStr).origin; } catch { normalizedOrigin = originStr.replace(/\/$/, ''); }
-              if (allowedOrigins.has(normalizedOrigin) || isAllowedDevOrigin(originStr)) {
+              if (allowedOrigins.has(normalizedOrigin) || isAllowedDevOrigin(originStr) || isKotboPublicOrigin(originStr)) {
                 res.setHeader('Access-Control-Allow-Origin', originStr);
                 res.setHeader('Access-Control-Allow-Credentials', 'true');
               } else {
@@ -281,6 +285,7 @@ export const startDashboardApi = async (client: Client) => {
             if (await handleVerifyRoutes(req, res, parts, url, client)) return;
             if (await handleReportErrorRoute(req, res, parts, url, client)) return;
             if (await handleReportFeedbackRoute(req, res, parts, url, client)) return;
+            if (await handlePartnershipRoute(req, res, parts, url, client)) return;
             if (await handleUserRoutes(req, res, parts, url, client)) return;
             if (await handleAdminRoutes(req, res, parts, url, client)) return;
             if (await handleMCPRoutes(req, res, parts, url, client)) return;

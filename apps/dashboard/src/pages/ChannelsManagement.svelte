@@ -1534,7 +1534,7 @@
                 <p class="text-[10px] text-on-surface-variant/40 mt-1">Sélectionnez la sanction automatique à appliquer lorsqu'un membre écrit dans un salon piège.</p>
               </div>
 
-              {#if config.honeypotSanction === 'KICK'}
+              {#if config.honeypotSanction === 'KICK' || config.honeypotSanction === 'SOFTBAN'}
                 <!-- Honeypot Auto Reinvite toggle -->
                 <div class="flex items-center justify-between p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                   <div class="space-y-0.5">

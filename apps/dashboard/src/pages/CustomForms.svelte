@@ -120,6 +120,27 @@
     }
   }
 
+  async function toggleRequiresAuth(formId: string, value: boolean) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${authStore.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ requiresDiscordAuth: value })
+      });
+      if (res.ok) {
+        toast.success(value ? 'Connexion Discord requise pour ce formulaire' : 'Connexion Discord non requise');
+        await fetchForms();
+      } else {
+        toast.error('Erreur de configuration');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+  }
+
   async function toggleActive(formId: string, value: boolean) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
@@ -244,6 +265,23 @@
                     onToggle={(v: boolean) => toggleRecruitment(form.id, v)}
                   />
                 </div>
+
+                <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans">
+                  <span class="flex items-center gap-2">
+                    <Papicon icon="lock" size={14} />
+                    Connexion Discord requise :
+                  </span>
+                  <ToggleSwitch
+                    checked={form.isRecruitment || form.requiresDiscordAuth}
+                    disabled={form.isRecruitment}
+                    onToggle={(v: boolean) => toggleRequiresAuth(form.id, v)}
+                  />
+                </div>
+                {#if form.isRecruitment}
+                  <p class="text-[10px] text-on-surface-variant/40 font-sans -mt-2">
+                    Toujours activée pour les formulaires de recrutement.
+                  </p>
+                {/if}
 
                 <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans">
                   <span class="flex items-center gap-2">

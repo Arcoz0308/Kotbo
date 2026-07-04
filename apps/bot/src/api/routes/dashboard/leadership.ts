@@ -41,6 +41,9 @@ import {
   createCall,
   updateCall,
   deleteCall,
+  getCallPermissionConfig,
+  updateCallPermissionConfig,
+  canUserCreateCall,
   getTasks,
   createTask,
   updateTask,
@@ -915,6 +918,17 @@ export async function handleGuildLeadershipRoutes(
           return true;
         }
 
+        if (!access.canManageSettings && access.level !== 'admin') {
+          const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+          const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
+          const roleIds = member ? Array.from(member.roles.cache.keys()) : [];
+          const allowed = await canUserCreateCall(guildId, user.userId, roleIds);
+          if (!allowed) {
+            json(res, 403, { error: "Vous n'avez pas la permission de planifier des appels." });
+            return true;
+          }
+        }
+
         const call = await createCall(
           client,
           guildId,
@@ -1008,6 +1022,70 @@ export async function handleGuildLeadershipRoutes(
       } catch (err) {
         logger.error('StaffAPI', 'Error deleting call:', err);
         json(res, 500, { error: "Erreur lors de la suppression de l'appel" });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/calls/config
+    if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
+      try {
+        const config = await getCallPermissionConfig(guildId);
+
+        let canCreate = access.canManageSettings || access.level === 'admin';
+        if (!canCreate) {
+          const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+          const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
+          const roleIds = member ? Array.from(member.roles.cache.keys()) : [];
+          canCreate = await canUserCreateCall(guildId, user.userId, roleIds);
+        }
+
+        json(res, 200, { config, canCreate });
+      } catch (err) {
+        logger.error('StaffAPI', 'Error getting call permission config:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de la configuration des appels' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/calls/config
+    if (parts.length === 6 && parts[5] === 'config' && method === 'POST') {
+      if (!access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé' });
+        return true;
+      }
+
+      try {
+        const body = await readJsonBody<{
+          mode: 'EVERYONE' | 'RESTRICTED';
+          allowedRoleIds?: string[];
+          allowedUserIds?: string[];
+        }>(req);
+
+        if (body?.mode !== 'EVERYONE' && body?.mode !== 'RESTRICTED') {
+          json(res, 400, { error: 'mode doit être EVERYONE ou RESTRICTED' });
+          return true;
+        }
+
+        const config = await updateCallPermissionConfig(guildId, {
+          mode: body.mode,
+          allowedRoleIds: Array.isArray(body.allowedRoleIds) ? body.allowedRoleIds.filter((id) => typeof id === 'string') : [],
+          allowedUserIds: Array.isArray(body.allowedUserIds) ? body.allowedUserIds.filter((id) => typeof id === 'string') : [],
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour permissions appels',
+          context: getGuildName(client, guildId),
+          module: 'Staff Management',
+          eventType: 'Manuel',
+          details: `Mode: ${config.mode}, Rôles: ${config.allowedRoleIds.length}, Membres: ${config.allowedUserIds.length}`,
+          channelId: null,
+        });
+
+        json(res, 200, { config });
+      } catch (err) {
+        logger.error('StaffAPI', 'Error updating call permission config:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des appels' });
       }
       return true;
     }

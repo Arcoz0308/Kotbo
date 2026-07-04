@@ -665,12 +665,19 @@
       ></div>
       
       <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter text-on-surface">
-        <div class="p-6 border-b border-outline-variant/30 flex items-center justify-between {decisionStatus === 'APPROVED' ? 'bg-emerald-500/5' : 'bg-red-500/5'}">
-          <div>
-            <h3 class="text-xl font-semibold text-on-surface">
-              {decisionStatus === 'APPROVED' ? 'Approuver' : 'Refuser'} l'absence
-            </h3>
-            <p class="text-on-surface-variant text-xs mt-1">Gérez la demande de <strong>{selectedAbsenceForDecision?.staffMember?.username}</strong>.</p>
+        <div class="p-6 border-b border-outline-variant/30 flex items-center gap-4 justify-between {decisionStatus === 'APPROVED' ? 'bg-emerald-500/5' : 'bg-red-500/5'}">
+          <div class="flex items-center gap-4">
+            <img
+              src={selectedAbsenceForDecision?.staffMember?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedAbsenceForDecision?.staffMember?.displayName || selectedAbsenceForDecision?.staffMember?.username || '?')}`}
+              alt=""
+              class="w-11 h-11 rounded-full border border-outline-variant/20 shrink-0"
+            />
+            <div>
+              <h3 class="text-xl font-semibold text-on-surface">
+                {decisionStatus === 'APPROVED' ? 'Approuver' : 'Refuser'} l'absence
+              </h3>
+              <p class="text-on-surface-variant text-xs mt-1">Gérez la demande de <strong>{selectedAbsenceForDecision?.staffMember?.displayName || selectedAbsenceForDecision?.staffMember?.username}</strong>.</p>
+            </div>
           </div>
         </div>
 

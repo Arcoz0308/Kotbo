@@ -389,12 +389,12 @@ function buildSvgString(
     if (emojiName === 'ktb_yt' && index === 1) {
       newAttrs.fill = '#FFFFFF';
       newAttrs.stroke = '#FFFFFF';
-    } 
+    }
     // DND customization: make horizontal dash white and thick
     else if (emojiName === 'ktb_dnd' && index === 1) {
       newAttrs.stroke = '#FFFFFF';
       newAttrs['stroke-width'] = 3;
-    } 
+    }
     // Default styling rules based on fillType
     else {
       if (fillType === 'full') {

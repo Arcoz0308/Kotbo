@@ -1,0 +1,448 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { API_BASE_URL } from '../lib/api';
+  import { authStore } from '../lib/stores/auth.svelte';
+  import { loadGoogleFont, themeBaseCss, themeStyleVars, type FormTheme } from '../lib/formTheme';
+
+  let { guildId }: { guildId: string } = $props();
+
+  // ── Types ──────────────────────────────────────────────────────────────────
+  interface AppealField {
+    id: string; type: string; label: string; description?: string;
+    required: boolean; placeholder?: string; options?: string[];
+  }
+  interface AppealData {
+    guildId: string;
+    guildName: string;
+    guildIcon: string | null;
+    welcomeText: string | null;
+    cooldownDays: number;
+    form: {
+      id: string;
+      structure: { title?: string; description?: string; headerColor?: string; fields: AppealField[] };
+      theme: FormTheme | null;
+      customCss: string | null;
+    } | null;
+    viewer: {
+      userId: string;
+      username?: string;
+      eligibility:
+        | { eligible: true; banReason: string | null }
+        | { eligible: false; blockedBy: 'not_banned' | 'blacklisted' | 'active_appeal' | 'cooldown'; cooldownEndsAt?: string };
+      latestAppeal: {
+        id: string; status: string; createdAt: string; decidedAt: string | null;
+        decisionReason: string | null; infoRequest: string | null; infoResponse: string | null;
+      } | null;
+    } | null;
+  }
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let data = $state<AppealData | null>(null);
+  let loading = $state(true);
+  let notFound = $state(false);
+  let submitting = $state(false);
+  let submitted = $state(false);
+  let submitError = $state('');
+  let answers = $state<Record<string, string | string[]>>({});
+  let errors = $state<Record<string, string>>({});
+  let infoResponseText = $state('');
+  let infoResponseSent = $state(false);
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const theme = $derived(data?.form?.theme || null);
+  const accent = $derived(theme?.accentColor || data?.form?.structure?.headerColor || '#6366f1');
+  const fields = $derived((data?.form?.structure?.fields || []).filter(f => f.type !== 'section_header' && f.type !== 'discord_connect'));
+  const viewer = $derived(data?.viewer || null);
+  const injectedCss = $derived(
+    [themeBaseCss(theme), (data?.form?.customCss || '').replace(/<\/style/gi, '')].filter(Boolean).join('\n')
+  );
+  const rootStyle = $derived([
+    themeStyleVars(theme, accent),
+    theme?.backgroundColor ? `background:${theme.backgroundColor}` : '',
+    theme?.fontFamily ? 'font-family:var(--form-font)' : '',
+  ].filter(Boolean).join(';'));
+
+  $effect(() => { if (theme?.fontFamily) loadGoogleFont(theme.fontFamily); });
+
+  // ── Load ───────────────────────────────────────────────────────────────────
+  async function load() {
+    loading = true;
+    try {
+      const headers: Record<string, string> = {};
+      if (authStore.token) headers.Authorization = `Bearer ${authStore.token}`;
+      const res = await fetch(`${API_BASE_URL}/api/public/appeal/${guildId}`, { headers });
+      if (!res.ok) { notFound = true; return; }
+      data = await res.json() as AppealData;
+    } catch {
+      notFound = true;
+    } finally {
+      loading = false;
+    }
+  }
+
+  onMount(load);
+
+  function loginWithDiscord() {
+    window.location.href = `${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
+  }
+
+  // ── Submit appeal ──────────────────────────────────────────────────────────
+  function validate(): boolean {
+    const newErrors: Record<string, string> = {};
+    for (const field of fields) {
+      const val = answers[field.id];
+      if (field.required && (!val || (Array.isArray(val) && val.length === 0) || val === '')) {
+        newErrors[field.id] = 'Ce champ est obligatoire';
+      }
+    }
+    errors = newErrors;
+    return Object.keys(newErrors).length === 0;
+  }
+
+  async function submit() {
+    if (!validate()) return;
+    submitting = true;
+    submitError = '';
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/public/appeal/${guildId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
+        body: JSON.stringify({ data: answers }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        submitError = err.error || 'Erreur lors de la soumission';
+        return;
+      }
+      submitted = true;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      submitError = 'Impossible de contacter le serveur.';
+    } finally {
+      submitting = false;
+    }
+  }
+
+  async function sendInfoResponse() {
+    if (!infoResponseText.trim()) return;
+    submitting = true;
+    submitError = '';
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/public/appeal/${guildId}/info-response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authStore.token}` },
+        body: JSON.stringify({ response: infoResponseText.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        submitError = err.error || 'Erreur lors de l\'envoi';
+        return;
+      }
+      infoResponseSent = true;
+    } catch {
+      submitError = 'Impossible de contacter le serveur.';
+    } finally {
+      submitting = false;
+    }
+  }
+
+  function setAnswer(id: string, value: string) { answers = { ...answers, [id]: value }; }
+  function toggleCheckbox(id: string, option: string) {
+    const current = (answers[id] as string[]) || [];
+    answers = { ...answers, [id]: current.includes(option) ? current.filter(v => v !== option) : [...current, option] };
+  }
+
+  const STATUS_LABELS: Record<string, { label: string; color: string; emoji: string }> = {
+    PENDING: { label: 'En cours d\'examen', color: '#f59e0b', emoji: '⏳' },
+    NEEDS_INFO: { label: 'Informations demandées', color: '#3b82f6', emoji: '💬' },
+    ACCEPTED: { label: 'Acceptée', color: '#22c55e', emoji: '✅' },
+    DENIED: { label: 'Refusée', color: '#ef4444', emoji: '❌' },
+    DENIED_PERMANENT: { label: 'Refusée définitivement', color: '#7f1d1d', emoji: '⛔' },
+  };
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+</script>
+
+<svelte:head>
+  <title>Demande de débannissement — {data?.guildName ?? 'Kotbo'}</title>
+  <meta name="robots" content="noindex" />
+</svelte:head>
+
+<div class="pf-root min-h-screen bg-gradient-to-br from-surface to-surface-container-low/50 py-8 px-4" style={rootStyle}>
+
+  {#if injectedCss}
+    {@html `<style>${injectedCss}</style>`}
+  {/if}
+
+  {#if loading}
+    <div class="flex items-center justify-center min-h-[60vh]">
+      <div class="text-center">
+        <div class="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto mb-4"></div>
+        <p class="text-on-surface-variant/60">Chargement…</p>
+      </div>
+    </div>
+
+  {:else if notFound}
+    <div class="max-w-lg mx-auto text-center py-24">
+      <div class="text-6xl mb-6">🚪</div>
+      <h1 class="text-2xl font-semibold text-on-surface mb-3">Page indisponible</h1>
+      <p class="text-on-surface-variant/60 text-sm">Ce serveur n'accepte pas les demandes de débannissement, ou le lien est invalide.</p>
+    </div>
+
+  {:else if data}
+    <div class="max-w-2xl mx-auto space-y-4">
+
+      <!-- Bannière du thème -->
+      {#if theme?.bannerUrl}
+        <div class="pf-banner rounded-xl overflow-hidden shadow-lg border border-outline-variant/20">
+          <img src={theme.bannerUrl} alt="" class="w-full max-h-52 object-cover" />
+        </div>
+      {/if}
+
+      <!-- En-tête serveur -->
+      <div class="pf-card rounded-xl overflow-hidden shadow-lg border border-outline-variant/20">
+        <div class="h-3" style="background:var(--form-color)"></div>
+        <div class="bg-surface p-6 flex items-center gap-4">
+          {#if theme?.logoUrl || data.guildIcon}
+            <img src={theme?.logoUrl || data.guildIcon} alt="" class="pf-logo w-16 h-16 rounded-2xl object-cover shadow-md shrink-0" />
+          {/if}
+          <div class="min-w-0">
+            <h1 class="text-2xl font-semibold text-on-surface truncate">{data.guildName}</h1>
+            <p class="text-on-surface-variant/70 text-sm mt-1">Demande de débannissement</p>
+            {#if data.welcomeText || theme?.welcomeText}
+              <p class="mt-2 text-sm leading-relaxed" style="color:var(--form-color)">{data.welcomeText || theme?.welcomeText}</p>
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      {#if !authStore.isAuthenticated}
+        <!-- Connexion Discord obligatoire -->
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm">
+          <div class="text-5xl mb-4">🔐</div>
+          <h2 class="text-lg font-semibold text-on-surface mb-2">Connexion Discord requise</h2>
+          <p class="text-sm text-on-surface-variant/70 mb-6 leading-relaxed">
+            Connecte-toi avec le compte Discord banni pour que nous puissions vérifier ton bannissement.
+            Personne ne peut faire appel à ta place.
+          </p>
+          <button onclick={loginWithDiscord}
+            class="pf-submit px-6 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all hover:scale-105"
+            style="background:#5865F2">
+            Se connecter avec Discord
+          </button>
+        </div>
+
+      {:else if submitted}
+        <!-- Confirmation de soumission -->
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-10 text-center shadow-sm">
+          <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"
+            style="background:color-mix(in srgb, var(--form-color) 15%, transparent)">
+            <svg class="w-10 h-10" viewBox="0 0 24 24" fill="none">
+              <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--form-color)" />
+            </svg>
+          </div>
+          <h2 class="text-2xl font-semibold text-on-surface mb-3">Demande envoyée !</h2>
+          <p class="text-on-surface-variant/70 text-sm leading-relaxed">
+            {theme?.confirmationText || 'Le staff va examiner ta demande. Tu recevras la décision par message privé Discord — pense à autoriser les DM. Tu peux aussi revenir sur cette page pour suivre le statut.'}
+          </p>
+        </div>
+
+      {:else if viewer?.latestAppeal && viewer.latestAppeal.status === 'NEEDS_INFO' && !infoResponseSent}
+        <!-- Le staff demande des infos complémentaires -->
+        <div class="pf-card rounded-xl bg-surface border border-blue-500/30 p-6 shadow-sm space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl">💬</span>
+            <div>
+              <h2 class="font-semibold text-on-surface">Le staff a besoin de précisions</h2>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">Ta demande est en pause en attendant ta réponse.</p>
+            </div>
+          </div>
+          <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-4 text-sm text-on-surface/90 leading-relaxed">
+            {viewer.latestAppeal.infoRequest}
+          </div>
+          <textarea bind:value={infoResponseText} rows="5" maxlength="2000"
+            placeholder="Ta réponse…"
+            class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border-b-2 border-primary/20 focus:border-primary transition-colors resize-y"></textarea>
+          {#if submitError}
+            <p class="pf-error text-xs text-rose-500">{submitError}</p>
+          {/if}
+          <div class="flex justify-end">
+            <button onclick={sendInfoResponse} disabled={submitting || !infoResponseText.trim()}
+              class="pf-submit px-6 py-2.5 rounded-xl text-white font-semibold text-sm shadow disabled:opacity-50"
+              style="background:var(--form-color)">
+              {submitting ? 'Envoi…' : 'Envoyer ma réponse'}
+            </button>
+          </div>
+        </div>
+
+      {:else if infoResponseSent || (viewer?.latestAppeal && (viewer.latestAppeal.status === 'PENDING'))}
+        <!-- Demande en cours -->
+        {@const appeal = viewer?.latestAppeal}
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm">
+          <div class="text-5xl mb-4">⏳</div>
+          <h2 class="text-lg font-semibold text-on-surface mb-2">Demande en cours d'examen</h2>
+          <p class="text-sm text-on-surface-variant/70 leading-relaxed">
+            {#if infoResponseSent}
+              Ta réponse a bien été transmise au staff.
+            {/if}
+            Ta demande {appeal ? `du ${formatDate(appeal.createdAt)}` : ''} est en attente de décision.
+            Tu seras prévenu par message privé Discord.
+          </p>
+        </div>
+
+      {:else if viewer && !viewer.eligibility.eligible}
+        <!-- Non éligible -->
+        {@const blocked = viewer.eligibility}
+        {@const lastAppeal = viewer.latestAppeal}
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 shadow-sm space-y-4">
+          {#if blocked.blockedBy === 'not_banned'}
+            <div class="text-center">
+              <div class="text-5xl mb-4">🎉</div>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">Tu n'es pas banni de ce serveur</h2>
+              <p class="text-sm text-on-surface-variant/70">
+                Le compte <span class="font-semibold">{viewer.username || viewer.userId}</span> n'apparaît pas dans la liste des bannissements.
+                {#if lastAppeal && lastAppeal.status === 'ACCEPTED'}
+                  Ta demande a été acceptée le {lastAppeal.decidedAt ? formatDate(lastAppeal.decidedAt) : ''} — bon retour !
+                {/if}
+              </p>
+            </div>
+          {:else if blocked.blockedBy === 'blacklisted'}
+            <div class="text-center">
+              <div class="text-5xl mb-4">⛔</div>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">Appel non autorisé</h2>
+              <p class="text-sm text-on-surface-variant/70">
+                Le staff a indiqué que les demandes de débannissement ne sont plus acceptées pour ce compte.
+              </p>
+              {#if lastAppeal?.decisionReason}
+                <p class="mt-3 text-xs text-on-surface-variant/50">Raison : {lastAppeal.decisionReason}</p>
+              {/if}
+            </div>
+          {:else if blocked.blockedBy === 'cooldown'}
+            <div class="text-center">
+              <div class="text-5xl mb-4">🕐</div>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">Demande refusée récemment</h2>
+              <p class="text-sm text-on-surface-variant/70 leading-relaxed">
+                Ta dernière demande a été refusée{lastAppeal?.decisionReason ? ` (« ${lastAppeal.decisionReason} »)` : ''}.
+                {#if blocked.cooldownEndsAt}
+                  Tu pourras soumettre une nouvelle demande à partir du
+                  <span class="font-semibold" style="color:var(--form-color)">{formatDate(blocked.cooldownEndsAt)}</span>.
+                {/if}
+              </p>
+            </div>
+          {:else}
+            <div class="text-center">
+              <div class="text-5xl mb-4">⏳</div>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">Demande déjà en cours</h2>
+              <p class="text-sm text-on-surface-variant/70">Ta demande est en attente de décision du staff.</p>
+            </div>
+          {/if}
+        </div>
+
+      {:else if viewer && viewer.eligibility.eligible && data.form}
+        <!-- Formulaire d'appel -->
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-5 shadow-sm flex items-center gap-3">
+          <img
+            src={authStore.user?.avatar ? `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png` : ''}
+            alt="" class="w-10 h-10 rounded-full border border-outline-variant/30 {authStore.user?.avatar ? '' : 'hidden'}" />
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-on-surface">Connecté en tant que {viewer.username || authStore.user?.username}</p>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5">
+              Ban confirmé{viewer.eligibility.banReason ? ` — raison : ${viewer.eligibility.banReason}` : ''}
+            </p>
+          </div>
+          <button onclick={() => authStore.logout()}
+            class="px-3 py-1.5 border border-outline-variant/35 text-on-surface-variant rounded-lg text-xs font-semibold shrink-0">
+            Changer de compte
+          </button>
+        </div>
+
+        {#each fields as field (field.id)}
+          {@const error = errors[field.id]}
+          <div class="pf-card pf-field rounded-lg bg-surface border border-outline-variant/20 p-5 shadow-sm {error ? 'ring-2 ring-rose-500/40' : ''}">
+            <label for={field.id} class="block font-semibold text-on-surface mb-1 text-[15px]">
+              {field.label}{#if field.required}<span class="text-rose-500 ml-1">*</span>{/if}
+            </label>
+            {#if field.description}
+              <p class="text-xs text-on-surface-variant/60 mb-3">{field.description}</p>
+            {/if}
+
+            {#if field.type === 'paragraph'}
+              <textarea id={field.id} value={(answers[field.id] as string) || ''} rows={4}
+                oninput={(e) => setAnswer(field.id, (e.target as HTMLTextAreaElement).value)}
+                placeholder={field.placeholder || ''}
+                class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border-b-2 border-primary/20 focus:border-primary transition-colors resize-y"></textarea>
+            {:else if field.type === 'multiple_choice'}
+              <div class="space-y-2">
+                {#each field.options || [] as opt}
+                  <label class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-surface-container/50 transition-colors">
+                    <input type="radio" name={field.id} value={opt} checked={answers[field.id] === opt}
+                      onchange={() => setAnswer(field.id, opt)} class="accent-primary w-4 h-4" />
+                    <span class="text-sm text-on-surface">{opt}</span>
+                  </label>
+                {/each}
+              </div>
+            {:else if field.type === 'checkboxes'}
+              <div class="space-y-2">
+                {#each field.options || [] as opt}
+                  <label class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-surface-container/50 transition-colors">
+                    <input type="checkbox" checked={((answers[field.id] as string[]) || []).includes(opt)}
+                      onchange={() => toggleCheckbox(field.id, opt)} class="accent-primary w-4 h-4 rounded" />
+                    <span class="text-sm text-on-surface">{opt}</span>
+                  </label>
+                {/each}
+              </div>
+            {:else if field.type === 'dropdown'}
+              <select id={field.id} value={(answers[field.id] as string) || ''}
+                onchange={(e) => setAnswer(field.id, (e.target as HTMLSelectElement).value)}
+                class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border border-outline-variant/30">
+                <option value="" disabled>Sélectionner…</option>
+                {#each field.options || [] as opt}<option value={opt}>{opt}</option>{/each}
+              </select>
+            {:else if field.type === 'date'}
+              <input id={field.id} type="date" value={(answers[field.id] as string) || ''}
+                onchange={(e) => setAnswer(field.id, (e.target as HTMLInputElement).value)}
+                class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border border-outline-variant/30" />
+            {:else}
+              <input id={field.id} type={field.type === 'email' ? 'email' : field.type === 'number' ? 'number' : 'text'}
+                value={(answers[field.id] as string) || ''}
+                oninput={(e) => setAnswer(field.id, (e.target as HTMLInputElement).value)}
+                placeholder={field.placeholder || ''}
+                class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border-b-2 border-primary/20 focus:border-primary transition-colors" />
+            {/if}
+
+            {#if error}
+              <p class="pf-error mt-2 text-xs text-rose-500">{error}</p>
+            {/if}
+          </div>
+        {/each}
+
+        {#if submitError}
+          <div class="rounded-lg bg-rose-500/10 border border-rose-500/20 px-5 py-4 text-sm text-rose-600 font-medium">
+            {submitError}
+          </div>
+        {/if}
+
+        <div class="flex justify-end pb-8">
+          <button onclick={submit} disabled={submitting}
+            class="pf-submit px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:scale-100"
+            style="background:var(--form-color)">
+            {submitting ? 'Envoi…' : 'Envoyer ma demande ✓'}
+          </button>
+        </div>
+
+      {:else}
+        <!-- Config sans formulaire lié -->
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm">
+          <div class="text-5xl mb-4">🛠️</div>
+          <p class="text-sm text-on-surface-variant/70">Le formulaire d'appel n'est pas encore configuré sur ce serveur.</p>
+        </div>
+      {/if}
+
+      <div class="text-center pb-4 text-xs text-on-surface-variant/30">
+        Propulsé par <span class="font-bold" style="color:var(--form-color)">Kotbo</span>
+      </div>
+    </div>
+  {/if}
+</div>

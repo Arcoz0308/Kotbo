@@ -1857,6 +1857,49 @@ export const deleteCall = async (client: Client, guildId: string, id: string) =>
 };
 
 // ==========================================
+// CALL PERMISSIONS
+// ==========================================
+
+const DEFAULT_CALL_PERMISSION_CONFIG = {
+  mode: 'EVERYONE' as const,
+  allowedRoleIds: [] as string[],
+  allowedUserIds: [] as string[],
+};
+
+export const getCallPermissionConfig = async (guildId: string) => {
+  const config = await prisma.callPermissionConfig.findUnique({ where: { guildId } });
+  return config ?? { guildId, ...DEFAULT_CALL_PERMISSION_CONFIG };
+};
+
+export const updateCallPermissionConfig = async (
+  guildId: string,
+  data: { mode: 'EVERYONE' | 'RESTRICTED'; allowedRoleIds: string[]; allowedUserIds: string[] }
+) => {
+  return prisma.callPermissionConfig.upsert({
+    where: { guildId },
+    update: {
+      mode: data.mode,
+      allowedRoleIds: data.allowedRoleIds,
+      allowedUserIds: data.allowedUserIds,
+    },
+    create: {
+      guildId,
+      mode: data.mode,
+      allowedRoleIds: data.allowedRoleIds,
+      allowedUserIds: data.allowedUserIds,
+    },
+  });
+};
+
+export const canUserCreateCall = async (guildId: string, userId: string, roleIds: string[]): Promise<boolean> => {
+  const config = await getCallPermissionConfig(guildId);
+  if (config.mode === 'EVERYONE') return true;
+
+  if (config.allowedUserIds.includes(userId)) return true;
+  return config.allowedRoleIds.some((roleId) => roleIds.includes(roleId));
+};
+
+// ==========================================
 // TASKS SERVICES
 // ==========================================
 

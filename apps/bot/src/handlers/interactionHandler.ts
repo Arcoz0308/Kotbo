@@ -379,6 +379,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // Ban appeal decision buttons (staff channel)
+  if (customId.startsWith('appeal:')) {
+    const { handleAppealButton } = await import('../services/moderation/banAppealService.js');
+    await handleAppealButton(client, customId, interaction);
+    return;
+  }
+
   // Regulation acceptance button
   if (customId === 'regulation_accept') {
     if (!guildId) {
@@ -1040,6 +1047,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   }
 
   if (!guildId) return;
+
+  // Ban appeal decision modals (staff channel)
+  if (customId.startsWith('appeal_modal:')) {
+    const { handleAppealModalSubmit } = await import('../services/moderation/banAppealService.js');
+    await handleAppealModalSubmit(client, customId, interaction);
+    return;
+  }
 
   if (customId.startsWith('custom-form-modal:')) {
     const parts = customId.split(':');

@@ -226,6 +226,7 @@ async function createAutomaticReport(params: {
   moderatorUserId: string;
   durationSeconds?: number | null;
   reason?: string | null;
+  evidenceLinks?: string[];
 }) {
   const staffPseudo = params.moderatorTag?.trim() || `Modérateur ${params.moderatorUserId}`;
   const memberPseudo = params.targetTag?.trim() || `Utilisateur ${params.targetUserId}`;
@@ -247,6 +248,7 @@ async function createAutomaticReport(params: {
       sanctionDurationLabel,
       brokenRules,
       detailedReason,
+      evidenceLinks: params.evidenceLinks || [],
       createdByUserId: params.moderatorUserId,
       createdByTag: params.moderatorTag,
     }
@@ -263,6 +265,7 @@ async function emitSanctionReportReminder(params: {
   moderatorUserId: string;
   durationSeconds?: number | null;
   reason?: string | null;
+  evidenceLinks?: string[];
 }) {
   try {
     // Vérifier si le module de sanctions et les rapports sont activés
@@ -357,7 +360,7 @@ async function emitSanctionReportReminder(params: {
           sanctionDurationLabel,
           brokenRules: brokenRulesPayload,
           detailedReason,
-          evidenceLinks: [], // Empty links = needs proof!
+          evidenceLinks: params.evidenceLinks || [],
           createdByUserId: params.moderatorUserId,
           createdByTag: params.moderatorTag,
         }
@@ -506,6 +509,7 @@ export async function registerWarnSanction(params: {
   reason: string;
   client?: Client;
   isSync?: boolean;
+  evidenceLinks?: string[];
 }) {
   const existing = await findRecentSanction({
     guildId: params.guildId,
@@ -549,6 +553,19 @@ export async function registerWarnSanction(params: {
     userTag: params.target.tag,
   }).catch(() => null);
 
+  await emitSanctionReportReminder({
+    guildId: sanction.guildId,
+    sanctionId: sanction.id,
+    sanctionType: sanction.type,
+    targetTag: sanction.targetTag,
+    targetUserId: sanction.targetUserId,
+    moderatorTag: sanction.moderatorTag,
+    moderatorUserId: sanction.moderatorUserId,
+    durationSeconds: sanction.durationSeconds,
+    reason: sanction.reason,
+    evidenceLinks: params.evidenceLinks,
+  }).catch(() => null);
+
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
   // Notifier l'utilisateur concerné (si profil existant)
@@ -583,6 +600,7 @@ export async function registerKickSanction(params: {
   reason: string;
   client?: Client;
   isSync?: boolean;
+  evidenceLinks?: string[];
 }) {
   const existing = await findRecentSanction({
     guildId: params.guildId,
@@ -636,6 +654,7 @@ export async function registerKickSanction(params: {
     moderatorUserId: sanction.moderatorUserId,
     durationSeconds: sanction.durationSeconds,
     reason: sanction.reason,
+    evidenceLinks: params.evidenceLinks,
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -663,6 +682,7 @@ export async function registerBanSanction(params: {
   temporaryDurationMs?: number;
   client?: Client;
   isSync?: boolean;
+  evidenceLinks?: string[];
 }) {
   const isTemporary = Boolean(params.temporaryDurationMs && params.temporaryDurationMs > 0);
   const sanctionType = isTemporary ? SanctionType.TEMP_BAN : SanctionType.BAN;
@@ -724,6 +744,7 @@ export async function registerBanSanction(params: {
     moderatorUserId: sanction.moderatorUserId,
     durationSeconds: sanction.durationSeconds,
     reason: sanction.reason,
+    evidenceLinks: params.evidenceLinks,
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -751,6 +772,7 @@ export async function registerSoftbanSanction(params: {
   reason: string;
   client?: Client;
   isSync?: boolean;
+  evidenceLinks?: string[];
 }) {
   const existing = await findRecentSanction({
     guildId: params.guildId,
@@ -804,6 +826,7 @@ export async function registerSoftbanSanction(params: {
     moderatorUserId: sanction.moderatorUserId,
     durationSeconds: sanction.durationSeconds,
     reason: sanction.reason,
+    evidenceLinks: params.evidenceLinks,
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -832,6 +855,7 @@ export async function registerTimeoutSanction(params: {
   member: GuildMember;
   client?: Client;
   isSync?: boolean;
+  evidenceLinks?: string[];
 }) {
   const existing = await findRecentSanction({
     guildId: params.guildId,
@@ -893,6 +917,7 @@ export async function registerTimeoutSanction(params: {
     moderatorUserId: sanction.moderatorUserId,
     durationSeconds: sanction.durationSeconds,
     reason: sanction.reason,
+    evidenceLinks: params.evidenceLinks,
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);

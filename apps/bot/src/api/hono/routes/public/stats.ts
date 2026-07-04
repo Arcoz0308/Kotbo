@@ -3,6 +3,7 @@ import type { Client } from 'discord.js';
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
 import { registerBotInstanceStats, cleanUpStaleStats } from '../../../../services/system/statsService.js';
+import { isKotboPublicOrigin } from '../../../shared.js';
 
 // Rate limiter for stats pings (memory-based)
 const statsPingRateLimiter = new Map<string, number[]>();
@@ -33,11 +34,53 @@ const BotStatEntrySchema = z.object({
   isSelfHosted: z.boolean(),
 });
 
+const PublicServerStatsSchema = z.object({
+  name: z.string(),
+  iconUrl: z.string().nullable(),
+  memberCount: z.number(),
+  description: z.string().nullable(),
+});
+
 const StatsResponseSchema = z.object({
   totalGuilds: z.number(),
   totalUsers: z.number(),
   bots: z.array(BotStatEntrySchema),
+  servers: z.array(PublicServerStatsSchema),
 });
+
+const FEATURED_GUILD_IDS = [
+  '506029988680695818', // Minecraft Fr
+  '913791560615854120', // Jojo
+  '1386848639732809759', // Zenode
+  '1477350874740424986'  // Les nerds
+];
+
+const GUILD_FALLBACKS: Record<string, { name: string; description: string; iconUrl: string; memberCount: number }> = {
+  '506029988680695818': {
+    name: "Communauté Minecraft Fr",
+    description: "Le plus grand serveur communautaire Minecraft francophone. Survie, mini-jeux et entraide au quotidien.",
+    iconUrl: "https://cdn.discordapp.com/icons/506029988680695818/6fbbb2b172d8677d849cee9c80485cf8.webp?size=128",
+    memberCount: 7690,
+  },
+  '913791560615854120': {
+    name: "Jojo - Communauté",
+    description: "La communauté de Jojo est très accueillante ! Ici, vous pouvez discuter, échanger des idées ou même jouer ensemble.",
+    iconUrl: "https://cdn.discordapp.com/icons/913791560615854120/051ac19a35c8692f2ae8889ffa1fe7bf.webp?size=128",
+    memberCount: 4375,
+  },
+  '1386848639732809759': {
+    name: "Zenode",
+    description: "Zenode - Serveur de Développement De Bots et Serveurs Discord, entraide autour de Discord.",
+    iconUrl: "https://cdn.discordapp.com/icons/1386848639732809759/e3e252b02264eb99b526afb1c8d93eb0.webp?size=128",
+    memberCount: 1846,
+  },
+  '1477350874740424986': {
+    name: "Les nerds",
+    description: "Espace d'échange et d'entraide pour passionnés d'informatique, de programmation et de technologies.",
+    iconUrl: "https://cdn.discordapp.com/icons/1477350874740424986/61bd3237903270c5db2581a313f6a701.webp?size=128",
+    memberCount: 1109,
+  }
+};
 
 // ===========================================================================
 // Routes Definition
@@ -125,27 +168,14 @@ export function createPublicStatsRouter(_client: Client) {
     const secFetchSite = c.req.header('Sec-Fetch-Site');
     const secFetchDest = c.req.header('Sec-Fetch-Dest');
 
-    // 1. Strict Origin & Referer Checks (Only kotbo.fr or localhost allowed)
+    // 1. Strict Origin & Referer Checks (landing kotbo.fr, dash.kotbo.fr, *.kotbo.fr, localhost)
     let isAllowed = false;
-    const isDevUrl = (urlStr: string) => {
-      try {
-        const u = new URL(urlStr);
-        return u.hostname === 'localhost' || u.hostname === '127.0.0.1';
-      } catch {
-        return false;
-      }
-    };
 
     if (origin) {
-      if (origin === 'https://kotbo.fr' || origin === 'https://www.kotbo.fr' || isDevUrl(origin)) {
-        isAllowed = true;
-      }
+      isAllowed = isKotboPublicOrigin(origin);
     } else if (referer) {
       try {
-        const refUrl = new URL(referer);
-        if (refUrl.hostname === 'kotbo.fr' || refUrl.hostname === 'www.kotbo.fr' || refUrl.hostname === 'localhost' || refUrl.hostname === '127.0.0.1') {
-          isAllowed = true;
-        }
+        isAllowed = isKotboPublicOrigin(new URL(referer).origin);
       } catch {
         // Ignore invalid URL format in Referer header
       }
@@ -165,7 +195,7 @@ export function createPublicStatsRouter(_client: Client) {
 
     // Detect if nested in cross-origin iframe (Sec-Fetch-Site is downgraded to cross-site)
     if (secFetchSite === 'cross-site') {
-      const isKotboOrigin = origin && (origin.includes('kotbo.fr') || origin.includes('www.kotbo.fr'));
+      const isKotboOrigin = origin && isKotboPublicOrigin(origin);
       if (isKotboOrigin) {
         logger.warn('StatsAPI', 'Rejected request: same-site origin detected in cross-site context (iframe check)');
         return c.json({ error: 'Access forbidden: iframe nesting detected' }, 403);
@@ -201,10 +231,31 @@ export function createPublicStatsRouter(_client: Client) {
         isSelfHosted: b.isSelfHosted,
       }));
 
+      // Retrieve dynamic server stats
+      const servers = FEATURED_GUILD_IDS.map((id) => {
+        const guild = _client.guilds.cache.get(id);
+        const fallback = GUILD_FALLBACKS[id];
+        if (guild) {
+          return {
+            name: guild.name,
+            iconUrl: guild.iconURL({ size: 128 }) || fallback?.iconUrl || null,
+            memberCount: guild.memberCount,
+            description: guild.description || fallback?.description || "",
+          };
+        }
+        return {
+          name: fallback?.name || "Unknown Server",
+          iconUrl: fallback?.iconUrl || null,
+          memberCount: fallback?.memberCount || 0,
+          description: fallback?.description || "",
+        };
+      });
+
       return c.json({
         totalGuilds,
         totalUsers,
         bots,
+        servers,
       }, 200);
     } catch (err) {
       logger.error('StatsAPI', 'Error returning aggregated stats:', err);

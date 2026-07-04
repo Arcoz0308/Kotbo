@@ -62,6 +62,8 @@
   import CustomForms from "./pages/CustomForms.svelte";
   import CustomFormResponses from "./pages/CustomFormResponses.svelte";
   import PublicForm from "./pages/PublicForm.svelte";
+  import PublicAppeal from "./pages/PublicAppeal.svelte";
+  import BanAppeals from "./pages/BanAppeals.svelte";
   import Planning from "./pages/Planning.svelte";
   import Inbox from "./pages/Inbox.svelte";
   import Tutoring from "./pages/Tutoring.svelte";
@@ -115,6 +117,7 @@
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
       $router.path.startsWith("/form/") ||
+      $router.path.startsWith("/appeal/") ||
       $router.path.startsWith("/verify/"),
   );
 
@@ -140,6 +143,7 @@
     if (path.startsWith("/members") || path.startsWith("/invitations"))
       return "members";
     if (path.startsWith("/sanctions")) return "sanctions";
+    if (path.startsWith("/appeals")) return "sanctions";
     if (path.startsWith("/nickname-moderation")) return "nickname_moderation";
     if (path.startsWith("/channels-management")) return "auto_thread";
     if (path.startsWith("/detections")) return "double_accounts";
@@ -460,6 +464,9 @@
       <Route path="/form/:formId" let:meta>
         <PublicForm formId={meta.params.formId} />
       </Route>
+      <Route path="/appeal/:guildId" let:meta>
+        <PublicAppeal guildId={meta.params.guildId} />
+      </Route>
       <Route path="/verify/:guildId/:token" let:meta>
         <Verify guildId={meta.params.guildId} token={meta.params.token} />
       </Route>
@@ -507,6 +514,9 @@
       </Route>
       <Route path="/sanctions/*">
         <Sanctions />
+      </Route>
+      <Route path="/appeals">
+        <BanAppeals />
       </Route>
       <Route path="/detections">
         <div use:navigate={"/double-accounts/detections"}></div>
@@ -678,6 +688,9 @@
             </Route>
             <Route path="/sanctions/*">
               <Sanctions />
+            </Route>
+            <Route path="/appeals">
+              <BanAppeals />
             </Route>
             <Route path="/detections">
               <div use:navigate={"/double-accounts/detections"}></div>

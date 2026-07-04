@@ -735,6 +735,17 @@ export async function deleteCall(callId: string, guildId = authStore.selectedGui
   return dashboardMutation(`/calls/${callId}`, { method: 'DELETE', guildId });
 }
 
+export async function fetchCallPermissionConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/calls/config', { method: 'GET', guildId, silent: true });
+}
+
+export async function updateCallPermissionConfig(
+  payload: { mode: 'EVERYONE' | 'RESTRICTED'; allowedRoleIds: string[]; allowedUserIds: string[] },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest('/calls/config', { method: 'POST', payload, guildId });
+}
+
 export async function fetchTasks(assigneeId?: string, guildId = authStore.selectedGuildId) {
   const path = assigneeId ? `/tasks?assigneeId=${assigneeId}` : '/tasks';
   return dashboardRequest(path, { method: 'GET', guildId });
@@ -1260,8 +1271,27 @@ export interface BroadcastPayload {
   footerText?: string;
   target?: 'ALL' | 'ACTIVATED' | 'CUSTOM';
   targetGuilds?: string[];
-  channelPref?: 'NEWS' | 'PUBLIC' | 'STAFF' | 'FALLBACK';
+  channelPref?: 'AUTO' | 'NEWS' | 'PUBLIC' | 'STAFF' | 'FALLBACK';
   dryRun?: boolean;
+}
+
+export interface BroadcastGuildChannel {
+  id: string;
+  name: string;
+  category: string | null;
+  position: number;
+}
+
+export interface BroadcastGuildConfig {
+  id: string;
+  name: string;
+  icon: string | null;
+  memberCount: number;
+  activated: boolean;
+  broadcastChannelId: string | null;
+  broadcastChannelName: string | null;
+  channelStatus: 'OK' | 'MISSING' | 'UNSET';
+  channels: BroadcastGuildChannel[];
 }
 
 export interface BroadcastResult {
@@ -1296,6 +1326,7 @@ export interface BroadcastEmoji {
   key: string;
   discordName: string;
   formatted: string;
+  unicode?: string;
 }
 
 export async function sendBroadcast(payload: BroadcastPayload): Promise<BroadcastResult> {
@@ -1326,6 +1357,24 @@ export async function fetchBroadcastEmojis(): Promise<{ emojis: BroadcastEmoji[]
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/broadcast/emojis`);
   if (!response.ok) throw new Error('Erreur chargement emojis');
   return response.json();
+}
+
+export async function fetchBroadcastChannels(): Promise<{ guilds: BroadcastGuildConfig[] }> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/broadcast/channels`);
+  if (!response.ok) throw new Error('Erreur chargement des salons de diffusion');
+  return response.json();
+}
+
+export async function setBroadcastChannel(guildId: string, channelId: string | null): Promise<void> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/broadcast/channels/${guildId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channelId }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors de la configuration du salon');
+  }
 }
 
 export async function updateRecruitmentConfig(payload: any, guildId: string = authStore.selectedGuildId) {
@@ -1518,6 +1567,44 @@ export async function reportFeedback(feedbackData: {
   }
 
   return response.json();
+}
+
+export async function submitPartnershipApplication(data: {
+  category: 'partenariat' | 'beta';
+  projectName: string;
+  projectUrl?: string | null;
+  memberCount?: string | null;
+  description: string;
+  motivation: string;
+  experience?: string | null;
+  availability?: string | null;
+  contact?: string | null;
+}) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/partnership-application`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Server error: ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    success: boolean;
+    alreadyMember: boolean;
+    dmDelivered: boolean;
+    inviteUrl: string | null;
+  }>;
 }
 
 

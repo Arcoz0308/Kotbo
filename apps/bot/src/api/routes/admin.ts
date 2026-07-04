@@ -6,7 +6,7 @@ import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild } from '../../utils/activation.js';
-import { E, resolveEmojiShortcodes } from '../../utils/emojis.js';
+import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -755,9 +755,137 @@ export async function handleAdminRoutes(
         .filter(([, v]) => v && v.startsWith('<'))
         .map(([key, formatted]) => {
           const match = formatted.match(/^<a?:(\w+):\d+>$/);
-          return { key, discordName: match?.[1] || key, formatted };
+          return {
+            key,
+            discordName: match?.[1] || key,
+            formatted,
+            unicode: UNICODE_FALLBACKS[key] || '❓',
+          };
         });
       json(res, 200, { emojis: emojiList });
+      return true;
+    }
+
+    // GET /api/admin/broadcast/channels — Per-guild broadcast channel configuration
+    if (method === 'GET' && parts[3] === 'channels' && parts.length === 4) {
+      try {
+        interface ShardGuildChannels {
+          id: string;
+          name: string;
+          icon: string | null;
+          memberCount: number;
+          channels: { id: string; name: string; category: string | null; position: number }[];
+        }
+
+        let shardGuildChannels: ShardGuildChannels[];
+        if (client.shard) {
+          const results = await client.shard.broadcastEval<ShardGuildChannels[]>((shardClient) =>
+            shardClient.guilds.cache.map((guild) => ({
+              id: guild.id,
+              name: guild.name,
+              icon: guild.iconURL(),
+              memberCount: guild.memberCount,
+              channels: guild.channels.cache
+                .filter((ch): ch is import('discord.js').TextChannel | import('discord.js').NewsChannel =>
+                  (ch.type === 0 || ch.type === 5) && !!ch.permissionsFor(shardClient.user!)?.has(['ViewChannel', 'SendMessages']))
+                .map((ch) => ({ id: ch.id, name: ch.name, category: ch.parent?.name ?? null, position: ch.rawPosition }))
+                .sort((a, b) => a.position - b.position),
+            }))
+          );
+          shardGuildChannels = results.flat();
+        } else {
+          shardGuildChannels = client.guilds.cache.map((guild) => ({
+            id: guild.id,
+            name: guild.name,
+            icon: guild.iconURL(),
+            memberCount: guild.memberCount,
+            channels: guild.channels.cache
+              .filter((ch): ch is import('discord.js').TextChannel | import('discord.js').NewsChannel =>
+                (ch.type === 0 || ch.type === 5) && !!ch.permissionsFor(client.user!)?.has(['ViewChannel', 'SendMessages']))
+              .map((ch) => ({ id: ch.id, name: ch.name, category: ch.parent?.name ?? null, position: ch.rawPosition }))
+              .sort((a, b) => a.position - b.position),
+          }));
+        }
+
+        const dbGuilds = await prisma.guild.findMany({
+          select: { id: true, activated: true, broadcastChannelId: true },
+        });
+        const dbMap = new Map(dbGuilds.map((g) => [g.id, g] as const));
+
+        const guilds = shardGuildChannels.map((g) => {
+          const dbG = dbMap.get(g.id);
+          const configuredId = dbG?.broadcastChannelId ?? null;
+          const configured = configuredId ? g.channels.find((ch) => ch.id === configuredId) ?? null : null;
+          return {
+            id: g.id,
+            name: g.name,
+            icon: g.icon,
+            memberCount: g.memberCount,
+            activated: dbG?.activated ?? false,
+            broadcastChannelId: configuredId,
+            broadcastChannelName: configured?.name ?? null,
+            channelStatus: (!configuredId ? 'UNSET' : configured ? 'OK' : 'MISSING') as 'UNSET' | 'OK' | 'MISSING',
+            channels: g.channels,
+          };
+        }).sort((a, b) => a.name.localeCompare(b.name));
+
+        json(res, 200, { guilds });
+      } catch (err) {
+        logger.error('AdminAPI', 'GET broadcast channels error:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des salons' });
+      }
+      return true;
+    }
+
+    // PUT /api/admin/broadcast/channels/:guildId — Set the broadcast channel for a guild
+    if (method === 'PUT' && parts[3] === 'channels' && parts.length === 5) {
+      const guildId = parts[4];
+      try {
+        const body = await readJsonBody<{ channelId?: string | null }>(req);
+        const channelId = body?.channelId?.trim() || null;
+
+        if (channelId) {
+          let check: { ok: boolean; reason?: string } | null = null;
+          if (client.shard) {
+            const results = await client.shard.broadcastEval<{ ok: boolean; reason?: string } | null, { guildId: string; channelId: string }>((shardClient, ctx) => {
+              const guild = shardClient.guilds.cache.get(ctx.guildId);
+              if (!guild) return null;
+              const ch = guild.channels.cache.get(ctx.channelId);
+              if (!ch || (ch.type !== 0 && ch.type !== 5)) return { ok: false, reason: 'NOT_FOUND' };
+              const canSend = !!ch.permissionsFor(shardClient.user!)?.has(['ViewChannel', 'SendMessages']);
+              return canSend ? { ok: true } : { ok: false, reason: 'NO_PERMS' };
+            }, { context: { guildId, channelId } });
+            check = results.find((r) => r !== null) ?? null;
+          } else {
+            const guild = client.guilds.cache.get(guildId);
+            if (guild) {
+              const ch = guild.channels.cache.get(channelId);
+              if (!ch || (ch.type !== 0 && ch.type !== 5)) check = { ok: false, reason: 'NOT_FOUND' };
+              else check = ch.permissionsFor(client.user!)?.has(['ViewChannel', 'SendMessages']) ? { ok: true } : { ok: false, reason: 'NO_PERMS' };
+            }
+          }
+
+          if (!check) {
+            json(res, 404, { error: 'Serveur introuvable' });
+            return true;
+          }
+          if (!check.ok) {
+            json(res, 400, { error: check.reason === 'NO_PERMS' ? "Le bot ne peut pas écrire dans ce salon" : 'Salon introuvable sur ce serveur' });
+            return true;
+          }
+        }
+
+        await prisma.guild.upsert({
+          where: { id: guildId },
+          update: { broadcastChannelId: channelId },
+          create: { id: guildId, broadcastChannelId: channelId },
+        });
+
+        json(res, 200, { ok: true, guildId, channelId });
+      } catch (err) {
+        logger.error('AdminAPI', 'PUT broadcast channel error:', err);
+        json(res, 500, { error: 'Erreur lors de la configuration du salon' });
+      }
       return true;
     }
 
@@ -808,7 +936,7 @@ export async function handleAdminRoutes(
           footerText?: string;
           target?: 'ALL' | 'ACTIVATED' | 'CUSTOM';
           targetGuilds?: string[];
-          channelPref?: 'NEWS' | 'PUBLIC' | 'STAFF' | 'FALLBACK';
+          channelPref?: 'AUTO' | 'NEWS' | 'PUBLIC' | 'STAFF' | 'FALLBACK';
           dryRun?: boolean;
         }
 
@@ -818,21 +946,22 @@ export async function handleAdminRoutes(
           return true;
         }
 
-        const title = body.title?.trim() || '📢 Annonce Globale Kotbo';
+        const title = resolveEmojiShortcodesToUnicode(body.title?.trim() || '📢 Annonce Globale Kotbo');
         const message = resolveEmojiShortcodes(body.message.trim());
         const color = (body.color || '#5865F2') as ColorResolvable;
         const thumbnailUrl = body.thumbnailUrl?.trim() || null;
         const imageUrl = body.imageUrl?.trim() || null;
-        const footerText = body.footerText?.trim() || "Système d'annonce globale Kotbo";
+        const footerText = resolveEmojiShortcodesToUnicode(body.footerText?.trim() || "Système d'annonce globale Kotbo");
         const target = body.target || 'ALL';
         const targetGuilds = Array.isArray(body.targetGuilds) ? body.targetGuilds : [];
-        const channelPref = body.channelPref || 'NEWS';
+        const channelPref = body.channelPref || 'AUTO';
         const dryRun = body.dryRun === true;
 
         const dbGuilds = await prisma.guild.findMany({
           select: {
             id: true,
             activated: true,
+            broadcastChannelId: true,
             newsChannelId: true,
             publicChannelId: true,
             staffAnnouncementChannelId: true,
@@ -840,6 +969,7 @@ export async function handleAdminRoutes(
         });
 
         const guildChannelMap: Record<string, {
+          broadcastChannelId: string | null;
           newsChannelId: string | null;
           publicChannelId: string | null;
           staffAnnouncementChannelId: string | null;
@@ -849,6 +979,7 @@ export async function handleAdminRoutes(
 
         for (const guild of dbGuilds) {
           guildChannelMap[guild.id] = {
+            broadcastChannelId: guild.broadcastChannelId,
             newsChannelId: guild.newsChannelId,
             publicChannelId: guild.publicChannelId,
             staffAnnouncementChannelId: guild.staffAnnouncementChannelId,
@@ -903,7 +1034,8 @@ export async function handleAdminRoutes(
                 const dbG = ctx.guildChannelMap[id];
                 let channel;
 
-                const prefOrder: string[] = [];
+                // Per-guild configured broadcast channel always wins
+                const prefOrder: string[] = [dbG?.broadcastChannelId || ''];
                 if (ctx.channelPref === 'NEWS') prefOrder.push(dbG?.newsChannelId || '', dbG?.publicChannelId || '');
                 else if (ctx.channelPref === 'PUBLIC') prefOrder.push(dbG?.publicChannelId || '', dbG?.newsChannelId || '');
                 else if (ctx.channelPref === 'STAFF') prefOrder.push(dbG?.staffAnnouncementChannelId || '', dbG?.newsChannelId || '');
@@ -912,7 +1044,7 @@ export async function handleAdminRoutes(
                 for (const chId of prefOrder) {
                   if (chId) {
                     const found = guild.channels.cache.get(chId);
-                    if (found && found.type === 0) { channel = found; break; }
+                    if (found && (found.type === 0 || found.type === 5)) { channel = found; break; }
                   }
                 }
 
@@ -961,7 +1093,8 @@ export async function handleAdminRoutes(
               const dbG = guildChannelMap[id];
               let channel;
 
-              const prefOrder: (string | null)[] = [];
+              // Per-guild configured broadcast channel always wins
+              const prefOrder: (string | null | undefined)[] = [dbG?.broadcastChannelId];
               if (channelPref === 'NEWS') prefOrder.push(dbG?.newsChannelId, dbG?.publicChannelId);
               else if (channelPref === 'PUBLIC') prefOrder.push(dbG?.publicChannelId, dbG?.newsChannelId);
               else if (channelPref === 'STAFF') prefOrder.push(dbG?.staffAnnouncementChannelId, dbG?.newsChannelId);
@@ -970,7 +1103,7 @@ export async function handleAdminRoutes(
               for (const chId of prefOrder) {
                 if (chId) {
                   const found = guild.channels.cache.get(chId);
-                  if (found && found.type === 0) { channel = found; break; }
+                  if (found && (found.type === 0 || found.type === 5)) { channel = found; break; }
                 }
               }
 

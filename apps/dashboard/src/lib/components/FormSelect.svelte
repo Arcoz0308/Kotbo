@@ -57,7 +57,11 @@
     background-repeat: no-repeat;
     background-size: 1.25em 1.25em;
   }
-  :global(.dark .custom-select option) {
+  :global(:root.dark .custom-select) {
+    color-scheme: dark;
+  }
+
+  :global(.custom-select option) {
     background-color: var(--surface-container);
     color: var(--on-surface);
   }

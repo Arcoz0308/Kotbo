@@ -96,6 +96,9 @@ model Guild {
   sanctionAlertChannelId   String?
   newsChannelId            String?
 
+  // Salon choisi pour recevoir les broadcasts globaux Kotbo
+  broadcastChannelId       String?
+
   activated                Boolean   @default(false)
   activatedAt              DateTime?
   activationCode           String?
@@ -157,6 +160,9 @@ model Guild {
   events Event[]
   customForms CustomForm[]
   customFormSubmissions CustomFormSubmission[]
+  banAppealConfig BanAppealConfig?
+  banAppeals BanAppeal[]
+  banAppealBlacklist BanAppealBlacklist[]
   moduleActivationStats ModuleActivationStat[]
   moduleUsageStats ModuleUsageStat[]
   modulePerformanceStats ModulePerformanceStat[]
@@ -173,6 +179,19 @@ model Guild {
   ticketMode             String   @default("CHANNEL") // "CHANNEL", "DM", "THREAD"
   ticketDmRelayChannelId String?
   ticketTypes             Json?
+  ticketFormEnabled           Boolean  @default(true)
+  ticketFormCustomFields      Json?
+  ticketEmbedThumbnail        String?
+  ticketEmbedImage            String?
+  ticketEmbedFooter           String?
+  ticketEmbedAuthorName       String?
+  ticketEmbedAuthorIcon       String?
+  ticketWelcomeTitle          String   @default("🎫 Ticket d'Assistance · {type_label}")
+  ticketWelcomeDesc           String   @default("Bonjour {user} !\nLe personnel {staff_mention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n{description}")
+  ticketWelcomeColor          String   @default("#5865F2")
+  ticketWelcomeThumbnail      String?
+  ticketWelcomeImage          String?
+  ticketWelcomeFooter         String   @default("Kotbo · Ticket ID: {ticket_id}")
   ticketAllowOverclaim        Boolean  @default(true)
   ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"
   ticketInactivityEnabled     Boolean  @default(false)
@@ -229,6 +248,7 @@ model Guild {
 
   staffTasks StaffTask[]
   staffCalls StaffCall[]
+  callPermissionConfig CallPermissionConfig?
 
   mcpApiKeys McpApiKey[]
   customBotConfig CustomBotConfig?

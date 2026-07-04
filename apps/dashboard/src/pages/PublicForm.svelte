@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { API_BASE_URL } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { loadGoogleFont, themeBaseCss, themeStyleVars, type FormTheme } from '../lib/formTheme';
 
   let { formId }: { formId: string } = $props();
 
@@ -19,8 +20,10 @@
     sectionIndex: number;
   }
   interface Section { id:string; title:string; description?:string; }
-  interface FormData { id:string; name:string; description?:string; guildId:string;
+  interface FormData { id:string; name:string; description?:string; guildId:string; requiresDiscordAuth?: boolean;
     structure:{title:string;description?:string;headerColor?:string;sections?:Section[];fields:FormField[]};
+    theme?: FormTheme | null;
+    customCss?: string | null;
   }
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -43,11 +46,23 @@
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const sections = $derived(form?.structure.sections || [{ id:'s0', title:'', description:'' }]);
-  const headerColor = $derived(form?.structure.headerColor || '#6366f1');
+  const headerColor = $derived(form?.theme?.accentColor || form?.structure.headerColor || '#6366f1');
+  const theme = $derived(form?.theme || null);
+  // CSS injecté : base générée depuis le thème + CSS custom (déjà sanitizé serveur,
+  // on retire </style par défense en profondeur)
+  const injectedCss = $derived(
+    [themeBaseCss(theme), (form?.customCss || '').replace(/<\/style/gi, '')].filter(Boolean).join('\n')
+  );
+  const rootStyle = $derived([
+    themeStyleVars(theme, form?.structure.headerColor || '#6366f1'),
+    theme?.backgroundColor ? `background:${theme.backgroundColor}` : '',
+    theme?.fontFamily ? `font-family:var(--form-font)` : '',
+  ].filter(Boolean).join(';'));
   const allFields = $derived(form?.structure.fields || []);
   const currentFields = $derived(allFields.filter(f => f.sectionIndex === currentSection && f.type !== 'section_header'));
   const totalSections = $derived(sections.length);
   const progress = $derived(Math.round(((currentSection + 1) / totalSections) * 100));
+  const authRequired = $derived(form?.requiresDiscordAuth ?? false);
 
   // ── Load form ──────────────────────────────────────────────────────────────
   onMount(async () => {
@@ -108,6 +123,7 @@
   }
 
   function nextSection() {
+    if (authRequired && !authStore.isAuthenticated) { submitError = 'Vous devez vous connecter avec Discord avant de continuer.'; return; }
     if (!validateSection()) return;
     const next = resolveNextSection();
     if (next < totalSections) {
@@ -127,6 +143,7 @@
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   async function submit() {
+    if (authRequired && !authStore.isAuthenticated) { submitError = 'Vous devez vous connecter avec Discord avant de soumettre ce formulaire.'; return; }
     if (!validateSection()) return;
     submitting = true;
     submitError = '';
@@ -140,9 +157,12 @@
         ? `${API_BASE_URL}/api/public/custom-forms/${formId}/submit`
         : `${API_BASE_URL}/api/public/forms/${formId}/submit`;
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authStore.token) headers.Authorization = `Bearer ${authStore.token}`;
+
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ data: answers, discordId, email, username }),
       });
       if (!res.ok) {
@@ -185,6 +205,8 @@
     window.location.href = `${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
   }
 
+  $effect(() => { if (theme?.fontFamily) loadGoogleFont(theme.fontFamily); });
+
   $effect(() => {
     if (authStore.user && form?.structure?.fields) {
       if (authStore.user.id) {
@@ -208,7 +230,11 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="min-h-screen bg-gradient-to-br from-surface to-surface-container-low/50 py-8 px-4" style="--form-color:{headerColor}">
+<div class="pf-root min-h-screen bg-gradient-to-br from-surface to-surface-container-low/50 py-8 px-4" style={rootStyle}>
+
+  {#if injectedCss}
+    {@html `<style>${injectedCss}</style>`}
+  {/if}
 
   {#if loading}
     <div class="flex items-center justify-center min-h-[60vh]">
@@ -228,7 +254,7 @@
   {:else if submitted}
     <!-- ── Success ── -->
     <div class="max-w-lg mx-auto">
-      <div class="rounded-xl overflow-hidden shadow-sm border border-outline-variant/20">
+      <div class="pf-card rounded-xl overflow-hidden shadow-sm border border-outline-variant/20">
         <div class="h-3" style="background:var(--form-color)"></div>
         <div class="bg-surface p-10 text-center">
           <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg"
@@ -238,9 +264,9 @@
                 style="stroke:var(--form-color)" />
             </svg>
           </div>
-          <h1 class="text-2xl font-semibold text-on-surface mb-3">Candidature envoyée !</h1>
+          <h1 class="text-2xl font-semibold text-on-surface mb-3">Réponse envoyée !</h1>
           <p class="text-on-surface-variant/70 text-sm leading-relaxed">
-            Votre réponse a bien été reçue. Vous serez contacté prochainement par notre équipe.
+            {theme?.confirmationText || 'Votre réponse a bien été reçue. Vous serez contacté prochainement par notre équipe.'}
           </p>
           <div class="mt-8 text-xs text-on-surface-variant/40">
             Propulsé par <span class="font-bold" style="color:var(--form-color)">Kotbo</span>
@@ -264,13 +290,26 @@
         </div>
       {/if}
 
+      <!-- Bannière du thème -->
+      {#if theme?.bannerUrl}
+        <div class="pf-banner rounded-xl overflow-hidden shadow-lg border border-outline-variant/20">
+          <img src={theme.bannerUrl} alt="" class="w-full max-h-52 object-cover" />
+        </div>
+      {/if}
+
       <!-- Header card -->
-      <div class="rounded-xl overflow-hidden shadow-lg border border-outline-variant/20">
+      <div class="pf-card rounded-xl overflow-hidden shadow-lg border border-outline-variant/20">
         <div class="h-3" style="background:var(--form-color)"></div>
         <div class="bg-surface p-6">
+          {#if theme?.logoUrl}
+            <img src={theme.logoUrl} alt="" class="pf-logo w-14 h-14 rounded-2xl object-cover mb-3 shadow-md" />
+          {/if}
           <h1 class="text-2xl font-semibold text-on-surface">{form.name}</h1>
           {#if form.description}
             <p class="text-on-surface-variant/70 mt-2 text-sm leading-relaxed">{form.description}</p>
+          {/if}
+          {#if theme?.welcomeText}
+            <p class="mt-3 text-sm leading-relaxed" style="color:var(--form-color)">{theme.welcomeText}</p>
           {/if}
           {#if currentSection > 0}
             <div class="mt-4 pt-4 border-t border-outline-variant/10">
@@ -285,21 +324,30 @@
 
       <!-- Discord association section -->
       {#if !authStore.isAuthenticated}
-        <div class="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
+        <div class="rounded-xl border p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300
+          {authRequired ? 'border-amber-500/30 bg-amber-500/5' : 'border-blue-500/20 bg-blue-500/5'}">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0
+              {authRequired ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'}">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 127.14 96.36">
                 <path d="M107.7,8.07A105.15,105.15,0,0,0,77.26,0a77.19,77.19,0,0,0-3.3,6.83A96.67,96.67,0,0,0,53.22,6.83,77.19,77.19,0,0,0,49.88,0,105.15,105.15,0,0,0,19.44,8.07C3.66,31.58-1.86,54.65,1,77.53A105.73,105.73,0,0,0,32,96.36a77.7,77.7,0,0,0,6.63-10.85,68.43,68.43,0,0,1-10.5-5c.9-.65,1.76-1.34,2.58-2a75.58,75.58,0,0,0,72.9,0c.82.71,1.68,1.4,2.58,2a68.69,68.69,0,0,1-10.5,5,77.7,77.7,0,0,0,6.63,10.85,105.73,105.73,0,0,0,31-18.83C129.87,49.86,124.15,26.91,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53S36.18,40.36,42.45,40.36,53.83,46,53.83,53,48.72,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.24,60,73.24,53S78.41,40.36,84.69,40.36,96.07,46,96.07,53,91,65.69,84.69,65.69Z"/>
               </svg>
             </div>
             <div>
-              <h4 class="font-semibold text-on-surface text-sm">Connexion Discord recommandée</h4>
-              <p class="text-xs text-on-surface-variant/70 mt-0.5">Associez votre compte Discord pour préremplir votre ID et votre pseudo automatiquement.</p>
+              <h4 class="font-semibold text-on-surface text-sm">
+                {authRequired ? 'Connexion Discord obligatoire' : 'Connexion Discord recommandée'}
+              </h4>
+              <p class="text-xs text-on-surface-variant/70 mt-0.5">
+                {authRequired
+                  ? 'Ce formulaire nécessite de se connecter avec Discord avant de pouvoir être rempli.'
+                  : 'Associez votre compte Discord pour préremplir votre ID et votre pseudo automatiquement.'}
+              </p>
             </div>
           </div>
           <button
             onclick={loginWithDiscord}
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-md shrink-0 flex items-center gap-2"
+            class="px-4 py-2 text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-md shrink-0 flex items-center gap-2
+              {authRequired ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}"
           >
             Se connecter
           </button>
@@ -332,10 +380,11 @@
         </div>
       {/if}
 
-      <!-- Fields -->
+      <!-- Fields (masqués tant que la connexion Discord obligatoire n'est pas faite) -->
+      {#if !authRequired || authStore.isAuthenticated}
       {#each currentFields as field (field.id)}
         {@const error = errors[field.id]}
-        <div class="rounded-lg bg-surface border border-outline-variant/20 p-5 shadow-sm
+        <div class="pf-card pf-field rounded-lg bg-surface border border-outline-variant/20 p-5 shadow-sm
           {error ? 'ring-2 ring-rose-500/40' : ''}">
 
           <label for={field.id} class="block font-semibold text-on-surface mb-1 text-[15px]">
@@ -505,7 +554,7 @@
           {/if}
 
           {#if error}
-            <p class="mt-2 text-xs text-rose-500 flex items-center gap-1">
+            <p class="pf-error mt-2 text-xs text-rose-500 flex items-center gap-1">
               <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
               </svg>
@@ -514,6 +563,7 @@
           {/if}
         </div>
       {/each}
+      {/if}
 
       <!-- Submit error -->
       {#if submitError}
@@ -523,6 +573,7 @@
       {/if}
 
       <!-- Navigation buttons -->
+      {#if !authRequired || authStore.isAuthenticated}
       <div class="flex items-center gap-3 pb-8">
         {#if currentSection > 0}
           <button onclick={prevSection}
@@ -532,7 +583,7 @@
         {/if}
         <div class="flex-1"></div>
         <button onclick={nextSection} disabled={submitting}
-          class="px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:scale-100"
+          class="pf-submit px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:scale-100"
           style="background:var(--form-color)">
           {#if submitting}
             <span class="flex items-center gap-2">
@@ -546,6 +597,7 @@
           {/if}
         </button>
       </div>
+      {/if}
 
       <!-- Footer -->
       <div class="text-center pb-4 text-xs text-on-surface-variant/30">

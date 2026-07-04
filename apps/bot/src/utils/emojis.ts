@@ -75,7 +75,7 @@ const EMOJI_NAME_MAP: Record<string, string> = {
 };
 
 // ─── Fallback Unicode Emojis ───
-const UNICODE_FALLBACKS: Record<string, string> = {
+export const UNICODE_FALLBACKS: Record<string, string> = {
   success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️', loading: '⏳',
   arrow: '▸', dot: '◈', line: '━', empty: '​', bullet: '▸',
   rank1: '🥇', rank2: '🥈', rank3: '🥉',
@@ -206,21 +206,42 @@ export async function loadApplicationEmojis(client: Client): Promise<void> {
 // ─── Shortcode Resolution ───
 function rebuildShortcodeMap() {
   SHORTCODE_MAP = new Map();
-  for (const val of Object.values(emojiStore)) {
+  for (const [key, val] of Object.entries(emojiStore)) {
     const m = val.match(/^<a?:(\w+):\d+>$/);
-    if (m) SHORTCODE_MAP.set(m[1], val);
+    if (m) {
+      SHORTCODE_MAP.set(m[1], val);
+      SHORTCODE_MAP.set(key, val);
+    }
   }
 }
 
 let SHORTCODE_MAP = new Map<string, string>();
 rebuildShortcodeMap();
 
+const UNICODE_SHORTCODE_MAP = new Map<string, string>();
+for (const [key, val] of Object.entries(UNICODE_FALLBACKS)) {
+  UNICODE_SHORTCODE_MAP.set(key, val);
+  const discordName = EMOJI_NAME_MAP[key];
+  if (discordName) {
+    UNICODE_SHORTCODE_MAP.set(discordName, val);
+  }
+}
+
 export function resolveEmojiShortcodes(text: string | null | undefined): string {
   if (!text) return '';
   // Replace full format with stale IDs: <:ktb_xxx:OLD_ID> → <:ktb_xxx:CURRENT_ID>
   let result = text.replace(/<a?:(\w+):\d+>/g, (match, name) => SHORTCODE_MAP.get(name) ?? match);
   // Replace shortcodes: :ktb_xxx: → <:ktb_xxx:ID>
-  result = result.replace(/:(\w+):/g, (match, name) => SHORTCODE_MAP.get(name) ?? match);
+  // The lookbehind skips :name: already inside a full <:name:id> format,
+  // otherwise the emoji would be emitted twice (shortcode + interpreted).
+  result = result.replace(/(?<!<a?):(\w+):(?!\d+>)/g, (match, name) => SHORTCODE_MAP.get(name) ?? match);
+  return result;
+}
+
+export function resolveEmojiShortcodesToUnicode(text: string | null | undefined): string {
+  if (!text) return '';
+  let result = text.replace(/<a?:(\w+):\d+>/g, (match, name) => UNICODE_SHORTCODE_MAP.get(name) ?? match);
+  result = result.replace(/(?<!<a?):(\w+):(?!\d+>)/g, (match, name) => UNICODE_SHORTCODE_MAP.get(name) ?? match);
   return result;
 }
 

@@ -34,6 +34,7 @@ import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
 import { handleTicketTrigger } from './autoResponseService.js';
+import { embedToV2 } from '../../utils/patchV2.js';
 
 function sanitizeTicketChannelName(input: string): string {
   const cleaned = input
@@ -67,6 +68,7 @@ type TicketPanelTypeConfig = {
   mode?: 'CHANNEL' | 'DM' | 'THREAD' | null;
   anonymous?: boolean;
   staffServerRelay?: boolean;
+  fields?: any[] | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -104,6 +106,7 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
           mode,
           anonymous: item.anonymous === true,
           staffServerRelay: item.staffServerRelay === true,
+          fields: Array.isArray(item.fields) ? item.fields : null,
         };
       })
       .filter((item) => item.label.length > 0);
@@ -117,6 +120,7 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
     categoryId: fallback.categoryId,
     staffRoleId: fallback.staffRoleId,
     buttonStyle: fallback.buttonStyle ?? 'PRIMARY',
+    fields: null,
   }];
 }
 
@@ -254,10 +258,30 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
     });
   }
 
-  const container = new ContainerBuilder().setAccentColor(color);
-  container.addTextDisplayComponents(text(`### ${title}`));
-  container.addTextDisplayComponents(text(desc));
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  const embed = new EmbedBuilder()
+    .setTitle(title.substring(0, 256))
+    .setDescription(desc.substring(0, 4000))
+    .setColor(color);
+
+  if (guildConfig.ticketEmbedThumbnail) {
+    embed.setThumbnail(guildConfig.ticketEmbedThumbnail);
+  }
+  if (guildConfig.ticketEmbedImage) {
+    embed.setImage(guildConfig.ticketEmbedImage);
+  }
+  if (guildConfig.ticketEmbedFooter) {
+    embed.setFooter({ text: resolveEmojiShortcodes(guildConfig.ticketEmbedFooter).substring(0, 2048) });
+  } else {
+    embed.setFooter({ text: 'Kotbo • Système de tickets' });
+  }
+  if (guildConfig.ticketEmbedAuthorName) {
+    embed.setAuthor({
+      name: resolveEmojiShortcodes(guildConfig.ticketEmbedAuthorName).substring(0, 256),
+      iconURL: guildConfig.ticketEmbedAuthorIcon || undefined
+    });
+  }
+
+  const container = embedToV2(embed);
 
   const embedType = guildConfig.ticketEmbedType || 'BUTTONS';
 
@@ -291,11 +315,164 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
     }
   }
 
-  container.addSeparatorComponents(separator(false, SeparatorSpacingSize.Small));
-  container.addTextDisplayComponents(text('-# Kotbo • Système de tickets'));
-
   await channel.send(v2(container));
   logger.success('Ticket', `Embed d'ouverture envoyé avec succès dans #${channel.name} (${guildId})`);
+}
+
+function buildTicketWelcomeContainer(
+  guildConfig: any,
+  ticketType: TicketPanelTypeConfig,
+  ticket: any,
+  user: any,
+  staffMention: string | null,
+  reason: string,
+  description: string
+): ContainerBuilder {
+  const replaceTemplates = (str: string) => {
+    if (!str) return '';
+    return str
+      .replace(/{user}/g, `<@${user.id}>`)
+      .replace(/{username}/g, user.username)
+      .replace(/{staff_mention}/g, staffMention || '')
+      .replace(/{type_label}/g, ticketType.label || 'Ticket')
+      .replace(/{ticket_id}/g, ticket.id)
+      .replace(/{reason}/g, reason)
+      .replace(/{description}/g, description);
+  };
+
+  const title = replaceTemplates(guildConfig.ticketWelcomeTitle || "🎫 Ticket d'Assistance · {type_label}");
+  const desc = replaceTemplates(guildConfig.ticketWelcomeDesc || "Bonjour {user} !\nLe personnel {staff_mention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n{description}");
+  const footerText = replaceTemplates(guildConfig.ticketWelcomeFooter || "Kotbo · Ticket ID: {ticket_id}");
+  
+  const welcomeColorHex = guildConfig.ticketWelcomeColor || '#5865F2';
+  const color = typeof welcomeColorHex === 'string' ? parseInt(welcomeColorHex.replace('#', ''), 16) : COLORS_RAW.primary;
+
+  const embed = new EmbedBuilder()
+    .setTitle(title.substring(0, 256))
+    .setDescription(desc.substring(0, 4000))
+    .setColor(color);
+
+  if (footerText) {
+    embed.setFooter({ text: footerText.substring(0, 2048) });
+  }
+
+  if (guildConfig.ticketWelcomeThumbnail) {
+    embed.setThumbnail(guildConfig.ticketWelcomeThumbnail);
+  }
+
+  if (guildConfig.ticketWelcomeImage) {
+    embed.setImage(guildConfig.ticketWelcomeImage);
+  }
+
+  return embedToV2(embed);
+}
+
+async function showTicketOpeningModal(
+  client: Client,
+  interaction: StringSelectMenuInteraction | ButtonInteraction,
+  ticketType: TicketPanelTypeConfig,
+  guildConfig: any
+): Promise<void> {
+  const isFormEnabled = (ticketType as any).formEnabled !== undefined
+    ? (ticketType as any).formEnabled
+    : (guildConfig.ticketFormEnabled !== undefined ? guildConfig.ticketFormEnabled : true);
+
+  if (isFormEnabled === false) {
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+    const reason = ticketType.label || 'Ticket';
+    const description = 'Aucune description fournie (formulaire désactivé).';
+    await executeTicketCreation(client, interaction, ticketType, reason, description);
+    return;
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`modal:ticket:open:${ticketType.id}`)
+    .setTitle((ticketType.label || guildConfig.ticketEmbedTitle || 'Ouvrir un ticket').substring(0, 45));
+
+  const customFields = ((ticketType as any).formCustomFields ?? guildConfig.ticketFormCustomFields) as any[];
+
+  if (Array.isArray(customFields) && customFields.length > 0) {
+    const fieldsToUse = customFields.slice(0, 5);
+    const rows = fieldsToUse.map((f: any) => {
+      const input = new TextInputBuilder()
+        .setCustomId(f.id)
+        .setLabel(f.label.substring(0, 45))
+        .setStyle(f.style === 'PARAGRAPH' ? TextInputStyle.Paragraph : TextInputStyle.Short)
+        .setRequired(f.required !== false);
+
+      if (f.placeholder) {
+        input.setPlaceholder(f.placeholder.substring(0, 100));
+      }
+      if (typeof f.maxLength === 'number') {
+        input.setMaxLength(f.maxLength);
+      }
+      if (typeof f.minLength === 'number') {
+        input.setMinLength(f.minLength);
+      }
+      return new ActionRowBuilder<TextInputBuilder>().addComponents(input);
+    });
+    modal.addComponents(...rows);
+  } else {
+    // Rétrocompatibilité avec les champs par défaut du type
+    const fieldsToUse = Array.isArray((ticketType as any).fields) && (ticketType as any).fields.length > 0
+      ? (ticketType as any).fields.slice(0, 5)
+      : null;
+
+    if (fieldsToUse) {
+      const rows = fieldsToUse.map((f: any) => {
+        const input = new TextInputBuilder()
+          .setCustomId(f.id)
+          .setLabel(f.label.substring(0, 45))
+          .setStyle(f.style === 'PARAGRAPH' ? TextInputStyle.Paragraph : TextInputStyle.Short)
+          .setRequired(f.required !== false);
+
+        if (f.placeholder) {
+          input.setPlaceholder(f.placeholder.substring(0, 100));
+        }
+        if (typeof f.max_length === 'number') {
+          input.setMaxLength(f.max_length);
+        }
+        if (typeof f.min_length === 'number') {
+          input.setMinLength(f.min_length);
+        }
+        return new ActionRowBuilder<TextInputBuilder>().addComponents(input);
+      });
+      modal.addComponents(...rows);
+    } else {
+      const isSalon = ticketType.label.toLowerCase().includes('salon');
+
+      const reasonInput = new TextInputBuilder()
+        .setCustomId('reason')
+        .setLabel('Sujet / Raison de la demande')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Ex : Problème avec mon grade, Plainte, etc.')
+        .setRequired(true)
+        .setMaxLength(100);
+
+      if (isSalon) {
+        reasonInput.setValue('Demande de salon');
+      }
+
+      const descInput = new TextInputBuilder()
+        .setCustomId('description')
+        .setLabel('Description détaillée')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Détaillez au maximum votre demande afin de faciliter le traitement par notre staff...')
+        .setRequired(true)
+        .setMaxLength(1000);
+
+      if (isSalon) {
+        descInput.setValue('Créé le pour moi');
+      }
+
+      modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(descInput)
+      );
+    }
+  }
+
+  await interaction.showModal(modal);
 }
 
 /**
@@ -336,42 +513,7 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
     }
   }
 
-  const modal = new ModalBuilder()
-    .setCustomId(`modal:ticket:open:${ticketType.id}`)
-    .setTitle((ticketType.label || guildConfig.ticketEmbedTitle || 'Ouvrir un ticket').substring(0, 45));
-
-  const isSalon = ticketType.label.toLowerCase().includes('salon');
-
-  const reasonInput = new TextInputBuilder()
-    .setCustomId('reason')
-    .setLabel('Sujet / Raison de la demande')
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder('Ex : Problème avec mon grade, Plainte, etc.')
-    .setRequired(true)
-    .setMaxLength(100);
-
-  if (isSalon) {
-    reasonInput.setValue('Demande de salon');
-  }
-
-  const descInput = new TextInputBuilder()
-    .setCustomId('description')
-    .setLabel('Description détaillée')
-    .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Détaillez au maximum votre demande afin de faciliter le traitement par notre staff...')
-    .setRequired(true)
-    .setMaxLength(1000);
-
-  if (isSalon) {
-    descInput.setValue('Créé le pour moi');
-  }
-
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(descInput)
-  );
-
-  await interaction.showModal(modal);
+  await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
 }
 
 /**
@@ -412,42 +554,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
       }
     }
 
-    const modal = new ModalBuilder()
-      .setCustomId(typeId ? `modal:ticket:open:${ticketType.id}` : 'modal:ticket:open')
-      .setTitle((ticketType.label || guildConfig.ticketEmbedTitle || 'Ouvrir un ticket').substring(0, 45));
-
-    const isSalon = ticketType.label.toLowerCase().includes('salon');
-
-    const reasonInput = new TextInputBuilder()
-      .setCustomId('reason')
-      .setLabel('Sujet / Raison de la demande')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Ex : Problème avec mon grade, Plainte, etc.')
-      .setRequired(true)
-      .setMaxLength(100);
-
-    if (isSalon) {
-      reasonInput.setValue('Demande de salon');
-    }
-
-    const descInput = new TextInputBuilder()
-      .setCustomId('description')
-      .setLabel('Description détaillée')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Détaillez au maximum votre demande afin de faciliter le traitement par notre staff...')
-      .setRequired(true)
-      .setMaxLength(1000);
-
-    if (isSalon) {
-      descInput.setValue('Créé le pour moi');
-    }
-
-    modal.addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(descInput)
-    );
-
-    await interaction.showModal(modal);
+    await showTicketOpeningModal(client, interaction, ticketType, guildConfig);
     return;
   }
 
@@ -758,6 +865,330 @@ export async function handleTicketButton(client: Client, customId: string, inter
 /**
  * Handles all modal submissions starting with "modal:ticket:"
  */
+export async function executeTicketCreation(
+  client: Client,
+  interaction: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction,
+  ticketType: TicketPanelTypeConfig,
+  reason: string,
+  description: string
+): Promise<string | null> {
+  const { guildId, user, guild } = interaction;
+  if (!guildId || !guild) return null;
+
+  const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!guildConfig) {
+    await interaction.editReply({ content: '❌ Configuration du serveur introuvable.' });
+    return null;
+  }
+
+  const ticketMode = ticketType.mode || (guildConfig as any).ticketMode || 'CHANNEL';
+  const isAnonymous = ticketType.anonymous === true && ticketMode === 'DM';
+  const useStaffServerRelay = ticketType.staffServerRelay === true;
+
+  try {
+    const ticketStaffRoleId = ticketType.staffRoleId || guildConfig.ticketStaffRoleId || null;
+    const staffMention = ticketStaffRoleId ? `<@&${ticketStaffRoleId}>` : null;
+
+    if (ticketMode === 'DM') {
+      // ─── Mode DM : ticket via messages privés ───────────────────────
+      let relayChannel: TextChannel | null = null;
+      let staffServerGuildId: string | null = null;
+
+      if (useStaffServerRelay) {
+        const staffLink = await prisma.staffServerLink.findFirst({
+          where: { mainGuildId: guildId, enabled: true },
+        });
+        if (staffLink) {
+          staffServerGuildId = staffLink.staffGuildId;
+          const staffGuild = client.guilds.cache.get(staffLink.staffGuildId);
+          const logChannelId = staffLink.staffLogChannelId;
+          if (logChannelId && staffGuild) {
+            const ch = staffGuild.channels.cache.get(logChannelId);
+            if (ch instanceof TextChannel) relayChannel = ch;
+          }
+          if (!relayChannel && staffGuild) {
+            const fallback = staffGuild.channels.cache.find(
+              (c) => c instanceof TextChannel && c.name.includes('ticket'),
+            );
+            if (fallback instanceof TextChannel) relayChannel = fallback;
+          }
+        }
+      }
+
+      if (!relayChannel) {
+        const relayChannelId = (guildConfig as any).ticketDmRelayChannelId || guildConfig.ticketLogChannelId;
+        const fetched = relayChannelId ? await client.channels.fetch(relayChannelId).catch(() => null) : null;
+        if (fetched instanceof TextChannel) relayChannel = fetched;
+      }
+
+      if (!relayChannel) {
+        await interaction.editReply({ content: '❌ Aucun salon de relais configuré pour le mode MP. Contactez un administrateur.' });
+        return null;
+      }
+
+      const displayName = isAnonymous ? 'Membre Anonyme' : user.username;
+
+      const ticket = await prisma.ticket.create({
+        data: {
+          guildId,
+          mode: 'DM',
+          ticketTypeId: ticketType.id,
+          ticketTypeLabel: ticketType.label,
+          staffRoleId: ticketStaffRoleId,
+          categoryId: null,
+          userId: user.id,
+          username: user.username,
+          reason,
+          description,
+          status: 'OPEN',
+          isAnonymous,
+          staffServerGuildId,
+        }
+      });
+
+      const threadName = isAnonymous
+        ? `🎫 Anonyme — ${reason}`.slice(0, 100)
+        : `🎫 ${user.username} — ${reason}`.slice(0, 100);
+
+      const thread = await relayChannel.threads.create({
+        name: threadName,
+        autoArchiveDuration: 10080,
+        reason: `Ticket DM de ${displayName}`
+      });
+
+      await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id } });
+
+      const creatorLine = isAnonymous
+        ? '**Créateur :** Anonyme (identité masquée)'
+        : `**Créateur :** <@${user.id}> (${user.username})`;
+
+      const welcomeColorHex = guildConfig.ticketWelcomeColor || '#5865F2';
+      const color = typeof welcomeColorHex === 'string' ? parseInt(welcomeColorHex.replace('#', ''), 16) : COLORS_RAW.primary;
+
+      const staffEmbed = new EmbedBuilder()
+        .setTitle(`🎫 Nouveau Ticket MP · ${ticketType.label}`)
+        .setDescription(`${creatorLine}\n**Raison :** ${reason}\n\n**Description :**\n${description}\n\n> Les messages envoyés ici seront relayés en MP à l'utilisateur.`)
+        .setColor(color)
+        .setTimestamp()
+        .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
+        new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+        new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+      );
+
+      if (staffMention) await thread.send({ content: staffMention, allowedMentions: { roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] } });
+      await thread.send({ embeds: [staffEmbed], components: [row] });
+
+      const dmEmbed = new EmbedBuilder()
+        .setTitle(`🎫 Ticket ouvert · ${guild.name}`)
+        .setDescription(`Votre ticket d'assistance a bien été créé !\nLe personnel va prendre en charge votre demande. **Répondez directement ici** pour communiquer avec le staff.\n\n**Raison :** ${reason}\n**Description :** ${description}`)
+        .setColor(color)
+        .setTimestamp()
+        .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+
+      try {
+        const dmUser = await client.users.fetch(user.id);
+        await dmUser.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } });
+      } catch {
+        await thread.send({ embeds: [errorEmbed('MP bloqués', `<@${user.id}> a ses messages privés désactivés. Le ticket ne pourra pas fonctionner en mode MP.`)], allowedMentions: { parse: [] } });
+      }
+
+      await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
+      await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
+      await interaction.editReply({ content: `✅ Votre ticket a été créé ! Consultez vos messages privés pour communiquer avec le staff.` });
+
+      client.users.fetch(user.id).then(dmUser => {
+        if (dmUser) setupInteractiveTicketQuestions(client, dmUser, user.id, ticketType, guildConfig).catch(console.error);
+      }).catch(console.error);
+
+      return ticket.id;
+
+    } else if (ticketMode === 'THREAD') {
+      // ─── Mode Thread : ticket dans un fil de discussion ─────────────
+      const parentChannelId = guildConfig.ticketChannelId || guildConfig.ticketLogChannelId;
+      const parentChannel = parentChannelId ? await client.channels.fetch(parentChannelId).catch(() => null) : null;
+
+      if (!parentChannel || !(parentChannel instanceof TextChannel)) {
+        await interaction.editReply({ content: '❌ Aucun salon configuré pour le mode Thread. Contactez un administrateur.' });
+        return null;
+      }
+
+      const ticket = await prisma.ticket.create({
+        data: {
+          guildId,
+          mode: 'THREAD',
+          ticketTypeId: ticketType.id,
+          ticketTypeLabel: ticketType.label,
+          staffRoleId: ticketStaffRoleId,
+          categoryId: null,
+          userId: user.id,
+          username: user.username,
+          reason,
+          description,
+          status: 'OPEN'
+        }
+      });
+
+      const thread = await parentChannel.threads.create({
+        name: `🎫 ${user.username} — ${reason}`.slice(0, 100),
+        autoArchiveDuration: 10080,
+        type: ChannelType.PrivateThread,
+        reason: `Ticket Thread de ${user.username}`
+      });
+
+      await thread.members.add(user.id).catch(() => null);
+
+      await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id, channelId: thread.id } });
+
+      const welcomeContainer = buildTicketWelcomeContainer(
+        guildConfig,
+        ticketType,
+        ticket,
+        user,
+        staffMention,
+        reason,
+        description
+      );
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
+        new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+        new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+      );
+
+      await thread.send({
+        components: [welcomeContainer, row],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { users: [user.id], roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
+      });
+
+      await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
+      await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
+      await interaction.editReply({ content: `✅ Votre ticket a été créé : <#${thread.id}>.` });
+
+      setupInteractiveTicketQuestions(client, thread, user.id, ticketType, guildConfig).catch(console.error);
+
+      return ticket.id;
+
+    } else {
+      // ─── Mode CHANNEL (défaut) : créer un salon texte ───────────────
+      const ticketCategoryId = ticketType.categoryId || guildConfig.ticketCategoryId || null;
+      const ticketCategory = ticketCategoryId
+        ? guild.channels.cache.get(ticketCategoryId)
+        : null;
+
+      const cleanedUsername = user.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
+      const channelName = `ticket-${cleanedUsername}`;
+
+      const permissionOverwrites: any[] = [
+        {
+          id: guild.roles.everyone.id,
+          deny: [PermissionFlagsBits.ViewChannel]
+        },
+        {
+          id: user.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles
+          ]
+        }
+      ];
+
+      if (ticketStaffRoleId) {
+        permissionOverwrites.push({
+          id: ticketStaffRoleId,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles
+          ]
+        });
+      }
+
+      if (guildConfig.moderatorRoleId) {
+        permissionOverwrites.push({
+          id: guildConfig.moderatorRoleId,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles
+          ]
+        });
+      }
+
+      const ticketChannel = await guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        parent: ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined,
+        topic: `Ticket de ${user.username} — Raison : ${reason}`,
+        permissionOverwrites
+      });
+
+      const ticket = await prisma.ticket.create({
+        data: {
+          guildId,
+          channelId: ticketChannel.id,
+          mode: 'CHANNEL',
+          ticketTypeId: ticketType.id,
+          ticketTypeLabel: ticketType.label,
+          staffRoleId: ticketStaffRoleId,
+          categoryId: ticketCategoryId,
+          userId: user.id,
+          username: user.username,
+          reason,
+          description,
+          status: 'OPEN'
+        }
+      });
+
+      const welcomeContainer = buildTicketWelcomeContainer(
+        guildConfig,
+        ticketType,
+        ticket,
+        user,
+        staffMention,
+        reason,
+        description
+      );
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
+        new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+        new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+      );
+
+      await ticketChannel.send({
+        components: [welcomeContainer, row],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { users: [user.id], roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
+      });
+
+      await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
+      await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
+      await interaction.editReply({ content: `✅ Votre ticket a été créé avec succès : <#${ticketChannel.id}>.` });
+
+      setupInteractiveTicketQuestions(client, ticketChannel, user.id, ticketType, guildConfig).catch(console.error);
+
+      return ticket.id;
+    }
+  } catch (err) {
+    logger.error('Ticket', 'Error creating ticket:', err);
+    await interaction.editReply({
+      content: "❌ Une erreur est survenue lors de l'ouverture du ticket. Veuillez contacter un administrateur."
+    });
+    return null;
+  }
+}
+
 export async function handleTicketModalSubmit(client: Client, customId: string, interaction: ModalSubmitInteraction): Promise<void> {
   // ─── DM direct ticket (from /ticket open in DM) ──────────
   if (customId.startsWith('modal:ticket:open:dm_direct:')) {
@@ -777,302 +1208,61 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
   if (customId === 'modal:ticket:open' || customId.startsWith('modal:ticket:open:')) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const reason = interaction.fields.getTextInputValue('reason');
-    const description = interaction.fields.getTextInputValue('description');
     const typeId = customId.startsWith('modal:ticket:open:') ? customId.split(':')[3] : null;
     const ticketType = resolveTicketPanelType(guildConfig, typeId);
-    const ticketMode = ticketType.mode || (guildConfig as any).ticketMode || 'CHANNEL';
-    const isAnonymous = ticketType.anonymous === true && ticketMode === 'DM';
-    const useStaffServerRelay = ticketType.staffServerRelay === true;
 
-    try {
-      const ticketStaffRoleId = ticketType.staffRoleId || guildConfig.ticketStaffRoleId || null;
-      const staffMention = ticketStaffRoleId ? `<@&${ticketStaffRoleId}>` : null;
+    let reason = '';
+    let description = '';
 
-      if (ticketMode === 'DM') {
-        // ─── Mode DM : ticket via messages privés ───────────────────────
-        let relayChannel: TextChannel | null = null;
-        let staffServerGuildId: string | null = null;
+    const customFields = ((ticketType as any).formCustomFields ?? guildConfig.ticketFormCustomFields) as any[];
 
-        if (useStaffServerRelay) {
-          const staffLink = await prisma.staffServerLink.findFirst({
-            where: { mainGuildId: guildId, enabled: true },
-          });
-          if (staffLink) {
-            staffServerGuildId = staffLink.staffGuildId;
-            const staffGuild = client.guilds.cache.get(staffLink.staffGuildId);
-            const logChannelId = staffLink.staffLogChannelId;
-            if (logChannelId && staffGuild) {
-              const ch = staffGuild.channels.cache.get(logChannelId);
-              if (ch instanceof TextChannel) relayChannel = ch;
-            }
-            if (!relayChannel && staffGuild) {
-              const fallback = staffGuild.channels.cache.find(
-                (c) => c instanceof TextChannel && c.name.includes('ticket'),
-              );
-              if (fallback instanceof TextChannel) relayChannel = fallback;
-            }
-          }
-        }
-
-        if (!relayChannel) {
-          const relayChannelId = (guildConfig as any).ticketDmRelayChannelId || guildConfig.ticketLogChannelId;
-          const fetched = relayChannelId ? await client.channels.fetch(relayChannelId).catch(() => null) : null;
-          if (fetched instanceof TextChannel) relayChannel = fetched;
-        }
-
-        if (!relayChannel) {
-          await interaction.editReply({ content: '❌ Aucun salon de relais configuré pour le mode MP. Contactez un administrateur.' });
-          return;
-        }
-
-        const displayName = isAnonymous ? 'Membre Anonyme' : user.username;
-
-        const ticket = await prisma.ticket.create({
-          data: {
-            guildId,
-            mode: 'DM',
-            ticketTypeId: ticketType.id,
-            ticketTypeLabel: ticketType.label,
-            staffRoleId: ticketStaffRoleId,
-            categoryId: null,
-            userId: user.id,
-            username: user.username,
-            reason,
-            description,
-            status: 'OPEN',
-            isAnonymous,
-            staffServerGuildId,
-          }
-        });
-
-        const threadName = isAnonymous
-          ? `🎫 Anonyme — ${reason}`.slice(0, 100)
-          : `🎫 ${user.username} — ${reason}`.slice(0, 100);
-
-        const thread = await relayChannel.threads.create({
-          name: threadName,
-          autoArchiveDuration: 10080,
-          reason: `Ticket DM de ${displayName}`
-        });
-
-        await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id } });
-
-        const creatorLine = isAnonymous
-          ? '**Créateur :** Anonyme (identité masquée)'
-          : `**Créateur :** <@${user.id}> (${user.username})`;
-
-        const staffEmbed = new EmbedBuilder()
-          .setTitle(`🎫 Nouveau Ticket MP · ${ticketType.label}`)
-          .setDescription(`${creatorLine}\n**Raison :** ${reason}\n\n**Description :**\n${description}\n\n> Les messages envoyés ici seront relayés en MP à l'utilisateur.`)
-          .setColor(COLORS.primary as any)
-          .setTimestamp()
-          .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
-
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
-          new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
-          new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
-        );
-
-        if (staffMention) await thread.send({ content: staffMention, allowedMentions: { roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] } });
-        await thread.send({ embeds: [staffEmbed], components: [row] });
-
-        const dmEmbed = new EmbedBuilder()
-          .setTitle(`🎫 Ticket ouvert · ${guild.name}`)
-          .setDescription(`Votre ticket d'assistance a bien été créé !\nLe personnel va prendre en charge votre demande. **Répondez directement ici** pour communiquer avec le staff.\n\n**Raison :** ${reason}\n**Description :** ${description}`)
-          .setColor(COLORS.primary as unknown)
-          .setTimestamp()
-          .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
-
+    if (Array.isArray(customFields) && customFields.length > 0) {
+      const answers: string[] = [];
+      const fieldsToUse = customFields.slice(0, 5);
+      fieldsToUse.forEach((f: any, i: number) => {
         try {
-          const dmUser = await client.users.fetch(user.id);
-          await dmUser.send({ embeds: [dmEmbed], allowedMentions: { parse: [] } });
-        } catch {
-          await thread.send({ embeds: [errorEmbed('MP bloqués', `<@${user.id}> a ses messages privés désactivés. Le ticket ne pourra pas fonctionner en mode MP.`)], allowedMentions: { parse: [] } });
-        }
-
-        await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
-        await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
-        await interaction.editReply({ content: `✅ Votre ticket a été créé ! Consultez vos messages privés pour communiquer avec le staff.` });
-
-      } else if (ticketMode === 'THREAD') {
-        // ─── Mode Thread : ticket dans un fil de discussion ─────────────
-        const parentChannelId = guildConfig.ticketChannelId || guildConfig.ticketLogChannelId;
-        const parentChannel = parentChannelId ? await client.channels.fetch(parentChannelId).catch(() => null) : null;
-
-        if (!parentChannel || !(parentChannel instanceof TextChannel)) {
-          await interaction.editReply({ content: '❌ Aucun salon configuré pour le mode Thread. Contactez un administrateur.' });
-          return;
-        }
-
-        const ticket = await prisma.ticket.create({
-          data: {
-            guildId,
-            mode: 'THREAD',
-            ticketTypeId: ticketType.id,
-            ticketTypeLabel: ticketType.label,
-            staffRoleId: ticketStaffRoleId,
-            categoryId: null,
-            userId: user.id,
-            username: user.username,
-            reason,
-            description,
-            status: 'OPEN'
+          const val = interaction.fields.getTextInputValue(f.id);
+          answers.push(`**${f.label}** :\n${val || '_Non renseigné_'}`);
+          if (!reason && val) {
+            reason = val.substring(0, 100);
           }
-        });
-
-        const thread = await parentChannel.threads.create({
-          name: `🎫 ${user.username} — ${reason}`.slice(0, 100),
-          autoArchiveDuration: 10080,
-          type: ChannelType.PrivateThread,
-          reason: `Ticket Thread de ${user.username}`
-        });
-
-        await thread.members.add(user.id).catch(() => null);
-
-        await prisma.ticket.update({ where: { id: ticket.id }, data: { threadId: thread.id, channelId: thread.id } });
-
-        const welcomeDesc = staffMention
-          ? `Bonjour <@${user.id}> !\nLe personnel ${staffMention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.`
-          : `Bonjour <@${user.id}> !\nUn membre du personnel va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.`;
-
-        const welcomeContainer = new ContainerBuilder()
-          .setAccentColor(COLORS_RAW.primary)
-          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`### 🎫 Ticket d'Assistance · ${ticketType.label}`))
-          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`${welcomeDesc}\n\n**Description du problème :**\n${description}`))
-          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Kotbo · Ticket ID: ${ticket.id}`));
-
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
-          new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
-          new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
-        );
-
-        await thread.send({
-          components: [welcomeContainer, row],
-          flags: MessageFlags.IsComponentsV2,
-          allowedMentions: { users: [user.id], roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
-        });
-
-        await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
-        await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
-        await interaction.editReply({ content: `✅ Votre ticket a été créé : <#${thread.id}>.` });
-
-      } else {
-        // ─── Mode CHANNEL (défaut) : créer un salon texte ───────────────
-        const ticketCategoryId = ticketType.categoryId || guildConfig.ticketCategoryId || null;
-        const ticketCategory = ticketCategoryId
-          ? guild.channels.cache.get(ticketCategoryId)
-          : null;
-
-        const cleanedUsername = user.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
-        const channelName = `ticket-${cleanedUsername}`;
-
-        const permissionOverwrites: unknown[] = [
-          {
-            id: guild.roles.everyone.id,
-            deny: [PermissionFlagsBits.ViewChannel]
-          },
-          {
-            id: user.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ReadMessageHistory,
-              PermissionFlagsBits.EmbedLinks,
-              PermissionFlagsBits.AttachFiles
-            ]
-          }
-        ];
-
-        if (ticketStaffRoleId) {
-          permissionOverwrites.push({
-            id: ticketStaffRoleId,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ReadMessageHistory,
-              PermissionFlagsBits.EmbedLinks,
-              PermissionFlagsBits.AttachFiles
-            ]
-          });
-        }
-
-        if (guildConfig.moderatorRoleId) {
-          permissionOverwrites.push({
-            id: guildConfig.moderatorRoleId,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ReadMessageHistory,
-              PermissionFlagsBits.EmbedLinks,
-              PermissionFlagsBits.AttachFiles
-            ]
-          });
-        }
-
-        const ticketChannel = await guild.channels.create({
-          name: channelName,
-          type: ChannelType.GuildText,
-          parent: ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined,
-          topic: `Ticket de ${user.username} — Raison : ${reason}`,
-          permissionOverwrites
-        });
-
-        const ticket = await prisma.ticket.create({
-          data: {
-            guildId,
-            channelId: ticketChannel.id,
-            mode: 'CHANNEL',
-            ticketTypeId: ticketType.id,
-            ticketTypeLabel: ticketType.label,
-            staffRoleId: ticketStaffRoleId,
-            categoryId: ticketCategoryId,
-            userId: user.id,
-            username: user.username,
-            reason,
-            description,
-            status: 'OPEN'
-          }
-        });
-
-        const welcomeDesc = staffMention
-          ? `Bonjour <@${user.id}> !\nLe personnel ${staffMention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.`
-          : `Bonjour <@${user.id}> !\nUn membre du personnel va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.`;
-
-        const welcomeContainer = new ContainerBuilder()
-          .setAccentColor(COLORS_RAW.primary)
-          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`### 🎫 Ticket d'Assistance · ${ticketType.label}`))
-          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`${welcomeDesc}\n\n**Description du problème :**\n${description}`))
-          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-          .addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# Kotbo · Ticket ID: ${ticket.id}`));
-
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
-          new ButtonBuilder().setCustomId(`ticket:info:${ticket.id}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
-          new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
-        );
-
-        await ticketChannel.send({
-          components: [welcomeContainer, row],
-          flags: MessageFlags.IsComponentsV2,
-          allowedMentions: { users: [user.id], roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
-        });
-
-        await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
-        await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
-        await interaction.editReply({ content: `✅ Votre ticket a été créé avec succès : <#${ticketChannel.id}>.` });
-      }
-
-    } catch (err) {
-      logger.error('Ticket', 'Error creating ticket:', err);
-      await interaction.editReply({
-        content: "❌ Une erreur est survenue lors de l'ouverture du ticket. Veuillez contacter un administrateur."
+        } catch {}
       });
+      description = answers.join('\n\n');
+      if (!reason) {
+        reason = ticketType.label || 'Ticket';
+      }
+    } else {
+      // Rétrocompatibilité avec les champs par défaut du type
+      const fieldsToUse = Array.isArray((ticketType as any).fields) && (ticketType as any).fields.length > 0
+        ? (ticketType as any).fields.slice(0, 5)
+        : null;
+
+      if (fieldsToUse) {
+        const answers: string[] = [];
+        for (const f of fieldsToUse) {
+          try {
+            const val = interaction.fields.getTextInputValue(f.id);
+            answers.push(`**${f.label}** :\n${val || '_Non renseigné_'}`);
+            if (!reason && val) {
+              reason = val.substring(0, 100);
+            }
+          } catch {}
+        }
+        description = answers.join('\n\n');
+        if (!reason) {
+          reason = ticketType.label || 'Ticket';
+        }
+      } else {
+        reason = interaction.fields.getTextInputValue('reason') || 'Ticket';
+        description = interaction.fields.getTextInputValue('description') || 'Aucune description fournie.';
+      }
     }
+
+    await executeTicketCreation(client, interaction, ticketType, reason, description);
+    return;
   }
+
 }
 
 /**
@@ -1624,3 +1814,107 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
     logger.error('Ticket', "Erreur lors de la vérification de l'inactivité des tickets:", err);
   }
 }
+
+async function setupInteractiveTicketQuestions(
+  client: Client,
+  channel: any,
+  userId: string,
+  ticketType: any,
+  guildConfig: any
+): Promise<void> {
+  const customFields = ((ticketType as any).formCustomFields ?? guildConfig.ticketFormCustomFields) as any[];
+  if (!Array.isArray(customFields)) return;
+
+  const postFields = customFields.filter((f: any) => f.style === 'SELECT' || f.style === 'RADIO' || f.style === 'FILE');
+  if (postFields.length === 0) return;
+
+  for (const f of postFields) {
+    try {
+      if (f.style === 'SELECT') {
+        const choices = Array.isArray(f.choices) ? f.choices : [];
+        if (choices.length === 0) continue;
+
+        const select = new StringSelectMenuBuilder()
+          .setCustomId(`ticket:question:select:${f.id}`)
+          .setPlaceholder(f.placeholder || 'Sélectionnez une option...')
+          .addOptions(choices.map((c: string) => ({ label: c.substring(0, 100), value: c })));
+
+        const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+        const msg = await channel.send({
+          content: `<@${userId}> ❓ **${f.label}**`,
+          components: [row]
+        });
+
+        const filter = (i: any) => i.customId === `ticket:question:select:${f.id}` && i.user.id === userId;
+        const collected = await msg.awaitMessageComponent({ filter, time: 300000 }).catch(() => null);
+
+        if (collected && collected.isStringSelectMenu()) {
+          const value = collected.values[0];
+          await collected.update({
+            content: `✅ **${f.label}** : **${value}**`,
+            components: []
+          });
+        } else {
+          await msg.edit({
+            content: `❌ **${f.label}** (Pas de réponse)`,
+            components: []
+          }).catch(() => null);
+        }
+      } else if (f.style === 'RADIO') {
+        const choices = Array.isArray(f.choices) ? f.choices : [];
+        if (choices.length === 0) continue;
+
+        const buttons = choices.slice(0, 5).map((c: string, idx: number) => {
+          return new ButtonBuilder()
+            .setCustomId(`ticket:question:radio:${f.id}:${idx}`)
+            .setLabel(c.substring(0, 80))
+            .setStyle(ButtonStyle.Secondary);
+        });
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons);
+        const msg = await channel.send({
+          content: `<@${userId}> ❓ **${f.label}**`,
+          components: [row]
+        });
+
+        const filter = (i: any) => i.customId.startsWith(`ticket:question:radio:${f.id}:`) && i.user.id === userId;
+        const collected = await msg.awaitMessageComponent({ filter, time: 300000 }).catch(() => null);
+
+        if (collected && collected.isButton()) {
+          const clickedLabel = choices[parseInt(collected.customId.split(':')[4])];
+          await collected.update({
+            content: `✅ **${f.label}** : **${clickedLabel}**`,
+            components: []
+          });
+        } else {
+          await msg.edit({
+            content: `❌ **${f.label}** (Pas de réponse)`,
+            components: []
+          }).catch(() => null);
+        }
+      } else if (f.style === 'FILE') {
+        const msg = await channel.send({
+          content: `<@${userId}> 📎 **${f.label}** : Veuillez glisser-déposer votre fichier ou image dans ce salon.`
+        });
+
+        const filter = (m: Message) => m.author.id === userId && m.attachments.size > 0;
+        const collected = await channel.awaitMessages({ filter, max: 1, time: 300000 }).catch(() => null);
+
+        if (collected && collected.first()) {
+          const firstMsg = collected.first()!;
+          const attachment = firstMsg.attachments.first()!;
+          await msg.edit({
+            content: `✅ **${f.label}** : Fichier joint reçu [${attachment.name}](${attachment.url})`
+          });
+        } else {
+          await msg.edit({
+            content: `❌ **${f.label}** (Pas de fichier reçu)`
+          }).catch(() => null);
+        }
+      }
+    } catch (err) {
+      logger.error('Ticket', 'Error rendering interactive question:', err);
+    }
+  }
+}
+

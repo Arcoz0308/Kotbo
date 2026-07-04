@@ -9,13 +9,23 @@ model CustomForm {
   description String?
   isActive    Boolean  @default(true)
   isRecruitment Boolean @default(false)
+  // Force la connexion Discord avant de pouvoir remplir le formulaire.
+  // Toujours vrai pour les formulaires de recrutement (voir isRecruitment).
+  requiresDiscordAuth Boolean @default(false)
 
   // Structure du formulaire (même format que RecruitmentForm)
   structure   Json
 
+  // Apparence personnalisée : bannière, logo, couleurs, police, radius...
+  // Voir CustomFormTheme dans customFormService.ts
+  theme       Json?
+  // CSS custom, sanitizé côté serveur à la sauvegarde ET au service
+  customCss   String?
+
   // Relation optionnelle vers un Event (événement d'inscription)
   events      Event[]
   candidatures RecruitmentCandidature[]
+  appealConfigs BanAppealConfig[]
 
   guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   submissions CustomFormSubmission[]

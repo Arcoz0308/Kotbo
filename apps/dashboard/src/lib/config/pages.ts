@@ -29,6 +29,7 @@ export const generalItems: PageConfig[] = [
 export const moderationItems: PageConfig[] = [
   { name: "Membres",             icon: "users",         href: "/members",            featureKey: "members", beta: false, wip: false },
   { name: "Sanctions",           icon: "alert-triangle",href: "/sanctions",          featureKey: "sanctions", beta: false, wip: false },
+  { name: "Appels de ban",       icon: "gavel",         href: "/appeals",            featureKey: "sanctions", beta: true, wip: false },
   { name: "Modération auto",     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: true, wip: false },
   { name: "Pseudos",             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
   { name: "Sécurité & DC",       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },

@@ -110,7 +110,8 @@
       'double_accounts': '/double-accounts',
       'fun': '/fun',
       'leveling': '/leveling',
-      'economy': '/economy'
+      'economy': '/economy',
+      'tickets': '/tickets'
     };
     return mapping[moduleId] || `/module-settings/${moduleId}`;
   }

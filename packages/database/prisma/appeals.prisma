@@ -1,0 +1,101 @@
+// ============================================================================
+// APPELS DE BANNISSEMENT (ban appeals — modèle appeals.gg)
+// ============================================================================
+
+enum BanAppealStatus {
+  PENDING
+  NEEDS_INFO
+  ACCEPTED
+  DENIED
+  DENIED_PERMANENT
+}
+
+model BanAppealConfig {
+  id      String  @id @default(cuid())
+  guildId String  @unique
+  enabled Boolean @default(false)
+
+  // Formulaire personnalisé (CustomForm) contenant les questions de l'appel
+  formId String?
+  form   CustomForm? @relation(fields: [formId], references: [id], onDelete: SetNull)
+
+  // Salon staff qui reçoit l'embed avec les boutons de décision
+  staffChannelId String?
+  // Salon utilisé pour générer l'invitation quand un appel est accepté
+  inviteChannelId String?
+
+  // Jours à attendre après un refus avant de pouvoir soumettre un nouvel appel
+  cooldownDays Int @default(30)
+
+  // Textes personnalisables
+  welcomeText   String? // affiché en haut de la page publique d'appel
+  acceptMessage String? // DM envoyé quand l'appel est accepté
+  denyMessage   String? // DM envoyé quand l'appel est refusé
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ban_appeal_configs")
+}
+
+model BanAppeal {
+  id      String @id @default(cuid())
+  guildId String
+
+  userId  String
+  userTag String?
+  avatar  String?
+
+  // Réponses du formulaire au moment de la soumission (fieldId → valeur)
+  data   Json
+  formId String?
+
+  status BanAppealStatus @default(PENDING)
+
+  // Raison du ban telle que récupérée via l'API Discord à la soumission
+  banReason String?
+
+  // Message embed posté dans le salon staff
+  staffChannelId String?
+  staffMessageId String?
+
+  // Cycle "Demander plus d'infos"
+  infoRequest     String?
+  infoResponse    String?
+  infoRequestedAt DateTime?
+
+  // Décision
+  decidedByUserId String?
+  decidedByTag    String?
+  decisionReason  String?
+  decidedAt       DateTime?
+  dmDelivered     Boolean   @default(false)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, status])
+  @@index([guildId, userId])
+  @@map("ban_appeals")
+}
+
+model BanAppealBlacklist {
+  id      String  @id @default(cuid())
+  guildId String
+  userId  String
+  reason  String?
+
+  addedByUserId String?
+  addedByTag    String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, userId])
+  @@map("ban_appeal_blacklist")
+}
