@@ -1,0 +1,22 @@
+CONTRAT DE LICENCE UTILISATEUR ET DE CONTRIBUTION - KOTBO
+
+Version 1.1 - Juillet 2026
+
+Ce projet est la propriété exclusive de la structure Kotbo. En consultant, forquant, contribuant ou exécutant tout ou partie du code source de ce projet (ci-après "le Logiciel"), vous acceptez d'être lié par les termes de cette licence.
+
+1. DROITS DE CONSULTATION, DE FORK ET DE DÉVELOPPEMENT LOCAL
+L'accès au code source est fourni à des fins de transparence et pour permettre le développement communautaire. À ce titre, vous êtes autorisé à :
+- Créer une copie du dépôt (Fork) sur GitHub dans le seul but de préparer des contributions.
+- Exécuter et tester le Logiciel en local sur votre machine, uniquement pour tester vos modifications et préparer des Pull Requests.
+
+2. RESTRICTIONS STRICTES D'UTILISATION
+Sauf autorisation écrite préalable et expresse de la structure Kotbo, il est strictement interdit de :
+- Utiliser, copier, modifier ou distribuer tout ou partie du code source pour un usage personnel régulier (hors cadre exclusif du développement/test de contributions).
+- Utiliser, copier, modifier ou distribuer tout ou partie du code source pour un usage commercial ou lucratif.
+- Héberger ou déployer une instance publique ou privée indépendante de ce Logiciel (auto-hébergement / self-hosting pour un usage autre que le test local).
+
+3. PROPRIÉTÉ DES CONTRIBUTIONS
+En soumettant une contribution (code, documentation, correctif) à ce projet, vous accordez à la structure Kotbo une licence mondiale, non exclusive, perpétuelle, irrévocable et libre de droits pour intégrer, modifier et distribuer votre contribution sous cette licence ou toute version ultérieure.
+
+4. EXCLUSION DE GARANTIE
+LE LOGICIEL EST FOURNI "EN L'ÉTAT", SANS GARANTIE D'AUCUNE SORTE, EXPRESSE OU IMPLICITE. EN AUCUN CAS LA STRUCTURE KOTBO OU SES MEMBRES NE POURRONT ÊTRE TENUS RESPONSABLES DE QUELCONQUES DOMMAGES OU RÉCLAMATIONS DÉCOULANT DE L'UTILISATION OU DU DÉVELOPPEMENT DU LOGICIEL.
