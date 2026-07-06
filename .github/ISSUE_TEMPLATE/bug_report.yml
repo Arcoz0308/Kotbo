@@ -1,0 +1,46 @@
+name: "🐛 Rapport de Bug"
+description: Signaler un problème ou un comportement anormal sur Kotbo.
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre le temps de signaler ce bug ! Merci de vérifier au préalable que le problème n'a pas déjà été signalé.
+  
+  - type: textarea
+    id: description
+    attributes:
+      label: Description du bug
+      description: Une description claire et concise du problème.
+      placeholder: "Ex: Le bouton de configuration du tableau de bord ne répond plus quand..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      description: Comment pouvons-nous reproduire ce comportement ?
+      placeholder: |
+        1. Aller sur le dashboard
+        2. Cliquer sur...
+        3. Voir l'erreur
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportement attendu
+      description: Que devrait-il se passer normalement ?
+      placeholder: "Ex: Les paramètres devraient être sauvegardés et un message de succès devrait s'afficher."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs ou Captures d'écran
+      description: Colle ici les logs de la console (si dev local) ou glisse des captures d'écran du problème.
+      render: shell
