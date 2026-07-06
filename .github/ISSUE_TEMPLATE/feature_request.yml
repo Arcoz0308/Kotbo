@@ -1,0 +1,28 @@
+name: "🚀 Suggestion de Fonctionnalité"
+description: Proposer une nouvelle idée ou une amélioration pour Kotbo.
+title: "[IDEA] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Quel problème ou besoin cela résout-il ?
+      description: Explique pourquoi cette fonctionnalité serait utile.
+      placeholder: "Ex: Actuellement, la gestion des rôles prend trop de temps parce que..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Description de la solution proposée
+      description: Décris précisément comment tu imagines cette fonctionnalité.
+      placeholder: "Ex: Ajouter un bouton d'attribution automatique basé sur..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives envisagées
+      description: As-tu pensé à d'autres solutions de contournement ?
