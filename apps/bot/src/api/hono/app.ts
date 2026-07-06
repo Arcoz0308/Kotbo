@@ -2,7 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
 import type { Client } from 'discord.js';
 import { dashboardCors } from './middleware/cors.js';
-import { healthRouter } from './routes/health.js';
+import { createHealthRouter } from './routes/health.js';
 import { configRouter } from './routes/config.js';
 import { eventBusRouter } from './routes/eventBus.js';
 import { authRouter } from './routes/auth.js';
@@ -40,7 +40,7 @@ export function createHonoApp(client: Client): OpenAPIHono {
   // Routes
   // ---------------------------------------------------------------------------
 
-  app.route('/', healthRouter);
+  app.route('/', createHealthRouter(client));
   app.route('/', configRouter);
   app.route('/', eventBusRouter);
   app.route('/', authRouter);
