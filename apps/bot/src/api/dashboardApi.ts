@@ -266,6 +266,9 @@ export const startDashboardApi = async (client: Client) => {
                 res.setHeader('Access-Control-Allow-Credentials', 'true');
               } else {
                 res.statusCode = 403;
+                res.setHeader('Access-Control-Allow-Origin', originStr);
+                res.setHeader('Access-Control-Allow-Credentials', 'true');
+                res.setHeader('Vary', 'Origin');
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.end(JSON.stringify({ error: 'Origine refusée' }));
                 return;
