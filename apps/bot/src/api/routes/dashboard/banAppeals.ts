@@ -23,6 +23,7 @@ interface AppealConfigBody {
   welcomeText?: string | null;
   acceptMessage?: string | null;
   denyMessage?: string | null;
+  notifyOnBanDM?: boolean;
   createDefaultForm?: boolean;
 }
 

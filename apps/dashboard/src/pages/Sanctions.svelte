@@ -15,16 +15,17 @@
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
   import SelectedRuleChips from '../lib/components/sanctions/SelectedRuleChips.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import { 
-    createSanctionReport, 
-    deleteSanction, 
-    updateSanctionReport, 
-    fetchMemberCase, 
+  import {
+    createSanctionReport,
+    deleteSanction,
+    updateSanctionReport,
+    fetchMemberCase,
     runMemberCaseAction,
     updateGlobalSettings,
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
-    updateSanctionTables
+    updateSanctionTables,
+    API_BASE_URL
   } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
@@ -54,6 +55,42 @@
   });
 
   const saveAction = createAsyncActionState();
+
+  // Config partagée avec le module Appels de bannissement (BanAppealConfig.notifyOnBanDM) :
+  // même valeur, éditable depuis les deux écrans.
+  let banAppealNotifyOnBanDM = $state(false);
+  let banAppealNotifySaving = $state(false);
+
+  async function loadBanAppealNotifyConfig() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/appeals/config`, {
+        headers: { Authorization: `Bearer ${authStore.token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        banAppealNotifyOnBanDM = data.config?.notifyOnBanDM ?? false;
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function toggleBanAppealNotify(value: boolean) {
+    const previous = banAppealNotifyOnBanDM;
+    banAppealNotifyOnBanDM = value;
+    banAppealNotifySaving = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/appeals/config`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notifyOnBanDM: value }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      banAppealNotifyOnBanDM = previous;
+      toast.error('Erreur lors de la mise à jour');
+    } finally {
+      banAppealNotifySaving = false;
+    }
+  }
 
   let selectedTableIndex = $state(0);
   let newTableName = $state('');
@@ -478,6 +515,7 @@
     } finally {
       loadingConfig = false;
     }
+    await loadBanAppealNotifyConfig();
   });
 
   $effect(() => {
@@ -1286,6 +1324,23 @@
                   onToggle={(v: boolean) => {
                     guildSettings.sanctionReportEnabled = v;
                   }}
+                />
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-on-surface">DM du lien d'appel lors d'un ban définitif</p>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">
+                    Envoie automatiquement le lien public de l'appel de bannissement par DM (hors bannissements temporaires).
+                    Même réglage que dans Appels de bannissement.
+                  </p>
+                </div>
+                <ToggleSwitch
+                  checked={banAppealNotifyOnBanDM}
+                  disabled={banAppealNotifySaving}
+                  onToggle={(v: boolean) => toggleBanAppealNotify(v)}
                 />
               </div>
             </div>

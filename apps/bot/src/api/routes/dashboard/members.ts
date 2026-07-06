@@ -26,6 +26,7 @@ import {
   registerWarnSanction,
   runGuildBan,
 } from '../../../services/moderation/sanctionService.js';
+import { sendBanAppealNotificationDM } from '../../../services/moderation/banAppealService.js';
 
 export async function handleMembersRoutes(
   req: IncomingMessage,
@@ -742,6 +743,9 @@ export async function handleMembersRoutes(
           return true;
         }
 
+        // Le DM avec le lien d'appel doit partir avant le ban (sinon le bot
+        // peut ne plus partager de serveur avec le membre pour lui écrire).
+        await sendBanAppealNotificationDM(client, guildId, userId).catch(() => false);
         await runGuildBan(discordGuild, userId, `${reason} | Modération: ${user.username ?? user.userId}`);
         const sanction = await registerBanSanction({ guildId, target, moderator, reason });
 

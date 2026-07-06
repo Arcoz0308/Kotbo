@@ -34,6 +34,7 @@ import {
   runGuildBan,
 } from '../../services/moderation/sanctionService.js';
 import { applyProgressiveSanction, getOrCreateDefaultTables } from '../../services/moderation/sanctionTableService.js';
+import { sendBanAppealNotificationDM } from '../../services/moderation/banAppealService.js';
 import * as altAccountService from '../../services/moderation/altAccountService.js';
 import { buildMemberCaseActionRow } from '../../services/moderation/memberCaseService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
@@ -545,6 +546,9 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
         return;
       }
 
+      // Le DM avec le lien d'appel doit partir avant le ban : une fois banni,
+      // l'utilisateur ne partage plus forcément de serveur avec le bot.
+      await sendBanAppealNotificationDM(interaction.client, interaction.guildId, targetUser.id).catch(() => false);
       await runGuildBan(interaction.guild, targetUser.id, `${reason} | Modération: ${interaction.user.tag}`);
       const sanction = await registerBanSanction({ guildId: interaction.guildId, target, moderator, reason, client: interaction.client });
 

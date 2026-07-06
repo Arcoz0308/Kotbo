@@ -150,8 +150,9 @@ export async function synchronizeSanction(params: {
   moderator: { id: string; tag: string };
   reason: string;
   durationMs?: number;
+  evidenceLinks?: string[];
 }) {
-  const { client, guildId, originalUserId, type, moderator, reason, durationMs } = params;
+  const { client, guildId, originalUserId, type, moderator, reason, durationMs, evidenceLinks } = params;
 
   const linkedIds = await getAllLinkedUserIds(guildId, originalUserId);
   const otherIds = linkedIds.filter(id => id !== originalUserId);
@@ -172,14 +173,14 @@ export async function synchronizeSanction(params: {
 
       switch (type) {
         case SanctionType.WARN:
-          await sanctionService.registerWarnSanction({ guildId, target, moderator, reason: syncReason });
+          await sanctionService.registerWarnSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks });
           break;
         
         case SanctionType.KICK:
           if (altMember) {
             await altMember.kick(syncReason).catch(() => null);
           }
-          await sanctionService.registerKickSanction({ guildId, target, moderator, reason: syncReason });
+          await sanctionService.registerKickSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks });
           break;
 
         case SanctionType.TIMEOUT:
@@ -190,7 +191,8 @@ export async function synchronizeSanction(params: {
               moderator, 
               reason: syncReason, 
               durationMs, 
-              member: altMember 
+              member: altMember,
+              evidenceLinks
             });
           }
           break;
@@ -203,18 +205,120 @@ export async function synchronizeSanction(params: {
             target, 
             moderator, 
             reason: syncReason, 
-            temporaryDurationMs: durationMs 
+            temporaryDurationMs: durationMs,
+            evidenceLinks
           });
           break;
 
         case SanctionType.SOFTBAN:
           await guild.members.ban(altId, { deleteMessageSeconds: 7 * 24 * 3600, reason: syncReason }).catch(() => null);
           await guild.members.unban(altId, `Unban synchronisation softban`).catch(() => null);
-          await sanctionService.registerSoftbanSanction({ guildId, target, moderator, reason: syncReason });
+          await sanctionService.registerSoftbanSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks });
           break;
       }
     } catch (error) {
       logger.error('AltAccount', `Erreur lors de la synchronisation de la sanction pour l'alt ${altId}:`, error);
+    }
+  }
+}
+
+/**
+ * Trouve les sanctions équivalentes sur les comptes alternatifs
+ */
+export async function findLinkedSanctionsForAltAccounts(sanction: any): Promise<any[]> {
+  const linkedIds = await getAllLinkedUserIds(sanction.guildId, sanction.targetUserId);
+  const altIds = linkedIds.filter(id => id !== sanction.targetUserId);
+  if (altIds.length === 0) return [];
+
+  const oneMinuteMs = 60 * 1000;
+  const minCreated = new Date(sanction.createdAt.getTime() - oneMinuteMs);
+  const maxCreated = new Date(sanction.createdAt.getTime() + oneMinuteMs);
+
+  const potentialSanctions = await prisma.sanction.findMany({
+    where: {
+      guildId: sanction.guildId,
+      targetUserId: { in: altIds },
+      type: sanction.type,
+      moderatorUserId: sanction.moderatorUserId,
+      createdAt: {
+        gte: minCreated,
+        lte: maxCreated
+      }
+    }
+  });
+
+  const cleanReason = (r: string) => r.replace('[Synchronisation DC] ', '').trim();
+  const cleanS1 = cleanReason(sanction.reason);
+
+  return potentialSanctions.filter(s => {
+    const cleanS = cleanReason(s.reason);
+    return cleanS === cleanS1 || cleanS.includes(cleanS1) || cleanS1.includes(cleanS);
+  });
+}
+
+/**
+ * Synchronise les rapports de sanction sur les comptes liés (création/mise à jour)
+ */
+export async function syncAltAccountSanctionReports(
+  guildId: string,
+  sanctionId: string,
+  evidenceLinks: string[],
+  sourceReportData?: any
+) {
+  const sanction = await prisma.sanction.findUnique({
+    where: { id: sanctionId }
+  });
+  if (!sanction) return;
+
+  const linkedSanctions = await findLinkedSanctionsForAltAccounts(sanction);
+  if (linkedSanctions.length === 0) return;
+
+  const sourceReport = sourceReportData || await prisma.sanctionReport.findFirst({
+    where: { sanctionId }
+  });
+  if (!sourceReport) return;
+
+  const { formatSanctionDurationLabel } = await import('./sanctionService.js');
+
+  for (const altSanction of linkedSanctions) {
+    const existingReport = await prisma.sanctionReport.findFirst({
+      where: { guildId, sanctionId: altSanction.id }
+    });
+
+    if (existingReport) {
+      await prisma.sanctionReport.update({
+        where: { id: existingReport.id },
+        data: {
+          evidenceLinks,
+          brokenRules: sourceReport.brokenRules,
+          detailedReason: sourceReport.detailedReason,
+          additionalNotes: sourceReport.additionalNotes,
+        }
+      });
+    } else {
+      const staffPseudo = altSanction.moderatorTag?.trim() || sourceReport.staffPseudo;
+      const memberPseudo = altSanction.targetTag?.trim() || `Utilisateur ${altSanction.targetUserId}`;
+      const memberReference = altSanction.targetUserId;
+      const sanctionDurationLabel = formatSanctionDurationLabel(altSanction.durationSeconds);
+
+      await prisma.sanctionReport.create({
+        data: {
+          guildId,
+          sanctionId: altSanction.id,
+          staffPseudo,
+          incidentAt: sourceReport.incidentAt,
+          memberPseudo,
+          memberReference,
+          sanctionType: altSanction.type,
+          sanctionDurationLabel,
+          brokenRules: sourceReport.brokenRules,
+          detailedReason: sourceReport.detailedReason,
+          evidenceLinks,
+          additionalNotes: sourceReport.additionalNotes,
+          createdByUserId: sourceReport.createdByUserId,
+          createdByTag: sourceReport.createdByTag,
+        }
+      });
     }
   }
 }

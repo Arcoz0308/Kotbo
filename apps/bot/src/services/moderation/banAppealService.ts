@@ -36,6 +36,7 @@ export type AppealConfigInput = {
   welcomeText?: string | null;
   acceptMessage?: string | null;
   denyMessage?: string | null;
+  notifyOnBanDM?: boolean;
 };
 
 const DEFAULT_ACCEPT_MESSAGE =
@@ -272,10 +273,16 @@ function buildAppealButtons(appealId: string, status: string): ActionRowBuilder<
   return [row];
 }
 
+// Le salon staff peut vivre sur un serveur staff dédié lié (StaffServerLink),
+// pas seulement sur le serveur principal : on résout via le cache global des
+// salons du client plutôt que via guild.channels (limité à un seul serveur).
+async function fetchStaffChannel(client: Client, channelId: string) {
+  return client.channels.cache.get(channelId) ?? (await client.channels.fetch(channelId).catch(() => null));
+}
+
 async function postStaffEmbed(client: Client, appeal: AppealRecord, config: { staffChannelId?: string | null } | null) {
   if (!config?.staffChannelId) return;
-  const guild = await fetchGuild(client, appeal.guildId);
-  const channel = guild?.channels.cache.get(config.staffChannelId);
+  const channel = await fetchStaffChannel(client, config.staffChannelId);
   if (!channel?.isSendable()) return;
 
   const message = await channel.send({
@@ -293,8 +300,7 @@ async function postStaffEmbed(client: Client, appeal: AppealRecord, config: { st
 export async function refreshStaffEmbed(client: Client, appeal: AppealRecord) {
   if (!appeal.staffChannelId || !appeal.staffMessageId) return;
   try {
-    const guild = await fetchGuild(client, appeal.guildId);
-    const channel = guild?.channels.cache.get(appeal.staffChannelId);
+    const channel = await fetchStaffChannel(client, appeal.staffChannelId);
     if (!channel?.isTextBased()) return;
     const message = await channel.messages.fetch(appeal.staffMessageId).catch(() => null);
     if (!message) return;
@@ -347,6 +353,27 @@ async function sendMemberDM(client: Client, userId: string, content: string): Pr
   } catch {
     return false;
   }
+}
+
+/**
+ * Envoie au membre le lien public de l'appel de bannissement par DM, si la
+ * configuration l'active. À appeler AVANT d'exécuter le ban Discord (une fois
+ * banni, l'utilisateur peut ne plus partager de serveur avec le bot et le DM
+ * échouera silencieusement selon ses réglages de confidentialité).
+ */
+export async function sendBanAppealNotificationDM(client: Client, guildId: string, userId: string): Promise<boolean> {
+  const config = await getAppealConfig(guildId);
+  if (!config?.enabled || !config?.notifyOnBanDM) return false;
+
+  const guild = await fetchGuild(client, guildId);
+  const serverName = guild?.name || 'ce serveur';
+  const link = `${DASHBOARD_URL}/appeal/${guildId}`;
+
+  return sendMemberDM(
+    client,
+    userId,
+    `Tu as été banni définitivement de **${serverName}**.\n\nSi tu penses qu'il s'agit d'une erreur, tu peux soumettre une demande de débannissement ici : ${link}`
+  );
 }
 
 export async function decideAppeal(

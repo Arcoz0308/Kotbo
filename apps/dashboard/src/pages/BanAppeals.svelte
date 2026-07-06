@@ -23,6 +23,7 @@
     enabled: boolean; formId: string | null; staffChannelId: string | null;
     inviteChannelId: string | null; cooldownDays: number;
     welcomeText: string | null; acceptMessage: string | null; denyMessage: string | null;
+    notifyOnBanDM?: boolean;
     form?: { id: string; name: string } | null;
   }
   interface BlacklistEntry { id: string; userId: string; reason: string | null; addedByTag: string | null; createdAt: string; }
@@ -39,9 +40,11 @@
   let configSaving = $state(false);
   let forms = $state<{ id: string; name: string }[]>([]);
   let blacklist = $state<BlacklistEntry[]>([]);
+  let staffServerChannels = $state<{ id: string; name: string }[]>([]);
+  let staffServerName = $state<string | null>(null);
 
-  const channels = $derived((dashboardStore.state.discordChannels ?? []) as { id: string; name: string; type?: number }[]);
-  const textChannels = $derived(channels.filter(c => c.type === undefined || c.type === 0 || c.type === 5));
+  const channels = $derived((dashboardStore.state.discordChannels ?? []) as { id: string; name: string; type?: string }[]);
+  const textChannels = $derived(channels.filter(c => c.type === undefined || c.type === 'text' || c.type === 'announcement'));
   const queue = $derived(appeals.filter(a => a.status === 'PENDING' || a.status === 'NEEDS_INFO'));
   const history = $derived(appeals.filter(a => a.status !== 'PENDING' && a.status !== 'NEEDS_INFO'));
   const publicUrl = $derived(`${window.location.origin}/appeal/${authStore.selectedGuildId}`);
@@ -69,17 +72,23 @@
 
   async function loadConfig() {
     try {
-      const [cfgRes, formsRes] = await Promise.all([
+      const [cfgRes, formsRes, staffServerRes] = await Promise.all([
         fetch(`${base()}/config`, { headers: headers() }),
         fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, { headers: headers() }),
+        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff-server/channels`, { headers: headers() }),
       ]);
       if (cfgRes.ok) {
         config = (await cfgRes.json()).config ?? {
           enabled: false, formId: null, staffChannelId: null, inviteChannelId: null,
-          cooldownDays: 30, welcomeText: null, acceptMessage: null, denyMessage: null,
+          cooldownDays: 30, welcomeText: null, acceptMessage: null, denyMessage: null, notifyOnBanDM: false,
         };
       }
       if (formsRes.ok) forms = ((await formsRes.json()).forms ?? []).map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
+      if (staffServerRes.ok) {
+        const data = await staffServerRes.json();
+        staffServerChannels = data.channels ?? [];
+        staffServerName = data.staffGuildName ?? null;
+      }
     } catch { /* ignore */ }
   }
 
@@ -162,6 +171,7 @@
           welcomeText: config.welcomeText,
           acceptMessage: config.acceptMessage,
           denyMessage: config.denyMessage,
+          notifyOnBanDM: config.notifyOnBanDM,
           ...extra,
         }),
       });
@@ -243,8 +253,10 @@
   {:else if tab === 'queue' || tab === 'history'}
     {@const list = tab === 'queue' ? queue : history}
     {#if list.length === 0}
-      <div class="text-center py-16 text-on-surface-variant/50">
-        <div class="text-5xl mb-4">{tab === 'queue' ? '🎉' : '📭'}</div>
+      <div class="text-center py-16 text-on-surface-variant/50 flex flex-col items-center justify-center">
+        <div class="mb-4 text-on-surface-variant/30">
+          <Papicon icon={tab === 'queue' ? 'check' : 'inbox'} size={48} />
+        </div>
         <p class="text-sm">{tab === 'queue' ? 'Aucune demande en attente.' : 'Aucune demande traitée pour le moment.'}</p>
       </div>
     {:else}
@@ -295,10 +307,16 @@
 
                   {#if detail.appeal.infoRequest}
                     <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-3">
-                      <p class="text-[11px] font-semibold text-blue-500">💬 Infos demandées</p>
+                      <p class="text-[11px] font-semibold text-blue-500 flex items-center gap-1.5">
+                        <Papicon icon="message-square" size={14} />
+                        Infos demandées
+                      </p>
                       <p class="text-sm text-on-surface mt-1">{detail.appeal.infoRequest}</p>
                       {#if detail.appeal.infoResponse}
-                        <p class="text-[11px] font-semibold text-blue-500 mt-3">↩️ Réponse du membre</p>
+                        <p class="text-[11px] font-semibold text-blue-500 mt-3 flex items-center gap-1.5">
+                          <Papicon icon="corner-down-left" size={14} />
+                          Réponse du membre
+                        </p>
                         <p class="text-sm text-on-surface mt-1 whitespace-pre-wrap">{detail.appeal.infoResponse}</p>
                       {:else}
                         <p class="text-xs text-on-surface-variant/50 mt-2 italic">En attente de la réponse du membre…</p>
@@ -355,19 +373,19 @@
                       <div class="flex flex-wrap gap-2">
                         <button onclick={() => decide('ACCEPTED')} disabled={actionInProgress}
                           class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                          ✅ Accepter et débannir
+                          <Papicon icon="check" size={14} /> Accepter et débannir
                         </button>
                         <button onclick={() => decide('DENIED')} disabled={actionInProgress}
                           class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                          ❌ Refuser
+                          <Papicon icon="x" size={14} /> Refuser
                         </button>
                         <button onclick={() => decide('DENIED_PERMANENT')} disabled={actionInProgress}
                           class="px-4 py-2 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-200 text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                          ⛔ Refus définitif
+                          <Papicon icon="block" size={14} /> Refus définitif
                         </button>
                         <button onclick={requestInfo} disabled={actionInProgress}
                           class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                          💬 Demander plus d'infos
+                          <Papicon icon="message-square" size={14} /> Demander plus d'infos
                         </button>
                       </div>
                       <p class="text-[11px] text-on-surface-variant/50">
@@ -384,8 +402,14 @@
                       {#if detail.appeal.decisionReason}
                         <p class="text-on-surface-variant/80 mt-1">{detail.appeal.decisionReason}</p>
                       {/if}
-                      <p class="text-[11px] mt-2 {detail.appeal.dmDelivered ? 'text-emerald-500' : 'text-amber-500'}">
-                        {detail.appeal.dmDelivered ? '✓ DM de verdict envoyé au membre' : '⚠ DM non délivré (DM fermés) — le membre verra le verdict sur la page publique'}
+                      <p class="text-[11px] mt-2 flex items-center gap-1.5 {detail.appeal.dmDelivered ? 'text-emerald-500' : 'text-amber-500'}">
+                        {#if detail.appeal.dmDelivered}
+                          <Papicon icon="check" size={12} />
+                          <span>DM de verdict envoyé au membre</span>
+                        {:else}
+                          <Papicon icon="warning" size={12} />
+                          <span>DM non délivré (DM fermés) — le membre verra le verdict sur la page publique</span>
+                        {/if}
                       </p>
                     </div>
                   {/if}
@@ -437,10 +461,28 @@
               <select bind:value={config.staffChannelId}
                 class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-sm outline-none border border-outline-variant/20">
                 <option value={null}>— Aucun —</option>
-                {#each textChannels as c}
-                  <option value={c.id}># {c.name}</option>
-                {/each}
+                {#if staffServerChannels.length > 0}
+                  <optgroup label="Ce serveur">
+                    {#each textChannels as c}
+                      <option value={c.id}># {c.name}</option>
+                    {/each}
+                  </optgroup>
+                  <optgroup label={`Serveur staff lié${staffServerName ? ` (${staffServerName})` : ''}`}>
+                    {#each staffServerChannels as c}
+                      <option value={c.id}># {c.name}</option>
+                    {/each}
+                  </optgroup>
+                {:else}
+                  {#each textChannels as c}
+                    <option value={c.id}># {c.name}</option>
+                  {/each}
+                {/if}
               </select>
+              {#if staffServerChannels.length > 0}
+                <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
+                  Les salons du serveur staff lié sont proposés : Kotbo peut y poster directement.
+                </p>
+              {/if}
             </div>
             <div>
               <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">Salon pour l'invitation de retour</p>
@@ -453,6 +495,16 @@
               </select>
             </div>
           </div>
+
+          <label class="flex items-center justify-between rounded-xl border border-outline-variant/10 bg-surface-container/40 p-3.5 cursor-pointer">
+            <div>
+              <p class="font-semibold text-on-surface text-sm">DM automatique du lien d'appel lors d'un ban définitif</p>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">
+                Dès qu'un membre est banni définitivement (hors bannissements temporaires), Kotbo lui envoie le lien public : {publicUrl}
+              </p>
+            </div>
+            <input type="checkbox" bind:checked={config.notifyOnBanDM} class="accent-primary w-5 h-5 shrink-0 ml-4" />
+          </label>
 
           <div>
             <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">
@@ -497,8 +549,10 @@
 
   {:else if tab === 'blacklist'}
     {#if blacklist.length === 0}
-      <div class="text-center py-16 text-on-surface-variant/50">
-        <div class="text-5xl mb-4">🈳</div>
+      <div class="text-center py-16 text-on-surface-variant/50 flex flex-col items-center justify-center">
+        <div class="mb-4 text-on-surface-variant/30">
+          <Papicon icon="user" size={48} />
+        </div>
         <p class="text-sm">Aucun membre blacklisté des appels.</p>
       </div>
     {:else}

@@ -3,6 +3,7 @@
   import { API_BASE_URL } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { loadGoogleFont, themeBaseCss, themeStyleVars, type FormTheme } from '../lib/formTheme';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   let { guildId }: { guildId: string } = $props();
 
@@ -152,12 +153,12 @@
     answers = { ...answers, [id]: current.includes(option) ? current.filter(v => v !== option) : [...current, option] };
   }
 
-  const STATUS_LABELS: Record<string, { label: string; color: string; emoji: string }> = {
-    PENDING: { label: 'En cours d\'examen', color: '#f59e0b', emoji: '⏳' },
-    NEEDS_INFO: { label: 'Informations demandées', color: '#3b82f6', emoji: '💬' },
-    ACCEPTED: { label: 'Acceptée', color: '#22c55e', emoji: '✅' },
-    DENIED: { label: 'Refusée', color: '#ef4444', emoji: '❌' },
-    DENIED_PERMANENT: { label: 'Refusée définitivement', color: '#7f1d1d', emoji: '⛔' },
+  const STATUS_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+    PENDING: { label: 'En cours d\'examen', color: '#f59e0b', icon: 'clock' },
+    NEEDS_INFO: { label: 'Informations demandées', color: '#3b82f6', icon: 'message-square' },
+    ACCEPTED: { label: 'Acceptée', color: '#22c55e', icon: 'check' },
+    DENIED: { label: 'Refusée', color: '#ef4444', icon: 'x' },
+    DENIED_PERMANENT: { label: 'Refusée définitivement', color: '#7f1d1d', icon: 'block' },
   };
 
   function formatDate(iso: string): string {
@@ -185,8 +186,10 @@
     </div>
 
   {:else if notFound}
-    <div class="max-w-lg mx-auto text-center py-24">
-      <div class="text-6xl mb-6">🚪</div>
+    <div class="max-w-lg mx-auto text-center py-24 flex flex-col items-center justify-center">
+      <div class="mb-6 text-on-surface-variant/30">
+        <Papicon icon="lock" size={56} />
+      </div>
       <h1 class="text-2xl font-semibold text-on-surface mb-3">Page indisponible</h1>
       <p class="text-on-surface-variant/60 text-sm">Ce serveur n'accepte pas les demandes de débannissement, ou le lien est invalide.</p>
     </div>
@@ -220,8 +223,10 @@
 
       {#if !authStore.isAuthenticated}
         <!-- Connexion Discord obligatoire -->
-        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm">
-          <div class="text-5xl mb-4">🔐</div>
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm flex flex-col items-center">
+          <div class="mb-4 text-on-surface-variant/30">
+            <Papicon icon="lock" size={48} />
+          </div>
           <h2 class="text-lg font-semibold text-on-surface mb-2">Connexion Discord requise</h2>
           <p class="text-sm text-on-surface-variant/70 mb-6 leading-relaxed">
             Connecte-toi avec le compte Discord banni pour que nous puissions vérifier ton bannissement.
@@ -253,7 +258,9 @@
         <!-- Le staff demande des infos complémentaires -->
         <div class="pf-card rounded-xl bg-surface border border-blue-500/30 p-6 shadow-sm space-y-4">
           <div class="flex items-center gap-3">
-            <span class="text-3xl">💬</span>
+            <span class="text-blue-500 flex items-center justify-center shrink-0">
+              <Papicon icon="message-square" size={32} />
+            </span>
             <div>
               <h2 class="font-semibold text-on-surface">Le staff a besoin de précisions</h2>
               <p class="text-xs text-on-surface-variant/60 mt-0.5">Ta demande est en pause en attendant ta réponse.</p>
@@ -280,8 +287,10 @@
       {:else if infoResponseSent || (viewer?.latestAppeal && (viewer.latestAppeal.status === 'PENDING'))}
         <!-- Demande en cours -->
         {@const appeal = viewer?.latestAppeal}
-        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm">
-          <div class="text-5xl mb-4">⏳</div>
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm flex flex-col items-center">
+          <div class="mb-4 text-on-surface-variant/30">
+            <Papicon icon="clock" size={48} />
+          </div>
           <h2 class="text-lg font-semibold text-on-surface mb-2">Demande en cours d'examen</h2>
           <p class="text-sm text-on-surface-variant/70 leading-relaxed">
             {#if infoResponseSent}
@@ -298,8 +307,10 @@
         {@const lastAppeal = viewer.latestAppeal}
         <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 shadow-sm space-y-4">
           {#if blocked.blockedBy === 'not_banned'}
-            <div class="text-center">
-              <div class="text-5xl mb-4">🎉</div>
+            <div class="text-center flex flex-col items-center justify-center">
+              <div class="mb-4 text-on-surface-variant/30">
+                <Papicon icon="check" size={48} />
+              </div>
               <h2 class="text-lg font-semibold text-on-surface mb-2">Tu n'es pas banni de ce serveur</h2>
               <p class="text-sm text-on-surface-variant/70">
                 Le compte <span class="font-semibold">{viewer.username || viewer.userId}</span> n'apparaît pas dans la liste des bannissements.
@@ -309,8 +320,10 @@
               </p>
             </div>
           {:else if blocked.blockedBy === 'blacklisted'}
-            <div class="text-center">
-              <div class="text-5xl mb-4">⛔</div>
+            <div class="text-center flex flex-col items-center justify-center">
+              <div class="mb-4 text-on-surface-variant/30">
+                <Papicon icon="block" size={48} />
+              </div>
               <h2 class="text-lg font-semibold text-on-surface mb-2">Appel non autorisé</h2>
               <p class="text-sm text-on-surface-variant/70">
                 Le staff a indiqué que les demandes de débannissement ne sont plus acceptées pour ce compte.
@@ -320,8 +333,10 @@
               {/if}
             </div>
           {:else if blocked.blockedBy === 'cooldown'}
-            <div class="text-center">
-              <div class="text-5xl mb-4">🕐</div>
+            <div class="text-center flex flex-col items-center justify-center">
+              <div class="mb-4 text-on-surface-variant/30">
+                <Papicon icon="clock" size={48} />
+              </div>
               <h2 class="text-lg font-semibold text-on-surface mb-2">Demande refusée récemment</h2>
               <p class="text-sm text-on-surface-variant/70 leading-relaxed">
                 Ta dernière demande a été refusée{lastAppeal?.decisionReason ? ` (« ${lastAppeal.decisionReason} »)` : ''}.
@@ -332,8 +347,10 @@
               </p>
             </div>
           {:else}
-            <div class="text-center">
-              <div class="text-5xl mb-4">⏳</div>
+            <div class="text-center flex flex-col items-center justify-center">
+              <div class="mb-4 text-on-surface-variant/30">
+                <Papicon icon="clock" size={48} />
+              </div>
               <h2 class="text-lg font-semibold text-on-surface mb-2">Demande déjà en cours</h2>
               <p class="text-sm text-on-surface-variant/70">Ta demande est en attente de décision du staff.</p>
             </div>
@@ -434,8 +451,10 @@
 
       {:else}
         <!-- Config sans formulaire lié -->
-        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm">
-          <div class="text-5xl mb-4">🛠️</div>
+        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm flex flex-col items-center">
+          <div class="mb-4 text-on-surface-variant/30">
+            <Papicon icon="settings" size={48} />
+          </div>
           <p class="text-sm text-on-surface-variant/70">Le formulaire d'appel n'est pas encore configuré sur ce serveur.</p>
         </div>
       {/if}

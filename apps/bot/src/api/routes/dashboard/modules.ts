@@ -953,6 +953,17 @@ export async function handleModulesRoutes(
         }
       });
 
+      // Synchronize reports for linked alt accounts
+      const altAccountService = await import('../../../services/moderation/altAccountService.js');
+      await altAccountService.syncAltAccountSanctionReports(guildId, sanctionId, evidenceLinks, report).catch((err) => {
+        logger.error('SanctionsAPI', 'Error synchronizing report to alt accounts (POST):', err);
+      });
+
+      const { announceSanctionReportToStaff } = await import('../../../services/moderation/sanctionService.js');
+      await announceSanctionReportToStaff(client, report).catch((err) => {
+        logger.warn('SanctionsAPI', `Impossible d'annoncer le rapport ${report.id} sur le serveur staff :`, err);
+      });
+
       await pushAudit(guildId, {
         user: auditUser,
         action: 'Création rapport sanction',
@@ -1022,7 +1033,7 @@ export async function handleModulesRoutes(
         return true;
       }
 
-      await prisma.sanctionReport.update({
+      const updatedReport = await prisma.sanctionReport.update({
         where: { id: reportId },
         data: {
           brokenRules: updatedBrokenRules,
@@ -1031,6 +1042,14 @@ export async function handleModulesRoutes(
           additionalNotes: updatedAdditionalNotes,
         }
       });
+
+      // Synchronize reports for linked alt accounts
+      if (updatedReport.sanctionId) {
+        const altAccountService = await import('../../../services/moderation/altAccountService.js');
+        await altAccountService.syncAltAccountSanctionReports(guildId, updatedReport.sanctionId, updatedEvidenceLinks, updatedReport).catch((err) => {
+          logger.error('SanctionsAPI', 'Error synchronizing report to alt accounts (PATCH):', err);
+        });
+      }
 
       await pushAudit(guildId, {
         user: auditUser,
@@ -4983,6 +5002,14 @@ export async function handleModulesRoutes(
                           buttonStyle: item.buttonStyle === 'SECONDARY' || item.buttonStyle === 'SUCCESS' || item.buttonStyle === 'DANGER'
                             ? item.buttonStyle
                             : 'PRIMARY',
+                          mode: item.mode === 'CHANNEL' || item.mode === 'DM' || item.mode === 'THREAD' ? item.mode : null,
+                          anonymous: item.anonymous === true,
+                          staffServerRelay: item.staffServerRelay === true,
+                          staffServerChannel: item.staffServerChannel === true,
+                          staffServerCategoryId: typeof item.staffServerCategoryId === 'string' && item.staffServerCategoryId.trim() ? item.staffServerCategoryId.trim() : null,
+                          formEnabled: item.formEnabled !== false,
+                          fields: Array.isArray(item.fields) ? item.fields : null,
+                          formCustomFields: Array.isArray(item.formCustomFields) ? item.formCustomFields : null,
                         }))
                     : null,
                 }
