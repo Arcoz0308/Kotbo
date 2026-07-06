@@ -12,6 +12,10 @@
 
 ---
 
+![License](https://img.shields.io/badge/License-Source--Available-orange)
+
+> ⚠️ **Note sur la licence :** Le code de Kotbo est public pour permettre la transparence et les contributions communautaires. Cependant, l'auto-hébergement (self-hosting) et l'utilisation du code pour un usage personnel ou commercial sont strictement interdits sans autorisation.
+
 ## 🔑 Statut du Projet & Activation
 
 > [!IMPORTANT]
