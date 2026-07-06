@@ -15,6 +15,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
 import type { KotboEventMap, KotboEventName } from './eventBus.types.js';
 
 export type KotboEventHandler<E extends KotboEventName> = (payload: KotboEventMap[E]) => void | Promise<void>;
@@ -39,6 +40,7 @@ class KotboEventBus {
   private publisher: RedisLike | null = null;
   private subscriber: RedisLike | null = null;
   private distributed = false;
+  private readonly instanceId = randomUUID();
 
   constructor() {
     this.emitter.setMaxListeners(80);
@@ -56,8 +58,11 @@ class KotboEventBus {
     this.subscriber.on('message', (channel: string, message: string) => {
       const event = channel.replace('kotbo:', '') as KotboEventName;
       try {
-        const payload = JSON.parse(message);
-        // Only emit locally — don't re-publish to avoid infinite loop
+        const { payload, senderId } = JSON.parse(message);
+        // Skip our own publishes echoed back by Redis — we already emitted
+        // them locally and synchronously in publish(). Without this guard,
+        // every bus event (welcome, boost, ...) fires twice on this process.
+        if (senderId === this.instanceId) return;
         this.emitter.emit(event, payload);
       } catch { /* malformed message, skip */ }
     });
@@ -79,7 +84,9 @@ class KotboEventBus {
 
     // Distributed delivery via Redis Pub/Sub
     if (this.distributed && this.publisher) {
-      this.publisher.publish(`kotbo:${event}`, JSON.stringify(payload)).catch(() => {});
+      this.publisher
+        .publish(`kotbo:${event}`, JSON.stringify({ payload, senderId: this.instanceId }))
+        .catch(() => {});
     }
   }
 

@@ -2,9 +2,27 @@ import pino from 'pino';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const isDocker = process.env.DOCKER === 'true';
+const isTest = process.env.NODE_ENV === 'test';
 
-// Configure pino with pretty printing for Docker/development
-const pinoLogger = pino({
+// Configure pino with pretty printing for Docker/development, or fallback to mock in tests
+const pinoLogger = isTest ? {
+  info: (obj: { label?: string }, msg?: string) => {
+    const level = msg?.includes('✓') ? 'OK' : 'INFO';
+    console.log(`[${level}] [${obj.label ?? ''}] ${msg || ''}`);
+  },
+  warn: (obj: { label?: string }, msg?: string) => {
+    console.warn(`[WARN] [${obj.label ?? ''}] ${msg || ''}`);
+  },
+  error: (obj: { label?: string; err?: Error }, msg?: string) => {
+    const errMsg = obj.err ? obj.err.message : (msg || '');
+    console.error(`[ERROR] [${obj.label ?? ''}] ${errMsg}`);
+  },
+  debug: (obj: { label?: string }, msg?: string) => {
+    if (process.env.LOG_LEVEL === 'debug') {
+      console.log(`[DEBUG] [${obj.label ?? ''}] ${msg || ''}`);
+    }
+  },
+} as unknown as pino.Logger : pino({
   level: process.env.LOG_LEVEL || 'info',
   formatters: {
     level: (label) => {

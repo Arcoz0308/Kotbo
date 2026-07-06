@@ -18,206 +18,216 @@ import {
 } from '../../services/economy/marketplaceService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 
-export const marketCommand = {
-  data: new SlashCommandBuilder()
-    .setName('market')
-    .setDescription('Hôtel des ventes — achetez et vendez des objets')
-    .addSubcommand((sub) =>
-      sub.setName('sell')
-        .setDescription('Mettre un objet en vente')
-        .addStringOption((opt) => opt.setName('objet').setDescription('ID de l\'objet').setRequired(true))
-        .addIntegerOption((opt) => opt.setName('prix').setDescription('Prix en coins').setRequired(true).setMinValue(1))
-        .addIntegerOption((opt) => opt.setName('quantité').setDescription('Quantité').setMinValue(1))
-        .addStringOption((opt) => opt.setName('type').setDescription('Type de vente').addChoices(
-          { name: 'Prix fixe', value: 'FIXED_PRICE' },
-          { name: 'Enchère', value: 'AUCTION' },
-        ))
-        .addIntegerOption((opt) => opt.setName('durée').setDescription('Durée en heures').setMinValue(1).setMaxValue(168)))
-    .addSubcommand((sub) =>
-      sub.setName('buy')
-        .setDescription('Acheter un objet au prix fixe')
-        .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true)))
-    .addSubcommand((sub) =>
-      sub.setName('bid')
-        .setDescription('Enchérir sur un objet')
-        .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true))
-        .addIntegerOption((opt) => opt.setName('montant').setDescription('Montant de l\'enchère').setRequired(true).setMinValue(1)))
-    .addSubcommand((sub) =>
-      sub.setName('cancel')
-        .setDescription('Annuler une annonce')
-        .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true)))
-    .addSubcommand((sub) =>
-      sub.setName('list')
-        .setDescription('Voir les annonces actives'))
-    .addSubcommand((sub) =>
-      sub.setName('my')
-        .setDescription('Voir mes annonces')),
+const data = new SlashCommandBuilder()
+  .setName('market')
+  .setDescription('Hôtel des ventes — achetez et vendez des objets')
+  .addSubcommand((sub) =>
+    sub.setName('sell')
+      .setDescription('Mettre un objet en vente')
+      .addStringOption((opt) => opt.setName('objet').setDescription('ID de l\'objet').setRequired(true))
+      .addIntegerOption((opt) => opt.setName('prix').setDescription('Prix en coins').setRequired(true).setMinValue(1))
+      .addIntegerOption((opt) => opt.setName('quantité').setDescription('Quantité').setMinValue(1))
+      .addStringOption((opt) => opt.setName('type').setDescription('Type de vente').addChoices(
+        { name: 'Prix fixe', value: 'FIXED_PRICE' },
+        { name: 'Enchère', value: 'AUCTION' },
+      ))
+      .addIntegerOption((opt) => opt.setName('durée').setDescription('Durée en heures').setMinValue(1).setMaxValue(168)))
+  .addSubcommand((sub) =>
+    sub.setName('buy')
+      .setDescription('Acheter un objet au prix fixe')
+      .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true)))
+  .addSubcommand((sub) =>
+    sub.setName('bid')
+      .setDescription('Enchérir sur un objet')
+      .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true))
+      .addIntegerOption((opt) => opt.setName('montant').setDescription('Montant de l\'enchère').setRequired(true).setMinValue(1)))
+  .addSubcommand((sub) =>
+    sub.setName('cancel')
+      .setDescription('Annuler une annonce')
+      .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true)))
+  .addSubcommand((sub) =>
+    sub.setName('list')
+      .setDescription('Voir les annonces actives'))
+  .addSubcommand((sub) =>
+    sub.setName('my')
+      .setDescription('Voir mes annonces'));
 
-  async execute(interaction: ChatInputCommandInteraction) {
-    const subcommand = interaction.options.getSubcommand();
-    const guildId = interaction.guildId!;
-    const userId = interaction.user.id;
+async function execute(interaction: ChatInputCommandInteraction) {
+  const subcommand = interaction.options.getSubcommand();
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
 
-    if (subcommand === 'sell') {
-      const itemId = interaction.options.getString('objet', true);
-      const price = interaction.options.getInteger('prix', true);
-      const quantity = interaction.options.getInteger('quantité') ?? 1;
-      const type = (interaction.options.getString('type') ?? 'FIXED_PRICE') as 'FIXED_PRICE' | 'AUCTION';
-      const durationHours = interaction.options.getInteger('durée') ?? 24;
+  if (subcommand === 'sell') {
+    const itemId = interaction.options.getString('objet', true);
+    const price = interaction.options.getInteger('prix', true);
+    const quantity = interaction.options.getInteger('quantité') ?? 1;
+    const type = (interaction.options.getString('type') ?? 'FIXED_PRICE') as 'FIXED_PRICE' | 'AUCTION';
+    const duration = interaction.options.getInteger('durée') ?? 24;
 
-      const result = await createListing(guildId, userId, { itemId, quantity, price, type, durationHours });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const result = await createListing(guildId, userId, { itemId, quantity, price, type, durationHours: duration });
 
-      if (!result.success) {
-        await interaction.reply({
-          components: [errorContainer('Échec', result.error)],
-          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-        });
-        return;
-      }
+    if (!result.success) {
+      await interaction.editReply({ components: [errorContainer('Vente impossible', result.error)] });
+      return;
+    }
 
-      const typeLabel = type === 'AUCTION' ? 'Enchère' : 'Prix fixe';
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.success)
+      .addTextDisplayComponents(text(`### ${E.success} Objet en vente !`))
+      .addTextDisplayComponents(text(
+        `Votre annonce pour **${itemId}** (x${quantity}) a été publiée.\n` +
+        `${E.dot} Mode : ${type === 'FIXED_PRICE' ? 'Prix fixe' : 'Enchère'}\n` +
+        `${E.dot} Prix de départ : **${price}** ${E.coins}\n` +
+        `${E.dot} Durée : ${duration} heures (ID : \`${result.listing.id.slice(-6)}\`)`
+      ))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
+
+    await interaction.editReply({ components: [container] });
+  }
+
+  if (subcommand === 'buy') {
+    const listingId = interaction.options.getString('annonce', true);
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const result = await buyListing(guildId, userId, listingId);
+
+    if (!result.success) {
+      await interaction.editReply({ components: [errorContainer('Achat impossible', result.error)] });
+      return;
+    }
+
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.success)
+      .addTextDisplayComponents(text(`### ${E.success} Achat réussi !`))
+      .addTextDisplayComponents(text(
+        `Vous avez acheté **${result.listing.itemId}** (x${result.listing.quantity}) pour **${result.listing.price}** ${E.coins} à <@${result.listing.sellerId}>.`
+      ))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
+
+    await interaction.editReply({ components: [container] });
+  }
+
+  if (subcommand === 'bid') {
+    const listingId = interaction.options.getString('annonce', true);
+    const amount = interaction.options.getInteger('montant', true);
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const result = await placeBid(guildId, userId, listingId, amount);
+
+    if (!result.success) {
+      await interaction.editReply({ components: [errorContainer('Enchère impossible', result.error)] });
+      return;
+    }
+
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.success)
+      .addTextDisplayComponents(text(`### ${E.success} Enchère placée !`))
+      .addTextDisplayComponents(text(
+        `Vous avez enchéri **${amount}** ${E.coins} sur l'annonce de **${result.listing.itemId}**.`
+      ))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
+
+    await interaction.editReply({ components: [container] });
+  }
+
+  if (subcommand === 'cancel') {
+    const listingId = interaction.options.getString('annonce', true);
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const result = await cancelListing(guildId, userId, listingId);
+
+    if (!result.success) {
+      await interaction.editReply({ components: [errorContainer('Annulation impossible', result.error)] });
+      return;
+    }
+
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.success)
+      .addTextDisplayComponents(text(`### ${E.success} Annonce annulée`))
+      .addTextDisplayComponents(text(
+        `L'annonce pour **${result.listing.itemId}** a bien été annulée et l'objet a été retourné dans votre inventaire.`
+      ))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
+
+    await interaction.editReply({ components: [container] });
+  }
+
+  if (subcommand === 'list') {
+    await interaction.deferReply();
+    const listings = await getActiveListings(guildId);
+
+    if (listings.length === 0) {
       const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.success)
-        .addTextDisplayComponents(text(`### ${E.success} Annonce créée`))
-        .addTextDisplayComponents(text(`**${itemId}** x${quantity} mis en vente pour **${price}** ${E.coins}`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text([
-          `${E.arrow} **Type** · ${typeLabel}`,
-          `${E.arrow} **Expire dans** · ${durationHours}h`,
-        ].join('\n')))
+        .setAccentColor(COLORS_RAW.dark)
+        .addTextDisplayComponents(text(`### ${E.trophy} Hôtel des ventes`))
+        .addTextDisplayComponents(text(`${E.info} Aucune annonce active pour le moment.`))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
         .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
 
-      await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
-    }
-
-    if (subcommand === 'buy') {
-      const listingId = interaction.options.getString('annonce', true);
-      await interaction.deferReply();
-
-      const result = await buyListing(guildId, userId, listingId);
-      if (!result.success) {
-        await interaction.editReply({
-          components: [errorContainer('Achat échoué', result.error)],
-          flags: MessageFlags.IsComponentsV2,
-        });
-        return;
-      }
-
-      await interaction.editReply({
-        components: [successContainer('Achat effectué', 'L\'objet a été ajouté à votre inventaire.')],
-        flags: MessageFlags.IsComponentsV2,
-      });
-    }
-
-    if (subcommand === 'bid') {
-      const listingId = interaction.options.getString('annonce', true);
-      const amount = interaction.options.getInteger('montant', true);
-
-      const result = await placeBid(guildId, userId, listingId, amount);
-      if (!result.success) {
-        await interaction.reply({
-          components: [errorContainer('Enchère refusée', result.error)],
-          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      await interaction.reply({
-        components: [successContainer('Enchère placée', `Votre enchère de **${amount}** ${E.coins} a été enregistrée.`)],
-        flags: MessageFlags.IsComponentsV2,
-      });
-    }
-
-    if (subcommand === 'cancel') {
-      const listingId = interaction.options.getString('annonce', true);
-      const result = await cancelListing(guildId, userId, listingId);
-
-      if (!result.success) {
-        await interaction.reply({
-          components: [errorContainer('Annulation impossible', result.error)],
-          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      await interaction.reply({
-        components: [successContainer('Annonce annulée', 'L\'objet a été retourné à votre inventaire.')],
-        flags: MessageFlags.IsComponentsV2,
-      });
-    }
-
-    if (subcommand === 'list') {
-      await interaction.deferReply();
-      const data = await getActiveListings(guildId);
-
-      if (data.listings.length === 0) {
-        const container = new ContainerBuilder()
-          .setAccentColor(COLORS_RAW.dark)
-          .addTextDisplayComponents(text(`### ${E.coins} Marché`))
-          .addTextDisplayComponents(text(`${E.info} Aucune annonce active pour le moment.`))
-          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-          .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
-        return;
-      }
-
-      const lines = data.listings.slice(0, 10).map((l: any) => {
-        const typeLabel = l.type === 'AUCTION'
-          ? `${E.fire} Enchère (${l.currentBid ?? l.price} ${E.coins})`
-          : `${l.price} ${E.coins}`;
-        return `${E.dot} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${typeLabel}`;
-      });
-
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.primary)
-        .addTextDisplayComponents(text(`### ${E.coins} Marché — Annonces actives`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(lines.join('\n')))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · ${data.total} annonces au total`));
-
       await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      return;
     }
 
-    if (subcommand === 'my') {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      const listings = await getMyListings(guildId, userId);
+    const lines = listings.map((l: any) => {
+      const typeLabel = l.type === 'AUCTION' ? '🔨 [Enchère]' : '💰';
+      const endsAt = new Date(l.endsAt).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      return `${typeLabel} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — Vendeur: <@${l.sellerId}> — **${l.price}** ${E.coins} (fin le ${endsAt})`;
+    });
 
-      if (listings.length === 0) {
-        const container = new ContainerBuilder()
-          .setAccentColor(COLORS_RAW.dark)
-          .addTextDisplayComponents(text(`### ${E.profile} Mes annonces`))
-          .addTextDisplayComponents(text(`${E.info} Vous n'avez aucune annonce.`))
-          .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-          .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.primary)
+      .addTextDisplayComponents(text(`### ${E.trophy} Hôtel des ventes`))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(lines.join('\n')))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
 
-        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
-        return;
-      }
+    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+  }
 
-      const statusIcons: Record<string, string> = {
-        ACTIVE: E.online,
-        SOLD: E.success,
-        CANCELLED: E.error,
-        EXPIRED: E.clock,
-      };
+  if (subcommand === 'my') {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const listings = await getMyListings(guildId, userId);
 
-      const lines = listings.map((l: any) => {
-        const icon = statusIcons[l.status] ?? E.dot;
-        return `${icon} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${l.price} ${E.coins}`;
-      });
-
+    if (listings.length === 0) {
       const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.primary)
+        .setAccentColor(COLORS_RAW.dark)
         .addTextDisplayComponents(text(`### ${E.profile} Mes annonces`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(lines.join('\n')))
+        .addTextDisplayComponents(text(`${E.info} Vous n'avez aucune annonce en cours.`))
         .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
         .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
 
       await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      return;
     }
-  },
-} satisfies SlashCommandDefinition;
+
+    const statusIcons: Record<string, string> = {
+      ACTIVE: E.online,
+      SOLD: E.success,
+      CANCELLED: E.error,
+      EXPIRED: E.clock,
+    };
+
+    const lines = listings.map((l: any) => {
+      const icon = statusIcons[l.status] ?? E.dot;
+      return `${icon} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${l.price} ${E.coins}`;
+    });
+
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.primary)
+      .addTextDisplayComponents(text(`### ${E.profile} Mes annonces`))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(lines.join('\n')))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
+
+    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+  }
+}
+
+export const marketCommand = { data, execute } satisfies SlashCommandDefinition;

@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
-import { logger } from '../../utils/logger';
+import { logger } from '../../utils/logger.js';
 
 // Mock console methods
 const originalLog = console.log;

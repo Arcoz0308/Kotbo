@@ -83,21 +83,25 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     }
 
     await interaction.reply({ content: '⏳ Création du giveaway...', flags: [MessageFlags.Ephemeral] });
-    const giveaway = await createGiveaway(
-      interaction.client,
-      guildId,
-      channel.id,
-      prize,
-      winners,
-      duration,
-      description,
-      rpgXp,
-      rpgCoins,
-      rpgItemId,
-      needValidation
-    );
-    await interaction.editReply(`🎉 Giveaway créé avec succès ! (ID : \`${giveaway.id}\`)`);
-  } 
+    try {
+      const giveaway = await createGiveaway(
+        interaction.client,
+        guildId,
+        channel.id,
+        prize,
+        winners,
+        duration,
+        description,
+        rpgXp,
+        rpgCoins,
+        rpgItemId,
+        needValidation
+      );
+      await interaction.editReply(`🎉 Giveaway créé avec succès ! (ID : \`${giveaway.id}\`)`);
+    } catch (err) {
+      await interaction.editReply(`❌ ${err instanceof Error ? err.message : 'Erreur lors de la création du giveaway.'}`);
+    }
+  }
   
   else if (subcommand === 'end') {
     const id = interaction.options.getString('id', true).trim();
