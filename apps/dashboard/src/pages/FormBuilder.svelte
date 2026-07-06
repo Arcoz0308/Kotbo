@@ -317,7 +317,7 @@
     {#if customCss.trim()}
       {@html `<style>${customCss.replace(/<\/style/gi, '')}</style>`}
     {/if}
-    <div class="sticky top-0 z-50 bg-surface border-b border-outline-variant/20 px-6 py-3 flex items-center justify-between">
+    <div class="sticky top-0 z-10 bg-surface border-b border-outline-variant/20 px-6 py-3 flex items-center justify-between">
       <span class="font-semibold text-on-surface">Aperçu du formulaire</span>
       <button onclick={() => showPreview = false}
         class="px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold flex items-center gap-2">
@@ -459,7 +459,7 @@
   <div class="flex flex-col min-h-screen bg-surface">
 
     <!-- Top bar -->
-    <div class="sticky top-0 z-50 bg-surface/95 border-b border-outline-variant/20 px-4 py-2 flex items-center gap-3">
+    <div class="sticky top-0 z-10 bg-surface/95 border-b border-outline-variant/20 px-4 py-2 flex items-center gap-3">
       <button onclick={() => router.goto(isCustomFormMode ? '/forms' : '/recruitment-forms')}
         class="p-2 rounded-xl hover:bg-surface-container transition-colors">
         <Papicon icon="arrow_back" size={20} />

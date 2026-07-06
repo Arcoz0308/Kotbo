@@ -20,6 +20,14 @@ window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
 
 initDashboardSentry()
 
+// PWA : service worker (offline shell + widget Windows 11/Edge).
+// Uniquement en production pour ne pas interférer avec le HMR de Vite.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}
+
 const app = mount(App, {
   target: document.getElementById('app'),
 })

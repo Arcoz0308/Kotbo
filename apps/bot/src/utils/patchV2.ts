@@ -227,6 +227,52 @@ function transformPayload(options: unknown): unknown {
   return options;
 }
 
+function isV2Message(message: unknown): boolean {
+  const flags = (message as { flags?: { has?: (f: number) => boolean } } | null | undefined)?.flags;
+  return typeof flags?.has === 'function' && flags.has(discord.MessageFlags.IsComponentsV2);
+}
+
+// update()/edit() target an existing message: if that message is already
+// Components V2, Discord rejects legacy fields (content/embeds) even when
+// transformPayload left them alone (e.g. content-only payloads with no
+// embeds). Convert content into a TextDisplay so the update stays valid.
+export function transformUpdatePayload(options: unknown, targetMessage: unknown): unknown {
+  const transformed = transformPayload(options);
+  if (!isV2Message(targetMessage)) {
+    return transformed;
+  }
+
+  if (typeof transformed === 'string') {
+    return {
+      components: [new discord.TextDisplayBuilder().setContent(transformed)],
+      flags: [discord.MessageFlags.IsComponentsV2],
+      allowedMentions: { parse: [] },
+    };
+  }
+
+  if (!transformed || typeof transformed !== 'object') {
+    return transformed;
+  }
+
+  const payload = transformed as { content?: unknown; embeds?: unknown[]; components?: unknown[]; flags?: unknown; allowedMentions?: unknown };
+  if (typeof payload.content === 'string') {
+    if (payload.content.length > 0) {
+      const components = Array.isArray(payload.components) ? payload.components : [];
+      payload.components = [new discord.TextDisplayBuilder().setContent(payload.content), ...components];
+      if (payload.allowedMentions === undefined) {
+        payload.allowedMentions = { parse: [] };
+      }
+    }
+    delete payload.content;
+    if (Array.isArray(payload.embeds) && payload.embeds.length === 0) {
+      delete payload.embeds;
+    }
+    payload.flags = patchFlags(payload.flags);
+  }
+
+  return transformed;
+}
+
 interface PatchItem {
   target: { prototype: Record<string, unknown> };
   methods: string[];
@@ -255,7 +301,14 @@ for (const patch of patches) {
     if (typeof original !== 'function') continue;
 
     proto[method] = function (this: unknown, options: unknown, ...args: unknown[]) {
-      const transformed = transformPayload(options);
+      let transformed: unknown;
+      if (method === 'update') {
+        transformed = transformUpdatePayload(options, (this as { message?: unknown }).message);
+      } else if (method === 'edit') {
+        transformed = transformUpdatePayload(options, this);
+      } else {
+        transformed = transformPayload(options);
+      }
       return (original as (...args: unknown[]) => unknown).call(this, transformed, ...args);
     };
   }

@@ -2695,6 +2695,10 @@ export async function refreshAllWidgets(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/widget/refresh-all', { method: 'POST', guildId, errorContext: 'API Error (Refresh All Widgets):', silent: true });
 }
 
+export async function rotateWidgetToken(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/widget/rotate-token', { method: 'POST', guildId, errorContext: 'API Error (Rotate Widget Token):', silent: true });
+}
+
 export async function unbindGuildFromInstance(instanceId: string, guildId: string) {
   const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel/${instanceId}/guilds/${guildId}`, {
     method: 'DELETE',

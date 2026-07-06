@@ -1,0 +1,104 @@
+KOTBO — Widget stats staff pour Linux (Waybar / Conky)
+========================================================
+
+Il n'existe pas d'équivalent du « panneau Widgets » de Windows 11 sur Linux
+(aucune API standard côté shell). Les deux options ci-dessous sont les
+équivalents communautaires les plus utilisés — un petit script qui interroge
+l'API Kotbo et affiche le résultat dans ta barre ou sur ton bureau.
+
+Ton URL de données (remplace le token si tu le régénères depuis le dashboard,
+page Widget → section « Widgets téléphone & PC ») :
+
+  https://kotbo.fr/api/public/widget-data?token=TON_TOKEN
+
+(Remplace "kotbo.fr" par le domaine de ton instance si tu es en self-hosted.)
+
+PRÉREQUIS
+---------
+- curl
+- jq (parseur JSON en ligne de commande — `sudo apt install jq`,
+  `sudo pacman -S jq`, etc. selon ta distro)
+
+OPTION 1 : WAYBAR (Sway, Hyprland, et autres compositeurs Wayland)
+-------------------------------------------------------------------
+1. Copie kotbo-waybar-module.sh dans ~/.config/waybar/scripts/
+2. chmod +x ~/.config/waybar/scripts/kotbo-waybar-module.sh
+3. Édite le script (ou exporte en variables d'environnement) :
+     KOTBO_WIDGET_TOKEN=TON_TOKEN
+     KOTBO_API_BASE=https://kotbo.fr
+4. Ajoute le module "custom/kotbo" à ta config Waybar — voir
+   kotbo-waybar-example.jsonc pour le bloc exact à coller.
+5. Recharge Waybar (`killall waybar && waybar &` ou le raccourci de ton DE).
+
+Le module affiche "Serveur · lvl X · Y pts" dans la barre, avec le détail
+complet (messages, vocal, staff score) en infobulle au survol.
+
+OPTION 2 : CONKY (overlay bureau classique, toutes distros/WM)
+------------------------------------------------------------------
+1. Copie kotbo-conky-fetch.sh dans ~/.config/conky/
+2. chmod +x ~/.config/conky/kotbo-conky-fetch.sh
+3. Édite le script (ou exporte en variables d'environnement), comme ci-dessus.
+4. Ajoute la ligne de kotbo-conky-example.conf dans la section conky.text de
+   ta config Conky existante.
+5. Relance Conky (`conky -d`).
+
+OPTION 3 : WIDGET NATIF KDE PLASMA (Plasmoid)
+------------------------------------------------
+Un vrai widget Plasma (popup complet + affichage compact dans le panneau),
+fourni prêt à l'emploi : kotbo-stats.plasmoid
+
+Installation :
+  kpackagetool6 --type Plasma/Applet --install kotbo-stats.plasmoid
+
+  (Plasma 5 : remplace kpackagetool6 par kpackagetool5)
+
+Puis clic droit sur le bureau ou un panneau → Ajouter des widgets → cherche
+« Kotbo » → ajoute-le. Clic droit sur le widget → Configurer… pour renseigner
+ton token et l'URL de l'API.
+
+Pour mettre à jour après une modification :
+  kpackagetool6 --type Plasma/Applet --upgrade kotbo-stats.plasmoid
+
+Si le widget n'apparaît pas ou plante, relance Plasma pour voir les erreurs :
+  plasmoidviewer -a fr.kotbo.stats
+
+Note : ce Plasmoid a été écrit pour l'API QML de Plasma 6 (PlasmoidItem,
+org.kde.plasma.components 3). Il n'a pas pu être testé sur une vraie session
+KDE — c'est une bonne base de départ, mais un petit ajustement peut être
+nécessaire selon ta version exacte de Plasma.
+
+OPTION 4 : EXTENSION GNOME SHELL (indicateur barre supérieure)
+-------------------------------------------------------------------
+Un indicateur dans la barre du haut avec menu déroulant (niveau, messages,
+vocal, staff score), fourni prêt à l'emploi : kotbo-stats-gnome-extension.zip
+
+Installation :
+  1. Crée le fichier de config AVANT d'activer l'extension :
+       ~/.config/kotbo-stats.json
+     avec le contenu :
+       {"token": "TON_TOKEN", "apiBase": "https://kotbo.fr"}
+  2. Installe l'extension :
+       gnome-extensions install kotbo-stats-gnome-extension.zip
+  3. Redémarre GNOME Shell (déconnexion/reconnexion sous Wayland, ou
+     Alt+F2 puis "r" sous X11), puis active l'extension :
+       gnome-extensions enable kotbo-stats@kotbo.fr
+     (ou via l'app "Extensions" / extensions.gnome.org si activé localement)
+
+Pour voir les erreurs éventuelles :
+  journalctl -f -o cat /usr/bin/gnome-shell
+
+Note : écrit pour l'API ESM de GNOME Shell 45+ (Ubuntu 24.04+, Fedora 39+...).
+Non testé sur une vraie session GNOME — même remarque que pour le Plasmoid :
+bonne base de départ, ajustement possible selon ta version exacte.
+
+Ces deux options demandent des outils natifs de l'environnement de bureau
+(comme WidgetKit sur iOS ou AppWidgetProvider sur Android) — plus lourdes à
+mettre en place que les scripts Waybar/Conky ci-dessus, mais donnent un vrai
+widget intégré plutôt qu'une ligne de texte dans une barre.
+
+REMARQUES
+---------
+- Le token est une clé secrète en lecture seule : il ne permet ni de te
+  connecter au dashboard, ni de modifier quoi que ce soit. Régénère-le à tout
+  moment depuis la page Widget si tu penses qu'il a fuité.
+- N'expose pas ces scripts (avec le token en clair) dans un dépôt public.

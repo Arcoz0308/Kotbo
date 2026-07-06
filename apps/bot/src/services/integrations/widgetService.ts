@@ -42,7 +42,32 @@ function formatGrade(grade: string): string {
   return grades[grade] ?? grade;
 }
 
-async function buildWidgetPayload(guildId: string, userId: string): Promise<WidgetPayload | null> {
+/**
+ * Statistiques brutes du widget, consommées par le widget Discord mais aussi
+ * par les widgets externes (Scriptable iOS, KWGT Android, widget Windows 11/Edge)
+ * via l'endpoint public /api/public/widget-data.
+ */
+export interface WidgetStats {
+  server: {
+    name: string;
+    iconUrl: string;
+    memberCount: number;
+    inviteUrl: string;
+    inviteImageUrl: string;
+  };
+  user: {
+    username: string;
+    staffRank: string;
+    staffSince: string;
+    level: number;
+    messageCount: number;
+    voiceMinutes: number;
+    staffScore: number;
+  };
+  updatedAt: string;
+}
+
+export async function getWidgetStats(guildId: string, userId: string): Promise<WidgetStats | null> {
   const client = getClient();
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return null;
@@ -58,10 +83,8 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
   const level = memberLevel ? getLevelFromXp(memberLevel.xp) : 0;
   const messageCount = memberProfile?.messageCount ?? 0;
   const voiceSeconds = memberProfile?.voiceTimeSeconds ?? 0;
-  const memberCount = guild.memberCount;
-  const guildName = guild.name;
-  const guildIconUrl = guild.iconURL({ size: 256 }) ?? '';
   const username = guild.members.cache.get(userId)?.user.username ?? memberProfile?.username ?? userId;
+  const guildIconUrl = guild.iconURL({ size: 256 }) ?? '';
 
   const staffSince = staffMember.joinedStaffAt
     ? staffMember.joinedStaffAt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -76,8 +99,6 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
     ? Math.min(100, Math.round(staffActivities.reduce((s, a) => s + a.messageCount + a.voiceMinutes, 0) / staffActivities.length))
     : 0;
 
-  const voiceMinutes = Math.floor(voiceSeconds / 60);
-
   const inviteImageUrl = guild.splashURL({ size: 256 }) ?? guild.bannerURL({ size: 256 }) ?? guildIconUrl;
   let inviteUrl = '';
   if (guild.vanityURLCode) {
@@ -88,12 +109,42 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
     if (permanent) inviteUrl = `discord.gg/${permanent.code}`;
   }
 
+  return {
+    server: {
+      name: guild.name,
+      iconUrl: guildIconUrl,
+      memberCount: guild.memberCount,
+      inviteUrl,
+      inviteImageUrl,
+    },
+    user: {
+      username,
+      staffRank: formatGrade(staffMember.grade),
+      staffSince,
+      level,
+      messageCount,
+      voiceMinutes: Math.floor(voiceSeconds / 60),
+      staffScore,
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function buildWidgetPayload(guildId: string, userId: string): Promise<WidgetPayload | null> {
+  const stats = await getWidgetStats(guildId, userId);
+  if (!stats) return null;
+
+  const { server, user } = stats;
+  const { messageCount, voiceMinutes, level, staffScore } = user;
+  const guildIconUrl = server.iconUrl;
+  const guildName = server.name;
+
   const dynamic: DynamicField[] = [
     { type: 3, name: 'serveur.logo', value: { url: guildIconUrl } },
-    { type: 1, name: 'user.staffRank', value: formatGrade(staffMember.grade) },
+    { type: 1, name: 'user.staffRank', value: user.staffRank },
     { type: 1, name: 'server.name', value: guildName },
-    { type: 1, name: 'serveur.membersCount', value: memberCount.toLocaleString('fr-FR') },
-    { type: 1, name: 'user.staffSinceTo', value: staffSince },
+    { type: 1, name: 'serveur.membersCount', value: server.memberCount.toLocaleString('fr-FR') },
+    { type: 1, name: 'user.staffSinceTo', value: user.staffSince },
     { type: 3, name: 'user.statMessage.image', value: { url: ICON_MSG } },
     { type: 1, name: 'user.statMessage.title', value: 'Message count :' },
     { type: 1, name: 'user.statMessage.description', value: messageCount.toLocaleString('fr-FR') },
@@ -106,14 +157,14 @@ async function buildWidgetPayload(guildId: string, userId: string): Promise<Widg
     { type: 3, name: 'user.statStaffScore.image', value: { url: ICON_SHIELD } },
     { type: 1, name: 'user.statStaffScore.title', value: 'Staff Score :' },
     { type: 1, name: 'user.statStaffScore.description', value: `${staffScore} points` },
-    { type: 1, name: 'user.staffRankHero', value: formatGrade(staffMember.grade) },
+    { type: 1, name: 'user.staffRankHero', value: user.staffRank },
     { type: 1, name: 'serveur.name', value: guildName },
-    { type: 3, name: 'server.images.invite', value: { url: inviteImageUrl } },
+    { type: 3, name: 'server.images.invite', value: { url: server.inviteImageUrl } },
     { type: 1, name: 'server.invite.name', value: guildName },
-    { type: 1, name: 'server.invite.description', value: inviteUrl },
+    { type: 1, name: 'server.invite.description', value: server.inviteUrl },
   ];
 
-  return { username, data: { dynamic } };
+  return { username: user.username, data: { dynamic } };
 }
 
 export async function pushWidgetForUser(guildId: string, userId: string): Promise<{ ok: boolean; error?: string }> {

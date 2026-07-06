@@ -1,0 +1,19 @@
+// Extrait de config Waybar (~/.config/waybar/config.jsonc)
+//
+// 1. Ajoute "custom/kotbo" à la liste d'un des blocs modules-left /
+//    modules-center / modules-right de ta config.
+// 2. Colle le bloc ci-dessous à la racine de l'objet de config (au même
+//    niveau que "modules-left", "modules-right", etc.)
+
+{
+  "modules-right": ["custom/kotbo", "clock", "tray"],
+
+  "custom/kotbo": {
+    "exec": "~/.config/waybar/scripts/kotbo-waybar-module.sh",
+    "return-type": "json",
+    "interval": 900,
+    "tooltip": true,
+    "format": "{}",
+    "on-click": "~/.config/waybar/scripts/kotbo-waybar-module.sh"
+  }
+}

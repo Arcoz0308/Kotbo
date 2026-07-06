@@ -1,0 +1,8 @@
+{
+    "uuid": "kotbo-stats@kotbo.fr",
+    "name": "Kotbo Stats",
+    "description": "Affiche tes statistiques staff Kotbo (niveau, messages, vocal, staff score) dans la barre supérieure.",
+    "shell-version": ["45", "46", "47", "48"],
+    "url": "https://kotbo.fr",
+    "version": 1
+}

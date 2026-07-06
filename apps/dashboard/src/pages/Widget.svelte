@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchWidgetData, activateWidget, deactivateWidget, refreshWidget, refreshAllWidgets } from '../lib/api';
+  import { fetchWidgetData, activateWidget, deactivateWidget, refreshWidget, refreshAllWidgets, rotateWidgetToken, API_BASE_URL } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -8,15 +8,55 @@
   let loading = $state(true);
   let acting = $state(false);
   let copyingScript = $state(false);
+  let copiedField: string | null = $state(null);
+  let rotatingToken = $state(false);
+  let showToken = $state(false);
   let data: any = $state(null);
 
   const isActive = $derived(data?.mySubscription?.enabled === true);
   const subscriptionCount = $derived(data?.subscriptions?.length ?? 0);
+  const widgetToken = $derived(data?.mySubscription?.token ?? null);
+  const apiOrigin = $derived(API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : ''));
+  const widgetDataUrl = $derived(widgetToken ? `${apiOrigin}/api/public/widget-data?token=${widgetToken}` : '');
+
+  async function copy(text: string, field: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copiedField = field;
+      setTimeout(() => { if (copiedField === field) copiedField = null; }, 1500);
+    } catch {
+      toast.error('Impossible de copier');
+    }
+  }
+
+  function syncServiceWorkerConfig() {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker || !widgetToken) return;
+    navigator.serviceWorker.ready
+      .then((reg) => reg.active?.postMessage({ type: 'KOTBO_WIDGET_CONFIG', token: widgetToken, apiBase: apiOrigin }))
+      .catch(() => {});
+  }
+
+  async function handleRotateToken() {
+    rotatingToken = true;
+    try {
+      const result = await rotateWidgetToken();
+      if (result?.token && data?.mySubscription) {
+        data = { ...data, mySubscription: { ...data.mySubscription, token: result.token } };
+        toast.success('Token régénéré. Pense à le mettre à jour dans Scriptable/KWGT.');
+        syncServiceWorkerConfig();
+      }
+    } catch {
+      toast.error('Erreur lors de la régénération du token');
+    } finally {
+      rotatingToken = false;
+    }
+  }
 
   async function load() {
     loading = true;
     try {
       data = await fetchWidgetData();
+      syncServiceWorkerConfig();
     } catch {
       toast.error('Erreur lors du chargement');
     } finally {
@@ -249,6 +289,156 @@
               rel="noreferrer"
               class="text-center text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
             >Voir le fichier avant de l’exécuter</a>
+          </div>
+        </div>
+      </section>
+    {/if}
+
+    <!-- ==================== WIDGETS TÉLÉPHONE & PC ==================== -->
+    {#if isActive}
+      <section class="lg:col-span-2 rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-6 space-y-5">
+        <div>
+          <h3 class="text-base font-semibold flex items-center gap-2.5">
+            <Papicon icon="smartphone" size={18} />
+            Widgets téléphone & PC
+          </h3>
+          <p class="mt-1 text-xs text-on-surface-variant/60">
+            Installe Kotbo comme application (PWA) et affiche tes stats sur ton écran d'accueil ou de verrouillage.
+          </p>
+        </div>
+
+        <!-- Token widget -->
+        <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/20 p-4 space-y-2">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant/60">Token widget (lecture seule)</p>
+          <div class="flex items-center gap-2">
+            <code class="flex-1 truncate rounded-lg border border-outline-variant/10 bg-surface-container-highest/40 px-3 py-2 font-mono text-xs text-on-surface">
+              {showToken ? (widgetToken ?? '—') : '••••••••••••••••••••••••••••••••'}
+            </code>
+            <button
+              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-[11px] text-on-surface-variant hover:text-on-surface transition-colors"
+              onclick={() => showToken = !showToken}
+            >
+              {showToken ? 'Masquer' : 'Afficher'}
+            </button>
+            <button
+              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-xs text-on-surface-variant hover:text-on-surface transition-colors"
+              onclick={() => widgetToken && copy(widgetToken, 'token')}
+            >
+              {copiedField === 'token' ? '✓' : 'Copier'}
+            </button>
+            <button
+              class="shrink-0 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-xs text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
+              onclick={handleRotateToken}
+              disabled={rotatingToken}
+            >
+              <Papicon icon="refresh-cw" size={14} />
+            </button>
+          </div>
+          <p class="text-[11px] text-on-surface-variant/50">
+            Ce token permet uniquement de lire tes stats (niveau, messages, vocal, staff score). Régénère-le si tu penses qu'il a fuité.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- iOS / Scriptable -->
+          <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/10 p-4 space-y-3">
+            <div class="flex items-center gap-2 text-on-surface">
+              <Papicon icon="apple" size={16} />
+              <span class="text-sm font-semibold">iOS · Scriptable</span>
+            </div>
+            <ol class="space-y-1.5 text-xs text-on-surface-variant leading-relaxed list-decimal list-inside">
+              <li>Installe l'app gratuite <strong>Scriptable</strong> (App Store)</li>
+              <li>Colle-y le script Kotbo ci-dessous</li>
+              <li>Ajoute un widget Scriptable à l'écran d'accueil</li>
+              <li>En paramètre du widget : <code class="text-[10px]">{widgetToken}|{apiOrigin}</code></li>
+            </ol>
+            <div class="flex flex-col gap-1.5">
+              <a
+                href="/mobile-widgets/kotbo-widget.scriptable.js"
+                target="_blank"
+                rel="noreferrer"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
+              >
+                <Papicon icon="download" size={13} />
+                Télécharger le script
+              </a>
+              <button
+                class="text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
+                onclick={() => widgetToken && copy(`${widgetToken}|${apiOrigin}`, 'ios-param')}
+              >{copiedField === 'ios-param' ? 'Copié !' : 'Copier le paramètre'}</button>
+            </div>
+          </div>
+
+          <!-- Android / KWGT -->
+          <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/10 p-4 space-y-3">
+            <div class="flex items-center gap-2 text-on-surface">
+              <Papicon icon="smartphone" size={16} />
+              <span class="text-sm font-semibold">Android · KWGT</span>
+            </div>
+            <ol class="space-y-1.5 text-xs text-on-surface-variant leading-relaxed list-decimal list-inside">
+              <li>Installe <strong>KWGT Kustom Widget Maker</strong> (Play Store)</li>
+              <li>Crée un widget texte par statistique</li>
+              <li>Colle-y les formules du guide (déjà pré-remplies avec ton token)</li>
+            </ol>
+            <div class="flex flex-col gap-1.5">
+              <a
+                href="/mobile-widgets/kwgt-guide.txt"
+                target="_blank"
+                rel="noreferrer"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
+              >
+                <Papicon icon="download" size={13} />
+                Voir le guide
+              </a>
+              <button
+                class="text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
+                onclick={() => copy(widgetDataUrl, 'android-url')}
+              >{copiedField === 'android-url' ? 'Copié !' : 'Copier l\'URL de données'}</button>
+            </div>
+          </div>
+
+          <!-- Windows 11 / Edge -->
+          <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/10 p-4 space-y-3">
+            <div class="flex items-center gap-2 text-on-surface">
+              <Papicon icon="monitor" size={16} />
+              <span class="text-sm font-semibold">Windows 11 · Edge</span>
+            </div>
+            <ol class="space-y-1.5 text-xs text-on-surface-variant leading-relaxed list-decimal list-inside">
+              <li>Ouvre ce dashboard dans <strong>Microsoft Edge</strong></li>
+              <li>Menu ⋯ → Applications → « Installer ce site en tant qu'application »</li>
+              <li>Clic droit sur l'icône Kotbo installée → « Ajouter au panneau Widgets »</li>
+            </ol>
+            <p class="text-[11px] text-on-surface-variant/50">
+              Le widget se synchronise automatiquement dès que tu ouvres l'app installée — aucune configuration de token nécessaire.
+            </p>
+          </div>
+
+          <!-- Linux / Waybar & Conky -->
+          <div class="rounded-lg border border-outline-variant/10 bg-surface-container-high/10 p-4 space-y-3">
+            <div class="flex items-center gap-2 text-on-surface">
+              <Papicon icon="terminal" size={16} />
+              <span class="text-sm font-semibold">Linux · Waybar / Conky</span>
+            </div>
+            <ol class="space-y-1.5 text-xs text-on-surface-variant leading-relaxed list-decimal list-inside">
+              <li>Copie le script (Waybar ou Conky) dans ton dossier de config</li>
+              <li>Renseigne ton token, <code class="text-[10px]">chmod +x</code> le script</li>
+              <li>Ajoute le bloc de config fourni dans le guide</li>
+            </ol>
+            <div class="flex flex-col gap-1.5">
+              <a
+                href="/desktop-widgets/linux-widgets-guide.txt"
+                target="_blank"
+                rel="noreferrer"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest/50 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-on-surface hover:bg-surface-container-highest/70 transition-colors"
+              >
+                <Papicon icon="download" size={13} />
+                Voir le guide
+              </a>
+              <button
+                class="text-[11px] text-on-surface-variant/70 underline decoration-outline-variant underline-offset-4 hover:text-on-surface"
+                onclick={() => copy(widgetDataUrl, 'linux-url')}
+              >{copiedField === 'linux-url' ? 'Copié !' : 'Copier l\'URL de données'}</button>
+            </div>
           </div>
         </div>
       </section>

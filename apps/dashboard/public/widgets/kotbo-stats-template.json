@@ -1,0 +1,70 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "ColumnSet",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "auto",
+          "$when": "${server.iconUrl != ''}",
+          "items": [
+            {
+              "type": "Image",
+              "url": "${server.iconUrl}",
+              "size": "Small",
+              "style": "Person"
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "stretch",
+          "verticalContentAlignment": "Center",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "${server.name}",
+              "weight": "Bolder",
+              "size": "Medium",
+              "wrap": true
+            },
+            {
+              "type": "TextBlock",
+              "text": "${user.staffRank} · ${server.memberCount} membres",
+              "isSubtle": true,
+              "spacing": "None",
+              "size": "Small",
+              "wrap": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "FactSet",
+      "facts": [
+        { "title": "Niveau", "value": "${user.level}" },
+        { "title": "Messages", "value": "${user.messageCount}" },
+        { "title": "Vocal", "value": "${user.voiceMinutes}" },
+        { "title": "Staff score", "value": "${user.staffScore}" }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "${statusText}",
+      "isSubtle": true,
+      "size": "Small",
+      "wrap": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "title": "Rafraîchir",
+      "verb": "refresh"
+    }
+  ]
+}

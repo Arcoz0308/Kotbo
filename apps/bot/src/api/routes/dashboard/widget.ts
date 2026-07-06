@@ -1,4 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
+import crypto from 'node:crypto';
 import { Client } from 'discord.js';
 import { logger } from '../../../utils/logger.js';
 import { json, type AuthClaims, type DashboardAccess } from '../../shared.js';
@@ -8,6 +9,11 @@ import {
   clearWidgetForUser,
   refreshAllStaffWidgets,
 } from '../../../services/integrations/widgetService.js';
+
+/** Token secret utilisé par les widgets externes (Scriptable, KWGT, widget Edge). */
+function generateWidgetToken(): string {
+  return `wgt_${crypto.randomBytes(24).toString('hex')}`;
+}
 
 export async function handleWidgetRoutes(
   req: IncomingMessage,
@@ -30,15 +36,39 @@ export async function handleWidgetRoutes(
         orderBy: { createdAt: 'desc' },
       });
 
-      const mySubscription = subscriptions.find((s) => s.userId === user.userId);
+      let mySubscription = subscriptions.find((s) => s.userId === user.userId) ?? null;
+
+      // Génération paresseuse du token pour les subscriptions créées avant son introduction
+      if (mySubscription && !mySubscription.token) {
+        mySubscription = await prisma.widgetSubscription.update({
+          where: { id: mySubscription.id },
+          data: { token: generateWidgetToken() },
+        });
+      }
 
       json(res, 200, {
-        subscriptions,
-        mySubscription: mySubscription ?? null,
+        // Le token est secret : on ne l'expose jamais pour les autres membres
+        subscriptions: subscriptions.map(({ token: _token, ...rest }) => rest),
+        mySubscription,
       });
     } catch (err) {
       logger.error('WidgetAPI', 'Error fetching widget data:', err);
       json(res, 500, { error: 'Erreur lors de la récupération des données widget' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/widget/rotate-token — régénérer le token widget
+  if (parts.length === 6 && parts[5] === 'rotate-token' && method === 'POST') {
+    try {
+      const subscription = await prisma.widgetSubscription.update({
+        where: { guildId_userId: { guildId, userId: user.userId } },
+        data: { token: generateWidgetToken() },
+      });
+      json(res, 200, { success: true, token: subscription.token });
+    } catch (err) {
+      logger.error('WidgetAPI', 'Error rotating widget token:', err);
+      json(res, 500, { error: 'Erreur lors de la régénération du token' });
     }
     return true;
   }
@@ -49,7 +79,7 @@ export async function handleWidgetRoutes(
       await prisma.widgetSubscription.upsert({
         where: { guildId_userId: { guildId, userId: user.userId } },
         update: { enabled: true },
-        create: { guildId, userId: user.userId, enabled: true },
+        create: { guildId, userId: user.userId, enabled: true, token: generateWidgetToken() },
       });
 
       const result = await pushWidgetForUser(guildId, user.userId);

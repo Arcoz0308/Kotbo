@@ -6,6 +6,10 @@ model WidgetSubscription {
 
   enabled Boolean @default(true)
 
+  // Token secret (lecture seule) pour les widgets externes : Scriptable (iOS),
+  // KWGT (Android) et le widget Windows 11/Edge de la PWA.
+  token String? @unique
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
