@@ -22,6 +22,9 @@
 
   let candidatures = $state<any[]>([]);
   let tutors = $state<any[]>([]);
+  // Mapping id de champ (ex: f_1782999782943_x469d) → intitulé de la question,
+  // construit depuis les structures des formulaires (builder + custom forms)
+  let fieldLabels = $state<Record<string, string>>({});
   let guildState = $state<any>(null); // from global state if needed, or fetched config
   
   let loading = $state(true);
@@ -152,23 +155,43 @@
         recruitmentAutoRejectEnabled = guildState.recruitmentAutoRejectEnabled !== false;
       }
       
-      const [resCand, resTutors] = await Promise.all([
+      const [resCand, resTutors, resForms, resCustomForms] = await Promise.all([
         fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/candidatures`, {
           headers: { 'Authorization': `Bearer ${authStore.token}` }
         }),
         fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/tutors`, {
           headers: { 'Authorization': `Bearer ${authStore.token}` }
-        })
+        }),
+        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
+          headers: { 'Authorization': `Bearer ${authStore.token}` }
+        }).catch(() => null),
+        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
+          headers: { 'Authorization': `Bearer ${authStore.token}` }
+        }).catch(() => null)
       ]);
 
       if (!resCand.ok) throw new Error('Impossible de charger les candidatures');
       const dataCand = await resCand.json();
       candidatures = dataCand.candidatures || [];
-      
+
       if (resTutors.ok) {
         const dataTutors = await resTutors.json();
         tutors = dataTutors.tutors || [];
       }
+
+      const labels: Record<string, string> = {};
+      for (const res of [resForms, resCustomForms]) {
+        if (!res?.ok) continue;
+        try {
+          const data = await res.json();
+          for (const f of data.forms || []) {
+            for (const field of f.structure?.fields || []) {
+              if (field?.id && field?.label) labels[field.id] = field.label;
+            }
+          }
+        } catch { /* formulaire illisible : on garde les ids bruts */ }
+      }
+      fieldLabels = labels;
       
       try {
         const dataH = await fetchStaffHierarchies();
@@ -651,7 +674,7 @@
                           {#each Object.entries(candidature.data) as [key, value]}
                              {#if typeof value !== 'object' || Array.isArray(value)}
                               <div class="space-y-1">
-                                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/70 leading-tight">{key}</p>
+                                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/70 leading-tight">{fieldLabels[key] || key}</p>
                                   <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
                                      <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
                                   </div>
@@ -1213,5 +1236,4 @@
 </style>
 
 </ModulePage>
- 
- 
+
