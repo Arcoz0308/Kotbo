@@ -1,0 +1,2 @@
+ALTER TABLE "ban_appeal_configs"
+ADD COLUMN IF NOT EXISTS "notifyOnBanDM" BOOLEAN NOT NULL DEFAULT false;

@@ -3,16 +3,42 @@ const repairs = [
   "20260406090000_add_interest_profiles_and_feedback",
   "20260523000000_add_banned_words_table",
   "20260531000000_add_nickname_mod_granular_toggles",
+  "20260706000000_add_custom_form_hierarchy",
+  "20260706010000_add_ban_appeal_notify_dm",
+  "20260706020000_add_tutoring_hierarchy_grade",
 ];
 
-async function run(command: string[], quiet = false) {
+async function run(command: string[]) {
   const process = Bun.spawn(command, {
     cwd: import.meta.dir + "/..",
-    stdout: quiet ? "ignore" : "inherit",
-    stderr: quiet ? "ignore" : "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
   });
 
   return process.exited;
+}
+
+async function resolveApplied(migration: string) {
+  const process = Bun.spawn(
+    ["bunx", "prisma", "migrate", "resolve", "--applied", migration],
+    {
+      cwd: import.meta.dir + "/..",
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(process.stdout).text(),
+    new Response(process.stderr).text(),
+    process.exited,
+  ]);
+  const output = `${stdout}\n${stderr}`;
+
+  if (exitCode === 0 || output.includes("P3008")) return;
+
+  if (output.trim()) console.error(output.trim());
+  throw new Error(`La reconciliation Prisma de ${migration} a echoue.`);
 }
 
 for (const migration of repairs) {
@@ -31,9 +57,9 @@ for (const migration of repairs) {
     throw new Error(`La reparation SQL de ${migration} a echoue.`);
   }
 
-  // Already-applied migrations return P3008; suppress it because the desired
-  // production state is exactly the same.
-  await run(["bunx", "prisma", "migrate", "resolve", "--applied", migration], true);
+  // Already-applied migrations return P3008; only that failure is safe to
+  // suppress because the desired production state is exactly the same.
+  await resolveApplied(migration);
 }
 
 console.log("[MigrationRepair] Historique de production reconcilie.");
