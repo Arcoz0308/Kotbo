@@ -1,276 +1,222 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger.js';
 import {
   getMissingOAuthConfig,
   getDiscordClientId,
+  getDiscordClientSecret,
   getDiscordRedirectUri,
+  getDashboardOrigin,
   getDashboardUrl,
   getJwtSecret,
 } from '../../shared.js';
+import {
+  clearSessionCookies,
+  createDashboardSession,
+  deleteDashboardSession,
+  getDashboardSession,
+  makeSessionCookie,
+  sessionIdFromCookieHeader,
+} from '../../auth/sessionStore.js';
 
 export const authRouter = new OpenAPIHono();
 
-function createBridgeHtml(nonce: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script nonce="${nonce}">
-(function(){
-  var h=window.location.hash.substring(1);
-  if(!h){window.location.href='/login?error=no_token';return;}
-  var p=new URLSearchParams(h);
-  var t=p.get('access_token'),s=p.get('state');
-  if(!t||!s){window.location.href='/login?error=no_token';return;}
-  fetch('/api/auth/discord/token-exchange',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({access_token:t,state:s}),
-    credentials:'same-origin'
-  }).then(function(r){return r.json()}).then(function(d){
-    window.location.href=d.redirect||'/login?error=auth_failed';
-  }).catch(function(){window.location.href='/login?error=auth_failed';});
-})();
-</script></body></html>`;
+const OAUTH_COOKIE_MAX_AGE = 300;
+
+function cookieSecurity(): string {
+  return process.env.NODE_ENV === 'production' ? '; Secure' : '';
+}
+
+function oauthCookie(name: string, value: string, maxAge = OAUTH_COOKIE_MAX_AGE): string {
+  return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly${cookieSecurity()}; SameSite=Lax; Max-Age=${maxAge}`;
+}
+
+function appendCookies(headers: Headers, cookies: string[]): void {
+  for (const cookie of cookies) headers.append('Set-Cookie', cookie);
+}
+
+function clearOAuthCookies(): string[] {
+  return ['kotbo_oauth_state', 'kotbo_oauth_verifier', 'kotbo_oauth_return_to'].map((name) =>
+    oauthCookie(name, '', 0),
+  );
 }
 
 function parseCookies(cookieHeader: string): Record<string, string> {
   if (!cookieHeader) return {};
   return Object.fromEntries(
-    cookieHeader.split(';').map((s) => {
-      const [k, ...v] = s.trim().split('=');
-      return [k, v.join('=')];
+    cookieHeader.split(';').map((entry) => {
+      const [name, ...value] = entry.trim().split('=');
+      try {
+        return [name, decodeURIComponent(value.join('='))];
+      } catch {
+        return [name, value.join('=')];
+      }
     }),
   );
 }
 
-// ---------------------------------------------------------------------------
-// GET /api/auth/discord/login
-// ---------------------------------------------------------------------------
+function safeReturnTo(value: string | undefined): string {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/';
+  return value;
+}
 
-const loginRoute = createRoute({
-  method:  'get',
-  path:    '/api/auth/discord/login',
-  summary: 'Démarre le flux OAuth2 Discord (implicit grant)',
-  tags:    ['Auth'],
-  request: {
-    query: z.object({
-      returnTo: z.string().optional(),
-    }),
-  },
-  responses: {
-    302: { description: 'Redirection vers Discord OAuth' },
-    500: {
-      description: 'Configuration OAuth incomplète',
-      content: {
-        'application/json': {
-          schema: z.object({ error: z.string(), missing: z.array(z.string()) }),
-        },
-      },
-    },
-  },
-});
+function isAllowedMutationOrigin(origin: string | undefined): boolean {
+  if (!origin) return process.env.NODE_ENV !== 'production';
+  try {
+    const normalized = new URL(origin).origin;
+    if (normalized === getDashboardOrigin()) return true;
+    return process.env.NODE_ENV !== 'production' && ['localhost', '127.0.0.1'].includes(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
 
-authRouter.openapi(loginRoute, (c) => {
-  const missingOAuth = getMissingOAuthConfig();
+function startDiscordOAuth(c: Context, widget: boolean) {
+  const missingOAuth = getMissingOAuthConfig({ includeSecret: true });
   if (missingOAuth.length > 0) {
     return c.json({ error: 'Configuration OAuth invalide côté serveur.', missing: missingOAuth }, 500);
   }
 
-  const { returnTo } = c.req.valid('query');
-  const state = crypto.randomBytes(16).toString('hex');
+  const state = crypto.randomBytes(24).toString('base64url');
+  const verifier = crypto.randomBytes(48).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  const returnTo = safeReturnTo(c.req.query('returnTo'));
 
-  c.header(
-    'Set-Cookie',
-    `kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`,
-  );
-  if (returnTo) {
-    c.res.headers.append(
-      'Set-Cookie',
-      `kotbo_oauth_return_to=${encodeURIComponent(returnTo)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`
-    );
-  }
+  appendCookies(c.res.headers, [
+    oauthCookie('kotbo_oauth_state', state),
+    oauthCookie('kotbo_oauth_verifier', verifier),
+    oauthCookie('kotbo_oauth_return_to', returnTo),
+  ]);
 
-  const discordUrl = [
-    `https://discord.com/api/oauth2/authorize`,
-    `?client_id=${getDiscordClientId()}`,
-    `&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}`,
-    `&response_type=token`,
-    `&scope=identify%20guilds`,
-    `&state=${state}`,
-  ].join('');
+  const params = new URLSearchParams({
+    client_id: getDiscordClientId(),
+    redirect_uri: getDiscordRedirectUri(),
+    response_type: 'code',
+    scope: widget ? 'identify guilds openid sdk.social_layer' : 'identify guilds',
+    state,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+  });
+  return c.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`, 302);
+}
 
-  return c.redirect(discordUrl, 302);
-});
+authRouter.get('/api/auth/discord/login', (c) => startDiscordOAuth(c, false));
+authRouter.get('/api/auth/discord/widget-login', (c) => startDiscordOAuth(c, true));
 
-// ---------------------------------------------------------------------------
-// GET /api/auth/discord/widget-login — OAuth avec scopes widget (sdk.social_layer)
-// ---------------------------------------------------------------------------
-
-const widgetLoginRoute = createRoute({
-  method:  'get',
-  path:    '/api/auth/discord/widget-login',
-  summary: 'Démarre le flux OAuth2 Discord avec scopes widget (sdk.social_layer)',
-  tags:    ['Auth'],
-  request: {
-    query: z.object({
-      returnTo: z.string().optional(),
-    }),
-  },
-  responses: {
-    302: { description: 'Redirection vers Discord OAuth avec scopes widget' },
-    500: {
-      description: 'Configuration OAuth incomplète',
-      content: {
-        'application/json': {
-          schema: z.object({ error: z.string(), missing: z.array(z.string()) }),
-        },
-      },
-    },
-  },
-});
-
-authRouter.openapi(widgetLoginRoute, (c) => {
-  const missingOAuth = getMissingOAuthConfig();
-  if (missingOAuth.length > 0) {
-    return c.json({ error: 'Configuration OAuth invalide côté serveur.', missing: missingOAuth }, 500);
-  }
-
-  const { returnTo } = c.req.valid('query');
-  const state = crypto.randomBytes(16).toString('hex');
-
-  c.header(
-    'Set-Cookie',
-    `kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`,
-  );
-  if (returnTo) {
-    c.res.headers.append(
-      'Set-Cookie',
-      `kotbo_oauth_return_to=${encodeURIComponent(returnTo)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`
-    );
-  }
-
-  const discordUrl = [
-    `https://discord.com/api/oauth2/authorize`,
-    `?client_id=${getDiscordClientId()}`,
-    `&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}`,
-    `&response_type=token`,
-    `&scope=identify%20guilds%20openid%20sdk.social_layer`,
-    `&state=${state}`,
-  ].join('');
-
-  return c.redirect(discordUrl, 302);
-});
-
-// ---------------------------------------------------------------------------
-// GET /api/auth/discord/callback — bridge page (reads fragment client-side)
-// ---------------------------------------------------------------------------
-
-const callbackRoute = createRoute({
-  method:  'get',
-  path:    '/api/auth/discord/callback',
-  summary: 'Bridge page pour le flux implicit grant — lit le fragment côté client',
-  tags:    ['Auth'],
-  responses: {
-    200: { description: 'Page HTML bridge' },
-  },
-});
-
-authRouter.openapi(callbackRoute, (c) => {
-  const nonce = crypto.randomBytes(16).toString('base64');
-  c.header(
-    'Content-Security-Policy',
-    `default-src 'self'; script-src 'nonce-${nonce}'; base-uri 'none'; frame-ancestors 'none'`,
-  );
-  return c.html(createBridgeHtml(nonce));
-});
-
-// ---------------------------------------------------------------------------
-// POST /api/auth/discord/token-exchange — reçoit l'access_token du bridge
-// ---------------------------------------------------------------------------
-
-const tokenExchangeRoute = createRoute({
-  method:  'post',
-  path:    '/api/auth/discord/token-exchange',
-  summary: 'Échange l\'access_token Discord implicite contre un JWT Kotbo',
-  tags:    ['Auth'],
-  request: {
-    body: {
-      content: {
-        'application/json': {
-          schema: z.object({
-            access_token: z.string().min(1),
-            state: z.string().min(1),
-          }),
-        },
-      },
-    },
-  },
-  responses: {
-    200: {
-      description: 'URL de redirection avec JWT',
-      content: {
-        'application/json': {
-          schema: z.object({ redirect: z.string() }),
-        },
-      },
-    },
-  },
-});
-
-authRouter.openapi(tokenExchangeRoute, async (c) => {
-  const missingOAuth = getMissingOAuthConfig();
-  if (missingOAuth.length > 0) {
-    return c.json({ error: 'Configuration OAuth invalide côté serveur.', missing: missingOAuth }, 500);
-  }
-
-  const dashboardUrl = getDashboardUrl();
-  const { access_token: accessToken, state: urlState } = c.req.valid('json');
-
+authRouter.get('/api/auth/discord/callback', async (c) => {
+  const dashboardUrl = getDashboardUrl().replace(/\/$/, '');
+  const code = c.req.query('code');
+  const state = c.req.query('state');
   const cookies = parseCookies(c.req.header('cookie') ?? '');
-  const cookieState = cookies['kotbo_oauth_state'];
-  const returnTo = cookies['kotbo_oauth_return_to'] ? decodeURIComponent(cookies['kotbo_oauth_return_to']) : '';
+  const returnTo = safeReturnTo(cookies.kotbo_oauth_return_to);
 
-  if (!cookieState || cookieState !== urlState) {
-    logger.warn('Auth', 'OAuth state CSRF verification failed (token-exchange)');
-    return c.json({ redirect: `${dashboardUrl}/login?error=invalid_state` }, 200);
+  if (!code || !state || !cookies.kotbo_oauth_state || state !== cookies.kotbo_oauth_state || !cookies.kotbo_oauth_verifier) {
+    appendCookies(c.res.headers, clearOAuthCookies());
+    return c.redirect(`${dashboardUrl}/login?error=invalid_state`, 302);
   }
-
-  c.header(
-    'Set-Cookie',
-    'kotbo_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
-  );
-  c.res.headers.append(
-    'Set-Cookie',
-    'kotbo_oauth_return_to=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
-  );
 
   try {
-    const userResponse = await fetch('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: getDiscordClientId(),
+        client_secret: getDiscordClientSecret(),
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: getDiscordRedirectUri(),
+        code_verifier: cookies.kotbo_oauth_verifier,
+      }),
     });
-    const userData = await userResponse.json() as {
-      id: string;
-      username: string;
-      avatar: string | null;
-      global_name?: string | null;
+    const tokenData = await tokenResponse.json() as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
     };
+    if (!tokenResponse.ok || !tokenData.access_token) {
+      throw new Error(`Discord token exchange failed: ${tokenData.error ?? tokenResponse.status}`);
+    }
 
-    if (!userData.id) throw new Error('Discord user fetch failed');
+    const userResponse = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const user = await userResponse.json() as {
+      id?: string;
+      username?: string;
+      avatar?: string | null;
+    };
+    if (!userResponse.ok || !user.id || !user.username) throw new Error('Discord user fetch failed');
 
-    const token = jwt.sign(
-      {
-        userId:       userData.id,
-        username:     userData.username,
-        avatar:       userData.avatar,
-        discordToken: accessToken,
-      },
-      getJwtSecret(),
-      { expiresIn: '7d' },
-    );
+    const session = await createDashboardSession({
+      userId: user.id,
+      username: user.username,
+      avatar: user.avatar ?? null,
+      discordAccessToken: tokenData.access_token,
+      discordRefreshToken: tokenData.refresh_token ?? null,
+      discordExpiresIn: tokenData.expires_in ?? 604800,
+    });
 
-    const returnToUrl = returnTo ? `${returnTo.startsWith('/') ? '' : '/'}${returnTo}` : '';
-    return c.json({ redirect: `${dashboardUrl}${returnToUrl}#token=${token}` }, 200);
-  } catch (err) {
-    logger.error('Auth', 'Token exchange error:', err);
-    return c.json({ redirect: `${dashboardUrl}/login?error=auth_failed` }, 200);
+    appendCookies(c.res.headers, [...clearOAuthCookies(), makeSessionCookie(session.id)]);
+    return c.redirect(`${dashboardUrl}${returnTo === '/' ? '/' : returnTo}`, 302);
+  } catch (error) {
+    logger.error('Auth', 'OAuth authorization-code callback error:', error);
+    appendCookies(c.res.headers, clearOAuthCookies());
+    return c.redirect(`${dashboardUrl}/login?error=auth_failed`, 302);
   }
+});
+
+authRouter.get('/api/auth/session', async (c) => {
+  const sessionId = sessionIdFromCookieHeader(c.req.header('cookie'));
+  const session = await getDashboardSession(sessionId);
+  if (!session) return c.json({ authenticated: false }, 401);
+  return c.json({
+    authenticated: true,
+    user: { id: session.userId, username: session.username, avatar: session.avatar },
+    expiresAt: new Date(session.expiresAt).toISOString(),
+  });
+});
+
+authRouter.post('/api/auth/migrate', async (c) => {
+  if (!isAllowedMutationOrigin(c.req.header('origin'))) return c.json({ error: 'Origine refusée' }, 403);
+  const legacyUntil = process.env.AUTH_LEGACY_BEARER_UNTIL;
+  const cutoff = legacyUntil ? (/^\d+$/.test(legacyUntil) ? Number(legacyUntil) : Date.parse(legacyUntil)) : 0;
+  if (!Number.isFinite(cutoff) || Date.now() >= cutoff) {
+    return c.json({ error: 'Migration des anciennes sessions terminée' }, 410);
+  }
+
+  const authorization = c.req.header('authorization');
+  if (!authorization?.startsWith('Bearer ')) return c.json({ error: 'Ancienne session absente' }, 401);
+  try {
+    const claims = jwt.verify(authorization.slice(7), getJwtSecret()) as {
+      userId?: string;
+      username?: string;
+      avatar?: string | null;
+      discordToken?: string;
+      exp?: number;
+    };
+    if (!claims.userId || !claims.username || !claims.discordToken) throw new Error('Claims incomplets');
+    const expiresIn = claims.exp ? Math.max(60, claims.exp - Math.floor(Date.now() / 1000)) : 3600;
+    const session = await createDashboardSession({
+      userId: claims.userId,
+      username: claims.username,
+      avatar: claims.avatar ?? null,
+      discordAccessToken: claims.discordToken,
+      discordExpiresIn: expiresIn,
+    });
+    appendCookies(c.res.headers, [makeSessionCookie(session.id)]);
+    return c.json({ success: true });
+  } catch {
+    return c.json({ error: 'Ancienne session invalide ou expirée' }, 401);
+  }
+});
+
+authRouter.post('/api/auth/logout', async (c) => {
+  if (!isAllowedMutationOrigin(c.req.header('origin'))) return c.json({ error: 'Origine refusée' }, 403);
+  const sessionId = sessionIdFromCookieHeader(c.req.header('cookie'));
+  await deleteDashboardSession(sessionId);
+  appendCookies(c.res.headers, clearSessionCookies());
+  return c.json({ success: true });
 });

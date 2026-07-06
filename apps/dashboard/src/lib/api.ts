@@ -30,7 +30,7 @@ async function authorizedFetch(url: string, options: RequestInit & { headers?: R
     'Accept': 'application/json'
   };
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers, credentials: 'include' });
 
   if (response.status === 401) {
     authStore.logout();

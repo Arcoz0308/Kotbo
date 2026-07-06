@@ -142,6 +142,8 @@ cp .env.example .env
 # --- Discord config ---
 DISCORD_TOKEN=your_bot_token
 DISCORD_CLIENT_ID=your_bot_client_id
+DISCORD_CLIENT_SECRET=your_oauth_client_secret
+DISCORD_REDIRECT_URI=http://localhost:8787/api/auth/discord/callback
 DISCORD_CLIENT_OWNER_ID=your_discord_user_id  # Permet de bypass l'activation sur vos propres serveurs
 GUILD_ID=your_development_guild_id            # Si fourni, enregistre les commandes slash instantanément sur ce serveur
 
@@ -150,7 +152,10 @@ DATABASE_URL="postgresql://user:password@localhost:5432/kotbo?schema=public"
 REDIS_URL="redis://localhost:6379"
 
 # --- API & Security ---
-JWT_SECRET=your_jwt_secret_for_dashboard_auth
+DASHBOARD_URL=http://localhost:5173
+JWT_SECRET=long_random_secret_used_to_encrypt_server_sessions
+# Migration facultative des anciens JWT, à supprimer après la date ISO indiquée
+AUTH_LEGACY_BEARER_UNTIL=2026-07-13T00:00:00Z
 
 # --- Observabilité ---
 BOT_SENTRY_DSN=your_sentry_dsn

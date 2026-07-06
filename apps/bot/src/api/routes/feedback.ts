@@ -65,7 +65,7 @@ export async function handleReportFeedbackRoute(
 
       const sanitizeMarkdown = (str: string) => str.replace(/`/g, '\\`');
 
-      const user = verifyAuth(req);
+      const user = await verifyAuth(req);
       if (!user) {
         json(res, 401, { error: 'Non authentifié' });
         return true;

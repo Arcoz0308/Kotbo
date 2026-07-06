@@ -2,6 +2,7 @@
   import { reportDashboardError } from '../api';
   import { authStore } from '../stores/auth.svelte';
   import { toast } from '../stores/toast.svelte';
+  import Papicon from './Papicon.svelte';
 
   let { errorMsg, errorStack } = $props<{ errorMsg: string; errorStack?: string }>();
 
@@ -41,7 +42,7 @@
   
   <div class="relative w-full max-w-2xl bg-surface-container-lowest border border-outline-variant rounded-xl p-8 md:p-10 shadow-sm flex flex-col items-center text-center gap-5 animate-in fade-in">
     <div class="w-12 h-12 rounded-lg bg-error/10 text-error flex items-center justify-center">
-      <span class="material-symbols-outlined text-3xl font-bold">warning</span>
+      <Papicon icon="warning" size={28} />
     </div>
 
     <!-- Title and Subtitle -->
@@ -67,7 +68,7 @@
         <div class="mt-4 pt-3 border-t border-outline-variant/30">
           <details class="group">
             <summary class="text-xs font-black uppercase tracking-wider text-on-surface-variant cursor-pointer select-none hover:text-on-surface transition-colors flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm transition-transform group-open:rotate-90">chevron_right</span>
+              <Papicon icon="chevron-right" size={14} class="transition-transform group-open:rotate-90" />
               Stack Trace
             </summary>
             <pre class="mt-2 text-[10px] md:text-xs font-mono text-on-surface-variant/80 overflow-x-auto max-h-40 bg-surface-container-low border border-outline-variant/30 rounded-lg p-3 whitespace-pre scrollbar-thin">
@@ -84,7 +85,7 @@
         onclick={handleRefresh}
         class="w-full sm:w-auto px-5 py-2.5 bg-primary hover:opacity-90 text-on-primary font-medium text-sm rounded-lg transition-opacity cursor-pointer flex items-center justify-center gap-2"
       >
-        <span class="material-symbols-outlined text-lg">refresh</span>
+        <Papicon icon="refresh-cw" size={18} />
         Actualiser la page
       </button>
 
@@ -94,7 +95,7 @@
             disabled
             class="w-full sm:w-auto px-5 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium text-sm rounded-lg cursor-default flex items-center justify-center gap-2"
           >
-            <span class="material-symbols-outlined text-lg">check_circle</span>
+            <Papicon icon="check-circle" size={18} />
             Signalé
           </button>
         {:else}
@@ -107,7 +108,7 @@
               <div class="w-4 h-4 border-2 border-on-surface border-t-transparent rounded-full animate-spin"></div>
               Envoi...
             {:else}
-              <span class="material-symbols-outlined text-lg">send</span>
+              <Papicon icon="send" size={18} />
               Transmettre l'erreur
             {/if}
           </button>

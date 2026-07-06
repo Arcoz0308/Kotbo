@@ -2,6 +2,7 @@
   import Papicon from './Papicon.svelte';
   import ActionButton from './ActionButton.svelte';
   import Modal from './Modal.svelte';
+  import { localInitialAvatar } from '../discordMedia';
 
   let {
     show = false,
@@ -81,7 +82,7 @@
             <div class="flex items-center gap-2 mt-1">
               {#if event.type !== 'meeting'}
                 <img
-                  src={event.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(event.staffName || '?')}`}
+                  src={event.avatarUrl || localInitialAvatar(event.staffName)}
                   alt=""
                   class="w-5 h-5 rounded-full"
                 />
@@ -225,4 +226,3 @@
     </div>
   </Modal>
 {/if}
-

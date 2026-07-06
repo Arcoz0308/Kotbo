@@ -131,6 +131,11 @@ import crypto from 'node:crypto';
 import { fetchAllMembers } from '../utils/discord.js';
 import { getCurrentInstance } from '../utils/instanceContext.js';
 
+const FALLBACK_JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+if (!process.env.JWT_SECRET) {
+  logger.warn('DashboardAPI', 'JWT_SECRET variable is not set. Generating one ephemeral fallback secret for this process.');
+}
+
 // Instance-aware getters — resolve from white-label context when available
 export function getDiscordClientId(): string {
   try { return getCurrentInstance().discordClientId; } catch { return process.env.DISCORD_CLIENT_ID || ''; }
@@ -142,11 +147,7 @@ export function getDiscordRedirectUri(): string {
   try { return getCurrentInstance().discordRedirectUri || process.env.DISCORD_REDIRECT_URI || ''; } catch { return process.env.DISCORD_REDIRECT_URI || ''; }
 }
 export function getJwtSecret(): string {
-  try { return getCurrentInstance().jwtSecret; } catch {
-    if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-    logger.warn('DashboardAPI', 'JWT_SECRET variable is not set. Generating ephemeral secret. Instance-isolated!');
-    return crypto.randomBytes(32).toString('hex');
-  }
+  try { return getCurrentInstance().jwtSecret; } catch { return FALLBACK_JWT_SECRET; }
 }
 export function getDashboardUrl(): string {
   try { return getCurrentInstance().dashboardUrl; } catch { return process.env.DASHBOARD_URL || 'http://localhost:5173'; }
@@ -162,11 +163,7 @@ export function getDashboardOrigin(): string {
 export const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 export const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 export const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
-export let JWT_SECRET: string = process.env.JWT_SECRET || '';
-if (!JWT_SECRET) {
-  logger.warn('DashboardAPI', 'JWT_SECRET variable is not set. Generating ephemeral secret. Instance-isolated!');
-  JWT_SECRET = crypto.randomBytes(32).toString('hex');
-}
+export let JWT_SECRET: string = FALLBACK_JWT_SECRET;
 export const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 export const DASHBOARD_ORIGIN = (() => {
   try { return new URL(DASHBOARD_URL).origin; } catch { return DASHBOARD_URL.replace(/\/$/, ''); }
@@ -1158,15 +1155,34 @@ export type AuthClaims = {
   discordToken?: string;
 };
 
-export const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
+function legacyBearerAuthEnabled(): boolean {
+  const raw = process.env.AUTH_LEGACY_BEARER_UNTIL;
+  if (!raw) return false;
+  const cutoff = /^\d+$/.test(raw) ? Number(raw) : Date.parse(raw);
+  return Number.isFinite(cutoff) && Date.now() < cutoff;
+}
+
+export const verifyAuth = async (req: IncomingMessage): Promise<AuthClaims | null> => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.split(' ')[1];
-  try {
-    return jwt.verify(token, getJwtSecret()) as AuthClaims;
-  } catch {
-    return null;
+  if (legacyBearerAuthEnabled() && authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      return jwt.verify(token, getJwtSecret()) as AuthClaims;
+    } catch {
+      // Continue with the cookie session. Frontends may still send a harmless
+      // compatibility marker in the Authorization header during migration.
+    }
   }
+
+  const { getDashboardSession, sessionIdFromRequest } = await import('./auth/sessionStore.js');
+  const session = await getDashboardSession(sessionIdFromRequest(req));
+  if (!session) return null;
+  return {
+    userId: session.userId,
+    username: session.username,
+    avatar: session.avatar ?? undefined,
+    discordToken: session.discordAccessToken,
+  };
 };
 
 export type RecruitmentWebhookAuthResult = {

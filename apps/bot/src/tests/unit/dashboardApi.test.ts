@@ -1045,36 +1045,25 @@ describe('Modular Routers Unit Tests', () => {
   });
 
   describe('2. Auth Routes', () => {
-    test('GET /api/auth/discord/login redirects to Discord authorize', async () => {
+    test('active Discord login is handled by the Hono router', async () => {
       const req = createMockRequest({ method: 'GET', url: '/api/auth/discord/login' });
       const res = createMockResponse();
       const parts = splitPath(req.url!);
       const url = new URL(req.url!, 'http://localhost');
 
-      process.env.DISCORD_CLIENT_ID = 'test-client-id';
-      process.env.DISCORD_REDIRECT_URI = 'http://localhost/callback';
-
       const handled = await handleAuthRoutes(req, res, parts, url, mockClient);
-      expect(handled).toBeTrue();
-      expect(res.statusCode).toBe(302);
-      expect(res.getHeader('location')).toContain('discord.com/api/oauth2/authorize');
+      expect(handled).toBeFalse();
     });
 
-    test('legacy Discord callback authorizes only its nonce-protected bridge script', async () => {
-      const req = createMockRequest({ method: 'GET', url: '/api/auth/discord/callback' });
+    test('legacy implicit token exchange is retired', async () => {
+      const req = createMockRequest({ method: 'POST', url: '/api/auth/discord/token-exchange' });
       const res = createMockResponse();
       const parts = splitPath(req.url!);
       const url = new URL(req.url!, 'http://localhost');
 
       const handled = await handleAuthRoutes(req, res, parts, url, mockClient);
       expect(handled).toBeTrue();
-      expect(res.statusCode).toBe(200);
-
-      const csp = String(res.getHeader('content-security-policy'));
-      const nonce = csp.match(/script-src 'nonce-([^']+)'/)?.[1];
-      expect(nonce).toBeTruthy();
-      expect(csp).not.toContain("'unsafe-inline'");
-      expect(res.body).toContain(`<script nonce="${nonce}">`);
+      expect(res.statusCode).toBe(410);
     });
 
   });

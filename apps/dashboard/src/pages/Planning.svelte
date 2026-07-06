@@ -37,6 +37,7 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import { localInitialAvatar } from '../lib/discordMedia';
 
   // State
   let loading = $state(true);
@@ -730,7 +731,7 @@
                   class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all hover:bg-surface-hover group {selectedStaffIds.includes(staff.id) ? '' : 'opacity-40'}"
                 >
                   <div class="relative shrink-0">
-                    <img src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.username}`} alt="" class="w-6 h-6 rounded-full" />
+                    <img src={staff.avatarUrl || localInitialAvatar(staff.username)} alt="" class="w-6 h-6 rounded-full" />
                     {#if selectedStaffIds.includes(staff.id)}
                       <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-primary rounded-full border-2 border-surface-container-low"></div>
                     {/if}
@@ -1019,7 +1020,7 @@
                       {@const member = selectedMembers.get(memberId)}
                       {#if member}
                         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-cyan-500/15 border border-cyan-500/25 rounded-md text-[10px] font-semibold text-cyan-300">
-                          <img src={member.avatarUrl || `https://ui-avatars.com/api/?name=${member.displayName || member.username}&size=16`} alt="" class="w-3.5 h-3.5 rounded-full" />
+                          <img src={member.avatarUrl || localInitialAvatar(member.displayName || member.username)} alt="" class="w-3.5 h-3.5 rounded-full" />
                           {member.displayName || member.username}
                           <button
                             onclick={() => toggleMemberInvitee(member)}
@@ -1059,7 +1060,7 @@
                         onclick={() => toggleMemberInvitee(member)}
                         class="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-all hover:bg-surface-hover/50 {formInviteeMemberIds.includes(member.id) ? 'bg-cyan-500/10' : ''}"
                       >
-                        <img src={member.avatarUrl || `https://ui-avatars.com/api/?name=${member.displayName || member.username}&size=24`} alt="" class="w-5 h-5 rounded-full shrink-0" />
+                        <img src={member.avatarUrl || localInitialAvatar(member.displayName || member.username)} alt="" class="w-5 h-5 rounded-full shrink-0" />
                         <div class="flex-1 min-w-0">
                           <span class="text-[11px] font-semibold text-on-surface truncate block">{member.displayName || member.username}</span>
                           {#if member.username !== member.displayName}
@@ -1191,7 +1192,7 @@
                     {#each raw.invitees as invitee}
                       <span class="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-surface-container-high text-[10px] font-semibold">
                         <img
-                          src={invitee.staffMember?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(invitee.staffMember?.displayName || invitee.staffMember?.username || '?')}`}
+                          src={invitee.staffMember?.avatarUrl || localInitialAvatar(invitee.staffMember?.displayName || invitee.staffMember?.username)}
                           alt=""
                           class="w-4 h-4 rounded-full"
                         />
@@ -1217,7 +1218,7 @@
               {#if raw.assignee}
                 <div class="flex items-center gap-1.5">
                   <img
-                    src={raw.assignee.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(raw.assignee.displayName || raw.assignee.username || '?')}`}
+                    src={raw.assignee.avatarUrl || localInitialAvatar(raw.assignee.displayName || raw.assignee.username)}
                     alt=""
                     class="w-4 h-4 rounded-full"
                   />
@@ -1230,7 +1231,7 @@
           {#if currentItemDetail.type === 'absence'}
             <div class="flex items-center gap-2.5 mb-3">
               <img
-                src={currentItemDetail.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentItemDetail.staffName || raw.staffMember?.username || '?')}`}
+                src={currentItemDetail.avatarUrl || localInitialAvatar(currentItemDetail.staffName || raw.staffMember?.username)}
                 alt=""
                 class="w-7 h-7 rounded-full border border-outline-variant/20"
               />
@@ -1322,7 +1323,7 @@
                     {@const u = permSelectedUsersMap.get(uid)}
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-cyan-500/15 border border-cyan-500/25 rounded-md text-[10px] font-semibold text-cyan-300">
                       {#if u}
-                        <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName || u.username || '?')}`} alt="" class="w-3.5 h-3.5 rounded-full" />
+                        <img src={u.avatarUrl || localInitialAvatar(u.displayName || u.username)} alt="" class="w-3.5 h-3.5 rounded-full" />
                       {/if}
                       {u ? (u.displayName || u.username) : uid}
                       <button onclick={() => togglePermUser({ id: uid, ...(u || {}) })} class="ml-0.5 w-3.5 h-3.5 rounded-full hover:bg-cyan-500/30 flex items-center justify-center transition-colors">
@@ -1357,7 +1358,7 @@
                       onclick={() => togglePermUser(member)}
                       class="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-all hover:bg-surface-hover/50"
                     >
-                      <img src={member.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.displayName || member.username || '?')}&size=24`} alt="" class="w-5 h-5 rounded-full shrink-0" />
+                      <img src={member.avatarUrl || localInitialAvatar(member.displayName || member.username)} alt="" class="w-5 h-5 rounded-full shrink-0" />
                       <div class="flex-1 min-w-0">
                         <span class="text-[11px] font-semibold text-on-surface truncate block">{member.displayName || member.username}</span>
                       </div>

@@ -94,13 +94,7 @@ class DashboardLifecycleManager {
       this.socket = new WebSocket(wsUrl.toString());
 
       this.socket.onopen = () => {
-        console.log("[DashboardWS] Connecté. Envoi de l\'authentification...");
-        this.socket?.send(
-          JSON.stringify({
-            type: 'auth',
-            token: authStore.token,
-          })
-        );
+        console.log('[DashboardWS] Connecté avec la session sécurisée.');
         this.isConnecting = false;
       };
 

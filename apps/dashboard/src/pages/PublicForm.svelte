@@ -3,6 +3,7 @@
   import { API_BASE_URL } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { loadGoogleFont, themeBaseCss, themeStyleVars, type FormTheme } from '../lib/formTheme';
+  import PrivacyNotice from '../lib/components/PrivacyNotice.svelte';
 
   let { formId }: { formId: string } = $props();
 
@@ -574,6 +575,9 @@
 
       <!-- Navigation buttons -->
       {#if !authRequired || authStore.isAuthenticated}
+      {#if currentSection === totalSections - 1}
+        <PrivacyNotice compact text="Les réponses sont transmises aux responsables du serveur pour traiter ce formulaire. Ne saisissez pas de donnée sensible non demandée. " />
+      {/if}
       <div class="flex items-center gap-3 pb-8">
         {#if currentSection > 0}
           <button onclick={prevSection}

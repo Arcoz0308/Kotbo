@@ -5,6 +5,7 @@
   import { router } from 'tinro';
   import Papicon from '../lib/components/Papicon.svelte';
   import { brandingStore } from '../lib/stores/branding.svelte';
+  import PrivacyNotice from '../lib/components/PrivacyNotice.svelte';
 
   let errorMessage = $state(null);
   const oauthLoginUrl = `${API_BASE_URL || ''}/api/auth/discord/login`;
@@ -121,6 +122,10 @@
           <Papicon icon="discord" size={18} />
           Se connecter avec Discord
         </button>
+
+        <div class="mt-4 text-left">
+          <PrivacyNotice compact text="La connexion transmet à Kotbo votre identifiant, nom, avatar et liste de serveurs Discord afin de vérifier vos accès. " />
+        </div>
 
         <div class="mt-6 pt-5 border-t border-outline-variant grid grid-cols-3 gap-3">
           <div class="text-center">

@@ -541,6 +541,21 @@
           </div>
         {/each}
       </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        <a href="https://kotbo.fr/terms" target="_blank" rel="noopener noreferrer" class="p-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 hover:bg-surface-container-high/40 transition-colors">
+          <p class="text-sm font-bold">Politique de confidentialité</p>
+          <p class="text-[10px] text-on-surface-variant/50 mt-1">Traitements, destinataires et droits RGPD</p>
+        </a>
+        <a href="https://kotbo.fr/cookies" target="_blank" rel="noopener noreferrer" class="p-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 hover:bg-surface-container-high/40 transition-colors">
+          <p class="text-sm font-bold">Cookies et stockage local</p>
+          <p class="text-[10px] text-on-surface-variant/50 mt-1">Détail des stockages fonctionnels</p>
+        </a>
+        <a href="mailto:privacy@kotbo.fr?subject=Demande%20RGPD%20Kotbo" class="sm:col-span-2 p-4 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors">
+          <p class="text-sm font-bold text-primary">Exercer mes droits</p>
+          <p class="text-[10px] text-on-surface-variant/60 mt-1">Accès, rectification, opposition, limitation ou effacement — réponse sous un mois</p>
+        </a>
+      </div>
     </section>
   </div>
 
