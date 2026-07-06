@@ -31,7 +31,7 @@ export async function handleRecruitmentWebhookRoute(
   req: IncomingMessage,
   res: ServerResponse,
   parts: string[],
-  _client: Client
+  client: Client
 ): Promise<boolean> {
   if (
     parts.length === 6 &&
@@ -57,6 +57,7 @@ export async function handleRecruitmentWebhookRoute(
 
       const result = await createCandidature(guildId, payload, {
         autoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
+        client,
       });
       json(res, 201, result);
     } catch (err) {

@@ -1403,7 +1403,7 @@ export async function handleGuildLeadershipRoutes(
         );
 
         if (body.createTestingPeriod !== false) {
-          await createTestingPeriod(guildId, body.userId);
+          await createTestingPeriod(guildId, body.userId, undefined, undefined, body.grade);
         }
 
         await pushAudit(guildId, {
@@ -2985,10 +2985,12 @@ export async function handleGuildLeadershipRoutes(
       return true;
     }
 
-    // GET /api/dashboard/guilds/:guildId/tutoring/items
+    // GET /api/dashboard/guilds/:guildId/tutoring/items[?hierarchyId=xxx|none]
     if (method === 'GET' && parts[5] === 'items') {
       try {
-        const items = await tutoringService.getTutoringItems(guildId);
+        const hierarchyIdParam = url.searchParams.get('hierarchyId');
+        const hierarchyId = hierarchyIdParam === null ? undefined : (hierarchyIdParam === 'none' ? null : hierarchyIdParam);
+        const items = await tutoringService.getTutoringItems(guildId, hierarchyId !== undefined ? { hierarchyId } : undefined);
         json(res, 200, { items });
       } catch (err) {
         logger.error('TutoringAPI', 'Error getting items:', err);
@@ -3006,7 +3008,15 @@ export async function handleGuildLeadershipRoutes(
       }
 
       try {
-        const body = await readJsonBody<unknown>(req);
+        const body = await readJsonBody<{
+          id?: string;
+          category: string;
+          title: string;
+          description?: string | null;
+          sortOrder?: number;
+          hierarchyId?: string | null;
+          grade?: string | null;
+        }>(req);
         const item = await tutoringService.upsertTutoringItem(guildId, body);
 
         await pushAudit(guildId, {
@@ -3059,6 +3069,7 @@ export async function handleGuildLeadershipRoutes(
           mentorId?: string;
           plannedDurationDays?: number;
           targetGrade?: string;
+          hierarchyId?: string;
         }>(req);
 
         if (!body?.staffUserId) {
@@ -3071,7 +3082,8 @@ export async function handleGuildLeadershipRoutes(
           body.staffUserId,
           body.mentorId || undefined,
           body.plannedDurationDays ? Number(body.plannedDurationDays) : 14,
-          body.targetGrade || undefined
+          body.targetGrade || undefined,
+          body.hierarchyId || undefined
         );
 
         await pushAudit(guildId, {

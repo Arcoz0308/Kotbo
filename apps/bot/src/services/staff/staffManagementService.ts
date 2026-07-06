@@ -749,7 +749,8 @@ export const createTestingPeriod = async (
   staffUserId: string,
   mentorId?: string,
   plannedDurationDays: number = 14,
-  targetGrade?: string
+  targetGrade?: string,
+  hierarchyId?: string
 ) => {
   const resolvedStaffMemberId = await resolveStaffMemberId(guildId, staffUserId);
   if (!resolvedStaffMemberId) {
@@ -765,6 +766,7 @@ export const createTestingPeriod = async (
       mentorId: resolvedMentorId,
       plannedDurationDays,
       targetGrade,
+      hierarchyId,
     },
   });
 

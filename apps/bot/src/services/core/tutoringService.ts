@@ -1,9 +1,30 @@
 import prisma from '../../utils/db.js';
-import type { TutoringConfig, TutoringItemState } from '@prisma/client';
+import type { TutoringConfig, TutoringItem, TutoringItemState } from '@prisma/client';
 
 /**
  * Service de gestion du tutorat
  */
+
+interface TutoringItemInput {
+  id?: string;
+  category: string;
+  title: string;
+  description?: string | null;
+  sortOrder?: number;
+  hierarchyId?: string | null;
+  grade?: string | null;
+}
+
+/**
+ * Un item de checklist s'applique à une période de test si sa hiérarchie et son
+ * grade sont soit non renseignés (item commun), soit identiques à ceux ciblés par
+ * la période. Permet d'avoir une checklist par hiérarchie/grade en plus d'items communs.
+ */
+const itemAppliesTo = (item: TutoringItem, hierarchyId: string | null, targetGrade: string | null) => {
+  const hierarchyMatches = !item.hierarchyId || item.hierarchyId === hierarchyId;
+  const gradeMatches = !item.grade || item.grade === targetGrade;
+  return hierarchyMatches && gradeMatches;
+};
 
 export const getTutoringConfig = async (guildId: string) => {
   let config = await prisma.tutoringConfig.findUnique({
@@ -30,14 +51,31 @@ export const updateTutoringConfig = async (guildId: string, data: Partial<Tutori
   });
 };
 
-export const getTutoringItems = async (guildId: string) => {
+export const getTutoringItems = async (guildId: string, filters?: { hierarchyId?: string | null }) => {
   return prisma.tutoringItem.findMany({
-    where: { guildId },
-    orderBy: { sortOrder: 'asc' }
+    where: {
+      guildId,
+      ...(filters?.hierarchyId !== undefined ? { hierarchyId: filters.hierarchyId } : {})
+    },
+    orderBy: [{ sortOrder: 'asc' }]
   });
 };
 
-export const upsertTutoringItem = async (guildId: string, data: unknown) => {
+/** Items de checklist applicables à une période de test (communs + spécifiques à sa hiérarchie/grade). */
+export const getApplicableTutoringItems = async (
+  guildId: string,
+  hierarchyId: string | null,
+  targetGrade: string | null
+) => {
+  const items = await prisma.tutoringItem.findMany({
+    where: { guildId },
+    orderBy: [{ sortOrder: 'asc' }]
+  });
+
+  return items.filter((item) => itemAppliesTo(item, hierarchyId, targetGrade));
+};
+
+export const upsertTutoringItem = async (guildId: string, data: TutoringItemInput) => {
   if (data.id) {
     return prisma.tutoringItem.update({
       where: { id: data.id },
@@ -45,7 +83,9 @@ export const upsertTutoringItem = async (guildId: string, data: unknown) => {
         category: data.category,
         title: data.title,
         description: data.description,
-        sortOrder: data.sortOrder
+        sortOrder: data.sortOrder,
+        hierarchyId: data.hierarchyId ?? null,
+        grade: data.grade ?? null
       }
     });
   }
@@ -56,7 +96,9 @@ export const upsertTutoringItem = async (guildId: string, data: unknown) => {
       category: data.category,
       title: data.title,
       description: data.description,
-      sortOrder: data.sortOrder
+      sortOrder: data.sortOrder,
+      hierarchyId: data.hierarchyId ?? null,
+      grade: data.grade ?? null
     }
   });
 };
@@ -71,6 +113,30 @@ export const deleteTestingPeriod = async (id: string) => {
   return prisma.testingPeriod.delete({
     where: { id }
   });
+};
+
+/**
+ * Fusionne la checklist applicable à une période (communs + spécifiques à sa
+ * hiérarchie/grade) avec la progression déjà enregistrée, pour que les items pas
+ * encore cochés restent visibles au lieu de disparaître.
+ */
+const withFullChecklist = async <T extends { guildId: string; hierarchyId: string | null; targetGrade: string | null; checklistProgress: Array<{ item: TutoringItem; state: TutoringItemState; completedAt: Date | null; completedByUserId: string | null }> }>(
+  period: T
+) => {
+  const applicableItems = await getApplicableTutoringItems(period.guildId, period.hierarchyId, period.targetGrade);
+  const progressByItemId = new Map(period.checklistProgress.map((p) => [p.item.id, p]));
+
+  const fullChecklist = applicableItems.map((item) => {
+    const progress = progressByItemId.get(item.id);
+    return {
+      item,
+      state: progress?.state ?? 'UNCHECKED',
+      completedAt: progress?.completedAt ?? null,
+      completedByUserId: progress?.completedByUserId ?? null
+    };
+  });
+
+  return { ...period, fullChecklist };
 };
 
 export const getTutorDashboard = async (guildId: string, tutorUserId: string, fetchAll: boolean = false) => {
@@ -126,7 +192,7 @@ export const getTutorDashboard = async (guildId: string, tutorUserId: string, fe
     ]);
 
     return {
-      ...apprentice,
+      ...(await withFullChecklist(apprentice)),
       vocalStats,
       absences
     };
@@ -179,7 +245,7 @@ export const getApprenticeProgress = async (guildId: string, userId: string) => 
   ]);
 
   return {
-    ...period,
+    ...(await withFullChecklist(period)),
     vocalStats,
     absences
   };

@@ -3,6 +3,7 @@ import { ChannelType, PermissionFlagsBits, type Client, type Guild as DiscordGui
 import prisma from '../../utils/db.js';
 import { createNotification } from './staffLeadershipService.js';
 import { logger } from '../../utils/logger.js';
+import { COLORS } from '../../utils/embeds.js';
 
 // ============================================================================
 // FIELD DETECTION HELPERS
@@ -137,7 +138,7 @@ export async function getCandidatures(guildId: string) {
 export async function createCandidature(
   guildId: string,
   data: unknown,
-  options?: { autoRejectEnabled?: boolean }
+  options?: { autoRejectEnabled?: boolean; client?: Client }
 ) {
   // Try to find identifiers in the data
   let discordId: string | null = null;
@@ -212,9 +213,47 @@ export async function createCandidature(
         ).catch(() => null);
       }));
     }
+
+    // Notifier le salon configuré sur le serveur staff lié
+    if (options?.client) {
+      await notifyStaffServerNewCandidature(options.client, guildId, candidature).catch((err) =>
+        logger.warn('Recruitment', `Impossible d'annoncer la candidature ${candidature.id} sur le serveur staff :`, err),
+      );
+    }
   }
 
   return { candidature, autoRejected: autoRejectCheck.rejected, autoRejectReason: autoRejectCheck.reason };
+}
+
+/**
+ * Poste un embed de nouvelle candidature dans le salon configuré sur le serveur staff lié.
+ * Silencieux si aucun lien/salon n'est configuré.
+ */
+async function notifyStaffServerNewCandidature(
+  client: Client,
+  guildId: string,
+  candidature: { id: string; username: string; discordId: string | null; createdAt: Date },
+): Promise<void> {
+  const { getStaffServerNotifyChannel } = await import('./staffServerService.js');
+  const channel = await getStaffServerNotifyChannel(client, guildId, 'recruitment');
+  if (!channel) return;
+
+  const mainGuildName = client.guilds.cache.get(guildId)?.name ?? guildId;
+  const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+
+  const embed = new EmbedBuilder()
+    .setTitle('📥 Nouvelle candidature')
+    .setColor(COLORS.info)
+    .addFields(
+      { name: 'Candidat', value: candidature.username, inline: true },
+      { name: 'Discord', value: candidature.discordId ? `<@${candidature.discordId}> (${candidature.discordId})` : 'Non fourni', inline: true },
+      { name: 'Reçue le', value: `<t:${Math.floor(candidature.createdAt.getTime() / 1000)}:f>`, inline: true },
+      { name: 'Dossier', value: `[Consulter sur le dashboard](${dashboardUrl.replace(/\/$/, '')}/recruitment)`, inline: false },
+    )
+    .setFooter({ text: `Depuis ${mainGuildName} · Candidature ${candidature.id}` })
+    .setTimestamp();
+
+  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
 }
 
 export async function updateCandidatureStatus(id: string, status: CandidatureStatus, notes?: string) {
@@ -268,12 +307,21 @@ export async function approveCandidature(
 
   const ticketName = `recrutement-${pseudo.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30)}-${existingCount}`;
 
+  // Entretien sur le serveur staff lié si configuré, sinon sur le serveur principal
+  const staffLink = await prisma.staffServerLink.findFirst({
+    where: { mainGuildId: guildId, enabled: true, recruitmentOnStaffServer: true },
+    select: { staffGuildId: true, simpleStaffRoleId: true, staffRecruitmentCategoryId: true },
+  });
+  const staffGuild = staffLink ? client.guilds.cache.get(staffLink.staffGuildId) : null;
+  const targetGuild = staffGuild ?? discordGuild;
+  const onStaffServer = !!staffGuild;
+
   // Create the ticket channel
-  const categoryId = guild?.recruitmentCategoryId || undefined;
-  
+  const categoryId = (onStaffServer ? staffLink?.staffRecruitmentCategoryId : guild?.recruitmentCategoryId) || undefined;
+
   const permissionOverwrites: unknown[] = [
     {
-      id: discordGuild.id, // @everyone
+      id: targetGuild.id, // @everyone
       deny: [PermissionFlagsBits.ViewChannel],
     },
   ];
@@ -286,23 +334,31 @@ export async function approveCandidature(
     });
   }
 
-  // Add moderator role if configured
-  if (guild?.moderatorRoleId) {
+  // Les rôles du serveur principal n'existent pas sur le serveur staff : n'ajouter
+  // un overwrite de rôle que s'il existe sur la guilde cible.
+  if (guild?.moderatorRoleId && targetGuild.roles.cache.has(guild.moderatorRoleId)) {
     permissionOverwrites.push({
       id: guild.moderatorRoleId,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages],
     });
   }
 
-  // Add base staff role if configured
-  if (guild?.baseStaffRoleId) {
+  if (guild?.baseStaffRoleId && targetGuild.roles.cache.has(guild.baseStaffRoleId)) {
     permissionOverwrites.push({
       id: guild.baseStaffRoleId,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
     });
   }
 
-  const ticketChannel = await discordGuild.channels.create({
+  // Sur le serveur staff, le rôle staff simple du lien donne l'accès à l'équipe
+  if (onStaffServer && staffLink?.simpleStaffRoleId && targetGuild.roles.cache.has(staffLink.simpleStaffRoleId)) {
+    permissionOverwrites.push({
+      id: staffLink.simpleStaffRoleId,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+    });
+  }
+
+  const ticketChannel = await targetGuild.channels.create({
     name: ticketName,
     type: ChannelType.GuildText,
     parent: categoryId,
@@ -487,7 +543,10 @@ export async function completeOral(
   hierarchyId?: string,
   hierarchyGrade?: string,
 ) {
-  const candidature = await prisma.recruitmentCandidature.findUnique({ where: { id: candidatureId } });
+  const candidature = await prisma.recruitmentCandidature.findUnique({
+    where: { id: candidatureId },
+    include: { customForm: { select: { hierarchyId: true } } },
+  });
   if (!candidature) throw new Error('Candidature introuvable');
 
   const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
@@ -543,13 +602,21 @@ export async function completeOral(
 
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
 
-  // Find the "Helper Test" grade or lowest level staff role
+  // Si la candidature vient d'un formulaire de recrutement lié à une hiérarchie
+  // (ex: "Modération" vs "Animation"), on l'utilise pour choisir le bon rôle,
+  // sauf override manuel explicite (paramètre hierarchyId).
+  const effectiveHierarchyId = hierarchyId ?? candidature.customForm?.hierarchyId ?? undefined;
+
+  // Find the "Helper Test" grade or lowest level staff role, scoped to the
+  // relevant hierarchy when known (avoids assigning the same role to
+  // recruitments coming from different hierarchies).
   const staffRoles = await prisma.staffRole.findMany({
-    where: { guildId, enabled: true },
+    where: { guildId, enabled: true, ...(effectiveHierarchyId ? { hierarchyId: effectiveHierarchyId } : {}) },
     orderBy: { level: 'asc' },
   });
   const helperTestRole = staffRoles.find(r => r.name.toLowerCase().includes('helper') || r.name.toLowerCase().includes('test')) || staffRoles[0];
   const gradeName = helperTestRole?.name || 'Helper Test';
+  const effectiveHierarchyGrade = hierarchyGrade ?? (effectiveHierarchyId ? gradeName : undefined);
 
   // Get Discord member info for the staff member
   let userTag: string | undefined;
@@ -590,12 +657,12 @@ export async function completeOral(
     },
   });
 
-  // Associate with hierarchy if specified
-  if (hierarchyId && hierarchyGrade) {
+  // Associate with hierarchy if specified (explicit override or derived from the source form)
+  if (effectiveHierarchyId && effectiveHierarchyGrade) {
     await prisma.staffMemberHierarchyGrade.upsert({
-      where: { staffMemberId_hierarchyId: { staffMemberId: staffMember.id, hierarchyId } },
-      update: { grade: hierarchyGrade },
-      create: { staffMemberId: staffMember.id, hierarchyId, grade: hierarchyGrade },
+      where: { staffMemberId_hierarchyId: { staffMemberId: staffMember.id, hierarchyId: effectiveHierarchyId } },
+      update: { grade: effectiveHierarchyGrade },
+      create: { staffMemberId: staffMember.id, hierarchyId: effectiveHierarchyId, grade: effectiveHierarchyGrade },
     }).catch(() => null);
   }
 
@@ -606,6 +673,7 @@ export async function completeOral(
       staffUserId: staffMember.id,
       plannedDurationDays: 14,
       targetGrade: gradeName,
+      hierarchyId: effectiveHierarchyId ?? null,
     },
   });
 
