@@ -102,6 +102,8 @@ model Guild {
   activated                Boolean   @default(false)
   activatedAt              DateTime?
   activationCode           String?
+  // true si l'activation provient d'une cascade StaffServerLink (serveur staff lié à un principal activé), pas d'un code direct
+  activatedViaStaffLink    Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

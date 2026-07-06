@@ -77,11 +77,13 @@ model TestingPeriod {
 
   plannedDurationDays Int @default(14)
   targetGrade String?
+  hierarchyId String? // Hiérarchie ciblée, détermine quelle checklist de tutorat s'applique
 
   notes String?
 
   staffMember StaffMember @relation("StaffMemberTestingPeriods", fields: [staffUserId], references: [id], onDelete: Cascade)
   mentor StaffMember? @relation("StaffMemberMentor", fields: [mentorId], references: [id], onDelete: SetNull)
+  hierarchy StaffHierarchy? @relation("HierarchyTestingPeriods", fields: [hierarchyId], references: [id], onDelete: SetNull)
   reports MentorReport[]
 
   lastReportAt DateTime?
@@ -93,6 +95,7 @@ model TestingPeriod {
 
   @@index([guildId, staffUserId, status])
   @@index([mentorId, status])
+  @@index([guildId, hierarchyId])
   @@map("testing_periods")
 }
 

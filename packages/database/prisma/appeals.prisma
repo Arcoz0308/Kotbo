@@ -27,6 +27,11 @@ model BanAppealConfig {
   // Jours à attendre après un refus avant de pouvoir soumettre un nouvel appel
   cooldownDays Int @default(30)
 
+  // Envoie automatiquement un DM avec le lien public de l'appel lorsqu'un
+  // membre est banni définitivement (pas pour les bannissements temporaires).
+  // Configurable depuis le module Appels ET le module Sanctions (même valeur).
+  notifyOnBanDM Boolean @default(false)
+
   // Textes personnalisables
   welcomeText   String? // affiché en haut de la page publique d'appel
   acceptMessage String? // DM envoyé quand l'appel est accepté

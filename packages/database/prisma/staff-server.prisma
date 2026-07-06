@@ -31,6 +31,24 @@ model StaffServerLink {
   // Salon de logs pour les syncs sur le serveur staff
   staffLogChannelId String?
 
+  // ── Notifications cross-serveur (salons sur le serveur STAFF) ──
+  // Miroir des alertes de modération (automod, ghost ping, honeypot)
+  modlogMirrorChannelId      String?
+  // Rapports de sanction créés sur le serveur principal
+  sanctionReportChannelId    String?
+  // Alertes de nouvelles candidatures de recrutement
+  recruitmentAlertChannelId  String?
+  // Si true, les salons d'entretien de recrutement sont créés sur le serveur staff
+  recruitmentOnStaffServer   Boolean @default(false)
+  // Catégorie (staff) pour les salons d'entretien
+  staffRecruitmentCategoryId String?
+  // Onboarding : invitation automatique au serveur staff au premier rôle staff
+  onboardingInviteEnabled    Boolean @default(false)
+  // Salon (staff) depuis lequel créer l'invitation (fallback: rules/system channel)
+  onboardingInviteChannelId  String?
+  // Salon (staff) recevant l'alerte de départ du staff (avec bouton kick)
+  offboardingAlertChannelId  String?
+
   enabled Boolean @default(true)
 
   createdByUserId String

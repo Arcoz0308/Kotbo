@@ -22,18 +22,25 @@ model CustomForm {
   // CSS custom, sanitizé côté serveur à la sauvegarde ET au service
   customCss   String?
 
+  // Hiérarchie staff associée (formulaires de recrutement) : détermine le
+  // rôle/grade attribué automatiquement lors de l'embauche depuis ce formulaire.
+  // null = comportement historique (rôle le plus bas toutes hiérarchies confondues).
+  hierarchyId String?
+
   // Relation optionnelle vers un Event (événement d'inscription)
   events      Event[]
   candidatures RecruitmentCandidature[]
   appealConfigs BanAppealConfig[]
 
   guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  hierarchy   StaffHierarchy? @relation("CustomFormHierarchy", fields: [hierarchyId], references: [id], onDelete: SetNull)
   submissions CustomFormSubmission[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([guildId])
+  @@index([hierarchyId])
   @@map("custom_forms")
 }
 

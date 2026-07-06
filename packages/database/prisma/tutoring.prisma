@@ -28,13 +28,18 @@ model TutoringItem {
   description String?
   sortOrder Int @default(0)
 
+  hierarchyId String? // null = item commun à toutes les hiérarchies
+  grade String? // null = item commun à tous les grades de la hiérarchie ciblée
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  hierarchy StaffHierarchy? @relation("HierarchyTutoringItems", fields: [hierarchyId], references: [id], onDelete: Cascade)
   progress TutoringChecklistProgress[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([guildId, sortOrder])
+  @@index([guildId, hierarchyId, grade])
   @@map("tutoring_items")
 }
 
