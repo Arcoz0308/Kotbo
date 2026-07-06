@@ -419,7 +419,9 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { giveaway });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error creating giveaway:', err);
-        json(res, 500, { error: 'Erreur lors de la création du giveaway' });
+        json(res, err instanceof Error && err.message.includes('serveur staff') ? 400 : 500, {
+          error: err instanceof Error ? err.message : 'Erreur lors de la création du giveaway',
+        });
       }
       return true;
     }

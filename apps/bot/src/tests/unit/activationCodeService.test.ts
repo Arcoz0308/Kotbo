@@ -15,6 +15,9 @@ const mockDb = {
     update: mock(() => Promise.resolve({} as unknown)) as unknown,
     upsert: mock(() => Promise.resolve({} as unknown)) as unknown,
   },
+  staffServerLink: {
+    findMany: mock(() => Promise.resolve([] as unknown[])) as unknown,
+  },
   $transaction: mock(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb)) as unknown,
 };
 
@@ -49,6 +52,7 @@ describe('activation service', () => {
     mockDb.guild.findUnique.mockClear();
     mockDb.guild.update.mockClear();
     mockDb.guild.upsert.mockClear();
+    (mockDb.staffServerLink.findMany as ReturnType<typeof mock>).mockClear();
     (mockDb.$transaction as ReturnType<typeof mock>).mockClear();
     (mockDb.$transaction as ReturnType<typeof mock>).mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb));
     activatedGuilds.clear();
@@ -91,12 +95,14 @@ describe('activation service', () => {
         activated: true,
         activatedAt: expect.any(Date),
         activationCode: expect.any(String),
+        activatedViaStaffLink: false,
       },
       create: {
         id: 'guild-123',
         activated: true,
         activatedAt: expect.any(Date),
         activationCode: expect.any(String),
+        activatedViaStaffLink: false,
       }
     });
 
@@ -126,7 +132,8 @@ describe('activation service', () => {
       data: {
         activated: false,
         activatedAt: null,
-        activationCode: null
+        activationCode: null,
+        activatedViaStaffLink: false,
       }
     });
 

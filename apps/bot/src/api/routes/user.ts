@@ -70,7 +70,16 @@ export async function handleUserRoutes(
         owner: boolean;
         botPresent: boolean;
         accessLevel: Exclude<DashboardAccessLevel, 'none'>;
+        isStaffServer: boolean;
+        pairedGuildId: string | null;
       }> = [];
+
+      const staffLinks = await prisma.staffServerLink.findMany({
+        where: { enabled: true },
+        select: { mainGuildId: true, staffGuildId: true },
+      });
+      const staffGuildToMain = new Map(staffLinks.map((l) => [l.staffGuildId, l.mainGuildId]));
+      const mainGuildToStaff = new Map(staffLinks.map((l) => [l.mainGuildId, l.staffGuildId]));
 
       for (const botGuild of client.guilds.cache.values()) {
         const guildId = botGuild.id;
@@ -114,7 +123,9 @@ export async function handleUserRoutes(
             icon: botGuild.icon ?? null,
             owner: botGuild.ownerId === user.userId,
             botPresent: true,
-            accessLevel
+            accessLevel,
+            isStaffServer: staffGuildToMain.has(guildId),
+            pairedGuildId: staffGuildToMain.get(guildId) ?? mainGuildToStaff.get(guildId) ?? null,
           });
         }
       }

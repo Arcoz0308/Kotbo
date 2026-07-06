@@ -97,10 +97,12 @@
   const isApprentice = $derived(!!dashboardStore.state.apprenticeProgress);
   const isStaff      = $derived(!!authStore.member);
 
+  const isStaffServerGuild = $derived(!!dashboardStore.state.isStaffServer);
+
   const visibleGeneral    = $derived(generalItems.filter((i) => canViewFeature(i.featureKey)));
-  const visibleLeveling   = $derived(levelingItems.filter((i) => canViewFeature(i.featureKey)));
-  const visibleEconomy    = $derived(economyItems.filter((i) => canViewFeature(i.featureKey)));
-  const visibleCommunity  = $derived(communityItems.filter((i) => canViewFeature(i.featureKey)));
+  const visibleLeveling   = $derived(isStaffServerGuild ? [] : levelingItems.filter((i) => canViewFeature(i.featureKey)));
+  const visibleEconomy    = $derived(isStaffServerGuild ? [] : economyItems.filter((i) => canViewFeature(i.featureKey)));
+  const visibleCommunity  = $derived(isStaffServerGuild ? [] : communityItems.filter((i) => canViewFeature(i.featureKey)));
   const visibleModeration = $derived(
     isStaff || isModerator || isAdmin
       ? moderationItems.filter((i) => canViewFeature(i.featureKey))
@@ -126,18 +128,22 @@
       .filter((i) => canViewFeature(i.featureKey));
   });
 
-  const navGroups = $derived.by((): NavGroup[] =>
-    ([
-      { key: 'general',    label: 'Général',       items: visibleGeneral    },
-      { key: 'moderation', label: 'Modération',     items: visibleModeration },
-      { key: 'leveling',   label: "Système d'XP",  items: visibleLeveling   },
-      { key: 'economy',    label: 'Économie & RPG',items: visibleEconomy    },
-      { key: 'community',  label: 'Communauté',     items: visibleCommunity  },
-      { key: 'staff',      label: 'Staff',          items: visibleStaff      },
-      { key: 'crossserver',label: 'Cross-Serveur',  items: visibleCrossServer },
-      { key: 'config',     label: 'Configuration',  items: visibleConfig     },
-    ] satisfies NavGroup[]).filter((g) => g.items.length > 0),
-  );
+  const navGroups = $derived.by((): NavGroup[] => {
+    const general    = { key: 'general',    label: 'Général',       items: visibleGeneral    };
+    const moderation = { key: 'moderation', label: 'Modération',     items: visibleModeration };
+    const leveling   = { key: 'leveling',   label: "Système d'XP",  items: visibleLeveling   };
+    const economy    = { key: 'economy',    label: 'Économie & RPG',items: visibleEconomy    };
+    const community  = { key: 'community',  label: 'Communauté',     items: visibleCommunity  };
+    const staff      = { key: 'staff',      label: 'Staff',          items: visibleStaff      };
+    const crossserver= { key: 'crossserver',label: 'Cross-Serveur',  items: visibleCrossServer };
+    const config      = { key: 'config',     label: 'Configuration',  items: visibleConfig     };
+
+    const ordered: NavGroup[] = isStaffServerGuild
+      ? [general, staff, moderation, leveling, economy, community, crossserver, config]
+      : [general, moderation, leveling, economy, community, staff, crossserver, config];
+
+    return ordered.filter((g) => g.items.length > 0);
+  });
 
   const itemLabel = (item: PageConfig): string => {
     if (isPageWip(item))  return `${item.name} (WIP)`;
@@ -340,8 +346,14 @@
 
     {#if !isCollapsed}
       <div class="flex flex-col min-w-0 flex-1">
-        <span class="text-sm font-semibold text-on-surface leading-none">{brandingStore.brandName}</span>
-        <span class="text-[10px] text-on-surface-variant mt-0.5">Dashboard</span>
+        <span class="text-sm font-semibold text-on-surface leading-none truncate">{brandingStore.brandName}</span>
+        {#if isStaffServerGuild}
+          <span class="inline-flex items-center gap-1 mt-0.5 w-fit px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+            Serveur Staff
+          </span>
+        {:else}
+          <span class="text-[10px] text-on-surface-variant mt-0.5">Dashboard</span>
+        {/if}
       </div>
 
       <button

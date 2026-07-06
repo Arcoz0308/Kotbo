@@ -11,6 +11,7 @@ import {
 } from '../services/moderation/sanctionService.js';
 import { generateTranscript } from '../services/features/transcriptService.js';
 import { getDashboardUrl } from '../api/shared.js';
+import { mirrorModlogToStaffServer } from '../services/staff/staffServerService.js';
 
 export function registerHoneypotListener(client: Client): void {
   client.on(Events.MessageCreate, async (message: Message) => {
@@ -180,19 +181,22 @@ export function registerHoneypotListener(client: Client): void {
       }
 
       // Log the action in the server logs channel
+      let embedDescription = `L'utilisateur **${author.tag}** (<@${author.id}>) a été ${actionText} car il a écrit dans le salon piège <#${channelId}>.\n\n` +
+        `**Message supprimé :**\n\`\`\`\n${message.content.slice(0, 1000) || '[Pas de texte/média]'}\n\`\`\``;
+
+      if (transcriptLink) {
+        embedDescription += `\n\n**Transcription (Preuve) :**\n🌐 [Consulter le transcript](${transcriptLink})`;
+      }
+      const embed = errorEmbed(logTitle, embedDescription);
+
       if (guildConfig.logChannelId) {
         const logChannel = guild.channels.cache.get(guildConfig.logChannelId);
         if (logChannel && logChannel instanceof TextChannel) {
-          let embedDescription = `L'utilisateur **${author.tag}** (<@${author.id}>) a été ${actionText} car il a écrit dans le salon piège <#${channelId}>.\n\n` +
-            `**Message supprimé :**\n\`\`\`\n${message.content.slice(0, 1000) || '[Pas de texte/média]'}\n\`\`\``;
-          
-          if (transcriptLink) {
-            embedDescription += `\n\n**Transcription (Preuve) :**\n🌐 [Consulter le transcript](${transcriptLink})`;
-          }
-          const embed = errorEmbed(logTitle, embedDescription);
           await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
         }
       }
+
+      await mirrorModlogToStaffServer(client, guild.id, embed);
     } catch (err) {
       logger.error('Honeypot', `Erreur lors de la gestion du message dans le honeypot (${guild?.id}) :`, err);
     }

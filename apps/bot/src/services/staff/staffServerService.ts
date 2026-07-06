@@ -1,14 +1,20 @@
 import {
   type Client,
   type GuildMember,
-  type Role,
+  type ButtonInteraction,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   EmbedBuilder,
+  MessageFlags,
+  PermissionFlagsBits,
   TextChannel,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
 import { cache } from '../../utils/cache.js';
+import { reconcileStaffGuildActivation } from '../../utils/activation.js';
 import type { StaffServerLink, StaffServerRoleMapping } from '@prisma/client';
 
 const TAG = 'StaffServer';
@@ -63,6 +69,15 @@ export async function createStaffServerLink(opts: {
     return { error: 'Le serveur principal et le serveur staff doivent être différents.' };
   }
 
+  const mainGuild = await prisma.guild.findUnique({
+    where: { id: opts.mainGuildId },
+    select: { activated: true },
+  });
+
+  if (!mainGuild?.activated) {
+    return { error: 'Le serveur principal doit être activé avant de pouvoir lier un serveur staff.' };
+  }
+
   const existing = await prisma.staffServerLink.findFirst({
     where: {
       mainGuildId: opts.mainGuildId,
@@ -75,7 +90,7 @@ export async function createStaffServerLink(opts: {
     return { error: 'Un lien staff existe déjà entre ces deux serveurs pour cette hiérarchie.' };
   }
 
-  return prisma.staffServerLink.create({
+  const link = await prisma.staffServerLink.create({
     data: {
       mainGuildId: opts.mainGuildId,
       staffGuildId: opts.staffGuildId,
@@ -87,6 +102,10 @@ export async function createStaffServerLink(opts: {
       createdByUserId: opts.createdByUserId,
     },
   });
+
+  await reconcileStaffGuildActivation(opts.staffGuildId);
+
+  return link;
 }
 
 export async function removeStaffServerLink(linkId: string): Promise<StaffServerLink | null> {
@@ -94,7 +113,92 @@ export async function removeStaffServerLink(linkId: string): Promise<StaffServer
   if (!link) return null;
 
   await invalidateStaffLinkCache(link);
-  return prisma.staffServerLink.delete({ where: { id: linkId } });
+  const removed = await prisma.staffServerLink.delete({ where: { id: linkId } });
+
+  await reconcileStaffGuildActivation(link.staffGuildId);
+
+  return removed;
+}
+
+/**
+ * Un serveur est considéré "serveur staff" s'il apparaît comme staffGuildId dans au moins
+ * un StaffServerLink actif — détection implicite, sans champ de type dédié sur Guild.
+ */
+export async function isStaffServerGuild(guildId: string): Promise<boolean> {
+  const count = await prisma.staffServerLink.count({
+    where: { staffGuildId: guildId, enabled: true },
+  });
+  return count > 0;
+}
+
+// ── Notifications cross-serveur vers le serveur staff ──────
+
+export type StaffNotifyKind = 'modlog' | 'sanctionReport' | 'recruitment' | 'offboarding' | 'onboardingInvite';
+
+const NOTIFY_KIND_TO_FIELD: Record<StaffNotifyKind, keyof StaffServerLink> = {
+  modlog: 'modlogMirrorChannelId',
+  sanctionReport: 'sanctionReportChannelId',
+  recruitment: 'recruitmentAlertChannelId',
+  offboarding: 'offboardingAlertChannelId',
+  onboardingInvite: 'onboardingInviteChannelId',
+};
+
+/**
+ * Partie pure de la résolution : sélectionne le premier lien actif côté serveur principal
+ * dont le salon correspondant au kind est configuré. Testable sans Discord.
+ */
+export function resolveStaffNotifyChannelId(
+  links: StaffServerLink[],
+  mainGuildId: string,
+  kind: StaffNotifyKind,
+): { staffGuildId: string; channelId: string } | null {
+  const field = NOTIFY_KIND_TO_FIELD[kind];
+  for (const link of links) {
+    if (!link.enabled || link.mainGuildId !== mainGuildId) continue;
+    const channelId = link[field];
+    if (typeof channelId === 'string' && channelId) {
+      return { staffGuildId: link.staffGuildId, channelId };
+    }
+  }
+  return null;
+}
+
+/**
+ * Résout le salon texte configuré sur le serveur STAFF lié au serveur principal donné.
+ * Retourne null si pas de lien actif, champ non configuré, ou salon introuvable/hors du staff.
+ */
+export async function getStaffServerNotifyChannel(
+  client: Client,
+  mainGuildId: string,
+  kind: StaffNotifyKind,
+): Promise<TextChannel | null> {
+  const links = await getStaffLinksForGuild(mainGuildId);
+  const resolved = resolveStaffNotifyChannelId(links, mainGuildId, kind);
+  if (!resolved) return null;
+
+  const channel = await client.channels.fetch(resolved.channelId).catch(() => null);
+  if (!(channel instanceof TextChannel)) return null;
+  if (channel.guildId !== resolved.staffGuildId) return null;
+
+  return channel;
+}
+
+/**
+ * Duplique un embed de modération sur le salon "miroir modlog" du serveur staff lié.
+ * Miroir uniquement — l'envoi dans le modlog du serveur principal reste inchangé.
+ */
+export async function mirrorModlogToStaffServer(
+  client: Client,
+  mainGuildId: string,
+  embed: EmbedBuilder,
+): Promise<void> {
+  const channel = await getStaffServerNotifyChannel(client, mainGuildId, 'modlog');
+  if (!channel) return;
+
+  const mainGuildName = client.guilds.cache.get(mainGuildId)?.name ?? mainGuildId;
+  const mirrored = EmbedBuilder.from(embed.toJSON()).setFooter({ text: `Depuis ${mainGuildName}` });
+
+  await channel.send({ embeds: [mirrored], allowedMentions: { parse: [] } }).catch(() => null);
 }
 
 export async function listStaffServerLinks(guildId: string): Promise<StaffServerLinkWithMappings[]> {
@@ -164,6 +268,21 @@ export async function syncMemberRoles(
       const isStaffGuild = link.staffGuildId === guildId;
       if (!isMainGuild && !isStaffGuild) continue;
 
+      // Cycle de vie staff : détection AVANT le fetch du membre distant — à l'onboarding,
+      // le membre n'est typiquement pas encore présent sur le serveur staff.
+      if (isMainGuild) {
+        const transition = computeStaffRoleTransition(link, oldRoles, newRoles, true);
+        if (transition === 'gained-first') {
+          await sendOnboardingInvite(client, link, member).catch((err) =>
+            logger.warn(TAG, `Erreur d'onboarding pour ${member.user.tag} sur link ${link.id}`, err),
+          );
+        } else if (transition === 'lost-all') {
+          await sendOffboardingAlert(client, link, member).catch((err) =>
+            logger.warn(TAG, `Erreur d'alerte offboarding pour ${member.user.tag} sur link ${link.id}`, err),
+          );
+        }
+      }
+
       const shouldSync = shouldSyncFromGuild(link.syncMode, isMainGuild);
       if (!shouldSync) continue;
 
@@ -186,6 +305,226 @@ export async function syncMemberRoles(
     } catch (err) {
       logger.error(TAG, `Erreur sync rôles pour ${member.user.tag} sur link ${link.id}`, err);
     }
+  }
+}
+
+// ── Cycle de vie staff (onboarding / offboarding) ───────────
+
+/**
+ * Détecte la transition de statut staff d'un membre à partir des rôles mappés du lien.
+ * Fonction pure — testable sans Discord.
+ */
+export function computeStaffRoleTransition(
+  link: StaffServerLinkWithMappings,
+  oldRoles: string[],
+  newRoles: string[],
+  isMainGuild: boolean,
+): 'gained-first' | 'lost-all' | 'none' {
+  const roleField = isMainGuild ? 'mainDiscordRoleId' : 'staffDiscordRoleId';
+  const staffRoleIds = new Set(
+    link.roleMappings.map((m) => m[roleField]).filter(Boolean) as string[],
+  );
+  if (staffRoleIds.size === 0) return 'none';
+
+  const hadAny = oldRoles.some((r) => staffRoleIds.has(r));
+  const hasAny = newRoles.some((r) => staffRoleIds.has(r));
+
+  if (!hadAny && hasAny) return 'gained-first';
+  if (hadAny && !hasAny) return 'lost-all';
+  return 'none';
+}
+
+/**
+ * Envoie en DM une invitation au serveur staff au membre qui vient d'obtenir son premier rôle staff.
+ */
+async function sendOnboardingInvite(
+  client: Client,
+  link: StaffServerLinkWithMappings,
+  member: GuildMember,
+): Promise<void> {
+  if (!link.onboardingInviteEnabled) return;
+
+  const staffGuild = client.guilds.cache.get(link.staffGuildId);
+  if (!staffGuild) return;
+
+  // Déjà membre du serveur staff → rien à faire
+  const existing = await staffGuild.members.fetch(member.user.id).catch(() => null);
+  if (existing) return;
+
+  // Anti-doublon (Discord peut émettre plusieurs updates de rôles rapprochés)
+  const dedupeKey = `staffserver:onboard:${link.id}:${member.user.id}`;
+  if (await cache.get(dedupeKey)) return;
+  await cache.set(dedupeKey, true, 3600);
+
+  // Salon source de l'invitation : configuré, sinon rules/system, sinon premier salon texte invitable
+  let inviteChannel: TextChannel | null = null;
+  if (link.onboardingInviteChannelId) {
+    const ch = staffGuild.channels.cache.get(link.onboardingInviteChannelId);
+    if (ch instanceof TextChannel) inviteChannel = ch;
+  }
+  if (!inviteChannel) {
+    const fallback = staffGuild.rulesChannel
+      ?? staffGuild.systemChannel
+      ?? staffGuild.channels.cache.find(
+        (c): c is TextChannel =>
+          c instanceof TextChannel &&
+          !!staffGuild.members.me &&
+          c.permissionsFor(staffGuild.members.me).has(PermissionFlagsBits.CreateInstantInvite),
+      );
+    if (fallback instanceof TextChannel) inviteChannel = fallback;
+  }
+  if (!inviteChannel) {
+    logger.warn(TAG, `Onboarding: aucun salon invitable trouvé sur ${staffGuild.name} pour ${member.user.tag}`);
+    return;
+  }
+
+  const invite = await inviteChannel.createInvite({
+    maxAge: 7 * 24 * 60 * 60,
+    maxUses: 1,
+    unique: true,
+    reason: 'Kotbo StaffServer: onboarding staff',
+  }).catch(() => null);
+  if (!invite) return;
+
+  const dmSent = await member.send(
+    `🎉 Bienvenue dans l'équipe staff de **${member.guild.name}** !\n` +
+    `Voici ton invitation au serveur staff : ${invite.url}\n` +
+    `*(valable 7 jours, 1 utilisation)*`,
+  ).then(() => true).catch(() => false);
+
+  if (link.mainLogChannelId) {
+    const logChannel = member.guild.channels.cache.get(link.mainLogChannelId);
+    if (logChannel instanceof TextChannel) {
+      await logChannel.send({
+        content: dmSent
+          ? `📨 Invitation au serveur staff envoyée en DM à **${member.user.tag}** (<@${member.user.id}>).`
+          : `⚠️ Impossible d'envoyer l'invitation au serveur staff en DM à **${member.user.tag}** (<@${member.user.id}>) — DM fermés. Invitation : ${invite.url}`,
+        allowedMentions: { parse: [] },
+      }).catch(() => null);
+    }
+  } else if (!dmSent) {
+    logger.warn(TAG, `Onboarding: DM fermés pour ${member.user.tag}, invitation non délivrée (${invite.url})`);
+  }
+}
+
+/**
+ * Poste une alerte sur le serveur staff quand un membre perd tous ses rôles staff,
+ * avec boutons d'expulsion (jamais d'auto-kick).
+ */
+async function sendOffboardingAlert(
+  client: Client,
+  link: StaffServerLinkWithMappings,
+  member: GuildMember,
+): Promise<void> {
+  const channel = await getStaffServerNotifyChannel(client, link.mainGuildId, 'offboarding');
+  if (!channel) return;
+
+  const staffGuild = client.guilds.cache.get(link.staffGuildId);
+  if (!staffGuild) return;
+
+  // Si la personne n'est pas sur le serveur staff, aucune action n'est nécessaire
+  const staffMember = await staffGuild.members.fetch(member.user.id).catch(() => null);
+  if (!staffMember) return;
+
+  const embed = new EmbedBuilder()
+    .setTitle('👋 Départ du staff')
+    .setDescription(
+      `**${member.user.tag}** (<@${member.user.id}>) a perdu tous ses rôles staff sur **${member.guild.name}**.\n` +
+      `Il est toujours présent sur ce serveur staff.`,
+    )
+    .setColor(COLORS.warning)
+    .setTimestamp();
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`staffserver:kick:${link.id}:${member.user.id}`)
+      .setLabel('Expulser du serveur staff')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`staffserver:keep:${link.id}:${member.user.id}`)
+      .setLabel('Conserver')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await channel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } }).catch(() => null);
+}
+
+/**
+ * Gère les boutons `staffserver:*` (offboarding). Confirmation en deux temps, jamais d'auto-kick.
+ */
+export async function handleStaffServerButton(
+  client: Client,
+  customId: string,
+  interaction: ButtonInteraction,
+): Promise<void> {
+  const [, action, linkId, userId] = customId.split(':');
+  if (!action || !linkId || !userId) return;
+
+  const link = await prisma.staffServerLink.findUnique({ where: { id: linkId } });
+  if (!link) {
+    await interaction.reply({ content: '❌ Lien serveur staff introuvable.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
+    return;
+  }
+
+  // Le bouton ne vit que sur le serveur staff
+  if (interaction.guildId !== link.staffGuildId) {
+    await interaction.reply({ content: '❌ Cette action doit être effectuée sur le serveur staff.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
+    return;
+  }
+
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.KickMembers)) {
+    await interaction.reply({ content: "❌ Vous n'avez pas la permission d'expulser des membres.", flags: [MessageFlags.Ephemeral] }).catch(() => null);
+    return;
+  }
+
+  if (action === 'keep') {
+    await interaction.update({
+      components: [],
+      embeds: interaction.message.embeds.map((e) =>
+        EmbedBuilder.from(e).setFooter({ text: `Conservé par ${interaction.user.tag}` }).toJSON(),
+      ),
+    }).catch(() => null);
+    return;
+  }
+
+  if (action === 'kick') {
+    // Premier clic : demander confirmation sur le message d'origine
+    const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`staffserver:kickconfirm:${linkId}:${userId}`)
+        .setLabel("Confirmer l'expulsion")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`staffserver:keep:${linkId}:${userId}`)
+        .setLabel('Annuler')
+        .setStyle(ButtonStyle.Secondary),
+    );
+    await interaction.update({ components: [confirmRow] }).catch(() => null);
+    return;
+  }
+
+  if (action === 'kickconfirm') {
+    const staffGuild = client.guilds.cache.get(link.staffGuildId);
+    if (!staffGuild) {
+      await interaction.reply({ content: '❌ Serveur staff introuvable.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
+      return;
+    }
+
+    const kicked = await staffGuild.members
+      .kick(userId, `Kotbo StaffServer: départ du staff (validé par ${interaction.user.tag})`)
+      .then(() => true)
+      .catch(() => false);
+
+    await interaction.update({
+      components: [],
+      embeds: interaction.message.embeds.map((e) =>
+        EmbedBuilder.from(e).setFooter({
+          text: kicked
+            ? `✅ Expulsé par ${interaction.user.tag}`
+            : `⚠️ Expulsion impossible (membre déjà parti ou permissions insuffisantes) — ${interaction.user.tag}`,
+        }).toJSON(),
+      ),
+    }).catch(() => null);
   }
 }
 

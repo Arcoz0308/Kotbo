@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { activateGuild, deactivateGuild } from '../../utils/activation.js';
+import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1237,6 +1237,36 @@ export async function handleAdminRoutes(
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la suppression du code :', err);
       json(res, 500, { error: "Erreur lors de la suppression du code d'activation." });
+    }
+    return true;
+  }
+
+  // POST /api/admin/staff-servers/reconcile — resynchronise l'activation de tous les serveurs staff liés
+  if (parts.length === 4 && parts[2] === 'staff-servers' && parts[3] === 'reconcile' && method === 'POST') {
+    try {
+      const links = await prisma.staffServerLink.findMany({
+        where: { enabled: true },
+        select: { staffGuildId: true },
+        distinct: ['staffGuildId'],
+      });
+
+      const counts = { checked: 0, activated: 0, deactivated: 0, unchanged: 0 };
+
+      for (const link of links) {
+        counts.checked++;
+        try {
+          const result = await reconcileStaffGuildActivation(link.staffGuildId);
+          counts[result]++;
+        } catch (err) {
+          logger.error('AdminAPI', `Erreur de réconciliation du serveur staff ${link.staffGuildId} :`, err);
+          counts.unchanged++;
+        }
+      }
+
+      json(res, 200, { ok: true, ...counts });
+    } catch (err) {
+      logger.error('AdminAPI', 'Erreur lors de la synchronisation des serveurs staff :', err);
+      json(res, 500, { error: 'Erreur lors de la synchronisation des serveurs staff.' });
     }
     return true;
   }

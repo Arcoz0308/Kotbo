@@ -373,6 +373,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // Staff server lifecycle buttons (offboarding kick/keep)
+  if (customId.startsWith('staffserver:')) {
+    const { handleStaffServerButton } = await import('../services/staff/staffServerService.js');
+    await handleStaffServerButton(client, customId, interaction);
+    return;
+  }
+
   // Ticket system buttons
   if (customId.startsWith('ticket:')) {
     await handleTicketButton(client, customId, interaction);

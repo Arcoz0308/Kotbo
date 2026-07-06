@@ -3,6 +3,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
 import { loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
+import { mirrorModlogToStaffServer } from '../staff/staffServerService.js';
 
 // Cache for AutoMod configs: key is guildId, value is the config object
 const autoModConfigsCache = new Map<string, unknown>();
@@ -768,8 +769,8 @@ async function applySanction(message: Message, action: string, reason: string, c
     tag: message.author.tag,
   };
   const moderator = {
-    id: client.user.id,
-    tag: client.user.tag,
+    id: (client as any).user.id,
+    tag: (client as any).user.tag,
   };
 
   // Informer l'utilisateur dans le salon d'origine de manière éphémère (ou message normal supprimé rapidement)
@@ -782,29 +783,47 @@ async function applySanction(message: Message, action: string, reason: string, c
     }
   }
 
+  // Générer la transcription pour le message de preuve
+  let evidenceLinks: string[] = [];
+  if (action === 'WARN' || action === 'DELETE_AND_WARN' || action === 'TIMEOUT') {
+    try {
+      const { generateTranscriptFromMessages } = await import('../features/transcriptService.js');
+      const transcript = await generateTranscriptFromMessages(message.channel as any, [message]);
+      const { getDashboardUrl } = await import('../../api/shared.js');
+      const dashboardUrl = getDashboardUrl();
+      const transcriptUrl = `${dashboardUrl}${transcript.url}`;
+      evidenceLinks.push(transcriptUrl);
+    } catch (err) {
+      logger.warn('AutoModService', 'Impossible de générer la transcription pour le message de preuve :', err);
+    }
+  }
+
   // Notifier dans le salon de log si configuré
   try {
     const guildDb = await prisma.guild.findUnique({
       where: { id: guildId },
       select: { logChannelId: true },
     });
+    const embed = new EmbedBuilder()
+      .setTitle('🛡️ Sanction AutoMod')
+      .setDescription(`L'utilisateur <@${target.id}> a déclenché une alerte de sécurité.`)
+      .addFields(
+        { name: 'Utilisateur', value: `${target.tag} (<@${target.id}>)`, inline: true },
+        { name: 'Action', value: action, inline: true },
+        { name: 'Raison', value: reason, inline: false },
+        { name: 'Salon', value: `<#${message.channel.id}>`, inline: true }
+      )
+      .setColor('#ED4245')
+      .setTimestamp();
+
     if (guildDb?.logChannelId) {
       const logChannel = message.guild!.channels.cache.get(guildDb.logChannelId);
       if (logChannel?.isTextBased()) {
-        const embed = new EmbedBuilder()
-          .setTitle('🛡️ Sanction AutoMod')
-          .setDescription(`L'utilisateur <@${target.id}> a déclenché une alerte de sécurité.`)
-          .addFields(
-            { name: 'Utilisateur', value: `${target.tag} (<@${target.id}>)`, inline: true },
-            { name: 'Action', value: action, inline: true },
-            { name: 'Raison', value: reason, inline: false },
-            { name: 'Salon', value: `<#${message.channel.id}>`, inline: true }
-          )
-          .setColor('#ED4245')
-          .setTimestamp();
         await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
+
+    await mirrorModlogToStaffServer(client, guildId, embed);
   } catch (err) {
     logger.warn('AutoModService', "Impossible d'envoyer le log AutoMod :", err);
   }
@@ -816,7 +835,8 @@ async function applySanction(message: Message, action: string, reason: string, c
       target,
       moderator,
       reason,
-      client,
+      client: client as any,
+      evidenceLinks,
     });
   } else if (action === 'TIMEOUT') {
     // Timeout de 10 minutes par défaut pour l'AutoMod
@@ -828,7 +848,8 @@ async function applySanction(message: Message, action: string, reason: string, c
       reason,
       durationMs: tenMinutesMs,
       member: message.member!,
-      client,
+      client: client as any,
+      evidenceLinks,
     });
   }
 }
@@ -1002,30 +1023,32 @@ async function triggerGhostPingAlert(
       where: { id: guildId },
       select: { logChannelId: true },
     });
+    const embed = new EmbedBuilder()
+      .setTitle('🛡️ Alerte AutoMod (Ghost Ping)')
+      .setDescription(`Un ghost ping a été détecté dans le salon <#${message.channel.id}>.`)
+      .addFields(
+        { name: 'Utilisateur', value: `${author.tag} (<@${author.id}>)`, inline: true },
+        { name: 'Cibles mentionnées', value: targetsString || 'Inconnues', inline: true },
+        { name: 'Action', value: action, inline: true },
+        { name: "Type d'infraction", value: isEdit ? 'Modification de message' : 'Suppression de message', inline: true }
+      )
+      .setColor('#ED4245')
+      .setTimestamp();
+
+    // Si le contenu original du message est disponible, l'ajouter de manière sécurisée
+    if (message.content) {
+      const contentSnippet = message.content.substring(0, 1024);
+      embed.addFields({ name: 'Message original', value: contentSnippet, inline: false });
+    }
+
     if (guildDb?.logChannelId) {
       const logChannel = message.guild!.channels.cache.get(guildDb.logChannelId);
       if (logChannel?.isTextBased()) {
-        const embed = new EmbedBuilder()
-          .setTitle('🛡️ Alerte AutoMod (Ghost Ping)')
-          .setDescription(`Un ghost ping a été détecté dans le salon <#${message.channel.id}>.`)
-          .addFields(
-            { name: 'Utilisateur', value: `${author.tag} (<@${author.id}>)`, inline: true },
-            { name: 'Cibles mentionnées', value: targetsString || 'Inconnues', inline: true },
-            { name: 'Action', value: action, inline: true },
-            { name: "Type d'infraction", value: isEdit ? 'Modification de message' : 'Suppression de message', inline: true }
-          )
-          .setColor('#ED4245')
-          .setTimestamp();
-
-        // Si le contenu original du message est disponible, l'ajouter de manière sécurisée
-        if (message.content) {
-          const contentSnippet = message.content.substring(0, 1024);
-          embed.addFields({ name: 'Message original', value: contentSnippet, inline: false });
-        }
-
         await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
+
+    await mirrorModlogToStaffServer(client, guildId, embed);
   } catch (err) {
     logger.warn('AutoModService', "Impossible d'envoyer le log de Ghost Ping :", err);
   }
@@ -1114,23 +1137,26 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
         where: { id: guildId },
         select: { logChannelId: true },
       });
+      const embed = new EmbedBuilder()
+        .setTitle('🤖 Bot bloqué (Mode Sécurisé)')
+        .setDescription(`Le bot **${member.user.tag}** a été ${action === 'BAN' ? 'banni' : 'expulsé'} automatiquement.`)
+        .addFields(
+          { name: 'Bot', value: `${member.user.tag} (<@${member.id}>)`, inline: true },
+          { name: 'Ajouté par', value: addedById ? `<@${addedById}>` : 'Inconnu', inline: true },
+          { name: 'Action', value: action, inline: true },
+          { name: 'Raison', value: 'Seul le propriétaire du serveur peut ajouter des bots en mode sécurisé.', inline: false },
+        )
+        .setColor('#ED4245')
+        .setTimestamp();
+
       if (guildDb?.logChannelId) {
         const logChannel = member.guild.channels.cache.get(guildDb.logChannelId);
         if (logChannel?.isTextBased()) {
-          const embed = new EmbedBuilder()
-            .setTitle('🤖 Bot bloqué (Mode Sécurisé)')
-            .setDescription(`Le bot **${member.user.tag}** a été ${action === 'BAN' ? 'banni' : 'expulsé'} automatiquement.`)
-            .addFields(
-              { name: 'Bot', value: `${member.user.tag} (<@${member.id}>)`, inline: true },
-              { name: 'Ajouté par', value: addedById ? `<@${addedById}>` : 'Inconnu', inline: true },
-              { name: 'Action', value: action, inline: true },
-              { name: 'Raison', value: 'Seul le propriétaire du serveur peut ajouter des bots en mode sécurisé.', inline: false },
-            )
-            .setColor('#ED4245')
-            .setTimestamp();
           await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
         }
       }
+
+      await mirrorModlogToStaffServer(client, guildId, embed);
     } catch (err) {
       logger.warn('AutoModService', "Impossible d'envoyer le log anti-bot :", err);
     }

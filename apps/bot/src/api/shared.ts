@@ -20,6 +20,7 @@ import { SanctionType } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { isStaffServerGuild } from '../services/staff/staffServerService.js';
 export { COLORS, successEmbed } from '../utils/embeds.js';
 
 export {
@@ -213,10 +214,7 @@ export const getClientIp = (req: IncomingMessage): string => {
   return req.socket.remoteAddress || '127.0.0.1';
 };
 
-export const configRateLimiter = new Map<string, number[]>();
-export const errorReportRateLimiter = new Map<string, number[]>();
-export const feedbackReportRateLimiter = new Map<string, number[]>();
-export const partnershipRateLimiter = new Map<string, number[]>();
+export { configRateLimiter, errorReportRateLimiter, feedbackReportRateLimiter, partnershipRateLimiter } from './limiters.js';
 
 export const checkRateLimit = (limiterMap: Map<string, number[]>, ip: string, limit: number, windowMs: number): boolean => {
   const now = Date.now();
@@ -732,6 +730,7 @@ export type DashboardState = {
   funEnabled: boolean;
   economyEnabled: boolean;
   levelingEnabled: boolean;
+  isStaffServer: boolean;
   funCountingChannelId: string;
   funOneWordStoryChannelId: string;
   funGuessNumberChannelId: string;
@@ -3126,6 +3125,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
   const joinsTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.membersJoined ?? 0);
   const leavesTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.membersLeft ?? 0);
   const sanctionsTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.sanctionsCount ?? 0);
+  const isStaffServer = await isStaffServerGuild(guildId);
 
   return {
     guildName: getGuildName(client, guildId),
@@ -3156,6 +3156,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     funEnabled: guild.funEnabled,
     economyEnabled: guild.economyEnabled,
     levelingEnabled: guild.levelConfig?.enabled ?? false,
+    isStaffServer,
     funCountingChannelId: guild.funCountingChannelId ?? '',
     funOneWordStoryChannelId: guild.funOneWordStoryChannelId ?? '',
     funGuessNumberChannelId: guild.funGuessNumberChannelId ?? '',

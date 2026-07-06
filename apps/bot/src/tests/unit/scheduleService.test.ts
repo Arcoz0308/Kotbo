@@ -74,6 +74,7 @@ describe('schedule service', () => {
     const mockChannel = {
       id: 'chan-1',
       name: 'general',
+      isThread: () => false,
       clone: mock(() => Promise.resolve({
         isTextBased: () => true,
         send: mock(() => Promise.resolve({}))

@@ -68,6 +68,9 @@ type TicketPanelTypeConfig = {
   mode?: 'CHANNEL' | 'DM' | 'THREAD' | null;
   anonymous?: boolean;
   staffServerRelay?: boolean;
+  // Tickets internes : le salon du ticket est créé sur le serveur staff lié
+  staffServerChannel?: boolean;
+  staffServerCategoryId?: string | null;
   fields?: any[] | null;
 };
 
@@ -106,6 +109,8 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
           mode,
           anonymous: item.anonymous === true,
           staffServerRelay: item.staffServerRelay === true,
+          staffServerChannel: item.staffServerChannel === true,
+          staffServerCategoryId: typeof item.staffServerCategoryId === 'string' && item.staffServerCategoryId.trim() ? item.staffServerCategoryId.trim() : null,
           fields: Array.isArray(item.fields) ? item.fields : null,
         };
       })
@@ -503,10 +508,14 @@ export async function handleTicketSelectMenu(client: Client, customId: string, i
   });
 
   if (existing && existing.channelId) {
-    const ch = guild.channels.cache.get(existing.channelId);
+    // client.channels.fetch : le ticket peut vivre sur le serveur staff lié
+    const ch = await client.channels.fetch(existing.channelId).catch(() => null);
     if (ch) {
+      const ticketRef = existing.staffServerGuildId
+        ? `https://discord.com/channels/${existing.staffServerGuildId}/${existing.channelId}`
+        : `<#${existing.channelId}>`;
       await interaction.reply({
-        content: `⚠️ Vous avez déjà un ticket d'ouvert : <#${existing.channelId}>. Merci de l'utiliser !`,
+        content: `⚠️ Vous avez déjà un ticket d'ouvert : ${ticketRef}. Merci de l'utiliser !`,
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -544,10 +553,14 @@ export async function handleTicketButton(client: Client, customId: string, inter
     });
 
     if (existing && existing.channelId) {
-      const ch = guild.channels.cache.get(existing.channelId);
+      // client.channels.fetch : le ticket peut vivre sur le serveur staff lié
+      const ch = await client.channels.fetch(existing.channelId).catch(() => null);
       if (ch) {
+        const ticketRef = existing.staffServerGuildId
+          ? `https://discord.com/channels/${existing.staffServerGuildId}/${existing.channelId}`
+          : `<#${existing.channelId}>`;
         await interaction.reply({
-          content: `⚠️ Vous avez déjà un ticket d'ouvert : <#${existing.channelId}>. Merci de l'utiliser !`,
+          content: `⚠️ Vous avez déjà un ticket d'ouvert : ${ticketRef}. Merci de l'utiliser !`,
           flags: [MessageFlags.Ephemeral]
         });
         return;
@@ -1074,9 +1087,32 @@ export async function executeTicketCreation(
 
     } else {
       // ─── Mode CHANNEL (défaut) : créer un salon texte ───────────────
-      const ticketCategoryId = ticketType.categoryId || guildConfig.ticketCategoryId || null;
+
+      // Tickets internes : le salon est créé sur le serveur staff lié (si configuré)
+      let targetGuild = guild;
+      let onStaffServer = false;
+      let staffLinkForTicket: { staffGuildId: string; simpleStaffRoleId: string | null } | null = null;
+
+      if (ticketType.staffServerChannel) {
+        const staffLink = await prisma.staffServerLink.findFirst({
+          where: { mainGuildId: guildId, enabled: true },
+          select: { staffGuildId: true, simpleStaffRoleId: true },
+        });
+        const staffGuild = staffLink ? client.guilds.cache.get(staffLink.staffGuildId) : null;
+        if (staffGuild) {
+          targetGuild = staffGuild;
+          onStaffServer = true;
+          staffLinkForTicket = staffLink;
+        } else {
+          logger.warn('Ticket', `Ticket interne demandé mais serveur staff introuvable pour ${guildId} — repli sur le serveur principal.`);
+        }
+      }
+
+      const ticketCategoryId = onStaffServer
+        ? (ticketType.staffServerCategoryId || null)
+        : (ticketType.categoryId || guildConfig.ticketCategoryId || null);
       const ticketCategory = ticketCategoryId
-        ? guild.channels.cache.get(ticketCategoryId)
+        ? targetGuild.channels.cache.get(ticketCategoryId)
         : null;
 
       const cleanedUsername = user.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
@@ -1084,7 +1120,7 @@ export async function executeTicketCreation(
 
       const permissionOverwrites: any[] = [
         {
-          id: guild.roles.everyone.id,
+          id: targetGuild.roles.everyone.id,
           deny: [PermissionFlagsBits.ViewChannel]
         },
         {
@@ -1099,9 +1135,17 @@ export async function executeTicketCreation(
         }
       ];
 
-      if (ticketStaffRoleId) {
+      // Sur le serveur staff, les rôles du serveur principal n'existent pas : n'ajouter un
+      // overwrite de rôle que s'il existe réellement sur la guilde cible.
+      const staffRoleForOverwrite = ticketStaffRoleId && targetGuild.roles.cache.has(ticketStaffRoleId)
+        ? ticketStaffRoleId
+        : (onStaffServer && staffLinkForTicket?.simpleStaffRoleId && targetGuild.roles.cache.has(staffLinkForTicket.simpleStaffRoleId)
+          ? staffLinkForTicket.simpleStaffRoleId
+          : null);
+
+      if (staffRoleForOverwrite) {
         permissionOverwrites.push({
-          id: ticketStaffRoleId,
+          id: staffRoleForOverwrite,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -1112,7 +1156,7 @@ export async function executeTicketCreation(
         });
       }
 
-      if (guildConfig.moderatorRoleId) {
+      if (guildConfig.moderatorRoleId && targetGuild.roles.cache.has(guildConfig.moderatorRoleId)) {
         permissionOverwrites.push({
           id: guildConfig.moderatorRoleId,
           allow: [
@@ -1125,7 +1169,7 @@ export async function executeTicketCreation(
         });
       }
 
-      const ticketChannel = await guild.channels.create({
+      const ticketChannel = await targetGuild.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
         parent: ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined,
@@ -1140,13 +1184,14 @@ export async function executeTicketCreation(
           mode: 'CHANNEL',
           ticketTypeId: ticketType.id,
           ticketTypeLabel: ticketType.label,
-          staffRoleId: ticketStaffRoleId,
+          staffRoleId: staffRoleForOverwrite,
           categoryId: ticketCategoryId,
           userId: user.id,
           username: user.username,
           reason,
           description,
-          status: 'OPEN'
+          status: 'OPEN',
+          staffServerGuildId: onStaffServer ? targetGuild.id : null,
         }
       });
 
@@ -1169,12 +1214,17 @@ export async function executeTicketCreation(
       await ticketChannel.send({
         components: [welcomeContainer, row],
         flags: MessageFlags.IsComponentsV2,
-        allowedMentions: { users: [user.id], roles: ticketStaffRoleId ? [ticketStaffRoleId] : [] },
+        allowedMentions: { users: [user.id], roles: staffRoleForOverwrite ? [staffRoleForOverwrite] : [] },
       });
 
       await logTicketEvent(client, guildConfig, 'OPENED', ticket, user);
       await handleTicketTrigger(guildId, user.id, ticketType.id, reason, description, client, ticket.id);
-      await interaction.editReply({ content: `✅ Votre ticket a été créé avec succès : <#${ticketChannel.id}>.` });
+      // <#id> ne résout pas entre serveurs : URL complète quand le ticket vit sur le serveur staff
+      await interaction.editReply({
+        content: onStaffServer
+          ? `✅ Votre ticket a été créé sur le serveur staff : https://discord.com/channels/${targetGuild.id}/${ticketChannel.id}`
+          : `✅ Votre ticket a été créé avec succès : <#${ticketChannel.id}>.`,
+      });
 
       setupInteractiveTicketQuestions(client, ticketChannel, user.id, ticketType, guildConfig).catch(console.error);
 

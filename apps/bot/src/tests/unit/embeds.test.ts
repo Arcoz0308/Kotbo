@@ -47,8 +47,8 @@ describe('embeds utils', () => {
 
   test('helpers utilitaires', () => {
     expect(truncate('abcdef', 5)).toBe('ab...');
-    expect(categoryEmoji('YouTube')).toBe('▶️');
-    expect(feedStatusEmoji(true)).toBe('🟢');
-    expect(feedStatusEmoji(false)).toBe('🔴');
+    expect(categoryEmoji('YouTube')).toBe('<:ktb_yt:1519265317665247232>');
+    expect(feedStatusEmoji(true)).toBe('<:ktb_online:1519265298698600579>');
+    expect(feedStatusEmoji(false)).toBe('<:ktb_offline:1519265296748253245>');
   });
 });

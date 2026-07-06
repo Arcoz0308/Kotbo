@@ -4,7 +4,7 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { staffStore } from '../lib/stores/staff.svelte';
-  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog } from '../lib/api';
+  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks } from '../lib/api';
   import type { ChangelogCommit } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -56,6 +56,7 @@
     { id: 'invites', title: 'Invitations', desc: 'Statistiques d\'invitations : top inviteurs, invitations actives et taux de rétention.', icon: 'user-plus' },
     { id: 'events', title: 'Événements', desc: 'Prochains événements du serveur et participation prévue.', icon: 'calendar' },
     { id: 'polls', title: 'Sondages', desc: 'Sondages actifs et résultats récents de l\'équipe staff.', icon: 'bar-chart' },
+    { id: 'staffServer', title: 'Serveur Staff', desc: 'État du lien serveur staff : synchronisation, rôles mappés et accès rapide.', icon: 'shield' },
   ];
 
   let isEditing = $state(false);
@@ -462,12 +463,30 @@
     currentDate = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  // Widget "Serveur Staff" — état du lien de la paire
+  const SYNC_MODE_LABELS: Record<string, string> = {
+    MAIN_TO_STAFF: 'Principal → Staff',
+    STAFF_TO_MAIN: 'Staff → Principal',
+    BIDIRECTIONAL: 'Bidirectionnel',
+  };
+  let staffServerLinks = $state<any[]>([]);
+
+  async function loadStaffServerLinks() {
+    try {
+      const data = await fetchStaffServerLinks();
+      staffServerLinks = Array.isArray(data) ? data : [];
+    } catch {
+      staffServerLinks = [];
+    }
+  }
+
   $effect(() => {
     if (authStore.selectedGuildId) {
       loadLayout();
       loadStaffNotes();
       handleImportFromUrl();
       loadChangelog();
+      loadStaffServerLinks();
     }
   });
 
@@ -1613,6 +1632,51 @@
                 <p class="text-[10px] mt-0.5">Les sondages staff apparaîtront ici.</p>
               </div>
             </div>
+          </div>
+        {:else if item.id === 'staffServer'}
+          <div class="flex flex-col h-full justify-between">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                  <Papicon icon="shield" size={14} />
+                </div>
+                <h3 class="text-sm font-medium text-on-surface">Serveur Staff</h3>
+              </div>
+              <button onclick={() => router.goto('/staff-server')} class="text-[10px] text-primary hover:underline cursor-pointer">Gérer</button>
+            </div>
+            {#if staffServerLinks.length > 0}
+              {@const link = staffServerLinks[0]}
+              <div class="space-y-2 grow flex flex-col justify-center">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full {link.enabled ? 'bg-emerald-400' : 'bg-red-400'}"></span>
+                  <p class="text-sm font-medium text-on-surface truncate">{link.otherGuildName}</p>
+                  <span class="text-[9px] font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+                    {link.isMain ? 'Staff' : 'Principal'}
+                  </span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="px-3 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
+                    <p class="text-xs font-semibold text-on-surface">{SYNC_MODE_LABELS[link.syncMode] ?? link.syncMode}</p>
+                    <p class="text-[10px] text-on-surface-variant">Mode de sync</p>
+                  </div>
+                  <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                    <p class="text-lg font-semibold text-on-surface">{link.roleMappings?.length ?? 0}</p>
+                    <p class="text-[10px] text-on-surface-variant">Rôles mappés</p>
+                  </div>
+                </div>
+                <p class="text-[10px] text-on-surface-variant text-center">
+                  {link.enabled ? 'Lien actif — synchronisation en cours.' : 'Lien désactivé.'}
+                </p>
+              </div>
+            {:else}
+              <div class="space-y-2 grow flex flex-col justify-center">
+                <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
+                  <Papicon icon="shield" size={18} class="mb-1 text-blue-500/50" />
+                  <p class="text-[11px]">Aucun serveur staff lié</p>
+                  <p class="text-[10px] mt-0.5">Liez un serveur staff pour synchroniser votre équipe.</p>
+                </div>
+              </div>
+            {/if}
           </div>
         {/if}
       </div>

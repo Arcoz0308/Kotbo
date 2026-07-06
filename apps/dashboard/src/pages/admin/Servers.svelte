@@ -8,7 +8,8 @@
     leaveAdminGuild,
     deactivateAdminGuild,
     activateAdminGuildAuto,
-    rescanAdminGuildStats
+    rescanAdminGuildStats,
+    reconcileStaffServers
   } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
@@ -117,6 +118,18 @@
     } catch (err: any) { toast.error(err.message); }
   }
 
+  let reconciling = $state(false);
+
+  async function handleReconcileStaffServers() {
+    reconciling = true;
+    try {
+      const res = await reconcileStaffServers();
+      toast.success(`Serveurs staff synchronisés : ${res.checked} vérifié${res.checked > 1 ? 's' : ''} · ${res.activated} activé${res.activated > 1 ? 's' : ''} · ${res.deactivated} désactivé${res.deactivated > 1 ? 's' : ''}`);
+      guilds = (await fetchAdminGuilds()).guilds as AdminGuild[];
+    } catch (err: any) { toast.error(err.message); }
+    finally { reconciling = false; }
+  }
+
   async function handleRescanStats(guildId: string, guildName: string, force: boolean) {
     if (force && !confirm(`Écraser et recalculer toutes les stats de "${guildName}" ?`)) return;
     try {
@@ -154,6 +167,18 @@
           <div class="px-3.5 py-2 rounded-xl bg-on-surface/5 border border-outline-variant/10 text-xs font-semibold text-on-surface-variant">
             {stats.guildCount} total
           </div>
+          <button
+            type="button"
+            onclick={handleReconcileStaffServers}
+            disabled={reconciling}
+            title="Réactive automatiquement les serveurs staff liés dont le statut d'activation ne correspond plus à celui de leur serveur principal"
+            class="px-3.5 py-2 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary flex items-center gap-2 hover:bg-primary/15 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span class={reconciling ? 'animate-spin' : ''}>
+              <Papicon icon="refresh" size={13} />
+            </span>
+            Synchroniser les serveurs staff
+          </button>
         </div>
       {/if}
     </div>

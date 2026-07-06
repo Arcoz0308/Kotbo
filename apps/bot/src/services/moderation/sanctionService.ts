@@ -586,7 +586,8 @@ export async function registerWarnSanction(params: {
       originalUserId: params.target.id,
       type: SanctionType.WARN,
       moderator: params.moderator,
-      reason: params.reason
+      reason: params.reason,
+      evidenceLinks: params.evidenceLinks
     }).catch(() => null);
   }
 
@@ -667,7 +668,8 @@ export async function registerKickSanction(params: {
       originalUserId: params.target.id,
       type: SanctionType.KICK,
       moderator: params.moderator,
-      reason: params.reason
+      reason: params.reason,
+      evidenceLinks: params.evidenceLinks
     }).catch(() => null);
   }
 
@@ -758,7 +760,8 @@ export async function registerBanSanction(params: {
       type: sanctionType,
       moderator: params.moderator,
       reason: params.reason,
-      durationMs: params.temporaryDurationMs
+      durationMs: params.temporaryDurationMs,
+      evidenceLinks: params.evidenceLinks
     }).catch(() => null);
   }
 
@@ -839,7 +842,8 @@ export async function registerSoftbanSanction(params: {
       originalUserId: params.target.id,
       type: SanctionType.SOFTBAN,
       moderator: params.moderator,
-      reason: params.reason
+      reason: params.reason,
+      evidenceLinks: params.evidenceLinks
     }).catch(() => null);
   }
 
@@ -931,7 +935,8 @@ export async function registerTimeoutSanction(params: {
       type: SanctionType.TIMEOUT,
       moderator: params.moderator,
       reason: params.reason,
-      durationMs: params.durationMs
+      durationMs: params.durationMs,
+      evidenceLinks: params.evidenceLinks
     }).catch(() => null);
   }
 
@@ -1316,8 +1321,9 @@ export async function createSanctionReport(params: {
   additionalNotes?: string | null;
   createdByUserId: string;
   createdByTag?: string | null;
+  client?: Client;
 }) {
-  return prisma.sanctionReport.create({
+  const report = await prisma.sanctionReport.create({
     data: {
       guildId: params.guildId,
       sanctionId: params.sanctionId ?? null,
@@ -1335,6 +1341,59 @@ export async function createSanctionReport(params: {
       createdByTag: params.createdByTag ?? null,
     }
   });
+
+  if (params.client) {
+    await announceSanctionReportToStaff(params.client, report).catch((err) =>
+      logger.warn('SanctionService', `Impossible d'annoncer le rapport ${report.id} sur le serveur staff :`, err),
+    );
+  }
+
+  return report;
+}
+
+/**
+ * Poste l'embed d'un nouveau rapport de sanction dans le salon configuré sur le serveur staff lié.
+ * Silencieux si aucun lien/salon n'est configuré.
+ */
+export async function announceSanctionReportToStaff(
+  client: Client,
+  report: {
+    id: string;
+    guildId: string;
+    staffPseudo: string;
+    memberPseudo: string;
+    memberReference: string;
+    sanctionType: SanctionType;
+    sanctionDurationLabel: string | null;
+    detailedReason: string;
+    brokenRules: string;
+    evidenceLinks: string[];
+    incidentAt: Date;
+  },
+): Promise<void> {
+  const { getStaffServerNotifyChannel } = await import('../staff/staffServerService.js');
+  const channel = await getStaffServerNotifyChannel(client, report.guildId, 'sanctionReport');
+  if (!channel) return;
+
+  const mainGuildName = client.guilds.cache.get(report.guildId)?.name ?? report.guildId;
+  const evidence = report.evidenceLinks.slice(0, 5).map((link, i) => `[Preuve ${i + 1}](${link})`).join(' · ');
+
+  const embed = new EmbedBuilder()
+    .setTitle('📋 Nouveau rapport de sanction')
+    .setColor('#ED4245')
+    .addFields(
+      { name: 'Staff', value: report.staffPseudo, inline: true },
+      { name: 'Membre', value: `${report.memberPseudo} (${report.memberReference})`, inline: true },
+      { name: 'Type', value: `${report.sanctionType}${report.sanctionDurationLabel ? ` (${report.sanctionDurationLabel})` : ''}`, inline: true },
+      { name: 'Incident', value: `<t:${Math.floor(report.incidentAt.getTime() / 1000)}:f>`, inline: true },
+      { name: 'Règles enfreintes', value: report.brokenRules.slice(0, 1024) || '—', inline: false },
+      { name: 'Raison détaillée', value: report.detailedReason.slice(0, 1024) || '—', inline: false },
+      ...(evidence ? [{ name: 'Preuves', value: evidence, inline: false }] : []),
+    )
+    .setFooter({ text: `Depuis ${mainGuildName} · Rapport ${report.id}` })
+    .setTimestamp();
+
+  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
 }
 
 export async function runGuildBan(guild: Guild, userId: string, reason: string): Promise<void> {

@@ -82,6 +82,21 @@
       : null
   );
 
+  // Serveur apparié (staff ↔ principal) accessible pour la bascule rapide
+  const pairedGuild = $derived(
+    selectedGuild
+      ? authStore.guilds.find(
+          (g) => g.id === selectedGuild.pairedGuildId || g.pairedGuildId === selectedGuild.id,
+        ) ?? null
+      : null
+  );
+
+  function switchToPairedGuild() {
+    if (!pairedGuild) return;
+    authStore.setGuild(pairedGuild.id);
+    window.location.reload();
+  }
+
   function toggleUserMenu(e: MouseEvent) {
     e.stopPropagation();
     userMenuOpen = !userMenuOpen;
@@ -136,6 +151,19 @@
         <Papicon icon="chevron-down" size={12} class="text-on-surface-variant/40" />
       {/if}
     </button>
+
+    {#if pairedGuild}
+      <button
+        onclick={switchToPairedGuild}
+        title="Basculer vers {pairedGuild.name}"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/15 transition-colors select-none"
+      >
+        <Papicon icon="arrow-right" size={13} />
+        <span class="hidden sm:inline">
+          {selectedGuild?.isStaffServer ? 'Serveur principal' : 'Serveur staff'}
+        </span>
+      </button>
+    {/if}
   </div>
 
   <div class="flex items-center gap-3">

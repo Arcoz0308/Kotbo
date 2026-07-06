@@ -981,8 +981,9 @@ export async function updateTutoringConfig(config, guildId = authStore.selectedG
   return dashboardMutation('/tutoring/config', { method: 'PATCH', payload: config, guildId });
 }
 
-export async function fetchTutoringItems(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/tutoring/items', { method: 'GET', guildId });
+export async function fetchTutoringItems(hierarchyId?: string | null, guildId = authStore.selectedGuildId) {
+  const suffix = hierarchyId !== undefined ? `?hierarchyId=${hierarchyId === null ? 'none' : hierarchyId}` : '';
+  return dashboardRequest(`/tutoring/items${suffix}`, { method: 'GET', guildId });
 }
 
 export async function upsertTutoringItem(item, guildId = authStore.selectedGuildId) {
@@ -1413,6 +1414,12 @@ export async function deactivateAdminGuild(guildId: string) {
 export async function activateAdminGuildAuto(guildId: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/activate-auto`, { method: 'POST' });
   if (!response.ok) throw new Error("Erreur lors de l\'activation automatique du serveur");
+  return response.json();
+}
+
+export async function reconcileStaffServers() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/staff-servers/reconcile`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors de la synchronisation des serveurs staff');
   return response.json();
 }
 
@@ -2505,6 +2512,10 @@ export async function createDirectChannelLink(data: Record<string, any>, guildId
 
 export async function fetchStaffServerLinks(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff-server', { method: 'GET', guildId, errorContext: 'API Error (Staff Server):' });
+}
+
+export async function fetchStaffServerChannels(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff-server/channels', { method: 'GET', guildId, errorContext: 'API Error (Staff Server Channels):' });
 }
 
 export async function createStaffServerLink(data: Record<string, any>, guildId = authStore.selectedGuildId) {

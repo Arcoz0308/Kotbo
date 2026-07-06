@@ -11,6 +11,7 @@
     addStaffServerRoleMapping,
     deleteStaffServerRoleMapping,
     syncStaffServerRoles,
+    fetchStaffServerChannels,
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -78,9 +79,38 @@
     }
   }
 
+  // Salons du serveur staff lié, pour les pickers de notifications cross-serveur
+  let staffChannels = $state<any[]>([]);
+  let staffCategories = $state<any[]>([]);
+  let staffGuildChannelsName = $state<string | null>(null);
+
+  async function loadStaffChannels() {
+    try {
+      const data = await fetchStaffServerChannels();
+      if (data?.staffGuildId) {
+        staffChannels = data.channels ?? [];
+        staffCategories = data.categories ?? [];
+        staffGuildChannelsName = data.staffGuildName ?? data.staffGuildId;
+      }
+    } catch {
+      // pas de lien actif côté principal
+    }
+  }
+
+  async function handleConfigChange(linkId: string, field: string, value: unknown) {
+    try {
+      await updateStaffServerLink(linkId, { [field]: value });
+      toast.success('Configuration enregistrée');
+      await loadData();
+    } catch {
+      toast.error('Erreur lors de la sauvegarde');
+    }
+  }
+
   onMount(() => {
     dashboardStore.refresh();
     loadData();
+    loadStaffChannels();
   });
 
   async function handleCreate() {
@@ -324,6 +354,78 @@
                           </button>
                         </div>
                       {/each}
+                    </div>
+                  {/if}
+
+                  {#if link.isMain}
+                    <div class="mt-5 pt-4 border-t border-outline-variant/10">
+                      <h5 class="text-sm font-semibold text-on-surface mb-1">Notifications cross-serveur</h5>
+                      <p class="text-xs text-on-surface-variant/50 mb-4">
+                        Salons du serveur staff qui recevront les notifications de ce serveur principal.
+                      </p>
+
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {#each [
+                          { field: 'modlogMirrorChannelId', label: 'Miroir du modlog', hint: 'Copie des alertes automod, ghost ping et honeypot' },
+                          { field: 'sanctionReportChannelId', label: 'Rapports de sanction', hint: 'Embed posté à chaque nouveau rapport' },
+                          { field: 'recruitmentAlertChannelId', label: 'Alertes de candidatures', hint: 'Notification à chaque nouvelle candidature' },
+                          { field: 'offboardingAlertChannelId', label: 'Alerte départ staff', hint: 'Alerte avec bouton d\'expulsion quand un membre perd tous ses rôles staff' },
+                          { field: 'onboardingInviteChannelId', label: 'Salon d\'invitation onboarding', hint: 'Salon source des invitations envoyées aux nouveaux staff' },
+                        ] as cfg}
+                          <div>
+                            <label class="block text-xs font-medium text-on-surface mb-1">{cfg.label}</label>
+                            <select
+                              value={link[cfg.field] ?? ''}
+                              onchange={(e) => handleConfigChange(link.id, cfg.field, (e.target as HTMLSelectElement).value || null)}
+                              class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
+                            >
+                              <option value="">Aucun</option>
+                              {#each staffChannels as ch}
+                                <option value={ch.id}>#{ch.name}</option>
+                              {/each}
+                            </select>
+                            <p class="text-[10px] text-on-surface-variant/40 mt-1">{cfg.hint}</p>
+                          </div>
+                        {/each}
+
+                        <div>
+                          <label class="block text-xs font-medium text-on-surface mb-1">Catégorie des entretiens de recrutement</label>
+                          <select
+                            value={link.staffRecruitmentCategoryId ?? ''}
+                            onchange={(e) => handleConfigChange(link.id, 'staffRecruitmentCategoryId', (e.target as HTMLSelectElement).value || null)}
+                            class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
+                          >
+                            <option value="">Aucune</option>
+                            {#each staffCategories as cat}
+                              <option value={cat.id}>{cat.name}</option>
+                            {/each}
+                          </select>
+                          <p class="text-[10px] text-on-surface-variant/40 mt-1">Catégorie du serveur staff où créer les salons d'entretien</p>
+                        </div>
+                      </div>
+
+                      <div class="mt-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                          <div>
+                            <p class="text-xs font-medium text-on-surface">Invitation d'onboarding automatique</p>
+                            <p class="text-[10px] text-on-surface-variant/40">Envoie une invitation au serveur staff en DM au premier rôle staff obtenu</p>
+                          </div>
+                          <ToggleSwitch
+                            checked={!!link.onboardingInviteEnabled}
+                            onToggle={(checked) => handleConfigChange(link.id, 'onboardingInviteEnabled', checked)}
+                          />
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <div>
+                            <p class="text-xs font-medium text-on-surface">Entretiens de recrutement sur le serveur staff</p>
+                            <p class="text-[10px] text-on-surface-variant/40">Crée les salons d'entretien sur le serveur staff plutôt qu'ici</p>
+                          </div>
+                          <ToggleSwitch
+                            checked={!!link.recruitmentOnStaffServer}
+                            onToggle={(checked) => handleConfigChange(link.id, 'recruitmentOnStaffServer', checked)}
+                          />
+                        </div>
+                      </div>
                     </div>
                   {/if}
 

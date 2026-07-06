@@ -11,7 +11,8 @@
     API_BASE_URL,
     fetchMemberCase,
     runMemberCaseAction,
-    fetchSatisfactionData
+    fetchSatisfactionData,
+    fetchStaffServerChannels
   } from '../lib/api';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -91,6 +92,8 @@
     mode: '' | 'CHANNEL' | 'DM' | 'THREAD';
     anonymous: boolean;
     staffServerRelay: boolean;
+    staffServerChannel: boolean;
+    staffServerCategoryId: string;
     formEnabled: boolean;
     formCustomFields: Array<{
       id: string;
@@ -254,6 +257,8 @@
       mode: '' as '' | 'CHANNEL' | 'DM' | 'THREAD',
       anonymous: false,
       staffServerRelay: false,
+      staffServerChannel: false,
+      staffServerCategoryId: '',
       formEnabled: true,
       formCustomFields: [] as Array<{
         id: string;
@@ -278,6 +283,8 @@
     mode: '' | 'CHANNEL' | 'DM' | 'THREAD';
     anonymous: boolean;
     staffServerRelay: boolean;
+    staffServerChannel: boolean;
+    staffServerCategoryId: string;
     formEnabled: boolean;
     formCustomFields: Array<{
       id: string;
@@ -305,6 +312,8 @@
           mode: item.mode === 'CHANNEL' || item.mode === 'DM' || item.mode === 'THREAD' ? item.mode : '',
           anonymous: item.anonymous === true,
           staffServerRelay: item.staffServerRelay === true,
+          staffServerChannel: item.staffServerChannel === true,
+          staffServerCategoryId: typeof item.staffServerCategoryId === 'string' ? item.staffServerCategoryId : '',
           formEnabled: item.formEnabled !== undefined ? item.formEnabled : true,
           formCustomFields: Array.isArray(item.formCustomFields)
             ? item.formCustomFields.map((f: any) => ({
@@ -861,8 +870,29 @@
     }
   });
 
+  // Serveur staff lié — pour l'option "ticket interne"
+  let staffServerInfo = $state<{ staffGuildId: string | null; staffGuildName: string | null; categories: any[] }>({
+    staffGuildId: null, staffGuildName: null, categories: [],
+  });
+
+  async function loadStaffServerInfo() {
+    try {
+      const data = await fetchStaffServerChannels();
+      if (data?.staffGuildId) {
+        staffServerInfo = {
+          staffGuildId: data.staffGuildId,
+          staffGuildName: data.staffGuildName ?? data.staffGuildId,
+          categories: data.categories ?? [],
+        };
+      }
+    } catch {
+      // pas de lien staff
+    }
+  }
+
   onMount(async () => {
     await loadTicketsAndConfig();
+    void loadStaffServerInfo();
 
     wsListener = (e: CustomEvent) => {
       const payload = e.detail;
@@ -1771,6 +1801,25 @@
                               <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">Pour le mode MP / relais staff externe</p>
                             </div>
                           </div>
+                        </div>
+                      {/if}
+
+                      <!-- Ticket interne sur le serveur staff (mode CHANNEL uniquement) -->
+                      {#if staffServerInfo.staffGuildId && (ticketType.mode === 'CHANNEL' || (ticketType.mode === '' && ticketMode === 'CHANNEL'))}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                          <div class="flex items-center gap-2.5 p-1">
+                            <ToggleSwitch checked={ticketType.staffServerChannel} onToggle={(v) => { ticketType.staffServerChannel = v; }} size="sm" />
+                            <div>
+                              <span class="text-xs font-semibold text-on-surface">Créer le salon sur le serveur staff</span>
+                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">Ticket interne (RH, plainte...) hébergé sur {staffServerInfo.staffGuildName}</p>
+                            </div>
+                          </div>
+                          {#if ticketType.staffServerChannel}
+                            <label class="block">
+                              <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Catégorie sur le serveur staff</span>
+                              <SearchableSelect bind:value={ticketType.staffServerCategoryId} options={staffServerInfo.categories.map((c: any) => ({ id: c.id, name: c.name }))} placeholder="Sélectionner une catégorie" className="w-full" />
+                            </label>
+                          {/if}
                         </div>
                       {/if}
 

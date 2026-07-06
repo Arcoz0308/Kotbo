@@ -2,6 +2,7 @@ import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Mes
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
+import { isStaffServerGuild } from '../staff/staffServerService.js';
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
@@ -22,8 +23,12 @@ export async function createGiveaway(
   rpgItemId: string | null = null,
   needValidation = false
 ) {
+  if (await isStaffServerGuild(guildId)) {
+    throw new Error('Les giveaways ne sont pas disponibles sur un serveur staff.');
+  }
+
   const endsAt = new Date(Date.now() + durationMinutes * 60 * 1000);
-  
+
   // 1. Sauvegarder dans la BDD pour générer l'ID
   const giveaway = await prisma.giveaway.create({
     data: {

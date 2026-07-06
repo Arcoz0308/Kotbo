@@ -68,34 +68,152 @@ export async function activateGuild(guildId: string, code: string): Promise<void
         activated: true,
         activatedAt: new Date(),
         activationCode: hashActivationCode(normalizedCode),
+        activatedViaStaffLink: false,
       },
       create: {
         id: guildId,
         activated: true,
         activatedAt: new Date(),
         activationCode: hashActivationCode(normalizedCode),
+        activatedViaStaffLink: false,
       },
     });
   });
 
-  activatedGuilds.add(guildId);
   logger.success('Activation', `Le serveur ${guildId} a été activé.`);
 
-  // Broadcast to other shards if present
+  await broadcastActivationChange(guildId, true);
+
+  // Ce serveur peut être le principal d'un ou plusieurs serveurs staff en attente.
+  await cascadeToLinkedStaffGuilds(guildId);
+}
+
+async function broadcastActivationChange(guildId: string, activated: boolean): Promise<void> {
+  if (activated) {
+    activatedGuilds.add(guildId);
+  } else {
+    activatedGuilds.delete(guildId);
+  }
+
   try {
     const client = getClient();
     if ((client as unknown).shard) {
       const activationPath = import.meta.url;
-      await (client as unknown).shard.broadcastEval((c: unknown, context: { id: string; activationPath: string }) => {
+      await (client as unknown).shard.broadcastEval((c: unknown, context: { id: string; activationPath: string; activated: boolean }) => {
         import(context.activationPath).then((m) => {
-          m.activatedGuilds.add(context.id);
+          if (context.activated) {
+            m.activatedGuilds.add(context.id);
+          } else {
+            m.activatedGuilds.delete(context.id);
+          }
         }).catch(() => {});
-      }, { context: { id: guildId, activationPath } }).catch((err: unknown) => {
-        logger.error('Activation', `Failed to broadcast activation for ${guildId}:`, err);
+      }, { context: { id: guildId, activationPath, activated } }).catch((err: unknown) => {
+        logger.error('Activation', `Failed to broadcast activation change for ${guildId}:`, err);
       });
     }
   } catch {
     // client might not be initialized yet in some contexts (e.g. CLI seed scripts)
+  }
+}
+
+export type StaffGuildReconcileResult = 'activated' | 'deactivated' | 'unchanged';
+
+/**
+ * Réconcilie l'activation d'un serveur staff avec celle de son/ses serveur(s) principal(aux) lié(s).
+ * Un serveur staff n'a pas son propre code : il hérite de l'activation du principal tant qu'un
+ * StaffServerLink actif existe. Ne touche jamais une guilde activée directement par son propre code.
+ */
+export async function reconcileStaffGuildActivation(staffGuildId: string): Promise<StaffGuildReconcileResult> {
+  const links = await prisma.staffServerLink.findMany({
+    where: { staffGuildId, enabled: true },
+    include: { mainGuild: { select: { id: true, activated: true, activationCode: true } } },
+  });
+
+  const activeMain = links.find((l) => l.mainGuild.activated);
+  const shouldBeActive = !!activeMain;
+
+  const current = await prisma.guild.findUnique({
+    where: { id: staffGuildId },
+    select: { activated: true, activatedViaStaffLink: true },
+  });
+
+  if (shouldBeActive && !current?.activated) {
+    await prisma.guild.upsert({
+      where: { id: staffGuildId },
+      update: {
+        activated: true,
+        activatedAt: new Date(),
+        activationCode: activeMain!.mainGuild.activationCode,
+        activatedViaStaffLink: true,
+      },
+      create: {
+        id: staffGuildId,
+        activated: true,
+        activatedAt: new Date(),
+        activationCode: activeMain!.mainGuild.activationCode,
+        activatedViaStaffLink: true,
+      },
+    });
+
+    await broadcastActivationChange(staffGuildId, true);
+    logger.success('Activation', `Le serveur staff ${staffGuildId} a été activé automatiquement via le lien avec ${activeMain!.mainGuild.id}.`);
+
+    await applyStaffServerFeatureDefaults(staffGuildId);
+    return 'activated';
+  }
+
+  if (!shouldBeActive && current?.activated && current.activatedViaStaffLink) {
+    await prisma.guild.update({
+      where: { id: staffGuildId },
+      data: {
+        activated: false,
+        activatedAt: null,
+        activationCode: null,
+        activatedViaStaffLink: false,
+      },
+    });
+
+    await broadcastActivationChange(staffGuildId, false);
+    logger.success('Activation', `Le serveur staff ${staffGuildId} a été désactivé (plus aucun serveur principal lié activé).`);
+    return 'deactivated';
+  }
+
+  return 'unchanged';
+}
+
+/**
+ * Désactive par défaut les modules communautaires (économie, leveling) sur un serveur staff
+ * qui vient d'être activé pour la première fois via un lien. Défaut appliqué une seule fois :
+ * un admin peut les réactiver manuellement ensuite sans que le bot ne les réimpose.
+ */
+async function applyStaffServerFeatureDefaults(guildId: string): Promise<void> {
+  await prisma.economyConfig.upsert({
+    where: { guildId },
+    update: { enabled: false, rpgEnabled: false, shopEnabled: false, guildsEnabled: false },
+    create: { guildId, enabled: false, rpgEnabled: false, shopEnabled: false, guildsEnabled: false },
+  }).catch((err) => logger.warn('Activation', `Impossible d'appliquer les défauts économie sur ${guildId}:`, err));
+
+  await prisma.levelConfig.upsert({
+    where: { guildId },
+    update: { enabled: false },
+    create: { guildId, enabled: false },
+  }).catch((err) => logger.warn('Activation', `Impossible d'appliquer les défauts leveling sur ${guildId}:`, err));
+}
+
+/**
+ * Quand une guilde (potentiellement "principale") change d'état d'activation, propage la
+ * réconciliation vers tous les serveurs staff qui lui sont liés.
+ */
+async function cascadeToLinkedStaffGuilds(mainGuildId: string): Promise<void> {
+  const links = await prisma.staffServerLink.findMany({
+    where: { mainGuildId, enabled: true },
+    select: { staffGuildId: true },
+  });
+
+  for (const link of links) {
+    await reconcileStaffGuildActivation(link.staffGuildId).catch((err) =>
+      logger.error('Activation', `Erreur de réconciliation pour le serveur staff ${link.staffGuildId}:`, err),
+    );
   }
 }
 
@@ -127,28 +245,15 @@ export async function deactivateGuild(guildId: string): Promise<void> {
     data: {
       activated: false,
       activatedAt: null,
-      activationCode: null
+      activationCode: null,
+      activatedViaStaffLink: false,
     }
   });
 
-  // Update cache
-  activatedGuilds.delete(guildId);
   logger.success('Activation', `Le serveur ${guildId} a été désactivé.`);
 
-  // Broadcast to other shards if present
-  try {
-    const client = getClient();
-    if ((client as unknown).shard) {
-      const activationPath = import.meta.url;
-      await (client as unknown).shard.broadcastEval((c: unknown, context: { id: string; activationPath: string }) => {
-        import(context.activationPath).then((m) => {
-          m.activatedGuilds.delete(context.id);
-        }).catch(() => {});
-      }, { context: { id: guildId, activationPath } }).catch((err: unknown) => {
-        logger.error('Activation', `Failed to broadcast deactivation for ${guildId}:`, err);
-      });
-    }
-  } catch {
-    // client might not be initialized
-  }
+  await broadcastActivationChange(guildId, false);
+
+  // Ce serveur peut être le principal d'un ou plusieurs serveurs staff : ils perdent leur activation cascadée.
+  await cascadeToLinkedStaffGuilds(guildId);
 }

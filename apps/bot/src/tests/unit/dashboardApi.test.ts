@@ -481,8 +481,7 @@ describe('Modular Routers Unit Tests', () => {
       expect(handled).toBeTrue();
       expect(res.statusCode).toBe(200);
       const data = JSON.parse(res.body);
-      const { DISCORD_CLIENT_ID: actualClientId } = await import('../../api/shared.js');
-      expect(data.discordClientId).toBe(actualClientId);
+      expect(data.discordClientId).toBe('test-client-id');
     });
 
     test('GET root OAuth discovery refuses templated MCP endpoints', async () => {

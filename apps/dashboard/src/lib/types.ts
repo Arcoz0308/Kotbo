@@ -89,12 +89,38 @@ export interface TestingPeriod {
   status: 'ONGOING' | 'PASSED' | 'FAILED';
   plannedDurationDays: number;
   targetGrade?: string | null;
+  hierarchyId?: string | null;
+  hierarchy?: StaffHierarchy | null;
   notes?: string | null;
   staffMember?: StaffMember | null;
   mentor?: StaffMember | null;
   reports?: MentorReport[];
+  fullChecklist?: TutoringChecklistEntry[];
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+export interface TutoringItem {
+  id: string;
+  guildId: string;
+  category: string;
+  title: string;
+  description?: string | null;
+  sortOrder: number;
+  hierarchyId?: string | null;
+  grade?: string | null;
+  hierarchy?: StaffHierarchy | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export type TutoringItemState = 'UNCHECKED' | 'KNOWN' | 'ACQUIRED';
+
+export interface TutoringChecklistEntry {
+  item: TutoringItem;
+  state: TutoringItemState;
+  completedAt?: Date | string | null;
+  completedByUserId?: string | null;
 }
 
 export interface MentorReport {

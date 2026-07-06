@@ -3,8 +3,8 @@ import { HTTPException } from 'hono/http-exception';
 import {
   getDiscordClientId,
   getMissingOAuthConfig,
-  configRateLimiter,
 } from '../../shared.js';
+import { configRateLimiter } from '../../limiters.js';
 import { getCurrentInstance } from '../../../utils/instanceContext.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 

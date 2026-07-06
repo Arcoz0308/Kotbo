@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client } from 'discord.js';
+import { Client, ChannelType } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import {
@@ -7,7 +7,14 @@ import {
   readJsonBody,
   type AuthClaims,
 } from '../../shared.js';
-import { fullSyncStaffRoles, autoSetupRoleMappings } from '../../../services/staff/staffServerService.js';
+import {
+  fullSyncStaffRoles,
+  autoSetupRoleMappings,
+  createStaffServerLink,
+  removeStaffServerLink,
+  invalidateStaffLinkCache,
+} from '../../../services/staff/staffServerService.js';
+import { reconcileStaffGuildActivation } from '../../../utils/activation.js';
 
 export async function handleStaffServerRoutes(
   req: IncomingMessage,
@@ -90,20 +97,23 @@ export async function handleStaffServerRoutes(
         return true;
       }
 
-      const link = await prisma.staffServerLink.create({
-        data: {
-          mainGuildId: guildId,
-          staffGuildId: body.staffGuildId,
-          syncMode: body.syncMode,
-          hierarchyId: body.hierarchyId ?? null,
-          simpleStaffRoleId: body.simpleStaffRoleId ?? null,
-          mainLogChannelId: body.mainLogChannelId ?? null,
-          staffLogChannelId: body.staffLogChannelId ?? null,
-          createdByUserId: user.userId,
-        },
-        include: { roleMappings: true, hierarchy: true },
+      const linkResult = await createStaffServerLink({
+        mainGuildId: guildId,
+        staffGuildId: body.staffGuildId,
+        syncMode: body.syncMode,
+        hierarchyId: body.hierarchyId ?? undefined,
+        simpleStaffRoleId: body.simpleStaffRoleId ?? undefined,
+        mainLogChannelId: body.mainLogChannelId ?? undefined,
+        staffLogChannelId: body.staffLogChannelId ?? undefined,
+        createdByUserId: user.userId,
       });
 
+      if ('error' in linkResult) {
+        json(res, 400, { error: linkResult.error });
+        return true;
+      }
+
+      const link = linkResult;
       const roleSetup = await autoSetupRoleMappings(link, client);
       const syncResult = await fullSyncStaffRoles(link.id, client);
 
@@ -124,6 +134,58 @@ export async function handleStaffServerRoutes(
     return true;
   }
 
+  // GET /api/dashboard/guilds/:guildId/staff-server/channels — salons du
+  // serveur staff lié (mainGuildId = guildId), pour les sélecteurs de salon
+  // cross-serveur (ex: notifications staff qui doivent vivre sur le serveur
+  // staff dédié plutôt que sur le serveur communautaire).
+  if (parts.length === 6 && parts[5] === 'channels' && method === 'GET') {
+    try {
+      const link = await prisma.staffServerLink.findFirst({
+        where: { mainGuildId: guildId, enabled: true },
+      });
+      if (!link) {
+        json(res, 200, { staffGuildId: null, staffGuildName: null, channels: [], voiceChannels: [], categories: [] });
+        return true;
+      }
+
+      let staffGuild = client.guilds.cache.get(link.staffGuildId) ?? null;
+      if (!staffGuild) {
+        staffGuild = await client.guilds.fetch(link.staffGuildId).catch(() => null);
+      }
+      if (staffGuild && staffGuild.channels.cache.size === 0) {
+        await staffGuild.channels.fetch().catch(() => null);
+      }
+
+      const allChannels = staffGuild ? Array.from(staffGuild.channels.cache.values()) : [];
+      const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'fr');
+
+      const channels = allChannels
+        .filter((c) => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
+        .map((c) => ({ id: c.id, name: c.name }))
+        .sort(byName);
+      const voiceChannels = allChannels
+        .filter((c) => c.type === ChannelType.GuildVoice || c.type === ChannelType.GuildStageVoice)
+        .map((c) => ({ id: c.id, name: c.name }))
+        .sort(byName);
+      const categories = allChannels
+        .filter((c) => c.type === ChannelType.GuildCategory)
+        .map((c) => ({ id: c.id, name: c.name }))
+        .sort(byName);
+
+      json(res, 200, {
+        staffGuildId: link.staffGuildId,
+        staffGuildName: staffGuild?.name ?? link.staffGuildId,
+        channels,
+        voiceChannels,
+        categories,
+      });
+    } catch (err) {
+      logger.error('StaffServerAPI', 'Erreur GET staff-server/channels', err);
+      json(res, 500, { error: 'Erreur serveur' });
+    }
+    return true;
+  }
+
   // PATCH /api/dashboard/guilds/:guildId/staff-server/:linkId
   if (parts.length === 6 && method === 'PATCH' && parts[5] !== 'mappings') {
     try {
@@ -136,7 +198,12 @@ export async function handleStaffServerRoutes(
         return true;
       }
 
-      const allowedFields = ['syncMode', 'simpleStaffRoleId', 'mainLogChannelId', 'staffLogChannelId', 'enabled'];
+      const allowedFields = [
+        'syncMode', 'simpleStaffRoleId', 'mainLogChannelId', 'staffLogChannelId', 'enabled',
+        'modlogMirrorChannelId', 'sanctionReportChannelId', 'recruitmentAlertChannelId',
+        'recruitmentOnStaffServer', 'staffRecruitmentCategoryId',
+        'onboardingInviteEnabled', 'onboardingInviteChannelId', 'offboardingAlertChannelId',
+      ];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (body[field] !== undefined) updateData[field] = body[field];
@@ -147,6 +214,12 @@ export async function handleStaffServerRoutes(
         data: updateData,
         include: { roleMappings: true, hierarchy: true },
       });
+
+      await invalidateStaffLinkCache(updated);
+
+      if ('enabled' in updateData) {
+        await reconcileStaffGuildActivation(updated.staffGuildId);
+      }
 
       json(res, 200, updated);
     } catch (err) {
@@ -166,7 +239,7 @@ export async function handleStaffServerRoutes(
         return true;
       }
 
-      await prisma.staffServerLink.delete({ where: { id: linkId } });
+      await removeStaffServerLink(linkId);
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('StaffServerAPI', 'Erreur DELETE staff-server', err);

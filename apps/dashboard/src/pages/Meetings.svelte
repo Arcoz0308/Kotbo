@@ -3,7 +3,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
-  import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase, updateModuleStatus, updateGlobalSettings, fetchFeatureConfigurations, updateFeatureConfiguration, fetchStaffConfig, updateStaffConfig } from '../lib/api';
+  import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase, updateModuleStatus, updateGlobalSettings, fetchFeatureConfigurations, updateFeatureConfiguration, fetchStaffConfig, updateStaffConfig, fetchStaffServerChannels } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
@@ -71,6 +71,27 @@
   const availableDiscordChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableDiscordVoiceChannels = $derived(dashboardStore.state.discordVoiceChannels || []);
 
+  // Salons du serveur staff lié (pickers cross-serveur)
+  let staffServerChannels = $state<{ staffGuildId: string | null; staffGuildName: string | null; channels: any[]; voiceChannels: any[] }>({
+    staffGuildId: null, staffGuildName: null, channels: [], voiceChannels: [],
+  });
+
+  async function loadStaffServerChannels() {
+    try {
+      const data = await fetchStaffServerChannels();
+      if (data?.staffGuildId) {
+        staffServerChannels = {
+          staffGuildId: data.staffGuildId,
+          staffGuildName: data.staffGuildName ?? data.staffGuildId,
+          channels: data.channels ?? [],
+          voiceChannels: data.voiceChannels ?? [],
+        };
+      }
+    } catch {
+      // pas de lien staff — pickers locaux uniquement
+    }
+  }
+
   const canView = $derived(isAdmin || !!featureAccess.canView);
 
   async function loadMeetings() {
@@ -127,7 +148,8 @@
       return;
     }
     loadMeetings();
-    
+    loadStaffServerChannels();
+
     loadingConfig = true;
     try {
       const configs = await fetchFeatureConfigurations();
@@ -319,9 +341,22 @@
                 class="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-2.5 text-sm outline-none transition focus:border-primary/50"
               >
                 <option value="">-- Aucun --</option>
-                {#each availableDiscordChannels as ch}
-                  <option value={ch.id}>#{ch.name}</option>
-                {/each}
+                {#if staffServerChannels.staffGuildId}
+                  <optgroup label="Ce serveur">
+                    {#each availableDiscordChannels as ch}
+                      <option value={ch.id}>#{ch.name}</option>
+                    {/each}
+                  </optgroup>
+                  <optgroup label="Serveur staff — {staffServerChannels.staffGuildName}">
+                    {#each staffServerChannels.channels as ch}
+                      <option value={ch.id}>#{ch.name}</option>
+                    {/each}
+                  </optgroup>
+                {:else}
+                  {#each availableDiscordChannels as ch}
+                    <option value={ch.id}>#{ch.name}</option>
+                  {/each}
+                {/if}
               </select>
             </div>
             <div>
@@ -337,9 +372,22 @@
                 class="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-2.5 text-sm outline-none transition focus:border-primary/50"
               >
                 <option value="">-- Aucun --</option>
-                {#each availableDiscordVoiceChannels as ch}
-                  <option value={ch.id}>{ch.name}</option>
-                {/each}
+                {#if staffServerChannels.staffGuildId}
+                  <optgroup label="Ce serveur">
+                    {#each availableDiscordVoiceChannels as ch}
+                      <option value={ch.id}>{ch.name}</option>
+                    {/each}
+                  </optgroup>
+                  <optgroup label="Serveur staff — {staffServerChannels.staffGuildName}">
+                    {#each staffServerChannels.voiceChannels as ch}
+                      <option value={ch.id}>{ch.name}</option>
+                    {/each}
+                  </optgroup>
+                {:else}
+                  {#each availableDiscordVoiceChannels as ch}
+                    <option value={ch.id}>{ch.name}</option>
+                  {/each}
+                {/if}
               </select>
             </div>
           </div>
