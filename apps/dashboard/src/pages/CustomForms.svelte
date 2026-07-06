@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { API_BASE_URL, fetchStaffHierarchies } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -12,6 +12,7 @@
   import { toast } from '../lib/stores/toast.svelte';
 
   let forms = $state<any[]>([]);
+  let hierarchies = $state<any[]>([]);
   let loading = $state(true);
   let error = $state('');
 
@@ -99,6 +100,36 @@
     }, { successMessage: 'Formulaire supprimé' });
   }
 
+  async function fetchHierarchies() {
+    try {
+      const data = await fetchStaffHierarchies();
+      hierarchies = data?.hierarchies || data || [];
+    } catch {
+      hierarchies = [];
+    }
+  }
+
+  async function updateFormHierarchy(formId: string, hierarchyId: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${authStore.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ hierarchyId: hierarchyId || null })
+      });
+      if (res.ok) {
+        toast.success(hierarchyId ? 'Hiérarchie associée au formulaire' : 'Hiérarchie dissociée du formulaire');
+        await fetchForms();
+      } else {
+        toast.error('Erreur de configuration');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+  }
+
   async function toggleRecruitment(formId: string, value: boolean) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
@@ -164,6 +195,7 @@
 
   onMount(() => {
     fetchForms();
+    fetchHierarchies();
   });
 </script>
 
@@ -281,6 +313,28 @@
                   <p class="text-[10px] text-on-surface-variant/40 font-sans -mt-2">
                     Toujours activée pour les formulaires de recrutement.
                   </p>
+
+                  <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans gap-3">
+                    <span class="flex items-center gap-2 shrink-0">
+                      <Papicon icon="account_tree" size={14} />
+                      Hiérarchie visée :
+                    </span>
+                    <select
+                      value={form.hierarchyId || ''}
+                      onchange={(e) => updateFormHierarchy(form.id, (e.currentTarget as HTMLSelectElement).value)}
+                      class="min-w-0 max-w-40 bg-surface-container rounded-lg px-2 py-1.5 text-[11px] font-semibold outline-none border border-outline-variant/20 focus:border-primary"
+                    >
+                      <option value="">Aucune (rôle le plus bas)</option>
+                      {#each hierarchies as h}
+                        <option value={h.id}>{h.name}</option>
+                      {/each}
+                    </select>
+                  </div>
+                  {#if hierarchies.length > 0}
+                    <p class="text-[10px] text-on-surface-variant/40 font-sans -mt-2">
+                      Détermine le rôle/grade attribué automatiquement à l'embauche depuis ce formulaire.
+                    </p>
+                  {/if}
                 {/if}
 
                 <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans">

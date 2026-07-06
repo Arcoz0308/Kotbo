@@ -1554,12 +1554,13 @@ export function registerMcpTools(
           welcome_text: z.string().nullable().optional().describe('Texte d\'accueil sur la page publique'),
           accept_message: z.string().nullable().optional().describe('DM envoyé en cas d\'acceptation'),
           deny_message: z.string().nullable().optional().describe('DM envoyé en cas de refus'),
+          notify_on_ban_dm: z.boolean().optional().describe("Envoyer automatiquement le lien public de l'appel par DM lors d'un bannissement définitif"),
           create_default_form: z.boolean().optional().describe('Crée automatiquement le formulaire d\'appel par défaut si absent'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_SANCTIONS', async ({ enabled, form_id, staff_channel_id, invite_channel_id, cooldown_days, welcome_text, accept_message, deny_message, create_default_form, key_name }) => {
+      guard('WRITE_SANCTIONS', async ({ enabled, form_id, staff_channel_id, invite_channel_id, cooldown_days, welcome_text, accept_message, deny_message, notify_on_ban_dm, create_default_form, key_name }) => {
         try {
           const updateData: any = {};
           if (enabled !== undefined) updateData.enabled = enabled;
@@ -1570,6 +1571,7 @@ export function registerMcpTools(
           if (welcome_text !== undefined) updateData.welcomeText = welcome_text;
           if (accept_message !== undefined) updateData.acceptMessage = accept_message;
           if (deny_message !== undefined) updateData.denyMessage = deny_message;
+          if (notify_on_ban_dm !== undefined) updateData.notifyOnBanDM = notify_on_ban_dm;
 
           if (form_id) {
             const form = await prisma.customForm.findFirst({ where: { id: form_id, guildId }, select: { id: true } });
@@ -1636,6 +1638,9 @@ export function registerMcpTools(
               createdByTag: `MCP[${key_name ?? 'agent'}]`,
             },
           });
+
+          const { announceSanctionReportToStaff } = await import('../../services/moderation/sanctionService.js');
+          await announceSanctionReportToStaff(client, report).catch(() => null);
 
           await audit(key_name, 'Création rapport sanction MCP', sanction.targetTag ?? sanction.targetUserId, `Rapport ${report.id}`);
           return ok({ ok: true, reportId: report.id });
@@ -4695,6 +4700,7 @@ export function registerMcpTools(
           requires_discord_auth: z.boolean().default(false).describe('Exiger une connexion Discord pour soumettre'),
           theme: z.record(z.unknown()).optional().describe('Thème visuel (couleurs, bannière, police…)'),
           custom_css: z.string().nullable().optional().describe('CSS personnalisé (sanitisé côté serveur)'),
+          hierarchy_id: z.string().optional().describe("ID de la hiérarchie staff (ex: Modération, Animation) à associer si formulaire de recrutement : détermine le rôle attribué à l'embauche"),
           questions: z.array(z.object({
             id: z.string().optional().describe('Identifiant unique de la question (généré automatiquement si omis)'),
             label: z.string().describe('Intitulé de la question'),
@@ -4707,8 +4713,13 @@ export function registerMcpTools(
         },
         _meta: toolMeta,
       },
-      guard('WRITE_COMMUNITY', async ({ name, description, is_recruitment, requires_discord_auth, theme, custom_css, questions, key_name }) => {
+      guard('WRITE_COMMUNITY', async ({ name, description, is_recruitment, requires_discord_auth, theme, custom_css, hierarchy_id, questions, key_name }) => {
         try {
+          if (hierarchy_id) {
+            const hierarchy = await prisma.staffHierarchy.findFirst({ where: { id: hierarchy_id, guildId } });
+            if (!hierarchy) return err('Hiérarchie introuvable pour ce serveur');
+          }
+
           const mappedFields = questions.map((q: any, i: number) => ({
             id: q.id || q.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30) || `field_${i}`,
             label: q.label,
@@ -4720,6 +4731,7 @@ export function registerMcpTools(
             required: q.required ?? true,
             description: q.placeholder || undefined,
             options: q.options || undefined,
+            sectionIndex: 0,
           }));
 
           const form = await createCustomForm(guildId, {
@@ -4729,6 +4741,7 @@ export function registerMcpTools(
             requiresDiscordAuth: requires_discord_auth,
             theme: sanitizeFormTheme(theme),
             customCss: sanitizeCustomCss(custom_css),
+            hierarchyId: hierarchy_id,
             structure: {
               title: name,
               description: description || undefined,
@@ -5029,6 +5042,7 @@ export function registerMcpTools(
           requires_discord_auth: z.boolean().optional().describe('Exiger une connexion Discord pour soumettre'),
           theme: z.record(z.unknown()).nullable().optional().describe('Thème visuel (null pour effacer)'),
           custom_css: z.string().nullable().optional().describe('CSS personnalisé (null pour effacer)'),
+          hierarchy_id: z.string().nullable().optional().describe("ID de la hiérarchie staff à associer (null pour dissocier) : détermine le rôle attribué à l'embauche pour ce formulaire de recrutement"),
           questions: z.array(z.object({
             id: z.string().optional().describe('Identifiant unique de la question (généré automatiquement si omis)'),
             label: z.string().describe('Intitulé de la question'),
@@ -5041,10 +5055,15 @@ export function registerMcpTools(
         },
         _meta: toolMeta,
       },
-      guard('WRITE_COMMUNITY', async ({ form_id, name, description, is_recruitment, is_active, requires_discord_auth, theme, custom_css, questions, key_name }) => {
+      guard('WRITE_COMMUNITY', async ({ form_id, name, description, is_recruitment, is_active, requires_discord_auth, theme, custom_css, hierarchy_id, questions, key_name }) => {
         try {
           const existing = await prisma.customForm.findFirst({ where: { id: form_id, guildId } });
           if (!existing) return err('Formulaire introuvable');
+
+          if (hierarchy_id) {
+            const hierarchy = await prisma.staffHierarchy.findFirst({ where: { id: hierarchy_id, guildId } });
+            if (!hierarchy) return err('Hiérarchie introuvable pour ce serveur');
+          }
 
           const updateData: any = {};
           if (name !== undefined) updateData.name = name;
@@ -5052,6 +5071,7 @@ export function registerMcpTools(
           if (is_recruitment !== undefined) updateData.isRecruitment = is_recruitment;
           if (is_active !== undefined) updateData.isActive = is_active;
           if (requires_discord_auth !== undefined) updateData.requiresDiscordAuth = requires_discord_auth;
+          if (hierarchy_id !== undefined) updateData.hierarchyId = hierarchy_id;
           if (theme !== undefined) {
             updateData.theme = theme === null
               ? Prisma.JsonNull
@@ -5071,6 +5091,7 @@ export function registerMcpTools(
               required: q.required ?? true,
               description: q.placeholder || undefined,
               options: q.options || undefined,
+              sectionIndex: 0,
             }));
             updateData.structure = {
               title: name || (existing as any).name,
