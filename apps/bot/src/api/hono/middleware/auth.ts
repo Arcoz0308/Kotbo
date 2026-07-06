@@ -56,6 +56,19 @@ export const requireAuth = createMiddleware(async (c, next) => {
  * Ne bloque jamais la requête.
  */
 export const optionalAuth = createMiddleware(async (c, next) => {
+  const authHeader = c.req.header('authorization');
+  const legacyUntil = process.env.AUTH_LEGACY_BEARER_UNTIL;
+  const legacyCutoff = legacyUntil ? (/^\d+$/.test(legacyUntil) ? Number(legacyUntil) : Date.parse(legacyUntil)) : 0;
+  if (authHeader?.startsWith('Bearer ') && Number.isFinite(legacyCutoff) && Date.now() < legacyCutoff) {
+    try {
+      c.set('authOptional', jwt.verify(authHeader.slice(7), getJwtSecret()) as AuthClaims);
+      await next();
+      return;
+    } catch {
+      // Fall through to cookie authentication.
+    }
+  }
+
   const session = await getDashboardSession(sessionIdFromCookieHeader(c.req.header('cookie')));
   c.set('authOptional', session ? {
     userId: session.userId,
