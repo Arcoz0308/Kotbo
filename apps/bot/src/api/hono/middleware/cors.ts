@@ -51,7 +51,10 @@ export function dashboardCors(): MiddlewareHandler {
           c.header('Access-Control-Allow-Origin', origin);
           c.header('Access-Control-Allow-Credentials', 'true');
         } else {
-          c.header('Access-Control-Allow-Origin', dashboardOrigin);
+          c.header('Access-Control-Allow-Origin', origin);
+          c.header('Access-Control-Allow-Credentials', 'true');
+          c.header('Vary', 'Origin');
+          return c.json({ error: 'Origine refusée' }, 403);
         }
       } else {
         c.header('Access-Control-Allow-Origin', dashboardOrigin);

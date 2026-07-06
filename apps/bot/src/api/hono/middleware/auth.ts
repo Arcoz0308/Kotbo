@@ -2,6 +2,7 @@ import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../../shared.js';
+import { getDashboardSession, sessionIdFromCookieHeader } from '../../auth/sessionStore.js';
 
 export type AuthClaims = {
   userId: string;
@@ -25,17 +26,26 @@ declare module 'hono' {
  */
 export const requireAuth = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw new HTTPException(401, { message: 'Non authentifié — token manquant' });
+  const legacyUntil = process.env.AUTH_LEGACY_BEARER_UNTIL;
+  const legacyCutoff = legacyUntil ? (/^\d+$/.test(legacyUntil) ? Number(legacyUntil) : Date.parse(legacyUntil)) : 0;
+  if (authHeader?.startsWith('Bearer ') && Number.isFinite(legacyCutoff) && Date.now() < legacyCutoff) {
+    try {
+      c.set('auth', jwt.verify(authHeader.slice(7), getJwtSecret()) as AuthClaims);
+      await next();
+      return;
+    } catch {
+      // Fall through to cookie authentication.
+    }
   }
 
-  const token = authHeader.slice(7);
-  try {
-    const claims = jwt.verify(token, getJwtSecret()) as AuthClaims;
-    c.set('auth', claims);
-  } catch {
-    throw new HTTPException(401, { message: 'Token invalide ou expiré' });
-  }
+  const session = await getDashboardSession(sessionIdFromCookieHeader(c.req.header('cookie')));
+  if (!session) throw new HTTPException(401, { message: 'Session absente ou expirée' });
+  c.set('auth', {
+    userId: session.userId,
+    username: session.username,
+    avatar: session.avatar ?? undefined,
+    discordToken: session.discordAccessToken,
+  });
 
   await next();
 });
@@ -47,16 +57,24 @@ export const requireAuth = createMiddleware(async (c, next) => {
  */
 export const optionalAuth = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
+  const legacyUntil = process.env.AUTH_LEGACY_BEARER_UNTIL;
+  const legacyCutoff = legacyUntil ? (/^\d+$/.test(legacyUntil) ? Number(legacyUntil) : Date.parse(legacyUntil)) : 0;
+  if (authHeader?.startsWith('Bearer ') && Number.isFinite(legacyCutoff) && Date.now() < legacyCutoff) {
     try {
-      const claims = jwt.verify(token, getJwtSecret()) as AuthClaims;
-      c.set('authOptional', claims);
+      c.set('authOptional', jwt.verify(authHeader.slice(7), getJwtSecret()) as AuthClaims);
+      await next();
+      return;
     } catch {
-      c.set('authOptional', null);
+      // Fall through to cookie authentication.
     }
-  } else {
-    c.set('authOptional', null);
   }
+
+  const session = await getDashboardSession(sessionIdFromCookieHeader(c.req.header('cookie')));
+  c.set('authOptional', session ? {
+    userId: session.userId,
+    username: session.username,
+    avatar: session.avatar ?? undefined,
+    discordToken: session.discordAccessToken,
+  } : null);
   await next();
 });

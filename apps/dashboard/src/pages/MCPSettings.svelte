@@ -7,6 +7,7 @@
   import ConfirmModal from '../lib/components/ConfirmModal.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import { localInitialAvatar } from '../lib/discordMedia';
 
   const PERMISSIONS = [
     { value: 'READ_STATS',      label: 'Stats serveur',     desc: 'Membres, messages, activité' },
@@ -89,7 +90,7 @@
     claude: {
       name: 'Claude',
       shortName: 'Claude',
-      logoUrl: 'https://claude.ai/favicon.ico',
+      logoUrl: localInitialAvatar('Claude'),
       color: 'text-[#d97757]',
       bg: 'bg-[#d97757]/12',
       border: 'border-[#d97757]/25',
@@ -113,7 +114,7 @@
     chatgpt: {
       name: 'ChatGPT',
       shortName: 'ChatGPT',
-      logoUrl: 'https://chatgpt.com/favicon.ico',
+      logoUrl: localInitialAvatar('ChatGPT'),
       color: 'text-emerald-300',
       bg: 'bg-emerald-400/10',
       border: 'border-emerald-400/25',
@@ -137,7 +138,7 @@
     gemini: {
       name: 'Gemini',
       shortName: 'Gemini',
-      logoUrl: 'https://gemini.google.com/favicon.ico',
+      logoUrl: localInitialAvatar('Gemini'),
       color: 'text-sky-300',
       bg: 'bg-sky-400/10',
       border: 'border-sky-400/25',

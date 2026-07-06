@@ -17,29 +17,13 @@ export interface FormTheme {
 
 export const ALLOWED_FONTS = [
   'Inter',
-  'Poppins',
-  'Roboto',
-  'Montserrat',
-  'Open Sans',
-  'Lato',
-  'Nunito',
-  'Raleway',
   'Outfit',
-  'Space Grotesk',
   'JetBrains Mono',
-  'Playfair Display',
 ] as const;
 
-/** Charge une police Google Fonts une seule fois (whitelist uniquement). */
-export function loadGoogleFont(fontFamily: string) {
-  if (!(ALLOWED_FONTS as readonly string[]).includes(fontFamily)) return;
-  const id = `gfont-${fontFamily.replace(/\s+/g, '-').toLowerCase()}`;
-  if (document.getElementById(id)) return;
-  const link = document.createElement('link');
-  link.id = id;
-  link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?family=${fontFamily.replace(/\s+/g, '+')}:wght@400;500;600;700&display=swap`;
-  document.head.appendChild(link);
+/** Les polices autorisées sont intégrées au bundle ; aucun appel tiers n'est effectué. */
+export function loadGoogleFont(_fontFamily: string) {
+  // Compatibilité avec les appels existants du builder.
 }
 
 /**

@@ -27,6 +27,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import { localInitialAvatar } from '../lib/discordMedia';
 
   let absences = $state<any[]>([]);
   let allStaff = $state<any[]>([]);
@@ -519,7 +520,7 @@
                   class="flex items-center gap-3 p-2 rounded-xl transition-all hover:bg-surface-hover group {selectedStaffIds.includes(staff.id) ? 'bg-primary/5' : ''}"
                 >
                   <div class="relative">
-                    <img src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.username}`} alt="" class="w-8 h-8 rounded-full border border-outline-variant/20" />
+                    <img src={staff.avatarUrl || localInitialAvatar(staff.username)} alt="" class="w-8 h-8 rounded-full border border-outline-variant/20" />
                     {#if selectedStaffIds.includes(staff.id)}
                       <div class="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-surface-container-low flex items-center justify-center">
                         <div class="w-1 h-1 bg-white rounded-full"></div>
@@ -668,7 +669,7 @@
         <div class="p-6 border-b border-outline-variant/30 flex items-center gap-4 justify-between {decisionStatus === 'APPROVED' ? 'bg-emerald-500/5' : 'bg-red-500/5'}">
           <div class="flex items-center gap-4">
             <img
-              src={selectedAbsenceForDecision?.staffMember?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedAbsenceForDecision?.staffMember?.displayName || selectedAbsenceForDecision?.staffMember?.username || '?')}`}
+              src={selectedAbsenceForDecision?.staffMember?.avatarUrl || localInitialAvatar(selectedAbsenceForDecision?.staffMember?.displayName || selectedAbsenceForDecision?.staffMember?.username)}
               alt=""
               class="w-11 h-11 rounded-full border border-outline-variant/20 shrink-0"
             />

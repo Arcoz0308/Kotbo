@@ -209,6 +209,7 @@
   onMount(() => {
     brandingStore.load();
 
+    // Remove credentials left by the retired fragment-based OAuth flow.
     const urlParams = new URLSearchParams(window.location.search);
     let token = urlParams.get("token");
 
@@ -219,20 +220,16 @@
 
     if (token) {
       authStore.setToken(token);
-
       window.history.replaceState({}, document.title, window.location.pathname);
-      if (!isPublicPage) {
+    }
+
+    void authStore.initialize().then(() => {
+      if (!authStore.isAuthenticated && $router.path !== "/login" && !isPublicPage) {
+        router.goto("/login");
+      } else if (authStore.isAuthenticated && $router.path === "/login") {
         router.goto("/");
       }
-    }
-
-    if (
-      !authStore.isAuthenticated &&
-      $router.path !== "/login" &&
-      !isPublicPage
-    ) {
-      router.goto("/login");
-    }
+    });
 
     const timer = setTimeout(() => {
       sessionStorage.removeItem("error_refreshed");
@@ -406,6 +403,7 @@
   });
 
   $effect(() => {
+    if (!authStore.initialized) return;
     if (
       !authStore.isAuthenticated &&
       $router.path !== "/login" &&

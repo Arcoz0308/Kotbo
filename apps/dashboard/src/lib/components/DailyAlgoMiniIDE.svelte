@@ -62,7 +62,7 @@
   const SQLJS_WASM_BASE = 'https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dist/';
   const JSCPP_SCRIPT_CANDIDATES = [
     `${import.meta.env.BASE_URL}vendor/JSCPP.es5.min.js`,
-    'https://raw.githubusercontent.com/felixhao28/JSCPP/gh-pages/dist/JSCPP.es5.min.js',
+    'https://cdn.jsdelivr.net/gh/felixhao28/JSCPP@gh-pages/dist/JSCPP.es5.min.js',
   ];
 
   const assetPromises = new Map<string, Promise<void>>();

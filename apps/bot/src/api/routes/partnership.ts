@@ -40,7 +40,7 @@ export async function handlePartnershipRoute(
     }
 
     try {
-      const user = verifyAuth(req);
+      const user = await verifyAuth(req);
       if (!user) {
         json(res, 401, { error: 'Non authentifié' });
         return true;

@@ -54,7 +54,7 @@ export async function handleAdminRoutes(
     return false;
   }
 
-  const user = verifyAuth(req);
+  const user = await verifyAuth(req);
   if (!user) {
     json(res, 401, { error: 'Non authentifié' });
     return true;

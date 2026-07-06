@@ -4,10 +4,8 @@ import { Client } from 'discord.js';
 
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import jwt from 'jsonwebtoken';
 import {
   json,
-  getJwtSecret,
   getDiscordClientId,
   getDashboardOrigin,
   CORS_EXTRA_ORIGINS,
@@ -23,6 +21,7 @@ import {
   type DashboardSanctionType,
   BunServerResponse,
 } from './shared.js';
+import { getDashboardSession, sessionIdFromCookieHeader } from './auth/sessionStore.js';
 import { getCurrentInstance } from '../utils/instanceContext.js';
 import { getAllInstances } from '../utils/instanceResolver.js';
 
@@ -149,8 +148,21 @@ export const startDashboardApi = async (client: Client) => {
 
       // WebSocket upgrade (inchangé)
       if (url.pathname === '/api/dashboard/ws') {
+        const origin = request.headers.get('origin');
+        let allowedOrigin = origin === getDashboardOrigin();
+        if (!allowedOrigin && process.env.NODE_ENV !== 'production' && origin) {
+          try {
+            allowedOrigin = ['localhost', '127.0.0.1'].includes(new URL(origin).hostname);
+          } catch {
+            allowedOrigin = false;
+          }
+        }
+        if (!allowedOrigin) return new Response('Origine WebSocket refusée', { status: 403 });
+
+        const session = await getDashboardSession(sessionIdFromCookieHeader(request.headers.get('cookie') ?? undefined));
+        if (!session) return new Response('Session WebSocket absente ou expirée', { status: 401 });
         const success = serverInstance.upgrade(request, {
-          data: { isAuthenticated: false },
+          data: { isAuthenticated: true, userId: session.userId },
         });
         if (success) return undefined;
       }
@@ -253,7 +265,13 @@ export const startDashboardApi = async (client: Client) => {
                 res.setHeader('Access-Control-Allow-Origin', originStr);
                 res.setHeader('Access-Control-Allow-Credentials', 'true');
               } else {
-                res.setHeader('Access-Control-Allow-Origin', dashboardOrigin);
+                res.statusCode = 403;
+                res.setHeader('Access-Control-Allow-Origin', originStr);
+                res.setHeader('Access-Control-Allow-Credentials', 'true');
+                res.setHeader('Vary', 'Origin');
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ error: 'Origine refusée' }));
+                return;
               }
             } else {
               res.setHeader('Access-Control-Allow-Origin', dashboardOrigin);
@@ -301,42 +319,16 @@ export const startDashboardApi = async (client: Client) => {
     },
     websocket: {
       open(ws) {
-        // Enforce authentication timeout (disconnect if not authenticated within 5s)
-        setTimeout(() => {
-          if (!ws.data.isAuthenticated) {
-            ws.close(4008, 'Timeout authentification');
-          }
-        }, 5000);
+        ws.subscribe('authenticated-dashboard');
+        ws.send(JSON.stringify({ type: 'dashboard_ws_connected', at: new Date().toISOString() }));
       },
       message(ws, messageData) {
         try {
           const raw = typeof messageData === 'string' ? messageData : new TextDecoder().decode(messageData);
-          const data = JSON.parse(raw) as { type?: string; token?: string };
-
-          if (data.type === 'auth') {
-            const token = data.token;
-            if (!token) {
-              ws.close(4001, 'Token manquant');
-              return;
-            }
-
-            try {
-              const decoded = (jwt.verify(token, getJwtSecret()) as unknown) as { userId: string };
-              ws.data.isAuthenticated = true;
-              ws.data.userId = decoded.userId;
-
-              ws.subscribe('authenticated-dashboard');
-
-              ws.send(
-                JSON.stringify({
-                  type: 'dashboard_ws_connected',
-                  at: new Date().toISOString(),
-                }),
-              );
-            } catch {
-              ws.close(4003, 'Token invalide');
-            }
-          }
+          const data = JSON.parse(raw) as { type?: string };
+          // Authentication happens during the HTTP upgrade. Keep accepting the
+          // old client message as a harmless no-op during the frontend rollout.
+          if (data.type === 'auth') return;
         } catch {
           ws.close(4000, 'Payload invalide');
         }

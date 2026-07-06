@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PrivacyNotice from '../lib/components/PrivacyNotice.svelte';
   import { onMount } from 'svelte';
   import { API_BASE_URL } from '../lib/api';
 
@@ -213,6 +214,9 @@
           <p class="text-white/20 text-[10px] text-center mt-4">
             En cliquant, vous autorisez le bot à vérifier votre identité Discord.
           </p>
+          <div class="mt-4">
+            <PrivacyNotice compact text="La vérification traite votre identité Discord et votre adresse IP afin de détecter les comptes multiples et sécuriser le serveur. " />
+          </div>
         </div>
       </div>
     {/if}

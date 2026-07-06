@@ -81,7 +81,6 @@
 <svelte:head>
   <title>Classement Leveling — {guildName}</title>
   <meta name="description" content="Classement XP et niveaux des membres de {guildName} sur Discord." />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
 </svelte:head>
 
 <div class="min-h-screen whiteboard-container relative overflow-x-hidden selection:bg-yellow-100 dark:selection:bg-slate-850 py-12 px-4 sm:px-6 z-10">

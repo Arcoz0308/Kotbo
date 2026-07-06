@@ -64,7 +64,7 @@ export async function handleDashboardRoutes(
   }
 
   // 3. Enforce authentication for all other dashboard routes
-  const user = verifyAuth(req);
+  const user = await verifyAuth(req);
   if (!user) {
     json(res, 401, { error: 'Non authentifié' });
     return true;

@@ -1,6 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
-import jwt from 'jsonwebtoken';
 import { logger } from '../../utils/logger.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import {
@@ -10,7 +9,6 @@ import {
   resolveDashboardAccess,
   hasDashboardAdminPermission,
   DashboardAccessLevel,
-  AuthClaims,
 } from '../shared.js';
 import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceContext.js';
 import prisma from '../../utils/db.js';
@@ -28,7 +26,7 @@ export async function handleUserRoutes(
     return false;
   }
 
-  const user = verifyAuth(req);
+  const user = await verifyAuth(req);
   if (!user) {
     json(res, 401, { error: 'Non authentifié' });
     return true;
@@ -36,15 +34,8 @@ export async function handleUserRoutes(
 
   // GET /api/user/me
   if (parts[2] === 'me' && method === 'GET') {
-    const authHeader = req.headers.authorization;
-    const token = authHeader!.split(' ')[1];
-    const decoded = jwt.decode(token) as AuthClaims | null;
-    if (!decoded) {
-      json(res, 400, { error: 'Token invalide' });
-      return true;
-    }
-    const isBotAdmin = await resolveAdminAccess(client, decoded.userId);
-    json(res, 200, { id: decoded.userId, username: decoded.username, avatar: decoded.avatar, isBotAdmin });
+    const isBotAdmin = await resolveAdminAccess(client, user.userId);
+    json(res, 200, { id: user.userId, username: user.username, avatar: user.avatar, isBotAdmin });
     return true;
   }
 
