@@ -9,7 +9,7 @@
  * only see plain typed objects, making them portable to a multi-process setup.
  */
 
-import { Events, type Client, type Message, type PartialMessage, type VoiceState, type GuildMember } from 'discord.js';
+import { Events, MessageFlags, type Client, type Message, type PartialMessage, type VoiceState, type GuildMember } from 'discord.js';
 import { kotboEventBus } from '@kotbo/core';
 import { logger } from '../utils/logger.js';
 
@@ -31,7 +31,7 @@ export function registerEventBusBridge(client: Client): void {
       hasReference: !!message.reference,
       messageId: message.id,
       attachmentCount: message.attachments.size,
-      isInteraction: !!message.interaction,
+      isInteraction: !!message.interaction || !!message.interactionMetadata || message.flags.has(MessageFlags.Ephemeral),
       timestamp: message.createdTimestamp,
     });
   });

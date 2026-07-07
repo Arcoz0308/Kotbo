@@ -1,4 +1,4 @@
-import { type Client, PermissionFlagsBits } from 'discord.js';
+import { type Client, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { getCachedGuild } from '../utils/cache.js';
 
@@ -32,8 +32,8 @@ export function registerAutoThreadListener(client: Client): void {
         return;
       }
 
-      // Skip interaction responses — they may be ephemeral or not threadable
-      if (message.interaction) return;
+      // Skip interaction responses — they may be ephemeral or otherwise not threadable.
+      if (message.interaction || message.interactionMetadata || message.flags.has(MessageFlags.Ephemeral)) return;
 
       // Si c'est un bot autre que Kotbo lui-même, on vérifie si la création automatique est activée pour les bots.
       // Kotbo lui-même doit pouvoir créer des fils sur ses propres messages (comme les suggestions ou annonces).

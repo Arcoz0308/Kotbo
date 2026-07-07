@@ -7,7 +7,7 @@
  */
 
 import type { Client, TextChannel, NewsChannel } from 'discord.js';
-import { PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { kotboEventBus } from '@kotbo/core';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
@@ -51,6 +51,7 @@ export function registerAutoThreadBusSubscribers(client: Client): void {
 
     const message = await channel.messages.fetch(payload.messageId).catch(() => null);
     if (!message) return;
+    if (message.interaction || message.interactionMetadata || message.flags.has(MessageFlags.Ephemeral)) return;
 
     let rawName = payload.content ? payload.content.replace(/[\n\r]+/g, ' ').trim() : '';
     let authorName = message.member?.displayName || message.author.displayName || message.author.username;
