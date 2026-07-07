@@ -20,6 +20,41 @@ function hasSuggestionEmbed(message: Message, suggestionId: string): boolean {
   return message.embeds.some(embed => embed.footer?.text?.includes(suggestionId));
 }
 
+async function findSuggestionMessageInChannel(
+  channel: NonNullable<Awaited<ReturnType<Client['channels']['fetch']>>>,
+  suggestionId: string,
+  messageId: string | null
+): Promise<Message | null> {
+  if (channel.isThread()) {
+    const starterMessage = await channel.fetchStarterMessage().catch((e: unknown) => {
+      logger.error('Suggestions', `Impossible de récupérer le message de départ du fil ${channel.id}:`, e);
+      return null;
+    });
+
+    if (starterMessage && hasSuggestionEmbed(starterMessage, suggestionId)) {
+      return starterMessage;
+    }
+  }
+
+  if (!channel.isTextBased() || !('messages' in channel)) {
+    return null;
+  }
+
+  if (messageId) {
+    const storedMessage = await channel.messages.fetch(messageId).catch(() => null);
+    if (storedMessage && hasSuggestionEmbed(storedMessage, suggestionId)) {
+      return storedMessage;
+    }
+  }
+
+  const recentMessages = await channel.messages.fetch({ limit: 100 }).catch((e: unknown) => {
+    logger.error('Suggestions', `Impossible de rechercher le message de la suggestion ${suggestionId} dans ${channel.id}:`, e);
+    return null;
+  });
+
+  return recentMessages?.find(message => hasSuggestionEmbed(message, suggestionId)) ?? null;
+}
+
 async function findSuggestionMessage(
   interaction: ButtonInteraction,
   suggestion: { id: string; channelId: string | null; messageId: string | null }
@@ -28,32 +63,37 @@ async function findSuggestionMessage(
     return interaction.message;
   }
 
-  const channelId = suggestion.channelId ?? interaction.channelId;
-  const channel = interaction.guild?.channels.cache.get(channelId)
-    ?? await interaction.client.channels.fetch(channelId).catch(() => null);
+  const candidateChannelIds = new Set<string>();
+  if (suggestion.channelId) candidateChannelIds.add(suggestion.channelId);
+  candidateChannelIds.add(interaction.channelId);
 
-  if (!channel?.isTextBased() || !('messages' in channel)) {
-    logger.warn('Suggestions', `Channel ${channelId} introuvable pour la suggestion ${suggestion.id}`);
-    return null;
+  const interactionChannel = interaction.channel;
+  if (interactionChannel?.isThread()) {
+    const starterMessage = await interactionChannel.fetchStarterMessage().catch(() => null);
+    if (starterMessage && hasSuggestionEmbed(starterMessage, suggestion.id)) {
+      return starterMessage;
+    }
+    if (interactionChannel.parentId) candidateChannelIds.add(interactionChannel.parentId);
   }
 
-  if (suggestion.messageId) {
-    const storedMessage = await channel.messages.fetch(suggestion.messageId).catch((e: unknown) => {
-      logger.error('Suggestions', `Impossible de récupérer le message ${suggestion.messageId}:`, e);
-      return null;
-    });
+  for (const channelId of candidateChannelIds) {
+    const channel = interaction.guild?.channels.cache.get(channelId)
+      ?? await interaction.client.channels.fetch(channelId).catch(() => null);
 
-    if (storedMessage && hasSuggestionEmbed(storedMessage, suggestion.id)) {
-      return storedMessage;
+    if (!channel) {
+      logger.warn('Suggestions', `Channel ${channelId} introuvable pour la suggestion ${suggestion.id}`);
+      continue;
+    }
+
+    const message = await findSuggestionMessageInChannel(channel, suggestion.id, suggestion.messageId);
+    if (message) return message;
+
+    if (channel.isThread() && channel.parentId && !candidateChannelIds.has(channel.parentId)) {
+      candidateChannelIds.add(channel.parentId);
     }
   }
 
-  const recentMessages = await channel.messages.fetch({ limit: 100 }).catch((e: unknown) => {
-    logger.error('Suggestions', `Impossible de rechercher le message de la suggestion ${suggestion.id}:`, e);
-    return null;
-  });
-
-  return recentMessages?.find(message => hasSuggestionEmbed(message, suggestion.id)) ?? null;
+  return null;
 }
 
 /**
