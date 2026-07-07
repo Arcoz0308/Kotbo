@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
@@ -96,7 +96,7 @@ export async function createSuggestion(guildId: string, userId: string, username
 /**
  * Traite les votes sur une suggestion (Upvote / Downvote)
  */
-export async function handleSuggestionVote(interaction: unknown, type: 'up' | 'down') {
+export async function handleSuggestionVote(interaction: ButtonInteraction, type: 'up' | 'down') {
   const suggestionId = interaction.customId.split(':')[1];
   const userId = interaction.user.id;
 
@@ -135,52 +135,55 @@ export async function handleSuggestionVote(interaction: unknown, type: 'up' | 'd
   }
 
   // Enregistrer les votes
-  const _updated = await prisma.suggestion.update({
+  await prisma.suggestion.update({
     where: { id: suggestionId },
-    data: { upvoters, downvoters },
+    data: {
+      upvoters,
+      downvoters,
+      channelId: suggestion.channelId ?? interaction.channelId,
+      messageId: suggestion.messageId ?? interaction.message.id,
+    },
   });
 
-  // Mettre à jour l'embed Discord
-  if (suggestion.channelId && suggestion.messageId) {
-    const channel = interaction.guild?.channels.cache.get(suggestion.channelId);
-    if (channel?.isTextBased()) {
-      const message = await channel.messages.fetch(suggestion.messageId).catch((e: unknown) => {
-        logger.error('Suggestions', `Impossible de récupérer le message ${suggestion.messageId}:`, e);
-        return null;
+  // Mettre à jour le message du bouton directement via l'interaction Discord.
+  const originalEmbed = interaction.message.embeds[0];
+  if (originalEmbed) {
+    const updatedEmbed = EmbedBuilder.from(originalEmbed)
+      .setFields(
+        { name: 'Statut', value: "⏳ En cours d'évaluation", inline: true },
+        { name: 'Votes', value: `👍 Upvotes : \`${upvoters.length}\` | 👎 Downvotes : \`${downvoters.length}\``, inline: true }
+      );
+
+    const upBtn = new ButtonBuilder()
+      .setCustomId(`suggest_vote:${suggestion.id}:up`)
+      .setEmoji('👍')
+      .setLabel(String(upvoters.length))
+      .setStyle(ButtonStyle.Secondary);
+
+    const downBtn = new ButtonBuilder()
+      .setCustomId(`suggest_vote:${suggestion.id}:down`)
+      .setEmoji('👎')
+      .setLabel(String(downvoters.length))
+      .setStyle(ButtonStyle.Secondary);
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(upBtn, downBtn);
+
+    try {
+      await interaction.update({ embeds: [updatedEmbed], components: [row] });
+    } catch (e: unknown) {
+      logger.error('Suggestions', `Impossible de mettre à jour l'embed de la suggestion ${suggestion.id}:`, e);
+      return interaction.reply({
+        content: "✅ Votre vote a été enregistré, mais l'affichage du compteur n'a pas pu être rafraîchi.",
+        flags: [MessageFlags.Ephemeral],
       });
-      if (message) {
-        const originalEmbed = message.embeds[0];
-        if (originalEmbed) {
-          const updatedEmbed = EmbedBuilder.from(originalEmbed)
-            .setFields(
-              { name: 'Statut', value: "⏳ En cours d'évaluation", inline: true },
-              { name: 'Votes', value: `👍 Upvotes : \`${upvoters.length}\` | 👎 Downvotes : \`${downvoters.length}\``, inline: true }
-            );
-
-          const upBtn = new ButtonBuilder()
-            .setCustomId(`suggest_vote:${suggestion.id}:up`)
-            .setEmoji('👍')
-            .setLabel(String(upvoters.length))
-            .setStyle(ButtonStyle.Secondary);
-
-          const downBtn = new ButtonBuilder()
-            .setCustomId(`suggest_vote:${suggestion.id}:down`)
-            .setEmoji('👎')
-            .setLabel(String(downvoters.length))
-            .setStyle(ButtonStyle.Secondary);
-
-          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(upBtn, downBtn);
-
-          await message.edit({ embeds: [updatedEmbed], components: [row] }).catch((e: unknown) => {
-            logger.error('Suggestions', `Impossible de mettre à jour l'embed de la suggestion ${suggestion.id}:`, e);
-          });
-        }
-      }
-    } else {
-      logger.warn('Suggestions', `Channel ${suggestion.channelId} introuvable dans le cache pour la suggestion ${suggestion.id}`);
     }
+
+    return interaction.followUp({
+      content: '✅ Votre vote a été pris en compte !',
+      flags: [MessageFlags.Ephemeral],
+    });
   } else {
-    logger.warn('Suggestions', `Suggestion ${suggestionId} sans channelId ou messageId, impossible de mettre à jour l'embed`);
+    logger.warn('Suggestions', `Message ${interaction.message.id} sans embed pour la suggestion ${suggestion.id}`);
   }
 
   return interaction.reply({
