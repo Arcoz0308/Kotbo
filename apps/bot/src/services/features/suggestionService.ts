@@ -20,6 +20,33 @@ function hasSuggestionEmbed(message: Message, suggestionId: string): boolean {
   return message.embeds.some(embed => embed.footer?.text?.includes(suggestionId));
 }
 
+function hasSuggestionComponents(message: Message, suggestionId: string): boolean {
+  return JSON.stringify(message.components).includes(`suggest_vote:${suggestionId}:`)
+    || JSON.stringify(message.components).includes(`ID de la suggestion : ${suggestionId}`);
+}
+
+function isSuggestionMessage(message: Message, suggestionId: string): boolean {
+  return hasSuggestionEmbed(message, suggestionId) || hasSuggestionComponents(message, suggestionId);
+}
+
+function buildSuggestionEmbed(
+  suggestion: { id: string; username: string; content: string },
+  upvoteCount: number,
+  downvoteCount: number
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle('💡 Nouvelle Suggestion')
+    .setDescription(resolveEmojiShortcodes(suggestion.content))
+    .setAuthor({ name: suggestion.username })
+    .addFields(
+      { name: 'Statut', value: "⏳ En cours d'évaluation", inline: true },
+      { name: 'Votes', value: `👍 Upvotes : \`${upvoteCount}\` | 👎 Downvotes : \`${downvoteCount}\``, inline: true }
+    )
+    .setColor('#FE75C2')
+    .setFooter({ text: `ID de la suggestion : ${suggestion.id}` })
+    .setTimestamp();
+}
+
 async function findSuggestionMessageInChannel(
   channel: NonNullable<Awaited<ReturnType<Client['channels']['fetch']>>>,
   suggestionId: string,
@@ -31,7 +58,7 @@ async function findSuggestionMessageInChannel(
       return null;
     });
 
-    if (starterMessage && hasSuggestionEmbed(starterMessage, suggestionId)) {
+    if (starterMessage && isSuggestionMessage(starterMessage, suggestionId)) {
       return starterMessage;
     }
   }
@@ -42,7 +69,7 @@ async function findSuggestionMessageInChannel(
 
   if (messageId) {
     const storedMessage = await channel.messages.fetch(messageId).catch(() => null);
-    if (storedMessage && hasSuggestionEmbed(storedMessage, suggestionId)) {
+    if (storedMessage && isSuggestionMessage(storedMessage, suggestionId)) {
       return storedMessage;
     }
   }
@@ -52,14 +79,14 @@ async function findSuggestionMessageInChannel(
     return null;
   });
 
-  return recentMessages?.find(message => hasSuggestionEmbed(message, suggestionId)) ?? null;
+  return recentMessages?.find(message => isSuggestionMessage(message, suggestionId)) ?? null;
 }
 
 async function findSuggestionMessage(
   interaction: ButtonInteraction,
   suggestion: { id: string; channelId: string | null; messageId: string | null }
 ): Promise<Message | null> {
-  if (hasSuggestionEmbed(interaction.message, suggestion.id)) {
+  if (isSuggestionMessage(interaction.message, suggestion.id)) {
     return interaction.message;
   }
 
@@ -70,7 +97,7 @@ async function findSuggestionMessage(
   const interactionChannel = interaction.channel;
   if (interactionChannel?.isThread()) {
     const starterMessage = await interactionChannel.fetchStarterMessage().catch(() => null);
-    if (starterMessage && hasSuggestionEmbed(starterMessage, suggestion.id)) {
+    if (starterMessage && isSuggestionMessage(starterMessage, suggestion.id)) {
       return starterMessage;
     }
     if (interactionChannel.parentId) candidateChannelIds.add(interactionChannel.parentId);
@@ -238,18 +265,13 @@ export async function handleSuggestionVote(interaction: ButtonInteraction, type:
   const message = await findSuggestionMessage(interaction, suggestion);
   if (message) {
     const originalEmbed = message.embeds.find(embed => embed.footer?.text?.includes(suggestion.id));
-    if (!originalEmbed) {
-      logger.warn('Suggestions', `Message ${message.id} sans embed de suggestion pour ${suggestion.id}`);
-      return interaction.editReply({
-        content: "✅ Votre vote a été enregistré, mais l'affichage du compteur n'a pas pu être rafraîchi.",
-      });
-    }
-
-    const updatedEmbed = EmbedBuilder.from(originalEmbed)
-      .setFields(
-        { name: 'Statut', value: "⏳ En cours d'évaluation", inline: true },
-        { name: 'Votes', value: `👍 Upvotes : \`${upvoters.length}\` | 👎 Downvotes : \`${downvoters.length}\``, inline: true }
-      );
+    const updatedEmbed = originalEmbed
+      ? EmbedBuilder.from(originalEmbed)
+        .setFields(
+          { name: 'Statut', value: "⏳ En cours d'évaluation", inline: true },
+          { name: 'Votes', value: `👍 Upvotes : \`${upvoters.length}\` | 👎 Downvotes : \`${downvoters.length}\``, inline: true }
+        )
+      : buildSuggestionEmbed(suggestion, upvoters.length, downvoters.length);
 
     const upBtn = new ButtonBuilder()
       .setCustomId(`suggest_vote:${suggestion.id}:up`)
