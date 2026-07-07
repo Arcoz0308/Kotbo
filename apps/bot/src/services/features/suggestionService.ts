@@ -1,8 +1,60 @@
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction } from 'discord.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Message } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
+
+type SuggestionFeatureConfig = {
+  featureKey?: string;
+  enabled?: boolean;
+  channelId?: string | null;
+};
+
+function isSuggestionFeatureConfig(value: unknown): value is SuggestionFeatureConfig {
+  return typeof value === 'object'
+    && value !== null
+    && (value as SuggestionFeatureConfig).featureKey === 'suggestions';
+}
+
+function hasSuggestionEmbed(message: Message, suggestionId: string): boolean {
+  return message.embeds.some(embed => embed.footer?.text?.includes(suggestionId));
+}
+
+async function findSuggestionMessage(
+  interaction: ButtonInteraction,
+  suggestion: { id: string; channelId: string | null; messageId: string | null }
+): Promise<Message | null> {
+  if (hasSuggestionEmbed(interaction.message, suggestion.id)) {
+    return interaction.message;
+  }
+
+  const channelId = suggestion.channelId ?? interaction.channelId;
+  const channel = interaction.guild?.channels.cache.get(channelId)
+    ?? await interaction.client.channels.fetch(channelId).catch(() => null);
+
+  if (!channel?.isTextBased() || !('messages' in channel)) {
+    logger.warn('Suggestions', `Channel ${channelId} introuvable pour la suggestion ${suggestion.id}`);
+    return null;
+  }
+
+  if (suggestion.messageId) {
+    const storedMessage = await channel.messages.fetch(suggestion.messageId).catch((e: unknown) => {
+      logger.error('Suggestions', `Impossible de récupérer le message ${suggestion.messageId}:`, e);
+      return null;
+    });
+
+    if (storedMessage && hasSuggestionEmbed(storedMessage, suggestion.id)) {
+      return storedMessage;
+    }
+  }
+
+  const recentMessages = await channel.messages.fetch({ limit: 100 }).catch((e: unknown) => {
+    logger.error('Suggestions', `Impossible de rechercher le message de la suggestion ${suggestion.id}:`, e);
+    return null;
+  });
+
+  return recentMessages?.find(message => hasSuggestionEmbed(message, suggestion.id)) ?? null;
+}
 
 /**
  * Crée et publie une nouvelle suggestion dans le salon dédié
@@ -14,7 +66,8 @@ export async function createSuggestion(guildId: string, userId: string, username
     select: { publicChannelId: true, dashboardFeatureConfigs: true }
   });
 
-  const featureConfig = (guildConfig?.dashboardFeatureConfigs || []).find((f: unknown) => f.featureKey === 'suggestions');
+  const featureConfigs = Array.isArray(guildConfig?.dashboardFeatureConfigs) ? guildConfig.dashboardFeatureConfigs : [];
+  const featureConfig = featureConfigs.find(isSuggestionFeatureConfig);
   if (featureConfig && featureConfig.enabled === false) {
     throw new Error('Le système de suggestions est désactivé sur ce serveur.');
   }
@@ -112,6 +165,8 @@ export async function handleSuggestionVote(interaction: ButtonInteraction, type:
     return interaction.reply({ content: '❌ Cette suggestion a déjà été tranchée par le staff.', flags: [MessageFlags.Ephemeral] });
   }
 
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
   let upvoters = [...suggestion.upvoters];
   let downvoters = [...suggestion.downvoters];
 
@@ -137,17 +192,19 @@ export async function handleSuggestionVote(interaction: ButtonInteraction, type:
   // Enregistrer les votes
   await prisma.suggestion.update({
     where: { id: suggestionId },
-    data: {
-      upvoters,
-      downvoters,
-      channelId: suggestion.channelId ?? interaction.channelId,
-      messageId: suggestion.messageId ?? interaction.message.id,
-    },
+    data: { upvoters, downvoters },
   });
 
-  // Mettre à jour le message du bouton directement via l'interaction Discord.
-  const originalEmbed = interaction.message.embeds[0];
-  if (originalEmbed) {
+  const message = await findSuggestionMessage(interaction, suggestion);
+  if (message) {
+    const originalEmbed = message.embeds.find(embed => embed.footer?.text?.includes(suggestion.id));
+    if (!originalEmbed) {
+      logger.warn('Suggestions', `Message ${message.id} sans embed de suggestion pour ${suggestion.id}`);
+      return interaction.editReply({
+        content: "✅ Votre vote a été enregistré, mais l'affichage du compteur n'a pas pu être rafraîchi.",
+      });
+    }
+
     const updatedEmbed = EmbedBuilder.from(originalEmbed)
       .setFields(
         { name: 'Statut', value: "⏳ En cours d'évaluation", inline: true },
@@ -169,26 +226,30 @@ export async function handleSuggestionVote(interaction: ButtonInteraction, type:
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(upBtn, downBtn);
 
     try {
-      await interaction.update({ embeds: [updatedEmbed], components: [row] });
+      await message.edit({ embeds: [updatedEmbed], components: [row] });
+
+      if (suggestion.channelId !== message.channelId || suggestion.messageId !== message.id) {
+        await prisma.suggestion.update({
+          where: { id: suggestionId },
+          data: { channelId: message.channelId, messageId: message.id },
+        });
+      }
     } catch (e: unknown) {
       logger.error('Suggestions', `Impossible de mettre à jour l'embed de la suggestion ${suggestion.id}:`, e);
-      return interaction.reply({
+      return interaction.editReply({
         content: "✅ Votre vote a été enregistré, mais l'affichage du compteur n'a pas pu être rafraîchi.",
-        flags: [MessageFlags.Ephemeral],
       });
     }
 
-    return interaction.followUp({
+    return interaction.editReply({
       content: '✅ Votre vote a été pris en compte !',
-      flags: [MessageFlags.Ephemeral],
     });
   } else {
-    logger.warn('Suggestions', `Message ${interaction.message.id} sans embed pour la suggestion ${suggestion.id}`);
+    logger.warn('Suggestions', `Message public introuvable pour la suggestion ${suggestion.id} (interaction message: ${interaction.message.id})`);
   }
 
-  return interaction.reply({
-    content: '✅ Votre vote a été pris en compte !',
-    flags: [MessageFlags.Ephemeral],
+  return interaction.editReply({
+    content: "✅ Votre vote a été enregistré, mais le message public de la suggestion est introuvable.",
   });
 }
 
@@ -230,7 +291,7 @@ export async function resolveSuggestion(
           const originalEmbed = message.embeds[0];
           if (originalEmbed) {
             let statusText = "⏳ En cours d'évaluation";
-            let color = '#FE75C2';
+            let color: ColorResolvable = '#FE75C2';
 
             if (status === 'APPROVED') {
               statusText = '✅ **Approuvée par le Staff**';
@@ -244,7 +305,7 @@ export async function resolveSuggestion(
             }
 
             const updatedEmbed = EmbedBuilder.from(originalEmbed)
-              .setColor(color as unknown)
+              .setColor(color)
               .setFields(
                 { name: 'Statut', value: statusText, inline: true },
                 { name: 'Votes finaux', value: `👍 Upvotes : \`${updated.upvoters.length}\` | 👎 Downvotes : \`${updated.downvoters.length}\``, inline: true },
