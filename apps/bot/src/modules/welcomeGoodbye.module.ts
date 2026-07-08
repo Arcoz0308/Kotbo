@@ -19,6 +19,7 @@ import {
   applyJoinAutoRole,
   applyTagAutoRole,
 } from '../services/features/welcomeGoodbyeService.js';
+import { handleWelcomeThread } from '../services/features/welcomeThreadService.js';
 import { checkMemberCountTriggers } from '../services/core/ctfTriggerService.js';
 import { logger } from '../utils/logger.js';
 
@@ -39,6 +40,7 @@ export function registerWelcomeGoodbyeBusSubscribers(client: Client): void {
     await applyJoinAutoRole(member);
     await applyTagAutoRole(member);
     await handleGuildMemberAdd(member, client);
+    await handleWelcomeThread(member, client);
     await checkMemberCountTriggers(guild, client);
   }, MODULE_NAME);
 

@@ -4,6 +4,7 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp } from '../../../services/progression/levelingService.js';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
+import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
 import { createReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
@@ -547,6 +548,226 @@ export async function handleGeneralistModulesRoutes(
       } catch (err) {
         logger.error('WelcomeGoodbyeAPI', 'Error updating welcome config:', err);
         json(res, 500, { error: 'Erreur lors de la mise à jour de la config' });
+      }
+      return true;
+    }
+  }
+
+  // 3bis. WELCOME THREAD (accueil personnalisé scénarisé) ROUTES
+  if (moduleKey === 'welcome-thread') {
+    // GET /api/dashboard/guilds/:guildId/welcome-thread
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const config = await getOrCreateWelcomeThreadConfig(guildId);
+        json(res, 200, { config });
+      } catch (err) {
+        logger.error('WelcomeThreadAPI', 'Error fetching welcome thread config:', err);
+        json(res, 500, { error: "Erreur config thread d'accueil" });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/welcome-thread
+    if (parts.length === 5 && method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{
+          enabled?: boolean;
+          channelId?: string | null;
+          threadNameTemplate?: string;
+          threadMode?: string;
+          autoArchiveMinutes?: number;
+          typingEnabled?: boolean;
+          webhookName?: string;
+          webhookAvatarUrl?: string | null;
+          menuEnabled?: boolean;
+          menuStyle?: string;
+          menuPlaceholder?: string;
+          embedTitle?: string;
+          embedDescription?: string;
+          embedColor?: string;
+          embedImageUrl?: string | null;
+          embedThumbnailUrl?: string | null;
+        }>(req);
+
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant' });
+          return true;
+        }
+
+        if (body.threadMode !== undefined && body.threadMode !== 'public' && body.threadMode !== 'private') {
+          json(res, 400, { error: "threadMode doit être 'public' ou 'private'" });
+          return true;
+        }
+        if (body.menuStyle !== undefined && body.menuStyle !== 'buttons' && body.menuStyle !== 'select') {
+          json(res, 400, { error: "menuStyle doit être 'buttons' ou 'select'" });
+          return true;
+        }
+        if (body.autoArchiveMinutes !== undefined && ![60, 1440, 4320, 10080].includes(body.autoArchiveMinutes)) {
+          json(res, 400, { error: 'autoArchiveMinutes doit être 60, 1440, 4320 ou 10080' });
+          return true;
+        }
+
+        await getOrCreateWelcomeThreadConfig(guildId);
+        const config = await prisma.welcomeThreadConfig.update({
+          where: { guildId },
+          data: {
+            enabled: body.enabled,
+            channelId: body.channelId,
+            threadNameTemplate: body.threadNameTemplate,
+            threadMode: body.threadMode,
+            autoArchiveMinutes: body.autoArchiveMinutes,
+            typingEnabled: body.typingEnabled,
+            webhookName: body.webhookName,
+            webhookAvatarUrl: body.webhookAvatarUrl,
+            menuEnabled: body.menuEnabled,
+            menuStyle: body.menuStyle,
+            menuPlaceholder: body.menuPlaceholder,
+            embedTitle: body.embedTitle,
+            embedDescription: body.embedDescription,
+            embedColor: body.embedColor,
+            embedImageUrl: body.embedImageUrl,
+            embedThumbnailUrl: body.embedThumbnailUrl,
+          },
+          include: { steps: { orderBy: { order: 'asc' } }, pages: { orderBy: { order: 'asc' } } },
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: "Mise à jour Thread d'accueil",
+          context: getGuildName(client, guildId),
+          module: 'WelcomeThread',
+          eventType: 'Manuel',
+          details: `Config mise à jour. Activé: ${config.enabled}, Salon: ${config.channelId ?? 'aucun'}, Menu: ${config.menuStyle}`,
+          channelId: config.channelId,
+        });
+
+        json(res, 200, { config });
+      } catch (err) {
+        logger.error('WelcomeThreadAPI', 'Error updating welcome thread config:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la config' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/welcome-thread/steps (remplace la séquence complète)
+    if (parts.length === 6 && parts[5] === 'steps' && method === 'PUT') {
+      try {
+        const body = await readJsonBody<{
+          steps: Array<{ content: string; name?: string | null; avatarUrl?: string | null; delayMs?: number }>;
+        }>(req);
+
+        if (!body || !Array.isArray(body.steps)) {
+          json(res, 400, { error: 'Corps de requête invalide (steps attendu)' });
+          return true;
+        }
+        if (body.steps.length > MAX_THREAD_STEPS) {
+          json(res, 400, { error: `Maximum ${MAX_THREAD_STEPS} messages dans la séquence` });
+          return true;
+        }
+        if (body.steps.some((s) => !s.content?.trim())) {
+          json(res, 400, { error: 'Chaque message doit avoir un contenu' });
+          return true;
+        }
+
+        await getOrCreateWelcomeThreadConfig(guildId);
+        await prisma.$transaction([
+          prisma.welcomeThreadStep.deleteMany({ where: { guildId } }),
+          prisma.welcomeThreadStep.createMany({
+            data: body.steps.map((step, index) => ({
+              guildId,
+              order: index,
+              content: step.content.trim().slice(0, 2000),
+              name: step.name?.trim() || null,
+              avatarUrl: step.avatarUrl?.trim() || null,
+              delayMs: clampStepDelay(step.delayMs ?? 3000),
+            })),
+          }),
+        ]);
+
+        const config = await getOrCreateWelcomeThreadConfig(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: "Mise à jour séquence Thread d'accueil",
+          context: getGuildName(client, guildId),
+          module: 'WelcomeThread',
+          eventType: 'Manuel',
+          details: `Séquence remplacée : ${config.steps.length} message(s)`,
+          channelId: config.channelId,
+        });
+
+        json(res, 200, { config });
+      } catch (err) {
+        logger.error('WelcomeThreadAPI', 'Error updating welcome thread steps:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la séquence' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/welcome-thread/pages (remplace les pages du menu)
+    if (parts.length === 6 && parts[5] === 'pages' && method === 'PUT') {
+      try {
+        const body = await readJsonBody<{
+          pages: Array<{
+            label: string;
+            emoji?: string | null;
+            summary?: string | null;
+            embedTitle: string;
+            embedDescription: string;
+            embedColor?: string;
+            embedImageUrl?: string | null;
+            embedThumbnailUrl?: string | null;
+          }>;
+        }>(req);
+
+        if (!body || !Array.isArray(body.pages)) {
+          json(res, 400, { error: 'Corps de requête invalide (pages attendu)' });
+          return true;
+        }
+        if (body.pages.length > 25) {
+          json(res, 400, { error: 'Maximum 25 pages de présentation' });
+          return true;
+        }
+        if (body.pages.some((p) => !p.label?.trim() || !p.embedTitle?.trim() || !p.embedDescription?.trim())) {
+          json(res, 400, { error: 'Chaque page doit avoir un label, un titre et une description' });
+          return true;
+        }
+
+        await getOrCreateWelcomeThreadConfig(guildId);
+        await prisma.$transaction([
+          prisma.welcomeMenuPage.deleteMany({ where: { guildId } }),
+          prisma.welcomeMenuPage.createMany({
+            data: body.pages.map((page, index) => ({
+              guildId,
+              order: index,
+              label: page.label.trim().slice(0, 80),
+              emoji: page.emoji?.trim() || null,
+              summary: page.summary?.trim().slice(0, 100) || null,
+              embedTitle: page.embedTitle.trim().slice(0, 256),
+              embedDescription: page.embedDescription.trim().slice(0, 4096),
+              embedColor: page.embedColor?.trim() || '#5865F2',
+              embedImageUrl: page.embedImageUrl?.trim() || null,
+              embedThumbnailUrl: page.embedThumbnailUrl?.trim() || null,
+            })),
+          }),
+        ]);
+
+        const config = await getOrCreateWelcomeThreadConfig(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: "Mise à jour pages Thread d'accueil",
+          context: getGuildName(client, guildId),
+          module: 'WelcomeThread',
+          eventType: 'Manuel',
+          details: `Pages remplacées : ${config.pages.length} page(s)`,
+          channelId: config.channelId,
+        });
+
+        json(res, 200, { config });
+      } catch (err) {
+        logger.error('WelcomeThreadAPI', 'Error updating welcome menu pages:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour des pages' });
       }
       return true;
     }

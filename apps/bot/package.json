@@ -15,7 +15,8 @@
     "test:coverage": "bun test --coverage src/tests",
     "coverage:gate": "bun run scripts/coverage-gate.ts",
     "test:watch": "bun test --watch src/tests",
-    "typecheck": "bun x tsc -p tsconfig.json --noEmit",
+    "typecheck": "bun x tsgo -p tsconfig.json --noEmit",
+    "typecheck:tsc": "bun x tsc -p tsconfig.json --noEmit",
     "quality:gate": "bun run lint && bun run test:unit && bun run coverage:gate",
     "lint": "eslint src --ext .ts"
   },
@@ -54,6 +55,7 @@
     "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "eslint": "^8.57.0",
     "typescript": "^5.9.3"
   }

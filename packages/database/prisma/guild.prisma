@@ -113,6 +113,7 @@ model Guild {
   levelConfig LevelConfig?
   giveaways Giveaway[]
   welcomeConfig WelcomeConfig?
+  welcomeThreadConfig WelcomeThreadConfig?
   reactionRoleMenus ReactionRoleMenu[]
   autoResponses AutoResponse[]
   autoModConfig AutoModConfig?
@@ -417,6 +418,77 @@ model WelcomeConfig {
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("welcome_configs")
+}
+
+// ── Accueil personnalisé : thread de bienvenue scénarisé ──────────
+model WelcomeThreadConfig {
+  guildId   String  @id
+  enabled   Boolean @default(false)
+  channelId String? // Salon bienvenue où les threads sont créés
+
+  threadNameTemplate String  @default("👋 Bienvenue {username} !")
+  threadMode         String  @default("public") // "public" | "private"
+  autoArchiveMinutes Int     @default(1440) // 60 | 1440 | 4320 | 10080
+  typingEnabled      Boolean @default(true) // Indicateur "est en train d'écrire" avant chaque message
+
+  // Persona webhook par défaut (surchargeable message par message)
+  webhookName      String  @default("Kotbo")
+  webhookAvatarUrl String?
+
+  // Embed d'accueil final avec menu de présentation du serveur
+  menuEnabled       Boolean @default(true)
+  menuStyle         String  @default("buttons") // "buttons" | "select"
+  menuPlaceholder   String  @default("Découvrir le serveur...")
+  embedTitle        String  @default("Bienvenue sur {server} !")
+  embedDescription  String  @default("Explore les sections ci-dessous pour découvrir le serveur. 👇")
+  embedColor        String  @default("#5865F2")
+  embedImageUrl     String?
+  embedThumbnailUrl String?
+
+  steps WelcomeThreadStep[]
+  pages WelcomeMenuPage[]
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("welcome_thread_configs")
+}
+
+// Message scénarisé envoyé via webhook dans le thread de bienvenue
+model WelcomeThreadStep {
+  id      String @id @default(cuid())
+  guildId String
+  order   Int    @default(0)
+
+  content   String
+  name      String? // Nom du webhook pour ce message (null = persona par défaut)
+  avatarUrl String? // Avatar du webhook pour ce message (null = persona par défaut)
+  delayMs   Int     @default(3000) // Intervalle avant l'envoi (pendant lequel le typing est visible)
+
+  config WelcomeThreadConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([guildId, order])
+  @@map("welcome_thread_steps")
+}
+
+// Page de présentation ouverte par le menu (bouton ou menu déroulant)
+model WelcomeMenuPage {
+  id      String  @id @default(cuid())
+  guildId String
+  order   Int     @default(0)
+  label   String
+  emoji   String?
+  summary String? // Sous-texte affiché dans le menu déroulant
+
+  embedTitle        String
+  embedDescription  String
+  embedColor        String  @default("#5865F2")
+  embedImageUrl     String?
+  embedThumbnailUrl String?
+
+  config WelcomeThreadConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([guildId, order])
+  @@map("welcome_menu_pages")
 }
 
 model GuildLogEventConfig {

@@ -11,7 +11,9 @@
     "rootDir": "./src",
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo/bot.json"
   },
   "include": ["src/**/*"]
 }

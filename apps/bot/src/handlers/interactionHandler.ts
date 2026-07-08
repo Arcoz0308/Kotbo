@@ -114,6 +114,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Pages de présentation du thread d'accueil ───────────────────────
+  if (customId.startsWith('wpage:')) {
+    const { handleWelcomeMenuInteraction } = await import('../services/features/welcomeThreadService.js');
+    await handleWelcomeMenuInteraction(interaction);
+    return;
+  }
+
   // ── Ticket Satisfaction Survey ──────────────────────────────────────
   if (customId.startsWith('satisfaction:')) {
     const parts = customId.split(':');
@@ -898,6 +905,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   }
 
   if (!guildId) return;
+
+  // Menu déroulant des pages de présentation du thread d'accueil
+  if (customId === 'wpage_select' && interaction.isStringSelectMenu()) {
+    const { handleWelcomeMenuInteraction } = await import('../services/features/welcomeThreadService.js');
+    await handleWelcomeMenuInteraction(interaction);
+    return;
+  }
 
   // Ticket system select menu
   if (customId === 'ticket:select_type') {
