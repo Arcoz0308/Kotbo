@@ -36,18 +36,15 @@ import {
   normalizeCommandRestrictions,
 } from './utils/commandAccess.js';
 import { registerCodePoliceListener } from './events/codePolice.js';
-import { registerModerationAuditListener } from './events/moderation.js';
 import { registerAdvancedLogsListener } from './events/advancedLogs.js';
 import { registerCloseSourceWarningListener } from './events/closeSourceWarning.js';
 import { registerNicknameModerationListener } from './events/nicknameModeration.js';
-import { registerAutoThreadListener } from './events/autoThread.js';
 import { registerTempVoiceListener } from './events/tempVoice.js';
 import { registerHoneypotListener } from './events/honeypot.js';
 import { registerStatsChannelListener } from './events/stats.js';
 import { registerFunEventsListener } from './events/funEvents.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
-import { registerAnalyticsListeners } from './events/analyticsEvents.js';
 import { syncOngoingDailyAlgoButtons } from './services/progression/dailyAlgoService.js';
 import { checkTranslationProviderHealth } from './services/integrations/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
@@ -321,23 +318,19 @@ client.once(Events.ClientReady, async (c) => {
   registerModerationBusSubscribers(client);
   registerTicketsBusSubscribers(client);
 
-  // ── Legacy listeners (still on client.on directly) ────────
-  // TODO: Remove these once bus-based modules are validated
+  // ── Direct listeners (not yet migrated to the bus) ────────
   client.setMaxListeners(25);
   registerCodePoliceListener(client);
-  registerModerationAuditListener(client);
   registerAdvancedLogsListener(client);
   registerCloseSourceWarningListener(client);
   registerNicknameModerationListener(client);
-  registerAutoThreadListener(client);
   registerTempVoiceListener(client);
   registerHoneypotListener(client);
   registerStatsChannelListener(client);
   registerFunEventsListener(client);
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
-  registerAnalyticsListeners(client);
-  registerLevelingListener(client);
+  registerLevelingListener(client); // XP vocale uniquement (boucle de polling)
   registerSecurityVerificationListener(client);
   registerAutoResponseListener(client);
   registerChannelLinkListener(client);

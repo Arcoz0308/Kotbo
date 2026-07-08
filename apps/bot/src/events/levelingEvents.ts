@@ -1,21 +1,15 @@
-import { Client, Events, Message } from 'discord.js';
-import { handleTextXp, addXp, getOrCreateLevelConfig } from '../services/progression/levelingService.js';
+import { Client } from 'discord.js';
+import { addXp, getOrCreateLevelConfig } from '../services/progression/levelingService.js';
 import { handleUserActivity } from '../services/features/economyService.js';
 import { logger } from '../utils/logger.js';
 
 
 let voiceXpInterval: Timer | null = null;
 
+// L'XP texte est gérée par le module bus (leveling.module.ts).
+// Ce fichier ne conserve que la boucle d'XP vocale (polling, non event-driven).
 export function registerLevelingListener(client: Client) {
-  // 1. Text XP Listener
-  client.on(Events.MessageCreate, async (message: Message) => {
-    if (!message.guild || message.author.bot || message.content.startsWith('/')) return;
-    
-    await handleTextXp(message.guild.id, message.author.id, client, message.channel.id);
-    await handleUserActivity(message.guild.id, message.author.id, 'text').catch(() => null);
-  });
-
-  // 2. Vocal XP Loop (every 60 seconds)
+  // Vocal XP Loop (every 60 seconds)
   if (voiceXpInterval) clearInterval(voiceXpInterval);
   
   voiceXpInterval = setInterval(async () => {

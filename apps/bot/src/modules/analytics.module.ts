@@ -4,9 +4,6 @@
  * Subscribes to KotboEventBus events and delegates to the existing
  * analytics + staff services. Runs independently of other modules;
  * if this module throws, leveling/moderation/etc. are unaffected.
- *
- * The legacy `registerAnalyticsListeners` (client.on) still runs in parallel
- * during the transition. Once validated, remove it and keep only this module.
  */
 
 import type { Client } from 'discord.js';
@@ -21,6 +18,7 @@ import {
   trackReply,
 } from '../services/analytics/analyticsService.js';
 import { logStaffVoiceSession } from '../services/staff/staffLeadershipService.js';
+import { incrementQuestProgress } from '../services/community/questService.js';
 import { logger } from '../utils/logger.js';
 
 const MODULE_NAME = 'analytics';
@@ -31,8 +29,10 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
     if (payload.isBot) return;
 
     await trackMessage(payload.guildId, payload.channelId, payload.authorId);
+    incrementQuestProgress(payload.guildId, payload.authorId, 'SEND_MESSAGES').catch(() => {});
     if (payload.hasReference) {
       await trackReply(payload.guildId, payload.authorId);
+      incrementQuestProgress(payload.guildId, payload.authorId, 'REPLY_MESSAGES').catch(() => {});
     }
   }, MODULE_NAME);
 
@@ -61,6 +61,7 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
       const durationMinutes = Math.floor(payload.durationMs / 60000);
       if (durationMinutes > 0) {
         await trackVoiceSession(payload.guildId, payload.userId, durationMinutes, payload.channelId);
+        incrementQuestProgress(payload.guildId, payload.userId, 'VOICE_MINUTES', durationMinutes).catch(() => {});
       }
     }
   }, MODULE_NAME);
@@ -106,12 +107,14 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
   // ── Reactions ─────────────────────────────────────────────────
   kotboEventBus.subscribe('reaction:add', async (payload) => {
     await trackReaction(payload.guildId, payload.userId);
+    incrementQuestProgress(payload.guildId, payload.userId, 'REACT_MESSAGES').catch(() => {});
   }, MODULE_NAME);
 
   // ── Threads ───────────────────────────────────────────────────
   kotboEventBus.subscribe('thread:create', async (payload) => {
     if (payload.creatorId) {
       await trackThreadCreation(payload.guildId, payload.creatorId);
+      incrementQuestProgress(payload.guildId, payload.creatorId, 'CREATE_THREADS').catch(() => {});
     }
   }, MODULE_NAME);
 

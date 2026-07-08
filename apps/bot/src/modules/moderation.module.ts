@@ -11,7 +11,7 @@
  */
 
 import { AuditLogEvent, Events, type Client, type GuildAuditLogsEntry } from 'discord.js';
-import { registerBanSanction, registerKickSanction, registerObservedTimeoutSanction } from '../services/moderation/sanctionService.js';
+import { registerBanSanction, registerKickSanction, registerObservedTimeoutSanction, resolveActiveTimeoutSanction } from '../services/moderation/sanctionService.js';
 import { logger } from '../utils/logger.js';
 
 const MODULE_NAME = 'moderation';
@@ -90,8 +90,19 @@ export function registerModerationBusSubscribers(client: Client): void {
       }
 
       if (action === AuditLogEvent.MemberUpdate) {
+        const timeoutChange = entry.changes.find((change) => change.key === 'communication_disabled_until');
+        if (!timeoutChange) return;
+
         const timeoutUntil = readTimeoutUntil(entry);
-        if (!timeoutUntil || timeoutUntil.getTime() <= Date.now() + 1000) return;
+        if (!timeoutUntil || timeoutUntil.getTime() <= Date.now() + 1000) {
+          await resolveActiveTimeoutSanction({
+            guildId: guild.id,
+            targetUserId: targetId,
+            resolutionNote: entry.reason?.trim() || 'Retrait du timeout via Discord.',
+          });
+          return;
+        }
+
         await registerObservedTimeoutSanction({ guildId: guild.id, target, moderator, reason: entry.reason?.trim() || MANUAL_REASON.TIMEOUT, expiresAt: timeoutUntil });
       }
     } catch (error) {

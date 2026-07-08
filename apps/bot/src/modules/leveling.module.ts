@@ -4,10 +4,6 @@
  * Subscribes to KotboEventBus events for text XP attribution.
  * Voice XP is handled via the existing interval loop in levelingEvents.ts
  * because it polls client.guilds.cache — not event-driven.
- *
- * The legacy `registerLevelingListener` still runs in parallel during the
- * transition. Once validated, remove the legacy text XP handler and keep
- * only this module. The voice XP interval stays in levelingEvents.ts.
  */
 
 import type { Client } from 'discord.js';

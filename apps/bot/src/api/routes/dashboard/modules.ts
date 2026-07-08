@@ -48,7 +48,6 @@ import {
   reviewDailyAlgoSubmission,
 } from '../../../services/progression/dailyAlgoService.js';
 import { invalidateNicknameModerationCache } from '../../../events/nicknameModeration.js';
-import { invalidateAutoThreadCache } from '../../../events/autoThread.js';
 import { updateGuildStats } from '../../../events/stats.js';
 import { invalidateBannedWordsCache } from '../../../services/moderation/bannedWordsService.js';
 import { generateTranscriptFromMessages, resolveMentionsToText, embedToApiShape } from '../../../services/features/transcriptService.js';
@@ -613,10 +612,6 @@ export async function handleModulesRoutes(
         details: `Statut changé vers ${body.status}.`,
         channelId: null
       });
-
-      if (moduleId === 'auto_thread') {
-        invalidateAutoThreadCache(guildId);
-      }
 
       json(res, 200, { ok: true });
     } catch (err) {
@@ -1525,8 +1520,6 @@ export async function handleModulesRoutes(
           data,
         });
 
-        invalidateAutoThreadCache(guildId);
-
         if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
           await prisma.dashboardFeatureConfig.upsert({
             where: { guildId_featureKey: { guildId, featureKey: 'auto_thread' } },
@@ -2141,8 +2134,6 @@ export async function handleModulesRoutes(
           where: { id: guildId },
           data,
         });
-
-        invalidateAutoThreadCache(guildId);
 
         await pushAudit(guildId, {
           user: auditUser,
