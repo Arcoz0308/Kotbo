@@ -712,8 +712,12 @@ export async function handleGeneralistModulesRoutes(
             label: string;
             emoji?: string | null;
             summary?: string | null;
-            embedTitle: string;
-            embedDescription: string;
+            actionType?: string;
+            roleId?: string | null;
+            roleAction?: string;
+            linkUrl?: string | null;
+            embedTitle?: string;
+            embedDescription?: string;
             embedColor?: string;
             embedImageUrl?: string | null;
             embedThumbnailUrl?: string | null;
@@ -728,27 +732,54 @@ export async function handleGeneralistModulesRoutes(
           json(res, 400, { error: 'Maximum 25 pages de présentation' });
           return true;
         }
-        if (body.pages.some((p) => !p.label?.trim() || !p.embedTitle?.trim() || !p.embedDescription?.trim())) {
-          json(res, 400, { error: 'Chaque page doit avoir un label, un titre et une description' });
-          return true;
+
+        const VALID_ACTION_TYPES = new Set(['EMBED', 'ROLE', 'LINK']);
+        const VALID_ROLE_ACTIONS = new Set(['ADD', 'REMOVE', 'TOGGLE']);
+
+        for (const page of body.pages) {
+          if (!page.label?.trim()) {
+            json(res, 400, { error: 'Chaque page doit avoir un label' });
+            return true;
+          }
+          const actionType = page.actionType && VALID_ACTION_TYPES.has(page.actionType) ? page.actionType : 'EMBED';
+          if (actionType === 'EMBED' && (!page.embedTitle?.trim() || !page.embedDescription?.trim())) {
+            json(res, 400, { error: 'Les pages de type Embed doivent avoir un titre et une description' });
+            return true;
+          }
+          if (actionType === 'ROLE' && !page.roleId) {
+            json(res, 400, { error: 'Les pages de type Rôle doivent avoir un rôle sélectionné' });
+            return true;
+          }
+          if (actionType === 'LINK' && !page.linkUrl?.trim()) {
+            json(res, 400, { error: 'Les pages de type Lien doivent avoir un salon ou une URL' });
+            return true;
+          }
         }
 
         await getOrCreateWelcomeThreadConfig(guildId);
         await prisma.$transaction([
           prisma.welcomeMenuPage.deleteMany({ where: { guildId } }),
           prisma.welcomeMenuPage.createMany({
-            data: body.pages.map((page, index) => ({
-              guildId,
-              order: index,
-              label: page.label.trim().slice(0, 80),
-              emoji: page.emoji?.trim() || null,
-              summary: page.summary?.trim().slice(0, 100) || null,
-              embedTitle: page.embedTitle.trim().slice(0, 256),
-              embedDescription: page.embedDescription.trim().slice(0, 4096),
-              embedColor: page.embedColor?.trim() || '#5865F2',
-              embedImageUrl: page.embedImageUrl?.trim() || null,
-              embedThumbnailUrl: page.embedThumbnailUrl?.trim() || null,
-            })),
+            data: body.pages.map((page, index) => {
+              const actionType = page.actionType && VALID_ACTION_TYPES.has(page.actionType) ? page.actionType : 'EMBED';
+              const roleAction = page.roleAction && VALID_ROLE_ACTIONS.has(page.roleAction) ? page.roleAction : 'ADD';
+              return {
+                guildId,
+                order: index,
+                label: page.label.trim().slice(0, 80),
+                emoji: page.emoji?.trim() || null,
+                summary: page.summary?.trim().slice(0, 100) || null,
+                actionType,
+                roleId: actionType === 'ROLE' ? page.roleId : null,
+                roleAction,
+                linkUrl: actionType === 'LINK' ? (page.linkUrl?.trim() || null) : null,
+                embedTitle: page.embedTitle?.trim().slice(0, 256) || null,
+                embedDescription: page.embedDescription?.trim().slice(0, 4096) || null,
+                embedColor: page.embedColor?.trim() || '#5865F2',
+                embedImageUrl: page.embedImageUrl?.trim() || null,
+                embedThumbnailUrl: page.embedThumbnailUrl?.trim() || null,
+              };
+            }),
           }),
         ]);
 

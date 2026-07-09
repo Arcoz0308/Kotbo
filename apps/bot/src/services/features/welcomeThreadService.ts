@@ -10,6 +10,7 @@ import {
   type ButtonInteraction,
   type Client,
   type ColorResolvable,
+  type Guild,
   type GuildMember,
   type MessageActionRowComponentBuilder,
   type NewsChannel,
@@ -273,10 +274,22 @@ export function buildWelcomeMenuComponents(
   for (let i = 0; i < pages.length; i += 5) {
     const row = new ActionRowBuilder<MessageActionRowComponentBuilder>();
     for (const page of pages.slice(i, i + 5)) {
+      // Les pages "Lien" utilisent un vrai bouton de lien Discord : navigation
+      // gérée côté client, aucune interaction n'est envoyée au bot.
+      if (page.actionType === 'LINK' && page.linkUrl) {
+        const linkButton = new ButtonBuilder()
+          .setLabel(page.label.slice(0, 80))
+          .setStyle(ButtonStyle.Link)
+          .setURL(page.linkUrl);
+        if (page.emoji) linkButton.setEmoji(page.emoji);
+        row.addComponents(linkButton);
+        continue;
+      }
+
       const button = new ButtonBuilder()
         .setCustomId(`wpage:${page.id}`)
         .setLabel(page.label.slice(0, 80))
-        .setStyle(ButtonStyle.Secondary);
+        .setStyle(page.actionType === 'ROLE' ? ButtonStyle.Success : ButtonStyle.Secondary);
       if (page.emoji) button.setEmoji(page.emoji);
       row.addComponents(button);
     }
@@ -286,8 +299,10 @@ export function buildWelcomeMenuComponents(
 }
 
 export function buildMenuPageEmbed(page: WelcomeMenuPage, ctx?: PlaceholderContext): EmbedBuilder {
-  const title = ctx ? resolvePlaceholders(page.embedTitle, ctx) : page.embedTitle;
-  const description = ctx ? resolvePlaceholders(page.embedDescription, ctx) : page.embedDescription;
+  const titleRaw = page.embedTitle ?? '';
+  const descriptionRaw = page.embedDescription ?? '';
+  const title = ctx ? resolvePlaceholders(titleRaw, ctx) : titleRaw;
+  const description = ctx ? resolvePlaceholders(descriptionRaw, ctx) : descriptionRaw;
 
   const embed = new EmbedBuilder()
     .setTitle(title.slice(0, 256))
@@ -297,6 +312,82 @@ export function buildMenuPageEmbed(page: WelcomeMenuPage, ctx?: PlaceholderConte
   if (page.embedImageUrl) embed.setImage(page.embedImageUrl);
   if (page.embedThumbnailUrl) embed.setThumbnail(page.embedThumbnailUrl);
   return embed;
+}
+
+/**
+ * Ajoute, retire ou bascule le rôle configuré sur une page "Rôle" du menu d'accueil
+ */
+async function handleMenuRoleAction(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  guild: Guild,
+  page: WelcomeMenuPage,
+  member: GuildMember | undefined,
+): Promise<void> {
+  const roleId = page.roleId;
+  if (!roleId || !member) {
+    await interaction.reply({
+      content: "❌ Ce bouton n'est pas correctement configuré.",
+      flags: [MessageFlags.Ephemeral],
+    }).catch(() => null);
+    return;
+  }
+
+  const role = guild.roles.cache.get(roleId);
+  const botMember = guild.members.me;
+  if (!role || !botMember) {
+    await interaction.reply({
+      content: '❌ Le rôle configuré est introuvable.',
+      flags: [MessageFlags.Ephemeral],
+    }).catch(() => null);
+    return;
+  }
+
+  if (role.managed || role.position >= botMember.roles.highest.position) {
+    await interaction.reply({
+      content: '❌ Le bot ne peut pas gérer ce rôle (rôle intégré ou supérieur à son propre rôle le plus élevé).',
+      flags: [MessageFlags.Ephemeral],
+    }).catch(() => null);
+    return;
+  }
+
+  const hasRole = member.roles.cache.has(roleId);
+
+  try {
+    if (page.roleAction === 'REMOVE') {
+      if (!hasRole) {
+        await interaction.reply({ content: `ℹ️ Vous n'avez pas le rôle <@&${roleId}>.`, flags: [MessageFlags.Ephemeral] });
+        return;
+      }
+      await member.roles.remove(roleId);
+      await interaction.reply({ content: `✅ Le rôle <@&${roleId}> vous a été retiré.`, flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    if (page.roleAction === 'TOGGLE') {
+      if (hasRole) {
+        await member.roles.remove(roleId);
+        await interaction.reply({ content: `✅ Le rôle <@&${roleId}> vous a été retiré.`, flags: [MessageFlags.Ephemeral] });
+      } else {
+        await member.roles.add(roleId);
+        await interaction.reply({ content: `✅ Le rôle <@&${roleId}> vous a été attribué.`, flags: [MessageFlags.Ephemeral] });
+      }
+      return;
+    }
+
+    // ADD (défaut)
+    if (hasRole) {
+      await interaction.reply({ content: `ℹ️ Vous avez déjà le rôle <@&${roleId}>.`, flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    await member.roles.add(roleId);
+    await interaction.reply({ content: `✅ Le rôle <@&${roleId}> vous a été attribué.`, flags: [MessageFlags.Ephemeral] });
+  } catch (err) {
+    logger.warn(TAG, `Erreur gestion de rôle (menu accueil) pour ${member.id}:`, err);
+    await interaction.reply({
+      content: '❌ Une erreur est survenue (permissions insuffisantes du bot pour gérer ce rôle).',
+      flags: [MessageFlags.Ephemeral],
+    }).catch(() => null);
+  }
 }
 
 /**
@@ -322,7 +413,22 @@ export async function handleWelcomeMenuInteraction(
     return;
   }
 
-  const member = interaction.member && 'guild' in interaction.member ? interaction.member : undefined;
-  const embed = buildMenuPageEmbed(page, { guild, member: member as GuildMember | undefined });
+  const member = interaction.member && 'guild' in interaction.member ? interaction.member as GuildMember : undefined;
+
+  if (page.actionType === 'ROLE') {
+    await handleMenuRoleAction(interaction, guild, page, member);
+    return;
+  }
+
+  if (page.actionType === 'LINK') {
+    const url = page.linkUrl?.trim();
+    await interaction.reply({
+      content: url ? `🔗 ${url}` : "❌ Aucun lien n'est configuré pour ce bouton.",
+      flags: [MessageFlags.Ephemeral],
+    }).catch(() => null);
+    return;
+  }
+
+  const embed = buildMenuPageEmbed(page, { guild, member });
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
