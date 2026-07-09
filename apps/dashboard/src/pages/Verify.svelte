@@ -41,7 +41,9 @@
     const resultParam = urlParams.get('result');
     if (resultParam) {
       try {
-        result = JSON.parse(atob(resultParam.replace(/-/g, '+').replace(/_/g, '/')));
+        const binaryString = atob(resultParam.replace(/-/g, '+').replace(/_/g, '/'));
+        const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+        result = JSON.parse(new TextDecoder().decode(bytes));
       } catch {
         error = 'Résultat de vérification invalide.';
       }
