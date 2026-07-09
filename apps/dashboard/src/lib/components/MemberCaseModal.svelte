@@ -8,7 +8,7 @@
   import Chart from './charts/Chart.svelte';
   import { router } from 'tinro';
   import { inviteDetailsModal } from '../stores/inviteDetailsModal.svelte';
-  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote } from '../api';
+  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction } from '../api';
   import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
@@ -197,6 +197,26 @@
     evidenceLinks: [] as string[],
     additionalNotes: ''
   });
+
+  let requestVerificationBusy = $state(false);
+
+  async function handleRequestVerification() {
+    if (!userId) return;
+    if (!confirm("Voulez-vous vraiment forcer la vérification de sécurité pour cet utilisateur ? Il sera mis en Timeout temporairement et recevra les instructions par MP (DM).")) return;
+    requestVerificationBusy = true;
+    try {
+      const res = await runMemberCaseAction(userId, 'REQUEST_VERIFICATION', {
+        reason: 'Vérification de sécurité forcée par le staff.'
+      });
+      toast.success('Demande de vérification envoyée. Le membre a été mis en Timeout.');
+      const updatedCase = await fetchMemberCase(userId);
+      if (updatedCase) caseData = updatedCase;
+    } catch (err: any) {
+      toast.error(err?.message || 'Erreur lors de la demande.');
+    } finally {
+      requestVerificationBusy = false;
+    }
+  }
 
   let targetAccountId = $state('');
   let linkReason = $state('');
@@ -647,13 +667,29 @@
               </span>
             {/if}
             {#if userId}
-              <a
-                href="/profile/{userId}"
-                class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-[10px] font-semibold text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm ml-auto"
-              >
-                <Papicon icon="external-link" size={14} />
-                Profil
-              </a>
+              <div class="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onclick={handleRequestVerification}
+                  disabled={requestVerificationBusy}
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-amber-800 disabled:opacity-50 px-3 py-1.5 text-[10px] font-semibold text-white uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm cursor-pointer"
+                >
+                  {#if requestVerificationBusy}
+                    <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    <span>Envoi...</span>
+                  {:else}
+                    <Papicon icon="shield-alert" size={14} />
+                    <span>Demander vérification</span>
+                  {/if}
+                </button>
+                <a
+                  href="/profile/{userId}"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-[10px] font-semibold text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm"
+                >
+                  <Papicon icon="external-link" size={14} />
+                  Profil
+                </a>
+              </div>
             {/if}
           </div>
         </div>

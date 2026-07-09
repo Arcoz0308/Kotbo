@@ -1,0 +1,131 @@
+import type { ContextCommandDefinition, SlashCommandDefinition } from '../../commands.js';
+import {
+  PermissionFlagsBits,
+  SlashCommandBuilder,
+  ContextMenuCommandBuilder,
+  ApplicationCommandType,
+  type ChatInputCommandInteraction,
+  type UserContextMenuCommandInteraction,
+} from 'discord.js';
+import prisma from '../../utils/db.js';
+import { logger } from '../../utils/logger.js';
+import { getDashboardUrl } from '../../api/shared.js';
+import {
+  createVerificationSession,
+  buildVerificationUrl,
+  buildVerificationEmbed,
+} from '../../services/moderation/securityVerificationService.js';
+import { queueAuditLog } from '../../utils/auditLogger.js';
+
+const data = new SlashCommandBuilder()
+  .setName('request-verification')
+  .setDescription("🔐 Demande une vérification de sécurité à un membre (le met en Timeout)")
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+  .addUserOption((option) =>
+    option.setName('membre').setDescription('Le membre à vérifier').setRequired(true)
+  )
+  .addStringOption((option) =>
+    option.setName('raison').setDescription('La raison de la demande de vérification').setRequired(false)
+  );
+
+const contextData = new ContextMenuCommandBuilder()
+  .setName('Demander vérification')
+  .setType(ApplicationCommandType.User)
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
+
+async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ content: "❌ Cette commande doit être exécutée sur un serveur.", flags: ["Ephemeral"] });
+    return;
+  }
+
+  await interaction.deferReply({ flags: ["Ephemeral"] });
+
+  const targetUser = interaction.isChatInputCommand()
+    ? interaction.options.getUser('membre', true)
+    : interaction.targetUser;
+
+  const reason = (interaction.isChatInputCommand() ? interaction.options.getString('raison') : null) || 'Vérification de sécurité forcée par le staff.';
+
+  try {
+    const member = await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
+    if (!member) {
+      await interaction.editReply({ content: "❌ Membre introuvable sur ce serveur." });
+      return;
+    }
+
+    if (targetUser.bot) {
+      await interaction.editReply({ content: "❌ Impossible de demander la vérification d'un bot." });
+      return;
+    }
+
+    // 1. Create verification session (and token)
+    const token = await createVerificationSession(guildId, targetUser.id);
+    
+    // 2. Timeout the member on Discord
+    const TIMEOUT_DURATION = 28 * 24 * 60 * 60 * 1000; // 28 days
+    let timeoutSuccess = true;
+    await member.timeout(TIMEOUT_DURATION, `Vérification requise par @${interaction.user.tag}`).catch((err) => {
+      logger.error('RequestVerificationCommand', `Failed to timeout ${targetUser.id}:`, err);
+      timeoutSuccess = false;
+    });
+
+    // 3. Send DM to the user
+    const dashboardUrl = getDashboardUrl();
+    const verifyUrl = buildVerificationUrl(dashboardUrl, guildId, token);
+    const guildConfig = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: {
+        verificationEmbedTitle: true,
+        verificationEmbedDesc: true,
+        verificationEmbedColor: true,
+      },
+    });
+    
+    const embedTitle = guildConfig?.verificationEmbedTitle || "Vérification de sécurité";
+    const embedDesc = guildConfig?.verificationEmbedDesc || "Vous devez vérifier votre identité pour regagner l'accès au serveur.";
+    const embedColor = guildConfig?.verificationEmbedColor || "#5865F2";
+    
+    const { embed, row } = buildVerificationEmbed(
+      interaction.guild?.name || 'Serveur',
+      embedTitle,
+      embedDesc,
+      embedColor,
+      verifyUrl
+    );
+
+    let dmSent = false;
+    try {
+      await member.send({ embeds: [embed], components: [row] });
+      dmSent = true;
+    } catch (err) {
+      logger.warn('RequestVerificationCommand', `Failed to send DM to ${targetUser.tag}:`, err);
+    }
+
+    // 4. Log in audit log
+    const auditDetails = `Vérification forcée pour @${targetUser.username} (${targetUser.id}). Raison: ${reason}. DM envoyé: ${dmSent ? 'Oui' : 'Non'}. Timeout appliqué: ${timeoutSuccess ? 'Oui' : 'Non (Échec permissions)'}.`;
+    
+    queueAuditLog({
+      guildId,
+      user: `@${interaction.user.tag}`,
+      action: 'Demande de vérification forcée',
+      context: interaction.guild?.name || 'Serveur',
+      details: auditDetails,
+      module: 'Sanctions',
+      eventType: 'Manuel',
+    });
+
+    let msg = `✅ Demande de vérification envoyée avec succès à <@${targetUser.id}>.`;
+    if (!timeoutSuccess) msg += "\n⚠️ Attention : Le bot n'a pas pu appliquer le Timeout sur l'utilisateur (permissions insuffisantes).";
+    if (!dmSent) msg += "\n⚠️ Attention : Le message privé (DM) n'a pas pu être envoyé (MP fermés).";
+
+    await interaction.editReply({ content: msg });
+  } catch (err) {
+    logger.error('RequestVerificationCommand', 'Error processing request verification:', err);
+    await interaction.editReply({ content: "❌ Une erreur est survenue lors de l'envoi de la demande de vérification." });
+  }
+}
+
+export const requestVerificationCommand = { data, execute } satisfies SlashCommandDefinition;
+export const requestVerificationContextCommand = { data: contextData, execute } satisfies ContextCommandDefinition;

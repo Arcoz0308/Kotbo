@@ -506,7 +506,7 @@ export type DashboardRole = {
   color?: string;
 };
 
-export type MemberCaseQuickAction = 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN';
+export type MemberCaseQuickAction = 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN' | 'REQUEST_VERIFICATION';
 
 export type MemberCaseLogEntry = {
   id: string;

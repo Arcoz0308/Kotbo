@@ -15,6 +15,7 @@ import {
   pushAudit,
   broadcastDashboardStateChange,
   formatDurationFr,
+  getDashboardUrl,
   type AuthClaims,
   type DashboardAccess,
   type MemberCaseQuickAction,
@@ -646,8 +647,66 @@ export async function handleMembersRoutes(
         tag: targetUser?.tag ?? targetMember?.user.tag ?? `Utilisateur ${userId}`,
       };
 
-      if (!action || !['WARN', 'KICK', 'TIMEOUT', 'BAN'].includes(action)) {
+      if (!action || !['WARN', 'KICK', 'TIMEOUT', 'BAN', 'REQUEST_VERIFICATION'].includes(action)) {
         json(res, 400, { error: "Type d'action invalide." });
+        return true;
+      }
+
+      if (action === 'REQUEST_VERIFICATION') {
+        if (!targetMember) {
+          json(res, 404, { error: 'Le membre doit être présent sur le serveur.' });
+          return true;
+        }
+
+        const { createVerificationSession, buildVerificationUrl, buildVerificationEmbed } = await import('../../../services/moderation/securityVerificationService.js');
+        const token = await createVerificationSession(guildId, userId);
+        
+        // 28 days timeout to force verification
+        const TIMEOUT_DURATION = 28 * 24 * 60 * 60 * 1000;
+        await targetMember.timeout(TIMEOUT_DURATION, `Vérification de sécurité requise par ${moderator.tag}`).catch((err) => {
+          logger.error('MembersAPI', `Failed to timeout ${userId}:`, err);
+        });
+
+        const verifyUrl = buildVerificationUrl(getDashboardUrl(), guildId, token);
+        const guildConfig = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            verificationEmbedTitle: true,
+            verificationEmbedDesc: true,
+            verificationEmbedColor: true,
+          },
+        });
+        const embedTitle = guildConfig?.verificationEmbedTitle || "Vérification de sécurité";
+        const embedDesc = guildConfig?.verificationEmbedDesc || "Vous devez vérifier votre identité pour regagner l'accès au serveur.";
+        const embedColor = guildConfig?.verificationEmbedColor || "#5865F2";
+        
+        const { embed, row } = buildVerificationEmbed(
+          discordGuild.name,
+          embedTitle,
+          embedDesc,
+          embedColor,
+          verifyUrl
+        );
+
+        let dmSent = false;
+        try {
+          await targetMember.send({ embeds: [embed], components: [row] });
+          dmSent = true;
+        } catch (err) {
+          logger.warn('MembersAPI', `Failed to send DM to ${targetMember.user.tag}:`, err);
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Demande de vérification forcée',
+          context: getGuildName(client, guildId),
+          module: 'Sanctions',
+          eventType: 'Manuel',
+          details: `Vérification forcée pour ${target.tag} (${target.id}). Raison: ${reason}. DM envoyé: ${dmSent ? 'Oui' : 'Non'}. Membre mis en Timeout.`,
+          channelId: null,
+        });
+
+        json(res, 200, { ok: true, dmSent });
         return true;
       }
 
