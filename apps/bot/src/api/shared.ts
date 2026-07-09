@@ -152,6 +152,18 @@ export function getJwtSecret(): string {
 export function getDashboardUrl(): string {
   try { return getCurrentInstance().dashboardUrl; } catch { return process.env.DASHBOARD_URL || 'http://localhost:5173'; }
 }
+export function getApiUrl(): string {
+  const redirectUri = getDiscordRedirectUri();
+  if (redirectUri) {
+    try {
+      const url = new URL(redirectUri);
+      return url.origin;
+    } catch {
+      // ignore
+    }
+  }
+  return (process.env.VITE_API_URL || 'http://localhost:8787').replace(/\/$/, '');
+}
 export function getDashboardOrigin(): string {
   try { return getCurrentInstance().dashboardOrigin; } catch {
     const url = process.env.DASHBOARD_URL || 'http://localhost:5173';

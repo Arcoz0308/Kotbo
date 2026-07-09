@@ -10,6 +10,7 @@ import {
   getDiscordClientId,
   getDiscordClientSecret,
   getDashboardUrl,
+  getApiUrl,
   getJwtSecret,
   readJsonBody,
   HttpError,
@@ -88,7 +89,7 @@ export async function handleVerifyRoutes(
       return true;
     }
 
-    const VERIFY_REDIRECT_URI = `${getDashboardUrl().replace(/\/$/, '')}/api/verify/callback`;
+    const VERIFY_REDIRECT_URI = `${getApiUrl()}/api/verify/callback`;
     const state = Buffer.from(JSON.stringify({ guildId, token })).toString('base64url');
 
     let scope = 'identify';
@@ -223,7 +224,7 @@ export async function handleVerifyRoutes(
       return true;
     }
 
-    const VERIFY_REDIRECT_URI = `${getDashboardUrl().replace(/\/$/, '')}/api/verify/callback`;
+    const VERIFY_REDIRECT_URI = `${getApiUrl()}/api/verify/callback`;
 
     try {
       const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
