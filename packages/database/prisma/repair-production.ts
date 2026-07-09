@@ -6,6 +6,8 @@ const repairs = [
   "20260706000000_add_custom_form_hierarchy",
   "20260706010000_add_ban_appeal_notify_dm",
   "20260706020000_add_tutoring_hierarchy_grade",
+  "20260708000000_add_welcome_thread_system",
+  "20260709000000_add_welcome_menu_page_actions",
 ];
 
 async function run(command: string[]) {
@@ -20,7 +22,7 @@ async function run(command: string[]) {
 
 async function resolveApplied(migration: string) {
   const process = Bun.spawn(
-    ["bunx", "prisma", "migrate", "resolve", "--applied", migration],
+    ["bun", "run", "prisma", "migrate", "resolve", "--applied", migration],
     {
       cwd: import.meta.dir + "/..",
       stdout: "pipe",
@@ -45,7 +47,8 @@ for (const migration of repairs) {
   console.log(`[MigrationRepair] Reconciliation de ${migration}...`);
 
   const executeCode = await run([
-    "bunx",
+    "bun",
+    "run",
     "prisma",
     "db",
     "execute",
