@@ -33,6 +33,7 @@
       latestAppeal: {
         id: string; status: string; createdAt: string; decidedAt: string | null;
         decisionReason: string | null; infoRequest: string | null; infoResponse: string | null;
+        messages?: any[] | null;
       } | null;
     } | null;
   }
@@ -140,6 +141,8 @@
         return;
       }
       infoResponseSent = true;
+      infoResponseText = '';
+      await load();
     } catch {
       submitError = 'Impossible de contacter le serveur.';
     } finally {
@@ -163,6 +166,10 @@
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function formatDateTime(iso: string): string {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 </script>
 
@@ -266,9 +273,25 @@
               <p class="text-xs text-on-surface-variant/60 mt-0.5">Ta demande est en pause en attendant ta réponse.</p>
             </div>
           </div>
-          <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-4 text-sm text-on-surface/90 leading-relaxed">
-            {viewer.latestAppeal.infoRequest}
-          </div>
+
+          {#if viewer.latestAppeal.messages && viewer.latestAppeal.messages.length > 0}
+            <div class="space-y-3 max-h-80 overflow-y-auto pr-1">
+              {#each viewer.latestAppeal.messages as msg}
+                <div class="flex flex-col p-3 rounded-lg text-sm border {msg.author === 'staff' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-surface border-outline-variant/15'}">
+                  <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
+                    <span>{msg.author === 'staff' ? 'Staff' : 'Toi'}</span>
+                    <span>{formatDateTime(msg.createdAt)}</span>
+                  </div>
+                  <p class="whitespace-pre-wrap">{msg.content}</p>
+                </div>
+              {/each}
+            </div>
+          {:else if viewer.latestAppeal.infoRequest}
+            <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-4 text-sm text-on-surface/90 leading-relaxed">
+              {viewer.latestAppeal.infoRequest}
+            </div>
+          {/if}
+
           <textarea bind:value={infoResponseText} rows="5" maxlength="2000"
             placeholder="Ta réponse…"
             class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border-b-2 border-primary/20 focus:border-primary transition-colors resize-y"></textarea>
@@ -287,18 +310,57 @@
       {:else if infoResponseSent || (viewer?.latestAppeal && (viewer.latestAppeal.status === 'PENDING'))}
         <!-- Demande en cours -->
         {@const appeal = viewer?.latestAppeal}
-        <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm flex flex-col items-center">
-          <div class="mb-4 text-on-surface-variant/30">
-            <Papicon icon="clock" size={48} />
+        <div class="space-y-4">
+          <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 text-center shadow-sm flex flex-col items-center">
+            <div class="mb-4 text-on-surface-variant/30">
+              <Papicon icon="clock" size={48} />
+            </div>
+            <h2 class="text-lg font-semibold text-on-surface mb-2">Demande en cours d'examen</h2>
+            <p class="text-sm text-on-surface-variant/70 leading-relaxed mb-0">
+              {#if infoResponseSent}
+                Ta réponse a bien été transmise au staff.
+              {/if}
+              Ta demande {appeal ? `du ${formatDate(appeal.createdAt)}` : ''} est en attente de décision.
+              Tu seras prévenu par message privé Discord.
+            </p>
           </div>
-          <h2 class="text-lg font-semibold text-on-surface mb-2">Demande en cours d'examen</h2>
-          <p class="text-sm text-on-surface-variant/70 leading-relaxed">
-            {#if infoResponseSent}
-              Ta réponse a bien été transmise au staff.
-            {/if}
-            Ta demande {appeal ? `du ${formatDate(appeal.createdAt)}` : ''} est en attente de décision.
-            Tu seras prévenu par message privé Discord.
-          </p>
+
+          {#if appeal && ((appeal.messages && appeal.messages.length > 0) || appeal.infoRequest)}
+            <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-6 shadow-sm space-y-4">
+              <h3 class="font-semibold text-on-surface text-sm flex items-center gap-2">
+                <Papicon icon="message-square" size={18} />
+                Historique de la discussion
+              </h3>
+              <div class="space-y-3 max-h-80 overflow-y-auto pr-1">
+                {#if appeal.messages && appeal.messages.length > 0}
+                  {#each appeal.messages as msg}
+                    <div class="flex flex-col p-3 rounded-lg text-sm border {msg.author === 'staff' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-surface border-outline-variant/15'}">
+                      <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
+                        <span>{msg.author === 'staff' ? 'Staff' : 'Toi'}</span>
+                        <span>{formatDateTime(msg.createdAt)}</span>
+                      </div>
+                      <p class="whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  {/each}
+                {:else if appeal.infoRequest}
+                  <div class="flex flex-col p-3 rounded-lg text-sm border bg-blue-500/5 border-blue-500/20">
+                    <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
+                      <span>Staff</span>
+                    </div>
+                    <p class="whitespace-pre-wrap">{appeal.infoRequest}</p>
+                  </div>
+                  {#if appeal.infoResponse}
+                    <div class="flex flex-col p-3 rounded-lg text-sm border bg-surface border-outline-variant/15">
+                      <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
+                        <span>Toi</span>
+                      </div>
+                      <p class="whitespace-pre-wrap">{appeal.infoResponse}</p>
+                    </div>
+                  {/if}
+                {/if}
+              </div>
+            </div>
+          {/if}
         </div>
 
       {:else if viewer && !viewer.eligibility.eligible}

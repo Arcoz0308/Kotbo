@@ -926,6 +926,7 @@ export async function handlePublicRoutes(
           select: {
             id: true, status: true, createdAt: true, decidedAt: true,
             decisionReason: true, infoRequest: true, infoResponse: true,
+            messages: true,
           },
         });
         viewer = { userId: auth.userId, username: auth.username, eligibility, latestAppeal };
