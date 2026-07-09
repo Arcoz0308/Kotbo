@@ -1767,6 +1767,9 @@ export async function handleModulesRoutes(
             verificationEmbedDesc: true,
             verificationEmbedColor: true,
             verificationOnJoin: true,
+            verificationSaveIp: true,
+            verificationLevelCommand: true,
+            verificationLevelJoin: true,
           },
         });
         if (!guild) {
@@ -1799,6 +1802,9 @@ export async function handleModulesRoutes(
           verificationEmbedDesc: guild.verificationEmbedDesc,
           verificationEmbedColor: guild.verificationEmbedColor,
           verificationOnJoin: guild.verificationOnJoin,
+          verificationSaveIp: guild.verificationSaveIp,
+          verificationLevelCommand: guild.verificationLevelCommand,
+          verificationLevelJoin: guild.verificationLevelJoin,
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -1835,6 +1841,9 @@ export async function handleModulesRoutes(
           verificationEmbedDesc?: string;
           verificationEmbedColor?: string;
           verificationOnJoin?: boolean;
+          verificationSaveIp?: boolean;
+          verificationLevelCommand?: string;
+          verificationLevelJoin?: string;
         }>(req);
 
         if (!body) {
@@ -1926,6 +1935,19 @@ export async function handleModulesRoutes(
         }
         if (Object.prototype.hasOwnProperty.call(body, 'verificationOnJoin')) {
           data.verificationOnJoin = !!body.verificationOnJoin;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationSaveIp')) {
+          data.verificationSaveIp = !!body.verificationSaveIp;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationLevelCommand')) {
+          if (['LOW', 'MEDIUM', 'HIGH'].includes(body.verificationLevelCommand as string)) {
+            data.verificationLevelCommand = body.verificationLevelCommand;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationLevelJoin')) {
+          if (['LOW', 'MEDIUM', 'HIGH'].includes(body.verificationLevelJoin as string)) {
+            data.verificationLevelJoin = body.verificationLevelJoin;
+          }
         }
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);

@@ -25,6 +25,9 @@ interface AppealConfigBody {
   denyMessage?: string | null;
   notifyOnBanDM?: boolean;
   createDefaultForm?: boolean;
+  appealVerification?: boolean;
+  appealSaveIp?: boolean;
+  appealVerificationLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 /**

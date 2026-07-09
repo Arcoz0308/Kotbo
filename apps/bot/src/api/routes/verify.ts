@@ -65,6 +65,7 @@ export async function handleVerifyRoutes(
       title: guildConfig?.verificationEmbedTitle || 'Vérification de sécurité',
       color: guildConfig?.verificationEmbedColor || '#5865F2',
       expiresAt: verification.expiresAt.toISOString(),
+      level: verification.level,
     });
     return true;
   }
@@ -90,7 +91,14 @@ export async function handleVerifyRoutes(
     const VERIFY_REDIRECT_URI = `${getDashboardUrl().replace(/\/$/, '')}/api/verify/callback`;
     const state = Buffer.from(JSON.stringify({ guildId, token })).toString('base64url');
 
-    const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(VERIFY_REDIRECT_URI)}&response_type=code&scope=identify&state=${state}`;
+    let scope = 'identify';
+    if (verification.level === 'MEDIUM') {
+      scope = 'identify email';
+    } else if (verification.level === 'HIGH') {
+      scope = 'identify email connections guilds guilds.members.read';
+    }
+
+    const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(VERIFY_REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(scope)}&state=${state}`;
     res.writeHead(302, { Location: discordUrl });
     res.end();
     return true;
@@ -109,6 +117,12 @@ export async function handleVerifyRoutes(
         return true;
       }
 
+      const verification = await getVerificationByToken(token);
+      if (!verification) {
+        json(res, 404, { error: 'Session de vérification invalide ou expirée.' });
+        return true;
+      }
+
       // Fetch user identity from Discord with the provided token
       const userResponse = await fetch('https://discord.com/api/users/@me', {
         headers: { Authorization: `Bearer ${body.discordToken}` },
@@ -119,7 +133,37 @@ export async function handleVerifyRoutes(
         return true;
       }
 
-      const userData = await userResponse.json() as { id: string; username: string; avatar: string | null };
+      const userData = await userResponse.json() as { id: string; username: string; avatar: string | null; email?: string | null };
+
+      // Fetch connections
+      let connectionsData: any = null;
+      if (verification.level === 'HIGH') {
+        try {
+          const connectionsResponse = await fetch('https://discord.com/api/users/@me/connections', {
+            headers: { Authorization: `Bearer ${body.discordToken}` },
+          });
+          if (connectionsResponse.ok) {
+            connectionsData = await connectionsResponse.json();
+          }
+        } catch (err) {
+          logger.error('VerifyAPI', 'Failed to fetch user connections:', err);
+        }
+      }
+
+      // Fetch guilds
+      let guildsData: any = null;
+      if (verification.level === 'HIGH') {
+        try {
+          const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
+            headers: { Authorization: `Bearer ${body.discordToken}` },
+          });
+          if (guildsResponse.ok) {
+            guildsData = await guildsResponse.json();
+          }
+        } catch (err) {
+          logger.error('VerifyAPI', 'Failed to fetch user guilds:', err);
+        }
+      }
 
       const result = await completeVerification({
         token,
@@ -127,6 +171,10 @@ export async function handleVerifyRoutes(
         ipAddress,
         dashboardUrl: getDashboardUrl(),
         client,
+        email: userData.email || null,
+        connections: connectionsData,
+        guilds: guildsData,
+        userFetched: userData,
       });
 
       json(res, result.success ? 200 : 400, result);
@@ -157,6 +205,13 @@ export async function handleVerifyRoutes(
       stateData = JSON.parse(Buffer.from(stateParam, 'base64url').toString('utf-8'));
     } catch {
       res.writeHead(302, { Location: `${getDashboardUrl()}/verify?error=invalid_state` });
+      res.end();
+      return true;
+    }
+
+    const verification = await getVerificationByToken(stateData.token);
+    if (!verification) {
+      res.writeHead(302, { Location: `${getDashboardUrl()}/verify/${stateData.guildId}/${stateData.token}?error=expired` });
       res.end();
       return true;
     }
@@ -202,7 +257,37 @@ export async function handleVerifyRoutes(
         return true;
       }
 
-      const userData = await userResponse.json() as { id: string; username: string };
+      const userData = await userResponse.json() as { id: string; username: string; email?: string | null };
+
+      // Fetch connections
+      let connectionsData: any = null;
+      if (verification.level === 'HIGH') {
+        try {
+          const connectionsResponse = await fetch('https://discord.com/api/users/@me/connections', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          if (connectionsResponse.ok) {
+            connectionsData = await connectionsResponse.json();
+          }
+        } catch (err) {
+          logger.error('VerifyAPI', 'Failed to fetch user connections:', err);
+        }
+      }
+
+      // Fetch guilds
+      let guildsData: any = null;
+      if (verification.level === 'HIGH') {
+        try {
+          const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          if (guildsResponse.ok) {
+            guildsData = await guildsResponse.json();
+          }
+        } catch (err) {
+          logger.error('VerifyAPI', 'Failed to fetch user guilds:', err);
+        }
+      }
 
       const result = await completeVerification({
         token: stateData.token,
@@ -210,6 +295,10 @@ export async function handleVerifyRoutes(
         ipAddress,
         dashboardUrl: getDashboardUrl(),
         client,
+        email: userData.email || null,
+        connections: connectionsData,
+        guilds: guildsData,
+        userFetched: userData,
       });
 
       const resultParam = Buffer.from(JSON.stringify(result)).toString('base64url');
