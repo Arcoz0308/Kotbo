@@ -242,12 +242,21 @@
       return true;
     }, { successMessage: 'Liaison supprimée.' });
   }
-
   // ── Verification Config ──
   let verifConfig = $state<{
-    verificationEnabled: boolean; verificationMode: string; verificationAction: string;
-    verificationChannelId: string | null; verificationRoleId: string | null; verificationLogChannelId: string | null;
-    verificationEmbedTitle: string; verificationEmbedDesc: string; verificationEmbedColor: string; verificationOnJoin: boolean;
+    verificationEnabled: boolean;
+    verificationMode: string;
+    verificationAction: string;
+    verificationChannelId: string | null;
+    verificationRoleId: string | null;
+    verificationLogChannelId: string | null;
+    verificationEmbedTitle: string;
+    verificationEmbedDesc: string;
+    verificationEmbedColor: string;
+    verificationOnJoin: boolean;
+    verificationSaveIp: boolean;
+    verificationLevelCommand: string;
+    verificationLevelJoin: string;
   } | null>(null);
   let deployingEmbed = $state(false);
 
@@ -256,11 +265,19 @@
       const data = await fetchChannelsManagementConfig();
       if (data) {
         verifConfig = {
-          verificationEnabled: data.verificationEnabled ?? false, verificationMode: data.verificationMode ?? 'EMBED',
-          verificationAction: data.verificationAction ?? 'NOTIFY_STAFF', verificationChannelId: data.verificationChannelId ?? null,
-          verificationRoleId: data.verificationRoleId ?? null, verificationLogChannelId: data.verificationLogChannelId ?? null,
-          verificationEmbedTitle: data.verificationEmbedTitle ?? 'Vérification de sécurité', verificationEmbedDesc: data.verificationEmbedDesc ?? '',
-          verificationEmbedColor: data.verificationEmbedColor ?? '#5865F2', verificationOnJoin: data.verificationOnJoin ?? true,
+          verificationEnabled: data.verificationEnabled ?? false,
+          verificationMode: data.verificationMode ?? 'EMBED',
+          verificationAction: data.verificationAction ?? 'NOTIFY_STAFF',
+          verificationChannelId: data.verificationChannelId ?? null,
+          verificationRoleId: data.verificationRoleId ?? null,
+          verificationLogChannelId: data.verificationLogChannelId ?? null,
+          verificationEmbedTitle: data.verificationEmbedTitle ?? 'Vérification de sécurité',
+          verificationEmbedDesc: data.verificationEmbedDesc ?? '',
+          verificationEmbedColor: data.verificationEmbedColor ?? '#5865F2',
+          verificationOnJoin: data.verificationOnJoin ?? true,
+          verificationSaveIp: data.verificationSaveIp ?? true,
+          verificationLevelCommand: data.verificationLevelCommand ?? 'HIGH',
+          verificationLevelJoin: data.verificationLevelJoin ?? 'HIGH',
         };
       }
     } catch {}
@@ -608,6 +625,27 @@
             </label>
           </div>
 
+          <!-- Niveaux de vérification -->
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <label class="space-y-1.5">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Niveau de vérification (Commandes & Bouton Embed)</span>
+              <select bind:value={verifConfig.verificationLevelCommand} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
+                <option value="LOW">Bas (identify uniquement)</option>
+                <option value="MEDIUM">Moyen (identify, email)</option>
+                <option value="HIGH">Haut (identify, email, connections, guilds)</option>
+              </select>
+            </label>
+            <label class="space-y-1.5">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Niveau de vérification (Arrivée)</span>
+              <select bind:value={verifConfig.verificationLevelJoin} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
+                <option value="LOW">Bas (identify uniquement)</option>
+                <option value="MEDIUM">Moyen (identify, email)</option>
+                <option value="HIGH">Haut (identify, email, connections, guilds)</option>
+              </select>
+            </label>
+          </div>
+
+
           <!-- Channels & Roles -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <label class="space-y-1.5">
@@ -653,6 +691,19 @@
             <ToggleSwitch
               checked={verifConfig.verificationOnJoin}
               onToggle={(v) => { verifConfig!.verificationOnJoin = v; }}
+              activeClass="bg-indigo-500"
+            />
+          </div>
+
+          <!-- Save IP -->
+          <div class="flex items-center justify-between gap-4 p-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/30">
+            <div>
+              <p class="font-bold text-on-surface text-sm">Sauvegarder l'adresse IP</p>
+              <p class="text-xs text-on-surface-variant/50">Enregistre l'adresse IP de l'utilisateur lors de la vérification pour détecter les comptes multiples.</p>
+            </div>
+            <ToggleSwitch
+              checked={verifConfig.verificationSaveIp}
+              onToggle={(v) => { verifConfig!.verificationSaveIp = v; }}
               activeClass="bg-indigo-500"
             />
           </div>

@@ -13,6 +13,7 @@
     infoRequest: string | null; infoResponse: string | null;
     decidedByTag: string | null; decisionReason: string | null; decidedAt: string | null;
     dmDelivered: boolean; createdAt: string;
+    messages?: any[] | null;
   }
   interface AppealDetail {
     appeal: Appeal;
@@ -24,6 +25,9 @@
     inviteChannelId: string | null; cooldownDays: number;
     welcomeText: string | null; acceptMessage: string | null; denyMessage: string | null;
     notifyOnBanDM?: boolean;
+    appealVerification: boolean;
+    appealSaveIp: boolean;
+    appealVerificationLevel: string;
     form?: { id: string; name: string } | null;
   }
   interface BlacklistEntry { id: string; userId: string; reason: string | null; addedByTag: string | null; createdAt: string; }
@@ -69,7 +73,6 @@
     } catch { /* ignore */ }
     loading = false;
   }
-
   async function loadConfig() {
     try {
       const [cfgRes, formsRes, staffServerRes] = await Promise.all([
@@ -78,9 +81,16 @@
         fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff-server/channels`, { headers: headers() }),
       ]);
       if (cfgRes.ok) {
-        config = (await cfgRes.json()).config ?? {
+        const fetched = (await cfgRes.json()).config;
+        config = fetched ? {
+          ...fetched,
+          appealVerification: fetched.appealVerification ?? false,
+          appealSaveIp: fetched.appealSaveIp ?? true,
+          appealVerificationLevel: fetched.appealVerificationLevel ?? 'HIGH',
+        } : {
           enabled: false, formId: null, staffChannelId: null, inviteChannelId: null,
           cooldownDays: 30, welcomeText: null, acceptMessage: null, denyMessage: null, notifyOnBanDM: false,
+          appealVerification: false, appealSaveIp: true, appealVerificationLevel: 'HIGH',
         };
       }
       if (formsRes.ok) forms = ((await formsRes.json()).forms ?? []).map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
@@ -172,6 +182,9 @@
           acceptMessage: config.acceptMessage,
           denyMessage: config.denyMessage,
           notifyOnBanDM: config.notifyOnBanDM,
+          appealVerification: config.appealVerification,
+          appealSaveIp: config.appealSaveIp,
+          appealVerificationLevel: config.appealVerificationLevel,
           ...extra,
         }),
       });
@@ -305,20 +318,46 @@
                     </div>
                   </div>
 
-                  {#if detail.appeal.infoRequest}
-                    <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-3">
-                      <p class="text-[11px] font-semibold text-blue-500 flex items-center gap-1.5">
+                  {#if (detail.appeal.messages && detail.appeal.messages.length > 0) || detail.appeal.infoRequest}
+                    <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-4 space-y-4">
+                      <p class="text-[11px] font-semibold text-blue-500 flex items-center gap-1.5 uppercase tracking-wider">
                         <Papicon icon="message-square" size={14} />
-                        Infos demandées
+                        Discussion
                       </p>
-                      <p class="text-sm text-on-surface mt-1">{detail.appeal.infoRequest}</p>
-                      {#if detail.appeal.infoResponse}
-                        <p class="text-[11px] font-semibold text-blue-500 mt-3 flex items-center gap-1.5">
-                          <Papicon icon="corner-down-left" size={14} />
-                          Réponse du membre
-                        </p>
-                        <p class="text-sm text-on-surface mt-1 whitespace-pre-wrap">{detail.appeal.infoResponse}</p>
-                      {:else}
+
+                      {#if detail.appeal.messages && detail.appeal.messages.length > 0}
+                        <div class="space-y-3">
+                          {#each detail.appeal.messages as msg}
+                            <div class="p-3 rounded-lg border text-sm {msg.author === 'staff' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-surface border-outline-variant/15'}">
+                              <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
+                                <span>{msg.author === 'staff' ? `Staff (${msg.authorTag || 'inconnu'})` : 'Membre'}</span>
+                                <span>{formatDate(msg.createdAt)}</span>
+                              </div>
+                              <p class="whitespace-pre-wrap text-on-surface">{msg.content}</p>
+                            </div>
+                          {/each}
+                        </div>
+                      {:else if detail.appeal.infoRequest}
+                        <!-- Fallback pour les anciens appels sans messages -->
+                        <div class="space-y-3">
+                          <div class="p-3 rounded-lg border text-sm bg-blue-500/5 border-blue-500/20">
+                            <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
+                              <span>Staff</span>
+                            </div>
+                            <p class="whitespace-pre-wrap text-on-surface">{detail.appeal.infoRequest}</p>
+                          </div>
+                          {#if detail.appeal.infoResponse}
+                            <div class="p-3 rounded-lg border text-sm bg-surface border-outline-variant/15">
+                              <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
+                                <span>Membre</span>
+                              </div>
+                              <p class="whitespace-pre-wrap text-on-surface">{detail.appeal.infoResponse}</p>
+                            </div>
+                          {/if}
+                        </div>
+                      {/if}
+
+                      {#if detail.appeal.status === 'NEEDS_INFO' && (!detail.appeal.messages || detail.appeal.messages.length === 0 || detail.appeal.messages[detail.appeal.messages.length - 1]?.author === 'staff')}
                         <p class="text-xs text-on-surface-variant/50 mt-2 italic">En attente de la réponse du membre…</p>
                       {/if}
                     </div>
@@ -495,7 +534,6 @@
               </select>
             </div>
           </div>
-
           <label class="flex items-center justify-between rounded-xl border border-outline-variant/10 bg-surface-container/40 p-3.5 cursor-pointer">
             <div>
               <p class="font-semibold text-on-surface text-sm">DM automatique du lien d'appel lors d'un ban définitif</p>
@@ -506,6 +544,40 @@
             <input type="checkbox" bind:checked={config.notifyOnBanDM} class="accent-primary w-5 h-5 shrink-0 ml-4" />
           </label>
 
+          <!-- Appeal verification configuration -->
+          <div class="space-y-4 p-4 rounded-xl border border-outline-variant/10 bg-surface-container/40">
+            <label class="flex items-center justify-between cursor-pointer">
+              <div>
+                <p class="font-semibold text-on-surface text-sm">Vérification requise avant retour</p>
+                <p class="text-xs text-on-surface-variant/60 mt-0.5">
+                  Oblige le membre accepté à s'authentifier par Discord OAuth avant de débannir et générer l'invitation.
+                </p>
+              </div>
+              <input type="checkbox" bind:checked={config.appealVerification} class="accent-primary w-5 h-5 shrink-0 ml-4" />
+            </label>
+
+            {#if config.appealVerification}
+              <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 pt-2 border-t border-outline-variant/10">
+                <label class="space-y-1.5">
+                  <span class="text-xs font-semibold text-on-surface-variant/60">Niveau de vérification</span>
+                  <select bind:value={config.appealVerificationLevel} class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-sm outline-none border border-outline-variant/20">
+                    <option value="LOW">Bas (identify uniquement)</option>
+                    <option value="MEDIUM">Moyen (identify, email)</option>
+                    <option value="HIGH">Haut (identify, email, connections, guilds)</option>
+                  </select>
+                </label>
+                <label class="flex items-center justify-between cursor-pointer pt-4">
+                  <div>
+                    <p class="font-semibold text-on-surface text-sm">Sauvegarder l'adresse IP</p>
+                    <p class="text-xs text-on-surface-variant/60">
+                      Enregistre l'IP pour détecter les doubles comptes.
+                    </p>
+                  </div>
+                  <input type="checkbox" bind:checked={config.appealSaveIp} class="accent-primary w-5 h-5 shrink-0 ml-4" />
+                </label>
+              </div>
+            {/if}
+          </div>
           <div>
             <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">
               Cooldown après refus : {config.cooldownDays} jour{config.cooldownDays > 1 ? 's' : ''}

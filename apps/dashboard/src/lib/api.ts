@@ -1708,6 +1708,9 @@ export async function updateChannelsManagementConfig(
     verificationEmbedDesc?: string;
     verificationEmbedColor?: string;
     verificationOnJoin?: boolean;
+    verificationSaveIp?: boolean;
+    verificationLevelCommand?: string;
+    verificationLevelJoin?: string;
   },
   guildId = authStore.selectedGuildId
 ) {
@@ -2148,6 +2151,22 @@ export async function fetchWelcomeConfig(guildId = authStore.selectedGuildId) {
 
 export async function updateWelcomeConfig(config, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/announcement', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Announcement Config):' });
+}
+
+export async function fetchWelcomeThreadConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/welcome-thread', { method: 'GET', guildId, errorContext: 'API Error (Fetch Welcome Thread Config):' });
+}
+
+export async function updateWelcomeThreadConfig(config, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/welcome-thread', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Welcome Thread Config):' });
+}
+
+export async function updateWelcomeThreadSteps(steps: Array<{ content: string; name?: string | null; avatarUrl?: string | null; delayMs?: number }>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/welcome-thread/steps', { method: 'PUT', payload: { steps }, guildId, errorContext: 'API Error (Update Welcome Thread Steps):' });
+}
+
+export async function updateWelcomeThreadPages(pages: Array<{ label: string; emoji?: string | null; summary?: string | null; actionType?: string; roleId?: string | null; roleAction?: string; linkUrl?: string | null; embedTitle?: string; embedDescription?: string; embedColor?: string; embedImageUrl?: string | null; embedThumbnailUrl?: string | null }>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/welcome-thread/pages', { method: 'PUT', payload: { pages }, guildId, errorContext: 'API Error (Update Welcome Thread Pages):' });
 }
 
 export async function fetchReactionRoleMenus(guildId = authStore.selectedGuildId) {

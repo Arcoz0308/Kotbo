@@ -21,6 +21,7 @@
     message: string;
     duplicateDetected: boolean;
     duplicateUserId?: string;
+    inviteUrl?: string | null;
   } | null>(null);
 
   function getApiBase(): string {
@@ -137,13 +138,23 @@
           </div>
           <h2 class="text-white text-xl font-bold mb-2">Vérification réussie !</h2>
           <p class="text-emerald-300/80 text-sm mb-4">{result.message}</p>
+          {#if result.inviteUrl}
+            <div class="mt-6">
+              <a href={result.inviteUrl} target="_blank" rel="noopener noreferrer"
+                class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-all w-full text-center">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                Rejoindre le serveur
+              </a>
+            </div>
+          {/if}
         {/if}
-        <p class="text-white/30 text-xs mt-6">Vous pouvez fermer cette page.</p>
       </div>
     {:else if sessionInfo}
       <div class="bg-[#12121a] border border-white/5 rounded-2xl overflow-hidden">
-        <!-- Header with guild info -->
-        <div class="p-8 text-center border-b border-white/5" style="background: linear-gradient(135deg, {sessionInfo.color}10, transparent)">
+        <!-- Header -->
+        <div class="p-8 border-b border-white/5 text-center">
           {#if sessionInfo.guildIcon}
             <img src={sessionInfo.guildIcon} alt={sessionInfo.guildName} class="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-white/10" />
           {:else}
