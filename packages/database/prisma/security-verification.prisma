@@ -15,6 +15,12 @@ enum VerificationStatus {
   EXPIRED
 }
 
+enum VerificationLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model SecurityVerification {
   id String @id @default(cuid())
 
@@ -23,9 +29,16 @@ model SecurityVerification {
   token   String @unique
 
   status    VerificationStatus @default(PENDING)
+  level     VerificationLevel  @default(HIGH)
+  appealId  String?
   ipAddress String?
   verifiedDiscordId String?
   verifiedAt        DateTime?
+
+  email             String?
+  connections       Json?
+  guilds            Json?
+  userFetched       Json?
 
   duplicateDetected   Boolean @default(false)
   duplicateUserId     String?
@@ -40,5 +53,6 @@ model SecurityVerification {
   @@index([token])
   @@index([guildId, status])
   @@index([expiresAt])
+  @@index([appealId])
   @@map("security_verifications")
 }

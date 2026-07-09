@@ -27,6 +27,10 @@ model BanAppealConfig {
   // Jours à attendre après un refus avant de pouvoir soumettre un nouvel appel
   cooldownDays Int @default(30)
 
+  appealVerification      Boolean           @default(false)
+  appealSaveIp            Boolean           @default(true)
+  appealVerificationLevel VerificationLevel @default(HIGH)
+
   // Envoie automatiquement un DM avec le lien public de l'appel lorsqu'un
   // membre est banni définitivement (pas pour les bannissements temporaires).
   // Configurable depuis le module Appels ET le module Sanctions (même valeur).
@@ -70,6 +74,7 @@ model BanAppeal {
   infoRequest     String?
   infoResponse    String?
   infoRequestedAt DateTime?
+  messages        Json              @default("[]")
 
   // Décision
   decidedByUserId String?

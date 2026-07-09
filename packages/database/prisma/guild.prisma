@@ -276,6 +276,9 @@ model Guild {
   verificationEmbedDesc     String   @default("Cliquez sur le bouton ci-dessous pour vérifier votre identité et sécuriser votre compte.")
   verificationEmbedColor    String   @default("#5865F2")
   verificationOnJoin        Boolean  @default(true)
+  verificationSaveIp        Boolean  @default(true)
+  verificationLevelCommand  VerificationLevel  @default(HIGH)
+  verificationLevelJoin     VerificationLevel  @default(HIGH)
   securityVerifications SecurityVerification[]
   autoLeaderboards AutoLeaderboard[]
 
@@ -479,8 +482,15 @@ model WelcomeMenuPage {
   emoji   String?
   summary String? // Sous-texte affiché dans le menu déroulant
 
-  embedTitle        String
-  embedDescription  String
+  // Action déclenchée au clic : "EMBED" (défaut, affiche une page) | "ROLE" | "LINK"
+  actionType String  @default("EMBED")
+  roleId     String? // Pour actionType = "ROLE"
+  roleAction String  @default("ADD") // "ADD" | "REMOVE" | "TOGGLE"
+  linkUrl    String? // Pour actionType = "LINK" (salon du serveur ou URL externe)
+
+  // Utilisés uniquement pour actionType = "EMBED"
+  embedTitle        String?
+  embedDescription  String?
   embedColor        String  @default("#5865F2")
   embedImageUrl     String?
   embedThumbnailUrl String?
