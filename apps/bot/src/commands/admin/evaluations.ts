@@ -7,6 +7,7 @@ import {
   SeparatorBuilder,
   SeparatorSpacingSize,
   MessageFlags,
+  PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { COLORS_RAW, text, errorContainer } from '../../utils/embeds.js';
@@ -67,7 +68,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const staffMember = await getStaffMember(guildId, interaction.user.id);
-    if (!staffMember) {
+    const hasAdminPerm = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      || interaction.guild?.ownerId === interaction.user.id;
+
+    if (!staffMember && !hasAdminPerm) {
       await interaction.editReply({
         components: [errorContainer('Accès refusé', 'Cette commande est réservée au staff.')],
         flags: MessageFlags.IsComponentsV2,
@@ -141,7 +145,11 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const staffMember = await getStaffMember(guildId, interaction.user.id);
-    if (!staffMember || !['ADMIN', 'OWNER'].includes(staffMember.grade)) {
+    const hasAdminPerm = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      || interaction.guild?.ownerId === interaction.user.id;
+    const isStaffAdmin = staffMember && ['ADMIN', 'OWNER'].includes(staffMember.grade);
+
+    if (!isStaffAdmin && !hasAdminPerm) {
       await interaction.editReply({
         components: [errorContainer('Accès refusé', 'Seuls les admins peuvent générer des évaluations.')],
         flags: MessageFlags.IsComponentsV2,
@@ -172,7 +180,11 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const staffMember = await getStaffMember(guildId, interaction.user.id);
-    if (!staffMember || !['ADMIN', 'OWNER'].includes(staffMember.grade)) {
+    const hasAdminPerm = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+      || interaction.guild?.ownerId === interaction.user.id;
+    const isStaffAdmin = staffMember && ['ADMIN', 'OWNER'].includes(staffMember.grade);
+
+    if (!isStaffAdmin && !hasAdminPerm) {
       await interaction.editReply({
         components: [errorContainer('Accès refusé', 'Seuls les admins peuvent voir la vue d\'ensemble.')],
         flags: MessageFlags.IsComponentsV2,

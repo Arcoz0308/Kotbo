@@ -1,6 +1,8 @@
 import * as discord from 'discord.js';
 import { E } from './emojis.js';
 import { getCurrentInstance } from './instanceContext.js';
+import { getClient } from './client.js';
+import { getGuildContext } from './guildContext.js';
 
 const COLORS_RAW = {
   primary: 0x5865f2,
@@ -305,17 +307,36 @@ function appendSendFromButton(transformed: unknown): unknown {
 
   let serverName = 'serveur';
   try {
-    const instance = getCurrentInstance();
-    if (instance) {
-      serverName = instance.brandName || instance.name || 'serveur';
+    const context = getGuildContext();
+    if (context?.guildName) {
+      serverName = context.guildName;
+    } else if (context?.guildId) {
+      const client = getClient();
+      const guild = client.guilds.cache.get(context.guildId);
+      if (guild?.name) {
+        serverName = guild.name;
+      }
+    } else {
+      const instance = getCurrentInstance();
+      if (instance) {
+        serverName = instance.brandName || instance.name || 'serveur';
+      }
     }
   } catch {
-    // Context not initialized yet
+    // Context or client not initialized yet, fallback to instance if possible
+    try {
+      const instance = getCurrentInstance();
+      if (instance) {
+        serverName = instance.brandName || instance.name || 'serveur';
+      }
+    } catch {
+      // ignore
+    }
   }
 
   const button = new discord.ButtonBuilder()
     .setCustomId('mpsay_server_origin_auto')
-    .setLabel(`envoyer depuis : ${serverName}`)
+    .setLabel(`Envoyé depuis : ${serverName}`)
     .setStyle(discord.ButtonStyle.Secondary)
     .setDisabled(true);
 
@@ -377,3 +398,76 @@ for (const patch of patches) {
     };
   }
 }
+
+// ── Client Event Listener Context Wrapping ──────────────────
+function wrapListener(listener: (...args: any[]) => void) {
+  return function (this: any, ...args: any[]) {
+    let guildId: string | undefined;
+    let guildName: string | undefined;
+
+    for (const arg of args) {
+      if (arg && typeof arg === 'object') {
+        if ('guild' in arg && arg.guild && typeof arg.guild === 'object') {
+          guildId = arg.guild.id;
+          guildName = arg.guild.name;
+          break;
+        } else if ('guildId' in arg && typeof arg.guildId === 'string' && arg.guildId) {
+          guildId = arg.guildId;
+          try {
+            const client = getClient();
+            guildName = client.guilds.cache.get(guildId)?.name;
+          } catch {
+            // Client not ready yet
+          }
+          break;
+        }
+      }
+    }
+
+    if (guildId) {
+      const storage = (globalThis as any)[Symbol.for('kotbo.guildContext')];
+      if (storage) {
+        return storage.run({ guildId, guildName }, () => {
+          return listener.apply(this, args);
+        });
+      }
+    }
+
+    return listener.apply(this, args);
+  };
+}
+
+const originalOn = discord.Client.prototype.on;
+discord.Client.prototype.on = function (this: any, event: string, listener: (...args: any[]) => void) {
+  const wrapped = wrapListener(listener);
+  (wrapped as any).originalListener = listener;
+  return originalOn.call(this, event, wrapped);
+};
+
+const originalOnce = discord.Client.prototype.once;
+discord.Client.prototype.once = function (this: any, event: string, listener: (...args: any[]) => void) {
+  const wrapped = wrapListener(listener);
+  (wrapped as any).originalListener = listener;
+  return originalOnce.call(this, event, wrapped);
+};
+
+const originalOff = discord.Client.prototype.off;
+discord.Client.prototype.off = function (this: any, event: string, listener: (...args: any[]) => void) {
+  const listeners = this.listeners(event);
+  const wrapped = listeners.find((l: any) => l.originalListener === listener || l === listener);
+  if (wrapped) {
+    return originalOff.call(this, event, wrapped);
+  }
+  return originalOff.call(this, event, listener);
+};
+
+const originalRemoveListener = discord.Client.prototype.removeListener;
+discord.Client.prototype.removeListener = function (this: any, event: string, listener: (...args: any[]) => void) {
+  const listeners = this.listeners(event);
+  const wrapped = listeners.find((l: any) => l.originalListener === listener || l === listener);
+  if (wrapped) {
+    return originalRemoveListener.call(this, event, wrapped);
+  }
+  return originalRemoveListener.call(this, event, listener);
+};
+

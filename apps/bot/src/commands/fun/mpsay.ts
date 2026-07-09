@@ -46,7 +46,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const button = new ButtonBuilder()
       .setCustomId('mpsay_server_origin')
-      .setLabel(`envoyer depuis : ${serverName}`)
+      .setLabel(`Envoyé depuis : ${serverName}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true);
 

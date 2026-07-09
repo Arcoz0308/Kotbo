@@ -39,6 +39,7 @@ export type AppealConfigInput = {
   notifyOnBanDM?: boolean;
   appealVerification?: boolean;
   appealSaveIp?: boolean;
+  appealSaveDevice?: boolean;
   appealVerificationLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
 };
 

@@ -1768,6 +1768,7 @@ export async function handleModulesRoutes(
             verificationEmbedColor: true,
             verificationOnJoin: true,
             verificationSaveIp: true,
+            verificationSaveDevice: true,
             verificationLevelCommand: true,
             verificationLevelJoin: true,
           },
@@ -1800,9 +1801,10 @@ export async function handleModulesRoutes(
           verificationLogChannelId: guild.verificationLogChannelId,
           verificationEmbedTitle: guild.verificationEmbedTitle,
           verificationEmbedDesc: guild.verificationEmbedDesc,
-          verificationEmbedColor: guild.verificationEmbedColor,
+           verificationEmbedColor: guild.verificationEmbedColor,
           verificationOnJoin: guild.verificationOnJoin,
           verificationSaveIp: guild.verificationSaveIp,
+          verificationSaveDevice: guild.verificationSaveDevice,
           verificationLevelCommand: guild.verificationLevelCommand,
           verificationLevelJoin: guild.verificationLevelJoin,
         });
@@ -1842,6 +1844,7 @@ export async function handleModulesRoutes(
           verificationEmbedColor?: string;
           verificationOnJoin?: boolean;
           verificationSaveIp?: boolean;
+          verificationSaveDevice?: boolean;
           verificationLevelCommand?: string;
           verificationLevelJoin?: string;
         }>(req);
@@ -1938,6 +1941,9 @@ export async function handleModulesRoutes(
         }
         if (Object.prototype.hasOwnProperty.call(body, 'verificationSaveIp')) {
           data.verificationSaveIp = !!body.verificationSaveIp;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationSaveDevice')) {
+          data.verificationSaveDevice = !!body.verificationSaveDevice;
         }
         if (Object.prototype.hasOwnProperty.call(body, 'verificationLevelCommand')) {
           if (['LOW', 'MEDIUM', 'HIGH'].includes(body.verificationLevelCommand as string)) {

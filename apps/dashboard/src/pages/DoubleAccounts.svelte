@@ -255,6 +255,7 @@
     verificationEmbedColor: string;
     verificationOnJoin: boolean;
     verificationSaveIp: boolean;
+    verificationSaveDevice: boolean;
     verificationLevelCommand: string;
     verificationLevelJoin: string;
   } | null>(null);
@@ -276,6 +277,7 @@
           verificationEmbedColor: data.verificationEmbedColor ?? '#5865F2',
           verificationOnJoin: data.verificationOnJoin ?? true,
           verificationSaveIp: data.verificationSaveIp ?? true,
+          verificationSaveDevice: data.verificationSaveDevice ?? true,
           verificationLevelCommand: data.verificationLevelCommand ?? 'HIGH',
           verificationLevelJoin: data.verificationLevelJoin ?? 'HIGH',
         };
@@ -704,6 +706,19 @@
             <ToggleSwitch
               checked={verifConfig.verificationSaveIp}
               onToggle={(v) => { verifConfig!.verificationSaveIp = v; }}
+              activeClass="bg-indigo-500"
+            />
+          </div>
+
+          <!-- Save Device Info -->
+          <div class="flex items-center justify-between gap-4 p-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/30">
+            <div>
+              <p class="font-bold text-on-surface text-sm">Sauvegarder l'empreinte de l'appareil (Hardware & Software)</p>
+              <p class="text-xs text-on-surface-variant/50">Enregistre les détails du navigateur et de la configuration système pour détecter plus efficacement le multicompte.</p>
+            </div>
+            <ToggleSwitch
+              checked={verifConfig.verificationSaveDevice}
+              onToggle={(v) => { verifConfig!.verificationSaveDevice = v; }}
               activeClass="bg-indigo-500"
             />
           </div>

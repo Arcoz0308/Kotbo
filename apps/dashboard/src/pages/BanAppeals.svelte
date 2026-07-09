@@ -27,6 +27,7 @@
     notifyOnBanDM?: boolean;
     appealVerification: boolean;
     appealSaveIp: boolean;
+    appealSaveDevice: boolean;
     appealVerificationLevel: string;
     form?: { id: string; name: string } | null;
   }
@@ -86,11 +87,12 @@
           ...fetched,
           appealVerification: fetched.appealVerification ?? false,
           appealSaveIp: fetched.appealSaveIp ?? true,
+          appealSaveDevice: fetched.appealSaveDevice ?? true,
           appealVerificationLevel: fetched.appealVerificationLevel ?? 'HIGH',
         } : {
           enabled: false, formId: null, staffChannelId: null, inviteChannelId: null,
           cooldownDays: 30, welcomeText: null, acceptMessage: null, denyMessage: null, notifyOnBanDM: false,
-          appealVerification: false, appealSaveIp: true, appealVerificationLevel: 'HIGH',
+          appealVerification: false, appealSaveIp: true, appealSaveDevice: true, appealVerificationLevel: 'HIGH',
         };
       }
       if (formsRes.ok) forms = ((await formsRes.json()).forms ?? []).map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
@@ -184,6 +186,7 @@
           notifyOnBanDM: config.notifyOnBanDM,
           appealVerification: config.appealVerification,
           appealSaveIp: config.appealSaveIp,
+          appealSaveDevice: config.appealSaveDevice,
           appealVerificationLevel: config.appealVerificationLevel,
           ...extra,
         }),
@@ -574,6 +577,15 @@
                     </p>
                   </div>
                   <input type="checkbox" bind:checked={config.appealSaveIp} class="accent-primary w-5 h-5 shrink-0 ml-4" />
+                </label>
+                <label class="flex items-center justify-between cursor-pointer pt-4">
+                  <div>
+                    <p class="font-semibold text-on-surface text-sm">Sauvegarder l'empreinte de l'appareil</p>
+                    <p class="text-xs text-on-surface-variant/60">
+                      Enregistre les détails du navigateur/système pour détecter les doubles comptes.
+                    </p>
+                  </div>
+                  <input type="checkbox" bind:checked={config.appealSaveDevice} class="accent-primary w-5 h-5 shrink-0 ml-4" />
                 </label>
               </div>
             {/if}

@@ -27,6 +27,7 @@ interface AppealConfigBody {
   createDefaultForm?: boolean;
   appealVerification?: boolean;
   appealSaveIp?: boolean;
+  appealSaveDevice?: boolean;
   appealVerificationLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 

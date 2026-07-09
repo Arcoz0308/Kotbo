@@ -90,7 +90,8 @@ export async function handleVerifyRoutes(
     }
 
     const VERIFY_REDIRECT_URI = `${getApiUrl()}/api/verify/callback`;
-    const state = Buffer.from(JSON.stringify({ guildId, token })).toString('base64url');
+    const clientInfo = url.searchParams.get('clientInfo') || null;
+    const state = Buffer.from(JSON.stringify({ guildId, token, clientInfo })).toString('base64url');
 
     let scope = 'identify';
     if (verification.level === 'MEDIUM') {
@@ -201,7 +202,7 @@ export async function handleVerifyRoutes(
       return true;
     }
 
-    let stateData: { guildId: string; token: string };
+    let stateData: { guildId: string; token: string; clientInfo?: string | null };
     try {
       stateData = JSON.parse(Buffer.from(stateParam, 'base64url').toString('utf-8'));
     } catch {
@@ -290,6 +291,20 @@ export async function handleVerifyRoutes(
         }
       }
 
+      let clientInfoDecoded: any = null;
+      if (stateData.clientInfo) {
+        try {
+          const raw = Buffer.from(stateData.clientInfo, 'base64url').toString('utf-8');
+          clientInfoDecoded = JSON.parse(decodeURIComponent(raw));
+        } catch {
+          try {
+            clientInfoDecoded = JSON.parse(Buffer.from(stateData.clientInfo, 'base64url').toString('utf-8'));
+          } catch (e) {
+            logger.error('VerifyAPI', 'Failed to decode clientInfo:', e);
+          }
+        }
+      }
+
       const result = await completeVerification({
         token: stateData.token,
         verifiedDiscordId: userData.id,
@@ -300,6 +315,7 @@ export async function handleVerifyRoutes(
         connections: connectionsData,
         guilds: guildsData,
         userFetched: userData,
+        clientInfo: clientInfoDecoded,
       });
 
       const resultParam = Buffer.from(JSON.stringify(result)).toString('base64url');

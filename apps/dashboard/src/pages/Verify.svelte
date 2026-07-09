@@ -84,7 +84,36 @@
 
   function startOAuth() {
     verifying = true;
-    window.location.href = `${getApiBase()}/api/verify/${guildId}/${token}/oauth`;
+    
+    let clientInfo: any = {};
+    try {
+      clientInfo = {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform || (navigator as any).userAgentData?.platform || 'inconnu',
+        language: navigator.language,
+        screenResolution: `${window.screen.width}x${window.screen.height}`,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'inconnu',
+        deviceMemory: (navigator as any).deviceMemory || null,
+        hardwareConcurrency: navigator.hardwareConcurrency || null,
+      };
+    } catch (e) {
+      console.error('Failed to collect hardware/software info:', e);
+    }
+
+    let clientInfoParam = '';
+    try {
+      const jsonStr = JSON.stringify(clientInfo);
+      const base64 = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
+      clientInfoParam = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    } catch (e) {
+      console.error('Failed to encode clientInfo:', e);
+    }
+
+    const url = new URL(`${getApiBase()}/api/verify/${guildId}/${token}/oauth`);
+    if (clientInfoParam) {
+      url.searchParams.set('clientInfo', clientInfoParam);
+    }
+    window.location.href = url.toString();
   }
 
   function getTimeRemaining(): string {
