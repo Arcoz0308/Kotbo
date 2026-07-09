@@ -1,6 +1,6 @@
 {
   "name": "@kotbo/database",
-  "version": "1.15",
+  "version": "1.29",
   "private": true,
   "type": "module",
   "exports": {
