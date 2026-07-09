@@ -27,7 +27,9 @@ import { rankCommand } from './commands/profile/rank.js';
 import { rescanCommand } from './commands/moderation/rescan.js';
 import { roleCommand } from './commands/moderation/role.js';
 import { sanctionCommand, sanctionContextCommand } from './commands/moderation/sanction.js';
+import { requestVerificationCommand, requestVerificationContextCommand } from './commands/moderation/request-verification.js';
 import { sayCommand } from './commands/fun/say.js';
+import { mpsayCommand } from './commands/fun/mpsay.js';
 import { buyCommand } from './commands/economy/buy.js';
 import { dailyCommand } from './commands/economy/daily.js';
 import { coinsCommand } from './commands/economy/coins.js';
@@ -103,6 +105,7 @@ export const commands: SlashCommandDefinition[] = [
   profileCommand,
   profilCommand,
   sanctionCommand,
+  requestVerificationCommand,
   dcCommand,
   rescanCommand,
   casierCommand,
@@ -119,6 +122,7 @@ export const commands: SlashCommandDefinition[] = [
   transcriptCommand,
   ticketCommand,
   sayCommand,
+  mpsayCommand,
   demissionCommand,
   rankCommand,
   giveawayCommand,
@@ -181,6 +185,7 @@ export const contextCommands: ContextCommandDefinition[] = [
   casierContextCommand,
   sanctionContextCommand,
   signalContextCommand,
+  requestVerificationContextCommand,
 ];
 
 export const applicationCommands: ApplicationCommandDefinition[] = [

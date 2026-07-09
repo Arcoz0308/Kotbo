@@ -1,5 +1,6 @@
 import * as discord from 'discord.js';
 import { E } from './emojis.js';
+import { getCurrentInstance } from './instanceContext.js';
 
 const COLORS_RAW = {
   primary: 0x5865f2,
@@ -273,6 +274,64 @@ export function transformUpdatePayload(options: unknown, targetMessage: unknown)
   return transformed;
 }
 
+function appendSendFromButton(transformed: unknown): unknown {
+  if (typeof transformed === 'string') {
+    transformed = { content: transformed };
+  } else if (!transformed || typeof transformed !== 'object') {
+    transformed = {};
+  }
+
+  const payload = transformed as { components?: unknown[] };
+
+  // Check if a server origin button already exists to prevent duplicate buttons
+  const hasOriginButton = Array.isArray(payload.components) && payload.components.some((row: any) => {
+    if (!row) return false;
+    const components = Array.isArray(row.components)
+      ? row.components
+      : (typeof row.toJSON === 'function' ? row.toJSON().components : []);
+    return Array.isArray(components) && components.some((comp: any) => {
+      if (!comp) return false;
+      const customId = comp.customId ||
+        (typeof comp.toJSON === 'function' ? comp.toJSON().customId : null) ||
+        comp.data?.custom_id ||
+        comp.custom_id;
+      return customId === 'mpsay_server_origin' || customId === 'mpsay_server_origin_auto';
+    });
+  });
+
+  if (hasOriginButton) {
+    return transformed;
+  }
+
+  let serverName = 'serveur';
+  try {
+    const instance = getCurrentInstance();
+    if (instance) {
+      serverName = instance.brandName || instance.name || 'serveur';
+    }
+  } catch {
+    // Context not initialized yet
+  }
+
+  const button = new discord.ButtonBuilder()
+    .setCustomId('mpsay_server_origin_auto')
+    .setLabel(`envoyer depuis : ${serverName}`)
+    .setStyle(discord.ButtonStyle.Secondary)
+    .setDisabled(true);
+
+  const row = new discord.ActionRowBuilder<discord.ButtonBuilder>().addComponents(button);
+
+  if (!payload.components) {
+    payload.components = [];
+  } else if (!Array.isArray(payload.components)) {
+    payload.components = [payload.components];
+  }
+
+  payload.components.push(row);
+
+  return payload;
+}
+
 interface PatchItem {
   target: { prototype: Record<string, unknown> };
   methods: string[];
@@ -309,6 +368,11 @@ for (const patch of patches) {
       } else {
         transformed = transformPayload(options);
       }
+
+      if (patch.target === (discord.User as any) || patch.target === (discord.DMChannel as any)) {
+        transformed = appendSendFromButton(transformed);
+      }
+
       return (original as (...args: unknown[]) => unknown).call(this, transformed, ...args);
     };
   }
