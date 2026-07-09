@@ -192,7 +192,7 @@ export async function handleVerifyRoutes(
   }
 
   // GET /api/verify/callback — Discord OAuth callback for verification
-  if (parts.length === 4 && parts[2] === 'callback' && method === 'GET') {
+  if (parts.length === 3 && parts[2] === 'callback' && method === 'GET') {
     const code = url.searchParams.get('code');
     const stateParam = url.searchParams.get('state');
 
