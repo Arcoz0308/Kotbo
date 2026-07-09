@@ -103,8 +103,19 @@ class KotboEventBus {
     const moduleName = module ?? 'unknown';
 
     const safeHandler = async (payload: KotboEventMap[E]) => {
+      const key = Symbol.for('kotbo.guildContext');
+      const storage = (globalThis as any)[key];
+      const runWithContext = (cb: () => Promise<void>) => {
+        if (storage && payload && typeof payload === 'object' && 'guildId' in payload && typeof (payload as any).guildId === 'string') {
+          return storage.run({ guildId: (payload as any).guildId }, cb);
+        }
+        return cb();
+      };
+
       try {
-        await handler(payload);
+        await runWithContext(async () => {
+          await handler(payload);
+        });
       } catch (err) {
         console.error(`[KotboEventBus] Error in "${moduleName}" handler for "${event}":`, err);
       }

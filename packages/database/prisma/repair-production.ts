@@ -8,6 +8,7 @@ const repairs = [
   "20260706020000_add_tutoring_hierarchy_grade",
   "20260708000000_add_welcome_thread_system",
   "20260709000000_add_welcome_menu_page_actions",
+  "20260709010000_add_verification_device_tracking",
 ];
 
 async function run(command: string[]) {

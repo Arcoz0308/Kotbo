@@ -32,6 +32,7 @@ model SecurityVerification {
   level     VerificationLevel  @default(HIGH)
   appealId  String?
   ipAddress String?
+  deviceInfo Json?
   verifiedDiscordId String?
   verifiedAt        DateTime?
 

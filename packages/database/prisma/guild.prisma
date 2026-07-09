@@ -277,6 +277,7 @@ model Guild {
   verificationEmbedColor    String   @default("#5865F2")
   verificationOnJoin        Boolean  @default(true)
   verificationSaveIp        Boolean  @default(true)
+  verificationSaveDevice    Boolean  @default(true)
   verificationLevelCommand  VerificationLevel  @default(HIGH)
   verificationLevelJoin     VerificationLevel  @default(HIGH)
   securityVerifications SecurityVerification[]

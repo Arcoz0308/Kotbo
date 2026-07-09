@@ -29,6 +29,7 @@ model BanAppealConfig {
 
   appealVerification      Boolean           @default(false)
   appealSaveIp            Boolean           @default(true)
+  appealSaveDevice        Boolean           @default(true)
   appealVerificationLevel VerificationLevel @default(HIGH)
 
   // Envoie automatiquement un DM avec le lien public de l'appel lorsqu'un
