@@ -210,6 +210,13 @@ model Guild {
   statsEnabled            Boolean  @default(false)
   statsConfig             Json?
 
+  // Message logging / global message search
+  messageLoggingEnabled       Boolean  @default(false)
+  messageLoggingRetentionDays Int      @default(90)
+  messageLoggingIgnoredChannels String[] @default([])
+  messageLoggingStatus        Json?
+  messageLogs             MessageLog[]
+
   // Temporary Voice Channels
   tempVoiceEnabled        Boolean  @default(false)
   tempVoiceChannelId      String?

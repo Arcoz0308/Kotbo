@@ -1,4 +1,4 @@
-import { type TextChannel, type Message, type Guild, type Embed } from 'discord.js';
+import { type TextChannel, type Message, type Guild, type Embed, ComponentType } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
@@ -295,6 +295,203 @@ export function embedToApiShape(embed: Embed, guild?: Guild): ParsedTranscriptEm
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Components V2 rendering
+//
+// The bot patches every send/reply method (see utils/patchV2.ts) so that legacy
+// `embeds` are converted into Components V2 containers. As a result, messages
+// sent by the bot carry an EMPTY `msg.embeds` array and their real content lives
+// in `msg.components`. The transcript must therefore render Components V2 too,
+// otherwise every bot "embed" disappears from the transcript.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface V2Node {
+  type: number;
+  content?: string;
+  components?: V2Node[];
+  accessory?: V2Node;
+  items?: { media?: { url?: string }; description?: string }[];
+  media?: { url?: string };
+  file?: { url?: string };
+  name?: string;
+  divider?: boolean;
+  accent_color?: number | null;
+  accentColor?: number | null;
+  label?: string;
+  url?: string;
+  emoji?: { id?: string | null; name?: string | null; animated?: boolean } | null;
+}
+
+function v2ColorToHex(color: unknown): string | null {
+  if (typeof color === 'number' && Number.isFinite(color)) {
+    return '#' + (color & 0xffffff).toString(16).padStart(6, '0');
+  }
+  return null;
+}
+
+/**
+ * Parses Discord markdown for a V2 text block, additionally handling
+ * block-level headings (`#`, `##`, `###`) and subtext (`-#`) that Components V2
+ * relies on heavily.
+ */
+function parseV2Markdown(text: string, guild?: Guild): string {
+  let html = parseMarkdown(text, guild);
+  html = html
+    .replace(/^\s*-#\s+(.*)$/gm, '<span class="v2-subtext">$1</span>')
+    .replace(/^\s*###\s+(.*)$/gm, '<span class="v2-heading v2-h3">$1</span>')
+    .replace(/^\s*##\s+(.*)$/gm, '<span class="v2-heading v2-h2">$1</span>')
+    .replace(/^\s*#\s+(.*)$/gm, '<span class="v2-heading v2-h1">$1</span>');
+  return html;
+}
+
+function renderV2Emoji(emoji?: V2Node['emoji']): string {
+  if (!emoji) return '';
+  if (emoji.id) {
+    const ext = emoji.animated ? 'gif' : 'png';
+    return `<img class="discord-emoji" src="https://cdn.discordapp.com/emojis/${emoji.id}.${ext}" alt=":${escapeHtml(emoji.name || '')}:" /> `;
+  }
+  return emoji.name ? `${escapeHtml(emoji.name)} ` : '';
+}
+
+function renderV2Button(node: V2Node): string {
+  const label = escapeHtml(node.label || '');
+  const emoji = renderV2Emoji(node.emoji);
+  const inner = `${emoji}${label}`.trim() || '—';
+  if (node.url) {
+    return `<a class="discord-button" href="${node.url}" target="_blank">${inner}</a>`;
+  }
+  return `<span class="discord-button">${inner}</span>`;
+}
+
+function renderV2Media(items: V2Node['items'], guild?: Guild): string {
+  const imgs = (items || [])
+    .filter((it) => it.media?.url)
+    .map((it) => `<img class="discord-embed-image" src="${it.media!.url}" alt="${escapeHtml(it.description || '')}" loading="lazy" />`)
+    .join('');
+  if (!imgs) return '';
+  return `<div class="discord-embed-image-container">${imgs}</div>`;
+}
+
+function renderV2File(node: V2Node): string {
+  const url = node.file?.url;
+  if (!url) return '';
+  const name = node.name || url.split('/').pop() || 'fichier';
+  return `
+    <div class="attachment-card">
+      <span class="attachment-icon">📁</span>
+      <div class="attachment-info">
+        <a href="${url}" target="_blank" class="attachment-name">${escapeHtml(name)}</a>
+      </div>
+    </div>
+  `;
+}
+
+function renderV2Section(node: V2Node, guild?: Guild): string {
+  const texts = (node.components || [])
+    .filter((c) => c.type === ComponentType.TextDisplay)
+    .map((c) => `<div class="v2-text">${parseV2Markdown(c.content || '', guild)}</div>`)
+    .join('');
+
+  const acc = node.accessory;
+  let accessoryHtml = '';
+  if (acc?.type === ComponentType.Thumbnail && acc.media?.url) {
+    accessoryHtml = `<img class="discord-embed-thumbnail" src="${acc.media.url}" alt="" />`;
+  } else if (acc?.type === ComponentType.Button) {
+    accessoryHtml = renderV2Button(acc);
+  }
+
+  if (accessoryHtml) {
+    return `<div class="v2-section"><div class="v2-section-text">${texts}</div><div class="v2-section-accessory">${accessoryHtml}</div></div>`;
+  }
+  return texts;
+}
+
+function renderV2ActionRow(node: V2Node): string {
+  const buttons = (node.components || [])
+    .filter((c) => c.type === ComponentType.Button)
+    .map((b) => renderV2Button(b))
+    .join('');
+  return buttons ? `<div class="discord-buttons-row">${buttons}</div>` : '';
+}
+
+/** Renders the children of a container node into embed-body HTML. */
+function renderV2Child(node: V2Node, guild?: Guild): string {
+  switch (node.type) {
+    case ComponentType.TextDisplay:
+      return `<div class="v2-text">${parseV2Markdown(node.content || '', guild)}</div>`;
+    case ComponentType.Section:
+      return renderV2Section(node, guild);
+    case ComponentType.Separator:
+      return node.divider === false ? '<div class="v2-separator-space"></div>' : '<div class="v2-separator-line"></div>';
+    case ComponentType.MediaGallery:
+      return renderV2Media(node.items, guild);
+    case ComponentType.File:
+      return renderV2File(node);
+    case ComponentType.ActionRow:
+      return renderV2ActionRow(node);
+    default:
+      return '';
+  }
+}
+
+function renderV2Container(node: V2Node, guild?: Guild): string {
+  const hex = v2ColorToHex(node.accent_color ?? node.accentColor) || '#1e1f22';
+  const inner = (node.components || []).map((child) => renderV2Child(child, guild)).join('');
+  return `
+    <div class="discord-embed" style="border-left-color: ${hex}">
+      <div class="discord-embed-content">
+        <div class="discord-embed-text">${inner}</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Renders a message's top-level Components V2 tree into transcript HTML.
+ * Containers become embed-like blocks; loose text/sections/media/action rows
+ * render inline like normal message content.
+ */
+function renderV2ComponentsHtml(components: unknown[], guild?: Guild): string {
+  let html = '';
+  for (const raw of components) {
+    let node: V2Node | undefined;
+    if (raw && typeof (raw as { toJSON?: unknown }).toJSON === 'function') {
+      try {
+        node = (raw as { toJSON: () => V2Node }).toJSON();
+      } catch {
+        node = raw as V2Node;
+      }
+    } else {
+      node = raw as V2Node;
+    }
+    if (!node || typeof node.type !== 'number') continue;
+
+    switch (node.type) {
+      case ComponentType.Container:
+        html += renderV2Container(node, guild);
+        break;
+      case ComponentType.TextDisplay:
+        html += `<div class="message-text">${parseV2Markdown(node.content || '', guild)}</div>`;
+        break;
+      case ComponentType.Section:
+        html += renderV2Section(node, guild);
+        break;
+      case ComponentType.MediaGallery:
+        html += renderV2Media(node.items, guild);
+        break;
+      case ComponentType.File:
+        html += renderV2File(node);
+        break;
+      case ComponentType.ActionRow:
+        html += renderV2ActionRow(node);
+        break;
+      default:
+        break;
+    }
+  }
+  return html;
+}
+
 /**
  * Generates an HTML transcript of all messages in a channel and stores it in the DB.
  */
@@ -441,6 +638,13 @@ export async function generateTranscriptFromMessages(channel: TextChannel, allMe
           </div>
         `;
       }
+    }
+
+    // Process Components V2 (containers rendered as embeds, text displays, sections,
+    // media galleries and action rows). The bot converts all legacy embeds into V2
+    // containers (utils/patchV2.ts), so without this bot embeds would be missing.
+    if (msg.components && msg.components.length > 0) {
+      bodyHtml += renderV2ComponentsHtml(msg.components as unknown[], channel.guild);
     }
 
     // Process reactions
@@ -842,6 +1046,68 @@ export async function generateTranscriptFromMessages(channel: TextChannel, allMe
       width: 20px;
       height: 20px;
       border-radius: 50%;
+    }
+    .v2-text {
+      font-size: 14px;
+      color: #dbdee1;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .v2-heading {
+      display: block;
+      font-weight: 700;
+      color: #f2f3f5;
+      margin: 4px 0 2px;
+    }
+    .v2-h1 { font-size: 20px; }
+    .v2-h2 { font-size: 17px; }
+    .v2-h3 { font-size: 15px; }
+    .v2-subtext {
+      display: block;
+      font-size: 12px;
+      color: #949ba4;
+    }
+    .v2-separator-line {
+      border-top: 1px solid #3f4147;
+      margin: 8px 0;
+    }
+    .v2-separator-space {
+      height: 8px;
+    }
+    .v2-section {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .v2-section-text {
+      flex-grow: 1;
+      min-width: 0;
+    }
+    .v2-section-accessory {
+      flex-shrink: 0;
+    }
+    .discord-buttons-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .discord-button {
+      background-color: #4e5058;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 6px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      line-height: 1.2;
+    }
+    a.discord-button {
+      background-color: #4e5058;
     }
     .footer {
       border-top: 1px solid #3f4147;

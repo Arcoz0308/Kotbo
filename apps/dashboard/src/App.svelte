@@ -100,6 +100,8 @@
   import Verify from "./pages/Verify.svelte";
   import ChannelHealth from "./pages/ChannelHealth.svelte";
   import ChannelLinks from "./pages/ChannelLinks.svelte";
+  import Transcripts from "./pages/Transcripts.svelte";
+  import MessageSearch from "./pages/MessageSearch.svelte";
   import StaffServerLinks from "./pages/StaffServerLinks.svelte";
   import Pulse from "./pages/Pulse.svelte";
   import Reputation from "./pages/Reputation.svelte";
@@ -565,6 +567,12 @@
       <Route path="/tickets">
         <Tickets />
       </Route>
+      <Route path="/transcripts-list">
+        <Transcripts />
+      </Route>
+      <Route path="/message-search">
+        <MessageSearch />
+      </Route>
       <Route path="/meetings">
         <div use:navigate={"/planning"}></div>
       </Route>
@@ -808,6 +816,12 @@
             </Route>
             <Route path="/tickets">
               <Tickets />
+            </Route>
+            <Route path="/transcripts-list">
+              <Transcripts />
+            </Route>
+            <Route path="/message-search">
+              <MessageSearch />
             </Route>
             <Route path="/meetings">
               <div use:navigate={"/planning"}></div>

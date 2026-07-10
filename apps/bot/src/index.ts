@@ -41,6 +41,7 @@ import { registerCloseSourceWarningListener } from './events/closeSourceWarning.
 import { registerNicknameModerationListener } from './events/nicknameModeration.js';
 import { registerTempVoiceListener } from './events/tempVoice.js';
 import { registerHoneypotListener } from './events/honeypot.js';
+import { registerMessageLoggingListener } from './events/messageLogging.js';
 import { registerStatsChannelListener } from './events/stats.js';
 import { registerFunEventsListener } from './events/funEvents.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
@@ -326,6 +327,7 @@ client.once(Events.ClientReady, async (c) => {
   registerNicknameModerationListener(client);
   registerTempVoiceListener(client);
   registerHoneypotListener(client);
+  registerMessageLoggingListener(client);
   registerStatsChannelListener(client);
   registerFunEventsListener(client);
   registerDailyAlgoHandlers(client);

@@ -4917,28 +4917,82 @@ export async function handleModulesRoutes(
       return true;
     }
 
-    // GET /api/dashboard/guilds/:guildId/tickets/transcripts
+    // GET /api/dashboard/guilds/:guildId/tickets/transcripts?q=&from=&to=&limit=&offset=
     if (parts.length === 6 && parts[5] === 'transcripts' && method === 'GET') {
       try {
-        const transcripts = await prisma.transcript.findMany({
-          where: { guildId },
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            guildId: true,
-            channelId: true,
-            channelName: true,
-            startMessageId: true,
-            endMessageId: true,
-            startTime: true,
-            endTime: true,
-            createdAt: true
-          }
-        });
-        json(res, 200, { transcripts });
+        const q = url.searchParams.get('q')?.trim() || '';
+        const from = url.searchParams.get('from');
+        const to = url.searchParams.get('to');
+        const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 200);
+        const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
+
+        const where: Record<string, unknown> = { guildId };
+        if (q) {
+          where.OR = [
+            { channelName: { contains: q, mode: 'insensitive' } },
+            { channelId: { contains: q } },
+          ];
+        }
+        if (from || to) {
+          const createdAt: Record<string, Date> = {};
+          if (from) { const d = new Date(from); if (!isNaN(d.getTime())) createdAt.gte = d; }
+          if (to) { const d = new Date(to); if (!isNaN(d.getTime())) createdAt.lte = d; }
+          if (Object.keys(createdAt).length > 0) where.createdAt = createdAt;
+        }
+
+        const [transcripts, total] = await Promise.all([
+          prisma.transcript.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            skip: offset,
+            take: limit,
+            select: {
+              id: true,
+              guildId: true,
+              channelId: true,
+              channelName: true,
+              startMessageId: true,
+              endMessageId: true,
+              startTime: true,
+              endTime: true,
+              createdAt: true
+            }
+          }),
+          prisma.transcript.count({ where }),
+        ]);
+        json(res, 200, { transcripts, total, limit, offset });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error listing transcripts: ${err.message}`);
+        logger.error('TicketsAPI', `Error listing transcripts: ${(err as Error).message}`);
         json(res, 500, { error: 'Erreur lors de la récupération des transcriptions' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/tickets/transcripts/:transcriptId
+    if (parts.length === 7 && parts[5] === 'transcripts' && method === 'DELETE') {
+      if (access.level !== 'admin') {
+        json(res, 403, { error: 'Seuls les administrateurs peuvent supprimer des transcriptions.' });
+        return true;
+      }
+      const transcriptId = parts[6];
+      if (!/^[a-zA-Z0-9_-]+$/.test(transcriptId)) {
+        json(res, 400, { error: 'ID de transcription invalide' });
+        return true;
+      }
+      try {
+        const transcript = await prisma.transcript.findUnique({
+          where: { id: transcriptId },
+          select: { id: true, guildId: true },
+        });
+        if (!transcript || transcript.guildId !== guildId) {
+          json(res, 404, { error: 'Transcription introuvable' });
+          return true;
+        }
+        await prisma.transcript.delete({ where: { id: transcriptId } });
+        json(res, 200, { ok: true });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error deleting transcript: ${(err as Error).message}`);
+        json(res, 500, { error: 'Erreur lors de la suppression de la transcription' });
       }
       return true;
     }

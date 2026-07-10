@@ -15,39 +15,77 @@ import { logger } from '../../utils/logger.js';
 
 const data = new SlashCommandBuilder()
   .setName('transcript')
-  .setDescription('📄 Génère une transcription des messages de ce salon')
+  .setDescription('📄 Génère, liste, recherche ou supprime des transcriptions de salon')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-  .addIntegerOption((option) =>
-    option
-      .setName('nombre')
-      .setDescription('Nombre de messages à transcrire (par défaut 100)')
-      .setRequired(false)
-      .setMinValue(1)
-      .setMaxValue(5000)
+  .addSubcommand((sub) =>
+    sub
+      .setName('generer')
+      .setDescription('📄 Génère une transcription des messages de ce salon')
+      .addIntegerOption((option) =>
+        option
+          .setName('nombre')
+          .setDescription('Nombre de messages à transcrire (par défaut 100)')
+          .setRequired(false)
+          .setMinValue(1)
+          .setMaxValue(5000)
+      )
+      .addStringOption((option) =>
+        option
+          .setName('temps')
+          .setDescription('Début : Durée (ex: 2h), Date (JJ/MM/AAAA-HH:MM) ou Timestamp')
+          .setRequired(false)
+      )
+      .addStringOption((option) =>
+        option
+          .setName('message_id')
+          .setDescription('Début : ID du message de départ')
+          .setRequired(false)
+      )
+      .addStringOption((option) =>
+        option
+          .setName('jusqua_message_id')
+          .setDescription("Fin : ID du message d'arrêt")
+          .setRequired(false)
+      )
+      .addStringOption((option) =>
+        option
+          .setName('jusqua_temps')
+          .setDescription('Fin : Durée (ex: 1h), Date (JJ/MM/AAAA-HH:MM) ou Timestamp')
+          .setRequired(false)
+      )
   )
-  .addStringOption((option) =>
-    option
-      .setName('temps')
-      .setDescription('Début : Durée (ex: 2h), Date (JJ/MM/AAAA-HH:MM) ou Timestamp')
-      .setRequired(false)
+  .addSubcommand((sub) =>
+    sub
+      .setName('liste')
+      .setDescription('📋 Liste les dernières transcriptions du serveur')
+      .addChannelOption((option) =>
+        option
+          .setName('salon')
+          .setDescription('Filtrer par salon')
+          .setRequired(false)
+      )
   )
-  .addStringOption((option) =>
-    option
-      .setName('message_id')
-      .setDescription("Début : ID du message de départ")
-      .setRequired(false)
+  .addSubcommand((sub) =>
+    sub
+      .setName('rechercher')
+      .setDescription('🔎 Recherche des transcriptions par nom de salon')
+      .addStringOption((option) =>
+        option
+          .setName('requete')
+          .setDescription('Nom (ou partie du nom) du salon à rechercher')
+          .setRequired(true)
+      )
   )
-  .addStringOption((option) =>
-    option
-      .setName('jusqua_message_id')
-      .setDescription("Fin : ID du message d'arrêt")
-      .setRequired(false)
-  )
-  .addStringOption((option) =>
-    option
-      .setName('jusqua_temps')
-      .setDescription('Fin : Durée (ex: 1h), Date (JJ/MM/AAAA-HH:MM) ou Timestamp')
-      .setRequired(false)
+  .addSubcommand((sub) =>
+    sub
+      .setName('supprimer')
+      .setDescription('🗑️ Supprime une transcription (administrateurs)')
+      .addStringOption((option) =>
+        option
+          .setName('id')
+          .setDescription('ID de la transcription à supprimer')
+          .setRequired(true)
+      )
   );
 
 export function parseDurationToMs(durationStr: string): number | null {
@@ -123,40 +161,44 @@ export function parseDateTimeOrDuration(input: string): number | null {
   return null;
 }
 
-async function execute(interaction: ChatInputCommandInteraction) {
-  const { guildId, channel } = interaction;
-  if (!guildId || !channel || !(channel instanceof TextChannel)) {
+/**
+ * Checks whether the invoking member is allowed to use transcript commands
+ * (Manage Messages / Administrator, a configured moderator/ticket-staff role,
+ * or the current ticket's staff role).
+ */
+async function isStaffMember(interaction: ChatInputCommandInteraction, guildId: string): Promise<boolean> {
+  const member = interaction.member as GuildMember;
+  if (!member) return false;
+
+  const currentTicket = interaction.channelId
+    ? await prisma.ticket.findFirst({
+        where: { guildId, channelId: interaction.channelId },
+        select: { staffRoleId: true },
+      })
+    : null;
+
+  const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+
+  return (
+    member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+    member.permissions.has(PermissionFlagsBits.Administrator) ||
+    !!(guildConfig?.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) ||
+    !!(currentTicket?.staffRoleId && member.roles.cache.has(currentTicket.staffRoleId)) ||
+    !!(guildConfig?.ticketStaffRoleId && member.roles.cache.has(guildConfig.ticketStaffRoleId))
+  );
+}
+
+function transcriptPublicLink(transcriptId: string): string {
+  const dashboardUrl = (process.env.DASHBOARD_URL || 'http://localhost:5173').replace(/\/$/, '');
+  return `${dashboardUrl}/transcripts/${transcriptId}`;
+}
+
+async function executeGenerate(interaction: ChatInputCommandInteraction, guildId: string) {
+  const channel = interaction.channel;
+  if (!channel || !(channel instanceof TextChannel)) {
     await interaction.reply({
       content: '❌ Cette commande doit être utilisée dans un salon textuel.',
-      flags: [MessageFlags.Ephemeral]
-    });
-    return;
-  }
-
-    const currentTicket = await prisma.ticket.findFirst({
-      where: {
-        guildId,
-        channelId: channel.id,
-      },
-      select: {
-        staffRoleId: true,
-      },
-    });
-
-  // Permettre uniquement aux membres du personnel (Staff)
-  const member = interaction.member as GuildMember;
-  const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
-  
-  const isStaff = member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-    (guildConfig?.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) ||
-      (currentTicket?.staffRoleId && member.roles.cache.has(currentTicket.staffRoleId)) ||
-      (guildConfig?.ticketStaffRoleId && member.roles.cache.has(guildConfig.ticketStaffRoleId)) ||
-    member.permissions.has(PermissionFlagsBits.Administrator);
-
-  if (!isStaff) {
-    await interaction.reply({
-      content: "❌ Vous n'avez pas la permission d'utiliser cette commande.",
-      flags: [MessageFlags.Ephemeral]
+      flags: [MessageFlags.Ephemeral],
     });
     return;
   }
@@ -176,7 +218,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
   if (startOptionsCount > 1) {
     await interaction.reply({
       content: '❌ Veuillez spécifier une seule option de départ parmi `nombre`, `temps` et `message_id`.',
-      flags: [MessageFlags.Ephemeral]
+      flags: [MessageFlags.Ephemeral],
     });
     return;
   }
@@ -189,7 +231,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
   if (endOptionsCount > 1) {
     await interaction.reply({
       content: '❌ Veuillez spécifier une seule option de fin parmi `jusqua_message_id` et `jusqua_temps`.',
-      flags: [MessageFlags.Ephemeral]
+      flags: [MessageFlags.Ephemeral],
     });
     return;
   }
@@ -203,7 +245,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         await channel.messages.fetch(messageId);
       } catch (err) {
         await interaction.editReply({
-          content: `❌ Impossible de trouver le message de départ avec l'ID \`${messageId}\` dans ce salon.`
+          content: `❌ Impossible de trouver le message de départ avec l'ID \`${messageId}\` dans ce salon.`,
         });
         return;
       }
@@ -214,7 +256,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         await channel.messages.fetch(jusquaMessageId);
       } catch (err) {
         await interaction.editReply({
-          content: `❌ Impossible de trouver le message de fin avec l'ID \`${jusquaMessageId}\` dans ce salon.`
+          content: `❌ Impossible de trouver le message de fin avec l'ID \`${jusquaMessageId}\` dans ce salon.`,
         });
         return;
       }
@@ -230,7 +272,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       const startTimestamp = parseDateTimeOrDuration(temps);
       if (startTimestamp === null) {
         await interaction.editReply({
-          content: '❌ Format de début invalide. Utilisez par exemple : `2h` (2 heures), `30m` (30 minutes), ou une date/heure `JJ/MM/AAAA-HH:MM`.'
+          content: '❌ Format de début invalide. Utilisez par exemple : `2h` (2 heures), `30m` (30 minutes), ou une date/heure `JJ/MM/AAAA-HH:MM`.',
         });
         return;
       }
@@ -244,7 +286,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       const endTimestamp = parseDateTimeOrDuration(jusquaTemps);
       if (endTimestamp === null) {
         await interaction.editReply({
-          content: '❌ Format de fin invalide. Utilisez par exemple : `1h` (1 heure), ou une date/heure `JJ/MM/AAAA-HH:MM`, ou un timestamp.'
+          content: '❌ Format de fin invalide. Utilisez par exemple : `1h` (1 heure), ou une date/heure `JJ/MM/AAAA-HH:MM`, ou un timestamp.',
         });
         return;
       }
@@ -256,7 +298,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     if (startId !== undefined) {
       // Fetch forward from startId
       const finalEndId = endId ?? ((BigInt(Date.now()) - 1420070400000n) << 22n).toString();
-      
+
       // Ensure chronological order
       let firstId = startId;
       let secondId = finalEndId;
@@ -281,7 +323,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
         let stop = false;
         const sortedBatch = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-        
+
         for (const msg of sortedBatch) {
           if (BigInt(msg.id) > BigInt(secondId)) {
             stop = true;
@@ -334,23 +376,22 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     if (fetchedMessages.length === 0) {
       await interaction.editReply({
-        content: '⚠️ Aucun message trouvé pour les critères spécifiés.'
+        content: '⚠️ Aucun message trouvé pour les critères spécifiés.',
       });
       return;
     }
 
     // Generate transcript using the existing module
     const transcriptData = await generateTranscriptFromMessages(channel, fetchedMessages);
-    const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
-    const publicLink = `${dashboardUrl}${transcriptData.url}`;
+    const publicLink = transcriptPublicLink(transcriptData.id);
 
     await interaction.editReply({
       embeds: [
         successEmbed(
           '📄 Transcription générée',
           `La transcription de **${transcriptData.count}** message(s) de ce salon a été créée avec succès.\n\n🌐 [Consulter la transcription](${publicLink})`
-        )
-      ]
+        ),
+      ],
     });
 
   } catch (error) {
@@ -360,9 +401,135 @@ async function execute(interaction: ChatInputCommandInteraction) {
         errorEmbed(
           'Erreur de transcription',
           'Une erreur est survenue lors de la transcription des messages de ce salon.'
-        )
-      ]
+        ),
+      ],
     });
+  }
+}
+
+async function executeList(interaction: ChatInputCommandInteraction, guildId: string, searchQuery?: string) {
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+  const channelOption = interaction.options.getChannel('salon', false);
+
+  const where: Record<string, unknown> = { guildId };
+  if (channelOption) where.channelId = channelOption.id;
+  if (searchQuery) where.channelName = { contains: searchQuery, mode: 'insensitive' };
+
+  try {
+    const transcripts = await prisma.transcript.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 15,
+      select: { id: true, channelName: true, createdAt: true },
+    });
+
+    if (transcripts.length === 0) {
+      await interaction.editReply({
+        content: searchQuery
+          ? `⚠️ Aucune transcription trouvée pour « ${searchQuery} ».`
+          : '⚠️ Aucune transcription enregistrée pour ce serveur.',
+      });
+      return;
+    }
+
+    const lines = transcripts.map((t) => {
+      const ts = Math.floor(t.createdAt.getTime() / 1000);
+      const link = transcriptPublicLink(t.id);
+      return `• **#${t.channelName}** — <t:${ts}:R> · [ouvrir](${link})\n\`${t.id}\``;
+    });
+
+    await interaction.editReply({
+      embeds: [
+        successEmbed(
+          searchQuery ? `🔎 Transcriptions « ${searchQuery} »` : '📋 Dernières transcriptions',
+          lines.join('\n')
+        ),
+      ],
+    });
+  } catch (error) {
+    logger.error('Transcript', 'Erreur lors de la liste des transcriptions:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Erreur', 'Impossible de récupérer les transcriptions.')],
+    });
+  }
+}
+
+async function executeDelete(interaction: ChatInputCommandInteraction, guildId: string) {
+  const member = interaction.member as GuildMember;
+  if (!member?.permissions.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({
+      content: '❌ Seuls les administrateurs peuvent supprimer une transcription.',
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const id = interaction.options.getString('id', true);
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+  try {
+    const transcript = await prisma.transcript.findUnique({
+      where: { id },
+      select: { id: true, guildId: true, channelName: true },
+    });
+
+    if (!transcript || transcript.guildId !== guildId) {
+      await interaction.editReply({ content: `❌ Aucune transcription trouvée avec l'ID \`${id}\`.` });
+      return;
+    }
+
+    await prisma.transcript.delete({ where: { id } });
+    await interaction.editReply({
+      embeds: [
+        successEmbed('🗑️ Transcription supprimée', `La transcription **#${transcript.channelName}** (\`${id}\`) a été supprimée.`),
+      ],
+    });
+  } catch (error) {
+    logger.error('Transcript', 'Erreur lors de la suppression de la transcription:', error);
+    await interaction.editReply({
+      embeds: [errorEmbed('Erreur', 'Impossible de supprimer la transcription.')],
+    });
+  }
+}
+
+async function execute(interaction: ChatInputCommandInteraction) {
+  const { guildId } = interaction;
+  if (!guildId) {
+    await interaction.reply({
+      content: '❌ Cette commande doit être utilisée sur un serveur.',
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  if (!(await isStaffMember(interaction, guildId))) {
+    await interaction.reply({
+      content: "❌ Vous n'avez pas la permission d'utiliser cette commande.",
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  switch (subcommand) {
+    case 'generer':
+      await executeGenerate(interaction, guildId);
+      break;
+    case 'liste':
+      await executeList(interaction, guildId);
+      break;
+    case 'rechercher':
+      await executeList(interaction, guildId, interaction.options.getString('requete', true));
+      break;
+    case 'supprimer':
+      await executeDelete(interaction, guildId);
+      break;
+    default:
+      await interaction.reply({
+        content: '❌ Sous-commande inconnue.',
+        flags: [MessageFlags.Ephemeral],
+      });
   }
 }
 

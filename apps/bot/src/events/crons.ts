@@ -14,6 +14,7 @@ import { checkTwitchFollows } from '../services/integrations/twitchService.js';
 import { initializeDatabaseBackup } from '../services/system/databaseBackupService.js';
 import { checkTicketInactivity } from '../services/features/ticketService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
+import { pruneOldMessageLogs } from './messageLogging.js';
 
 const runningJobs = new Set<string>();
 
@@ -286,6 +287,11 @@ export async function registerCrons(client: Client): Promise<void> {
 
   cron.schedule('0 1 * * *', async () => {
     await runCronJob('staff-blacklist-expiration', expireStaffBlacklist, 1000);
+  });
+
+  // 🗂️ Journalisation des messages: purge selon la rétention (tous les jours à 03:30)
+  cron.schedule('30 3 * * *', async () => {
+    await runCronJob('message-logs-prune', pruneOldMessageLogs, 2000);
   });
 
   // 🛡️ Sanctions: Rapports manquants (tous les jours à 12:00, heure de Paris)

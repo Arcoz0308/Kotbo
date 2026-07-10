@@ -35,6 +35,8 @@ export const moderationItems: PageConfig[] = [
   { name: "Sécurité & DC",       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
   { name: "Invitations",         icon: "link",          href: "/invitations",        featureKey: "members", beta: false, wip: false },
   { name: "Logs Discord",        icon: "file-text",     href: "/logs",              featureKey: "logs", beta: false, wip: false },
+  { name: "Recherche messages",  icon: "search",        href: "/message-search",    featureKey: "logs", beta: true, wip: false },
+  { name: "Transcriptions",      icon: "file",          href: "/transcripts-list",  featureKey: "tickets", beta: false, wip: false },
   { name: "Journal d'activité",  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
   { name: "Événements",          icon: "zap",           href: "/events",            featureKey: "events", beta: false, wip: false },
   { name: "Formulaires",         icon: "clipboard",     href: "/forms",             featureKey: "events", beta: false, wip: false },

@@ -1,0 +1,32 @@
+// Global message logging — records every message the bot sees (when enabled per
+// guild) so the dashboard can offer a Discord/Windows-style global search across
+// all recorded messages. Gated by Guild.messageLoggingEnabled and pruned after
+// Guild.messageLoggingRetentionDays.
+
+model MessageLog {
+  id           String    @id @default(cuid())
+  guildId      String
+  channelId    String
+  channelName  String
+  messageId    String    @unique
+  authorId     String
+  authorName   String
+  authorAvatar String?
+  isBot        Boolean   @default(false)
+  content      String    @default("")
+  attachments  Json?     // [{ name, url, contentType }]
+  embedCount   Int       @default(0)
+  hasAttachment Boolean  @default(false)
+  createdAt    DateTime
+  editedAt     DateTime?
+  deletedAt    DateTime?
+  loggedAt     DateTime  @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
+  @@index([guildId, channelId])
+  @@index([guildId, authorId])
+  @@index([guildId, deletedAt])
+  @@map("message_logs")
+}
