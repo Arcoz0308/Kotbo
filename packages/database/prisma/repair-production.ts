@@ -1,3 +1,10 @@
+import path from 'node:path';
+import { config as loadEnv } from 'dotenv';
+import { Client } from 'pg';
+
+loadEnv({ path: path.resolve(import.meta.dir, '../../.env') });
+loadEnv({ path: path.resolve(import.meta.dir, '../../../.env') });
+
 const repairs = [
   "20260404193000_add_code_police_rules",
   "20260406090000_add_interest_profiles_and_feedback",
@@ -44,7 +51,51 @@ async function resolveApplied(migration: string) {
   throw new Error(`La reconciliation Prisma de ${migration} a echoue.`);
 }
 
-for (const migration of repairs) {
+// 1. Check database URL and fetch already applied migrations to skip them
+const connectionString = process.env.DATABASE_URL;
+let appliedMigrations = new Set<string>();
+
+if (connectionString) {
+  try {
+    const client = new Client({ connectionString });
+    await client.connect();
+
+    // Check if the _prisma_migrations table exists in database
+    const tableCheck = await client.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = '_prisma_migrations'
+      );
+    `);
+
+    if (tableCheck.rows[0].exists) {
+      const res = await client.query(
+        "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL"
+      );
+      appliedMigrations = new Set(res.rows.map((row: any) => row.migration_name));
+    }
+    await client.end();
+  } catch (err: any) {
+    console.warn(
+      `[MigrationRepair] Impossible de vérifier les migrations existantes via pg: ${err.message}. Exécution complète par défaut.`
+    );
+  }
+} else {
+  console.warn("[MigrationRepair] DATABASE_URL non définie dans l'environnement. Exécution complète par défaut.");
+}
+
+// 2. Filter repairs that haven't been applied yet
+const repairsToRun = repairs.filter((migration) => !appliedMigrations.has(migration));
+
+if (repairsToRun.length === 0) {
+  console.log("[MigrationRepair] Toutes les réparations de production sont déjà appliquées. Passage rapide.");
+  process.exit(0);
+}
+
+console.log(`[MigrationRepair] ${repairsToRun.length} réparation(s) à appliquer.`);
+
+for (const migration of repairsToRun) {
   console.log(`[MigrationRepair] Reconciliation de ${migration}...`);
 
   const executeCode = await run([
@@ -67,3 +118,4 @@ for (const migration of repairs) {
 }
 
 console.log("[MigrationRepair] Historique de production reconcilie.");
+
