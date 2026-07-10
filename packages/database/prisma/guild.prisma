@@ -287,8 +287,16 @@ model Guild {
   verificationSaveDevice    Boolean  @default(true)
   verificationLevelCommand  VerificationLevel  @default(HIGH)
   verificationLevelJoin     VerificationLevel  @default(HIGH)
+  verificationWarnThreshold Int?               // null = désactivé. Nombre de warns déclenchant la vérif auto
+  verificationWarnAutoMode  String             @default("FULL_AUTO") // FULL_AUTO | NOTIFY_STAFF
+  verificationWarnReason    String             @default("Seuil d'avertissements atteint — vérification de sécurité requise.")
   securityVerifications SecurityVerification[]
   autoLeaderboards AutoLeaderboard[]
+
+  // Détection de double compte — intelligence avancée
+  dcVoiceSessions    DcVoiceSession[]
+  dcDetectionSamples DcDetectionSample[]
+  dcSignalWeights    DcSignalWeight[]
 
   // Channel Health Monitor
   channelHealthConfig ChannelHealthConfig?
@@ -383,6 +391,8 @@ model MemberProfile {
   rolesSnapshot String[] @default([])
 
   isSuspectedDC Boolean @default(false)
+  dcScore       Int?      // Dernier score de détection calculé (0-100)
+  lastDcAlertAt DateTime? // Timestamp de la dernière alerte DC envoyée (cooldown 24h)
 
   moderatorNote String?
 

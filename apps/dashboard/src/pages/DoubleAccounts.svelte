@@ -5,7 +5,7 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, scanSuspectedDetections, fetchSuspectedDetections, fetchChannelsManagementConfig, updateChannelsManagementConfig, linkDetectedAccount, dismissDetection } from '../lib/api';
+  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, scanSuspectedDetections, fetchSuspectedDetections, fetchChannelsManagementConfig, updateChannelsManagementConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -17,6 +17,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import Skeleton from '../lib/components/Skeleton.svelte';
 
   // ── Tabs ──
   type Tab = 'links' | 'detections' | 'verification' | 'config';
@@ -46,6 +47,54 @@
     } finally {
       scanning = false;
     }
+  }
+
+  // ── Détection intelligente : opt-in logging des messages (télémétrie) ──
+  let messageLoggingEnabled = $state<boolean | null>(null);
+  let showLoggingModal = $state(false);
+  let loggingBusy = $state(false);
+
+  async function checkMessageLogging() {
+    if (!authStore.selectedGuildId) return;
+    try {
+      const stats = await fetchMessageLogStats(authStore.selectedGuildId);
+      messageLoggingEnabled = stats?.enabled ?? false;
+      // Propose l'activation une seule fois (par serveur) si c'est désactivé.
+      const dismissKey = `dc_logging_prompt_dismissed_${authStore.selectedGuildId}`;
+      if (!messageLoggingEnabled && !localStorage.getItem(dismissKey)) {
+        showLoggingModal = true;
+      }
+    } catch {
+      messageLoggingEnabled = null;
+    }
+  }
+
+  async function enableMessageLogging() {
+    if (!authStore.selectedGuildId) return;
+    loggingBusy = true;
+    try {
+      const res = await updateMessageLogConfig({ enabled: true }, authStore.selectedGuildId);
+      if (res?.enabled) {
+        messageLoggingEnabled = true;
+        showLoggingModal = false;
+        toast.success('Télémétrie activée — la détection intelligente (stylométrie, empreinte horaire…) est désormais pleinement opérationnelle.');
+      } else {
+        toast.error("Impossible d'activer le logging des messages.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Impossible d'activer le logging des messages.");
+    } finally {
+      loggingBusy = false;
+    }
+  }
+
+  function dismissLoggingModal() {
+    showLoggingModal = false;
+    try {
+      if (authStore.selectedGuildId) {
+        localStorage.setItem(`dc_logging_prompt_dismissed_${authStore.selectedGuildId}`, '1');
+      }
+    } catch { /* localStorage indisponible */ }
   }
 
   // ── Linked Accounts ──
@@ -115,12 +164,32 @@
   }
 
   async function handleDismissDetection(detection: DetectionItem) {
-    await saveAction.run(async () => {
+    const index = detections.findIndex(d => d.id === detection.id);
+    const done = await saveAction.run(async () => {
       const ok = await dismissDetection(detection.id);
       if (!ok) throw new Error('Erreur');
-      await loadDetections();
+      detections = detections.filter(d => d.id !== detection.id);
       return true;
-    }, { successMessage: 'Détection ignorée.' });
+    }, { successMessage: '' });
+    if (!done) return;
+
+    // Toast de confirmation avec possibilité d'annuler (durée allongée).
+    toast.success('Détection ignorée.', 10000, {
+      label: 'Annuler',
+      onClick: async () => {
+        const ok = await restoreDetection(detection.id);
+        if (!ok) {
+          toast.error("Impossible d'annuler l'action.");
+          return;
+        }
+        // Réinsère la détection à sa position d'origine si elle a disparu.
+        if (!detections.some(d => d.id === detection.id)) {
+          const at = Math.min(index < 0 ? detections.length : index, detections.length);
+          detections = [...detections.slice(0, at), detection, ...detections.slice(at)];
+        }
+        toast.info('Détection restaurée.');
+      },
+    });
   }
 
   async function loadDetections() {
@@ -258,6 +327,9 @@
     verificationSaveDevice: boolean;
     verificationLevelCommand: string;
     verificationLevelJoin: string;
+    verificationWarnThreshold: number | null;
+    verificationWarnAutoMode: string;
+    verificationWarnReason: string;
   } | null>(null);
   let deployingEmbed = $state(false);
 
@@ -280,6 +352,9 @@
           verificationSaveDevice: data.verificationSaveDevice ?? true,
           verificationLevelCommand: data.verificationLevelCommand ?? 'HIGH',
           verificationLevelJoin: data.verificationLevelJoin ?? 'HIGH',
+          verificationWarnThreshold: data.verificationWarnThreshold ?? null,
+          verificationWarnAutoMode: data.verificationWarnAutoMode ?? 'FULL_AUTO',
+          verificationWarnReason: data.verificationWarnReason ?? "Seuil d'avertissements atteint — vérification de sécurité requise.",
         };
       }
     } catch {}
@@ -310,7 +385,7 @@
   }
 
   onMount(() => {
-    loadData(); loadDetections(); loadConfig(); loadVerifConfig();
+    loadData(); loadDetections(); loadConfig(); loadVerifConfig(); checkMessageLogging();
   });
 </script>
 
@@ -490,13 +565,47 @@
           <Papicon icon="ShieldAlert" size={13} /> Rescanner
         {/if}
       </button>
+
+      <!-- Statut de la détection intelligente (télémétrie) -->
+      {#if messageLoggingEnabled === true}
+        <span class="flex items-center gap-1.5 text-xs font-bold text-emerald-500">
+          <Papicon icon="Sparkles" size={13} /> Détection intelligente active
+        </span>
+      {:else if messageLoggingEnabled === false}
+        <button onclick={() => showLoggingModal = true}
+          class="flex items-center gap-1.5 border border-primary/30 text-primary px-3 py-2 rounded-lg text-xs font-bold hover:bg-primary/10 transition-all">
+          <Papicon icon="Sparkles" size={13} /> Activer la détection avancée
+        </button>
+      {/if}
     </div>
 
     {#if loadingDetections}
-      <div class="flex flex-col items-center py-20 gap-3">
-        <div class="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent"></div>
-        <p class="text-xs text-on-surface-variant/50">Chargement...</p>
-        <LoadingHint context="data" />
+      <div class="space-y-3">
+        {#each Array.from({ length: 4 }) as _, i (i)}
+          <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+            <div class="flex items-start gap-3">
+              <Skeleton width="w-10" height="h-10" rounded="rounded-lg" class="shrink-0" />
+              <div class="min-w-0 flex-1 space-y-2">
+                <div class="flex items-center gap-1.5">
+                  <Skeleton width="w-32" height="h-4" />
+                  <Skeleton width="w-12" height="h-4" rounded="rounded" />
+                  <Skeleton width="w-14" height="h-4" rounded="rounded" />
+                </div>
+                <Skeleton width="w-48" height="h-3" />
+                <Skeleton width="w-24" height="h-3" />
+                <div class="flex items-center gap-1.5 pt-1">
+                  <Skeleton width="w-16" height="h-4" rounded="rounded" />
+                  <Skeleton width="w-20" height="h-4" rounded="rounded" />
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-3 pt-3 border-t border-outline-variant/5">
+              <Skeleton width="w-full" height="h-8" class="flex-1" />
+              <Skeleton width="w-full" height="h-8" class="flex-1" />
+              <Skeleton width="w-16" height="h-8" />
+            </div>
+          </div>
+        {/each}
       </div>
     {:else if detections.length === 0}
       <div class="flex flex-col items-center py-20 text-center rounded-lg border border-outline-variant/10 bg-surface-container-low/30">
@@ -723,6 +832,74 @@
             />
           </div>
 
+          <!-- Warn Threshold Auto-Verification -->
+          <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-4 space-y-4">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="h-7 w-7 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400 shrink-0">
+                <Papicon icon="AlertTriangle" size={15} />
+              </div>
+              <div>
+                <p class="font-bold text-on-surface text-sm">Vérification automatique sur seuil de warns</p>
+                <p class="text-xs text-on-surface-variant/50">Déclenche une vérification de sécurité quand un membre atteint un nombre configurable d'avertissements.</p>
+              </div>
+            </div>
+
+            <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+              <label class="space-y-1.5">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Seuil de warns</span>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    placeholder="Désactivé (0)"
+                    value={verifConfig.verificationWarnThreshold ?? ''}
+                    oninput={(e) => {
+                      const v = parseInt((e.target as HTMLInputElement).value);
+                      verifConfig!.verificationWarnThreshold = isNaN(v) || v <= 0 ? null : v;
+                    }}
+                    class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm"
+                  />
+                  {#if !verifConfig.verificationWarnThreshold}
+                    <span class="text-xs text-on-surface-variant/40 whitespace-nowrap">Désactivé</span>
+                  {/if}
+                </div>
+                <p class="text-[10px] text-on-surface-variant/40">Laisser vide ou 0 pour désactiver.</p>
+              </label>
+
+              <label class="space-y-1.5">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Mode de déclenchement</span>
+                <select bind:value={verifConfig.verificationWarnAutoMode} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" disabled={!verifConfig.verificationWarnThreshold}>
+                  <option value="FULL_AUTO">🤖 Full automatique (timeout + DM)</option>
+                  <option value="NOTIFY_STAFF">📣 Notifier le staff (bouton manuel)</option>
+                </select>
+              </label>
+            </div>
+
+            {#if verifConfig.verificationWarnThreshold}
+              <label class="space-y-1.5 block">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Raison affichée dans le DM / la notification</span>
+                <input
+                  type="text"
+                  maxlength="512"
+                  bind:value={verifConfig.verificationWarnReason}
+                  class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm"
+                />
+              </label>
+
+              <div class="flex items-start gap-2 p-3 rounded-lg bg-orange-500/5 border border-orange-500/15 text-xs text-orange-300">
+                <Papicon icon="Info" size={13} class_="shrink-0 mt-0.5" />
+                <span>
+                  {#if verifConfig.verificationWarnAutoMode === 'FULL_AUTO'}
+                    En mode <strong>Full automatique</strong>, le bot applique un timeout de 28 jours et envoie un DM de vérification dès que le membre atteint <strong>{verifConfig.verificationWarnThreshold} warn{verifConfig.verificationWarnThreshold > 1 ? 's' : ''}</strong>.
+                  {:else}
+                    En mode <strong>Notifier le staff</strong>, un message est posté dans le canal de log avec un bouton permettant de lancer manuellement la vérification.
+                  {/if}
+                </span>
+              </div>
+            {/if}
+          </div>
+
           <!-- Actions -->
           <div class="flex flex-wrap gap-2">
             <button onclick={saveVerifConfig}
@@ -882,7 +1059,7 @@
           <div>
             <h4 class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Détail des heuristiques</h4>
             <div class="space-y-1.5">
-              {#each det.evidence.reasons.sort((a, b) => b.score - a.score) as reason}
+              {#each [...det.evidence.reasons].sort((a, b) => b.score - a.score) as reason}
                 <div class="p-3 rounded-lg bg-surface-container-low/40 border border-outline-variant/5">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0 flex-1">
@@ -955,3 +1132,60 @@
     openMemberCase(newUserId, foundNode?.label || 'Membre');
   }}
 />
+
+<!-- Modal : activer le logging des messages (télémétrie pour la détection intelligente) -->
+{#if showLoggingModal}
+  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+    role="dialog" aria-modal="true" aria-labelledby="dc-logging-title"
+    onclick={(e) => { if (e.target === e.currentTarget) dismissLoggingModal(); }}
+    onkeydown={(e) => { if (e.key === 'Escape') dismissLoggingModal(); }}
+    tabindex="-1">
+    <div class="w-full max-w-md rounded-2xl border border-outline-variant/15 bg-surface-container shadow-2xl overflow-hidden">
+      <!-- En-tête -->
+      <div class="relative p-6 bg-gradient-to-br from-primary/15 to-transparent">
+        <div class="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center text-primary mb-3">
+          <Papicon icon="Sparkles" size={22} />
+        </div>
+        <h2 id="dc-logging-title" class="text-lg font-bold text-on-surface">Activer la détection intelligente&nbsp;?</h2>
+        <p class="text-xs text-on-surface-variant/60 mt-1">
+          Les signaux les plus puissants (stylométrie, empreinte horaire, cadence d'écriture…) analysent les messages.
+        </p>
+      </div>
+
+      <!-- Corps -->
+      <div class="px-6 pb-2 space-y-3">
+        <p class="text-sm text-on-surface-variant/80">
+          Pour détecter les doubles comptes même quand ils changent de pseudo et d'avatar, Kotbo peut analyser
+          la <strong>télémétrie</strong> des messages (le logging des messages). Sans elle, seuls les signaux
+          techniques (IP, appareil), réseau et temporels restent actifs.
+        </p>
+        <ul class="text-xs text-on-surface-variant/70 space-y-1.5">
+          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-emerald-500 shrink-0 mt-0.5" /> Style d'écriture &amp; tics de langage (robuste au changement de pseudo)</li>
+          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-emerald-500 shrink-0 mt-0.5" /> Empreinte horaire 7×24 &amp; activité mutuellement exclusive</li>
+          <li class="flex items-start gap-2"><Papicon icon="Check" size={13} class="text-emerald-500 shrink-0 mt-0.5" /> Réseau de mentions &amp; salons partagés</li>
+        </ul>
+        <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15 text-[11px] text-amber-300/90">
+          <Papicon icon="Info" size={13} class="shrink-0 mt-0.5" />
+          <span>Les messages sont conservés selon la durée de rétention configurée puis supprimés. Vous pouvez désactiver le logging à tout moment dans les réglages de journalisation.</span>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center justify-end gap-2 p-4">
+        <button onclick={dismissLoggingModal} disabled={loggingBusy}
+          class="px-4 py-2 rounded-lg text-xs font-bold text-on-surface-variant/70 hover:bg-surface-container-high/50 transition-all disabled:opacity-50">
+          Plus tard
+        </button>
+        <button onclick={enableMessageLogging} disabled={loggingBusy}
+          class="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-lg text-xs font-bold hover:opacity-90 transition-all disabled:opacity-50">
+          {#if loggingBusy}
+            <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+            Activation...
+          {:else}
+            <Papicon icon="Sparkles" size={13} /> Activer la télémétrie
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

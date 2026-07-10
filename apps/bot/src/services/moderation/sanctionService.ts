@@ -589,6 +589,24 @@ export async function registerWarnSanction(params: {
       reason: params.reason,
       evidenceLinks: params.evidenceLinks
     }).catch(() => null);
+
+    // Déclencher la vérification automatique si le seuil de warns est atteint.
+    // Centralisé ici pour couvrir tous les warns (commande, automod, tableaux…).
+    // Import dynamique : verificationWarnThresholdService importe countWarns d'ici (dép. circulaire).
+    void (async () => {
+      const client = params.client!;
+      const { checkAndTriggerVerificationThreshold } = await import('./verificationWarnThresholdService.js');
+      const targetUser = await client.users.fetch(params.target.id).catch(() => null);
+      if (!targetUser) return;
+      const guild = await client.guilds.fetch(params.guildId).catch(() => null);
+      const targetMember = guild ? await guild.members.fetch(params.target.id).catch(() => null) : null;
+      await checkAndTriggerVerificationThreshold({
+        client,
+        guildId: params.guildId,
+        targetUser,
+        targetMember,
+      });
+    })().catch(() => null);
   }
 
   return sanction;

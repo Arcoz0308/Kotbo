@@ -529,7 +529,9 @@ async function notifyStaffOfDuplicate(
 
   const method = evidence.method === 'oauth_mismatch'
     ? "L'utilisateur s'est authentifié avec un compte Discord différent de celui attendu."
-    : `Les deux comptes partagent la même adresse IP.`;
+    : evidence.method === 'device_match'
+      ? 'Les deux comptes partagent le même appareil ou navigateur.'
+      : 'Les deux comptes partagent la même adresse IP.';
 
   const embed = new EmbedBuilder()
     .setTitle(autoLinked ? '🔗 Double compte détecté et lié' : '⚠️ Double compte potentiel détecté')
@@ -584,7 +586,7 @@ async function notifyStaffOfDuplicate(
         guildId,
         m.userId,
         autoLinked ? '🔗 DC détecté et lié' : '⚠️ DC potentiel détecté',
-        `Double compte détecté : <@${userId1}> ↔ <@${userId2}> (${evidence.method === 'oauth_mismatch' ? 'OAuth mismatch' : 'même IP'}).`,
+        `Double compte détecté : <@${userId1}> ↔ <@${userId2}> (${evidence.method === 'oauth_mismatch' ? 'OAuth mismatch' : evidence.method === 'device_match' ? 'même appareil' : 'même IP'}).`,
         autoLinked ? 'SUCCESS' : 'WARNING',
         '/double-accounts',
         false,

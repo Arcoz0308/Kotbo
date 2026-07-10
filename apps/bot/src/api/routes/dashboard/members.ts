@@ -352,6 +352,26 @@ export async function handleMembersRoutes(
     return true;
   }
 
+  // POST /api/dashboard/guilds/:guildId/detections/:userId/restore - Restore a dismissed detection (undo)
+  if (parts.length === 7 && parts[4] === 'detections' && parts[6] === 'restore' && method === 'POST') {
+    try {
+      if (!access.canManageSettings && !featureAccess.double_accounts?.canModerate) {
+        json(res, 403, { error: 'Accès refusé.' });
+        return true;
+      }
+      const targetUserId = parts[5];
+      await prisma.memberProfile.updateMany({
+        where: { guildId, userId: targetUserId },
+        data: { isSuspectedDC: true },
+      });
+      json(res, 200, { success: true });
+    } catch (err) {
+      logger.error('MembersAPI', 'Error restoring detection:', err);
+      json(res, 500, { error: 'Erreur.' });
+    }
+    return true;
+  }
+
   // POST /api/dashboard/guilds/:guildId/detections/scan - Trigger a rescan of guild members for young accounts
   if (parts.length === 6 && parts[4] === 'detections' && parts[5] === 'scan' && method === 'POST') {
     try {

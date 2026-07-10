@@ -87,6 +87,7 @@ model MemberInvite {
 
   @@index([guildId, inviterId])
   @@index([guildId, joinedAt])
+  @@index([guildId, inviteCode])
   @@map("member_invites")
 }
 

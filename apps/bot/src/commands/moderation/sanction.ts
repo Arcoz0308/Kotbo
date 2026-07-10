@@ -458,6 +458,9 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
         sanctionId: sanction.id,
         targetLabel: targetUser.tag,
       });
+
+      // La vérification auto sur seuil de warns est déclenchée dans registerWarnSanction.
+
       return;
     }
 

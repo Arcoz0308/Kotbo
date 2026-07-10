@@ -490,6 +490,87 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Warn-Threshold Verification Trigger (NOTIFY_STAFF mode) ──────────
+  if (customId.startsWith('verif_threshold_trigger:')) {
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires pour lancer une vérification.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    const targetUserId = customId.split(':')[1];
+    if (!targetUserId) return;
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+    try {
+      const { checkAndTriggerVerificationThreshold } = await import('../services/moderation/verificationWarnThresholdService.js');
+      const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+      if (!targetUser) {
+        await interaction.editReply({ content: '❌ Impossible de trouver cet utilisateur.' });
+        return;
+      }
+      const targetMember = guildId ? await interaction.guild?.members.fetch(targetUserId).catch(() => null) ?? null : null;
+      // Force-trigger the full auto path regardless of mode so staff can manually initiate
+      const { createVerificationSession, buildVerificationUrl, buildVerificationEmbed } = await import('../services/moderation/securityVerificationService.js');
+      const { getDashboardUrl } = await import('../api/shared.js');
+      const { queueAuditLog } = await import('../utils/auditLogger.js');
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId! },
+        select: {
+          verificationEmbedTitle: true,
+          verificationEmbedDesc: true,
+          verificationEmbedColor: true,
+          verificationLevelCommand: true,
+          verificationWarnReason: true,
+        },
+      });
+      const dashboardUrl = getDashboardUrl();
+      const token = await createVerificationSession(guildId!, targetUserId, (guildConfig?.verificationLevelCommand as any) || 'HIGH');
+      const verifyUrl = buildVerificationUrl(dashboardUrl, guildId!, token);
+      const { embed, row } = buildVerificationEmbed(
+        interaction.guild?.name ?? 'Serveur',
+        guildConfig?.verificationEmbedTitle ?? 'Vérification de sécurité',
+        guildConfig?.verificationEmbedDesc ?? 'Vérifiez votre identité.',
+        guildConfig?.verificationEmbedColor ?? '#5865F2',
+        verifyUrl,
+      );
+      const reason = guildConfig?.verificationWarnReason ?? "Seuil d'avertissements atteint.";
+      embed.addFields({ name: '⚠️ Raison', value: reason });
+
+      // Timeout the member
+      const TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
+      let timeoutOk = false;
+      if (targetMember?.moderatable) {
+        await targetMember.timeout(TIMEOUT_MS, `Vérification forcée par ${user.tag} (seuil warns)`).then(() => { timeoutOk = true; }).catch(() => {});
+      }
+      let dmSent = false;
+      try {
+        await targetUser.send({ embeds: [embed], components: [row] });
+        dmSent = true;
+      } catch {}
+
+      queueAuditLog({
+        guildId: guildId!,
+        user: `${user.tag} (${user.id})`,
+        action: 'Vérification forcée via seuil warns (staff)',
+        context: `${targetUser.tag} (${targetUser.id})`,
+        module: 'Vérification',
+        eventType: 'Manuel',
+        details: `Lancée depuis le bouton de notification staff. Timeout: ${timeoutOk ? 'Oui' : 'Non'}. DM: ${dmSent ? 'Oui' : 'Non'}.`,
+      });
+
+      // Remove the button from the original message
+      await interaction.message?.edit({ components: [] }).catch(() => {});
+
+      await interaction.editReply({
+        content: `✅ Vérification lancée pour <@${targetUserId}>.\n${!timeoutOk ? '⚠️ Timeout non appliqué (permissions).' : ''}\n${!dmSent ? '⚠️ DM non envoyé (MP fermés).' : ''}`.trim(),
+      });
+    } catch (err) {
+      logger.error('InteractionHandler', 'Erreur verif_threshold_trigger:', err);
+      await interaction.editReply({ content: '❌ Une erreur est survenue.' });
+    }
+    return;
+  }
+
+
   // ── Double Account Buttons ───────────────────────────────────────────
   if (customId.startsWith('dc_')) {
     const member = await resolveGuildMemberByUserId(interaction, user.id);

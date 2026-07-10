@@ -59,8 +59,11 @@ async function logMessage(message: Message): Promise<void> {
   const authorName = message.member?.displayName || author.displayName || author.username;
 
   try {
-    await prisma.messageLog.create({
-      data: {
+    // createMany + skipDuplicates → INSERT ... ON CONFLICT DO NOTHING au niveau SQL.
+    // Un même message peut être vu deux fois (backfill du scraper qui croise l'event
+    // live, ou double emission) : on l'ignore silencieusement sans erreur Prisma.
+    await prisma.messageLog.createMany({
+      data: [{
         guildId: guild.id,
         channelId: channel.id,
         channelName,
@@ -74,14 +77,11 @@ async function logMessage(message: Message): Promise<void> {
         embedCount: message.embeds?.length ?? 0,
         hasAttachment: attachments.length > 0,
         createdAt: message.createdAt,
-      },
+      }],
+      skipDuplicates: true,
     });
   } catch (err) {
-    // Unique constraint (duplicate messageId) is benign — ignore it, surface the rest.
-    const code = (err as { code?: string })?.code;
-    if (code !== 'P2002') {
-      logger.error('MessageLogging', `Impossible d'enregistrer le message ${message.id} (${guild.id}):`, err);
-    }
+    logger.error('MessageLogging', `Impossible d'enregistrer le message ${message.id} (${guild.id}):`, err);
   }
 }
 

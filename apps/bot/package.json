@@ -15,8 +15,6 @@
     "test:coverage": "bun test --coverage src/tests",
     "coverage:gate": "bun run scripts/coverage-gate.ts",
     "test:watch": "bun test --watch src/tests",
-    "typecheck": "bun x tsgo -p tsconfig.json --noEmit",
-    "typecheck:tsc": "bun x tsc -p tsconfig.json --noEmit",
     "quality:gate": "bun run lint && bun run test:unit && bun run coverage:gate",
     "lint": "eslint src --ext .ts"
   },

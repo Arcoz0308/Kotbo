@@ -1,0 +1,79 @@
+// ============================================================================
+// DÉTECTION DE DOUBLE COMPTE — INTELLIGENCE AVANCÉE
+// ============================================================================
+// Modèles supportant l'algorithme intelligent de détection de double comptes :
+//  - DcVoiceSession    : timeline vocale (join/leave) pour détecter l'alternance
+//  - DcDetectionSample : dataset labellisé (boucle d'apprentissage)
+//  - DcSignalWeight    : poids appris par type de signal (recalibrage)
+
+/// Une session vocale individuelle (un passage dans un salon vocal).
+/// Permet de détecter l'alternance de présence entre deux comptes
+/// (deux alts ne sont jamais en vocal en même temps).
+model DcVoiceSession {
+  id String @id @default(cuid())
+
+  guildId   String
+  userId    String
+  channelId String
+
+  joinedAt DateTime
+  leftAt   DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, userId, joinedAt])
+  @@index([guildId, channelId, joinedAt])
+  @@map("dc_voice_sessions")
+}
+
+/// Échantillon labellisé pour la boucle d'apprentissage.
+/// Chaque détection enregistre son vecteur de features ; la décision staff
+/// (lier = vrai positif, faux positif) fournit le label pour recalibrer les poids.
+model DcDetectionSample {
+  id String @id @default(cuid())
+
+  guildId    String
+  userId     String
+  altUserId  String? // Le compte suspecté principal (paire analysée)
+
+  score      Int // Score final calculé au moment de la détection (0-100)
+  features   Json // Vecteur de features { signalType: score, ... } + métadonnées
+
+  /// null = en attente de décision staff, sinon TRUE_POSITIVE | FALSE_POSITIVE
+  label            String?
+  decidedByUserId  String?
+  decidedAt        DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, userId])
+  @@index([guildId, label])
+  @@index([guildId, createdAt])
+  @@map("dc_detection_samples")
+}
+
+/// Poids appris par type de signal (recalibrage à partir des échantillons labellisés).
+/// guildId null = poids global par défaut. Un poids par guilde surcharge le global.
+model DcSignalWeight {
+  id String @id @default(cuid())
+
+  guildId    String? // null = global
+  signalType String
+  weight     Float   @default(1.0)
+
+  /// Nombre d'échantillons ayant servi au calcul (confiance du poids)
+  sampleSize Int @default(0)
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, signalType])
+  @@index([signalType])
+  @@map("dc_signal_weights")
+}

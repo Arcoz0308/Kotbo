@@ -1771,6 +1771,9 @@ export async function handleModulesRoutes(
             verificationSaveDevice: true,
             verificationLevelCommand: true,
             verificationLevelJoin: true,
+            verificationWarnThreshold: true,
+            verificationWarnAutoMode: true,
+            verificationWarnReason: true,
           },
         });
         if (!guild) {
@@ -1807,6 +1810,9 @@ export async function handleModulesRoutes(
           verificationSaveDevice: guild.verificationSaveDevice,
           verificationLevelCommand: guild.verificationLevelCommand,
           verificationLevelJoin: guild.verificationLevelJoin,
+          verificationWarnThreshold: guild.verificationWarnThreshold,
+          verificationWarnAutoMode: guild.verificationWarnAutoMode,
+          verificationWarnReason: guild.verificationWarnReason,
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -1847,6 +1853,9 @@ export async function handleModulesRoutes(
           verificationSaveDevice?: boolean;
           verificationLevelCommand?: string;
           verificationLevelJoin?: string;
+          verificationWarnThreshold?: number | null;
+          verificationWarnAutoMode?: string;
+          verificationWarnReason?: string;
         }>(req);
 
         if (!body) {
@@ -1954,6 +1963,22 @@ export async function handleModulesRoutes(
           if (['LOW', 'MEDIUM', 'HIGH'].includes(body.verificationLevelJoin as string)) {
             data.verificationLevelJoin = body.verificationLevelJoin;
           }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationWarnThreshold')) {
+          // null or 0 = disabled, positive integer = threshold
+          if (body.verificationWarnThreshold === null || body.verificationWarnThreshold === 0) {
+            data.verificationWarnThreshold = null;
+          } else if (typeof body.verificationWarnThreshold === 'number' && body.verificationWarnThreshold > 0) {
+            data.verificationWarnThreshold = Math.floor(body.verificationWarnThreshold);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationWarnAutoMode')) {
+          if (['FULL_AUTO', 'NOTIFY_STAFF'].includes(body.verificationWarnAutoMode as string)) {
+            data.verificationWarnAutoMode = body.verificationWarnAutoMode;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationWarnReason')) {
+          data.verificationWarnReason = (body.verificationWarnReason || '').slice(0, 512);
         }
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);

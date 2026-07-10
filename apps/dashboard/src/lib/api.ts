@@ -1072,6 +1072,14 @@ export async function dismissDetection(userId: string, guildId = authStore.selec
   });
 }
 
+export async function restoreDetection(userId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/detections/${userId}/restore`, {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Restore Detection):'
+  });
+}
+
 export async function updateFeatureConfiguration(featureKey, config, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/notifications/features/${featureKey}`, {
     method: 'PATCH',

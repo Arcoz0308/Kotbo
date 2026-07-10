@@ -19,6 +19,7 @@ import {
 } from '../services/analytics/analyticsService.js';
 import { logStaffVoiceSession } from '../services/staff/staffLeadershipService.js';
 import { incrementQuestProgress } from '../services/community/questService.js';
+import { recordVoiceJoin, recordVoiceLeave } from '../services/moderation/dc/voiceTracking.js';
 import { logger } from '../utils/logger.js';
 
 const MODULE_NAME = 'analytics';
@@ -45,6 +46,8 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
       payload.channelName,
       new Date(payload.timestamp),
     );
+    // Timeline vocale pour la détection de double comptes (alternance de présence).
+    void recordVoiceJoin(payload.guildId, payload.userId, payload.channelId, new Date(payload.timestamp));
   }, MODULE_NAME);
 
   kotboEventBus.subscribe('voice:leave', async (payload) => {
@@ -54,6 +57,15 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
       payload.channelId,
       payload.channelName,
       payload.joinTimestamp ? new Date(payload.joinTimestamp) : new Date(),
+      new Date(payload.timestamp),
+    );
+
+    // Ferme la session vocale dans la timeline DC.
+    void recordVoiceLeave(
+      payload.guildId,
+      payload.userId,
+      payload.channelId,
+      payload.joinTimestamp ? new Date(payload.joinTimestamp) : new Date(payload.timestamp),
       new Date(payload.timestamp),
     );
 
@@ -83,6 +95,16 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
       payload.toChannelName,
       now,
     );
+
+    // Timeline DC : ferme l'ancien salon, ouvre le nouveau.
+    void recordVoiceLeave(
+      payload.guildId,
+      payload.userId,
+      payload.fromChannelId,
+      payload.joinTimestamp ? new Date(payload.joinTimestamp) : now,
+      now,
+    );
+    void recordVoiceJoin(payload.guildId, payload.userId, payload.toChannelId, now);
 
     if (payload.joinTimestamp) {
       const durationMs = Date.now() - payload.joinTimestamp;
