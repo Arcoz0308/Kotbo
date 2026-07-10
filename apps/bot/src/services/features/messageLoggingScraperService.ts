@@ -4,6 +4,17 @@ import { Client, ChannelType, TextChannel, Collection, Message } from 'discord.j
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+interface MessageLoggingStatus {
+  status?: string;
+  error?: string | null;
+  scrapedChannelsCount?: number;
+  totalChannelsCount?: number;
+  scrapedMessagesCount?: number;
+  currentChannelName?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
 function extractAttachments(message: Message) {
   return message.attachments.map((a) => ({
     name: a.name,
@@ -31,7 +42,7 @@ export async function startMessageLoggingBackfill(client: Client, guildId: strin
     return;
   }
 
-  const currentStatus = (guildDb.messageLoggingStatus as any)?.status || 'NOT_STARTED';
+  const currentStatus = (guildDb.messageLoggingStatus as MessageLoggingStatus | null)?.status || 'NOT_STARTED';
 
   if (currentStatus === 'IN_PROGRESS' && !force) {
     logger.info('MessageLoggingScraper', `Indexation déjà en cours pour la guilde ${guildId}.`);
@@ -115,7 +126,7 @@ async function runBackfillTask(client: Client, guildId: string, force = false): 
       totalChannelsCount: textChannels.length,
       scrapedMessagesCount: totalMessagesScraped,
       currentChannelName: '',
-      startedAt: (guildDb?.messageLoggingStatus as any)?.startedAt || new Date().toISOString(),
+      startedAt: (guildDb?.messageLoggingStatus as MessageLoggingStatus | null)?.startedAt || new Date().toISOString(),
     };
 
     for (const channel of textChannels) {
@@ -252,7 +263,7 @@ async function markBackfillFailed(guildId: string, errorMsg: string): Promise<vo
       select: { messageLoggingStatus: true },
     });
 
-    const statusObj = (guildDb?.messageLoggingStatus as any) || {};
+    const statusObj = { ...((guildDb?.messageLoggingStatus as MessageLoggingStatus | null) || {}) } as MessageLoggingStatus;
     statusObj.status = 'FAILED';
     statusObj.error = errorMsg;
     statusObj.completedAt = new Date().toISOString();

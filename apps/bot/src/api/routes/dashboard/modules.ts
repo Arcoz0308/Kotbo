@@ -5031,8 +5031,33 @@ export async function handleModulesRoutes(
         return true;
       }
 
+      interface TicketConfigInput {
+        ticketCategoryId?: string | null;
+        ticketLogChannelId?: string | null;
+        ticketStaffRoleId?: string | null;
+        ticketChannelId?: string | null;
+        ticketEmbedTitle?: string | null;
+        ticketEmbedDesc?: string | null;
+        ticketEmbedButtonText?: string | null;
+        ticketEmbedColor?: string | null;
+        ticketEmbedType?: string | null;
+        ticketMode?: string | null;
+        ticketDmRelayChannelId?: string | null;
+        ticketFormEnabled?: boolean | null;
+        ticketFormCustomFields?: Record<string, unknown> | unknown[] | null;
+        ticketEmbedThumbnail?: string | null;
+        ticketEmbedImage?: string | null;
+        ticketEmbedFooter?: string | null;
+        ticketEmbedAuthorName?: string | null;
+        ticketEmbedAuthorIcon?: string | null;
+        ticketWelcomeTitle?: string | null;
+        ticketWelcomeDesc?: string | null;
+        ticketWelcomeColor?: string | null;
+        ticketWelcomeThumbnail?: string | null;
+      }
+
       try {
-        const body = await readJsonBody<any>(req);
+        const body = (await readJsonBody<TicketConfigInput>(req)) ?? {};
         const updated = await prisma.guild.update({
           where: { id: guildId },
           data: {

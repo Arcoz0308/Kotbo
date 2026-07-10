@@ -405,8 +405,14 @@ client.once(Events.ClientReady, async (c) => {
       select: { id: true, statsConfig: true }
     });
 
+    interface MemberScrapeConfig {
+      memberScrapeStatus?: string;
+      memberScrapeError?: string;
+      memberScrapeProgress?: unknown;
+    }
+
     for (const g of activatedGuildsForMembers) {
-      let config = (g.statsConfig as any) || {};
+      let config = { ...((g.statsConfig as MemberScrapeConfig | null) || {}) } as MemberScrapeConfig;
 
       if (config.memberScrapeStatus === 'IN_PROGRESS') {
         logger.info('System', `Correction du scrap membres bloqué en IN_PROGRESS pour la guilde ${g.id}`);
