@@ -273,7 +273,7 @@
                 class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all text-on-surface"
               >
                 <option value={null}>Aucun (Pas d'annonce)</option>
-                {#each availableChannels.filter(c => c.type === 0 || c.type === 5) as c}
+                {#each availableChannels.filter(c => c.type === 'text' || c.type === 'announcement') as c}
                   <option value={c.id}>#{c.name}</option>
                 {/each}
               </select>

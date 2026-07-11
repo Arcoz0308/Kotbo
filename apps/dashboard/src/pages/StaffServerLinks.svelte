@@ -49,7 +49,7 @@
   const saveAction = createAsyncActionState();
 
   const channels = $derived(
-    dashboardStore.state.discordChannels?.filter((c: any) => c.type === 0) ?? []
+    dashboardStore.state.discordChannels?.filter((c: any) => c.type === 'text') ?? []
   );
   const roles = $derived(
     dashboardStore.state.discordRoles ?? []

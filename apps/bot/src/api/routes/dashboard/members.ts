@@ -234,7 +234,7 @@ export async function handleMembersRoutes(
         }
       }
 
-      const suspiciousMembers = await prisma.memberProfile.findMany({
+      const suspiciousMembersRaw = await prisma.memberProfile.findMany({
         where: { guildId, isSuspectedDC: true },
         orderBy: [{ lastSeenAt: 'desc' }, { guildJoinedAt: 'desc' }],
         take: 200,
@@ -243,6 +243,15 @@ export async function handleMembersRoutes(
           avatarUrl: true, isBot: true, accountCreatedAt: true, guildJoinedAt: true,
           guildLeftAt: true, lastSeenAt: true, messageCount: true, isSuspectedDC: true,
         },
+      });
+
+      // Garde-fou : évite les userId en double (ex. lignes member_profiles dupliquées en base)
+      // qui feraient planter le keyed #each côté dashboard (each_key_duplicate).
+      const seenUserIds = new Set<string>();
+      const suspiciousMembers = suspiciousMembersRaw.filter((member) => {
+        if (seenUserIds.has(member.userId)) return false;
+        seenUserIds.add(member.userId);
+        return true;
       });
 
       const detections = await Promise.all(suspiciousMembers.map(async (member) => {
