@@ -6,9 +6,129 @@ import {
   ButtonStyle,
   EmbedBuilder,
   type Client,
-  type User,
 } from 'discord.js';
 import { COLORS } from '../../utils/embeds.js';
+
+type SatisfactionPerson = {
+  userId: string;
+  username: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+type SatisfactionReview = {
+  rating: number;
+  staffId: string | null;
+  userId: string;
+  comment: string | null;
+  createdAt: Date;
+  ticketId: string;
+};
+
+type SatisfactionDistributionRow = {
+  rating: number;
+  _count: { rating: number };
+};
+
+type StaffSatisfactionRow = {
+  staffId: string | null;
+  _avg: { rating: number | null };
+  _count: { rating: number };
+};
+
+function bestDisplayName(profile: {
+  userId: string;
+  displayName?: string | null;
+  globalName?: string | null;
+  username?: string | null;
+  userTag?: string | null;
+}): string {
+  return profile.displayName || profile.globalName || profile.username || profile.userTag || `Utilisateur ${profile.userId}`;
+}
+
+async function resolveSatisfactionPeople(
+  guildId: string,
+  userIds: string[],
+  client?: Client,
+): Promise<Map<string, SatisfactionPerson>> {
+  const uniqueIds = [...new Set(userIds.filter(Boolean))];
+  const people = new Map<string, SatisfactionPerson>();
+  if (uniqueIds.length === 0) return people;
+
+  const [profiles, staffMembers] = await Promise.all([
+    prismaRead.memberProfile.findMany({
+      where: { guildId, userId: { in: uniqueIds } },
+      select: {
+        userId: true,
+        userTag: true,
+        username: true,
+        globalName: true,
+        displayName: true,
+        avatarUrl: true,
+      },
+    }),
+    prismaRead.staffMember.findMany({
+      where: { guildId, userId: { in: uniqueIds } },
+      select: {
+        userId: true,
+        userTag: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+      },
+    }),
+  ]);
+
+  for (const staff of staffMembers) {
+    people.set(staff.userId, {
+      userId: staff.userId,
+      username: staff.username ?? staff.userTag ?? null,
+      displayName: bestDisplayName(staff),
+      avatarUrl: staff.avatarUrl ?? null,
+    });
+  }
+
+  for (const profile of profiles) {
+    people.set(profile.userId, {
+      userId: profile.userId,
+      username: profile.username ?? profile.userTag ?? null,
+      displayName: bestDisplayName(profile),
+      avatarUrl: profile.avatarUrl ?? null,
+    });
+  }
+
+  if (client) {
+    const missingIds = uniqueIds.filter((userId) => !people.get(userId)?.avatarUrl || !people.get(userId)?.displayName);
+    await Promise.all(missingIds.map(async (userId) => {
+      const discordUser = await client.users.fetch(userId).catch(() => null);
+      if (!discordUser) return;
+      const existing = people.get(userId);
+      const discordDisplayName = discordUser.globalName ?? discordUser.username;
+      const existingDisplayName = existing?.displayName;
+      people.set(userId, {
+        userId,
+        username: existing?.username ?? discordUser.username,
+        displayName: existingDisplayName && !existingDisplayName.startsWith('Utilisateur ')
+          ? existingDisplayName
+          : discordDisplayName,
+        avatarUrl: existing?.avatarUrl ?? discordUser.displayAvatarURL(),
+      });
+    }));
+  }
+
+  for (const userId of uniqueIds) {
+    if (!people.has(userId)) {
+      people.set(userId, {
+        userId,
+        username: null,
+        displayName: `Utilisateur ${userId}`,
+        avatarUrl: null,
+      });
+    }
+  }
+
+  return people;
+}
 
 export async function sendSatisfactionSurvey(client: Client, guildId: string, ticketId: string, userId: string, staffId?: string): Promise<void> {
   try {
@@ -57,11 +177,11 @@ export async function recordSatisfaction(guildId: string, ticketId: string, user
   }
 }
 
-export async function getStaffSatisfactionStats(guildId: string, staffId?: string) {
+export async function getStaffSatisfactionStats(guildId: string, staffId?: string, client?: Client) {
   const where: any = { guildId };
   if (staffId) where.staffId = staffId;
 
-  const [stats, recent] = await Promise.all([
+  const [stats, recentRaw] = await Promise.all([
     prismaRead.ticketSatisfaction.aggregate({
       where,
       _avg: { rating: true },
@@ -74,25 +194,36 @@ export async function getStaffSatisfactionStats(guildId: string, staffId?: strin
       select: { rating: true, staffId: true, userId: true, comment: true, createdAt: true, ticketId: true },
     }),
   ]);
+  const recent = recentRaw as SatisfactionReview[];
 
   const distribution = await prismaRead.ticketSatisfaction.groupBy({
     by: ['rating'],
     where,
     _count: { rating: true },
     orderBy: { rating: 'asc' },
-  });
+  }) as SatisfactionDistributionRow[];
+
+  const people = await resolveSatisfactionPeople(
+    guildId,
+    recent.flatMap((review) => [review.userId, review.staffId].filter((id): id is string => Boolean(id))),
+    client,
+  );
 
   return {
     averageRating: stats._avg.rating ?? 0,
     totalResponses: stats._count.rating,
     distribution: distribution.map((d) => ({ rating: d.rating, count: d._count.rating })),
-    recent,
+    recent: recent.map((review) => ({
+      ...review,
+      user: people.get(review.userId) ?? null,
+      staff: review.staffId ? people.get(review.staffId) ?? null : null,
+    })),
   };
 }
 
-export async function getSatisfactionDashboardData(guildId: string) {
-  const [global, byStaff] = await Promise.all([
-    getStaffSatisfactionStats(guildId),
+export async function getSatisfactionDashboardData(guildId: string, client?: Client) {
+  const [global, byStaffRaw] = await Promise.all([
+    getStaffSatisfactionStats(guildId, undefined, client),
     prismaRead.ticketSatisfaction.groupBy({
       by: ['staffId'],
       where: { guildId, staffId: { not: null } },
@@ -101,11 +232,19 @@ export async function getSatisfactionDashboardData(guildId: string) {
       orderBy: { _avg: { rating: 'desc' } },
     }),
   ]);
+  const byStaff = byStaffRaw as StaffSatisfactionRow[];
+
+  const staffPeople = await resolveSatisfactionPeople(
+    guildId,
+    byStaff.map((s) => s.staffId).filter((staffId): staffId is string => Boolean(staffId)),
+    client,
+  );
 
   return {
     global,
     byStaff: byStaff.map((s) => ({
       staffId: s.staffId!,
+      staff: staffPeople.get(s.staffId!) ?? null,
       averageRating: s._avg.rating ?? 0,
       totalResponses: s._count.rating,
     })),
