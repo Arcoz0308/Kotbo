@@ -115,8 +115,37 @@
   let satisfactionLoading = $state(false);
   let satisfactionData: any = $state(null);
 
+  type SatisfactionPerson = {
+    userId: string;
+    username?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+  };
+
   const ratingEmojis = ['', '\u{1F621}', '\u{1F615}', '\u{1F610}', '\u{1F642}', '\u{1F929}'];
   const ratingLabels = ['', 'Tres insatisfait', 'Insatisfait', 'Neutre', 'Satisfait', 'Tres satisfait'];
+
+  function getSatisfactionPersonName(person: SatisfactionPerson | null | undefined, userId: string): string {
+    return person?.displayName || person?.username || `Utilisateur ${userId}`;
+  }
+
+  function getSatisfactionPersonHandle(person: SatisfactionPerson | null | undefined, userId: string): string {
+    return person?.username ? `@${person.username}` : `ID ${userId}`;
+  }
+
+  function getSatisfactionInitials(person: SatisfactionPerson | null | undefined, userId: string): string {
+    const name = getSatisfactionPersonName(person, userId).trim();
+    const initials = name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('');
+    return initials || userId.slice(0, 2);
+  }
+
+  function openSatisfactionMember(userId: string, person: SatisfactionPerson | null | undefined) {
+    openMemberCase(userId, getSatisfactionPersonName(person, userId));
+  }
 
   function getRatingColor(rating: number): string {
     if (rating >= 4.5) return 'var(--color-success, #22c55e)';
@@ -2057,13 +2086,23 @@
           {:else}
             <div class="sat-staff-list">
               {#each satisfactionData.byStaff as staff}
-                <div class="sat-staff-row">
-                  <span class="sat-staff-id">{staff.staffId}</span>
+                <button type="button" class="sat-staff-row sat-clickable-person" onclick={() => openSatisfactionMember(staff.staffId, staff.staff)}>
+                  <span class="sat-person-main">
+                    {#if staff.staff?.avatarUrl}
+                      <img src={staff.staff.avatarUrl} alt="" class="sat-person-avatar" />
+                    {:else}
+                      <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(staff.staff, staff.staffId)}</span>
+                    {/if}
+                    <span class="sat-person-text">
+                      <span class="sat-person-name">{getSatisfactionPersonName(staff.staff, staff.staffId)}</span>
+                      <span class="sat-person-handle">{getSatisfactionPersonHandle(staff.staff, staff.staffId)}</span>
+                    </span>
+                  </span>
                   <div class="sat-staff-rating" style="color: {getRatingColor(staff.averageRating)}">
                     {staff.averageRating.toFixed(1)}/5
                   </div>
                   <span class="sat-staff-count">({staff.totalResponses} avis)</span>
-                </div>
+                </button>
               {/each}
             </div>
           {/if}
@@ -2079,7 +2118,17 @@
               {#each satisfactionData.global.recent.slice(0, 15) as review}
                 <div class="sat-review-row">
                   <span class="sat-review-emoji">{ratingEmojis[review.rating]}</span>
-                  <span class="sat-review-user">{review.userId}</span>
+                  <button type="button" class="sat-review-user sat-clickable-person" onclick={() => openSatisfactionMember(review.userId, review.user)}>
+                    {#if review.user?.avatarUrl}
+                      <img src={review.user.avatarUrl} alt="" class="sat-person-avatar" />
+                    {:else}
+                      <span class="sat-person-avatar sat-avatar-fallback">{getSatisfactionInitials(review.user, review.userId)}</span>
+                    {/if}
+                    <span class="sat-person-text">
+                      <span class="sat-person-name">{getSatisfactionPersonName(review.user, review.userId)}</span>
+                      <span class="sat-person-handle">{getSatisfactionPersonHandle(review.user, review.userId)}</span>
+                    </span>
+                  </button>
                   {#if review.comment}
                     <span class="sat-review-comment">"{review.comment}"</span>
                   {/if}
@@ -2244,20 +2293,35 @@
   .sat-dist-count { text-align: right; font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
 
   .sat-staff-list { display: flex; flex-direction: column; gap: 0.5rem; }
-  .sat-staff-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; }
-  .sat-staff-id { flex: 1; font-family: monospace; font-size: 0.8rem; }
+  .sat-staff-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.55rem; border-radius: 8px; text-align: left; }
   .sat-staff-rating { font-weight: 600; }
   .sat-staff-count { font-size: 0.8rem; color: var(--color-text-muted, rgba(255,255,255,0.4)); }
 
   .sat-recent-card { grid-column: 1 / -1; }
   .sat-recent-list { display: flex; flex-direction: column; gap: 0.25rem; }
-  .sat-review-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 0.85rem; }
+  .sat-review-row { display: grid; grid-template-columns: 2rem minmax(180px, 260px) minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.45rem 0; font-size: 0.85rem; }
   .sat-review-emoji { font-size: 1.1rem; }
-  .sat-review-user { font-family: monospace; font-size: 0.8rem; }
+  .sat-review-user { min-width: 0; }
   .sat-review-comment { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-style: italic; flex: 1; }
   .sat-review-date { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.75rem; }
 
+  .sat-clickable-person { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 0; transition: background-color 160ms ease, color 160ms ease; }
+  .sat-clickable-person:hover { background: var(--color-surface-container-high, rgba(255,255,255,0.08)); }
+  .sat-clickable-person:focus-visible { outline: 2px solid var(--color-primary, #5865F2); outline-offset: 2px; }
+  .sat-person-main,
+  .sat-review-user { display: flex; align-items: center; gap: 0.65rem; }
+  .sat-person-main { flex: 1; min-width: 0; }
+  .sat-person-avatar { width: 2rem; height: 2rem; border-radius: 999px; object-fit: cover; flex: 0 0 auto; }
+  .sat-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--color-primary, #5865F2); color: white; font-size: 0.68rem; font-weight: 800; }
+  .sat-person-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+  .sat-person-name { color: var(--color-text, var(--color-on-surface, rgba(255,255,255,0.9))); font-size: 0.86rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sat-person-handle { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   .sat-empty { color: var(--color-text-muted, rgba(255,255,255,0.4)); font-style: italic; }
 
-  @media (max-width: 768px) { .sat-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .sat-grid { grid-template-columns: 1fr; }
+    .sat-review-row { grid-template-columns: 2rem minmax(0, 1fr) auto; }
+    .sat-review-comment { grid-column: 2 / -1; }
+  }
 </style>

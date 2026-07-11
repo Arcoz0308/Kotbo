@@ -20,7 +20,7 @@ export async function handleSatisfactionRoutes(
   // GET /api/dashboard/guilds/:guildId/satisfaction
   if (parts.length === 5 && method === 'GET') {
     try {
-      const data = await getSatisfactionDashboardData(guildId);
+      const data = await getSatisfactionDashboardData(guildId, client);
       json(res, 200, data);
     } catch (err) {
       logger.error('SatisfactionAPI', 'Error fetching satisfaction data:', err);
