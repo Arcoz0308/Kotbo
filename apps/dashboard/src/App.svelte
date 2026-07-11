@@ -65,6 +65,7 @@
   import PublicAppeal from "./pages/PublicAppeal.svelte";
   import BanAppeals from "./pages/BanAppeals.svelte";
   import Planning from "./pages/Planning.svelte";
+  import Meetings from "./pages/Meetings.svelte";
   import Inbox from "./pages/Inbox.svelte";
   import Tutoring from "./pages/Tutoring.svelte";
   import DoubleAccounts from "./pages/DoubleAccounts.svelte";
@@ -574,7 +575,7 @@
         <MessageSearch />
       </Route>
       <Route path="/meetings">
-        <div use:navigate={"/planning"}></div>
+        <Meetings />
       </Route>
       <Route path="/absences">
         <div use:navigate={"/planning"}></div>
@@ -824,7 +825,7 @@
               <MessageSearch />
             </Route>
             <Route path="/meetings">
-              <div use:navigate={"/planning"}></div>
+              <Meetings />
             </Route>
             <Route path="/absences">
               <div use:navigate={"/planning"}></div>

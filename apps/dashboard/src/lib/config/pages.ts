@@ -75,6 +75,7 @@ export const staffItems: PageConfig[] = [
   { name: "Tickets & Satisfaction", icon: "message-square",href: "/tickets",          featureKey: "tickets", beta: false, wip: false },
   { name: "Évaluations Staff",   icon: "award",         href: "/evaluations",      featureKey: "staff_directory", beta: true, wip: false },
   { name: "Tutorat",             icon: "book-open",     href: "/tutoring",         featureKey: "tutoring", beta: false, wip: false },
+  { name: "Réunions",            icon: "users",         href: "/meetings",         featureKey: "meetings", beta: false, wip: false },
   { name: "Planning",            icon: "calendar",      href: "/planning",         featureKey: "absences", beta: false, wip: false },
   { name: "Sondages",            icon: "bar-chart",     href: "/staff-management/polls",    featureKey: "polls", beta: false, wip: false },
   { name: "Discipline",          icon: "alert-circle",  href: "/staff-management/warnings", featureKey: "discipline", beta: false, wip: false },
