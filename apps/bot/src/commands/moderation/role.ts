@@ -1,6 +1,7 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
+import { roleGrantsAdministrator } from '../../services/moderation/adminLockService.js';
 
 const MAX_MENTIONS = 20;
 
@@ -96,6 +97,49 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   }
 
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+  // Admin Permission Lock — un octroi de rôle donnant ADMINISTRATOR peut être
+  // bloqué et transformé en demande d'approbation (owner / rôles sécurité).
+  if (subcommand === 'add' && roleGrantsAdministrator(guildRole.permissions.bitfield)) {
+    const { guardAdminGrant } = await import('../../services/moderation/adminLockService.js');
+
+    const pendingUserIds: string[] = [];
+    const nonBlockedUserIds: string[] = [];
+    for (const userId of userIds) {
+      const result = await guardAdminGrant({
+        client: interaction.client,
+        guild,
+        actorId: interaction.user.id,
+        requestedByTag: interaction.user.tag,
+        requestedVia: 'SLASH_COMMAND',
+        type: 'MEMBER_ROLE_GRANT',
+        permissionBits: guildRole.permissions.bitfield,
+        targetRoleId: guildRole.id,
+        targetRoleName: guildRole.name,
+        targetMemberId: userId,
+      });
+      if (result.blocked) pendingUserIds.push(userId);
+      else nonBlockedUserIds.push(userId);
+    }
+
+    if (pendingUserIds.length > 0) {
+      const lines = ['🔒 Ce rôle donne la permission **ADMINISTRATOR**.'];
+      lines.push(
+        `**${pendingUserIds.length}** demande(s) d'approbation envoyée(s) au propriétaire du serveur / rôles sécurité pour : ${pendingUserIds.map((id) => `<@${id}>`).join(', ')}.`,
+      );
+      if (nonBlockedUserIds.length > 0) {
+        for (const userId of nonBlockedUserIds) {
+          await guild.members.fetch(userId).then((m) => m.roles.add(guildRole)).catch(() => null);
+        }
+        lines.push(
+          `**${nonBlockedUserIds.length}** attribution(s) appliquée(s) directement (vous êtes propriétaire du serveur ou rôle sécurité) : ${nonBlockedUserIds.map((id) => `<@${id}>`).join(', ')}.`,
+        );
+      }
+      await interaction.editReply({ embeds: [successEmbed("Demande(s) envoyée(s)", lines.join('\n\n'))] });
+      return;
+    }
+    // Personne bloqué (acteur owner/bypass, ou fonctionnalité désactivée) → flux normal ci-dessous.
+  }
 
   const succeeded: string[] = [];
   const failed: string[] = [];

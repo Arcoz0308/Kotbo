@@ -53,6 +53,7 @@ import {
   generateAllStaffEvaluations,
   updateEvaluationNote,
 } from '../../services/staff/staffEvaluationService.js';
+import { guardAdminGrant, roleGrantsAdministrator } from '../../services/moderation/adminLockService.js';
 import {
   getChannelHealthDashboardData,
   analyzeGuildChannelHealth,
@@ -3532,6 +3533,30 @@ export function registerMcpTools(
           return err(`${resolved.label} a déjà le rôle ${discordRole.name}`);
         }
 
+        if (roleGrantsAdministrator(discordRole.permissions.bitfield)) {
+          const guardResult = await guardAdminGrant({
+            client,
+            guild,
+            actorId: null,
+            requestedVia: 'MCP',
+            type: 'MEMBER_ROLE_GRANT',
+            permissionBits: discordRole.permissions.bitfield,
+            targetRoleId: discordRole.id,
+            targetRoleName: discordRole.name,
+            targetMemberId: resolved.userId,
+            requestReason: `via MCP (clé: ${key_name ?? 'agent'})`,
+          });
+          if (guardResult.blocked) {
+            await audit(key_name, 'Ajout rôle MCP — bloqué (Admin Lock)', `Membre: ${resolved.label}`, `Rôle: ${discordRole.name} — demande ${guardResult.requestId}`);
+            return ok({
+              ok: true,
+              pendingApproval: true,
+              requestId: guardResult.requestId,
+              message: "Ce rôle donne ADMINISTRATOR : une demande d'approbation a été envoyée au propriétaire du serveur / rôles sécurité.",
+            });
+          }
+        }
+
         await target.roles.add(discordRole).catch((e) => {
           throw new Error(`Impossible d'ajouter le rôle : ${e instanceof Error ? e.message : String(e)}`);
         });
@@ -5883,13 +5908,53 @@ export function registerMcpTools(
 
         try {
           if (action === 'add') {
-            await discordMember.roles.add(resolvedRoles);
+            if (!guild) return err('Serveur Discord introuvable');
+
+            const allowedRoles: typeof resolvedRoles = [];
+            const pendingRequestIds: string[] = [];
+            for (const role of resolvedRoles) {
+              if (roleGrantsAdministrator(role.permissions.bitfield)) {
+                const guardResult = await guardAdminGrant({
+                  client,
+                  guild,
+                  actorId: null,
+                  requestedVia: 'MCP',
+                  type: 'MEMBER_ROLE_GRANT',
+                  permissionBits: role.permissions.bitfield,
+                  targetRoleId: role.id,
+                  targetRoleName: role.name,
+                  targetMemberId: resolved.userId,
+                  requestReason: `via MCP (clé: ${key_name ?? 'agent'})`,
+                });
+                if (guardResult.blocked) {
+                  pendingRequestIds.push(guardResult.requestId);
+                  continue;
+                }
+              }
+              allowedRoles.push(role);
+            }
+
+            if (allowedRoles.length > 0) await discordMember.roles.add(allowedRoles);
+
+            await audit(
+              key_name,
+              'Ajout rôles MCP',
+              resolved.label,
+              `Rôles ajoutés: ${allowedRoles.map(r => r.name).join(', ') || '(aucun)'}${pendingRequestIds.length > 0 ? ` | En attente d'approbation (Admin Lock): ${pendingRequestIds.length}` : ''}`
+            );
+            return ok({
+              ok: true,
+              userId: resolved.userId,
+              roles: allowedRoles.map(r => ({ id: r.id, name: r.name })),
+              ...(pendingRequestIds.length > 0
+                ? { pendingApproval: { requestIds: pendingRequestIds, count: pendingRequestIds.length, message: "Certains rôles donnent ADMINISTRATOR : des demandes d'approbation ont été envoyées." } }
+                : {}),
+            });
           } else {
             await discordMember.roles.remove(resolvedRoles);
+            await audit(key_name, 'Retrait rôles MCP', resolved.label, `Rôles modifiés: ${resolvedRoles.map(r => r.name).join(', ')}`);
+            return ok({ ok: true, userId: resolved.userId, roles: resolvedRoles.map(r => ({ id: r.id, name: r.name })) });
           }
-
-          await audit(key_name, `${action === 'add' ? 'Ajout' : 'Retrait'} rôles MCP`, resolved.label, `Rôles modifiés: ${resolvedRoles.map(r => r.name).join(', ')}`);
-          return ok({ ok: true, userId: resolved.userId, roles: resolvedRoles.map(r => ({ id: r.id, name: r.name })) });
         } catch (e) {
           return err(`Erreur lors de l'assignation de rôles : ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -6595,6 +6660,35 @@ export function registerMcpTools(
             }
           }
 
+          if (permBits !== undefined && roleGrantsAdministrator(permBits)) {
+            const guardResult = await guardAdminGrant({
+              client,
+              guild,
+              actorId: null,
+              requestedVia: 'MCP',
+              type: 'ROLE_CREATE',
+              permissionBits: permBits,
+              targetRoleName: name,
+              pendingRoleCreatePayload: {
+                name,
+                color: color || undefined,
+                hoist: hoist ?? false,
+                mentionable: mentionable ?? false,
+                reason: reason || 'Créé via MCP (approuvé)',
+              },
+              requestReason: `via MCP (clé: ${key_name ?? 'agent'})`,
+            });
+            if (guardResult.blocked) {
+              await audit(key_name, 'Création rôle MCP — bloquée (Admin Lock)', name, `Demande ${guardResult.requestId}`);
+              return ok({
+                ok: true,
+                pendingApproval: true,
+                requestId: guardResult.requestId,
+                message: "Ce rôle inclut ADMINISTRATOR : une demande d'approbation a été envoyée, le rôle ne sera créé qu'après validation.",
+              });
+            }
+          }
+
           const role = await guild.roles.create({
             name,
             color: color || undefined,
@@ -7047,6 +7141,29 @@ export function registerMcpTools(
             const bit = (PermissionFlagsBits as any)[p];
             if (bit === undefined) return err(`Permission inconnue : « ${p} »`);
             bits &= ~bit;
+          }
+
+          if (roleGrantsAdministrator(bits) && !roleGrantsAdministrator(discordRole.permissions.bitfield)) {
+            const guardResult = await guardAdminGrant({
+              client,
+              guild,
+              actorId: null,
+              requestedVia: 'MCP',
+              type: 'ROLE_PERMISSION_EDIT',
+              permissionBits: bits,
+              targetRoleId: discordRole.id,
+              targetRoleName: discordRole.name,
+              requestReason: `via MCP (clé: ${key_name ?? 'agent'})`,
+            });
+            if (guardResult.blocked) {
+              await audit(key_name, 'Permissions rôle MCP — bloquées (Admin Lock)', discordRole.name, `Demande ${guardResult.requestId}`);
+              return ok({
+                ok: true,
+                pendingApproval: true,
+                requestId: guardResult.requestId,
+                message: "Cette modification accorderait ADMINISTRATOR : une demande d'approbation a été envoyée.",
+              });
+            }
           }
 
           await discordRole.setPermissions(bits, reason || 'Permissions modifiées via MCP');

@@ -15,6 +15,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS, truncate } from '../../utils/embeds.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
+import { resolveTextMentions } from '../../utils/mentions.js';
 
 export type EventQuizConfig = {
   themeColor?: string;
@@ -97,7 +98,7 @@ export async function publishEvent(client: Client, eventId: string) {
   if (event.type === 'CTF') {
     const embed = new EmbedBuilder()
       .setTitle(resolveEmojiShortcodes(`🚩 Capture The Flag : ${event.title}`))
-      .setDescription(resolveEmojiShortcodes(event.description || 'Le CTF a commencé ! Trouvez les flags et soumettez-les.'))
+      .setDescription(resolveEmojiShortcodes(resolveTextMentions(channel.guild, event.description) || 'Le CTF a commencé ! Trouvez les flags et soumettez-les.'))
       .setColor(COLORS.info)
       .setTimestamp();
 
@@ -117,7 +118,7 @@ export async function publishEvent(client: Client, eventId: string) {
       .setStyle(ButtonStyle.Success);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(submitBtn, progressBtn, lbBtn);
-    const message = await channel.send({ embeds: [embed], components: [row] });
+    const message = await channel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
 
     return prisma.event.update({
       where: { id: eventId },
@@ -130,12 +131,12 @@ export async function publishEvent(client: Client, eventId: string) {
 
   const embed = new EmbedBuilder()
     .setTitle(resolveEmojiShortcodes(`🎉 Événement : ${event.title}`))
-    .setDescription(resolveEmojiShortcodes(event.description || 'Un nouvel événement commence ! Préparez-vous.'))
+    .setDescription(resolveEmojiShortcodes(resolveTextMentions(channel.guild, event.description) || 'Un nouvel événement commence ! Préparez-vous.'))
     .setColor(COLORS.info)
     .addFields({ name: 'Statut', value: 'âŒ› En attente du lancement...', inline: true })
     .setTimestamp();
 
-  const message = await channel.send({ embeds: [embed] });
+  const message = await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
 
   return prisma.event.update({
     where: { id: eventId },
@@ -1175,7 +1176,7 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
       .setColor(COLORS.info)
       .setTimestamp();
 
-    if (event.description) embed.setDescription(resolveEmojiShortcodes(event.description));
+    if (event.description) embed.setDescription(resolveEmojiShortcodes(resolveTextMentions((channel as TextChannel).guild, event.description)));
 
     if (event.triggerValue) {
       const date = new Date(event.triggerValue);
@@ -1211,7 +1212,7 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
       } catch { /* ignored */ }
     }
 
-    const message = await (channel as TextChannel).send({ embeds: [embed], components: [row] });
+    const message = await (channel as TextChannel).send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
     announcementMessageId = message.id;
   }
 

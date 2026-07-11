@@ -73,6 +73,19 @@ model AutoModConfig {
   bypassRoles          String[] @default([])
   bypassChannels       String[] @default([])
 
+  // Admin Permission Lock — empêche l'octroi non autorisé de la permission ADMINISTRATOR
+  adminLockEnabled         Boolean  @default(false)
+  adminLockAction          String   @default("BLOCK") // voie bot-mediated ; la voie native est toujours auto-revert
+  adminLockSecurityRoleIds String[] @default([]) // rôles "sécurité" habilités à approuver/rejeter, en plus du owner
+  adminLockNotifyChannelId String? // salon staff/log dédié (fallback: logChannelId)
+
+  // Admin Permission Lock — sous-fonctionnalité : suspension auto en cas d'activité destructrice en rafale
+  burstSuspendEnabled       Boolean @default(false)
+  burstSuspendFastLimit     Int     @default(5)
+  burstSuspendFastWindowSec Int     @default(1)
+  burstSuspendSlowLimit     Int     @default(10)
+  burstSuspendSlowWindowSec Int     @default(60)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("automod_configs")

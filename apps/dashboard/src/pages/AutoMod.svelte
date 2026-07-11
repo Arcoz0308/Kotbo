@@ -75,6 +75,17 @@
     antiBotAction: 'KICK',
     antiBotBypassUsers: [] as string[],
 
+    adminLockEnabled: false,
+    adminLockAction: 'BLOCK',
+    adminLockSecurityRoleIds: [] as string[],
+    adminLockNotifyChannelId: null as string | null,
+
+    burstSuspendEnabled: false,
+    burstSuspendFastLimit: 5,
+    burstSuspendFastWindowSec: 1,
+    burstSuspendSlowLimit: 10,
+    burstSuspendSlowWindowSec: 60,
+
     bypassRoles: [] as string[],
     bypassChannels: [] as string[]
   });
@@ -93,6 +104,8 @@
     profanityEnabled: false, profanityPresetProfanity: true, profanityPresetSexual: true, profanityPresetSlurs: true, profanityAction: 'BLOCK', profanityAllowList: [], profanityTimeoutSec: 60,
     inviteFilterEnabled: false, inviteFilterAction: 'BLOCK', inviteFilterAllowedGuilds: [], inviteFilterTimeoutSec: 60,
     antiBotEnabled: false, antiBotAction: 'KICK', antiBotBypassUsers: [],
+    adminLockEnabled: false, adminLockAction: 'BLOCK', adminLockSecurityRoleIds: [], adminLockNotifyChannelId: null,
+    burstSuspendEnabled: false, burstSuspendFastLimit: 5, burstSuspendFastWindowSec: 1, burstSuspendSlowLimit: 10, burstSuspendSlowWindowSec: 60,
     bypassRoles: [], bypassChannels: []
   })));
 
@@ -133,6 +146,7 @@
   let selectedBypassRole = $state('');
   let selectedBypassChannel = $state('');
   let antiBotBypassInput = $state('');
+  let selectedAdminLockSecurityRole = $state('');
 
   onMount(async () => {
     loading = true;
@@ -232,6 +246,18 @@
 
   function removeAntiBotBypassUser(userId: string) {
     config.antiBotBypassUsers = config.antiBotBypassUsers.filter(id => id !== userId);
+  }
+
+  function addAdminLockSecurityRole() {
+    if (!selectedAdminLockSecurityRole) return;
+    if (!config.adminLockSecurityRoleIds.includes(selectedAdminLockSecurityRole)) {
+      config.adminLockSecurityRoleIds = [...config.adminLockSecurityRoleIds, selectedAdminLockSecurityRole];
+    }
+    selectedAdminLockSecurityRole = '';
+  }
+
+  function removeAdminLockSecurityRole(roleId: string) {
+    config.adminLockSecurityRoleIds = config.adminLockSecurityRoleIds.filter(id => id !== roleId);
   }
 </script>
 
@@ -867,6 +893,153 @@
               <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <p class="text-xs text-amber-400/90 font-medium">
                   Le bot Kotbo ne sera jamais affecté par cette protection. La personne ayant ajouté le bot recevra un message privé pour l'informer du blocage.
+                </p>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- Admin Permission Lock -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
+              <Papicon icon="lock" size={20} class="text-rose-400" />
+              Admin Permission Lock
+            </h3>
+            <ToggleSwitch
+              checked={config.adminLockEnabled}
+              onToggle={(v: boolean) => config.adminLockEnabled = v}
+              disabled={!isOwner}
+            />
+          </div>
+
+          {#if !isOwner}
+            <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p class="text-xs text-red-400/90 font-medium">
+                Seul le propriétaire du serveur peut activer, désactiver ou configurer Admin Permission Lock.
+              </p>
+            </div>
+          {/if}
+
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            Empêche l'octroi non autorisé de la permission <strong>ADMINISTRATOR</strong> (attribution d'un rôle admin, activation
+            de la permission sur un rôle, création d'un rôle avec cette permission). Les actions passant par le bot sont
+            bloquées et transformées en demande d'approbation. Les modifications faites directement dans Discord sont
+            détectées via l'audit log puis annulées automatiquement.
+          </p>
+
+          {#if config.adminLockEnabled}
+            <div class="space-y-5 animate-in fade-in duration-300">
+              <a href="/admin-lock" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors">
+                <Papicon icon="inbox" size={14} /> Voir les demandes en attente
+              </a>
+
+              <!-- Rôles sécurité -->
+              <div class="space-y-3 pt-2 border-t border-outline-variant/10">
+                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôles « sécurité » (approbateurs)</span>
+                <p class="text-xs text-on-surface-variant/50 ml-2">En plus du propriétaire du serveur, les membres de ces rôles peuvent approuver ou rejeter les demandes.</p>
+                {#if isOwner}
+                  <div class="flex gap-2">
+                    <div class="flex-1">
+                      <SearchableSelect
+                        id="adminLockSecurityRoleSelect"
+                        bind:value={selectedAdminLockSecurityRole}
+                        options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
+                        placeholder="Ajouter un rôle sécurité"
+                        className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onclick={addAdminLockSecurityRole}
+                      disabled={!selectedAdminLockSecurityRole}
+                      class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                {/if}
+
+                <div class="flex flex-wrap gap-2">
+                  {#each config.adminLockSecurityRoleIds as roleId}
+                    <div class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-xl text-xs font-bold">
+                      <span>{getRoleName(roleId)}</span>
+                      {#if isOwner}
+                        <button type="button" onclick={() => removeAdminLockSecurityRole(roleId)} class="text-error hover:text-error/80 transition-colors ml-1 text-sm font-bold leading-none">&times;</button>
+                      {/if}
+                    </div>
+                  {:else}
+                    <span class="text-xs text-on-surface-variant/40 italic ml-2">Aucun rôle sécurité (seul le propriétaire peut approuver).</span>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Salon de notification -->
+              <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
+                <label for="adminLockNotifyChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de notification</label>
+                <p class="text-xs text-on-surface-variant/50 ml-2 mb-1">Reçoit les demandes d'approbation et les alertes de blocage/annulation automatique. Par défaut : salon de logs.</p>
+                <select
+                  id="adminLockNotifyChannel"
+                  bind:value={config.adminLockNotifyChannelId}
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  disabled={!isOwner}
+                >
+                  <option value={null}>— Salon de logs par défaut —</option>
+                  {#each availableChannels as c}
+                    <option value={c.id}># {channelDisplayName(c)}</option>
+                  {/each}
+                </select>
+              </div>
+
+              <!-- Anti-rafale -->
+              <div class="space-y-4 pt-2 border-t border-outline-variant/10">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Suspension automatique (anti-rafale)</span>
+                    <p class="text-xs text-on-surface-variant/50 ml-2 mt-1">
+                      Si un membre effectue un grand nombre d'actions destructrices en peu de temps (suppressions de salons, bans/kicks, modifications de rôles, création de webhooks/invitations),
+                      ses rôles donnant ADMINISTRATOR sont retirés automatiquement (sans expulsion) et le propriétaire est alerté.
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    checked={config.burstSuspendEnabled}
+                    onToggle={(v: boolean) => config.burstSuspendEnabled = v}
+                    disabled={!isOwner}
+                  />
+                </div>
+
+                {#if config.burstSuspendEnabled}
+                  <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
+                    <div class="space-y-1.5">
+                      <label for="burstFastLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil rapide</label>
+                      <div class="flex items-center gap-2">
+                        <input id="burstFastLimit" type="number" min="1" max="100" bind:value={config.burstSuspendFastLimit} disabled={!isOwner}
+                          class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
+                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">actions /</span>
+                        <input type="number" min="1" max="3600" bind:value={config.burstSuspendFastWindowSec} disabled={!isOwner}
+                          class="w-20 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
+                        <span class="text-xs text-on-surface-variant/50">s</span>
+                      </div>
+                    </div>
+                    <div class="space-y-1.5">
+                      <label for="burstSlowLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil lent</label>
+                      <div class="flex items-center gap-2">
+                        <input id="burstSlowLimit" type="number" min="1" max="500" bind:value={config.burstSuspendSlowLimit} disabled={!isOwner}
+                          class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
+                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">actions /</span>
+                        <input type="number" min="1" max="3600" bind:value={config.burstSuspendSlowWindowSec} disabled={!isOwner}
+                          class="w-20 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
+                        <span class="text-xs text-on-surface-variant/50">s</span>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+
+              <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <p class="text-xs text-amber-400/90 font-medium">
+                  Fonctionnalité désactivée par défaut. Vérifiez que le rôle du bot est positionné au-dessus des rôles admin
+                  à surveiller avant d'activer, sinon les annulations automatiques peuvent échouer.
                 </p>
               </div>
             </div>

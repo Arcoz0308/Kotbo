@@ -1118,6 +1118,15 @@ export async function handleGeneralistModulesRoutes(
           antiBotBypassUsers?: string[];
           bypassRoles?: string[];
           bypassChannels?: string[];
+          adminLockEnabled?: boolean;
+          adminLockAction?: string;
+          adminLockSecurityRoleIds?: string[];
+          adminLockNotifyChannelId?: string | null;
+          burstSuspendEnabled?: boolean;
+          burstSuspendFastLimit?: number;
+          burstSuspendFastWindowSec?: number;
+          burstSuspendSlowLimit?: number;
+          burstSuspendSlowWindowSec?: number;
         }>(req);
 
         if (!body) {
@@ -1125,8 +1134,19 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        // Seul le propriétaire du serveur peut modifier les paramètres anti-bot
+        // Seul le propriétaire du serveur peut modifier les paramètres anti-bot et admin-lock
         const antiBotFieldsProvided = body.antiBotEnabled !== undefined || body.antiBotAction !== undefined || body.antiBotBypassUsers !== undefined;
+        const adminLockFieldsProvided =
+          body.adminLockEnabled !== undefined ||
+          body.adminLockAction !== undefined ||
+          body.adminLockSecurityRoleIds !== undefined ||
+          body.adminLockNotifyChannelId !== undefined ||
+          body.burstSuspendEnabled !== undefined ||
+          body.burstSuspendFastLimit !== undefined ||
+          body.burstSuspendFastWindowSec !== undefined ||
+          body.burstSuspendSlowLimit !== undefined ||
+          body.burstSuspendSlowWindowSec !== undefined;
+
         if (antiBotFieldsProvided) {
           const existingConfig = await prisma.autoModConfig.findUnique({
             where: { guildId },
@@ -1144,6 +1164,14 @@ export async function handleGeneralistModulesRoutes(
               json(res, 403, { error: 'Seul le propriétaire du serveur peut modifier les paramètres du mode sécurisé (Anti-Bot).' });
               return true;
             }
+          }
+        }
+
+        if (adminLockFieldsProvided) {
+          const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+          if (!guild || guild.ownerId !== user.userId) {
+            json(res, 403, { error: "Seul le propriétaire du serveur peut modifier les paramètres d'Admin Permission Lock." });
+            return true;
           }
         }
 
@@ -1188,6 +1216,15 @@ export async function handleGeneralistModulesRoutes(
           antiBotBypassUsers: body.antiBotBypassUsers,
           bypassRoles: body.bypassRoles,
           bypassChannels: body.bypassChannels,
+          adminLockEnabled: body.adminLockEnabled,
+          adminLockAction: body.adminLockAction,
+          adminLockSecurityRoleIds: body.adminLockSecurityRoleIds,
+          adminLockNotifyChannelId: body.adminLockNotifyChannelId,
+          burstSuspendEnabled: body.burstSuspendEnabled,
+          burstSuspendFastLimit: body.burstSuspendFastLimit,
+          burstSuspendFastWindowSec: body.burstSuspendFastWindowSec,
+          burstSuspendSlowLimit: body.burstSuspendSlowLimit,
+          burstSuspendSlowWindowSec: body.burstSuspendSlowWindowSec,
         };
 
         const config = await prisma.autoModConfig.upsert({
@@ -1235,6 +1272,15 @@ export async function handleGeneralistModulesRoutes(
             antiBotBypassUsers: body.antiBotBypassUsers ?? [],
             bypassRoles: body.bypassRoles ?? [],
             bypassChannels: body.bypassChannels ?? [],
+            adminLockEnabled: body.adminLockEnabled ?? false,
+            adminLockAction: body.adminLockAction ?? 'BLOCK',
+            adminLockSecurityRoleIds: body.adminLockSecurityRoleIds ?? [],
+            adminLockNotifyChannelId: body.adminLockNotifyChannelId ?? null,
+            burstSuspendEnabled: body.burstSuspendEnabled ?? false,
+            burstSuspendFastLimit: body.burstSuspendFastLimit ?? 5,
+            burstSuspendFastWindowSec: body.burstSuspendFastWindowSec ?? 1,
+            burstSuspendSlowLimit: body.burstSuspendSlowLimit ?? 10,
+            burstSuspendSlowWindowSec: body.burstSuspendSlowWindowSec ?? 60,
           },
         });
 

@@ -64,6 +64,7 @@
   import PublicForm from "./pages/PublicForm.svelte";
   import PublicAppeal from "./pages/PublicAppeal.svelte";
   import BanAppeals from "./pages/BanAppeals.svelte";
+  import AdminLockRequests from "./pages/AdminLockRequests.svelte";
   import Planning from "./pages/Planning.svelte";
   import Meetings from "./pages/Meetings.svelte";
   import Inbox from "./pages/Inbox.svelte";
@@ -166,6 +167,7 @@
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
     if (path.startsWith("/triggers")) return "auto_responses";
     if (path.startsWith("/automod")) return "automod";
+    if (path.startsWith("/admin-lock")) return "automod";
     if (path.startsWith("/suggestions")) return "suggestions";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
@@ -519,6 +521,9 @@
       <Route path="/appeals">
         <BanAppeals />
       </Route>
+      <Route path="/admin-lock">
+        <AdminLockRequests />
+      </Route>
       <Route path="/detections">
         <div use:navigate={"/double-accounts/detections"}></div>
       </Route>
@@ -698,6 +703,9 @@
             </Route>
             <Route path="/appeals">
               <BanAppeals />
+            </Route>
+            <Route path="/admin-lock">
+              <AdminLockRequests />
             </Route>
             <Route path="/detections">
               <div use:navigate={"/double-accounts/detections"}></div>

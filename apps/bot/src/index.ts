@@ -64,6 +64,7 @@ import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
 import { registerAutoModBusSubscribers } from './modules/autoMod.module.js';
+import { registerAdminLockModule } from './modules/adminLock.module.js';
 import { registerAutoThreadBusSubscribers } from './modules/autoThread.module.js';
 import { registerWelcomeGoodbyeBusSubscribers } from './modules/welcomeGoodbye.module.js';
 import { registerModerationBusSubscribers } from './modules/moderation.module.js';
@@ -314,6 +315,7 @@ client.once(Events.ClientReady, async (c) => {
   registerAnalyticsBusSubscribers(client);
   registerLevelingBusSubscribers(client);
   registerAutoModBusSubscribers(client);
+  registerAdminLockModule(client);
   registerAutoThreadBusSubscribers(client);
   registerWelcomeGoodbyeBusSubscribers(client);
   registerModerationBusSubscribers(client);

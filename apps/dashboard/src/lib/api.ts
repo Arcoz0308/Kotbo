@@ -2213,6 +2213,19 @@ export async function updateAutoModConfig(config, guildId = authStore.selectedGu
   return dashboardRequest('/automod', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update AutoMod):' });
 }
 
+export async function fetchAdminLockRequests(status?: string, guildId = authStore.selectedGuildId) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  return dashboardRequest(`/admin-lock${query}`, { method: 'GET', guildId, errorContext: 'API Error (Fetch Admin Lock Requests):' });
+}
+
+export async function fetchAdminLockRequestDetail(requestId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/admin-lock/${requestId}`, { method: 'GET', guildId, errorContext: 'API Error (Fetch Admin Lock Request):' });
+}
+
+export async function decideAdminLockRequest(requestId: string, payload: { decision: 'APPROVED' | 'REJECTED'; reason?: string }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/admin-lock/${requestId}/decide`, { method: 'POST', payload, guildId, errorContext: 'API Error (Decide Admin Lock Request):' });
+}
+
 export async function fetchSuggestions(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/suggestions', { method: 'GET', guildId, errorContext: 'API Error (Fetch Suggestions):' });
 }

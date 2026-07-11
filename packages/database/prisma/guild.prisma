@@ -166,6 +166,7 @@ model Guild {
   banAppealConfig BanAppealConfig?
   banAppeals BanAppeal[]
   banAppealBlacklist BanAppealBlacklist[]
+  adminPermissionRequests AdminPermissionRequest[]
   moduleActivationStats ModuleActivationStat[]
   moduleUsageStats ModuleUsageStat[]
   modulePerformanceStats ModulePerformanceStat[]

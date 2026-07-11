@@ -400,6 +400,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // Admin Permission Lock — approve/reject buttons (DM or staff channel, DM has no guildId)
+  if (customId.startsWith('adminlock:')) {
+    const { handleAdminLockButton } = await import('../services/moderation/adminLockService.js');
+    await handleAdminLockButton(client, customId, interaction);
+    return;
+  }
+
   // Regulation acceptance button
   if (customId === 'regulation_accept') {
     if (!guildId) {
@@ -1145,6 +1152,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   // DM ticket modal — must be before guildId check
   if (customId.startsWith('modal:ticket:open:dm_direct:')) {
     await handleTicketModalSubmit(client, customId, interaction);
+    return;
+  }
+
+  // Admin Permission Lock decision modals — can be submitted from a DM (no guildId), must be before guildId check
+  if (customId.startsWith('adminlock_modal:')) {
+    const { handleAdminLockModalSubmit } = await import('../services/moderation/adminLockService.js');
+    await handleAdminLockModalSubmit(client, customId, interaction);
     return;
   }
 

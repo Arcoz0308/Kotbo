@@ -1,0 +1,57 @@
+// ============================================================================
+// ADMIN PERMISSION LOCK (protection contre l'octroi non autorisé d'ADMINISTRATOR)
+// ============================================================================
+
+enum AdminPermissionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum AdminPermissionRequestType {
+  ROLE_CREATE
+  ROLE_PERMISSION_EDIT
+  MEMBER_ROLE_GRANT
+}
+
+model AdminPermissionRequest {
+  id      String @id @default(cuid())
+  guildId String
+
+  type   AdminPermissionRequestType
+  status AdminPermissionRequestStatus @default(PENDING)
+
+  // Cible de la demande (selon type)
+  targetRoleId   String?
+  targetRoleName String?
+  targetMemberId String?
+
+  // Bitfield demandé, sérialisé en string (bigint), et payload complet pour
+  // une création de rôle (appliqué seulement si la demande est approuvée)
+  requestedPermissionBits  String
+  pendingRoleCreatePayload Json?
+
+  requestedByUserId String
+  requestedByTag    String?
+  requestedVia      String  // SLASH_COMMAND | MCP | DASHBOARD
+  requestReason     String?
+
+  // Message embed posté dans le salon staff
+  staffChannelId String?
+  staffMessageId String?
+
+  // Décision
+  decidedByUserId String?
+  decidedByTag    String?
+  decisionReason  String?
+  decidedAt       DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, status])
+  @@map("admin_permission_requests")
+}
