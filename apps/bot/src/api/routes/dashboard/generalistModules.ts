@@ -1126,12 +1126,24 @@ export async function handleGeneralistModulesRoutes(
         }
 
         // Seul le propriétaire du serveur peut modifier les paramètres anti-bot
-        const antiBotFieldsTouched = body.antiBotEnabled !== undefined || body.antiBotAction !== undefined || body.antiBotBypassUsers !== undefined;
-        if (antiBotFieldsTouched) {
-          const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-          if (!guild || guild.ownerId !== user.userId) {
-            json(res, 403, { error: 'Seul le propriétaire du serveur peut modifier les paramètres du mode sécurisé (Anti-Bot).' });
-            return true;
+        const antiBotFieldsProvided = body.antiBotEnabled !== undefined || body.antiBotAction !== undefined || body.antiBotBypassUsers !== undefined;
+        if (antiBotFieldsProvided) {
+          const existingConfig = await prisma.autoModConfig.findUnique({
+            where: { guildId },
+            select: { antiBotEnabled: true, antiBotAction: true, antiBotBypassUsers: true },
+          });
+          const antiBotChanged =
+            (body.antiBotEnabled !== undefined && body.antiBotEnabled !== (existingConfig?.antiBotEnabled ?? false)) ||
+            (body.antiBotAction !== undefined && body.antiBotAction !== (existingConfig?.antiBotAction ?? 'KICK')) ||
+            (body.antiBotBypassUsers !== undefined &&
+              JSON.stringify([...body.antiBotBypassUsers].sort()) !== JSON.stringify([...(existingConfig?.antiBotBypassUsers ?? [])].sort()));
+
+          if (antiBotChanged) {
+            const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+            if (!guild || guild.ownerId !== user.userId) {
+              json(res, 403, { error: 'Seul le propriétaire du serveur peut modifier les paramètres du mode sécurisé (Anti-Bot).' });
+              return true;
+            }
           }
         }
 
