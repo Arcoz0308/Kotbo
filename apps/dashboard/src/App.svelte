@@ -52,6 +52,7 @@
   import AdminModules from "./pages/admin/Modules.svelte";
   import AdminWhiteLabel from "./pages/admin/WhiteLabel.svelte";
   import AdminBroadcast from "./pages/admin/Broadcast.svelte";
+  import AdminGdpr from "./pages/admin/Gdpr.svelte";
   import Profile from "./pages/Profile.svelte";
   import PublicProfile from "./pages/PublicProfile.svelte";
   import StaffManagement from "./pages/StaffManagement.svelte";
@@ -516,6 +517,9 @@
         <Route path="/admin/broadcast">
           <AdminBroadcast />
         </Route>
+        <Route path="/admin/gdpr">
+          <AdminGdpr />
+        </Route>
       {/if}
       <Route path="/logs/*">
         <Logs />
@@ -698,6 +702,9 @@
               </Route>
               <Route path="/admin/broadcast">
                 <AdminBroadcast />
+              </Route>
+              <Route path="/admin/gdpr">
+                <AdminGdpr />
               </Route>
             {/if}
             <Route path="/logs/*">
