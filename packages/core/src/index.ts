@@ -48,4 +48,6 @@ export type {
 export {
   generateTranscriptSignature,
   verifyTranscriptSignature,
+  generateEvidenceFileSignature,
+  verifyEvidenceFileSignature,
 } from './utils/signedUrl.js';

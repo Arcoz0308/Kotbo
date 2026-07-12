@@ -75,6 +75,7 @@ import { seasonsCommand } from './commands/community/seasons.js';
 import { pulseCommand } from './commands/admin/pulse.js';
 import { evaluationsCommand } from './commands/admin/evaluations.js';
 import { rappelCommand } from './commands/utility/rappel.js';
+import { messageTranscriptContextCommand, messageTranscriptFromContextCommand } from './commands/moderation/messageTranscript.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; description: string; toJSON: () => unknown };
@@ -85,7 +86,8 @@ export type SlashCommandDefinition = {
 export type ContextCommandDefinition = {
   data: { name: string; toJSON: () => unknown };
   execute:
-  (interaction: UserContextMenuCommandInteraction) => Promise<unknown> | ((interaction: MessageContextMenuCommandInteraction) => Promise<unknown>);
+    | ((interaction: UserContextMenuCommandInteraction) => Promise<unknown>)
+    | ((interaction: MessageContextMenuCommandInteraction) => Promise<unknown>);
 };
 
 export type ApplicationCommandDefinition = SlashCommandDefinition | ContextCommandDefinition;
@@ -188,6 +190,8 @@ export const contextCommands: ContextCommandDefinition[] = [
   sanctionContextCommand,
   signalContextCommand,
   requestVerificationContextCommand,
+  messageTranscriptFromContextCommand,
+  messageTranscriptContextCommand,
 ];
 
 export const applicationCommands: ApplicationCommandDefinition[] = [

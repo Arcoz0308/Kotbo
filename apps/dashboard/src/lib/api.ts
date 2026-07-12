@@ -2945,6 +2945,45 @@ export async function deleteTranscript(transcriptId: string, guildId = authStore
   });
 }
 
+export async function uploadEvidenceFile(
+  fileName: string,
+  mimeType: string,
+  data: string, // base64
+  sanctionId: string | null = null,
+  guildId = authStore.selectedGuildId,
+): Promise<{ id: string } | null> {
+  return await dashboardRequest(`/sanctions/evidence-files`, {
+    method: 'POST',
+    payload: { sanctionId, fileName, mimeType, data },
+    guildId,
+    errorContext: 'API Error (Upload Evidence):',
+  });
+}
+
+export async function deleteEvidenceFile(
+  fileId: string,
+  guildId = authStore.selectedGuildId,
+): Promise<boolean> {
+  return await dashboardMutation(`/sanctions/evidence-files/${fileId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Evidence):',
+  });
+}
+
+export async function fetchEvidenceFileSignedUrl(
+  fileId: string,
+  guildId = authStore.selectedGuildId,
+): Promise<string | null> {
+  const data = await dashboardRequest(`/sanctions/evidence-files/${fileId}/signed-url`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Evidence URL):',
+    silent: true,
+  });
+  return data?.signedUrl ? `${API_BASE_URL}${data.signedUrl}` : null;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Message logs — global message search
 // ─────────────────────────────────────────────────────────────

@@ -1,8 +1,11 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import DiscordEvidencePicker from './DiscordEvidencePicker.svelte';
+  import TranscriptAttachPicker from './TranscriptAttachPicker.svelte';
   import { normalizeEvidenceLinks } from '../../sanctions/evidenceLinks';
   import { authStore } from '../../stores/auth.svelte.ts';
+  import { toast } from '../../stores/toast.svelte';
+  import { uploadEvidenceFile, deleteEvidenceFile } from '../../api';
 
   let {
     links = $bindable([]),
@@ -23,6 +26,9 @@
   }>();
 
   let pickerOpen = $state(false);
+  let transcriptPickerOpen = $state(false);
+  let fileInput = $state<HTMLInputElement | null>(null);
+  let uploadBusy = $state(false);
 
   const initialLinks = normalizeEvidenceLinks(links, true);
   if (initialLinks.length !== links.length || initialLinks.some((link, index) => link !== links[index])) {
@@ -33,8 +39,21 @@
     links = [...normalizeEvidenceLinks(links, true), ''];
   }
 
-  function removeLink(index: number) {
+  async function removeLink(index: number) {
     const normalized = normalizeEvidenceLinks(links, true);
+    const linkToRemove = normalized[index];
+
+    // Si c'est un fichier uploade en base, on le supprime de la base pour liberer de l'espace de stockage
+    const prefix = `${window.location.origin}/sanction-evidence/`;
+    if (linkToRemove && linkToRemove.startsWith(prefix)) {
+      const fileId = linkToRemove.substring(prefix.length);
+      try {
+        await deleteEvidenceFile(fileId, guildId);
+      } catch (err) {
+        console.error('Failed to delete file from DB:', err);
+      }
+    }
+
     if (normalized.length <= 1) {
       links = [''];
       return;
@@ -45,9 +64,67 @@
   function handleInput(index: number, value: string) {
     links = normalizeEvidenceLinks(links, true).map((link, i) => i === index ? value : link);
   }
+
+  async function onFileSelected(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Fichier trop volumineux. La limite est de 10 Mo par fichier.');
+      return;
+    }
+
+    uploadBusy = true;
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const result = reader.result as string;
+        const base64Data = result.split(',')[1];
+        if (!base64Data) {
+          toast.error("Erreur lors de la lecture du fichier.");
+          uploadBusy = false;
+          return;
+        }
+
+        const res = await uploadEvidenceFile(file.name, file.type, base64Data, sanctionId, guildId);
+        if (res && res.id) {
+          const fileUrl = `${window.location.origin}/sanction-evidence/${res.id}`;
+          const currentLinks = normalizeEvidenceLinks(links, false).filter(l => l.trim().length > 0);
+          links = [...currentLinks, fileUrl];
+        }
+        uploadBusy = false;
+      };
+      reader.onerror = () => {
+        toast.error("Erreur lors de la lecture du fichier.");
+        uploadBusy = false;
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      toast.error("Une erreur est survenue lors de l'upload.");
+      uploadBusy = false;
+    } finally {
+      target.value = ''; // Reset input
+    }
+  }
+
+  function attachTranscriptUrl(url: string) {
+    const currentLinks = normalizeEvidenceLinks(links, false).filter(l => l.trim().length > 0);
+    links = [...currentLinks, url];
+  }
 </script>
 
 <div class="space-y-3" role={labelId ? 'group' : undefined} aria-labelledby={labelId || undefined}>
+  <!-- Invisible File Input -->
+  <input
+    type="file"
+    bind:this={fileInput}
+    onchange={onFileSelected}
+    accept="image/*,application/pdf,video/*"
+    style="display: none;"
+  />
+
   {#each links as link, index (index)}
     <div class="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
       <div class="relative flex-1 group">
@@ -79,21 +156,45 @@
   {/each}
 
   {#if !disabled}
-    <div class="flex flex-col sm:flex-row gap-2">
+    <div class="flex flex-wrap gap-2">
       <button
         type="button"
         onclick={addLink}
-        class="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
+        class="flex flex-1 min-w-[130px] items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
       >
         <Papicon icon="plus" size={14} />
-        Ajouter une preuve
+        Ajouter un lien
+      </button>
+
+      <button
+        type="button"
+        onclick={() => fileInput?.click()}
+        disabled={uploadBusy}
+        class="flex flex-1 min-w-[130px] items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99] disabled:opacity-50"
+      >
+        {#if uploadBusy}
+          <div class="animate-spin w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full"></div>
+          Upload en cours…
+        {:else}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Uploader un fichier
+        {/if}
+      </button>
+
+      <button
+        type="button"
+        onclick={() => (transcriptPickerOpen = true)}
+        class="flex flex-1 min-w-[130px] items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Attacher transcription
       </button>
 
       {#if sanctionId}
         <button
           type="button"
           onclick={() => (pickerOpen = true)}
-          class="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
+          class="flex flex-1 min-w-[130px] items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
         >
           <Papicon icon="message-square" size={14} />
           Importer depuis Discord
@@ -114,3 +215,9 @@
     }}
   />
 {/if}
+
+<TranscriptAttachPicker
+  bind:open={transcriptPickerOpen}
+  onAttach={attachTranscriptUrl}
+/>
+

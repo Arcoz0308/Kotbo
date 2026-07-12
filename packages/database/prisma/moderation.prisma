@@ -125,6 +125,7 @@ model Sanction {
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   reports SanctionReport[]
+  evidenceFiles SanctionEvidenceFile[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -167,6 +168,33 @@ model SanctionTier {
 
   @@unique([tableId, level])
   @@map("sanction_tiers")
+}
+
+// Fichiers de preuve uploadés directement (captures d'écran, PDF, courtes vidéos)
+// pour les rapports de sanction. Les octets sont stockés en base (comme les
+// transcriptions HTML de `Transcript`) car le volume est strictement plafonné
+// côté application (taille/fichier, nombre/sanction, quota cumulé/serveur).
+model SanctionEvidenceFile {
+  id String @id @default(cuid())
+
+  guildId String
+  sanctionId String?
+
+  fileName String
+  mimeType String
+  size Int
+  data Bytes
+
+  uploadedByUserId String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  sanction Sanction? @relation(fields: [sanctionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, sanctionId])
+  @@index([guildId, createdAt])
+  @@map("sanction_evidence_files")
 }
 
 model SanctionReport {

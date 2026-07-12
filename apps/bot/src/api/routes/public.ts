@@ -651,6 +651,63 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /api/public/sanction-evidence/:fileId?expires=...&sig=...
+  if (parts[2] === 'sanction-evidence' && parts[3] && method === 'GET') {
+    const fileId = parts[3];
+    if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+      json(res, 400, { error: 'ID de fichier invalide' });
+      return true;
+    }
+
+    const sig = url.searchParams.get('sig');
+    const expires = url.searchParams.get('expires');
+    if (!sig || !expires) {
+      json(res, 403, { error: 'Lien invalide — signature ou expiration manquante.' });
+      return true;
+    }
+
+    const { verifyEvidenceFileSignature } = await import('@kotbo/core');
+    if (!verifyEvidenceFileSignature(fileId, expires, sig)) {
+      json(res, 403, { error: 'Lien de preuve invalide ou expiré.' });
+      return true;
+    }
+
+    try {
+      const file = await prisma.sanctionEvidenceFile.findUnique({
+        where: { id: fileId }
+      });
+
+      if (!file) {
+        json(res, 404, { error: 'Fichier de preuve introuvable.' });
+        return true;
+      }
+
+      res.removeHeader('X-Frame-Options');
+      res.setHeader(
+        'Content-Security-Policy',
+        [
+          "default-src 'none'",
+          "style-src 'unsafe-inline'",
+          'img-src https: data:',
+          'media-src https:',
+          `frame-ancestors ${getDashboardOrigin()} http://localhost:5173 http://localhost:3000`,
+          "base-uri 'none'",
+          "form-action 'none'",
+        ].join('; ')
+      );
+      res.setHeader('Content-Type', file.mimeType);
+      const safeFilename = file.fileName.replace(/[^\x20-\x7E]/g, '_');
+      res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+      res.statusCode = 200;
+      res.end(file.data);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error fetching public evidence file ${fileId}: ${errMessage}`);
+      json(res, 500, { error: 'Erreur interne du serveur' });
+    }
+    return true;
+  }
+
   // GET /api/public/forms/:formId - Get form structure (no auth)
   if (parts[2] === 'forms' && parts[3] && !parts[4] && method === 'GET') {
     const formId = parts[3];

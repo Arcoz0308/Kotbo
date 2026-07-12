@@ -82,6 +82,7 @@
   import InvitationDetail from "./pages/InvitationDetail.svelte";
   import Tickets from "./pages/Tickets.svelte";
   import TranscriptDetail from "./pages/TranscriptDetail.svelte";
+  import SanctionEvidenceFile from "./pages/SanctionEvidenceFile.svelte";
 
   import Leveling from "./pages/Leveling.svelte";
   import LevelingPublic from "./pages/LevelingPublic.svelte";
@@ -120,6 +121,7 @@
       /^\/\d{17,19}\/leveling\/classement\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
+      $router.path.startsWith("/sanction-evidence/") ||
       $router.path.startsWith("/form/") ||
       $router.path.startsWith("/appeal/") ||
       $router.path.startsWith("/verify/"),
@@ -463,6 +465,9 @@
       </Route>
       <Route path="/transcripts/:transcriptId" let:meta>
         <TranscriptDetail transcriptId={meta.params.transcriptId} />
+      </Route>
+      <Route path="/sanction-evidence/:fileId" let:meta>
+        <SanctionEvidenceFile fileId={meta.params.fileId} />
       </Route>
       <Route path="/form/:formId" let:meta>
         <PublicForm formId={meta.params.formId} />

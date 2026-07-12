@@ -860,6 +860,195 @@ export async function handleModulesRoutes(
     return true;
   }
 
+function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (mimeType === 'image/jpeg') {
+    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (mimeType === 'image/png') {
+    return buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+  }
+  if (mimeType === 'image/gif') {
+    return buffer.length >= 4 && buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38;
+  }
+  if (mimeType === 'image/webp') {
+    return buffer.length >= 12 &&
+           buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 && // RIFF
+           buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50; // WEBP
+  }
+  if (mimeType === 'application/pdf') {
+    return buffer.length >= 4 && buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46; // %PDF
+  }
+  if (mimeType === 'video/mp4') {
+    return buffer.length >= 8 && buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70; // ftyp
+  }
+  if (mimeType === 'video/webm') {
+    return buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3; // EBML
+  }
+  if (mimeType === 'video/quicktime') {
+    return buffer.length >= 8 && (
+      (buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) || // ftyp
+      (buffer[4] === 0x6d && buffer[5] === 0x6f && buffer[6] === 0x6f && buffer[7] === 0x76) || // moov
+      (buffer[4] === 0x6d && buffer[5] === 0x64 && buffer[6] === 0x61 && buffer[7] === 0x74)    // mdat
+    );
+  }
+  return false;
+}
+
+  // POST /api/dashboard/guilds/:guildId/sanctions/evidence-files
+  if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'evidence-files' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{
+        sanctionId?: string | null;
+        fileName?: string;
+        mimeType?: string;
+        data?: string; // base64 encoded
+      }>(req);
+
+      const sanctionId = body?.sanctionId?.trim() || null;
+      const fileName = body?.fileName?.trim() || 'unnamed_file';
+      const mimeType = body?.mimeType?.trim() || '';
+      const dataStr = body?.data || '';
+
+      if (!mimeType || !dataStr) {
+        json(res, 400, { error: 'mimeType et data sont requis.' });
+        return true;
+      }
+
+      // Valider le type MIME
+      const allowedMimes = [
+        'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+        'application/pdf',
+        'video/mp4', 'video/webm', 'video/quicktime'
+      ];
+      if (!allowedMimes.includes(mimeType)) {
+        json(res, 400, { error: `Type de fichier non autorisé : ${mimeType}. Veuillez utiliser une image (PNG, JPEG, GIF, WEBP), un PDF ou une vidéo (MP4, WEBM, MOV).` });
+        return true;
+      }
+
+      // Convertir base64 en buffer et valider la taille
+      let buffer: Buffer;
+      try {
+        buffer = Buffer.from(dataStr, 'base64');
+      } catch {
+        json(res, 400, { error: 'Données de fichier encodées en base64 invalides.' });
+        return true;
+      }
+
+      const fileSize = buffer.length;
+      if (fileSize > 10 * 1024 * 1024) {
+        json(res, 400, { error: 'La taille maximale par fichier est de 10 Mo.' });
+        return true;
+      }
+
+      // Vérifier les magic bytes
+      if (!verifyMagicBytes(buffer, mimeType)) {
+        json(res, 400, { error: `La signature du fichier ne correspond pas au type MIME déclaré (${mimeType}).` });
+        return true;
+      }
+
+      // Si sanctionId est fourni, vérifier qu'elle existe
+      if (sanctionId) {
+        const sanction = await prisma.sanction.findFirst({
+          where: { id: sanctionId, guildId }
+        });
+        if (!sanction) {
+          json(res, 404, { error: 'Sanction liée introuvable.' });
+          return true;
+        }
+
+        // Limite de 6 fichiers max par sanction
+        const existingCount = await prisma.sanctionEvidenceFile.count({
+          where: { sanctionId }
+        });
+        if (existingCount >= 6) {
+          json(res, 400, { error: 'Limite de 6 fichiers de preuve par sanction atteinte.' });
+          return true;
+        }
+      }
+
+      // Vérification du quota du serveur (50 Mo cumulés)
+      const totalExistingSizeResult = await prisma.sanctionEvidenceFile.aggregate({
+        where: { guildId },
+        _sum: { size: true }
+      });
+      const totalExistingSize = totalExistingSizeResult._sum.size ?? 0;
+      const limitBytes = 50 * 1024 * 1024; // 50 Mo
+      if (totalExistingSize + fileSize > limitBytes) {
+        json(res, 400, {
+          error: "Quota de stockage de preuves dépassé (50 Mo maximum par serveur). Veuillez passer à une offre payante/premium pour augmenter cette limite.",
+          quotaExceeded: true
+        });
+        return true;
+      }
+
+      // Création de l'enregistrement en base
+      const file = await prisma.sanctionEvidenceFile.create({
+        data: {
+          guildId,
+          sanctionId,
+          fileName,
+          mimeType,
+          size: fileSize,
+          data: buffer,
+          uploadedByUserId: user.userId
+        }
+      });
+
+      json(res, 201, { ok: true, id: file.id });
+    } catch (err: unknown) {
+      logger.error('SanctionsAPI', 'Error uploading evidence file:', err);
+      json(res, 500, { error: "Erreur lors de l'upload du fichier de preuve." });
+    }
+    return true;
+  }
+
+  // GET /api/dashboard/guilds/:guildId/sanctions/evidence-files/:fileId/signed-url
+  if (moduleKey === 'sanctions' && parts.length === 8 && parts[5] === 'evidence-files' && parts[7] === 'signed-url' && method === 'GET') {
+    const fileId = parts[6];
+    if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+      json(res, 400, { error: 'ID de fichier invalide' });
+      return true;
+    }
+    try {
+      const file = await prisma.sanctionEvidenceFile.findFirst({
+        where: { id: fileId, guildId },
+        select: { id: true }
+      });
+      if (!file) {
+        json(res, 404, { error: 'Fichier introuvable.' });
+        return true;
+      }
+      const { generateEvidenceFileSignature } = await import('@kotbo/core');
+      const { expires, signature } = generateEvidenceFileSignature(fileId, 3600);
+      const signedUrl = `/api/public/sanction-evidence/${fileId}?expires=${expires}&sig=${signature}`;
+      json(res, 200, { signedUrl });
+    } catch (err: unknown) {
+      logger.error('SanctionsAPI', `Error generating signed evidence URL: ${(err as Error).message}`);
+      json(res, 500, { error: 'Erreur lors de la génération du lien signé.' });
+    }
+    return true;
+  }
+
+  // DELETE /api/dashboard/guilds/:guildId/sanctions/evidence-files/:fileId
+  if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'evidence-files' && method === 'DELETE') {
+    const fileId = parts[6];
+    try {
+      const file = await prisma.sanctionEvidenceFile.findFirst({
+        where: { id: fileId, guildId }
+      });
+      if (!file) {
+        json(res, 404, { error: 'Fichier introuvable.' });
+        return true;
+      }
+      await prisma.sanctionEvidenceFile.delete({ where: { id: fileId } });
+      json(res, 200, { ok: true });
+    } catch (err: unknown) {
+      logger.error('SanctionsAPI', 'Error deleting evidence file:', err);
+      json(res, 500, { error: 'Erreur lors de la suppression du fichier.' });
+    }
+    return true;
+  }
+
   // POST /api/dashboard/guilds/:guildId/sanctions/reports
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'reports' && method === 'POST') {
     try {

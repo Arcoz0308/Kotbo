@@ -590,7 +590,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
             details: `Commande de menu contextuel "${interaction.commandName}" exécutée sur l'utilisateur <@${interaction.targetId}> (${interaction.targetId}).`,
           });
         }
-        await cmd.execute(interaction);
+        await (cmd.execute as any)(interaction);
+      }
+    }
+
+    else if (interaction.isMessageContextMenuCommand()) {
+      const cmd = userContextCommands.get(interaction.commandName);
+      if (cmd) {
+        if (interaction.guildId) {
+          queueAuditLog({
+            guildId: interaction.guildId,
+            channelId: interaction.channelId,
+            user: `${interaction.user.tag} (<@${interaction.user.id}>)`,
+            action: `Menu contextuel: ${interaction.commandName}`,
+            context: interaction.guild?.name || 'Discord',
+            module: 'Commandes',
+            eventType: 'Discord',
+            details: `Commande de menu contextuel de message "${interaction.commandName}" exécutée sur le message ${interaction.targetId}.`,
+          });
+        }
+        await (cmd.execute as any)(interaction);
       }
     }
 
