@@ -2839,6 +2839,16 @@ export function registerMcpTools(
             deleteTrigger: r.deleteTrigger,
             allowedChannelIds: r.allowedChannelIds,
             bannedChannelIds: r.bannedChannelIds,
+            allowedRoleIds: r.allowedRoleIds,
+            bannedRoleIds: r.bannedRoleIds,
+            reactions: r.reactions,
+            actions: r.actions,
+            closeTicket: r.closeTicket,
+            rejectForm: r.rejectForm,
+            formId: r.formId,
+            formQuestionLabel: r.formQuestionLabel,
+            ticketTypeId: r.ticketTypeId,
+            ticketQuestionLabel: r.ticketQuestionLabel,
           }))
         );
       })
@@ -4991,12 +5001,33 @@ export function registerMcpTools(
           role_to_add: z.string().optional().describe('ID du rôle à attribuer au déclenchement'),
           role_to_remove: z.string().optional().describe('ID du rôle à retirer au déclenchement'),
           delete_trigger: z.boolean().default(false).describe('Supprimer le message déclencheur (si MESSAGE)'),
+          allowed_channels: z.array(z.string()).optional().describe('Liste des IDs de salons autorisés (vide = tous)'),
+          banned_channels: z.array(z.string()).optional().describe('Liste des IDs de salons interdits'),
+          allowed_roles: z.array(z.string()).optional().describe('Liste des IDs de rôles autorisés (vide = tous)'),
+          banned_roles: z.array(z.string()).optional().describe('Liste des IDs de rôles interdits'),
+          reactions: z.array(z.string()).optional().describe('Liste des émojis à ajouter en réaction'),
+          actions: z.string().optional().describe('Actions complexes au format JSON (ex: { "sendDm": "...", "timeoutSeconds": 300 })'),
+          close_ticket: z.boolean().default(false).describe('Fermer le ticket (si TICKET)'),
+          reject_form: z.boolean().default(false).describe('Rejeter le formulaire (si FORM)'),
+          form_id: z.string().optional().describe('ID du formulaire (si FORM)'),
+          form_question_label: z.string().optional().describe('Label ou question du formulaire (si FORM)'),
+          ticket_type_id: z.string().optional().describe('ID du type de ticket (si TICKET)'),
+          ticket_question_label: z.string().optional().describe('Label ou question du ticket (si TICKET)'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_COMMUNITY', async ({ trigger, response, trigger_type, match_type, role_to_add, role_to_remove, delete_trigger, key_name }) => {
+      guard('WRITE_COMMUNITY', async ({ trigger, response, trigger_type, match_type, role_to_add, role_to_remove, delete_trigger, allowed_channels, banned_channels, allowed_roles, banned_roles, reactions, actions, close_ticket, reject_form, form_id, form_question_label, ticket_type_id, ticket_question_label, key_name }) => {
         try {
+          let parsedActions: any = null;
+          if (actions) {
+            try {
+              parsedActions = JSON.parse(actions);
+            } catch {
+              return err('Le paramètre "actions" doit être une chaîne JSON valide.');
+            }
+          }
+
           const autoRes = await prisma.autoResponse.create({
             data: {
               guildId,
@@ -5007,6 +5038,18 @@ export function registerMcpTools(
               roleIdToAdd: role_to_add || null,
               roleIdToRemove: role_to_remove || null,
               deleteTrigger: delete_trigger,
+              allowedChannelIds: allowed_channels || [],
+              bannedChannelIds: banned_channels || [],
+              allowedRoleIds: allowed_roles || [],
+              bannedRoleIds: banned_roles || [],
+              reactions: reactions || [],
+              actions: parsedActions,
+              closeTicket: close_ticket,
+              rejectForm: reject_form,
+              formId: form_id || null,
+              formQuestionLabel: form_question_label || null,
+              ticketTypeId: ticket_type_id || null,
+              ticketQuestionLabel: ticket_question_label || null,
               enabled: true,
             }
           });
@@ -5389,11 +5432,23 @@ export function registerMcpTools(
           role_to_remove: z.string().optional(),
           delete_trigger: z.boolean().optional(),
           enabled: z.boolean().optional(),
+          allowed_channels: z.array(z.string()).optional(),
+          banned_channels: z.array(z.string()).optional(),
+          allowed_roles: z.array(z.string()).optional(),
+          banned_roles: z.array(z.string()).optional(),
+          reactions: z.array(z.string()).optional().describe('Liste des émojis à ajouter en réaction'),
+          actions: z.string().optional().describe('Actions complexes au format JSON'),
+          close_ticket: z.boolean().optional().describe('Fermer le ticket (si TICKET)'),
+          reject_form: z.boolean().optional().describe('Rejeter le formulaire (si FORM)'),
+          form_id: z.string().optional().describe('ID du formulaire (si FORM)'),
+          form_question_label: z.string().optional().describe('Label ou question du formulaire (si FORM)'),
+          ticket_type_id: z.string().optional().describe('ID du type de ticket (si TICKET)'),
+          ticket_question_label: z.string().optional().describe('Label ou question du ticket (si TICKET)'),
           key_name: z.string().optional(),
         },
         _meta: toolMeta,
       },
-      guard('WRITE_COMMUNITY', async ({ auto_response_id, trigger, response, trigger_type, match_type, role_to_add, role_to_remove, delete_trigger, enabled, key_name }) => {
+      guard('WRITE_COMMUNITY', async ({ auto_response_id, trigger, response, trigger_type, match_type, role_to_add, role_to_remove, delete_trigger, enabled, allowed_channels, banned_channels, allowed_roles, banned_roles, reactions, actions, close_ticket, reject_form, form_id, form_question_label, ticket_type_id, ticket_question_label, key_name }) => {
         try {
           const existing = await prisma.autoResponse.findFirst({ where: { id: auto_response_id, guildId } });
           if (!existing) return err('Réponse automatique introuvable');
@@ -5407,6 +5462,28 @@ export function registerMcpTools(
           if (role_to_remove !== undefined) updateData.roleIdToRemove = role_to_remove || null;
           if (delete_trigger !== undefined) updateData.deleteTrigger = delete_trigger;
           if (enabled !== undefined) updateData.enabled = enabled;
+          if (allowed_channels !== undefined) updateData.allowedChannelIds = allowed_channels;
+          if (banned_channels !== undefined) updateData.bannedChannelIds = banned_channels;
+          if (allowed_roles !== undefined) updateData.allowedRoleIds = allowed_roles;
+          if (banned_roles !== undefined) updateData.bannedRoleIds = banned_roles;
+          if (reactions !== undefined) updateData.reactions = reactions;
+          if (close_ticket !== undefined) updateData.closeTicket = close_ticket;
+          if (reject_form !== undefined) updateData.rejectForm = reject_form;
+          if (form_id !== undefined) updateData.formId = form_id || null;
+          if (form_question_label !== undefined) updateData.formQuestionLabel = form_question_label || null;
+          if (ticket_type_id !== undefined) updateData.ticketTypeId = ticket_type_id || null;
+          if (ticket_question_label !== undefined) updateData.ticketQuestionLabel = ticket_question_label || null;
+          if (actions !== undefined) {
+            if (actions === '') {
+              updateData.actions = null;
+            } else {
+              try {
+                updateData.actions = JSON.parse(actions);
+              } catch {
+                return err('Le paramètre "actions" doit être une chaîne JSON valide.');
+              }
+            }
+          }
 
           await prisma.autoResponse.update({
             where: { id: auto_response_id },

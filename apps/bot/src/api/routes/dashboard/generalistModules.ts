@@ -906,6 +906,11 @@ export async function handleGeneralistModulesRoutes(
           formQuestionLabel?: string | null;
           ticketTypeId?: string | null;
           ticketQuestionLabel?: string | null;
+          reactions?: string[];
+          actions?: any;
+          responseDestination?: string;
+          responseChannelId?: string | null;
+          relayToStaffServer?: boolean;
         }>(req);
 
         if (!body || !body.trigger) {
@@ -913,8 +918,8 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        if (!body.response && !body.roleIdToAdd && !body.roleIdToRemove && !body.deleteTrigger && !body.closeTicket && !body.rejectForm) {
-          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, suppression du message, fermeture de ticket ou rejet de formulaire)' });
+        if (!body.response && !body.roleIdToAdd && !body.roleIdToRemove && !body.deleteTrigger && !body.closeTicket && !body.rejectForm && (!body.reactions || body.reactions.length === 0) && !body.actions) {
+          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, suppression du message, fermeture de ticket, rejet de formulaire, réaction ou action avancée)' });
           return true;
         }
 
@@ -939,6 +944,11 @@ export async function handleGeneralistModulesRoutes(
             formQuestionLabel: body.formQuestionLabel || null,
             ticketTypeId: body.ticketTypeId || null,
             ticketQuestionLabel: body.ticketQuestionLabel || null,
+            reactions: body.reactions ?? [],
+            actions: body.actions ?? null,
+            responseDestination: body.responseDestination || 'DM',
+            responseChannelId: body.responseChannelId || null,
+            relayToStaffServer: body.relayToStaffServer ?? false,
           },
         });
 
@@ -974,6 +984,11 @@ export async function handleGeneralistModulesRoutes(
           formQuestionLabel?: string | null;
           ticketTypeId?: string | null;
           ticketQuestionLabel?: string | null;
+          reactions?: string[];
+          actions?: any;
+          responseDestination?: string;
+          responseChannelId?: string | null;
+          relayToStaffServer?: boolean;
         }>(req);
 
         if (!body) {
@@ -997,14 +1012,16 @@ export async function handleGeneralistModulesRoutes(
         const combinedDeleteTrigger = body.deleteTrigger !== undefined ? body.deleteTrigger : existing.deleteTrigger;
         const combinedCloseTicket = body.closeTicket !== undefined ? body.closeTicket : (existing as { closeTicket?: boolean }).closeTicket;
         const combinedRejectForm = body.rejectForm !== undefined ? body.rejectForm : (existing as { rejectForm?: boolean }).rejectForm;
+        const combinedReactions = body.reactions !== undefined ? body.reactions : existing.reactions;
+        const combinedActions = body.actions !== undefined ? body.actions : existing.actions;
 
         if (!combinedTrigger) {
           json(res, 400, { error: 'Déclencheur requis' });
           return true;
         }
 
-        if (!combinedResponse && !combinedRoleIdToAdd && !combinedRoleIdToRemove && !combinedDeleteTrigger && !combinedCloseTicket && !combinedRejectForm) {
-          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, suppression du message, fermeture de ticket ou rejet de formulaire)' });
+        if (!combinedResponse && !combinedRoleIdToAdd && !combinedRoleIdToRemove && !combinedDeleteTrigger && !combinedCloseTicket && !combinedRejectForm && (!combinedReactions || combinedReactions.length === 0) && !combinedActions) {
+          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, suppression du message, fermeture de ticket, rejet de formulaire, réaction ou action avancée)' });
           return true;
         }
 
@@ -1029,6 +1046,11 @@ export async function handleGeneralistModulesRoutes(
             formQuestionLabel: body.formQuestionLabel,
             ticketTypeId: body.ticketTypeId,
             ticketQuestionLabel: body.ticketQuestionLabel,
+            reactions: body.reactions,
+            actions: body.actions,
+            responseDestination: body.responseDestination,
+            responseChannelId: body.responseChannelId,
+            relayToStaffServer: body.relayToStaffServer,
           },
         });
 
@@ -1053,6 +1075,25 @@ export async function handleGeneralistModulesRoutes(
       } catch (err) {
         logger.error('AutoResponsesAPI', 'Error deleting trigger:', err);
         json(res, 500, { error: 'Erreur lors de la suppression' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/triggers/emojis
+    if (parts.length === 6 && parts[5] === 'emojis' && method === 'GET') {
+      try {
+        const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) {
+          json(res, 200, { emojis: [] });
+          return true;
+        }
+        const emojis = await guild.emojis.fetch();
+        json(res, 200, {
+          emojis: emojis.map((e) => ({ id: e.id, name: e.name, animated: e.animated, url: e.url })),
+        });
+      } catch (err) {
+        logger.error('AutoResponsesAPI', 'Error fetching guild emojis:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des emojis du serveur' });
       }
       return true;
     }

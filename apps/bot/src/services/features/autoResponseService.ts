@@ -1,4 +1,4 @@
-import { Message, EmbedBuilder, Client, TextChannel } from 'discord.js';
+import { Message, EmbedBuilder, Client, TextChannel, ChannelType, PermissionFlagsBits, type TextBasedChannel } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
@@ -37,6 +37,72 @@ function resolveResponse(response: string | null): string | null {
   return response;
 }
 
+function buildSendPayload(responseText: string): string | { embeds: EmbedBuilder[] } {
+  const isJson = responseText.startsWith('{') && responseText.endsWith('}');
+  if (isJson) {
+    try {
+      const embed = new EmbedBuilder(JSON.parse(responseText));
+      return { embeds: [embed] };
+    } catch {
+      return responseText;
+    }
+  }
+  return responseText;
+}
+
+/**
+ * Résout le salon de logs du serveur staff lié (si un lien actif existe) pour y relayer une réponse.
+ */
+async function resolveStaffRelayChannel(client: Client, guildId: string): Promise<TextBasedChannel | null> {
+  const staffLink = await prisma.staffServerLink.findFirst({ where: { mainGuildId: guildId, enabled: true } });
+  if (!staffLink?.staffLogChannelId) return null;
+  const staffGuild = client.guilds.cache.get(staffLink.staffGuildId) || await client.guilds.fetch(staffLink.staffGuildId).catch(() => null);
+  const channel = staffGuild?.channels.cache.get(staffLink.staffLogChannelId);
+  return channel?.isTextBased() ? (channel as TextBasedChannel) : null;
+}
+
+/**
+ * Envoie le message de réponse d'un déclencheur vers sa destination configurée
+ * (MP, salon du déclencheur, ou salon spécifique), puis relaie sur le serveur staff si demandé.
+ */
+async function dispatchTriggerResponse(
+  client: Client,
+  guildId: string,
+  item: Pick<AutoResponse, 'responseDestination' | 'responseChannelId' | 'relayToStaffServer'>,
+  responseText: string,
+  targetUserId: string,
+  options: { contextChannel?: TextBasedChannel | null; replyToMessage?: Message | null } = {}
+) {
+  const payload = buildSendPayload(responseText);
+  const destination = item.responseDestination || 'DM';
+
+  if (destination === 'CHANNEL' && options.contextChannel) {
+    const channel = options.contextChannel;
+    if (options.replyToMessage) {
+      await options.replyToMessage.reply(payload).catch(() => channel.send(payload).catch(() => null));
+    } else {
+      await channel.send(payload).catch(() => null);
+    }
+  } else if (destination === 'SPECIFIC_CHANNEL' && item.responseChannelId) {
+    const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    const channel = guild?.channels.cache.get(item.responseChannelId);
+    if (channel?.isTextBased()) {
+      await (channel as TextBasedChannel).send(payload).catch(() => null);
+    } else {
+      const user = await client.users.fetch(targetUserId).catch(() => null);
+      await user?.send(payload).catch(() => null);
+    }
+  } else {
+    const user = await client.users.fetch(targetUserId).catch(() => null);
+    await user?.send(payload).catch(() => null);
+  }
+
+  if (item.relayToStaffServer) {
+    const relayChannel = await resolveStaffRelayChannel(client, guildId).catch(() => null);
+    await relayChannel?.send(payload).catch(() => null);
+  }
+}
+
 interface AutoResponse {
   id: string;
   guildId: string;
@@ -58,6 +124,11 @@ interface AutoResponse {
   ticketQuestionLabel: string | null;
   closeTicket: boolean;
   rejectForm: boolean;
+  reactions: string[];
+  actions: any;
+  responseDestination: string | null;
+  responseChannelId: string | null;
+  relayToStaffServer: boolean;
 }
 
 // Cache for triggers: key is guildId, value is list of auto responses
@@ -149,27 +220,145 @@ export async function handleAutoResponse(message: Message) {
           });
         }
 
+        // 2.5. Réactions automatiques
+        if (item.reactions && item.reactions.length > 0 && !item.deleteTrigger) {
+          for (const emoji of item.reactions) {
+            await message.react(emoji).catch((e) => {
+              logger.error('AutoResponseService', `Impossible de réagir avec ${emoji} au message ${message.id}:`, e);
+            });
+          }
+        }
+
+        // 2.6. Actions complexes (CRUD, DMs, timeouts, etc.)
+        if (item.actions) {
+          try {
+            const actions = typeof item.actions === 'string' ? JSON.parse(item.actions) : item.actions;
+
+            // Envoi de DM
+            if (actions.sendDm && typeof actions.sendDm === 'string') {
+              await message.author.send(actions.sendDm).catch((e) => {
+                logger.error('AutoResponseService', `Impossible d'envoyer le DM à ${message.author.id}:`, e);
+              });
+            }
+
+            // Timeout temporaire
+            if (actions.timeoutSeconds && typeof actions.timeoutSeconds === 'number' && member) {
+              await member.timeout(actions.timeoutSeconds * 1000, 'Déclenché par AutoResponse').catch((e) => {
+                logger.error('AutoResponseService', `Impossible d'exécuter le timeout sur ${member.id}:`, e);
+              });
+            }
+
+            // Alerte Staff
+            if (actions.staffAlertChannelId && typeof actions.staffAlertChannelId === 'string' && actions.staffAlertMessage) {
+              const alertChan = message.guild?.channels.cache.get(actions.staffAlertChannelId);
+              if (alertChan?.isTextBased()) {
+                await alertChan.send(actions.staffAlertMessage).catch(() => null);
+              }
+            }
+
+            // Gain d'XP
+            if (actions.addXp && typeof actions.addXp === 'number') {
+              const { addXp } = await import('../../services/progression/levelingService.js');
+              await addXp(message.guildId, message.author.id, actions.addXp).catch(() => null);
+            }
+
+            // CRUD Salons
+            if (actions.createChannel) {
+              const cc = actions.createChannel;
+              if (cc.name && typeof cc.name === 'string') {
+                const channelTypeMap: Record<string, number> = {
+                  text: ChannelType.GuildText,
+                  voice: ChannelType.GuildVoice,
+                  category: ChannelType.GuildCategory,
+                };
+                await message.guild?.channels.create({
+                  name: cc.name,
+                  type: channelTypeMap[cc.type] || ChannelType.GuildText,
+                  parent: cc.categoryId || undefined,
+                }).catch(() => null);
+              }
+            }
+
+            if (actions.deleteChannelId && typeof actions.deleteChannelId === 'string') {
+              const ch = message.guild?.channels.cache.get(actions.deleteChannelId);
+              if (ch) {
+                await ch.delete('Déclenché par AutoResponse').catch(() => null);
+              }
+            }
+
+            // CRUD Rôles
+            if (actions.createRole) {
+              const cr = actions.createRole;
+              if (cr.name && typeof cr.name === 'string') {
+                await message.guild?.roles.create({
+                  name: cr.name,
+                  color: cr.color || undefined,
+                  reason: 'Déclenché par AutoResponse',
+                }).catch(() => null);
+              }
+            }
+
+            if (actions.deleteRoleId && typeof actions.deleteRoleId === 'string') {
+              const r = message.guild?.roles.cache.get(actions.deleteRoleId);
+              if (r) {
+                await r.delete('Déclenché par AutoResponse').catch(() => null);
+              }
+            }
+
+            // Création de Thread (reprendre le truc d'autothread)
+            if (actions.createThread && !item.deleteTrigger) {
+              const channel = message.channel;
+              if (!channel.isThread() && ('guild' in channel)) {
+                const botMember = message.guild?.members.me ?? await message.guild?.members.fetchMe();
+                const permissions = botMember?.permissionsIn(channel as any);
+                if (permissions?.has(PermissionFlagsBits.CreatePublicThreads) &&
+                    permissions?.has(PermissionFlagsBits.SendMessagesInThreads)) {
+
+                  let rawName = message.content ? message.content.replace(/[\n\r]+/g, ' ').trim() : '';
+                  let authorName = message.member?.displayName || message.author.displayName || message.author.username;
+
+                  if (!rawName && message.embeds.length > 0) {
+                    const embed = message.embeds[0];
+                    rawName = (embed.description || embed.title || '').replace(/[\n\r]+/g, ' ').trim();
+                    if (embed.author?.name) authorName = embed.author.name;
+                  }
+
+                  const cleanContent = rawName.substring(0, 40);
+                  let threadName = '';
+                  
+                  if (typeof actions.createThread === 'string') {
+                    threadName = actions.createThread
+                      .replace(/{user}/g, authorName)
+                      .replace(/{content}/g, cleanContent);
+                  } else {
+                    threadName = cleanContent
+                      ? `Fil de ${authorName} - ${cleanContent}...`
+                      : `Fil de ${authorName}`;
+                  }
+
+                  await message.startThread({
+                    name: threadName.substring(0, 100),
+                    autoArchiveDuration: 1440,
+                    reason: 'Créé via AutoResponse.',
+                  }).catch((e: unknown) => {
+                    logger.error('AutoResponseService', `Erreur lors de la création du fil pour le message ${message.id}:`, e);
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            logger.error('AutoResponseService', `Erreur lors de l'exécution des actions pour ${item.id}:`, e);
+          }
+        }
+
         // 3. Envoi de la réponse si elle existe
         const responseText = resolveResponse(item.response);
         if (responseText && responseText.trim()) {
-          const isJson = responseText.startsWith('{') && responseText.endsWith('}');
-          let sendPayload: string | { embeds: EmbedBuilder[] } = responseText;
-
-          if (isJson) {
-            try {
-              const embedData = JSON.parse(responseText);
-              const embed = new EmbedBuilder(embedData);
-              sendPayload = { embeds: [embed] };
-            } catch (e) {
-              sendPayload = responseText;
-            }
-          }
-
-          if (item.deleteTrigger && message.channel instanceof TextChannel) {
-            await message.channel.send(sendPayload).catch(() => null);
-          } else {
-            await message.reply(sendPayload).catch(() => null);
-          }
+          const contextChannel = message.channel.isTextBased() ? (message.channel as TextBasedChannel) : null;
+          await dispatchTriggerResponse(message.client, message.guildId, item, responseText, message.author.id, {
+            contextChannel,
+            replyToMessage: item.deleteTrigger ? null : message,
+          });
         }
 
         // 4. Fermeture du ticket si requis
@@ -299,26 +488,9 @@ export async function handleFormTrigger(
         } else {
           const resolvedFormResponse = resolveResponse(item.response);
           if (resolvedFormResponse && resolvedFormResponse.trim()) {
-            try {
-              const discordUser = await client.users.fetch(userId);
-              if (discordUser) {
-                const isJson = resolvedFormResponse.startsWith('{') && resolvedFormResponse.endsWith('}');
-                let sendPayload: string | { embeds: EmbedBuilder[] } = resolvedFormResponse;
-
-                if (isJson) {
-                  try {
-                    const embedData = JSON.parse(resolvedFormResponse);
-                    const embed = new EmbedBuilder(embedData);
-                    sendPayload = { embeds: [embed] };
-                  } catch {
-                    sendPayload = resolvedFormResponse;
-                  }
-                }
-                await discordUser.send(sendPayload).catch(() => null);
-              }
-            } catch (e) {
-              logger.error('AutoResponseService', `Impossible d'envoyer la réponse DM pour trigger de formulaire:`, e);
-            }
+            await dispatchTriggerResponse(client, guildId, item, resolvedFormResponse, userId).catch((e) => {
+              logger.error('AutoResponseService', `Impossible d'envoyer la réponse pour trigger de formulaire:`, e);
+            });
           }
         }
       }
@@ -395,26 +567,21 @@ export async function handleTicketTrigger(
 
         const resolvedTicketResponse = resolveResponse(item.response);
         if (resolvedTicketResponse && resolvedTicketResponse.trim()) {
-          try {
-            const discordUser = await client.users.fetch(userId);
-            if (discordUser) {
-              const isJson = resolvedTicketResponse.startsWith('{') && resolvedTicketResponse.endsWith('}');
-              let sendPayload: string | { embeds: EmbedBuilder[] } = resolvedTicketResponse;
-
-              if (isJson) {
-                try {
-                  const embedData = JSON.parse(resolvedTicketResponse);
-                  const embed = new EmbedBuilder(embedData);
-                  sendPayload = { embeds: [embed] };
-                } catch {
-                  sendPayload = resolvedTicketResponse;
-                }
-              }
-              await discordUser.send(sendPayload).catch(() => null);
+          let contextChannel: TextBasedChannel | null = null;
+          if (ticketId) {
+            const ticket = await prisma.ticket.findUnique({
+              where: { id: ticketId },
+              select: { channelId: true, threadId: true },
+            }).catch(() => null);
+            const contextChannelId = ticket?.threadId || ticket?.channelId;
+            if (contextChannelId) {
+              const ch = client.channels.cache.get(contextChannelId) || await client.channels.fetch(contextChannelId).catch(() => null);
+              if (ch?.isTextBased()) contextChannel = ch as TextBasedChannel;
             }
-          } catch (e) {
-            logger.error('AutoResponseService', `Impossible d'envoyer la réponse DM pour trigger de ticket:`, e);
           }
+          await dispatchTriggerResponse(client, guildId, item, resolvedTicketResponse, userId, { contextChannel }).catch((e) => {
+            logger.error('AutoResponseService', `Impossible d'envoyer la réponse pour trigger de ticket:`, e);
+          });
         }
 
         // Nouvelle action : Fermer le ticket

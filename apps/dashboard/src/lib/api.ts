@@ -2205,6 +2205,17 @@ export async function deleteAutoResponse(id: string, guildId = authStore.selecte
   return dashboardMutation(`/triggers/${id}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Auto Response):' });
 }
 
+export interface GuildCustomEmoji {
+  id: string;
+  name: string;
+  animated: boolean;
+  url: string;
+}
+
+export async function fetchTriggerEmojis(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/triggers/emojis', { method: 'GET', guildId, errorContext: 'API Error (Fetch Guild Emojis):' }) as Promise<{ emojis: GuildCustomEmoji[] } | null>;
+}
+
 export async function fetchAutoModConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/automod', { method: 'GET', guildId, errorContext: 'API Error (Fetch AutoMod):' });
 }

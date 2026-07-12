@@ -46,6 +46,15 @@ model AutoResponse {
   ticketTypeId        String?
   ticketQuestionLabel String? // "reason", "description" ou label du champ
 
+  // Réactions et Actions complexes
+  reactions      String[] @default([])
+  actions        Json?
+
+  // Destination du message de réponse : DM (défaut), CHANNEL (salon du déclencheur), SPECIFIC_CHANNEL (salon choisi)
+  responseDestination String  @default("DM")
+  responseChannelId    String? // salon cible si responseDestination == SPECIFIC_CHANNEL
+  relayToStaffServer   Boolean @default(false) // relaie aussi la réponse sur le serveur staff lié (si disponible)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
