@@ -308,6 +308,14 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 3000);
   });
 
+  // ⏰ Rappels Staff: Toutes les minutes
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('staff-reminders', async () => {
+      const { processDueReminders } = await import('../services/staff/reminderService.js');
+      await processDueReminders(client);
+    }, 1000);
+  });
+
   // 🔍 DC Scan: Toutes les heures (vérifie les guildes qui ont activé l'auto-détection)
   cron.schedule('0 * * * *', async () => {
     await runCronJob('dc-scan', async () => {

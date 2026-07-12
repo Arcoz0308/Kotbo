@@ -74,6 +74,7 @@ import { widgetCommand } from './commands/profile/widget.js';
 import { seasonsCommand } from './commands/community/seasons.js';
 import { pulseCommand } from './commands/admin/pulse.js';
 import { evaluationsCommand } from './commands/admin/evaluations.js';
+import { rappelCommand } from './commands/utility/rappel.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; description: string; toJSON: () => unknown };
@@ -178,6 +179,7 @@ export const commands: SlashCommandDefinition[] = [
   seasonsCommand,
   pulseCommand,
   evaluationsCommand,
+  rappelCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [

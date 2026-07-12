@@ -29,6 +29,7 @@ model StaffTask {
   assignee    StaffMember  @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: Cascade)
   creator     StaffMember  @relation("CreatedTasks", fields: [creatorId], references: [id], onDelete: Cascade)
   guild       Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  reminders   StaffReminder[]
 
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -63,6 +64,7 @@ model StaffCall {
   creator          StaffMember       @relation("CreatedCalls", fields: [creatorId], references: [id], onDelete: Cascade)
   guild            Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
   invitees         StaffCallInvitee[]
+  reminders        StaffReminder[]
 
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -104,3 +106,30 @@ model CallPermissionConfig {
 
   @@map("call_permission_configs")
 }
+
+model StaffReminder {
+  id          String        @id @default(cuid())
+  guildId     String
+  userId      String        // ID de l'utilisateur Discord à rappeler
+  channelId   String?       // ID du salon Discord (null = en MP)
+  message     String        // Message de rappel
+  targetTime  DateTime      // Heure à laquelle envoyer le rappel
+  fired       Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations optionnelles avec les éléments du planning
+  taskId      String?
+  callId      String?
+  meetingId   String?
+
+  task        StaffTask?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  call        StaffCall?    @relation(fields: [callId], references: [id], onDelete: Cascade)
+  meeting     StaffMeeting? @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  guild       Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, fired, targetTime])
+  @@map("staff_reminders")
+}
+

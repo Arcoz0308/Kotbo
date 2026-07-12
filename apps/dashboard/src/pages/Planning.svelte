@@ -1,6 +1,7 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
+  import { toast } from '../lib/stores/toast.svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -24,8 +25,12 @@
     fetchStaffRoles,
     searchDiscordMembers,
     fetchCallPermissionConfig,
-    updateCallPermissionConfig
+    updateCallPermissionConfig,
+    fetchMemberCase,
+    createReminder,
+    deleteReminder
   } from '../lib/api';
+  import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -37,6 +42,8 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+  import DiscordMarkdownEditor from '../lib/components/DiscordMarkdownEditor.svelte';
   import { localInitialAvatar } from '../lib/discordMedia';
 
   // State
@@ -92,6 +99,11 @@
   let formError = $state('');
   let saving = $state(false);
 
+  // Reminders form state
+  let newReminderTime = $state('');
+  let newReminderMessage = $state('');
+  let newReminderChannel = $state('DM');
+
   // Member search for call invitees
   let memberSearchQuery = $state('');
   let memberSearchResults = $state<any[]>([]);
@@ -114,6 +126,184 @@
   let permMemberSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   let permError = $state('');
   let permSaving = $state(false);
+
+  // Meetings Feature Access & Permissions
+  const meetingsFeatureAccess = $derived(dashboardStore.state.featureAccess?.meetings || {});
+  const canManageMeetings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings || !!meetingsFeatureAccess.canConfigure);
+  const canModerateMeetings = $derived(canManageMeetings || !!meetingsFeatureAccess.canModerate);
+
+  // Member Case Modal States
+  let userCaseModalOpen = $state(false);
+  let selectedUserIdForCase = $state<string | null>(null);
+  let selectedUserNameForCase = $state('');
+  let caseData = $state<any>(null);
+  let loadingCase = $state(false);
+  let caseError = $state('');
+
+  // Meeting deletion states
+  let meetingDeleteModalOpen = $state(false);
+  let meetingToDeleteId = $state<string | null>(null);
+  let deleteDiscordEvent = $state(true);
+  let deleteDiscordMessage = $state(false);
+  let deleteDiscordNotification = $state(true);
+  let deletingMeeting = $state(false);
+
+  // Meeting edition states
+  let meetingEditModalOpen = $state(false);
+  let editMeetingTitle = $state('');
+  let editMeetingDesc = $state('');
+  let editMeetingDate = $state('');
+  let editMeetingEndDate = $state('');
+  let editMeetingError = $state('');
+  let savingMeetingEdit = $state(false);
+
+  async function openMemberCase(userId: string, name: string) {
+    if (!authStore.selectedGuildId) return;
+    selectedUserIdForCase = userId;
+    selectedUserNameForCase = name;
+    userCaseModalOpen = true;
+    loadingCase = true;
+    caseError = '';
+    caseData = null;
+
+    try {
+      caseData = await fetchMemberCase(userId, authStore.selectedGuildId);
+    } catch (err) {
+      caseError = err instanceof Error ? err.message : 'Impossible de charger le dossier';
+    } finally {
+      loadingCase = false;
+    }
+  }
+
+  async function updateMeetingStatus(id: string, status: string) {
+    if (!canModerateMeetings) return;
+    try {
+      await updateMeeting(id, { status });
+      await refreshCalendar();
+      if (currentItemDetail && currentItemDetail.id === id) {
+        currentItemDetail.raw.status = status;
+      }
+    } catch (e) {
+      console.error('Failed to update status:', e);
+    }
+  }
+
+  function getAttendanceStats(meeting: any) {
+    const presences = meeting.presences || [];
+    return {
+      present: presences.filter((p: any) => p.status === 'PRESENT').length,
+      excused: presences.filter((p: any) => p.status === 'EXCUSED' || p.status === 'ABSENT_CHECKED').length,
+      absent: presences.filter((p: any) => p.status === 'ABSENT').length
+    };
+  }
+
+  function openEditMeeting(meeting: any) {
+    if (!canManageMeetings) return;
+    editMeetingTitle = meeting.title;
+    editMeetingDesc = meeting.description || '';
+    editMeetingDate = formatLocal(new Date(meeting.scheduledAt));
+    editMeetingEndDate = meeting.endedAt ? formatLocal(new Date(meeting.endedAt)) : formatLocal(new Date(new Date(meeting.scheduledAt).getTime() + 3600000));
+    editMeetingError = '';
+    meetingEditModalOpen = true;
+  }
+
+  async function saveMeetingEdit() {
+    if (!editMeetingTitle || !editMeetingDate) {
+      editMeetingError = 'Le titre et la date de début sont obligatoires.';
+      return;
+    }
+    const start = new Date(editMeetingDate);
+    const end = new Date(editMeetingEndDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      editMeetingError = 'Les dates fournies sont invalides.';
+      return;
+    }
+    if (end <= start) {
+      editMeetingError = 'La date de fin doit être postérieure à la date de début.';
+      return;
+    }
+
+    savingMeetingEdit = true;
+    editMeetingError = '';
+    try {
+      const payload: any = {
+        title: editMeetingTitle,
+        description: editMeetingDesc,
+        scheduledAt: start.toISOString(),
+        endedAt: end.toISOString()
+      };
+
+      if (currentItemDetail?.id) {
+        await updateMeeting(currentItemDetail.id, payload);
+        meetingEditModalOpen = false;
+        
+        // Update local state so details update immediately
+        currentItemDetail.title = editMeetingTitle;
+        currentItemDetail.start = start;
+        currentItemDetail.end = end;
+        currentItemDetail.raw.title = editMeetingTitle;
+        currentItemDetail.raw.description = editMeetingDesc;
+        currentItemDetail.raw.scheduledAt = start.toISOString();
+        currentItemDetail.raw.endedAt = end.toISOString();
+        
+        await refreshCalendar();
+      }
+    } catch (e) {
+      console.error('Failed to save meeting:', e);
+      editMeetingError = 'Erreur lors de l’enregistrement de la réunion.';
+    } finally {
+      savingMeetingEdit = false;
+    }
+  }
+
+  async function confirmDeleteMeeting() {
+    if (!meetingToDeleteId) return;
+    deletingMeeting = true;
+    try {
+      await deleteMeeting(meetingToDeleteId, {
+        deleteEvent: deleteDiscordEvent,
+        deleteMessage: deleteDiscordMessage,
+        deleteNotifications: deleteDiscordNotification
+      });
+      meetingDeleteModalOpen = false;
+      detailModalOpen = false;
+      await Promise.all([refreshCalendar(), refreshTasks()]);
+    } catch (e) {
+      console.error('Failed to delete meeting:', e);
+    } finally {
+      deletingMeeting = false;
+    }
+  }
+
+  function getStatusColor(status: string) {
+    switch (status) {
+      case 'SCHEDULED': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+      case 'IN_PROGRESS': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 animate-pulse';
+      case 'COMPLETED': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+      case 'CANCELLED': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+      // Presence statuses
+      case 'PRESENT': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+      case 'EXCUSED': 
+      case 'ABSENT_CHECKED': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+      case 'ABSENT': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+      default: return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
+    }
+  }
+
+  function formatStatus(status: string) {
+    switch (status) {
+      case 'SCHEDULED': return 'Planifiée';
+      case 'IN_PROGRESS': return 'En cours';
+      case 'COMPLETED': return 'Terminée';
+      case 'CANCELLED': return 'Annulée';
+      // Presence statuses
+      case 'PRESENT': return 'Présent';
+      case 'EXCUSED': return 'Excusé';
+      case 'ABSENT_CHECKED': return 'Excusé (Vérifié)';
+      case 'ABSENT': return 'Absent';
+      default: return status;
+    }
+  }
 
   async function searchMembers(query: string) {
     if (!query.trim()) {
@@ -439,6 +629,61 @@
     }
   }
 
+  async function handleAddReminder() {
+    if (!newReminderTime || !newReminderMessage.trim()) {
+      toast.error('Date/heure et message requis');
+      return;
+    }
+
+    try {
+      const payload: any = {
+        message: newReminderMessage,
+        targetTime: new Date(newReminderTime).toISOString(),
+        channelId: newReminderChannel === 'CURRENT' ? currentItemDetail.raw.discordChannelId || null : null,
+      };
+
+      if (currentItemDetail.type === 'task') payload.taskId = currentItemDetail.raw.id;
+      else if (currentItemDetail.type === 'call') payload.callId = currentItemDetail.raw.id;
+      else if (currentItemDetail.type === 'meeting') payload.meetingId = currentItemDetail.raw.id;
+
+      await createReminder(payload);
+      toast.success('Rappel programmé avec succès');
+      newReminderMessage = '';
+      newReminderTime = '';
+      
+      await Promise.all([refreshCalendar(), refreshTasks()]);
+      
+      // Update currentItemDetail to show the new reminder immediately
+      const updatedItem = calendarData[currentItemDetail.type + 's']?.find((x: any) => x.id === currentItemDetail.raw.id)
+        || userTasks.find((x: any) => x.id === currentItemDetail.raw.id);
+      if (updatedItem) {
+        currentItemDetail = { ...currentItemDetail, raw: updatedItem };
+      }
+    } catch (e: any) {
+      console.error('Failed to create reminder:', e);
+      toast.error(e.message || 'Impossible de programmer le rappel');
+    }
+  }
+
+  async function handleDeleteReminder(reminderId: string) {
+    try {
+      await deleteReminder(reminderId);
+      toast.success('Rappel supprimé');
+      
+      await Promise.all([refreshCalendar(), refreshTasks()]);
+      
+      // Update currentItemDetail to remove the reminder immediately
+      const updatedItem = calendarData[currentItemDetail.type + 's']?.find((x: any) => x.id === currentItemDetail.raw.id)
+        || userTasks.find((x: any) => x.id === currentItemDetail.raw.id);
+      if (updatedItem) {
+        currentItemDetail = { ...currentItemDetail, raw: updatedItem };
+      }
+    } catch (e: any) {
+      console.error('Failed to delete reminder:', e);
+      toast.error(e.message || 'Impossible de supprimer le rappel');
+    }
+  }
+
   async function handleRangeChange(start: Date, end: Date) {
     currentRangeStart = start;
     currentRangeEnd = end;
@@ -541,10 +786,17 @@
   async function handleDeleteDetail() {
     if (!currentItemDetail) return;
     const { id, type } = currentItemDetail;
+    if (type === 'meeting') {
+      meetingToDeleteId = id;
+      deleteDiscordEvent = true;
+      deleteDiscordMessage = false;
+      deleteDiscordNotification = true;
+      meetingDeleteModalOpen = true;
+      return;
+    }
     if (!confirm('Voulez-vous vraiment supprimer cet élément ?')) return;
     try {
-      if (type === 'meeting') await deleteMeeting(id);
-      else if (type === 'absence') await deleteAbsence(id);
+      if (type === 'absence') await deleteAbsence(id);
       else if (type === 'call') await deleteCall(id);
       else if (type === 'task') await deleteTask(id);
       detailModalOpen = false;
@@ -812,7 +1064,19 @@
                           <Papicon icon="check" size={10} class="text-white" />
                         {/if}
                       </button>
-                      <div class="flex-1 min-w-0">
+                      <button
+                        onclick={() => handleEventClick({
+                          id: task.id,
+                          title: task.title,
+                          start: task.dueDate ? new Date(task.dueDate) : new Date(),
+                          end: task.dueDate ? new Date(new Date(task.dueDate).getTime() + 1800000) : new Date(Date.now() + 1800000),
+                          type: 'task',
+                          isAllDay: false,
+                          details: task.description,
+                          raw: task
+                        })}
+                        class="text-left flex-1 min-w-0 border-none bg-transparent cursor-pointer p-0 block w-full focus:outline-none"
+                      >
                         <p class="text-[11px] font-semibold text-on-surface leading-tight {task.status === 'COMPLETED' ? 'line-through text-on-surface-variant' : ''}">{task.title}</p>
                         {#if task.description}
                           <p class="text-[10px] text-on-surface-variant/60 line-clamp-1 mt-0.5">{task.description}</p>
@@ -830,7 +1094,7 @@
                             </span>
                           {/if}
                         </div>
-                      </div>
+                      </button>
                     </div>
                   {/each}
                 </div>
@@ -1139,12 +1403,12 @@
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
       <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => detailModalOpen = false} aria-label="Fermer"></button>
 
-      <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200 text-on-surface">
+      <div class="relative w-full max-w-md max-h-[85vh] bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200 text-on-surface flex flex-col">
 
         <!-- Colored top bar (Outlook-style) -->
-        <div class="h-1 {typeColor === 'emerald' ? 'bg-emerald-500' : typeColor === 'green' ? 'bg-green-500' : typeColor === 'amber' ? 'bg-amber-500' : 'bg-purple-500'}"></div>
+        <div class="h-1 shrink-0 {typeColor === 'emerald' ? 'bg-emerald-500' : typeColor === 'green' ? 'bg-green-500' : typeColor === 'amber' ? 'bg-amber-500' : 'bg-purple-500'}"></div>
 
-        <div class="p-5">
+        <div class="p-5 overflow-y-auto custom-scrollbar flex-1 min-h-0">
           <!-- Header -->
           <div class="flex justify-between items-start mb-4">
             <div class="flex-1 min-w-0">
@@ -1173,12 +1437,113 @@
 
           <!-- Description -->
           {#if raw.description || raw.reason}
-            <div class="p-3 bg-surface-container/50 rounded-lg text-xs text-on-surface-variant leading-relaxed mb-4">
-              {raw.description || raw.reason}
-            </div>
+            {#if currentItemDetail.type === 'meeting'}
+              <div class="p-4 bg-[#2f3136] rounded-lg border border-white/5 text-xs mb-4">
+                <div class="text-[#dcddde] leading-relaxed whitespace-pre-wrap break-words discord-preview">
+                  {@html parseDiscordEmojisAndMarkdown(raw.description || '')}
+                </div>
+              </div>
+            {:else}
+              <div class="p-3 bg-surface-container/50 rounded-lg text-xs text-on-surface-variant leading-relaxed mb-4">
+                {raw.description || raw.reason}
+              </div>
+            {/if}
           {/if}
 
           <!-- Type-specific details -->
+          {#if currentItemDetail.type === 'meeting'}
+            {@const stats = getAttendanceStats(raw)}
+            <div class="space-y-4 mb-4">
+              <!-- Meeting Status and Moderation Actions -->
+              <div class="flex items-center justify-between gap-3">
+                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider {getStatusColor(raw.status)}">
+                  {formatStatus(raw.status)}
+                </span>
+                
+                {#if canModerateMeetings}
+                  <div class="flex items-center gap-2">
+                    {#if raw.status === 'SCHEDULED'}
+                      <button 
+                        onclick={() => updateMeetingStatus(currentItemDetail.id, 'IN_PROGRESS')} 
+                        class="text-[10px] font-bold text-primary bg-primary/10 px-2.5 py-1 hover:bg-primary/20 rounded-md transition-colors flex items-center gap-1"
+                      >
+                        <Papicon icon="play" size={10} />
+                        Démarrer
+                      </button>
+                    {:else if raw.status === 'IN_PROGRESS'}
+                      <button 
+                        onclick={() => updateMeetingStatus(currentItemDetail.id, 'COMPLETED')} 
+                        class="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 hover:bg-emerald-500/20 rounded-md transition-colors flex items-center gap-1"
+                      >
+                        <Papicon icon="check" size={10} />
+                        Terminer
+                      </button>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Attendance Stats -->
+              <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-lg text-center">
+                <div>
+                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">Présents</p>
+                  <p class="text-base font-bold text-emerald-500">{stats.present}</p>
+                </div>
+                <div class="border-x border-outline-variant/30">
+                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">Excusés</p>
+                  <p class="text-base font-bold text-amber-500">{stats.excused}</p>
+                </div>
+                <div>
+                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">Absents</p>
+                  <p class="text-base font-bold text-red-500">{stats.absent}</p>
+                </div>
+              </div>
+
+              <!-- Attendance List -->
+              {#if raw.presences && raw.presences.length > 0}
+                <div class="space-y-2">
+                  <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest px-1">Liste des présences</span>
+                  <div class="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                    {#each raw.presences as presence}
+                      <div class="flex items-center justify-between p-2 bg-surface-container-low/50 rounded-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors group">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <button 
+                            type="button"
+                            onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
+                            class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary overflow-hidden transition-transform shrink-0"
+                          >
+                            {#if presence.staffMember?.avatarUrl}
+                              <img src={presence.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
+                            {:else}
+                              {presence.staffMember?.displayName?.slice(0, 2).toUpperCase() || presence.staffMember?.username?.slice(0, 2).toUpperCase() || "??"}
+                            {/if}
+                          </button>
+                          <div class="min-w-0">
+                            <button 
+                              type="button"
+                              onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
+                              class="text-xs font-bold text-on-surface hover:text-primary transition-colors text-left block truncate"
+                            >
+                              {presence.staffMember?.displayName || presence.staffMember?.username || 'Membre'}
+                            </button>
+                            {#if presence.note}
+                              <p class="text-[9px] text-on-surface-variant leading-tight mt-0.5 truncate" title={presence.note}>{presence.note}</p>
+                            {/if}
+                          </div>
+                        </div>
+                        <div class="shrink-0">
+                          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-semibold uppercase tracking-wider {getStatusColor(presence.status)}">
+                            {formatStatus(presence.status)}
+                          </span>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
+
           {#if currentItemDetail.type === 'call'}
             <div class="space-y-2 text-xs mb-4">
               <div class="flex items-center gap-2 text-on-surface-variant">
@@ -1250,14 +1615,101 @@
               </div>
             </div>
           {/if}
+
+          {#if currentItemDetail.type !== 'absence'}
+            <div class="mt-4 border-t border-outline-variant/15 pt-4 text-left">
+              <h4 class="text-xs font-bold text-on-surface mb-2 flex items-center gap-1.5">
+                <Papicon icon="bell" size={12} class="text-amber-400" />
+                Rappels ({raw.reminders?.length || 0})
+              </h4>
+
+              {#if raw.reminders && raw.reminders.length > 0}
+                <div class="space-y-1.5 max-h-32 overflow-y-auto mb-3 custom-scrollbar">
+                  {#each raw.reminders as reminder}
+                    <div class="flex items-center justify-between p-2 rounded bg-surface-container/60 text-[11px] border border-outline-variant/5">
+                      <div class="flex-1 min-w-0 pr-2">
+                        <div class="font-medium text-on-surface truncate">{reminder.message}</div>
+                        <div class="text-[9px] text-on-surface-variant">
+                          Le {new Date(reminder.targetTime).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          {#if reminder.fired}
+                            <span class="text-emerald-400 ml-1">(Envoyé)</span>
+                          {:else}
+                            <span class="text-amber-400 ml-1">(Planifié)</span>
+                          {/if}
+                        </div>
+                      </div>
+                      <button
+                        onclick={() => handleDeleteReminder(reminder.id)}
+                        class="p-1 rounded hover:bg-red-500/10 text-red-400 border-none bg-transparent transition-colors cursor-pointer shrink-0"
+                        title="Supprimer"
+                      >
+                        <Papicon icon="trash-2" size={10} />
+                      </button>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <p class="text-[11px] text-on-surface-variant italic mb-3">Aucun rappel configuré.</p>
+              {/if}
+
+              <!-- Add Reminder Form -->
+              <div class="flex flex-col gap-2 p-2.5 rounded bg-surface-container/30 border border-outline-variant/10 text-xs">
+                <div class="font-semibold text-[10px] uppercase text-on-surface-variant">Programmer un rappel</div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label for="new-reminder-time" class="block text-[9px] text-on-surface-variant font-medium mb-1">Date et heure</label>
+                    <input
+                      id="new-reminder-time"
+                      type="datetime-local"
+                      bind:value={newReminderTime}
+                      class="w-full bg-surface-container-high border border-outline-variant/20 rounded px-2 py-1 text-xs text-on-surface outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label for="new-reminder-channel" class="block text-[9px] text-on-surface-variant font-medium mb-1">Canal de réception</label>
+                    <select
+                      id="new-reminder-channel"
+                      bind:value={newReminderChannel}
+                      class="w-full bg-surface-container-high border border-outline-variant/20 rounded px-2 py-1 text-xs text-on-surface outline-none"
+                    >
+                      <option value="DM">Message Privé (MP)</option>
+                      <option value="CURRENT">Ce salon Discord</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="Note (ex: Réunion dans 5 min...)"
+                    bind:value={newReminderMessage}
+                    class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded px-2.5 py-1 text-xs text-on-surface outline-none"
+                  />
+                  <button
+                    onclick={handleAddReminder}
+                    class="px-3 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors shrink-0 text-xs cursor-pointer border-none"
+                  >
+                    Ajouter
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
         </div>
 
         <!-- Footer actions -->
-        <div class="px-5 py-3 border-t border-outline-variant/15 bg-surface-container-low/50 flex justify-between">
-          <button onclick={handleDeleteDetail} class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold text-red-400 hover:bg-red-500/10 transition-colors">
-            <Papicon icon="trash-2" size={12} />
-            Supprimer
-          </button>
+        <div class="px-5 py-3 border-t border-outline-variant/15 bg-surface-container-low/50 flex justify-between items-center shrink-0">
+          <div class="flex gap-2">
+            <button onclick={handleDeleteDetail} class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold text-red-400 hover:bg-red-500/10 transition-colors">
+              <Papicon icon="trash-2" size={12} />
+              Supprimer
+            </button>
+            {#if currentItemDetail.type === 'meeting' && canManageMeetings}
+              <button onclick={() => openEditMeeting(raw)} class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors">
+                <Papicon icon="edit-2" size={12} />
+                Modifier
+              </button>
+            {/if}
+          </div>
           <button onclick={() => detailModalOpen = false} class="px-4 py-1.5 rounded-md text-[11px] font-semibold text-on-surface-variant hover:bg-surface-hover transition-colors">
             Fermer
           </button>
@@ -1395,6 +1847,187 @@
             {/if}
             Enregistrer
           </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <MemberCaseModal
+    open={userCaseModalOpen}
+    userId={selectedUserIdForCase}
+    userName={selectedUserNameForCase}
+    {caseData}
+    loading={loadingCase}
+    error={caseError}
+    onClose={() => {
+      userCaseModalOpen = false;
+    }}
+    onSelectUser={(newUserId) => {
+      const foundNode = caseData?.interactionGraph?.nodes?.find((n: any) => n.id === newUserId);
+      const label = foundNode?.label || 'Membre';
+      openMemberCase(newUserId, label);
+    }}
+  />
+
+  {#if meetingDeleteModalOpen}
+    <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
+      <div 
+        class="absolute inset-0 bg-black/60" 
+        onclick={() => meetingDeleteModalOpen = false}
+        onkeydown={(e) => e.key === 'Escape' && (meetingDeleteModalOpen = false)}
+        role="button"
+        tabindex="0"
+        aria-label="Fermer la modale"
+      ></div>
+      
+      <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter text-on-surface">
+        <div class="p-8 border-b border-outline-variant/30 bg-red-500/5 flex items-center justify-between">
+          <div>
+            <h3 class="text-xl font-semibold text-on-surface">Supprimer la réunion ?</h3>
+            <p class="text-on-surface-variant text-sm">Cette action est irréversible en base de données.</p>
+          </div>
+          <button onclick={() => meetingDeleteModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+            <Papicon icon="x" size={24} />
+          </button>
+        </div>
+
+        <div class="p-8 space-y-6">
+          <p class="text-sm text-on-surface-variant leading-relaxed">
+            Voulez-vous également supprimer les éléments associés sur Discord ?
+          </p>
+
+          <div class="space-y-4">
+            <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+              <input type="checkbox" bind:checked={deleteDiscordEvent} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
+              <div>
+                <p class="text-sm font-bold text-on-surface">Supprimer l'événement Discord</p>
+                <p class="text-[11px] text-on-surface-variant">Retire l'événement du calendrier du serveur.</p>
+              </div>
+            </label>
+
+            <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+              <input type="checkbox" bind:checked={deleteDiscordMessage} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
+              <div>
+                <p class="text-sm font-bold text-on-surface">Supprimer le message d'annonce</p>
+                <p class="text-[11px] text-on-surface-variant">Supprime le message @everyone avec les boutons.</p>
+              </div>
+            </label>
+
+            <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+              <input type="checkbox" bind:checked={deleteDiscordNotification} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
+              <div>
+                <p class="text-sm font-bold text-on-surface">Supprimer les notifications internes</p>
+                <p class="text-[11px] text-on-surface-variant">Nettoie l'Inbox du Dashboard pour tous les membres.</p>
+              </div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-end gap-4 pt-4 border-t border-outline-variant/30">
+            <button onclick={() => meetingDeleteModalOpen = false} class="px-6 py-2.5 font-bold text-on-surface-variant hover:bg-surface-hover rounded-xl transition-colors">
+              Annuler
+            </button>
+            <button 
+              onclick={confirmDeleteMeeting}
+              disabled={deletingMeeting}
+              class="px-8 py-2.5 bg-red-500 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 hover:shadow-red-500/40 disabled:opacity-50 transition-all flex items-center gap-2"
+            >
+              {#if deletingMeeting}
+                <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              {/if}
+              Supprimer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if meetingEditModalOpen}
+    <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
+      <div 
+        class="absolute inset-0 bg-black/60" 
+        onclick={() => meetingEditModalOpen = false}
+        onkeydown={(e) => e.key === 'Escape' && (meetingEditModalOpen = false)}
+        role="button"
+        tabindex="0"
+        aria-label="Fermer la modale"
+      ></div>
+      
+      <div class="relative w-full max-w-3xl bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter text-on-surface">
+        <div class="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-primary/5">
+          <div>
+            <h3 class="text-2xl font-semibold text-on-surface">Modifier la réunion</h3>
+            <p class="text-on-surface-variant text-sm">Remplissez les détails pour l'organisation.</p>
+          </div>
+          <button onclick={() => meetingEditModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+            <Papicon icon="x" size={24} />
+          </button>
+        </div>
+
+        <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          <div>
+            <label for="edit-meeting-title" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Titre de la réunion</label>
+            <FormInput 
+              id="edit-meeting-title"
+              bind:value={editMeetingTitle}
+              placeholder="Ex: Réunion de coordination hebdomadaire"
+              className="w-full text-lg font-bold"
+            />
+          </div>
+
+          <div>
+            <label for="edit-meeting-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Début prévu</label>
+            <FormInput 
+              id="edit-meeting-date"
+              type="datetime-local"
+              bind:value={editMeetingDate}
+              className="w-full"
+            />
+          </div>
+
+          <div>
+            <label for="edit-meeting-end-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Fin prévue</label>
+            <FormInput 
+              id="edit-meeting-end-date"
+              type="datetime-local"
+              bind:value={editMeetingEndDate}
+              className="w-full"
+            />
+          </div>
+
+          <div>
+            <DiscordMarkdownEditor
+              id="edit-meeting-desc"
+              bind:value={editMeetingDesc}
+              label="Ordre du jour / Description"
+              placeholder="Rédigez l'ordre du jour de la réunion..."
+              rows={10}
+              agendaMode={true}
+              disabled={savingMeetingEdit}
+            />
+          </div>
+
+          {#if editMeetingError}
+            <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mt-3">
+              <p class="text-sm text-red-700">{editMeetingError}</p>
+            </div>
+          {/if}
+
+          <div class="flex items-center justify-end gap-4 pt-4 mt-6 border-t border-outline-variant/30">
+            <button onclick={() => meetingEditModalOpen = false} class="px-6 py-2.5 font-bold text-on-surface-variant hover:bg-surface-hover rounded-xl transition-colors">
+              Annuler
+            </button>
+            <button 
+              onclick={saveMeetingEdit}
+              disabled={savingMeetingEdit || !editMeetingTitle || !editMeetingDate}
+              class="px-8 py-2.5 bg-primary text-white rounded-xl font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/40 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
+            >
+              {#if savingMeetingEdit}
+                <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              {/if}
+              Enregistrer
+            </button>
+          </div>
         </div>
       </div>
     </div>

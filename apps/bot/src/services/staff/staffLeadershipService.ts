@@ -1494,6 +1494,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
         scheduledAt: { gte: start, lte: end }
       },
       include: {
+        reminders: true,
         presences: {
           where: {
             staffMember: {
@@ -1511,7 +1512,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       }
     });
   } catch (err: unknown) {
-    logger.error('StaffLeadership', `Error fetching meetings: ${err.message}`);
+    logger.error('StaffLeadership', `Error fetching meetings: ${(err as Error).message}`);
   }
 
   let calls: unknown[] = [];
@@ -1523,6 +1524,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       },
       include: {
         creator: true,
+        reminders: true,
         invitees: {
           include: {
             staffMember: true
@@ -1531,7 +1533,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       }
     });
   } catch (err: unknown) {
-    logger.error('StaffLeadership', `Error fetching calls: ${err.message}`);
+    logger.error('StaffLeadership', `Error fetching calls: ${(err as Error).message}`);
   }
 
   let tasks: unknown[] = [];
@@ -1554,7 +1556,8 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       },
       include: {
         assignee: true,
-        creator: true
+        creator: true,
+        reminders: true
       }
     });
   } catch (err: unknown) {

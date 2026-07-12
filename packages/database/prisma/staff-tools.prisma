@@ -84,6 +84,7 @@ model StaffMeeting {
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   presences StaffMeetingPresence[]
+  reminders StaffReminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -330,6 +330,7 @@ model Guild {
 
   // Widget (Social Layer SDK)
   widgetSubscriptions WidgetSubscription[]
+  reminders           StaffReminder[]
 
   @@map("guilds")
 }

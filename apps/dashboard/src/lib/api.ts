@@ -763,6 +763,25 @@ export async function deleteTask(taskId: string, guildId = authStore.selectedGui
   return dashboardMutation(`/tasks/${taskId}`, { method: 'DELETE', guildId });
 }
 
+export async function fetchReminders(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/reminders', { method: 'GET', guildId });
+}
+
+export async function createReminder(payload: {
+  message: string;
+  targetTime: string;
+  channelId?: string | null;
+  taskId?: string | null;
+  callId?: string | null;
+  meetingId?: string | null;
+}, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/reminders', { method: 'POST', payload, guildId });
+}
+
+export async function deleteReminder(reminderId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/reminders/${reminderId}`, { method: 'DELETE', guildId });
+}
+
 export async function fetchPolls(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/polls', { method: 'GET', guildId });
 }
