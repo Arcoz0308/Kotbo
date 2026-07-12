@@ -373,8 +373,9 @@
                           { field: 'onboardingInviteChannelId', label: 'Salon d\'invitation onboarding', hint: 'Salon source des invitations envoyées aux nouveaux staff' },
                         ] as cfg}
                           <div>
-                            <label class="block text-xs font-medium text-on-surface mb-1">{cfg.label}</label>
+                            <label for="config-{cfg.field}" class="block text-xs font-medium text-on-surface mb-1">{cfg.label}</label>
                             <select
+                              id="config-{cfg.field}"
                               value={link[cfg.field] ?? ''}
                               onchange={(e) => handleConfigChange(link.id, cfg.field, (e.target as HTMLSelectElement).value || null)}
                               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
@@ -389,8 +390,9 @@
                         {/each}
 
                         <div>
-                          <label class="block text-xs font-medium text-on-surface mb-1">Catégorie des entretiens de recrutement</label>
+                          <label for="recruitment-category" class="block text-xs font-medium text-on-surface mb-1">Catégorie des entretiens de recrutement</label>
                           <select
+                            id="recruitment-category"
                             value={link.staffRecruitmentCategoryId ?? ''}
                             onchange={(e) => handleConfigChange(link.id, 'staffRecruitmentCategoryId', (e.target as HTMLSelectElement).value || null)}
                             class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
@@ -449,8 +451,9 @@
       <Modal bind:open={showCreateModal} title="Lier un serveur staff">
         <div class="flex flex-col gap-5 p-1">
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">ID du serveur staff</label>
+            <label for="new-staff-guild-id" class="block text-sm font-medium text-on-surface mb-1.5">ID du serveur staff</label>
             <input
+              id="new-staff-guild-id"
               type="text"
               bind:value={newStaffGuildId}
               placeholder="Ex: 123456789012345678"
@@ -460,8 +463,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">Mode de synchronisation</label>
+            <label for="new-sync-mode" class="block text-sm font-medium text-on-surface mb-1.5">Mode de synchronisation</label>
             <select
+              id="new-sync-mode"
               bind:value={newSyncMode}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
@@ -473,8 +477,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">Rôle staff simple (optionnel)</label>
+            <label for="new-simple-staff-role-id" class="block text-sm font-medium text-on-surface mb-1.5">Rôle staff simple (optionnel)</label>
             <select
+              id="new-simple-staff-role-id"
               bind:value={newSimpleStaffRoleId}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
@@ -486,8 +491,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">Salon de logs (optionnel)</label>
+            <label for="new-main-log-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">Salon de logs (optionnel)</label>
             <select
+              id="new-main-log-channel-id"
               bind:value={newMainLogChannelId}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
@@ -512,8 +518,9 @@
       <Modal bind:open={showMappingModal} title="Ajouter un mapping de rôle">
         <div class="flex flex-col gap-5 p-1">
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">Rôle sur ce serveur</label>
+            <label for="new-main-role-id" class="block text-sm font-medium text-on-surface mb-1.5">Rôle sur ce serveur</label>
             <select
+              id="new-main-role-id"
               bind:value={newMainRoleId}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
@@ -529,8 +536,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">ID du rôle sur le serveur staff</label>
+            <label for="new-staff-role-id" class="block text-sm font-medium text-on-surface mb-1.5">ID du rôle sur le serveur staff</label>
             <input
+              id="new-staff-role-id"
               type="text"
               bind:value={newStaffRoleId}
               placeholder="Ex: 123456789012345678"

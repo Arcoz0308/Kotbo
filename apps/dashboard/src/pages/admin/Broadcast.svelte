@@ -337,7 +337,7 @@
             <div class="space-y-3">
               <div class="relative">
                 <div class="flex items-center justify-between mb-1">
-                  <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Titre</label>
+                  <label for="broadcast-title" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Titre</label>
                   <button
                     onclick={() => openEmojiPicker('title')}
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-200
@@ -348,6 +348,7 @@
                   </button>
                 </div>
                 <input
+                  id="broadcast-title"
                   bind:value={title}
                   placeholder="Titre de l'annonce"
                   class="w-full bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-primary/40 transition-all"
@@ -356,7 +357,7 @@
 
               <div class="relative">
                 <div class="flex items-center justify-between mb-1">
-                  <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Message</label>
+                  <label for="broadcast-message" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Message</label>
                   <button
                     onclick={() => openEmojiPicker('message')}
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-200
@@ -368,6 +369,7 @@
                 </div>
 
                 <textarea
+                  id="broadcast-message"
                   bind:value={message}
                   placeholder="Rédigez votre annonce... Utilisez :emoji_key: pour les emojis custom"
                   rows={6}
@@ -407,8 +409,9 @@
               {/if}
 
               <div>
-                <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Footer</label>
+                <label for="broadcast-footer" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Footer</label>
                 <input
+                  id="broadcast-footer"
                   bind:value={footerText}
                   placeholder="Texte du footer"
                   class="w-full bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-primary/40 transition-all"
@@ -429,7 +432,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <!-- Color picker -->
               <div>
-                <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Couleur</label>
+                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Couleur</span>
                 <div class="flex items-center gap-2 flex-wrap">
                   {#each COLOR_PRESETS as preset}
                     <button
@@ -450,8 +453,9 @@
 
               <!-- Thumbnail URL -->
               <div>
-                <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Thumbnail URL</label>
+                <label for="thumbnail-url" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Thumbnail URL</label>
                 <input
+                  id="thumbnail-url"
                   bind:value={thumbnailUrl}
                   placeholder="https://..."
                   class="w-full bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-primary/40 transition-all"
@@ -460,8 +464,9 @@
 
               <!-- Image URL -->
               <div class="sm:col-span-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Image URL (grande)</label>
+                <label for="image-url" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Image URL (grande)</label>
                 <input
+                  id="image-url"
                   bind:value={imageUrl}
                   placeholder="https://..."
                   class="w-full bg-on-surface/4 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none focus:border-primary/40 transition-all"
@@ -482,7 +487,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <!-- Target -->
               <div>
-                <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Cible</label>
+                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Cible</span>
                 <div class="flex flex-col gap-1.5">
                   {#each [
                     { val: 'ALL', label: 'Tous les serveurs', icon: 'Globe' },
@@ -505,7 +510,7 @@
 
               <!-- Broadcast channel info -->
               <div>
-                <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Salon de diffusion</label>
+                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Salon de diffusion</span>
                 <div class="bg-on-surface/4 border border-outline-variant/10 rounded-xl p-3.5 space-y-2.5">
                   <p class="text-xs text-on-surface-variant/60 font-medium leading-relaxed">
                     Chaque serveur reçoit le broadcast dans le salon configuré dans l'onglet <span class="font-bold text-on-surface">Salons</span>.
@@ -538,7 +543,7 @@
             {#if target === 'CUSTOM'}
               <div class="mt-3 space-y-3 border-t border-outline-variant/10 pt-4">
                 <div class="flex items-center justify-between">
-                  <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Sélection des serveurs</label>
+                  <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Sélection des serveurs</span>
                   <span class="text-xs font-bold text-primary">{selectedGuilds.length} sélectionné(s)</span>
                 </div>
                 <input

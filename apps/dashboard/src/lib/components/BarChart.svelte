@@ -15,10 +15,7 @@
     return c;
   }
 
-  let resolvedColor = $state(color);
-  onMount(() => {
-    resolvedColor = getResolvedColor(color);
-  });
+  const resolvedColor = $derived(getResolvedColor(color));
 
   const chartData = $derived({
     labels: data.map(d => d[labelKey]),
@@ -41,12 +38,12 @@
     }]
   });
 
-  const options = {
+  const options = $derived({
     scales: {
       x: { display: data.length <= 15 },
       y: { display: true, beginAtZero: true }
     }
-  };
+  });
 </script>
 
 <div class="w-full" style="height: {height}px">

@@ -799,9 +799,10 @@
   {/if}
 
   <!-- Bento Grid -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" role="list">
     {#each userLayout.filter(item => item.visible) as item, index (item.id)}
       <div
+        role="listitem"
         draggable={isEditing}
         ondragstart={(e) => handleDragStart(e, index)}
         ondragend={handleDragEnd}
@@ -869,6 +870,9 @@
 
           <!-- Right resize handle (colSpan) -->
           <div
+            role="button"
+            tabindex="-1"
+            aria-label="Glisser pour redimensionner la largeur"
             onmousedown={(e) => handleResizeStart(e, item.id, 'col')}
             class="absolute top-0 right-0 w-2 h-full cursor-col-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-r-lg"
             title="Glisser pour redimensionner la largeur"
@@ -878,6 +882,9 @@
 
           <!-- Bottom resize handle (rowSpan) -->
           <div
+            role="button"
+            tabindex="-1"
+            aria-label="Glisser pour redimensionner la hauteur"
             onmousedown={(e) => handleResizeStart(e, item.id, 'row')}
             class="absolute bottom-0 left-0 w-full h-2 cursor-row-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-b-lg"
             title="Glisser pour redimensionner la hauteur"
@@ -1749,8 +1756,8 @@
 
   <!-- Add Module Modal -->
   {#if showAddModuleModal}
-    <div class="modal-backdrop" onclick={() => showAddModuleModal = false}>
-      <div class="modal-panel modal-panel-lg" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-backdrop" onclick={() => showAddModuleModal = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showAddModuleModal = false; }}>
+      <div class="modal-panel modal-panel-lg" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
           <h2 class="text-base font-semibold text-on-surface flex items-center gap-2">
             <Papicon icon="plus-circle" size={18} class="text-primary" /> Bibliothèque des modules
@@ -1804,8 +1811,8 @@
 
   <!-- Reset Confirmation Modal -->
   {#if showResetConfirm}
-    <div class="modal-backdrop" onclick={() => showResetConfirm = false}>
-      <div class="modal-panel max-w-sm" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-backdrop" onclick={() => showResetConfirm = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showResetConfirm = false; }}>
+      <div class="modal-panel max-w-sm" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="flex items-center gap-3 text-amber-400 mb-3">
           <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
             <Papicon icon="warning" size={20} />
@@ -1835,8 +1842,8 @@
 
   <!-- Presets Modal -->
   {#if showPresetsModal}
-    <div class="modal-backdrop" onclick={() => showPresetsModal = false}>
-      <div class="modal-panel modal-panel-lg" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-backdrop" onclick={() => showPresetsModal = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showPresetsModal = false; }}>
+      <div class="modal-panel modal-panel-lg" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
           <h2 class="text-base font-semibold text-on-surface flex items-center gap-2">
             <Papicon icon="layers" size={18} class="text-primary" /> Presets de disposition

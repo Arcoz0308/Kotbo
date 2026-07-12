@@ -302,8 +302,9 @@
 
           {#if (detailInstance.guilds?.length || 0) < detailInstance.maxGuilds}
             <div class="mt-2">
-              <label class="text-xs text-on-surface-variant block mb-1">Rattacher une guild</label>
+              <label for="bind-guild-select" class="text-xs text-on-surface-variant block mb-1">Rattacher une guild</label>
               <select
+                id="bind-guild-select"
                 onchange={(e) => { const v = (e.target as HTMLSelectElement).value; if (v) handleBindGuild(v); }}
                 class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface"
               >
@@ -321,8 +322,8 @@
 
   <!-- Create Modal -->
   {#if showCreateModal}
-    <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick={() => showCreateModal = false}>
-      <div class="bg-surface w-full max-w-lg rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto" onclick={(e) => e.stopPropagation()}>
+    <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick={() => showCreateModal = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showCreateModal = false; }}>
+      <div class="bg-surface w-full max-w-lg rounded-2xl shadow-xl max-h-[85vh] overflow-y-auto" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="p-6 space-y-4">
           <div class="flex items-center justify-between">
             <h3 class="text-lg font-semibold text-on-surface">Nouvelle instance White-Label</h3>
@@ -334,12 +335,12 @@
           <div class="space-y-3">
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Slug *</label>
-                <input bind:value={form.slug} placeholder="ma-commu" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+                <label for="create-slug" class="text-xs text-on-surface-variant block mb-1">Slug *</label>
+                <input id="create-slug" bind:value={form.slug} placeholder="ma-commu" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
               </div>
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Nom *</label>
-                <input bind:value={form.name} placeholder="Ma Communaute" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+                <label for="create-name" class="text-xs text-on-surface-variant block mb-1">Nom *</label>
+                <input id="create-name" bind:value={form.name} placeholder="Ma Communaute" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
               </div>
             </div>
 
@@ -347,22 +348,22 @@
             <p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Discord App</p>
 
             <div>
-              <label class="text-xs text-on-surface-variant block mb-1">Bot Token *</label>
-              <input bind:value={form.discordToken} type="password" placeholder="Bot token..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
+              <label for="create-discord-token" class="text-xs text-on-surface-variant block mb-1">Bot Token *</label>
+              <input id="create-discord-token" bind:value={form.discordToken} type="password" placeholder="Bot token..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Client ID *</label>
-                <input bind:value={form.discordClientId} placeholder="123456..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
+                <label for="create-discord-client-id" class="text-xs text-on-surface-variant block mb-1">Client ID *</label>
+                <input id="create-discord-client-id" bind:value={form.discordClientId} placeholder="123456..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
               </div>
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Client Secret *</label>
-                <input bind:value={form.discordClientSecret} type="password" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
+                <label for="create-discord-client-secret" class="text-xs text-on-surface-variant block mb-1">Client Secret *</label>
+                <input id="create-discord-client-secret" bind:value={form.discordClientSecret} type="password" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
               </div>
             </div>
             <div>
-              <label class="text-xs text-on-surface-variant block mb-1">Redirect URI (optionnel)</label>
-              <input bind:value={form.discordRedirectUri} placeholder="https://api.commu.fr/api/auth/discord/callback" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+              <label for="create-discord-redirect-uri" class="text-xs text-on-surface-variant block mb-1">Redirect URI (optionnel)</label>
+              <input id="create-discord-redirect-uri" bind:value={form.discordRedirectUri} placeholder="https://api.commu.fr/api/auth/discord/callback" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
             </div>
 
             <hr class="border-outline-variant" />
@@ -370,12 +371,12 @@
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">URL Dashboard</label>
-                <input bind:value={form.dashboardUrl} placeholder="https://panel.commu.fr" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+                <label for="create-dashboard-url" class="text-xs text-on-surface-variant block mb-1">URL Dashboard</label>
+                <input id="create-dashboard-url" bind:value={form.dashboardUrl} placeholder="https://panel.commu.fr" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
               </div>
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Port API</label>
-                <input bind:value={form.apiPort} type="number" placeholder="8788" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+                <label for="create-api-port" class="text-xs text-on-surface-variant block mb-1">Port API</label>
+                <input id="create-api-port" bind:value={form.apiPort} type="number" placeholder="8788" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
               </div>
             </div>
 
@@ -384,24 +385,24 @@
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Nom de marque</label>
-                <input bind:value={form.brandName} placeholder="Mon Bot" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+                <label for="brand-name" class="text-xs text-on-surface-variant block mb-1">Nom de marque</label>
+                <input id="brand-name" bind:value={form.brandName} placeholder="Mon Bot" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
               </div>
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Couleur primaire</label>
+                <label for="brand-color" class="text-xs text-on-surface-variant block mb-1">Couleur primaire</label>
                 <div class="flex items-center gap-2">
-                  <input bind:value={form.brandColor} type="color" class="w-8 h-8 rounded cursor-pointer border-0" />
-                  <input bind:value={form.brandColor} placeholder="#5865F2" class="flex-1 px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
+                  <input id="brand-color" bind:value={form.brandColor} type="color" class="w-8 h-8 rounded cursor-pointer border-0" />
+                  <input bind:value={form.brandColor} placeholder="#5865F2" class="flex-1 px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" aria-label="Couleur primaire (hex)" />
                 </div>
               </div>
             </div>
             <div>
-              <label class="text-xs text-on-surface-variant block mb-1">URL du logo</label>
-              <input bind:value={form.brandLogoUrl} placeholder="https://..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+              <label for="brand-logo" class="text-xs text-on-surface-variant block mb-1">URL du logo</label>
+              <input id="brand-logo" bind:value={form.brandLogoUrl} placeholder="https://..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
             </div>
             <div>
-              <label class="text-xs text-on-surface-variant block mb-1">Texte de footer</label>
-              <input bind:value={form.brandFooterText} placeholder="Powered by..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+              <label for="brand-footer" class="text-xs text-on-surface-variant block mb-1">Texte de footer</label>
+              <input id="brand-footer" bind:value={form.brandFooterText} placeholder="Powered by..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
             </div>
 
             <hr class="border-outline-variant" />
@@ -409,12 +410,12 @@
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Discord User ID *</label>
-                <input bind:value={form.ownerId} placeholder="123456789..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
+                <label for="owner-id" class="text-xs text-on-surface-variant block mb-1">Discord User ID *</label>
+                <input id="owner-id" bind:value={form.ownerId} placeholder="123456789..." class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono" />
               </div>
               <div>
-                <label class="text-xs text-on-surface-variant block mb-1">Max guilds</label>
-                <input bind:value={form.maxGuilds} type="number" min="1" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
+                <label for="max-guilds" class="text-xs text-on-surface-variant block mb-1">Max guilds</label>
+                <input id="max-guilds" bind:value={form.maxGuilds} type="number" min="1" class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface" />
               </div>
             </div>
           </div>

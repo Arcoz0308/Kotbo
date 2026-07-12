@@ -178,39 +178,39 @@
     <h3 class="text-base font-semibold flex items-center gap-2.5">Creer une quete</h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nom</label>
-        <input type="text" bind:value={newQuest.name} placeholder="Bavard du jour" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
+        <label for="new-quest-name" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nom</label>
+        <input id="new-quest-name" type="text" bind:value={newQuest.name} placeholder="Bavard du jour" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Description</label>
-        <input type="text" bind:value={newQuest.description} placeholder="Envoyez 50 messages aujourd'hui" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
+        <label for="new-quest-description" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Description</label>
+        <input id="new-quest-description" type="text" bind:value={newQuest.description} placeholder="Envoyez 50 messages aujourd'hui" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Type</label>
-        <select bind:value={newQuest.type} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors">
+        <label for="new-quest-type" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Type</label>
+        <select id="new-quest-type" bind:value={newQuest.type} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors">
           {#each Object.entries(questTypes) as [key, label]}
             <option value={key}>{label}</option>
           {/each}
         </select>
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Frequence</label>
-        <select bind:value={newQuest.frequency} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors">
+        <label for="new-quest-frequency" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Frequence</label>
+        <select id="new-quest-frequency" bind:value={newQuest.frequency} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors">
           <option value="DAILY">Quotidienne</option>
           <option value="WEEKLY">Hebdomadaire</option>
         </select>
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Objectif</label>
-        <input type="number" bind:value={newQuest.target} min="1" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
+        <label for="new-quest-target" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Objectif</label>
+        <input id="new-quest-target" type="number" bind:value={newQuest.target} min="1" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompense (coins)</label>
-        <input type="number" bind:value={newQuest.rewardCoins} min="0" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
+        <label for="new-quest-reward-coins" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompense (coins)</label>
+        <input id="new-quest-reward-coins" type="number" bind:value={newQuest.rewardCoins} min="0" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompense (XP)</label>
-        <input type="number" bind:value={newQuest.rewardXp} min="0" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
+        <label for="new-quest-reward-xp" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompense (XP)</label>
+        <input id="new-quest-reward-xp" type="number" bind:value={newQuest.rewardXp} min="0" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
     </div>
     <div class="flex justify-end gap-2">

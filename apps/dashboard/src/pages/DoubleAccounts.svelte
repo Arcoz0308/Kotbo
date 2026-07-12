@@ -997,7 +997,7 @@
 <!-- Detection Report Modal -->
 {#if reportModalDetection}
   {@const det = reportModalDetection}
-  <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60" onclick={(e) => { if (e.target === e.currentTarget) reportModalDetection = null; }}>
+  <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60" onclick={(e) => { if (e.target === e.currentTarget) reportModalDetection = null; }} role="button" tabindex="-1" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { if (e.target === e.currentTarget) reportModalDetection = null; } }}>
     <div class="bg-surface border border-outline-variant/20 rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-xl animate-in slide-in-from-bottom-4 duration-300">
       <!-- Header -->
       <div class="sticky top-0 bg-surface border-b border-outline-variant/10 px-5 py-4 flex items-center justify-between z-10">

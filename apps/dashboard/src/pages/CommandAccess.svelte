@@ -591,7 +591,7 @@
               class="cmd-cat-btn {catalogFilter === cat.id ? 'cmd-cat-btn--active' : ''}"
             >
               <span class="flex items-center gap-2.5">
-                <Papicon icon={cat.icon} size={15} class="{catalogFilter === cat.id ? 'text-on-primary' : 'text-on-surface-variant'}" />
+                <Papicon icon={cat.icon} size={15} class={catalogFilter === cat.id ? 'text-on-primary' : 'text-on-surface-variant'} />
                 <span>{cat.name}</span>
               </span>
               <span class="cmd-cat-count {catalogFilter === cat.id ? 'cmd-cat-count--active' : ''}">

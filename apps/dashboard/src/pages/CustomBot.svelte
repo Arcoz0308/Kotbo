@@ -286,13 +286,14 @@
 
       <!-- Banner -->
       <div>
-        <label class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Banniere</label>
+        <label for="bot-banner-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Banniere</label>
         {#if botBannerUrl}
           <div class="relative rounded-xl overflow-hidden mb-2">
             <img src={botBannerUrl} alt="Banner" class="w-full h-32 object-cover" />
           </div>
         {/if}
         <input
+          id="bot-banner-url"
           bind:value={botBannerUrl}
           placeholder="URL de la banniere..."
           class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface"
@@ -302,7 +303,7 @@
       <div class="grid grid-cols-[auto_1fr] gap-4">
         <!-- Avatar -->
         <div>
-          <label class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Avatar</label>
+          <label for="bot-avatar-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Avatar</label>
           <div class="w-24 h-24 rounded-xl bg-surface-container border-2 border-dashed border-outline-variant flex items-center justify-center overflow-hidden">
             {#if botAvatarUrl}
               <img src={botAvatarUrl} alt="Avatar" class="w-full h-full object-cover" />
@@ -311,6 +312,7 @@
             {/if}
           </div>
           <input
+            id="bot-avatar-url"
             bind:value={botAvatarUrl}
             placeholder="URL..."
             class="w-24 mt-1.5 px-2 py-1 bg-surface-container border border-outline-variant rounded text-[10px] text-on-surface truncate"
@@ -320,16 +322,18 @@
         <!-- Name + Bio -->
         <div class="space-y-3">
           <div>
-            <label class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Nom</label>
+            <label for="bot-name" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Nom</label>
             <input
+              id="bot-name"
               bind:value={botName}
               placeholder="Nom du bot..."
               class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface"
             />
           </div>
           <div>
-            <label class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Bio</label>
+            <label for="bot-bio" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Bio</label>
             <textarea
+              id="bot-bio"
               bind:value={botBio}
               placeholder="Entrez la bio..."
               maxlength={190}
@@ -351,9 +355,10 @@
 
       <!-- Status -->
       <div>
-        <label class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Statut</label>
+        <label for="bot-status" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Statut</label>
         <div class="relative">
           <select
+            id="bot-status"
             bind:value={botStatus}
             class="w-full px-3 py-2.5 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface appearance-none pr-8"
           >
@@ -370,8 +375,9 @@
       <!-- Activity -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Type d'activite</label>
+          <label for="activity-type" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Type d'activite</label>
           <select
+            id="activity-type"
             bind:value={activityType}
             class="w-full px-3 py-2.5 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface appearance-none"
           >
@@ -381,8 +387,9 @@
           </select>
         </div>
         <div>
-          <label class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Texte d'activite</label>
+          <label for="activity-text" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">Texte d'activite</label>
           <input
+            id="activity-text"
             bind:value={activityText}
             placeholder="/help"
             disabled={activityType === 'NONE'}
@@ -393,8 +400,9 @@
 
       {#if activityType === 'STREAMING'}
         <div>
-          <label class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">URL du stream</label>
+          <label for="activity-url" class="text-xs text-on-surface-variant block mb-1.5 uppercase tracking-wider font-medium">URL du stream</label>
           <input
+            id="activity-url"
             bind:value={activityUrl}
             placeholder="https://twitch.tv/..."
             class="w-full px-3 py-2.5 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface"
@@ -426,16 +434,18 @@
       <p class="text-xs text-on-surface-variant">Necessaire uniquement si vous utilisez un dashboard personnalise avec login</p>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-xs text-on-surface-variant block mb-1">Client ID</label>
+          <label for="bot-client-id" class="text-xs text-on-surface-variant block mb-1">Client ID</label>
           <input
+            id="bot-client-id"
             bind:value={botClientId}
             placeholder="Client ID Discord..."
             class="w-full px-3 py-2 bg-surface-container border border-outline-variant rounded-lg text-sm text-on-surface font-mono"
           />
         </div>
         <div>
-          <label class="text-xs text-on-surface-variant block mb-1">Client Secret</label>
+          <label for="bot-client-secret" class="text-xs text-on-surface-variant block mb-1">Client Secret</label>
           <input
+            id="bot-client-secret"
             bind:value={botClientSecret}
             type="password"
             placeholder="Client Secret..."

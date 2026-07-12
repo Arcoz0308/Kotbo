@@ -5,7 +5,8 @@
     onToggle = (_v: boolean) => {},
     size = 'md',
     activeClass = '',
-    id = undefined
+    id = undefined,
+    ariaLabel = 'Bouton de basculement'
   }: {
     checked?: boolean;
     disabled?: boolean;
@@ -13,6 +14,7 @@
     size?: 'sm' | 'md' | 'lg';
     activeClass?: string;
     id?: string | undefined;
+    ariaLabel?: string;
   } = $props();
 
   const sizeClasses = {
@@ -28,6 +30,7 @@
   type="button"
   role="switch"
   aria-checked={checked}
+  aria-label={ariaLabel}
   {id}
   {disabled}
   onclick={() => { if (!disabled) onToggle(!checked); }}

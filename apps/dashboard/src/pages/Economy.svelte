@@ -37,8 +37,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       || !!dashboardStore.state.access?.canManageSettings
   );
 
-  // Configuration state
-  let config = $state({
+  const DEFAULT_CONFIG = {
     enabled: false,
     rpgEnabled: false,
     guildsEnabled: false,
@@ -52,9 +51,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     adventureCooldownMin: 30,
     maxEnergy: 100,
     energyRecoveryPerHour: 10
-  });
+  };
 
-  let savedConfig = $state(JSON.parse(JSON.stringify(config)));
+  // Configuration state
+  let config = $state(JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+
+  let savedConfig = $state(JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
 
   // Shop items list
   let items = $state<any[]>([]);

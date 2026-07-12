@@ -671,6 +671,7 @@
                   <button
                     type="button"
                     onclick={() => togglePerm(perm.value)}
+                    aria-label="Basculer la permission {perm.label}"
                     class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {newKeyPerms.includes(perm.value) ? 'bg-primary' : 'bg-white/10'}"
                   >
                     <span
@@ -695,6 +696,7 @@
                   <button
                     type="button"
                     onclick={() => togglePerm(perm.value)}
+                    aria-label="Basculer la permission {perm.label}"
                     class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {newKeyPerms.includes(perm.value) ? 'bg-red-500/80 hover:bg-red-500' : 'bg-white/10'}"
                   >
                     <span

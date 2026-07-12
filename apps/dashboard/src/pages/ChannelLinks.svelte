@@ -319,8 +319,9 @@
       <div class="flex flex-col gap-5 p-4">
         <!-- Step 1: Source channel -->
         <div>
-          <label class="block text-sm font-medium text-on-surface mb-1.5">Salon sur ce serveur</label>
+          <label for="new-source-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">Salon sur ce serveur</label>
           <select
+            id="new-source-channel-id"
             bind:value={newSourceChannelId}
             class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
           >
@@ -333,7 +334,7 @@
 
         <!-- Step 2: Target server -->
         <div>
-          <label class="block text-sm font-medium text-on-surface mb-1.5">Serveur cible</label>
+          <span class="block text-sm font-medium text-on-surface mb-1.5">Serveur cible</span>
           {#if loadingGuilds}
             <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30">
               <div class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></div>
@@ -375,8 +376,9 @@
         <!-- Step 3: Target channel (only if server selected) -->
         {#if newTargetGuildId}
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">Salon sur le serveur cible</label>
+            <label for="new-target-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">Salon sur le serveur cible</label>
             <select
+              id="new-target-channel-id"
               bind:value={newTargetChannelId}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
@@ -391,8 +393,9 @@
         <!-- Options -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">Direction</label>
+            <label for="new-direction" class="block text-sm font-medium text-on-surface mb-1.5">Direction</label>
             <select
+              id="new-direction"
               bind:value={newDirection}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
@@ -401,8 +404,9 @@
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-1.5">Mode de relay</label>
+            <label for="new-relay-mode" class="block text-sm font-medium text-on-surface mb-1.5">Mode de relay</label>
             <select
+              id="new-relay-mode"
               bind:value={newRelayMode}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
@@ -478,8 +482,9 @@
         <div class="flex flex-col gap-5 p-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-on-surface mb-1.5">Direction</label>
+              <label for="config-link-direction" class="block text-sm font-medium text-on-surface mb-1.5">Direction</label>
               <select
+                id="config-link-direction"
                 bind:value={configLink.direction}
                 class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
               >
@@ -488,8 +493,9 @@
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-on-surface mb-1.5">Mode relay (cible)</label>
+              <label for="config-link-target-relay-mode" class="block text-sm font-medium text-on-surface mb-1.5">Mode relay (cible)</label>
               <select
+                id="config-link-target-relay-mode"
                 bind:value={configLink.targetRelayMode}
                 class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
               >
@@ -500,7 +506,7 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-on-surface mb-2">Contenu relayé</label>
+            <span class="block text-sm font-medium text-on-surface mb-2">Contenu relayé</span>
             <div class="grid grid-cols-2 gap-3">
               {#each [
                 { label: 'Texte', key: 'relayText' },
@@ -520,7 +526,7 @@
 
           <!-- Invitation Discord -->
           <div class="border-t border-outline-variant/20 pt-4">
-            <label class="block text-sm font-medium text-on-surface mb-2">Invitation Discord</label>
+            <span class="block text-sm font-medium text-on-surface mb-2">Invitation Discord</span>
             <p class="text-xs text-on-surface-variant/50 mb-3">Générez un lien d'invitation permanent pour ce salon, à mettre dans la description du serveur lié.</p>
 
             {#if configInviteUrl}

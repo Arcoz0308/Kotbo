@@ -104,8 +104,9 @@
     <h3 class="text-base font-semibold flex items-center gap-2.5">Creer une saison</h3>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nom</label>
+        <label for="season-name" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nom</label>
         <input
+          id="season-name"
           type="text"
           bind:value={newSeason.name}
           placeholder="Saison 1 --- Ete 2026"
@@ -113,16 +114,18 @@
         />
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date de debut</label>
+        <label for="season-start-date" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date de debut</label>
         <input
+          id="season-start-date"
           type="date"
           bind:value={newSeason.startDate}
           class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm"
         />
       </div>
       <div class="space-y-1">
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date de fin</label>
+        <label for="season-end-date" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date de fin</label>
         <input
+          id="season-end-date"
           type="date"
           bind:value={newSeason.endDate}
           class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm"

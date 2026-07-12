@@ -1410,8 +1410,9 @@
 
                       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Nom persona (optionnel)</label>
+                          <label for="step-name-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Nom persona (optionnel)</label>
                           <input
+                            id="step-name-{index}"
                             type="text"
                             bind:value={step.name}
                             placeholder={threadConfig.webhookName || 'Kotbo'}
@@ -1420,8 +1421,9 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Avatar persona (URL, optionnel)</label>
+                          <label for="step-avatar-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Avatar persona (URL, optionnel)</label>
                           <input
+                            id="step-avatar-{index}"
                             type="url"
                             bind:value={step.avatarUrl}
                             placeholder="https://..."
@@ -1430,8 +1432,9 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Délai avant envoi (ms)</label>
+                          <label for="step-delay-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Délai avant envoi (ms)</label>
                           <input
+                            id="step-delay-{index}"
                             type="number"
                             min="250"
                             max="120000"
@@ -1502,8 +1505,9 @@
 
                       <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3">
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Label</label>
+                          <label for="page-label-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Label</label>
                           <input
+                            id="page-label-{index}"
                             type="text"
                             bind:value={page.label}
                             maxlength="80"
@@ -1513,12 +1517,13 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Émoji</label>
+                          <span class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">Émoji</span>
                           <EmojiPicker bind:value={page.emoji} disabled={!canManageSettings} />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Sous-texte (menu déroulant)</label>
+                          <label for="page-summary-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Sous-texte (menu déroulant)</label>
                           <input
+                            id="page-summary-{index}"
                             type="text"
                             bind:value={page.summary}
                             maxlength="100"
@@ -1562,8 +1567,9 @@
                       {#if page.actionType === 'EMBED'}
                         <div class="space-y-3 animate-in fade-in duration-200">
                           <div class="space-y-1">
-                            <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Titre de l'embed</label>
+                            <label for="page-embed-title-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Titre de l'embed</label>
                             <input
+                              id="page-embed-title-{index}"
                               type="text"
                               bind:value={page.embedTitle}
                               placeholder="Titre affiché à l'ouverture"
@@ -1572,29 +1578,30 @@
                             />
                           </div>
                           <div class="space-y-1">
-                            <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Description de l'embed</label>
+                            <label for="page-embed-desc-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Description de l'embed</label>
                             <textarea
+                              id="page-embed-desc-{index}"
                               bind:value={page.embedDescription}
                               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none h-20 resize-none"
                               disabled={!canManageSettings}
                             ></textarea>
                           </div>
-
+ 
                           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div class="space-y-1">
-                              <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Couleur</label>
+                              <span class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">Couleur</span>
                               <div class="flex gap-2">
-                                <input type="color" bind:value={page.embedColor} class="w-9 h-9 border-0 bg-transparent rounded-lg cursor-pointer shrink-0" disabled={!canManageSettings} />
-                                <input type="text" bind:value={page.embedColor} placeholder="#5865F2" class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none font-mono" disabled={!canManageSettings} />
+                                <input type="color" bind:value={page.embedColor} class="w-9 h-9 border-0 bg-transparent rounded-lg cursor-pointer shrink-0" disabled={!canManageSettings} aria-label="Couleur de l'embed" />
+                                <input type="text" bind:value={page.embedColor} placeholder="#5865F2" class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none font-mono" disabled={!canManageSettings} aria-label="Couleur de l'embed (hex)" />
                               </div>
                             </div>
                             <div class="space-y-1">
-                              <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Image (URL)</label>
-                              <input type="url" bind:value={page.embedImageUrl} placeholder="https://..." class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" disabled={!canManageSettings} />
+                              <label for="page-embed-image-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Image (URL)</label>
+                              <input id="page-embed-image-{index}" type="url" bind:value={page.embedImageUrl} placeholder="https://..." class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" disabled={!canManageSettings} />
                             </div>
                             <div class="space-y-1">
-                              <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Miniature (URL)</label>
-                              <input type="url" bind:value={page.embedThumbnailUrl} placeholder="https://..." class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" disabled={!canManageSettings} />
+                              <label for="page-embed-thumbnail-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Miniature (URL)</label>
+                              <input id="page-embed-thumbnail-{index}" type="url" bind:value={page.embedThumbnailUrl} placeholder="https://..." class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none" disabled={!canManageSettings} />
                             </div>
                           </div>
                         </div>
@@ -1602,7 +1609,7 @@
                         <div class="space-y-3 animate-in fade-in duration-200">
                           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div class="space-y-1">
-                              <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Rôle</label>
+                              <span class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">Rôle</span>
                               <SearchableSelect
                                 bind:value={page.roleId}
                                 options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
@@ -1612,7 +1619,7 @@
                               />
                             </div>
                             <div class="space-y-1">
-                              <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Comportement</label>
+                              <span class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">Comportement</span>
                               <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
                                 <button type="button" onclick={() => page.roleAction = 'ADD'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.roleAction === 'ADD' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Ajouter</button>
                                 <button type="button" onclick={() => page.roleAction = 'REMOVE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.roleAction === 'REMOVE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Retirer</button>
@@ -1625,12 +1632,12 @@
                       {:else if page.actionType === 'LINK'}
                         <div class="space-y-3 animate-in fade-in duration-200">
                           <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
-                            <button type="button" onclick={() => page.linkMode = 'channel'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.linkMode === 'channel' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Salon du serveur</button>
-                            <button type="button" onclick={() => page.linkMode = 'url'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.linkMode === 'url' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">URL externe</button>
+                            <button type="button" onclick={() => page.linkMode = 'channel'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.linkMode === 'channel' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}" aria-label="Lien vers un salon du serveur">Salon du serveur</button>
+                            <button type="button" onclick={() => page.linkMode = 'url'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.linkMode === 'url' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}" aria-label="Lien vers une URL externe">URL externe</button>
                           </div>
                           {#if page.linkMode === 'channel'}
                             <div class="space-y-1">
-                              <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">Salon</label>
+                              <span class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">Salon</span>
                               <SearchableSelect
                                 bind:value={page.linkChannelId}
                                 options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
@@ -1641,8 +1648,9 @@
                             </div>
                           {:else}
                             <div class="space-y-1">
-                              <label class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">URL externe</label>
+                              <label for="page-link-url-{index}" class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest">URL externe</label>
                               <input
+                                id="page-link-url-{index}"
                                 type="url"
                                 bind:value={page.linkUrl}
                                 placeholder="https://example.com"
