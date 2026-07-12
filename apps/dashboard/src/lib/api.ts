@@ -1260,6 +1260,46 @@ export async function removeGlobalBlacklist(userId: string) {
   return response.json();
 }
 
+export interface GdprPreviewTable { key: string; label: string; count: number; }
+export interface GdprPreviewCategory { key: string; label: string; description: string; count: number; tables: GdprPreviewTable[]; }
+export interface GdprPreview {
+  meta: { userId: string; username: string | null; globalName: string | null; generatedAt: string; totalRecords: number; guildCount: number; errors: string[]; };
+  identity: { discordUser: Record<string, unknown> | null; guilds: { id: string; name: string }[]; staffMemberIds: string[]; };
+  categories: GdprPreviewCategory[];
+}
+
+export async function fetchGdprPreview(userId: string): Promise<GdprPreview> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/gdpr/${userId}/preview`, { method: 'GET' });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors de la collecte des données RGPD');
+  }
+  return response.json();
+}
+
+export async function downloadGdprExport(userId: string): Promise<void> {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/gdpr/${userId}/export`, {
+    method: 'GET',
+    headers: { 'Accept': 'application/zip' },
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || "Erreur lors de la génération de l'archive");
+  }
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match?.[1] || `kotbo_rgpd_${userId}.zip`;
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function fetchMaintenanceConfig() {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/config`, { method: 'GET' });
   if (!response.ok) throw new Error('Erreur chargement config');

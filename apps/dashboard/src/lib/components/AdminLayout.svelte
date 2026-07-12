@@ -91,6 +91,12 @@
       ]
     },
     {
+      label: 'Conformité',
+      items: [
+        { path: '/admin/gdpr', label: 'Export RGPD', icon: 'ShieldCheck' },
+      ]
+    },
+    {
       label: 'Système',
       items: [
         { path: '/admin/config', label: 'Avancé', icon: 'Settings' },

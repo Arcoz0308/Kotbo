@@ -40,6 +40,8 @@ import {
   KOTBO_MODULES,
   type KotboModule,
 } from '../../services/analytics/moduleStatsService.js';
+import { collectUserData } from '../../services/system/gdprExportService.js';
+import { buildGdprZip } from '../../services/system/gdprZip.js';
 
 export async function handleAdminRoutes(
   req: IncomingMessage,
@@ -1666,6 +1668,59 @@ export async function handleAdminRoutes(
       json(res, 500, { error: 'Erreur lors du détachement de la guild' });
     }
     return true;
+  }
+
+  // ── RGPD : export des données d'un utilisateur ──────────────────
+  // GET /api/admin/gdpr/:userId/preview — résumé (catégories + décomptes)
+  // GET /api/admin/gdpr/:userId/export  — archive ZIP complète
+  if (parts[2] === 'gdpr' && parts[3] && parts.length === 5 && method === 'GET') {
+    const userId = parts[3];
+    const action = parts[4];
+
+    if (!/^\d{5,25}$/.test(userId)) {
+      json(res, 400, { error: 'Identifiant Discord invalide.' });
+      return true;
+    }
+
+    if (action !== 'preview' && action !== 'export') {
+      return false;
+    }
+
+    try {
+      const data = await collectUserData(client, userId);
+
+      if (action === 'preview') {
+        json(res, 200, {
+          meta: data.meta,
+          identity: data.identity,
+          categories: data.categories.map((c) => ({
+            key: c.key,
+            label: c.label,
+            description: c.description,
+            count: c.count,
+            tables: c.tables.map((t) => ({ key: t.key, label: t.label, count: t.count })),
+          })),
+        });
+        return true;
+      }
+
+      // action === 'export'
+      const zip = buildGdprZip(data);
+      const safeName = (data.meta.username ?? userId).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filename = `kotbo_rgpd_${safeName}_${new Date().toISOString().slice(0, 10)}.zip`;
+      const buffer = Buffer.from(zip);
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.statusCode = 200;
+      res.end(buffer);
+      logger.info('AdminAPI', `Export RGPD généré pour ${userId} (${data.meta.totalRecords} enregistrements) par ${user.userId}`);
+      return true;
+    } catch (err) {
+      logger.error('AdminAPI', 'GDPR export error:', err);
+      json(res, 500, { error: "Erreur lors de la génération de l'export RGPD." });
+      return true;
+    }
   }
 
   return false;
