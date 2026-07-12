@@ -14,6 +14,7 @@
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
+  let activeTab = $state('bot-filters');
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.automod?.canConfigure
@@ -285,531 +286,579 @@
       <LoadingHint context="config" />
     </div>
   {:else}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <!-- Left Column: Filters -->
-      <div class="space-y-8">
+    <!-- Navigation Tabs -->
+    <div class="flex flex-wrap gap-2 border-b border-outline-variant/10 pb-5">
+      <button
+        type="button"
+        onclick={() => activeTab = 'bot-filters'}
+        class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 {activeTab === 'bot-filters' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      >
+        <Papicon icon="Shield" size={14} />
+        Filtres Bot
+      </button>
+      <button
+        type="button"
+        onclick={() => activeTab = 'discord-filters'}
+        class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 {activeTab === 'discord-filters' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      >
+        <Papicon icon="MessageSquare" size={14} />
+        AutoMod Discord (Natif)
+      </button>
+      <button
+        type="button"
+        onclick={() => activeTab = 'security'}
+        class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 {activeTab === 'security' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      >
+        <Papicon icon="Lock" size={14} />
+        Sécurité & Anti-Raid
+      </button>
+      <button
+        type="button"
+        onclick={() => activeTab = 'exceptions'}
+        class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 {activeTab === 'exceptions' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      >
+        <Papicon icon="Unlock" size={14} />
+        Exceptions
+      </button>
+    </div>
 
-        <!-- Anti-Spam -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="Clock" size={20} class="text-primary" />
-              Filtre Anti-Spam
-            </h3>
-            <ToggleSwitch 
-              checked={config.spamEnabled} 
-              onToggle={(v: boolean) => config.spamEnabled = v} 
-              disabled={!canManageSettings}
-            />
-          </div>
-
-          {#if config.spamEnabled}
-            <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
-              <div class="space-y-1.5">
-                <label for="spamLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Nombre max de messages</label>
-                <input 
-                  id="spamLimit"
-                  type="number" 
-                  min="2"
-                  max="20"
-                  bind:value={config.spamLimit} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
-                  disabled={!canManageSettings}
-                />
-              </div>
-
-              <div class="space-y-1.5">
-                <label for="spamInterval" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Intervalle de temps (sec)</label>
-                <input 
-                  id="spamInterval"
-                  type="number" 
-                  min="1"
-                  max="30"
-                  bind:value={config.spamIntervalSeconds} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
-                  disabled={!canManageSettings}
-                />
-              </div>
-
-              <div class="col-span-2 space-y-1.5">
-                <label for="spamAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction en cas d'infraction</label>
-                <select 
-                  id="spamAction"
-                  bind:value={config.spamAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
-                  disabled={!canManageSettings}
-                >
-                  <option value="WARN">Avertissement (Warn)</option>
-                  <option value="TIMEOUT">Exclusion temporaire (Mute 10 min)</option>
-                </select>
-              </div>
+    {#if activeTab === 'bot-filters'}
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-300">
+        <!-- Left Column: Primary Chat Filters -->
+        <div class="space-y-8">
+          <!-- Anti-Spam -->
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+              <h3 class="text-lg font-semibold flex items-center gap-3">
+                <Papicon icon="Clock" size={20} class="text-primary" />
+                Filtre Anti-Spam
+              </h3>
+              <ToggleSwitch 
+                checked={config.spamEnabled} 
+                onToggle={(v: boolean) => config.spamEnabled = v} 
+                disabled={!canManageSettings}
+              />
             </div>
-          {/if}
-        </section>
 
-        <!-- Anti-Links & Discord invites -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="Link" size={20} class="text-secondary" />
-              Filtre Anti-Liens / Invitations
-            </h3>
-            <ToggleSwitch 
-              checked={config.linksEnabled} 
-              onToggle={(v: boolean) => config.linksEnabled = v} 
-              disabled={!canManageSettings}
-            />
-          </div>
+            {#if config.spamEnabled}
+              <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
+                <div class="space-y-1.5">
+                  <label for="spamLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Nombre max de messages</label>
+                  <input 
+                    id="spamLimit"
+                    type="number" 
+                    min="2"
+                    max="20"
+                    bind:value={config.spamLimit} 
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
 
-          {#if config.linksEnabled}
-            <div class="space-y-4 animate-in fade-in duration-300">
-              <div class="space-y-1.5">
-                <label for="linksAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction appliquée</label>
-                <select 
-                  id="linksAction"
-                  bind:value={config.linksAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
-                  disabled={!canManageSettings}
-                >
-                  <option value="DELETE_AND_WARN">Supprimer & Avertir le membre</option>
-                  <option value="DELETE_ONLY">Supprimer silencieusement</option>
-                </select>
+                <div class="space-y-1.5">
+                  <label for="spamInterval" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Intervalle de temps (sec)</label>
+                  <input 
+                    id="spamInterval"
+                    type="number" 
+                    min="1"
+                    max="30"
+                    bind:value={config.spamIntervalSeconds} 
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+
+                <div class="col-span-2 space-y-1.5">
+                  <label for="spamAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction en cas d'infraction</label>
+                  <select 
+                    id="spamAction"
+                    bind:value={config.spamAction}
+                    class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  >
+                    <option value="WARN">Avertissement (Warn)</option>
+                    <option value="TIMEOUT">Exclusion temporaire (Mute 10 min)</option>
+                  </select>
+                </div>
               </div>
+            {/if}
+          </section>
 
-              <div class="space-y-1.5">
-                <label for="whitelist" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Domaines autorisés (un par ligne)</label>
-                <textarea 
-                  id="whitelist"
-                  bind:value={whitelistInput} 
-                  placeholder="github.com&#10;google.com"
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-24 resize-none font-mono"
-                  disabled={!canManageSettings}
-                ></textarea>
-              </div>
+          <!-- Anti-Links & Discord invites -->
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+              <h3 class="text-lg font-semibold flex items-center gap-3">
+                <Papicon icon="Link" size={20} class="text-secondary" />
+                Filtre Anti-Liens / Invitations
+              </h3>
+              <ToggleSwitch 
+                checked={config.linksEnabled} 
+                onToggle={(v: boolean) => config.linksEnabled = v} 
+                disabled={!canManageSettings}
+              />
             </div>
-          {/if}
-        </section>
 
-        <!-- Anti-Caps (MAJUSCULES) -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="Font" size={20} class="text-tertiary" />
-              Filtre Majuscules Excessives
-            </h3>
-            <ToggleSwitch 
-              checked={config.capsEnabled} 
-              onToggle={(v: boolean) => config.capsEnabled = v} 
-              disabled={!canManageSettings}
-            />
-          </div>
+            {#if config.linksEnabled}
+              <div class="space-y-4 animate-in fade-in duration-300">
+                <div class="space-y-1.5">
+                  <label for="linksAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction appliquée</label>
+                  <select 
+                    id="linksAction"
+                    bind:value={config.linksAction}
+                    class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  >
+                    <option value="DELETE_AND_WARN">Supprimer & Avertir le membre</option>
+                    <option value="DELETE_ONLY">Supprimer silencieusement</option>
+                  </select>
+                </div>
 
-          {#if config.capsEnabled}
-            <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
-              <div class="space-y-1.5">
-                <label for="capsThresh" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil de MAJ (%)</label>
-                <input 
-                  id="capsThresh"
-                  type="number" 
-                  min="20"
-                  max="100"
-                  bind:value={config.capsThresholdPercent} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
-                  disabled={!canManageSettings}
-                />
+                <div class="space-y-1.5">
+                  <label for="whitelist" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Domaines autorisés (un par ligne)</label>
+                  <textarea 
+                    id="whitelist"
+                    bind:value={whitelistInput} 
+                    placeholder="github.com&#10;google.com"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-24 resize-none font-mono"
+                    disabled={!canManageSettings}
+                  ></textarea>
+                </div>
               </div>
+            {/if}
+          </section>
 
-              <div class="space-y-1.5">
-                <label for="capsMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Longueur minimale</label>
-                <input 
-                  id="capsMin"
-                  type="number" 
-                  min="4"
-                  bind:value={config.capsMinLength} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
-                  disabled={!canManageSettings}
-                />
-              </div>
+          <!-- Anti-Caps (MAJUSCULES) -->
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+              <h3 class="text-lg font-semibold flex items-center gap-3">
+                <Papicon icon="Font" size={20} class="text-tertiary" />
+                Filtre Majuscules Excessives
+              </h3>
+              <ToggleSwitch 
+                checked={config.capsEnabled} 
+                onToggle={(v: boolean) => config.capsEnabled = v} 
+                disabled={!canManageSettings}
+              />
             </div>
-          {/if}
-        </section>
-      </div>
 
-      <!-- Center Divider: Native Discord AutoMod -->
-      <div class="lg:col-span-2 space-y-4">
-        <div class="flex items-center gap-3 px-2">
-          <div class="h-px flex-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
-          <h2 class="text-sm font-bold text-primary/80 uppercase tracking-widest whitespace-nowrap flex items-center gap-2">
-            <Papicon icon="Shield" size={16} />
-            Filtres AutoMod Natifs Discord
-          </h2>
-          <div class="h-px flex-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+            {#if config.capsEnabled}
+              <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
+                <div class="space-y-1.5">
+                  <label for="capsThresh" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil de MAJ (%)</label>
+                  <input 
+                    id="capsThresh"
+                    type="number" 
+                    min="20"
+                    max="100"
+                    bind:value={config.capsThresholdPercent} 
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="capsMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Longueur minimale</label>
+                  <input 
+                    id="capsMin"
+                    type="number" 
+                    min="4"
+                    bind:value={config.capsMinLength} 
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+              </div>
+            {/if}
+          </section>
         </div>
-        <p class="text-xs text-on-surface-variant/60 text-center max-w-2xl mx-auto">
-          Ces filtres utilisent l'API native d'AutoMod de Discord. Ils sont appliqués directement par Discord, avant même que le bot ne reçoive le message, garantissant une modération instantanée et fiable.
-        </p>
+
+        <!-- Right Column: Secondary & Mentions Filters -->
+        <div class="space-y-8">
+          <!-- Emojis & Mentions Spam (Grouped Side-by-Side in Sub-grid) -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Emojis Flood -->
+            <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4">
+              <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
+                <h3 class="text-sm font-semibold flex items-center gap-2">
+                  <Papicon icon="Emoji" size={18} class="text-amber-400" />
+                  Spam Émojis
+                </h3>
+                <ToggleSwitch 
+                  checked={config.emojisEnabled} 
+                  onToggle={(v: boolean) => config.emojisEnabled = v} 
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              {#if config.emojisEnabled}
+                <div class="space-y-1.5 animate-in fade-in duration-300">
+                  <label for="emojisLim" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Limite par message</label>
+                  <input 
+                    id="emojisLim"
+                    type="number" 
+                    min="1"
+                    bind:value={config.emojisLimit} 
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+              {:else}
+                <p class="text-xs text-on-surface-variant/50">Désactivé. Autorise un nombre illimité d'émojis par message.</p>
+              {/if}
+            </section>
+
+            <!-- Mentions Flood -->
+            <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4">
+              <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
+                <h3 class="text-sm font-semibold flex items-center gap-2">
+                  <Papicon icon="User" size={18} class="text-purple-400" />
+                  Spam Mentions
+                </h3>
+                <ToggleSwitch 
+                  checked={config.mentionsEnabled} 
+                  onToggle={(v: boolean) => config.mentionsEnabled = v} 
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              {#if config.mentionsEnabled}
+                <div class="space-y-1.5 animate-in fade-in duration-300">
+                  <label for="mentionsLim" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Limite par message</label>
+                  <input 
+                    id="mentionsLim"
+                    type="number" 
+                    min="1"
+                    bind:value={config.mentionsLimit} 
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                </div>
+              {:else}
+                <p class="text-xs text-on-surface-variant/50">Désactivé. Autorise un nombre illimité de mentions par message.</p>
+              {/if}
+            </section>
+          </div>
+
+          <!-- Ghost Ping & Anti-Everyone (Grouped Side-by-Side in Sub-grid) -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Anti-Ghost Ping -->
+            <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4">
+              <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
+                <h3 class="text-sm font-semibold flex items-center gap-2">
+                  <Papicon icon="Ghost" size={18} class="text-rose-400" />
+                  Anti-Ghost Ping
+                </h3>
+                <ToggleSwitch 
+                  checked={config.ghostPingEnabled} 
+                  onToggle={(v: boolean) => config.ghostPingEnabled = v} 
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">
+                Détecte les pings supprimés ou modifiés rapidement.
+                <span class="text-amber-500/90 font-medium block mt-1">⚠️ Cache bot requis.</span>
+              </p>
+
+              {#if config.ghostPingEnabled}
+                <div class="space-y-1.5 animate-in fade-in duration-300">
+                  <label for="ghostPingAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Sanction</label>
+                  <select 
+                    id="ghostPingAction"
+                    bind:value={config.ghostPingAction}
+                    class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  >
+                    <option value="ALERT">Simple Alerte (Message)</option>
+                    <option value="WARN">Avertissement (Warn + Alerte)</option>
+                  </select>
+                </div>
+              {/if}
+            </section>
+
+            <!-- Anti-Everyone/Here Troll -->
+            <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4">
+              <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
+                <h3 class="text-sm font-semibold flex items-center gap-2">
+                  <Papicon icon="ShieldAlert" size={18} class="text-red-400" />
+                  Anti-Everyone
+                </h3>
+                <ToggleSwitch 
+                  checked={config.antiEveryoneEnabled} 
+                  onToggle={(v: boolean) => config.antiEveryoneEnabled = v} 
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">
+                Supprime les mentions non autorisées de @everyone et @here.
+              </p>
+
+              {#if config.antiEveryoneEnabled}
+                <div class="space-y-1.5 animate-in fade-in duration-300">
+                  <label for="antiEveryoneAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Sanction</label>
+                  <select 
+                    id="antiEveryoneAction"
+                    bind:value={config.antiEveryoneAction}
+                    class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  >
+                    <option value="DELETE_ONLY">Suppression simple</option>
+                    <option value="DELETE_AND_WARN">Supprimer & Avertir</option>
+                    <option value="TIMEOUT">Exclusion (10 min)</option>
+                  </select>
+                </div>
+              {/if}
+            </section>
+          </div>
+        </div>
       </div>
 
-      <div class="lg:col-span-2 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Custom Words Filter -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="Filter" size={20} class="text-orange-400" />
-              Filtre Mots Personnalisés
-            </h3>
-            <ToggleSwitch
-              checked={config.customWordsEnabled}
-              onToggle={(v: boolean) => config.customWordsEnabled = v}
-              disabled={!canManageSettings}
-            />
+    {:else if activeTab === 'discord-filters'}
+      <div class="space-y-6 animate-in fade-in duration-300">
+        <!-- Native Discord AutoMod Header -->
+        <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/20 flex flex-col md:flex-row md:items-center gap-4">
+          <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
+            <Papicon icon="Shield" size={20} />
           </div>
-
-          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Bloque automatiquement les messages contenant des mots ou expressions interdits. Géré nativement par Discord.
-          </p>
-
-          {#if config.customWordsEnabled}
-            <div class="space-y-4 animate-in fade-in duration-300">
-              <div class="space-y-1.5">
-                <label for="customWordsAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
-                <select
-                  id="customWordsAction"
-                  bind:value={config.customWordsAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
-                  disabled={!canManageSettings}
-                >
-                  <option value="BLOCK">Bloquer le message</option>
-                  <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
-                  <option value="ALERT">Alerter uniquement (logs)</option>
-                </select>
-              </div>
-
-              {#if config.customWordsAction === 'TIMEOUT'}
-                <div class="space-y-1.5">
-                  <label for="customWordsTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
-                  <input
-                    id="customWordsTimeout"
-                    type="number" min="5" max="2419200"
-                    bind:value={config.customWordsTimeoutSec}
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
-                    disabled={!canManageSettings}
-                  />
-                </div>
-              {/if}
-
-              <div class="space-y-1.5">
-                <label for="customWords" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Mots interdits (un par ligne, max 1000)</label>
-                <textarea
-                  id="customWords"
-                  bind:value={customWordsInput}
-                  placeholder="mot1&#10;expression interdite&#10;*pattern*"
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-32 resize-none font-mono"
-                  disabled={!canManageSettings}
-                ></textarea>
-                <p class="text-[10px] text-on-surface-variant/50 ml-2">Utilisez * comme joker : *spam* détectera « antispam », « spammer », etc.</p>
-              </div>
-
-              <div class="space-y-1.5">
-                <label for="customWordsAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Exceptions (mots autorisés, un par ligne)</label>
-                <textarea
-                  id="customWordsAllow"
-                  bind:value={customWordsAllowInput}
-                  placeholder="exception1&#10;exception2"
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
-                  disabled={!canManageSettings}
-                ></textarea>
-              </div>
-            </div>
-          {/if}
-        </section>
-
-        <!-- Profanity Filter -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="ShieldX" size={20} class="text-red-400" />
-              Filtre Profanités
-            </h3>
-            <ToggleSwitch
-              checked={config.profanityEnabled}
-              onToggle={(v: boolean) => config.profanityEnabled = v}
-              disabled={!canManageSettings}
-            />
+          <div>
+            <h2 class="text-sm font-bold text-on-surface uppercase tracking-widest flex items-center gap-2">
+              Filtres AutoMod Natifs Discord
+            </h2>
+            <p class="text-xs text-on-surface-variant/70 mt-1">
+              Ces filtres utilisent l'API native d'AutoMod de Discord. Ils sont appliqués directement par Discord, avant même que le bot ne reçoive le message, garantissant une modération instantanée et fiable.
+            </p>
           </div>
+        </div>
 
-          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Utilise les listes de mots prédéfinies par Discord pour bloquer automatiquement les insultes, contenus sexuels et termes haineux.
-          </p>
-
-          {#if config.profanityEnabled}
-            <div class="space-y-4 animate-in fade-in duration-300">
-              <div class="space-y-3">
-                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Catégories actives</span>
-                <div class="space-y-2">
-                  <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
-                    <input type="checkbox" bind:checked={config.profanityPresetProfanity} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
-                    <div>
-                      <span class="text-sm font-medium">Insultes & Grossièretés</span>
-                      <p class="text-[10px] text-on-surface-variant/50">Liste Discord de termes vulgaires et insultants</p>
-                    </div>
-                  </label>
-                  <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
-                    <input type="checkbox" bind:checked={config.profanityPresetSexual} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
-                    <div>
-                      <span class="text-sm font-medium">Contenu Sexuel</span>
-                      <p class="text-[10px] text-on-surface-variant/50">Termes à caractère sexuel explicite</p>
-                    </div>
-                  </label>
-                  <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
-                    <input type="checkbox" bind:checked={config.profanityPresetSlurs} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
-                    <div>
-                      <span class="text-sm font-medium">Termes Haineux & Discriminatoires</span>
-                      <p class="text-[10px] text-on-surface-variant/50">Insultes racistes, homophobes et autres slurs</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div class="space-y-1.5">
-                <label for="profanityAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
-                <select
-                  id="profanityAction"
-                  bind:value={config.profanityAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
-                  disabled={!canManageSettings}
-                >
-                  <option value="BLOCK">Bloquer le message</option>
-                  <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
-                  <option value="ALERT">Alerter uniquement (logs)</option>
-                </select>
-              </div>
-
-              {#if config.profanityAction === 'TIMEOUT'}
-                <div class="space-y-1.5">
-                  <label for="profanityTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
-                  <input
-                    id="profanityTimeout"
-                    type="number" min="5" max="2419200"
-                    bind:value={config.profanityTimeoutSec}
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
-                    disabled={!canManageSettings}
-                  />
-                </div>
-              {/if}
-
-              <div class="space-y-1.5">
-                <label for="profanityAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Exceptions (mots autorisés malgré tout, un par ligne)</label>
-                <textarea
-                  id="profanityAllow"
-                  bind:value={profanityAllowInput}
-                  placeholder="mot autorisé&#10;expression ok"
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
-                  disabled={!canManageSettings}
-                ></textarea>
-              </div>
-            </div>
-          {/if}
-        </section>
-
-        <!-- Invite Filter -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="UserPlus" size={20} class="text-indigo-400" />
-              Filtre Invitations Discord
-            </h3>
-            <ToggleSwitch
-              checked={config.inviteFilterEnabled}
-              onToggle={(v: boolean) => config.inviteFilterEnabled = v}
-              disabled={!canManageSettings}
-            />
-          </div>
-
-          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Bloque automatiquement les liens d'invitation Discord (discord.gg, discord.com/invite). Géré nativement par Discord pour une modération instantanée.
-          </p>
-
-          {#if config.inviteFilterEnabled}
-            <div class="space-y-4 animate-in fade-in duration-300">
-              <div class="space-y-1.5">
-                <label for="inviteFilterAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
-                <select
-                  id="inviteFilterAction"
-                  bind:value={config.inviteFilterAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
-                  disabled={!canManageSettings}
-                >
-                  <option value="BLOCK">Bloquer le message</option>
-                  <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
-                  <option value="ALERT">Alerter uniquement (logs)</option>
-                </select>
-              </div>
-
-              {#if config.inviteFilterAction === 'TIMEOUT'}
-                <div class="space-y-1.5">
-                  <label for="inviteFilterTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
-                  <input
-                    id="inviteFilterTimeout"
-                    type="number" min="5" max="2419200"
-                    bind:value={config.inviteFilterTimeoutSec}
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
-                    disabled={!canManageSettings}
-                  />
-                </div>
-              {/if}
-
-              <div class="space-y-1.5">
-                <label for="inviteAllowed" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Codes d'invitation autorisés (un par ligne)</label>
-                <textarea
-                  id="inviteAllowed"
-                  bind:value={inviteAllowedGuildsInput}
-                  placeholder="monserveur&#10;autreCode"
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
-                  disabled={!canManageSettings}
-                ></textarea>
-                <p class="text-[10px] text-on-surface-variant/50 ml-2">Entrez les codes d'invitation (ex: « monserveur » pour discord.gg/monserveur)</p>
-              </div>
-            </div>
-          {/if}
-        </section>
-      </div>
-
-      <!-- Right Column: Other filters & Bypasses -->
-      <div class="space-y-8">
-        <!-- Emojis Flood -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="Emoji" size={20} class="text-amber-400" />
-              Filtre Spam Émojis
-            </h3>
-            <ToggleSwitch 
-              checked={config.emojisEnabled} 
-              onToggle={(v: boolean) => config.emojisEnabled = v} 
-              disabled={!canManageSettings}
-            />
-          </div>
-
-          {#if config.emojisEnabled}
-            <div class="space-y-1.5 animate-in fade-in duration-300">
-              <label for="emojisLim" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Limite d'émojis par message</label>
-              <input 
-                id="emojisLim"
-                type="number" 
-                min="1"
-                bind:value={config.emojisLimit} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <!-- Custom Words Filter -->
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+              <h3 class="text-lg font-semibold flex items-center gap-3">
+                <Papicon icon="Filter" size={20} class="text-orange-400" />
+                Mots Personnalisés
+              </h3>
+              <ToggleSwitch
+                checked={config.customWordsEnabled}
+                onToggle={(v: boolean) => config.customWordsEnabled = v}
                 disabled={!canManageSettings}
               />
             </div>
-          {/if}
-        </section>
 
-        <!-- Mentions Flood -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="User" size={20} class="text-purple-400" />
-              Filtre Spam Mentions (@)
-            </h3>
-            <ToggleSwitch 
-              checked={config.mentionsEnabled} 
-              onToggle={(v: boolean) => config.mentionsEnabled = v} 
-              disabled={!canManageSettings}
-            />
-          </div>
+            <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+              Bloque automatiquement les messages contenant des mots ou expressions interdits. Géré nativement par Discord.
+            </p>
 
-          {#if config.mentionsEnabled}
-            <div class="space-y-1.5 animate-in fade-in duration-300">
-              <label for="mentionsLim" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Limite de mentions par message</label>
-              <input 
-                id="mentionsLim"
-                type="number" 
-                min="1"
-                bind:value={config.mentionsLimit} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+            {#if config.customWordsEnabled}
+              <div class="space-y-4 animate-in fade-in duration-300">
+                <div class="space-y-1.5">
+                  <label for="customWordsAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                  <select
+                    id="customWordsAction"
+                    bind:value={config.customWordsAction}
+                    class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  >
+                    <option value="BLOCK">Bloquer le message</option>
+                    <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
+                    <option value="ALERT">Alerter uniquement (logs)</option>
+                  </select>
+                </div>
+
+                {#if config.customWordsAction === 'TIMEOUT'}
+                  <div class="space-y-1.5">
+                    <label for="customWordsTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                    <input
+                      id="customWordsTimeout"
+                      type="number" min="5" max="2419200"
+                      bind:value={config.customWordsTimeoutSec}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                      disabled={!canManageSettings}
+                    />
+                  </div>
+                {/if}
+
+                <div class="space-y-1.5">
+                  <label for="customWords" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Mots interdits (un par ligne, max 1000)</label>
+                  <textarea
+                    id="customWords"
+                    bind:value={customWordsInput}
+                    placeholder="mot1&#10;expression interdite&#10;*pattern*"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-32 resize-none font-mono"
+                    disabled={!canManageSettings}
+                  ></textarea>
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">Utilisez * comme joker : *spam* détectera « antispam », « spammer », etc.</p>
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="customWordsAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Exceptions (mots autorisés, un par ligne)</label>
+                  <textarea
+                    id="customWordsAllow"
+                    bind:value={customWordsAllowInput}
+                    placeholder="exception1&#10;exception2"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
+                    disabled={!canManageSettings}
+                  ></textarea>
+                </div>
+              </div>
+            {/if}
+          </section>
+
+          <!-- Profanity Filter -->
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+              <h3 class="text-lg font-semibold flex items-center gap-3">
+                <Papicon icon="ShieldX" size={20} class="text-red-400" />
+                Filtre Profanités
+              </h3>
+              <ToggleSwitch
+                checked={config.profanityEnabled}
+                onToggle={(v: boolean) => config.profanityEnabled = v}
                 disabled={!canManageSettings}
               />
             </div>
-          {/if}
-        </section>
 
-        <!-- Anti-Ghost Ping -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="Ghost" size={20} class="text-rose-400" />
-              Filtre Anti-Ghost Ping
-            </h3>
-            <ToggleSwitch 
-              checked={config.ghostPingEnabled} 
-              onToggle={(v: boolean) => config.ghostPingEnabled = v} 
-              disabled={!canManageSettings}
-            />
-          </div>
+            <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+              Utilise les listes de mots prédéfinies par Discord pour bloquer automatiquement les insultes, contenus sexuels et termes haineux.
+            </p>
 
-          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Détecte et signale les mentions supprimées ou modifiées rapidement pour masquer un ping.
-            <br />
-            <span class="text-amber-500/90 font-medium">⚠️ Seuls les messages en cache du bot peuvent être analysés (limite de l'API Discord).</span>
-          </p>
+            {#if config.profanityEnabled}
+              <div class="space-y-4 animate-in fade-in duration-300">
+                <div class="space-y-3">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Catégories actives</span>
+                  <div class="space-y-2">
+                    <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
+                      <input type="checkbox" bind:checked={config.profanityPresetProfanity} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
+                      <div>
+                        <span class="text-sm font-medium">Insultes & Grossièretés</span>
+                        <p class="text-[10px] text-on-surface-variant/50">Liste Discord de termes vulgaires et insultants</p>
+                      </div>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
+                      <input type="checkbox" bind:checked={config.profanityPresetSexual} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
+                      <div>
+                        <span class="text-sm font-medium">Contenu Sexuel</span>
+                        <p class="text-[10px] text-on-surface-variant/50">Termes à caractère sexuel explicite</p>
+                      </div>
+                    </label>
+                    <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
+                      <input type="checkbox" bind:checked={config.profanityPresetSlurs} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
+                      <div>
+                        <span class="text-sm font-medium">Termes Haineux & Discriminatoires</span>
+                        <p class="text-[10px] text-on-surface-variant/50">Insultes racistes, homophobes et autres slurs</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
 
-          {#if config.ghostPingEnabled}
-            <div class="space-y-4 animate-in fade-in duration-300">
-              <div class="space-y-1.5">
-                <label for="ghostPingAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction en cas d'infraction</label>
-                <select 
-                  id="ghostPingAction"
-                  bind:value={config.ghostPingAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
-                  disabled={!canManageSettings}
-                >
-                  <option value="ALERT">Simple Alerte (Message)</option>
-                  <option value="WARN">Avertissement (Warn + Alerte)</option>
-                </select>
+                <div class="space-y-1.5">
+                  <label for="profanityAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                  <select
+                    id="profanityAction"
+                    bind:value={config.profanityAction}
+                    class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  >
+                    <option value="BLOCK">Bloquer le message</option>
+                    <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
+                    <option value="ALERT">Alerter uniquement (logs)</option>
+                  </select>
+                </div>
+
+                {#if config.profanityAction === 'TIMEOUT'}
+                  <div class="space-y-1.5">
+                    <label for="profanityTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                    <input
+                      id="profanityTimeout"
+                      type="number" min="5" max="2419200"
+                      bind:value={config.profanityTimeoutSec}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                      disabled={!canManageSettings}
+                    />
+                  </div>
+                {/if}
+
+                <div class="space-y-1.5">
+                  <label for="profanityAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Exceptions (mots autorisés malgré tout, un par ligne)</label>
+                  <textarea
+                    id="profanityAllow"
+                    bind:value={profanityAllowInput}
+                    placeholder="mot autorisé&#10;expression ok"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
+                    disabled={!canManageSettings}
+                  ></textarea>
+                </div>
               </div>
+            {/if}
+          </section>
+
+          <!-- Invite Filter -->
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+              <h3 class="text-lg font-semibold flex items-center gap-3">
+                <Papicon icon="UserPlus" size={20} class="text-indigo-400" />
+                Filtre Invitations
+              </h3>
+              <ToggleSwitch
+                checked={config.inviteFilterEnabled}
+                onToggle={(v: boolean) => config.inviteFilterEnabled = v}
+                disabled={!canManageSettings}
+              />
             </div>
-          {/if}
-        </section>
 
-        <!-- Anti-Everyone/Here Troll -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-semibold flex items-center gap-3">
-              <Papicon icon="ShieldAlert" size={20} class="text-red-400" />
-              Filtre Anti-Mention Everyone & Here
-            </h3>
-            <ToggleSwitch 
-              checked={config.antiEveryoneEnabled} 
-              onToggle={(v: boolean) => config.antiEveryoneEnabled = v} 
-              disabled={!canManageSettings}
-            />
-          </div>
+            <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+              Bloque automatiquement les liens d'invitation Discord (discord.gg, discord.com/invite). Géré nativement par Discord pour une modération instantanée.
+            </p>
 
-          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Supprime les messages contenant des tentatives de mention de @everyone ou @here pour les membres n'ayant pas la permission.
-          </p>
+            {#if config.inviteFilterEnabled}
+              <div class="space-y-4 animate-in fade-in duration-300">
+                <div class="space-y-1.5">
+                  <label for="inviteFilterAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                  <select
+                    id="inviteFilterAction"
+                    bind:value={config.inviteFilterAction}
+                    class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  >
+                    <option value="BLOCK">Bloquer le message</option>
+                    <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
+                    <option value="ALERT">Alerter uniquement (logs)</option>
+                  </select>
+                </div>
 
-          {#if config.antiEveryoneEnabled}
-            <div class="space-y-4 animate-in fade-in duration-300">
-              <div class="space-y-1.5">
-                <label for="antiEveryoneAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction en cas d'infraction</label>
-                <select 
-                  id="antiEveryoneAction"
-                  bind:value={config.antiEveryoneAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
-                  disabled={!canManageSettings}
-                >
-                  <option value="DELETE_ONLY">Suppression simple</option>
-                  <option value="DELETE_AND_WARN">Supprimer & Avertir le membre</option>
-                  <option value="TIMEOUT">Exclusion temporaire (Mute 10 min)</option>
-                </select>
+                {#if config.inviteFilterAction === 'TIMEOUT'}
+                  <div class="space-y-1.5">
+                    <label for="inviteFilterTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                    <input
+                      id="inviteFilterTimeout"
+                      type="number" min="5" max="2419200"
+                      bind:value={config.inviteFilterTimeoutSec}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
+                      disabled={!canManageSettings}
+                    />
+                  </div>
+                {/if}
+
+                <div class="space-y-1.5">
+                  <label for="inviteAllowed" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Codes d'invitation autorisés (un par ligne)</label>
+                  <textarea
+                    id="inviteAllowed"
+                    bind:value={inviteAllowedGuildsInput}
+                    placeholder="monserveur&#10;autreCode"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
+                    disabled={!canManageSettings}
+                  ></textarea>
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">Entrez les codes d'invitation (ex: « monserveur » pour discord.gg/monserveur)</p>
+                </div>
               </div>
-            </div>
-          {/if}
-        </section>
+            {/if}
+          </section>
+        </div>
+      </div>
 
+    {:else if activeTab === 'security'}
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-300">
         <!-- Anti-Bot (Mode Sécurisé) -->
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
@@ -922,10 +971,7 @@
           {/if}
 
           <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Empêche l'octroi non autorisé de la permission <strong>ADMINISTRATOR</strong> (attribution d'un rôle admin, activation
-            de la permission sur un rôle, création d'un rôle avec cette permission). Les actions passant par le bot sont
-            bloquées et transformées en demande d'approbation. Les modifications faites directement dans Discord sont
-            détectées via l'audit log puis annulées automatiquement.
+            Empêche l'octroi non autorisé de la permission <strong>ADMINISTRATOR</strong>. Les actions internes sont soumises à approbation. Les modifications externes sont automatiquement détectées et annulées.
           </p>
 
           {#if config.adminLockEnabled}
@@ -977,7 +1023,7 @@
               <!-- Salon de notification -->
               <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
                 <label for="adminLockNotifyChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de notification</label>
-                <p class="text-xs text-on-surface-variant/50 ml-2 mb-1">Reçoit les demandes d'approbation et les alertes de blocage/annulation automatique. Par défaut : salon de logs.</p>
+                <p class="text-xs text-on-surface-variant/50 ml-2 mb-1">Reçoit les demandes d'approbation et les alertes de blocage. Par défaut : salon de logs.</p>
                 <select
                   id="adminLockNotifyChannel"
                   bind:value={config.adminLockNotifyChannelId}
@@ -997,8 +1043,7 @@
                   <div>
                     <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Suspension automatique (anti-rafale)</span>
                     <p class="text-xs text-on-surface-variant/50 ml-2 mt-1">
-                      Si un membre effectue un grand nombre d'actions destructrices en peu de temps (suppressions de salons, bans/kicks, modifications de rôles, création de webhooks/invitations),
-                      ses rôles donnant ADMINISTRATOR sont retirés automatiquement (sans expulsion) et le propriétaire est alerté.
+                      Retire automatiquement les rôles ADMINISTRATOR en cas d'actions destructrices répétées en peu de temps.
                     </p>
                   </div>
                   <ToggleSwitch
@@ -1015,7 +1060,7 @@
                       <div class="flex items-center gap-2">
                         <input id="burstFastLimit" type="number" min="1" max="100" bind:value={config.burstSuspendFastLimit} disabled={!isOwner}
                           class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
-                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">actions /</span>
+                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">act /</span>
                         <input type="number" min="1" max="3600" bind:value={config.burstSuspendFastWindowSec} disabled={!isOwner}
                           class="w-20 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
                         <span class="text-xs text-on-surface-variant/50">s</span>
@@ -1026,7 +1071,7 @@
                       <div class="flex items-center gap-2">
                         <input id="burstSlowLimit" type="number" min="1" max="500" bind:value={config.burstSuspendSlowLimit} disabled={!isOwner}
                           class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
-                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">actions /</span>
+                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">act /</span>
                         <input type="number" min="1" max="3600" bind:value={config.burstSuspendSlowWindowSec} disabled={!isOwner}
                           class="w-20 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
                         <span class="text-xs text-on-surface-variant/50">s</span>
@@ -1038,22 +1083,24 @@
 
               <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <p class="text-xs text-amber-400/90 font-medium">
-                  Fonctionnalité désactivée par défaut. Vérifiez que le rôle du bot est positionné au-dessus des rôles admin
-                  à surveiller avant d'activer, sinon les annulations automatiques peuvent échouer.
+                  Positionnez le rôle du bot au-dessus des rôles ADMINISTRATOR pour garantir le bon fonctionnement des annulations automatiques.
                 </p>
               </div>
             </div>
           {/if}
         </section>
+      </div>
 
-        <!-- Exempte rules (Bypass) -->
+    {:else if activeTab === 'exceptions'}
+      <div class="animate-in fade-in duration-300">
+        <!-- Exempt rules (Bypass) -->
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3 border-b border-outline-variant/15 pb-4">
             <Papicon icon="Unlock" size={20} class="text-emerald-400" />
             Exceptions / Salons et Rôles Ignorés
           </h3>
 
-          <div class="space-y-5">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Ignored roles -->
             <div class="space-y-3">
               <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôles exemptés</span>
@@ -1094,7 +1141,7 @@
             </div>
 
             <!-- Ignored channels -->
-            <div class="space-y-3 pt-2 border-t border-outline-variant/10">
+            <div class="space-y-3 lg:border-l lg:border-outline-variant/10 lg:pl-8">
               <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salons exemptés</span>
               {#if canManageSettings}
                 <div class="flex gap-2">
@@ -1134,6 +1181,6 @@
           </div>
         </section>
       </div>
-    </div>
+    {/if}
   {/if}
 </div>
