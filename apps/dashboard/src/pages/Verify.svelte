@@ -256,8 +256,23 @@
           <p class="text-white/20 text-[10px] text-center mt-4">
             En cliquant, vous autorisez le bot à vérifier votre identité Discord.
           </p>
-          <div class="mt-4">
-            <PrivacyNotice compact text="La vérification traite votre identité Discord et votre adresse IP afin de détecter les comptes multiples et sécuriser le serveur. " />
+
+          <div class="mt-4 rounded-lg border border-white/5 bg-white/3 px-3 py-2.5">
+            <p class="text-white/50 text-[10px] font-semibold uppercase tracking-wide mb-1.5">Données collectées lors de la vérification</p>
+            <ul class="text-white/40 text-[10px] leading-relaxed space-y-1 list-disc list-inside">
+              <li>Identité Discord (identifiant, pseudo, avatar)</li>
+              <li>Adresse IP</li>
+              <li>Informations techniques de l'appareil (navigateur, système, langue, résolution d'écran, fuseau horaire, mémoire, cœurs CPU)</li>
+              <li>E-mail, connexions et serveurs Discord, si le champ d'autorisation OAuth les inclut</li>
+            </ul>
+          </div>
+
+          <div class="mt-3">
+            <PrivacyNotice
+              compact
+              showDca
+              text="Ces données servent à détecter les comptes multiples (DCA) et sécuriser le serveur. "
+            />
           </div>
         </div>
       </div>
