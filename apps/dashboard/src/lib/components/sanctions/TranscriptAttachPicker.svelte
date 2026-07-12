@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import Modal from '../Modal.svelte';
   import Papicon from '../Papicon.svelte';
   import { fetchTranscripts, type TranscriptSummary } from '../../api';
@@ -56,8 +56,10 @@
 
   $effect(() => {
     if (open) {
-      query = '';
-      load();
+      untrack(() => {
+        query = '';
+        load();
+      });
     }
   });
 </script>
@@ -77,7 +79,7 @@
         type="text"
         bind:value={query}
         oninput={handleSearchInput}
-        placeholder="Rechercher par nom de salon…"
+        placeholder="Rechercher par nom de salon ou ID…"
         class="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-lg text-xs text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary/60 transition-colors"
       />
     </div>

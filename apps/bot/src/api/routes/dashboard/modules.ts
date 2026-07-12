@@ -5145,6 +5145,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           where.OR = [
             { channelName: { contains: q, mode: 'insensitive' } },
             { channelId: { contains: q } },
+            { id: { contains: q } },
           ];
         }
         if (from || to) {
