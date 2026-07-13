@@ -408,15 +408,16 @@
       : []
   );
 
-  function getSanctionTypeEmoji(type: string) {
+  // Icône Papicon + classes de couleur (statiques pour Tailwind) par type de sanction.
+  function getSanctionTypeStyle(type: string): { icon: string; tile: string; dot: string } {
     switch (type.toUpperCase()) {
-      case 'WARN': return '⚠️';
-      case 'TIMEOUT': return '⏳';
-      case 'KICK': return '👢';
-      case 'TEMP_BAN': return '⏱️';
-      case 'BAN': return '🔨';
-      case 'SOFTBAN': return '🧹';
-      default: return '⚖️';
+      case 'WARN': return { icon: 'alert-triangle', tile: 'bg-amber-500/10 text-amber-500', dot: 'bg-amber-500' };
+      case 'TIMEOUT': return { icon: 'clock', tile: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500' };
+      case 'KICK': return { icon: 'log-out', tile: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500' };
+      case 'TEMP_BAN': return { icon: 'ban', tile: 'bg-rose-500/10 text-rose-500', dot: 'bg-rose-500' };
+      case 'BAN': return { icon: 'gavel', tile: 'bg-rose-600/10 text-rose-600', dot: 'bg-rose-600' };
+      case 'SOFTBAN': return { icon: 'eraser', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
+      default: return { icon: 'shield', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
     }
   }
 
@@ -1507,51 +1508,70 @@
 
               {:else if activeTab === 'sanctions'}
                 {#if crossServer?.enabled && crossServer.total > 0}
-                  <div class="mb-6 rounded-xl bg-amber-500/5 border border-amber-500/20 overflow-hidden shadow-sm">
-                    <div class="flex items-center gap-3 px-6 py-4 border-b border-amber-500/10 bg-amber-500/5">
-                      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
-                        <Papicon icon="globe" size={20} />
+                  <div class="mb-6 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 overflow-hidden shadow-sm">
+                    <!-- En-tête -->
+                    <div class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10">
+                      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                        <Papicon icon="globe" size={22} />
                       </div>
                       <div class="min-w-0 flex-1">
                         <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Casier inter-serveurs</p>
                         <p class="text-sm font-semibold text-on-surface">
-                          {crossServer.total} sanction{crossServer.total > 1 ? 's' : ''} sur {crossServer.serverCount} autre{crossServer.serverCount > 1 ? 's' : ''} serveur{crossServer.serverCount > 1 ? 's' : ''}
+                          {crossServer.total} sanction{crossServer.total > 1 ? 's' : ''}
+                          <span class="text-on-surface-variant/50 font-medium">sur {crossServer.serverCount} autre{crossServer.serverCount > 1 ? 's' : ''} serveur{crossServer.serverCount > 1 ? 's' : ''}</span>
                         </p>
                       </div>
-                      <div class="hidden sm:flex flex-wrap items-center justify-end gap-1.5">
+                      <div class="hidden md:flex flex-wrap items-center justify-end gap-1.5">
                         {#each crossServerBreakdown as [type, count]}
-                          <span class="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                            {getSanctionTypeEmoji(type)} {formatTypeLabel(type)} ×{count}
+                          {@const style = getSanctionTypeStyle(type)}
+                          <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                            <span class="h-1.5 w-1.5 rounded-full {style.dot}"></span>
+                            {formatTypeLabel(type)}
+                            <span class="text-on-surface-variant/50">{count}</span>
                           </span>
                         {/each}
                       </div>
                     </div>
-                    <ul class="divide-y divide-amber-500/10">
+
+                    <!-- Liste -->
+                    <ul class="divide-y divide-outline-variant/10">
                       {#each crossServer.recent as entry}
-                        <li class="flex items-center gap-3 px-6 py-3">
-                          <span class="text-base">{getSanctionTypeEmoji(entry.type)}</span>
-                          <span class="text-xs font-semibold text-on-surface uppercase tracking-wide w-24 shrink-0">{formatTypeLabel(entry.type)}</span>
-                          <span class="text-xs font-bold text-on-surface-variant/60 w-20 shrink-0">
-                            {entry.durationSeconds ? formatDurationFromSeconds(entry.durationSeconds) : '—'}
-                          </span>
-                          <span class="text-xs font-medium text-on-surface-variant truncate flex-1 min-w-0" title={entry.guildName}>
-                            <Papicon icon="server" size={12} class="inline-block mr-1 opacity-50" />{entry.guildName}
-                          </span>
-                          <span class="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-widest shrink-0 {entry.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                        {@const style = getSanctionTypeStyle(entry.type)}
+                        <li class="flex items-center gap-4 px-6 py-3.5 hover:bg-surface-container-high/20 transition-colors">
+                          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {style.tile}">
+                            <Papicon icon={style.icon} size={16} />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm font-semibold text-on-surface">{formatTypeLabel(entry.type)}</span>
+                              {#if entry.durationSeconds}
+                                <span class="text-[11px] font-medium text-on-surface-variant/50">· {formatDurationFromSeconds(entry.durationSeconds)}</span>
+                              {/if}
+                            </div>
+                            <p class="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-on-surface-variant/60 truncate" title={entry.guildName}>
+                              <Papicon icon="map-pin" size={11} class="shrink-0 opacity-50" />
+                              <span class="truncate">{entry.guildName}</span>
+                            </p>
+                          </div>
+                          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-widest shrink-0 {entry.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            <span class="h-1.5 w-1.5 rounded-full {entry.status === 'ACTIVE' ? 'bg-rose-500' : 'bg-emerald-500'}"></span>
                             {getSanctionStatusLabel(entry.status)}
                           </span>
-                          <span class="text-[10px] font-bold text-on-surface-variant/40 w-24 text-right shrink-0">{formatRelative(entry.createdAt)}</span>
+                          <span class="text-[11px] font-medium text-on-surface-variant/40 w-24 text-right shrink-0 hidden sm:block">{formatRelative(entry.createdAt)}</span>
                         </li>
                       {/each}
                     </ul>
-                    {#if crossServer.total > crossServer.recent.length}
-                      <div class="px-6 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-amber-600/60 dark:text-amber-400/50 bg-amber-500/5">
-                        + {crossServer.total - crossServer.recent.length} autre(s) sanction(s) non affichée(s)
-                      </div>
-                    {/if}
-                    <p class="px-6 py-2 text-[10px] font-medium text-on-surface-variant/40 bg-surface-container-low/30 border-t border-amber-500/10">
-                      Historique des serveurs de la même instance. Modérateur et raison non partagés.
-                    </p>
+
+                    <!-- Pied -->
+                    <div class="flex items-center justify-between gap-3 px-6 py-3 border-t border-outline-variant/10 bg-surface-container-low/30">
+                      <p class="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/40">
+                        <Papicon icon="lock" size={12} class="shrink-0" />
+                        Même instance · modérateur et raison non partagés
+                      </p>
+                      {#if crossServer.total > crossServer.recent.length}
+                        <span class="text-[11px] font-semibold text-on-surface-variant/50 shrink-0">+{crossServer.total - crossServer.recent.length} autre{crossServer.total - crossServer.recent.length > 1 ? 's' : ''}</span>
+                      {/if}
+                    </div>
                   </div>
                 {/if}
                 <div class="rounded-xl bg-surface-container-low/50 overflow-hidden border border-outline-variant/10 shadow-sm">
