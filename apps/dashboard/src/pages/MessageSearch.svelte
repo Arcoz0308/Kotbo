@@ -351,7 +351,7 @@
       {#if showFilters}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-surface-container-low/40 border border-outline-variant/20 rounded-xl">
           <div class="flex flex-col gap-1.5">
-            <label for="f-channel" class="text-xs font-medium text-on-surface-variant/70">Salon</label>
+            <label for="f-channel" class="field-label">Salon</label>
             <select
               id="f-channel"
               bind:value={channelId}
@@ -366,7 +366,7 @@
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label for="f-author" class="text-xs font-medium text-on-surface-variant/70">ID auteur</label>
+            <label for="f-author" class="field-label">ID auteur</label>
             <input
               id="f-author"
               type="text"
@@ -378,7 +378,7 @@
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label for="f-bot" class="text-xs font-medium text-on-surface-variant/70">Type d'auteur</label>
+            <label for="f-bot" class="field-label">Type d'auteur</label>
             <select
               id="f-bot"
               bind:value={botFilter}
@@ -392,7 +392,7 @@
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label for="f-order" class="text-xs font-medium text-on-surface-variant/70">Tri</label>
+            <label for="f-order" class="field-label">Tri</label>
             <select
               id="f-order"
               bind:value={order}

@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { fetchAdminLockRequests, decideAdminLockRequest as decideRequestApi } from '../lib/api';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
 
   interface AdminLockRequest {
     id: string;
@@ -61,7 +63,7 @@
   }
 
   async function decide(request: AdminLockRequest, decision: 'APPROVED' | 'REJECTED') {
-    if (decision === 'REJECTED' && !actionReason.trim() && !confirm('Rejeter cette demande sans indiquer de raison ?')) return;
+    if (decision === 'REJECTED' && !actionReason.trim() && !(await confirmDialog.ask({ title: 'Rejeter sans indiquer de raison ?', description: 'Aucune explication ne sera communiquée au demandeur.', confirmLabel: 'Rejeter', variant: 'warning' }))) return;
     actionInProgress = true;
     try {
       await decideRequestApi(request.id, { decision, reason: actionReason.trim() || undefined });
@@ -91,29 +93,22 @@
   });
 </script>
 
-<div class="p-6 max-w-6xl mx-auto space-y-6">
-
-  <!-- Header -->
-  <div class="flex flex-wrap items-center justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-bold text-on-surface flex items-center gap-3">
-        <Papicon icon="lock" size={26} /> Admin Permission Lock
-      </h1>
-      <p class="text-sm text-on-surface-variant/60 mt-1">
-        Demandes d'octroi de la permission ADMINISTRATOR bloquées en attente d'approbation. Configuration disponible dans Modération auto.
-      </p>
-    </div>
-  </div>
+<ModulePage
+  title="Admin Permission Lock"
+  description="Demandes d'octroi de la permission ADMINISTRATOR bloquées en attente d'approbation. Configuration disponible dans Modération auto."
+  icon="lock"
+  featureKey="automod"
+>
 
   <!-- Tabs -->
-  <div class="flex gap-1 border-b border-outline-variant/20">
+  <div class="tab-group w-fit" role="tablist">
     {#each [
       { id: 'queue', label: `File d'attente (${queue.length})` },
       { id: 'history', label: 'Historique' },
     ] as t}
       <button onclick={() => { tab = t.id as typeof tab; openId = null; }}
-        class="px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px
-          {tab === t.id ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}">
+        role="tab" aria-selected={tab === t.id}
+        class="tab-button {tab === t.id ? 'active' : ''}">
         {t.label}
       </button>
     {/each}
@@ -202,4 +197,4 @@
       </div>
     {/if}
   {/if}
-</div>
+</ModulePage>

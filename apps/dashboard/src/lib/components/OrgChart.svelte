@@ -73,11 +73,11 @@
       {#if schema.chiefStaff && (schema.chiefStaff.name || schema.chiefStaff.userId)}
         <div class="chief-staff-node mb-10 flex flex-col items-center">
           <div class="relative group p-6 rounded-xl bg-linear-to-br from-amber-500/20 to-yellow-600/10 border-2 border-amber-500/40 shadow-sm shadow-amber-500/5 max-w-sm text-center">
-            <div class="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/30">
+            <div class="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-sm">
               <span class="text-xl font-bold">👑</span>
             </div>
             <div class="mt-4">
-              <h4 class="text-xs font-semibold uppercase tracking-widest text-amber-400">Resp Staff Global</h4>
+              <h4 class="text-[13px] font-medium text-amber-400">Resp Staff Global</h4>
               <p class="text-lg font-semibold text-on-surface mt-1">{schema.chiefStaff.name || 'Nom Inconnu'}</p>
               {#if schema.chiefStaff.userId}
                 <span class="text-[11px] font-mono text-on-surface-variant/60 block mt-1">ID: {schema.chiefStaff.userId}</span>

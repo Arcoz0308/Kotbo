@@ -270,7 +270,7 @@
             <button
               onclick={() => handleToggle('theme', preset.id)}
               class="group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200 text-xs font-bold
-                {userPrefs.prefs.theme === preset.id
+ {userPrefs.prefs.theme === preset.id
                   ? 'border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20'
                   : 'border-outline-variant/20 bg-surface-container-high/20 text-on-surface-variant hover:border-primary/30 hover:bg-primary/5'}"
             >
@@ -286,7 +286,7 @@
           <button
             onclick={() => { handleToggle('theme', 'custom'); showCustomEditor = true; }}
             class="group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200 text-xs font-bold
-              {userPrefs.prefs.theme === 'custom'
+ {userPrefs.prefs.theme === 'custom'
                 ? 'border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20'
                 : 'border-outline-variant/20 bg-surface-container-high/20 text-on-surface-variant hover:border-primary/30 hover:bg-primary/5'}"
           >
@@ -363,7 +363,7 @@
 
           <button
             onclick={applyCustomTheme}
-            class="w-full py-2.5 rounded-lg bg-primary text-on-primary text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all"
+            class="w-full py-2.5 rounded-lg bg-primary text-on-primary text-[13px] font-medium hover:brightness-110 transition-all"
           >
             Appliquer
           </button>
@@ -434,7 +434,7 @@
               <button
                 onclick={() => handleToggle('language', lang.id)}
                 class="flex items-center gap-3 p-4 rounded-lg border-2 transition-all duration-200 font-bold text-sm
-                  {userPrefs.prefs.language === lang.id
+ {userPrefs.prefs.language === lang.id
                     ? 'border-secondary bg-secondary/10 text-secondary'
                     : 'border-outline-variant/20 bg-surface-container-high/20 text-on-surface-variant hover:border-secondary/40'}"
               >
@@ -456,12 +456,12 @@
               <button
                 onclick={() => handleToggle('dateFormat', fmt.id)}
                 class="w-full flex items-center gap-4 p-3.5 rounded-xl border transition-all duration-200 text-left
-                  {userPrefs.prefs.dateFormat === fmt.id
+ {userPrefs.prefs.dateFormat === fmt.id
                     ? 'border-secondary/40 bg-secondary/8 text-on-surface'
                     : 'border-outline-variant/10 bg-surface-container-high/10 text-on-surface-variant hover:border-secondary/20'}"
               >
                 <div class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center
-                  {userPrefs.prefs.dateFormat === fmt.id ? 'border-secondary' : 'border-outline-variant/40'}">
+ {userPrefs.prefs.dateFormat === fmt.id ? 'border-secondary' : 'border-outline-variant/40'}">
                   {#if userPrefs.prefs.dateFormat === fmt.id}
                     <div class="w-2 h-2 rounded-full bg-secondary"></div>
                   {/if}
@@ -494,12 +494,12 @@
             <button
               onclick={() => handleToggle('sidebarBehavior', behavior.id)}
               class="w-full flex items-center gap-4 p-3.5 rounded-xl border transition-all duration-200 text-left
-                {userPrefs.prefs.sidebarBehavior === behavior.id
+ {userPrefs.prefs.sidebarBehavior === behavior.id
                   ? 'border-tertiary/40 bg-tertiary/8 text-on-surface'
                   : 'border-outline-variant/10 bg-surface-container-high/10 text-on-surface-variant hover:border-tertiary/20'}"
             >
               <div class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center
-                {userPrefs.prefs.sidebarBehavior === behavior.id ? 'border-tertiary' : 'border-outline-variant/40'}">
+ {userPrefs.prefs.sidebarBehavior === behavior.id ? 'border-tertiary' : 'border-outline-variant/40'}">
                 {#if userPrefs.prefs.sidebarBehavior === behavior.id}
                   <div class="w-2 h-2 rounded-full bg-tertiary"></div>
                 {/if}

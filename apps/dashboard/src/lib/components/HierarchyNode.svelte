@@ -56,7 +56,7 @@
 
     {#if node.responsable && node.responsable.name}
       <div class="mt-4 px-4 py-1.5 rounded-full bg-surface-container-high border border-outline-variant/10 flex items-center gap-2">
-        <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70">Resp :</span>
+        <span class="text-xs font-medium text-on-surface-variant/70">Resp :</span>
         <span class="text-xs font-bold text-on-surface">{node.responsable.name}</span>
       </div>
     {/if}

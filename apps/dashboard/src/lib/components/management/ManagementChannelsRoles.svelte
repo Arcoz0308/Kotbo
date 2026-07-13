@@ -39,7 +39,7 @@
         <h3 class="text-xl font-semibold">Paramètres Globaux</h3>
         <p class="text-xs text-on-surface-variant/50 mt-1">Canaux et rôles utilisés de manière transversale.</p>
       </div>
-      <button onclick={onSaveGlobal} class="px-7 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-lg  hover:scale-105 transition-transform">
+      <button onclick={onSaveGlobal} class="px-7 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-lg transition-transform">
         Enregistrer Global
       </button>
     </div>
@@ -47,7 +47,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
       <!-- Salons globaux -->
       <div class="space-y-5">
-        <h4 class="text-[10px] font-semibold uppercase tracking-widest text-primary flex items-center gap-2"><Papicon icon="Hash" size={14} /> Salons Discord</h4>
+        <h4 class="text-xs font-medium text-primary flex items-center gap-2"><Papicon icon="Hash" size={14} /> Salons Discord</h4>
         <div class="space-y-4">
           {#each globalChannelFields as field}
             <div class="space-y-1.5">
@@ -61,7 +61,7 @@
 
       <!-- Rôles globaux -->
       <div class="space-y-5">
-        <h4 class="text-[10px] font-semibold uppercase tracking-widest text-secondary flex items-center gap-2"><Papicon icon="Shield" size={14} /> Rôles Discord</h4>
+        <h4 class="text-xs font-medium text-secondary flex items-center gap-2"><Papicon icon="Shield" size={14} /> Rôles Discord</h4>
         <div class="space-y-4">
           {#each globalRoleFields as field}
             <div class="space-y-1.5">
@@ -74,7 +74,7 @@
 
         <!-- Toggles globaux -->
         <div class="mt-6 space-y-4">
-          <h4 class="text-[10px] font-semibold uppercase tracking-widest text-tertiary flex items-center gap-2"><Papicon icon="ToggleRight" size={14} /> Intégrations</h4>
+          <h4 class="text-xs font-medium text-tertiary flex items-center gap-2"><Papicon icon="ToggleRight" size={14} /> Intégrations</h4>
           <div class="bg-surface-container-high/20 rounded-xl border border-outline-variant/5 p-5 space-y-3">
             {#each [
               { key: 'youtubeEnabled', label: 'YouTube', desc: 'Vidéos & shorts' },
@@ -102,7 +102,7 @@
 
     <div class="overflow-hidden rounded-xl border border-outline-variant/5">
       <table class="w-full text-left border-collapse">
-        <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+        <thead class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
           <tr>
             <th class="px-5 py-4">Module</th>
             <th class="px-5 py-4">Salon Principal</th>
@@ -125,7 +125,7 @@
                 <SearchableSelect bind:value={features[idx].notificationRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
               </td>
               <td class="px-5 py-4 text-center">
-                <button onclick={() => onSaveFeature(feature.featureKey)} class="px-4 py-1.5 bg-on-surface text-surface text-[11px] font-semibold uppercase tracking-widest rounded-lg hover:scale-105 transition-transform">
+                <button onclick={() => onSaveFeature(feature.featureKey)} class="px-4 py-1.5 bg-on-surface text-surface text-[11px] font-semibold uppercase tracking-widest rounded-lg transition-transform">
                   Sauver
                 </button>
               </td>

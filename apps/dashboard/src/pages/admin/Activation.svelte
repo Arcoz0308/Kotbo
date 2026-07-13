@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import { fetchActivationCodes, createActivationCode, deleteActivationCode, fetchAdminGuilds, deactivateAdminGuild, activateAdminGuildAuto } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import AdminLayout from '../../lib/components/AdminLayout.svelte';
@@ -46,10 +47,13 @@
   }
 
   async function handleDeleteCode(codeId: string, code: string, usedBy: string | null) {
-    const warning = usedBy 
-      ? `ATTENTION: Ce code est utilisé par le serveur "${usedBy}". Supprimer ce code désactivera immédiatement ce serveur ! Continuer ?`
-      : `Voulez-vous vraiment supprimer le code d'activation ${code} ?`;
-    if (!confirm(warning)) return;
+    const confirmed = usedBy
+      ? await confirmDialog.danger(
+          `Supprimer le code utilisé par « ${usedBy} » ?`,
+          'Ce serveur sera immédiatement désactivé.',
+        )
+      : await confirmDialog.danger(`Supprimer le code d'activation ${code} ?`);
+    if (!confirmed) return;
     try {
       await deleteActivationCode(codeId);
       toast.success("Code d'activation supprimé.");
@@ -60,7 +64,7 @@
   }
 
   async function handleActivateGuildAuto(guildId: string, guildName: string) {
-    if (!confirm(`Voulez-vous vraiment activer automatiquement le serveur "${guildName}" avec un nouveau code généré ?`)) return;
+    if (!(await confirmDialog.ask({ title: `Activer « ${guildName} » ?`, description: 'Un nouveau code d\'activation sera généré pour ce serveur.', confirmLabel: 'Activer' }))) return;
     try {
       const res = await activateAdminGuildAuto(guildId);
       toast.success(`Serveur activé ! Code généré : ${res.code}`);
@@ -73,7 +77,7 @@
   }
 
   async function handleDeactivateGuild(guildId: string, guildName: string) {
-    if (!confirm(`Voulez-vous vraiment désactiver le serveur "${guildName}" ? Ses fonctionnalités et son dashboard seront immédiatement verrouillés.`)) return;
+    if (!(await confirmDialog.ask({ title: `Désactiver « ${guildName} » ?`, description: 'Ses fonctionnalités et son dashboard seront immédiatement verrouillés.', confirmLabel: 'Désactiver', variant: 'danger' }))) return;
     try {
       await deactivateAdminGuild(guildId);
       toast.success("Serveur désactivé avec succès.");
@@ -141,7 +145,7 @@
 
           <button 
             onclick={handleGenerateCode}
-            class="w-full py-4 rounded-xl bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs transition-all hover: active:scale-95  flex items-center justify-center gap-3"
+            class="w-full py-4 rounded-xl bg-primary text-on-primary font-medium text-[13px] transition-all hover: active:scale-95 flex items-center justify-center gap-3"
           >
             <Papicon icon="Unlock" size={16} />
             Générer un code
@@ -159,7 +163,7 @@
         <div class="premium-card rounded-[2.25rem] overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse border-spacing-0">
-              <thead class="bg-on-surface/5 text-on-surface-variant/40 text-[10px] font-semibold uppercase tracking-widest">
+              <thead class="bg-on-surface/5 text-on-surface-variant/40 text-xs font-medium">
                 <tr>
                   <th class="px-8 py-5">Code d'activation</th>
                   <th class="px-8 py-5">Statut</th>

@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -208,26 +209,17 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
-  <!-- Header -->
-  <header class="relative overflow-hidden flex flex-col md:flex-row md:items-center gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="relative flex items-center gap-4 flex-1">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
-        <Papicon icon="calendar" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Planifications de tâches</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">
-          Configurez et automatisez des actions régulières sur votre serveur Discord.
-        </p>
-      </div>
-    </div>
+<ModulePage
+  title="Planifications de tâches"
+  description="Configurez et automatisez des actions régulières sur votre serveur Discord."
+  icon="calendar"
+  featureKey="settings"
+>
+  {#snippet actions()}
     {#if canManageSchedules}
-      <div class="relative shrink-0">
-        <ActionButton onClick={openCreateModal} variant="primary" label="Nouvelle planification" icon="plus" />
-      </div>
+      <ActionButton onClick={openCreateModal} variant="primary" label="Nouvelle planification" icon="plus" />
     {/if}
-  </header>
+  {/snippet}
 
   <!-- Content Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -325,7 +317,7 @@
 
   <InlineFeedback state={updateAction} />
   <InlineFeedback state={runAction} />
-</div>
+</ModulePage>
 
 <!-- Modal de création / édition de planification -->
 <Modal bind:open={showCreateModal} title={isEditing ? "Modifier la planification" : "Créer une planification"}>

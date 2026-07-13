@@ -235,7 +235,7 @@
       <div class="flex border-b border-outline-variant/10 mb-4 gap-1">
         <button 
           onclick={() => activeTab = 'list'} 
-          class="px-5 py-3 border-b-2 font-semibold text-xs transition-all uppercase tracking-wider {activeTab === 'list' ? 'border-primary text-primary bg-primary/5 rounded-t-xl' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-hover/30 rounded-t-xl'}"
+          class="tab-button {activeTab === 'list' ? 'active' : ''}"
         >
           <span class="flex items-center gap-2">
             <Papicon icon="assignment" size={16} />
@@ -244,7 +244,7 @@
         </button>
         <button 
           onclick={() => activeTab = 'analytics'} 
-          class="px-5 py-3 border-b-2 font-semibold text-xs transition-all uppercase tracking-wider {activeTab === 'analytics' ? 'border-primary text-primary bg-primary/5 rounded-t-xl' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-hover/30 rounded-t-xl'}"
+          class="tab-button {activeTab === 'analytics' ? 'active' : ''}"
         >
           <span class="flex items-center gap-2">
             <Papicon icon="pie_chart" size={16} />
@@ -349,15 +349,15 @@
                 {:else if item.type === 'number'}
                   <div class="grid grid-cols-3 gap-3 text-center my-4">
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold block mb-1">Moyenne</span>
+                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Moyenne</span>
                       <span class="text-lg font-bold text-primary">{item.average ?? 0}</span>
                     </div>
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold block mb-1">Min</span>
+                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Min</span>
                       <span class="text-lg font-bold text-on-surface">{item.min ?? 0}</span>
                     </div>
                     <div class="bg-surface-container/30 border border-outline-variant/5 rounded-xl p-3">
-                      <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold block mb-1">Max</span>
+                      <span class="text-[13px] text-on-surface-variant/50 font-semibold block mb-1">Max</span>
                       <span class="text-lg font-bold text-on-surface">{item.max ?? 0}</span>
                     </div>
                   </div>

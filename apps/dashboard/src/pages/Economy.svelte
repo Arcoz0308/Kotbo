@@ -4,6 +4,9 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -184,7 +187,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   async function handleSaveConfig(): Promise<boolean> {
     if (!canManageSettings) return false;
     if (config.dailyRewardMax < config.dailyRewardMin) {
-      alert('Le gain journalier maximal doit être supérieur ou égal au gain minimal.');
+      toast.error('Le gain journalier maximal doit être supérieur ou égal au gain minimal.');
       return false;
     }
 
@@ -223,7 +226,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   async function handleSaveItem() {
     if (!editingItem.name || !editingItem.type || editingItem.price === undefined) {
-      alert('Champs obligatoires manquants.');
+      toast.error('Champs obligatoires manquants.');
       return;
     }
 
@@ -238,7 +241,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   async function handleDeleteItem(itemId: string) {
-    if (!confirm('Voulez-vous vraiment supprimer cet objet de la boutique ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cet objet de la boutique ?'))) return;
 
     await actionState.run(async () => {
       await deleteRpgItem(itemId);
@@ -281,18 +284,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   );
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <!-- Header -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="Coins" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Économie & Jeu RPG</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Gérez la monnaie locale, configurez les aventures textuelles RNG et gérez la boutique du serveur.</p>
-      </div>
-    </div>
+<ModulePage
+  title="Économie & Jeu RPG"
+  description="Gérez la monnaie locale, configurez les aventures textuelles RNG et gérez la boutique du serveur."
+  icon="coins"
+>
+  {#snippet actions()}
     {#if !loading}
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">Statut du module :</span>
@@ -305,29 +302,29 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         />
       </div>
     {/if}
-  </header>
+  {/snippet}
 
   <InlineFeedback state={actionState} />
 
   <!-- Navigation Tabs -->
-  <div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-lg border border-outline-variant/10 w-fit">
+  <div class="tab-group w-fit">
     <button 
       onclick={() => gotoTab('/economy', 'config', 'config')}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="tab-button {activeTab === 'config' ? 'active' : ''}"
     >
       <Papicon icon="settings" size={14} />
       Configuration
     </button>
     <button
       onclick={() => gotoTab('/economy', 'items', 'config')}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'items' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="tab-button {activeTab === 'items' ? 'active' : ''}"
     >
       <Papicon icon="package" size={14} />
       Objets Boutique
     </button>
     <button
       onclick={() => gotoTab('/economy', 'players', 'config')}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'players' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="tab-button {activeTab === 'players' ? 'active' : ''}"
     >
       <Papicon icon="users" size={14} />
       Joueurs & Classement
@@ -566,7 +563,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               type="button" 
               onclick={openNewItem}
               disabled={!config.enabled}
-              class="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <Papicon icon="plus" size={14} />
               Créer un objet
@@ -751,7 +748,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
     {/if}
   {/if}
-</div>
+</ModulePage>
 
 <!-- ITEM MODAL EDITOR -->
 {#if editingItem}
@@ -836,7 +833,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <button 
           type="button" 
           onclick={handleSaveItem}
-          class="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-xl shadow-lg transition-all"
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
           Enregistrer
         </button>
@@ -904,7 +901,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <button 
           type="button" 
           onclick={handleSavePlayer}
-          class="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-xl shadow-lg transition-all"
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
           Enregistrer
         </button>
@@ -939,7 +936,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <button
           type="button"
           onclick={confirmReset}
-          class="px-5 py-2.5 bg-error hover:bg-error-hover text-on-error text-xs font-bold rounded-xl shadow-lg transition-all"
+          class="px-5 py-2.5 bg-error hover:bg-error-hover text-on-error text-[13px] font-medium rounded-lg transition-all"
         >
           Confirmer la suppression
         </button>

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fetchWidgetData, activateWidget, deactivateWidget, refreshWidget, refreshAllWidgets, rotateWidgetToken, API_BASE_URL } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
@@ -142,16 +143,11 @@
   onMount(load);
 </script>
 
-<!-- ======================== HEADER ======================== -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-  <div>
-    <h1 class="text-lg font-semibold flex items-center gap-2.5">
-      <Papicon icon="layout" size={24} />
-      Widget Profil
-    </h1>
-    <p class="text-xs text-on-surface-variant/60 mt-1">Affiche tes stats staff directement sur ton profil Discord</p>
-  </div>
-</div>
+<ModulePage
+  title="Widget Profil"
+  description="Affiche tes stats staff directement sur ton profil Discord."
+  icon="layout"
+>
 
 <!-- ======================== CONTENT ======================== -->
 {#if loading}
@@ -168,7 +164,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-2xl font-bold">{isActive ? 'Actif' : 'Inactif'}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-0.5">Ton widget</span>
+        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Ton widget</span>
       </div>
     </div>
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
@@ -177,7 +173,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-2xl font-bold">{subscriptionCount}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-0.5">Widgets actifs</span>
+        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Widgets actifs</span>
       </div>
     </div>
   </div>
@@ -194,7 +190,7 @@
       <div class="flex flex-col gap-3">
         {#if isActive}
           <button
-            class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+            class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
             onclick={handleRefresh}
             disabled={acting}
           >
@@ -202,7 +198,7 @@
             Rafraîchir mon widget
           </button>
           <button
-            class="px-5 py-2.5 bg-rose-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-rose-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+            class="px-5 py-2.5 bg-rose-500 text-white text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
             onclick={handleDeactivate}
             disabled={acting}
           >
@@ -211,7 +207,7 @@
           </button>
         {:else}
           <button
-            class="px-5 py-2.5 bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+            class="px-5 py-2.5 bg-emerald-500 text-white text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
             onclick={handleActivate}
             disabled={acting}
           >
@@ -221,7 +217,7 @@
         {/if}
 
         <button
-          class="px-5 py-2.5 bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high/60 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2"
+          class="px-5 py-2.5 bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high/60 text-[13px] font-medium rounded-xl transition-all flex items-center gap-2"
           onclick={handleRefreshAll}
           disabled={acting}
         >
@@ -276,7 +272,7 @@
           </div>
           <div class="flex min-w-56 flex-col gap-2">
             <button
-              class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-400 px-5 py-3 text-xs font-bold uppercase tracking-wider text-black transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
+              class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-400 px-5 py-3 text-[13px] font-medium text-black transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
               onclick={handleCopyVencordScript}
               disabled={copyingScript}
             >
@@ -456,7 +452,7 @@
             <div class="flex items-center gap-4 py-3">
               <span class="flex-1 font-mono text-sm text-on-surface">{sub.userId}</span>
               <span class="text-xs text-on-surface-variant/60">{new Date(sub.createdAt).toLocaleDateString('fr-FR')}</span>
-              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/15">Actif</span>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/15">Actif</span>
             </div>
           {/each}
         </div>
@@ -465,3 +461,4 @@
 
   </div>
 {/if}
+</ModulePage>

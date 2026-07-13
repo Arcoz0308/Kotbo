@@ -152,7 +152,7 @@
             <button
               onclick={() => setTab('discover')}
               class="
-                flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg
+ flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg
                 border-b-2 transition-colors
                 {activeTab === 'discover'
                   ? 'border-primary text-primary bg-primary/5'
@@ -172,7 +172,7 @@
             <button
               onclick={() => setTab('setup')}
               class="
-                flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg
+ flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg
                 border-b-2 transition-colors
                 {activeTab === 'setup'
                   ? 'border-primary text-primary bg-primary/5'
@@ -220,7 +220,7 @@
                     type="button"
                     onclick={() => { if (task.route && !completed) navigateTo(task.route); }}
                     class="
-                      w-full flex items-start gap-3 p-2.5 rounded-xl text-left
+ w-full flex items-start gap-3 p-2.5 rounded-xl text-left
                       transition-all duration-150 group
                       {completed ? 'opacity-60' : 'hover:bg-surface-container cursor-pointer'}
                     "
@@ -268,7 +268,7 @@
                 <!-- Essential section -->
                 <div class="px-2.5 pt-2 pb-1">
                   <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    <span class="text-xs font-medium text-amber-600 dark:text-amber-400">
                       Indispensable
                     </span>
                     <span class="text-[10px] text-on-surface-variant">
@@ -293,7 +293,7 @@
                     type="button"
                     onclick={() => { if (!completed) navigateTo(task.route); }}
                     class="
-                      w-full flex items-start gap-3 p-2.5 rounded-xl text-left
+ w-full flex items-start gap-3 p-2.5 rounded-xl text-left
                       transition-all duration-150 group
                       {completed ? 'opacity-60' : 'hover:bg-surface-container cursor-pointer'}
                     "
@@ -330,7 +330,7 @@
                   class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-surface-container/50 transition-colors"
                 >
                   <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                    <span class="text-xs font-medium text-on-surface-variant">
                       Personnalisation
                     </span>
                     <span class="text-[10px] text-on-surface-variant/60">
@@ -350,7 +350,7 @@
                       type="button"
                       onclick={() => { if (!completed) navigateTo(task.route); }}
                       class="
-                        w-full flex items-start gap-3 p-2.5 rounded-xl text-left
+ w-full flex items-start gap-3 p-2.5 rounded-xl text-left
                         transition-all duration-150 group
                         {completed ? 'opacity-60' : 'hover:bg-surface-container cursor-pointer'}
                       "
@@ -402,7 +402,7 @@
       <button
         onclick={toggleMinimize}
         class="
-          group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl
+ group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl
           bg-surface-container-lowest border border-outline-variant
           shadow-lg hover:shadow-xl
           transition-all duration-200

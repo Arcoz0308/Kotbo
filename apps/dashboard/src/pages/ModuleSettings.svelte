@@ -21,6 +21,7 @@
     fetchGlobalDailyAlgoLeaderboard,
   } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { router } from 'tinro';
   import { getModuleMeta } from '../lib/moduleMeta';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -928,10 +929,7 @@
       return;
     }
 
-    if (typeof window !== 'undefined') {
-      const confirmed = window.confirm(`Supprimer définitivement "${problem.title}" ?`);
-      if (!confirmed) return;
-    }
+    if (!(await confirmDialog.danger(`Supprimer « ${problem.title} » ?`, 'Cet exercice sera retiré définitivement de la bibliothèque.'))) return;
 
     deletingDailyAlgoProblemId = problem.id;
     try {
@@ -1365,7 +1363,7 @@
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
         label="Rafraîchir"
-        className="px-6 py-3.5 text-xs font-semibold uppercase tracking-widest rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant/60 hover:text-on-surface shadow-none"
+        className="px-6 py-3.5 text-[13px] font-medium rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant/60 hover:text-on-surface shadow-none"
         iconClass="text-base"
       />
       <!-- Save button removed since global bottom bar handles saving -->
@@ -1431,7 +1429,7 @@
                 <button
                   type="button"
                   onclick={openDailyAlgoProblemModal}
-                  class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-wide shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
+                  class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-wide shadow-sm hover:bg-emerald-700"
                 >
                   Ajouter un exercice
                 </button>
@@ -1517,7 +1515,7 @@
                       type="button"
                       onclick={() => (dailyAlgoSubmissionStatusFilter = option.value as 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED')}
                       class="px-3 py-1.5 rounded-lg border text-[10px] font-semibold uppercase tracking-wide transition-colors {dailyAlgoSubmissionStatusFilter === option.value
-                        ? 'bg-primary text-on-primary border-primary'
+ ? 'bg-primary text-on-primary border-primary'
                         : 'bg-surface text-on-surface-variant border-outline-variant/30 hover:text-on-surface'}"
                     >
                       {option.label}
@@ -1577,7 +1575,7 @@
                                 <button
                                   type="button"
                                   onclick={() => openSubmissionInIntegratedIde(submission)}
-                                  class="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 hover:text-emerald-600"
+                                  class="text-xs font-medium text-emerald-700 hover:text-emerald-600"
                                 >
                                   IDE intégré
                                 </button>
@@ -1610,7 +1608,7 @@
                                   <button
                                     type="button"
                                     onclick={() => openSubmissionInIntegratedIde(submission)}
-                                    class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-widest"
+                                    class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium"
                                   >
                                     {submission.status === 'PENDING' ? 'Noter dans IDE' : submission.status === 'APPROVED' ? 'Modifier dans IDE' : 'Réévaluer dans IDE'}
                                   </button>
@@ -1618,7 +1616,7 @@
                                     <button
                                       type="button"
                                       onclick={() => rejectSubmission(submission.id)}
-                                      class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-semibold uppercase tracking-widest"
+                                      class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-xs font-medium"
                                     >
                                       Rejeter
                                     </button>
@@ -1652,13 +1650,13 @@
                 </div>
                 <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
                   <Papicon icon="Server" size={14} class="text-sky-600" />
-                  <span class="text-[10px] font-semibold uppercase tracking-widest text-sky-700">{globalLeaderboard.guildsCount} serveurs synchronisés</span>
+                  <span class="text-xs font-medium text-sky-700">{globalLeaderboard.guildsCount} serveurs synchronisés</span>
                 </div>
               </div>
 
               <div class="overflow-x-auto rounded-lg border border-sky-500/15 bg-surface/60">
                 <table class="w-full text-left">
-                  <thead class="bg-sky-500/5 text-sky-800 text-[10px] font-semibold uppercase tracking-widest">
+                  <thead class="bg-sky-500/5 text-sky-800 text-xs font-medium">
                     <tr>
                       <th class="px-6 py-4">Rang</th>
                       <th class="px-6 py-4">Utilisateur</th>
@@ -1737,7 +1735,7 @@
                             {historyDateLabel(run.dateKey)}
                           </p>
                           <span class="px-2 py-0.5 rounded-md border text-[10px] font-semibold uppercase tracking-[0.08em] {run.status === 'today'
-                            ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700'
+ ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700'
                             : 'border-sky-500/25 bg-sky-500/10 text-sky-700'}">
                             {run.status === 'today' ? "Aujourd'hui" : 'Programmé'}
                           </span>
@@ -1800,7 +1798,7 @@
                       type="button"
                       onclick={() => (dailyAlgoLibraryMode = mode.value as 'ALL' | 'AVAILABLE' | 'USED')}
                       class="px-3 py-1.5 rounded-lg border text-[10px] font-semibold uppercase tracking-wide transition-colors {dailyAlgoLibraryMode === mode.value
-                        ? 'bg-primary text-on-primary border-primary'
+ ? 'bg-primary text-on-primary border-primary'
                         : 'bg-surface text-on-surface-variant border-outline-variant/30 hover:text-on-surface'}"
                     >
                       {mode.label}
@@ -1905,7 +1903,7 @@
                                   onclick={() => setProblemAsToday(problem.id)}
                                   disabled={switchingTodayProblemId === problem.id || deletingDailyAlgoProblemId === problem.id || todayRunProblemId === problem.id}
                                   class="px-3 py-1.5 rounded-lg border text-[10px] font-semibold uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed {todayRunProblemId === problem.id
-                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+ ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
                                     : 'border-sky-500/30 bg-sky-500/10 text-sky-700 hover:bg-sky-500/20'}"
                                 >
                                   {todayRunProblemId === problem.id ? "Exo du jour" : 'Mettre aujourd’hui'}
@@ -2383,7 +2381,7 @@
                 <button
                   type="button"
                   onclick={() => addSuggestedLanguage(suggestion)}
-                  class="px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant hover:text-on-surface"
+                  class="px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-xs font-medium text-on-surface-variant hover:text-on-surface"
                 >
                   {suggestion}
                 </button>
@@ -2540,7 +2538,7 @@
           type="button"
           onclick={submitDailyAlgoProblem}
           disabled={formAction.state.loading}
-          class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold uppercase tracking-wide shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
+          class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold uppercase tracking-wide shadow-sm hover:bg-emerald-700"
         >
           {formAction.state.loading
             ? (editingDailyAlgoProblemId ? 'Enregistrement...' : 'Ajout...')

@@ -162,7 +162,7 @@
       {#each roleEntries as role}
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl {role.bg}">
           <span class="w-2 h-2 rounded-full {role.dotColor}"></span>
-          <span class="text-[10px] font-semibold uppercase tracking-widest {role.color}">{role.name}</span>
+          <span class="text-xs font-medium {role.color}">{role.name}</span>
         </div>
       {/each}
       <div class="flex items-center gap-3 ml-auto text-[10px] text-on-surface-variant/40">
@@ -235,7 +235,7 @@
                     <div class="px-5 pb-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                       <div class="overflow-hidden rounded-xl border border-outline-variant/5">
                         <table class="w-full text-left border-collapse">
-                          <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+                          <thead class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
                             <tr>
                               <th class="px-4 py-3">Rôle</th>
                               {#each permissions as perm}
@@ -274,7 +274,7 @@
                       <div class="flex justify-end">
                         <button
                           onclick={() => onUpdateAccess(feature.featureKey, feature.roleAccessByRole || [])}
-                          class="px-5 py-2 bg-on-surface text-surface text-[11px] font-semibold uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
+                          class="px-5 py-2 bg-on-surface text-surface text-[11px] font-semibold uppercase tracking-widest rounded-xl transition-transform"
                         >
                           Sauvegarder
                         </button>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import {
     sendBroadcast,
     fetchBroadcastHistory,
@@ -232,7 +233,7 @@
   }
 
   async function handleDeleteLog(id: string) {
-    if (!confirm('Supprimer cette entrée ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cette entrée ?'))) return;
     try {
       await deleteBroadcastLog(id);
       history = history.filter(h => h.id !== id);
@@ -286,15 +287,13 @@
       <div class="flex items-center gap-2">
         <button
           onclick={() => activeTab = 'compose'}
-          class="px-4 py-2 rounded-xl text-xs font-black transition-all duration-200
-            {activeTab === 'compose' ? 'bg-primary text-on-primary shadow-md shadow-primary/25' : 'bg-on-surface/5 text-on-surface-variant/60 hover:bg-on-surface/10'}"
+          class="tab-button {activeTab === 'compose' ? 'active' : ''}"
         >
           <Papicon icon="PenLine" size={13} class="inline mr-1.5" />Composer
         </button>
         <button
           onclick={() => activeTab = 'channels'}
-          class="px-4 py-2 rounded-xl text-xs font-black transition-all duration-200
-            {activeTab === 'channels' ? 'bg-primary text-on-primary shadow-md shadow-primary/25' : 'bg-on-surface/5 text-on-surface-variant/60 hover:bg-on-surface/10'}"
+          class="tab-button {activeTab === 'channels' ? 'active' : ''}"
         >
           <Papicon icon="Hash" size={13} class="inline mr-1.5" />Salons
           {#if needsConfigCount > 0}
@@ -303,8 +302,7 @@
         </button>
         <button
           onclick={() => activeTab = 'history'}
-          class="px-4 py-2 rounded-xl text-xs font-black transition-all duration-200
-            {activeTab === 'history' ? 'bg-primary text-on-primary shadow-md shadow-primary/25' : 'bg-on-surface/5 text-on-surface-variant/60 hover:bg-on-surface/10'}"
+          class="tab-button {activeTab === 'history' ? 'active' : ''}"
         >
           <Papicon icon="History" size={13} class="inline mr-1.5" />Historique
           {#if history.length > 0}
@@ -331,17 +329,17 @@
               <div class="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center text-blue-400">
                 <Papicon icon="Type" size={16} />
               </div>
-              <p class="font-black text-on-surface text-sm">Contenu de l'embed</p>
+              <p class="font-bold text-on-surface text-sm">Contenu de l'embed</p>
             </div>
 
             <div class="space-y-3">
               <div class="relative">
                 <div class="flex items-center justify-between mb-1">
-                  <label for="broadcast-title" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Titre</label>
+                  <label for="broadcast-title" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Titre</label>
                   <button
                     onclick={() => openEmojiPicker('title')}
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-200
-                      {showEmojiPicker && pickerTarget === 'title' ? 'bg-primary/15 text-primary border border-primary/20' : 'bg-on-surface/5 text-on-surface-variant/50 hover:bg-on-surface/10 border border-transparent'}"
+ {showEmojiPicker && pickerTarget === 'title' ? 'bg-primary/15 text-primary border border-primary/20' : 'bg-on-surface/5 text-on-surface-variant/50 hover:bg-on-surface/10 border border-transparent'}"
                   >
                     <Papicon icon="Smile" size={12} />
                     Emojis Kotbo
@@ -357,11 +355,11 @@
 
               <div class="relative">
                 <div class="flex items-center justify-between mb-1">
-                  <label for="broadcast-message" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Message</label>
+                  <label for="broadcast-message" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Message</label>
                   <button
                     onclick={() => openEmojiPicker('message')}
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-200
-                      {showEmojiPicker && pickerTarget === 'message' ? 'bg-primary/15 text-primary border border-primary/20' : 'bg-on-surface/5 text-on-surface-variant/50 hover:bg-on-surface/10 border border-transparent'}"
+ {showEmojiPicker && pickerTarget === 'message' ? 'bg-primary/15 text-primary border border-primary/20' : 'bg-on-surface/5 text-on-surface-variant/50 hover:bg-on-surface/10 border border-transparent'}"
                   >
                     <Papicon icon="Smile" size={12} />
                     Emojis Kotbo
@@ -381,7 +379,7 @@
               <!-- Emoji Picker (shared between title & message) -->
               {#if showEmojiPicker}
                 <div class="absolute right-5 top-16 z-50 w-80 max-h-64 overflow-y-auto bg-surface-container border border-outline-variant/20 rounded-xl shadow-2xl shadow-black/30 p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">
                     Insérer dans {pickerTarget === 'title' ? 'le titre' : 'le message'}
                   </p>
                   <div class="grid grid-cols-6 gap-1.5">
@@ -409,7 +407,7 @@
               {/if}
 
               <div>
-                <label for="broadcast-footer" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Footer</label>
+                <label for="broadcast-footer" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Footer</label>
                 <input
                   id="broadcast-footer"
                   bind:value={footerText}
@@ -426,20 +424,20 @@
               <div class="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center text-purple-400">
                 <Papicon icon="Palette" size={16} />
               </div>
-              <p class="font-black text-on-surface text-sm">Apparence</p>
+              <p class="font-bold text-on-surface text-sm">Apparence</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <!-- Color picker -->
               <div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Couleur</span>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Couleur</span>
                 <div class="flex items-center gap-2 flex-wrap">
                   {#each COLOR_PRESETS as preset}
                     <button
                       onclick={() => color = preset.value}
                       title={preset.label}
                       class="w-8 h-8 rounded-lg border-2 transition-all duration-200 hover:scale-110
-                        {color === preset.value ? 'border-white shadow-lg scale-110' : 'border-transparent hover:border-white/30'}"
+ {color === preset.value ? 'border-white shadow-lg scale-110' : 'border-transparent hover:border-white/30'}"
                       style="background-color: {preset.value}"
                     ></button>
                   {/each}
@@ -453,7 +451,7 @@
 
               <!-- Thumbnail URL -->
               <div>
-                <label for="thumbnail-url" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Thumbnail URL</label>
+                <label for="thumbnail-url" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Thumbnail URL</label>
                 <input
                   id="thumbnail-url"
                   bind:value={thumbnailUrl}
@@ -464,7 +462,7 @@
 
               <!-- Image URL -->
               <div class="sm:col-span-2">
-                <label for="image-url" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Image URL (grande)</label>
+                <label for="image-url" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-1 block">Image URL (grande)</label>
                 <input
                   id="image-url"
                   bind:value={imageUrl}
@@ -481,13 +479,13 @@
               <div class="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center text-emerald-400">
                 <Papicon icon="Target" size={16} />
               </div>
-              <p class="font-black text-on-surface text-sm">Ciblage</p>
+              <p class="font-bold text-on-surface text-sm">Ciblage</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <!-- Target -->
               <div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Cible</span>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Cible</span>
                 <div class="flex flex-col gap-1.5">
                   {#each [
                     { val: 'ALL', label: 'Tous les serveurs', icon: 'Globe' },
@@ -497,7 +495,7 @@
                     <button
                       onclick={() => target = opt.val as any}
                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 text-left
-                        {target === opt.val
+ {target === opt.val
                           ? 'bg-primary/10 text-primary border border-primary/20'
                           : 'bg-on-surface/4 text-on-surface-variant/60 hover:bg-on-surface/8 border border-transparent'}"
                     >
@@ -510,7 +508,7 @@
 
               <!-- Broadcast channel info -->
               <div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Salon de diffusion</span>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mb-2 block">Salon de diffusion</span>
                 <div class="bg-on-surface/4 border border-outline-variant/10 rounded-xl p-3.5 space-y-2.5">
                   <p class="text-xs text-on-surface-variant/60 font-medium leading-relaxed">
                     Chaque serveur reçoit le broadcast dans le salon configuré dans l'onglet <span class="font-bold text-on-surface">Salons</span>.
@@ -530,7 +528,7 @@
                   {/if}
                   <button
                     onclick={() => activeTab = 'channels'}
-                    class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[11px] font-black bg-on-surface/5 text-on-surface-variant/60 hover:bg-primary/10 hover:text-primary border border-transparent hover:border-primary/20 transition-all duration-200"
+                    class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-[11px] font-bold bg-on-surface/5 text-on-surface-variant/60 hover:bg-primary/10 hover:text-primary border border-transparent hover:border-primary/20 transition-all duration-200"
                   >
                     <Papicon icon="Hash" size={12} />
                     Configurer les salons
@@ -543,7 +541,7 @@
             {#if target === 'CUSTOM'}
               <div class="mt-3 space-y-3 border-t border-outline-variant/10 pt-4">
                 <div class="flex items-center justify-between">
-                  <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Sélection des serveurs</span>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Sélection des serveurs</span>
                   <span class="text-xs font-bold text-primary">{selectedGuilds.length} sélectionné(s)</span>
                 </div>
                 <input
@@ -556,7 +554,7 @@
                     <button
                       onclick={() => toggleGuild(guild.id)}
                       class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150 text-left
-                        {selectedGuilds.includes(guild.id)
+ {selectedGuilds.includes(guild.id)
                           ? 'bg-primary/10 text-primary border border-primary/20'
                           : 'bg-on-surface/3 text-on-surface-variant/60 hover:bg-on-surface/6 border border-transparent'}"
                     >
@@ -590,7 +588,7 @@
               <div class="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/15 flex items-center justify-center text-indigo-400">
                 <Papicon icon="Eye" size={16} />
               </div>
-              <p class="font-black text-on-surface text-sm">Aperçu Discord</p>
+              <p class="font-bold text-on-surface text-sm">Aperçu Discord</p>
             </div>
 
             <!-- Discord-style embed preview -->
@@ -641,11 +639,11 @@
             <!-- Target summary -->
             <div class="grid grid-cols-2 gap-2">
               <div class="bg-on-surface/4 rounded-xl p-3 space-y-1">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Cible</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Cible</p>
                 <p class="text-xs font-bold text-on-surface">{targetLabel}</p>
               </div>
               <div class="bg-on-surface/4 rounded-xl p-3 space-y-1">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Canal</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Canal</p>
                 <p class="text-xs font-bold text-on-surface">Salon configuré par serveur</p>
               </div>
             </div>
@@ -655,8 +653,8 @@
               <button
                 onclick={handleDryRun}
                 disabled={!message.trim() || sending}
-                class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-black text-xs transition-all duration-200
-                  {!message.trim() || sending
+                class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-xs transition-all duration-200
+ {!message.trim() || sending
                     ? 'bg-on-surface/10 text-on-surface-variant/40 cursor-not-allowed'
                     : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/20'}"
               >
@@ -667,10 +665,10 @@
               <button
                 onclick={handleSend}
                 disabled={!message.trim() || sending}
-                class="flex items-center justify-center gap-2.5 py-3 px-5 rounded-xl font-black text-sm transition-all duration-200
-                  {!message.trim() || sending
+                class="flex items-center justify-center gap-2.5 py-3 px-5 rounded-xl font-bold text-sm transition-all duration-200
+ {!message.trim() || sending
                     ? 'bg-on-surface/10 text-on-surface-variant/40 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-[1.02] active:scale-95 shadow-lg shadow-blue-500/20'}"
+                    : 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-[1.02] active:scale-95 shadow-sm'}"
               >
                 <Papicon icon="Send" size={15} />
                 Envoyer le broadcast
@@ -687,16 +685,16 @@
           <div class="flex items-center gap-2">
             <button
               onclick={() => channelFilter = 'TODO'}
-              class="px-3.5 py-2 rounded-xl text-xs font-black transition-all duration-200
-                {channelFilter === 'TODO' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' : 'bg-on-surface/5 text-on-surface-variant/60 hover:bg-on-surface/10 border border-transparent'}"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200
+ {channelFilter === 'TODO' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' : 'bg-on-surface/5 text-on-surface-variant/60 hover:bg-on-surface/10 border border-transparent'}"
             >
               <Papicon icon="AlertTriangle" size={12} class="inline mr-1.5" />
               À configurer ({needsConfigCount})
             </button>
             <button
               onclick={() => channelFilter = 'ALL'}
-              class="px-3.5 py-2 rounded-xl text-xs font-black transition-all duration-200
-                {channelFilter === 'ALL' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-on-surface/5 text-on-surface-variant/60 hover:bg-on-surface/10 border border-transparent'}"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200
+ {channelFilter === 'ALL' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-on-surface/5 text-on-surface-variant/60 hover:bg-on-surface/10 border border-transparent'}"
             >
               Tous les serveurs ({guilds.length})
             </button>
@@ -714,7 +712,7 @@
               <Papicon icon="CheckCircle" size={28} />
             </div>
             <div>
-              <p class="font-black text-on-surface text-lg">
+              <p class="font-bold text-on-surface text-lg">
                 {channelFilter === 'TODO' && !channelSearch ? 'Tout est configuré !' : 'Aucun serveur trouvé'}
               </p>
               <p class="text-sm text-on-surface-variant/50 mt-1">
@@ -793,7 +791,7 @@
               <Papicon icon="Megaphone" size={28} />
             </div>
             <div>
-              <p class="font-black text-on-surface text-lg">Aucun broadcast</p>
+              <p class="font-bold text-on-surface text-lg">Aucun broadcast</p>
               <p class="text-sm text-on-surface-variant/50 mt-1">Les annonces envoyées apparaîtront ici</p>
             </div>
           </div>
@@ -959,7 +957,7 @@
           <button
             onclick={confirmSend}
             disabled={sending}
-            class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 shadow-lg shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100"
+            class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 shadow-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100"
           >
             {#if sending}
               <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

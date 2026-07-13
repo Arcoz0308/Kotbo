@@ -10,6 +10,7 @@
   import { userPrefs } from "./lib/stores/userPreferences.svelte";
   import { toast } from "./lib/stores/toast.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
+  import GlobalConfirmDialog from "./lib/components/GlobalConfirmDialog.svelte";
   import InviteDetailsModal from "./lib/components/invitations/InviteDetailsModal.svelte";
   import FeedbackModal from "./lib/components/FeedbackModal.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
@@ -29,6 +30,7 @@
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
   import Overview from "./pages/Overview.svelte";
+  import Home from "./pages/Home.svelte";
   import Analytics from "./pages/Analytics.svelte";
   import ModuleCatalog from "./pages/ModuleCatalog.svelte";
 
@@ -142,7 +144,7 @@
   }
 
   function resolveRouteFeatureKey(path: string): string | null {
-    if (path === "/" || path.startsWith("/profile")) return "dashboard";
+    if (path === "/" || path === "/overview" || path.startsWith("/profile")) return "dashboard";
     if (path.startsWith("/analytics")) return "analytics";
     if (path.startsWith("/inbox")) return "inbox";
     if (path.startsWith("/dailyalgo")) return "daily_algo";
@@ -663,6 +665,10 @@
         {:else}
           <MainLayout>
             <Route path="/">
+              <Home />
+            </Route>
+
+            <Route path="/overview">
               <Overview />
             </Route>
 
@@ -951,6 +957,7 @@
 {/if}
 
 <ToastContainer />
+<GlobalConfirmDialog />
 <InviteDetailsModal />
 <FeedbackModal />
 <CommandPalette />

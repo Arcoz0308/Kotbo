@@ -4,6 +4,7 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { fetchMarketplaceData } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
   let loading = $state(true);
@@ -57,16 +58,12 @@
   onMount(load);
 </script>
 
-<!-- ======================== HEADER ======================== -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-  <div>
-    <h1 class="text-lg font-semibold flex items-center gap-2.5">
-      <Papicon icon="shopping-bag" size={24} />
-      Marche
-    </h1>
-    <p class="text-xs text-on-surface-variant/60 mt-1">Hotel des ventes &mdash; echanges entre joueurs</p>
-  </div>
-</div>
+<ModulePage
+  title="Marché"
+  description="Hôtel des ventes — échanges entre joueurs."
+  icon="shopping-bag"
+  featureKey="economy"
+>
 
 <!-- ======================== CONTENT ======================== -->
 {#if loading}
@@ -83,7 +80,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-2xl font-bold">{data.activeListings.length}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-0.5">Annonces actives</span>
+        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Annonces actives</span>
       </div>
     </div>
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
@@ -92,7 +89,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-2xl font-bold">{data.totalTransactions}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-0.5">Transactions totales</span>
+        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Transactions totales</span>
       </div>
     </div>
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
@@ -101,22 +98,22 @@
       </div>
       <div class="flex flex-col">
         <span class="text-2xl font-bold">{data.totalVolume.toLocaleString()}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-0.5">Volume total (coins)</span>
+        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Volume total (coins)</span>
       </div>
     </div>
   </div>
 
   <!-- ======================== TABS ======================== -->
-  <div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-xl border border-outline-variant/10 w-fit mb-6">
+  <div class="tab-group w-fit mb-6">
     <button
-      class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {tab === 'listings' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all flex items-center gap-1.5 {tab === 'listings' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
       onclick={() => gotoTab('/marketplace', 'listings', 'listings')}
     >
       <Papicon icon="grid" size={14} />
       Annonces ({data.activeListings.length})
     </button>
     <button
-      class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {tab === 'history' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all flex items-center gap-1.5 {tab === 'history' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
       onclick={() => gotoTab('/marketplace', 'history', 'listings')}
     >
       <Papicon icon="clock" size={14} />
@@ -139,7 +136,7 @@
             <!-- Top: name + status badge -->
             <div class="flex justify-between items-center">
               <h4 class="text-sm font-semibold text-on-surface">{listing.itemId}</h4>
-              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider {getStatusClass(listing.status)}">{getStatusLabel(listing.status)}</span>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {getStatusClass(listing.status)}">{getStatusLabel(listing.status)}</span>
             </div>
 
             <!-- Price row -->
@@ -161,7 +158,7 @@
 
             <!-- Meta: type + time left -->
             <div class="flex items-center gap-3">
-              <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-surface-container-high/40 text-on-surface-variant">{getTypeLabel(listing.type)}</span>
+              <span class="px-2 py-0.5 rounded-lg text-xs font-medium bg-surface-container-high/40 text-on-surface-variant">{getTypeLabel(listing.type)}</span>
               <span class="flex items-center gap-1 text-xs text-on-surface-variant/60">
                 <Papicon icon="clock" size={12} />
                 {formatTimeLeft(listing.expiresAt)}
@@ -227,3 +224,4 @@
     {/if}
   {/if}
 {/if}
+</ModulePage>

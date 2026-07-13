@@ -7,6 +7,7 @@
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { API_BASE_URL } from '../lib/api';
 
   let events = $state<any[]>([]);
@@ -133,7 +134,10 @@
     const guildId = authStore.selectedGuildId;
     if (!guildId) return;
 
-    const confirmDelete = confirm(`Êtes-vous sûr de vouloir supprimer l'événement "${title}" ? Cette action est irréversible et supprimera toutes les questions, réponses et participants associés.`);
+    const confirmDelete = await confirmDialog.danger(
+      `Supprimer l'événement « ${title} » ?`,
+      'Cette action est irréversible : toutes les questions, réponses et participants associés seront supprimés.',
+    );
     if (!confirmDelete) return;
 
     try {
@@ -201,7 +205,7 @@
             onclick={() => createEventWithType(et.type)}
             disabled={isCreating}
             class="group relative flex flex-col gap-5 p-7 rounded-xl border bg-gradient-to-br text-left
-                   transition-all duration-200 hover: active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+ transition-all duration-200 hover: active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
                    {et.color} {et.border}"
           >
             <!-- Icon -->
@@ -252,7 +256,7 @@
       {#if canManageEvents}
         <button
           onclick={() => showTypeModal = true}
-          class="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-[10px] uppercase tracking-widest  hover:scale-105 transition-transform"
+          class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
         >
           Nouvel Événement
         </button>
@@ -263,15 +267,15 @@
   <div class="space-y-10 pb-20">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Total Événements</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Total Événements</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{events.length}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">En cours</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">En cours</p>
         <p class="text-lg font-semibold text-emerald-500 mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Participations / Inscriptions</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Participations / Inscriptions</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{events.reduce((acc, e) => acc + (e._count?.participants || 0) + (e._count?.registrations || 0), 0)}</p>
       </div>
     </div>
@@ -284,7 +288,7 @@
           <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-8 flex flex-col md:flex-row justify-between items-center gap-6 group hover:bg-surface-container-low/50 transition-colors">
             <div class="flex items-center gap-6">
               <div class="w-16 h-16 rounded-xl flex items-center justify-center group- transition-transform
-                {event.type === 'CTF' ? 'bg-emerald-500/10 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
+ {event.type === 'CTF' ? 'bg-emerald-500/10 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
                 <Papicon icon={event.type === 'CTF' ? 'Flag' : event.type === 'CUSTOM' ? 'Calendar' : 'HelpCircle'} size={24} />
               </div>
               <div>
@@ -294,7 +298,7 @@
                     {getStatusLabel(event.status)}
                   </span>
                   <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest
-                    {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
+ {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
                     {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
                 </div>
@@ -326,7 +330,7 @@
               {#if (event.status === 'ONGOING' || event.status === 'PUBLISHED') && event.type !== 'CUSTOM'}
                 <button
                   onclick={() => router.goto(`/events/control/${event.id}`)}
-                  class="px-6 py-3 bg-emerald-500 text-white rounded-lg text-[10px] font-semibold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
+                  class="px-6 py-3 bg-emerald-500 text-white rounded-lg text-xs font-medium transition-transform flex items-center gap-2"
                 >
                   <Papicon icon="Play" size={12} /> Piloter
                 </button>
@@ -334,7 +338,7 @@
               {#if event.type === 'CUSTOM' && (event.status === 'PUBLISHED' || event.status === 'ONGOING' || event.status === 'COMPLETED')}
                 <button
                   onclick={() => router.goto(`/events/control/${event.id}`)}
-                  class="px-6 py-3 bg-purple-500/10 text-purple-400 rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex items-center gap-2"
+                  class="px-6 py-3 bg-purple-500/10 text-purple-400 rounded-lg text-xs font-medium border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex items-center gap-2"
                 >
                   <Papicon icon="Users" size={12} /> Inscriptions
                 </button>
@@ -342,21 +346,21 @@
               {#if event.status === 'COMPLETED' && event.type !== 'CUSTOM'}
                 <button
                   onclick={() => router.goto(`/events/control/${event.id}`)}
-                  class="px-6 py-3 bg-primary/10 text-primary rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
+                  class="px-4 py-2 bg-primary/10 text-primary rounded-lg text-xs font-medium border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
                 >
                   <Papicon icon="BarChart2" size={12} /> Stats
                 </button>
               {/if}
               <button 
                 onclick={() => router.goto(`/events/edit/${event.id}`)}
-                class="px-6 py-3 bg-surface-container-high rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+                class="px-6 py-3 bg-surface-container-high rounded-lg text-xs font-medium border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
               >
                 <Papicon icon="Edit3" size={12} /> Éditer
               </button>
               {#if canManageEvents}
                 <button 
                   onclick={() => deleteEvent(event.id, event.title)}
-                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-lg text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2"
                 >
                   <Papicon icon="Trash" size={12} /> Supprimer
                 </button>

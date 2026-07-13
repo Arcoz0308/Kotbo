@@ -20,6 +20,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
 
   interface Props {
     userId?: string;
@@ -247,7 +248,7 @@
   }
 
   async function deleteKey(keyId: string) {
-    if (!staffMember || !confirm('Voulez-vous vraiment révoquer cette clé API ?')) return;
+    if (!staffMember || !(await confirmDialog.danger('Révoquer cette clé API ?', '', 'Révoquer'))) return;
     try {
       const success = await deleteMyApiKey(keyId, staffMember.guildId);
       if (success) {
@@ -289,7 +290,7 @@
   }
 
   async function removeNote(noteId: string) {
-    if (!staffMember || !confirm('Voulez-vous supprimer cette note ?')) return;
+    if (!staffMember || !(await confirmDialog.danger('Supprimer cette note ?'))) return;
     try {
       const success = await deleteManagerNote(staffMember.userId, noteId, staffMember.guildId);
       if (success) {
@@ -478,7 +479,7 @@
         
         {#if isBlacklisted}
           <div class="absolute top-6 right-6 z-20">
-            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-[10px] font-semibold text-white uppercase tracking-widest shadow-lg shadow-rose-500/40">
+            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-[10px] font-semibold text-white uppercase tracking-widest shadow-sm">
               <Papicon icon="Slash" size={14} />
               Compte Restreint
             </span>
@@ -506,7 +507,7 @@
                   {staffMember?.displayName || publicProfile?.displayName || publicProfile?.username || authStore.user?.username}
                 </h2>
                 {#if staffMember}
-                  <span class="inline-flex items-center gap-2 rounded-full border-2 {gradeBorderColor(staffMember.grade)} bg-surface-container-low/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant shadow-sm">
+                  <span class="inline-flex items-center gap-2 rounded-full border-2 {gradeBorderColor(staffMember.grade)} bg-surface-container-low/60 px-4 py-2 text-xs font-medium text-on-surface-variant shadow-sm">
                     <Papicon icon={gradeIcon(staffMember.grade)} size={14} class="text-primary" />
                     {staffMember.grade}
                   </span>
@@ -527,7 +528,7 @@
         {#each tabs as tab}
           <button 
             onclick={() => gotoTab(profileBase, tab.id, 'staff_overview')}
-            class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeTab === tab.id ? 'bg-primary text-on-primary  scale-[1.05]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+            class="tab-button {activeTab === tab.id ? 'active' : ''}"
           >
             <span class="flex items-center gap-2 pointer-events-none">
               <Papicon icon={tab.icon} size={16} class={activeTab === tab.id ? 'text-on-primary' : 'text-primary'} />
@@ -570,23 +571,23 @@
 
               <div class="grid grid-cols-2 gap-8">
                 <div class="space-y-1">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Staff depuis</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Staff depuis</p>
                   <p class="text-xl font-semibold text-on-surface">{getDurationSince(staffMember.joinedStaffAt)}</p>
                   <p class="text-[10px] font-bold text-on-surface-variant/60">{formatDate(staffMember.joinedStaffAt)}</p>
                 </div>
                 <div class="space-y-1">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Grade actuel depuis</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Grade actuel depuis</p>
                   <p class="text-xl font-semibold text-on-surface">{getDurationSince(staffMember.currentRoleStartedAt)}</p>
                   <p class="text-[10px] font-bold text-on-surface-variant/60">{formatDate(staffMember.currentRoleStartedAt)}</p>
                 </div>
                 <div class="space-y-1">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</p>
-                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider {staffMember.isTutor ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
+                  <p class="text-xs font-medium text-on-surface-variant/40">Statut Tuteur</p>
+                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-[13px] font-medium {staffMember.isTutor ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
                     {staffMember.isTutor ? 'Tuteur Actif' : 'Non Tuteur'}
                   </span>
                 </div>
                 <div class="space-y-1">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Identifiant Unique</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Identifiant Unique</p>
                   <p class="text-xs font-mono font-bold text-on-surface-variant truncate">{staffMember.id}</p>
                 </div>
               </div>
@@ -626,9 +627,9 @@
                 <h4 class="text-lg font-semibold text-rose-700">Compte Restreint / Blacklist</h4>
                 <p class="text-sm text-rose-600/80 font-bold leading-relaxed">{blacklistReason}</p>
                 {#if blacklistEndDate}
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-rose-500 mt-2">Fin de la restriction : {formatDate(blacklistEndDate)}</p>
+                  <p class="text-xs font-medium text-rose-500 mt-2">Fin de la restriction : {formatDate(blacklistEndDate)}</p>
                 {:else}
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-rose-500 mt-2">Restriction permanente</p>
+                  <p class="text-xs font-medium text-rose-500 mt-2">Restriction permanente</p>
                 {/if}
               </div>
             </div>
@@ -644,7 +645,7 @@
                   {#each warnings as warn}
                     <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5 {warn.isActive ? 'border-amber-500/10 bg-amber-500/5' : ''}">
                       <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-semibold uppercase tracking-wider {warn.isActive ? 'text-amber-500' : 'text-on-surface-variant/40'}">
+                        <span class="text-[13px] font-medium {warn.isActive ? 'text-amber-500' : 'text-on-surface-variant/40'}">
                           {warn.isActive ? 'Actif' : 'Expiré'}
                         </span>
                         <span class="text-[11px] font-bold text-on-surface-variant/40">{formatDate(warn.createdAt)}</span>
@@ -669,7 +670,7 @@
                   {#each absences as abs}
                     <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5">
                       <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-semibold uppercase tracking-wider text-primary">{abs.type}</span>
+                        <span class="text-[13px] font-medium text-primary">{abs.type}</span>
                         <span class="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider {abs.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : (abs.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/40')}">
                           {abs.status}
                         </span>
@@ -696,7 +697,7 @@
                   <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/5 space-y-4">
                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-4">
                       <div>
-                        <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Objectif</span>
+                        <span class="text-xs font-medium text-on-surface-variant/40">Objectif</span>
                         <h5 class="text-base font-semibold text-on-surface">{period.targetGrade || 'Grade Staff'}</h5>
                       </div>
                       <div class="text-right">
@@ -713,7 +714,7 @@
 
                     {#if period.reports && period.reports.length > 0}
                       <div class="space-y-3 pt-2">
-                        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Rapports du mentor</p>
+                        <p class="text-xs font-medium text-on-surface-variant/40">Rapports du mentor</p>
                         {#each period.reports as rep}
                           <div class="p-3.5 rounded-xl bg-surface-container-low border border-outline-variant/5">
                             <div class="flex items-center justify-between mb-1.5">
@@ -813,7 +814,7 @@
                     Veuillez expliquer clairement vos raisons.
                   </p>
                   <div>
-                    <label for="resignation-reason" class="text-[10px] font-semibold uppercase tracking-widest text-rose-500 mb-2 block">Motif de démission *</label>
+                    <label for="resignation-reason" class="field-label">Motif de démission *</label>
                     <textarea
                       id="resignation-reason"
                       bind:value={resignationReason}
@@ -827,7 +828,7 @@
                   <div class="flex gap-3 justify-end">
                     <button
                       onclick={() => { showResignationForm = false; resignationReason = ''; }}
-                      class="px-6 py-3 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-surface-container-high/60 text-on-surface-variant hover:bg-surface-container-high transition-all"
+                      class="px-6 py-3 rounded-lg text-xs font-medium bg-surface-container-high/60 text-on-surface-variant hover:bg-surface-container-high transition-all"
                     >
                       Annuler
                     </button>
@@ -835,7 +836,7 @@
                       id="btn-submit-resignation"
                       onclick={submitResignation}
                       disabled={submittingResignation || !resignationReason.trim()}
-                      class="px-8 py-3 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-rose-500 text-white shadow-lg shadow-rose-500/25 hover:bg-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-8 py-3 rounded-lg text-xs font-medium bg-rose-500 text-white shadow-sm hover:bg-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submittingResignation ? 'Envoi...' : 'Soumettre la demande'}
                     </button>
@@ -850,7 +851,7 @@
                   <button
                     id="btn-open-resignation"
                     onclick={() => showResignationForm = true}
-                    class="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-semibold uppercase tracking-widest hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300"
+                    class="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 text-xs font-medium hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300"
                   >
                     <Papicon icon="LogOut" size={14} />
                     Demander une démission
@@ -894,7 +895,7 @@
             <!-- Tools Bento Grid -->
             {#if accessibleTools.length > 0}
               <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
-                <h5 class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-6">Outils Accessibles</h5>
+                <h5 class="text-xs font-medium text-on-surface-variant/40 mb-6">Outils Accessibles</h5>
                 <div class="space-y-3">
                   {#each accessibleTools as tool}
                     <div class="flex items-center gap-3 p-3.5 rounded-xl bg-surface-container-high/60 border border-outline-variant/5">
@@ -1023,7 +1024,7 @@
               </div>
               <button 
                 onclick={() => { showNewKeyForm = !showNewKeyForm; newKeyCreatedValue = ''; }}
-                class="inline-flex items-center gap-2 rounded-lg px-6 py-3.5 text-[10px] font-semibold uppercase tracking-widest transition-all {showNewKeyForm ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'bg-primary text-on-primary  hover:'}"
+                class="inline-flex items-center gap-2 rounded-lg px-6 py-3.5 text-xs font-medium transition-all {showNewKeyForm ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'bg-primary text-on-primary hover:'}"
               >
                 <Papicon icon={showNewKeyForm ? 'Cross' : 'Plus'} size={14} />
                 {showNewKeyForm ? 'Annuler' : 'Créer une clé'}
@@ -1053,13 +1054,13 @@
                 <div class="flex flex-col gap-6">
                   <div class="flex flex-col md:flex-row gap-4 items-end">
                     <div class="flex-1 w-full">
-                      <label for="key-name" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2 block px-1">Nom descriptif de la clé</label>
+                      <label for="key-name" class="field-label">Nom descriptif de la clé</label>
                       <FormInput id="key-name" bind:value={newKeyName} placeholder="Mon script de backup..." className="w-full" />
                     </div>
                   </div>
 
                   <div>
-                    <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 block mb-3 px-1">Permissions de la clé</span>
+                    <span class="text-xs font-medium text-on-surface-variant/40 block mb-3 px-1">Permissions de la clé</span>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <!-- Recruitment Checkbox -->
                       <label class="flex items-start gap-3 p-4 rounded-lg border border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low cursor-pointer select-none transition-colors">
@@ -1088,7 +1089,7 @@
                   <div class="flex justify-end border-t border-outline-variant/5 pt-4">
                     <button 
                       onclick={createNewAPIKey}
-                      class="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-white px-8 py-4 text-[10px] font-semibold uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+                      class="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-white px-8 py-4 text-xs font-medium shadow-sm hover:bg-emerald-600 transition-all"
                     >
                       <Papicon icon="Check" size={14} /> Confirmer la création
                     </button>

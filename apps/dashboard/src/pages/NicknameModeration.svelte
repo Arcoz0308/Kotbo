@@ -400,7 +400,7 @@
       </div>
 
       <div class="p-4 rounded-lg bg-surface-container/30 border border-outline-variant/20 flex flex-col gap-3">
-        <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Ce que le bot surveille</p>
+        <p class="text-[13px] font-medium text-on-surface-variant/50">Ce que le bot surveille</p>
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">Nouveaux membres rejoignant le serveur</span>

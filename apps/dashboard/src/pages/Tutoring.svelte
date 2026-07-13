@@ -373,14 +373,14 @@
       <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-lg border border-outline-variant/20 relative">
         <button 
           onclick={() => activeTab = 'dashboard'}
-          class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'dashboard' ? 'bg-primary text-white ' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+          class="tab-button {activeTab === 'dashboard' ? 'active' : ''}"
         >
           <Papicon icon="grid" size={18} />
           <span class="text-sm font-bold">Dashboard Tuteur</span>
         </button>
         <button 
           onclick={() => activeTab = 'progress'}
-          class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'progress' ? 'bg-primary text-white ' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+          class="tab-button {activeTab === 'progress' ? 'active' : ''}"
         >
           <Papicon icon="trending-up" size={18} />
           <span class="text-sm font-bold">Ma Progression</span>
@@ -388,7 +388,7 @@
         {#if authStore.isAdmin || tutorApprentices.length > 0}
           <button 
             onclick={() => activeTab = 'config'}
-            class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-white ' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+            class="tab-button {activeTab === 'config' ? 'active' : ''}"
           >
             <Papicon icon="settings" size={18} />
             <span class="text-sm font-bold">Configuration</span>
@@ -399,7 +399,7 @@
       {#if authStore.isAdmin}
         <button 
           onclick={openCreateTutoringModal}
-          class="flex items-center gap-2 px-5 py-3 rounded-lg transition-all duration-300 bg-primary text-white  hover: active:scale-[0.98]"
+          class="flex items-center gap-2 px-5 py-3 rounded-lg transition-all duration-300 bg-primary text-white hover: active:scale-[0.98]"
         >
           <Papicon icon="plus" size={18} />
           <span class="text-sm font-semibold uppercase tracking-wider">Créer un tutorat</span>
@@ -447,7 +447,7 @@
                   </div>
                   
                   <div class="flex flex-col gap-2">
-                    <div class="flex justify-between text-xs font-bold uppercase tracking-wider text-on-surface-variant/70 px-2">
+                    <div class="flex justify-between text-[13px] font-medium text-on-surface-variant/70 px-2">
                       <span>Progression</span>
                       <span>{getProgressPercentage(apprentice.checklistProgress)}%</span>
                     </div>
@@ -494,7 +494,7 @@
                     {#if authStore.isAdmin}
                       <button 
                         onclick={() => handleDeleteTutoring(apprentice.id)}
-                        class="w-full py-2 text-on-surface-variant/50 hover:text-error text-[10px] font-bold uppercase tracking-widest transition-all"
+                        class="w-full py-2 text-on-surface-variant/50 hover:text-error text-xs font-medium transition-all"
                       >
                         Supprimer le tutorat
                       </button>
@@ -572,7 +572,7 @@
                               <button 
                                 onclick={() => setChecklistState(apprentice.id, item.id, 'KNOWN', progress?.state)}
                                 class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-[10px] font-semibold uppercase tracking-wider
-                                  {progress?.state === 'KNOWN' ? 'bg-primary/10 border-primary/30 text-primary shadow-sm shadow-primary/5' : 
+ {progress?.state === 'KNOWN' ? 'bg-primary/10 border-primary/30 text-primary shadow-sm shadow-primary/5' : 
                                    progress?.state === 'ACQUIRED' ? 'bg-surface-container-highest/30 border-outline-variant/20 text-on-surface-variant/30 cursor-not-allowed' :
                                    'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/50'}"
                                 disabled={progress?.state === 'ACQUIRED'}
@@ -584,7 +584,7 @@
                               <button 
                                 onclick={() => setChecklistState(apprentice.id, item.id, 'ACQUIRED', progress?.state)}
                                 class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-[10px] font-semibold uppercase tracking-wider
-                                  {progress?.state === 'ACQUIRED' ? 'bg-success/10 border-success/30 text-success shadow-sm shadow-success/5' : 
+ {progress?.state === 'ACQUIRED' ? 'bg-success/10 border-success/30 text-success shadow-sm shadow-success/5' : 
                                    'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-success/50'}"
                               >
                                 <Papicon icon="check" size={12} />
@@ -672,7 +672,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               {#if config?.showVocalActivity && apprenticeProgress.vocalStats}
                 <div class="bg-surface-container-low/60 p-8 rounded-xl border border-outline-variant/30 flex items-center gap-6">
-                  <div class="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
+                  <div class="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center text-primary shadow-sm">
                     <Papicon icon="mic" size={32} />
                   </div>
                   <div>
@@ -717,7 +717,7 @@
                     onkeydown={(e) => { if(e.key === 'Enter') { addLog(apprenticeProgress.id, e.currentTarget.value); e.currentTarget.value = ''; } }}
                   />
                   <button 
-                    class="bg-primary text-white px-8 rounded-lg font-semibold  hover:scale-105 active:scale-95 transition-all"
+                    class="bg-primary text-white px-8 rounded-lg font-semibold active:scale-[0.98] transition-all"
                     onclick={() => { 
                       const input = document.querySelector('input') as HTMLInputElement;
                       addLog(apprenticeProgress.id, input.value);
@@ -862,7 +862,7 @@
             </div>
 
           <button 
-            class="w-full py-4 mt-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+            class="w-full py-4 mt-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-50"
             onclick={saveConfig}
             disabled={saveAction.state.loading}
           >
@@ -967,7 +967,7 @@
             </button>
             <button 
               onclick={submitReport}
-              class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+              class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all"
             >
               Publier
             </button>
@@ -1050,7 +1050,7 @@
             </button>
             <button 
               onclick={submitEndTutoring}
-              class="flex-1 py-4 {endTutoringStatus === 'PASSED' ? 'bg-success' : 'bg-error'} text-white rounded-lg font-semibold shadow-sm transition-all hover:scale-105 active:scale-95"
+              class="flex-1 py-4 {endTutoringStatus === 'PASSED' ? 'bg-success' : 'bg-error'} text-white rounded-lg font-semibold shadow-sm transition-all active:scale-[0.98]"
             >
               Confirmer
             </button>
@@ -1113,7 +1113,7 @@
             </button>
             <button 
               onclick={saveItem}
-              class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+              class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all"
             >
               Enregistrer
             </button>
@@ -1204,7 +1204,7 @@
               </button>
               <button 
                 onclick={submitCreateTutoring}
-                class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+                class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all"
               >
                 Créer
               </button>
@@ -1236,7 +1236,7 @@
           </button>
           <button 
             onclick={() => { confirmModal.onConfirm(); confirmModal.open = false; }}
-            class="flex-1 py-4 bg-error text-white rounded-lg font-semibold shadow-sm shadow-error/20 hover:scale-105 active:scale-95 transition-all"
+            class="flex-1 py-4 bg-error text-white rounded-lg font-semibold shadow-sm shadow-error/20 active:scale-[0.98] transition-all"
           >
             Confirmer
           </button>

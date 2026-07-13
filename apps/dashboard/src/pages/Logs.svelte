@@ -729,7 +729,7 @@
         <button
           type="button"
           onclick={() => gotoTab('/logs', 'logs', 'logs')}
-          class="px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'logs' ? 'bg-primary text-on-primary ' : 'text-on-surface-variant/80 hover:text-on-surface'}"
+          class="tab-button {activeTab === 'logs' ? 'active' : ''}"
         >
           Journal
         </button>
@@ -737,7 +737,7 @@
           <button
             type="button"
             onclick={() => gotoTab('/logs', 'config', 'logs')}
-            class="px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary ' : 'text-on-surface-variant/80 hover:text-on-surface'}"
+            class="tab-button {activeTab === 'config' ? 'active' : ''}"
           >
             Configuration
           </button>
@@ -776,7 +776,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-outline-variant/10">
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface">Journalisation</p>
+          <p class="text-xs font-medium text-on-surface">Journalisation</p>
           <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Activer l'audit global</p>
         </div>
         <ToggleSwitch 
@@ -788,7 +788,7 @@
 
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface">Suivi d'activité</p>
+          <p class="text-xs font-medium text-on-surface">Suivi d'activité</p>
           <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Tracking des actions</p>
         </div>
         <ToggleSwitch 
@@ -800,7 +800,7 @@
 
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface">Notifs Salon</p>
+          <p class="text-xs font-medium text-on-surface">Notifs Salon</p>
           <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Alertes dans le salon logs</p>
         </div>
         <ToggleSwitch 
@@ -812,7 +812,7 @@
 
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface">Notifs MP</p>
+          <p class="text-xs font-medium text-on-surface">Notifs MP</p>
           <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Alertes staff par MP</p>
         </div>
         <ToggleSwitch 
@@ -856,7 +856,7 @@
               <Papicon icon={cat.icon} size={20} />
             </div>
             <div>
-              <h5 class="text-xs font-semibold uppercase tracking-wider text-on-surface">{cat.label}</h5>
+              <h5 class="text-[13px] font-medium text-on-surface">{cat.label}</h5>
               <p class="text-[10px] text-on-surface-variant/60">Gérer les alertes de cette catégorie</p>
             </div>
           </div>
@@ -1068,7 +1068,7 @@
               </td>
               <td class="px-6 py-5 text-center">
                 <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider
-                  {entry.eventType === 'Automatique' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}">
+ {entry.eventType === 'Automatique' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}">
                   {entry.eventType}
                 </span>
               </td>
@@ -1097,7 +1097,7 @@
       <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/10 hover:shadow-lg transition-all duration-300">
         <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
         <div class="flex items-end justify-between mt-2">
-          <p class="text-lg font-extrabold text-on-surface">{kpi.val}</p>
+          <p class="text-lg font-semibold text-on-surface">{kpi.val}</p>
           <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
         </div>
       </div>

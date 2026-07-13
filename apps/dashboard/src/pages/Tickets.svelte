@@ -4,6 +4,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
@@ -255,9 +256,14 @@
     ticketWelcomeFooter = savedSettingsConfig.ticketWelcomeFooter;
   }
 
-  function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'config') {
+  async function changeTab(tab: 'tickets' | 'transcripts' | 'satisfaction' | 'config') {
     if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Tickets (Configuration)') {
-      const confirmLeave = confirm("Vous avez des modifications non sauvegardées. Quitter sans enregistrer ?");
+      const confirmLeave = await confirmDialog.ask({
+        title: 'Modifications non sauvegardées',
+        description: 'Quitter sans enregistrer ?',
+        confirmLabel: 'Quitter sans enregistrer',
+        variant: 'warning',
+      });
       if (!confirmLeave) return;
       unsavedChanges.clear();
       restoreSettingsConfig();
@@ -806,7 +812,7 @@
 
   // Send Panel to Discord
   async function sendEmbedPanel() {
-    if (!confirm('Voulez-vous envoyer le panel d\'ouverture de ticket dans le salon configuré ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Envoyer le panel de tickets ?', description: 'Le panel d\'ouverture de ticket sera publié dans le salon configuré.', confirmLabel: 'Envoyer' }))) return;
     await sendEmbedAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config/send-embed`, {
         method: 'POST',
@@ -976,7 +982,7 @@
     ] as tab}
       <button
         onclick={() => changeTab(tab.key as any)}
-        class="px-4 lg:px-8 py-3 text-[10px] font-semibold uppercase tracking-wider transition-all relative whitespace-nowrap {activeTab === tab.key ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="tab-button {activeTab === tab.key ? 'active' : ''}"
       >
         {tab.label}
         {#if activeTab === tab.key}
@@ -996,7 +1002,7 @@
           {#each ['ALL', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
             <button
               onclick={() => ticketFilter = filterType as any}
-              class="px-3 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-widest transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
+              class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
             >
               {filterType === 'ALL' ? 'Tous' : getStatusLabel(filterType)}
             </button>
@@ -1156,7 +1162,7 @@
                     <Papicon icon="refresh" size={12} /> Réouvrir
                   </button>
                   <button onclick={() => showDeleteConfirmModal = true}
-                    class="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 shrink-0"
+                    class="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-all flex items-center gap-1.5 shrink-0"
                   >
                     <Papicon icon="delete" size={12} /> Supprimer
                   </button>
@@ -1281,7 +1287,7 @@
                       <div class="mt-2 space-y-2">
                         {#each msg.stickers as sticker}
                           <div class="relative group max-w-[50%]">
-                            <img src={sticker.url} alt={sticker.name} class="h-32 w-auto rounded-lg object-contain hover:scale-105 transition-transform" />
+                            <img src={sticker.url} alt={sticker.name} class="h-32 w-auto rounded-lg object-contain transition-transform" />
                           </div>
                         {/each}
                       </div>
@@ -1368,13 +1374,13 @@
               <button
                 onclick={sendMessage}
                 disabled={!chatInput.trim()}
-                class="w-11 h-11 rounded-lg bg-primary text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 shrink-0"
+                class="w-11 h-11 rounded-lg bg-primary text-white flex items-center justify-center active:scale-[0.98] transition-transform disabled:opacity-50 shrink-0"
               >
                 <Papicon icon="send" size={18} />
               </button>
             </div>
           {:else}
-            <div class="p-3 lg:p-4 border-t border-outline-variant/10 bg-rose-500/10 text-rose-500 flex items-center justify-center text-[10px] font-semibold uppercase tracking-widest gap-2">
+            <div class="p-3 lg:p-4 border-t border-outline-variant/10 bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-medium gap-2">
               <Papicon icon="lock" size={14} /> Ticket fermé
             </div>
           {/if}
@@ -1395,7 +1401,7 @@
         <button
           onclick={sendEmbedPanel}
           disabled={sendEmbedAction.state.loading || !ticketChannelId}
-          class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+          class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
         >
           <Papicon icon="send" size={13} />
           {sendEmbedAction.state.loading ? 'Envoi...' : 'Envoyer Embed'}
@@ -1664,7 +1670,7 @@
           <div class="px-4 lg:px-5 pb-5 border-t border-outline-variant/10 pt-4 space-y-4">
             <div class="flex justify-end">
               <button onclick={addTicketType}
-                class="px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform flex items-center gap-1.5"
+                class="px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform flex items-center gap-1.5"
               >
                 <Papicon icon="plus" size={13} /> Ajouter un type
               </button>
@@ -1673,7 +1679,7 @@
             <div class="space-y-3">
               {#each ticketTypes as ticketType, index}
                 {@const isExpanded = expandedTicketTypeIndex === index}
-                <div class="rounded-xl border transition-all {isExpanded ? 'border-primary/40 bg-surface-container/35 shadow-lg shadow-primary/5' : 'border-outline-variant/10 bg-surface-container/15 hover:border-outline-variant/20'}">
+                <div class="rounded-xl border transition-all {isExpanded ? 'border-primary/40 bg-surface-container/35 shadow-sm' : 'border-outline-variant/10 bg-surface-container/15 hover:border-outline-variant/20'}">
                   
                   <!-- Accordion Header -->
                   <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3.5 gap-3">
@@ -1977,7 +1983,7 @@
         <div class="hidden md:block overflow-x-auto w-full">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-outline-variant/15 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70">
+              <tr class="border-b border-outline-variant/15 text-xs font-medium text-on-surface-variant/70">
                 <th class="py-3 px-4">Salon</th>
                 <th class="py-3 px-4">Type</th>
                 <th class="py-3 px-4">Période</th>
@@ -2163,7 +2169,7 @@
       <p class="text-sm text-on-surface-variant/80 mb-6">Cette action fermera le salon de ticket. Vous pourrez y ajouter un motif de fermeture.</p>
       
       <div>
-        <label for="close-reason-input" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Raison de la fermeture (Optionnel)</label>
+        <label for="close-reason-input" class="field-label">Raison de la fermeture (Optionnel)</label>
         <textarea id="close-reason-input" bind:value={closeReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder="Raison de la fermeture..."></textarea>
       </div>
       
@@ -2171,7 +2177,7 @@
         <button onclick={() => showCloseModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
         <button 
           onclick={closeTicket} 
-          class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-rose-600/30"
+          class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm"
         >
           Confirmer la fermeture
         </button>
@@ -2194,7 +2200,7 @@
         <button onclick={() => showDeleteConfirmModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
         <button 
           onclick={deleteTicket} 
-          class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-rose-600/30"
+          class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm"
         >
           Confirmer la suppression
         </button>
@@ -2239,7 +2245,7 @@
         <button
           onclick={restoreTicket}
           disabled={restoring}
-          class="flex-1 py-4 rounded-xl font-bold bg-purple-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-purple-600/30 disabled:opacity-50 flex items-center justify-center gap-2"
+          class="flex-1 py-4 rounded-xl font-bold bg-purple-600 text-white active:scale-[0.98] transition-transform shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {#if restoring}
             <div class="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>

@@ -15,7 +15,7 @@
       </div>
       <div>
         <h3 class="text-lg font-semibold">{totalCount.toLocaleString()}</h3>
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Commandes Exécutées</p>
+        <p class="text-xs font-medium text-on-surface-variant/50">Commandes Exécutées</p>
       </div>
       <p class="text-xs text-on-surface-variant/40 max-w-[200px]">
         Utilisation globale des commandes du bot sur la période sélectionnée.

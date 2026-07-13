@@ -499,7 +499,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
           <Papicon icon="ChartLineUp" size={20} />
         </div>
         <div>
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Intelligence & Analytics</span>
+          <span class="text-xs font-medium text-primary">Intelligence & Analytics</span>
           <h2 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">
             Performance <span class="text-primary">Serveur</span>
           </h2>
@@ -520,7 +520,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
               {#each periodPresets as p}
                 <button
                   onclick={() => changePeriod(p.value as any)}
-                  class="px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-all duration-300 whitespace-nowrap { (isCustomPeriod ? p.value === 'custom' : period === p.value) ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+                  class="px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 whitespace-nowrap { (isCustomPeriod ? p.value === 'custom' : period === p.value) ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
                 >
                   {p.label}
                 </button>
@@ -542,7 +542,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
                 />
                 <button
                   onclick={applyCustomRange}
-                  class="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest hover:brightness-110 transition-all"
+                  class="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-xs font-medium hover:brightness-110 transition-all"
                 >
                   Appliquer
                 </button>
@@ -570,7 +570,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       {#each categories as cat}
         <button 
           onclick={() => { const firstTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; gotoTab('/analytics', firstTab, 'overview'); }}
-          class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+          class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-xs font-medium transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-sm scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           title={cat.description}
         >
           <div class="transition-transform group-hover:scale-110 {activeCategory === cat.id ? 'text-on-primary' : 'text-primary'}">
@@ -591,14 +591,14 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
             onclick={() => selectTab(tab)}
             disabled={tab.disabled}
             aria-disabled={tab.disabled}
-            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           >
             <div class="transition-transform {tab.disabled ? 'text-on-surface-variant/30' : activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
               <Papicon icon={tab.icon} size={14} />
             </div>
             {tab.label}
             {#if tab.badge}
-              <span class="ml-1 rounded-full border border-current/20 bg-current/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest {tab.disabled ? 'text-on-surface-variant/35' : 'text-current/80'}">
+              <span class="ml-1 rounded-full border border-current/20 bg-current/10 px-2 py-0.5 text-xs font-medium {tab.disabled ? 'text-on-surface-variant/35' : 'text-current/80'}">
                 {tab.badge}
               </span>
             {/if}
@@ -646,7 +646,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
           <span class="text-xs text-on-surface-variant/60 max-w-md">{interactionsError}</span>
           <button 
             onclick={loadInteractions}
-            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-xs font-semibold uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98]"
+            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-[13px] font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             Réessayer
           </button>

@@ -104,14 +104,14 @@
       <div class="flex items-center gap-2 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 self-start">
         <button
           onclick={() => setMode('week')}
-          class="flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-300 {selectedMode === 'week' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+          class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300 {selectedMode === 'week' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface'}"
         >
           <Papicon icon="CalendarBlank" size={12} />
           Semaine
         </button>
         <button
           onclick={() => setMode('month')}
-          class="flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-300 {selectedMode === 'month' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+          class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300 {selectedMode === 'month' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface'}"
         >
           <Papicon icon="CalendarDots" size={12} />
           Mois
@@ -223,7 +223,7 @@
       <!-- Summary Card -->
       <div class="premium-card p-8 rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/10 flex flex-col justify-center">
         <div class="space-y-4">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-primary text-[10px] font-semibold uppercase tracking-widest">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-medium">
             <Papicon icon="TrendingUp" size={12} />
             Analyse
           </div>

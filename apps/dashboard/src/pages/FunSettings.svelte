@@ -4,6 +4,7 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -139,7 +140,7 @@
 
   async function handleResetCounting() {
     if (!canManageSettings) return;
-    if (!confirm('Voulez-vous vraiment réinitialiser le comptage à 0 ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Réinitialiser le comptage à 0 ?', confirmLabel: 'Réinitialiser', variant: 'warning' }))) return;
 
     await actionState.run(async () => {
       const res = await resetCountingGame();
@@ -157,7 +158,7 @@
 
   async function handleResetGuessNumber() {
     if (!canManageSettings) return;
-    if (!confirm('Voulez-vous générer un nouveau nombre mystère ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Générer un nouveau nombre mystère ?', confirmLabel: 'Générer' }))) return;
 
     await actionState.run(async () => {
       const res = await resetGuessNumberGame();
@@ -219,7 +220,7 @@
           </div>
 
           <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
+            <p class="text-xs font-medium text-on-surface-variant/50">État actuel du jeu</p>
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-surface-container-high/40 p-3 rounded-xl border border-outline-variant/10 text-center">
                 <span class="text-[10px] text-on-surface-variant/50 uppercase font-bold">Nombre</span>
@@ -239,7 +240,7 @@
           type="button"
           onclick={handleResetCounting}
           disabled={!canManageSettings || actionState.state.loading}
-          class="w-full py-3.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
+          class="w-full py-3.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 rounded-lg text-[13px] font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
         >
           <Papicon icon="refresh-cw" size={14} />
           Réinitialiser le comptage
@@ -272,7 +273,7 @@
           </div>
 
           <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
+            <p class="text-xs font-medium text-on-surface-variant/50">État actuel du jeu</p>
             <div class="bg-surface-container-high/40 p-3 rounded-xl border border-outline-variant/10 text-center flex flex-col justify-center min-w-0">
               <span class="text-[10px] text-on-surface-variant/50 uppercase font-bold truncate">Dernier auteur</span>
               <p class="text-xs font-bold text-on-surface mt-1 truncate" title={gameState.oneWordStoryLastUserId || 'Aucun'}>
@@ -313,7 +314,7 @@
           </div>
 
           <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
+            <p class="text-xs font-medium text-on-surface-variant/50">État actuel du jeu</p>
             <div class="bg-surface-container-high/40 p-3 rounded-xl border border-outline-variant/10 text-center">
               <span class="text-[10px] text-on-surface-variant/50 uppercase font-bold">Cible mystère</span>
               <p class="text-2xl font-semibold text-emerald-500 mt-0.5">{gameState.guessNumberTarget || '???'}</p>
@@ -325,7 +326,7 @@
           type="button"
           onclick={handleResetGuessNumber}
           disabled={!canManageSettings || actionState.state.loading}
-          class="w-full py-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
+          class="w-full py-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-[13px] font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
         >
           <Papicon icon="refresh-cw" size={14} />
           Générer une nouvelle cible

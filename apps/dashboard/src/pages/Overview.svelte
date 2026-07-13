@@ -791,7 +791,7 @@
     <div class="flex justify-center my-3 shrink-0">
       <button
         onclick={() => showAddModuleModal = true}
-        class="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-full hover:bg-primary/95 transition-all hover:scale-105 active:scale-95 shadow-lg font-medium text-xs border border-primary/20 cursor-pointer"
+        class="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-full hover:bg-primary/95 transition-all active:scale-[0.98] shadow-lg font-medium text-xs border border-primary/20 cursor-pointer"
       >
         <Papicon icon="add" size={14} /> Ajouter un module
       </button>
@@ -1695,7 +1695,7 @@
     {#if !isEditing}
       <button
         onclick={() => isEditing = true}
-        class="w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg hover:bg-primary/95 transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
+        class="w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg hover:bg-primary/95 transition-all active:scale-[0.98] group relative cursor-pointer"
         title="Modifier la disposition"
       >
         <Papicon icon="edit" size={24} />
@@ -1707,7 +1707,7 @@
       <!-- Reset -->
       <button
         onclick={() => showResetConfirm = true}
-        class="w-11 h-11 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center shadow-lg hover:bg-red-500 hover:text-white transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
+        class="w-11 h-11 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center shadow-lg hover:bg-red-500 hover:text-white transition-all active:scale-[0.98] group relative cursor-pointer"
         title="Réinitialiser"
       >
         <Papicon icon="rotate-ccw" size={18} />
@@ -1719,7 +1719,7 @@
       <!-- Presets -->
       <button
         onclick={() => { showPresetsModal = true; loadPresets(); }}
-        class="w-11 h-11 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant flex items-center justify-center shadow-lg hover:bg-surface-container-high hover:text-on-surface transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
+        class="w-11 h-11 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant flex items-center justify-center shadow-lg hover:bg-surface-container-high hover:text-on-surface transition-all active:scale-[0.98] group relative cursor-pointer"
         title="Presets"
       >
         <Papicon icon="layers" size={18} />
@@ -1731,7 +1731,7 @@
       <!-- Export -->
       <button
         onclick={exportCurrentLayout}
-        class="w-11 h-11 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant flex items-center justify-center shadow-lg hover:bg-surface-container-high hover:text-on-surface transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
+        class="w-11 h-11 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant flex items-center justify-center shadow-lg hover:bg-surface-container-high hover:text-on-surface transition-all active:scale-[0.98] group relative cursor-pointer"
         title="Exporter"
       >
         <Papicon icon="download" size={18} />
@@ -1743,7 +1743,7 @@
       <!-- Validate -->
       <button
         onclick={saveLayout}
-        class="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg hover:bg-emerald-600 transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
+        class="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg hover:bg-emerald-600 transition-all active:scale-[0.98] group relative cursor-pointer"
         title="Valider les modifications"
       >
         <Papicon icon="check" size={24} />

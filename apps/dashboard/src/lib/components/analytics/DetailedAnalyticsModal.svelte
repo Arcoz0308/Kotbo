@@ -266,7 +266,7 @@
                   <div class="w-8 text-center text-xs font-semibold text-on-surface-variant/40 hidden md:block">{globalIndex}</div>
                   <button 
                     onclick={() => onOpenMember?.(item.targetUserId, item.targetTag)}
-                    class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform  shrink-0"
+                    class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform shrink-0"
                   >
                     <img src={getAvatar(item.targetAvatarUrl)} alt="" class="w-full h-full object-cover" />
                   </button>

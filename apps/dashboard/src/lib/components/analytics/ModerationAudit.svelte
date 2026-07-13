@@ -92,7 +92,7 @@
            <Papicon icon="Hammer" size={20} />
         </div>
         <span class="text-lg font-semibold" style="color: {stat.color}">{stat.value}</span>
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{stat.label}</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">{stat.label}</p>
       </div>
     {/each}
   </div>
@@ -110,7 +110,7 @@
         <Chart data={distributionData} type="doughnut" height={128} options={doughnutOptions} />
         <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
            <span class="text-xl font-semibold text-on-surface">{stats.reduce((a, b) => a + b.value, 0)}</span>
-           <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Total</span>
+           <span class="text-xs font-medium text-on-surface-variant/40">Total</span>
         </div>
       </div>
     </div>
@@ -233,7 +233,7 @@
           <div class="flex items-center gap-4">
             <button 
               onclick={() => onOpenMember(sanction.targetUserId, sanction.targetTag)}
-              class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform  shrink-0"
+              class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform shrink-0"
             >
               <img src={getAvatar(sanction.targetAvatarUrl)} alt="" class="w-full h-full object-cover" />
             </button>

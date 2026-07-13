@@ -109,7 +109,7 @@
             <button
               type="button"
               onclick={() => selectTranscript(t)}
-              class="px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary hover:bg-primary hover:text-on-primary rounded-lg transition-all active:scale-95"
+              class="px-3.5 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary hover:text-on-primary rounded-lg transition-all active:scale-95"
             >
               Attacher
             </button>
@@ -122,7 +122,7 @@
       <button
         type="button"
         onclick={() => (open = false)}
-        class="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60 hover:text-on-surface transition-colors"
+        class="px-4 py-2.5 text-xs font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
       >
         Annuler
       </button>

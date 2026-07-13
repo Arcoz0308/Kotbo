@@ -204,7 +204,7 @@
 
       <!-- Helper text -->
       <div class="mt-12 text-center">
-        <p class="text-slate-500 text-[10px] font-semibold uppercase tracking-widest opacity-40">
+        <p class="text-slate-500 text-xs font-medium opacity-40">
           Système de Contrôle Kotbo &copy; {year}
         </p>
       </div>

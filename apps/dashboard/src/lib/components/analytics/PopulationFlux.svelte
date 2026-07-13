@@ -101,7 +101,7 @@
            <h3 class="text-lg font-semibold text-on-surface">Codes d'Invitation Actifs</h3>
         </div>
         <div class="flex items-center gap-4">
-          <span class="px-3 py-1 rounded-full bg-surface-container-high text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">{invites.length} codes</span>
+          <span class="px-3 py-1 rounded-full bg-surface-container-high text-xs font-medium text-on-surface-variant/60">{invites.length} codes</span>
           <button 
             onclick={() => showAllInvites = !showAllInvites}
             class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-on-surface-variant transition-colors"
@@ -115,9 +115,9 @@
         <table class="w-full text-left">
           <thead>
             <tr class="border-b border-outline-variant/10">
-              <th class="pb-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-2">Code</th>
-              <th class="pb-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Créateur</th>
-              <th class="pb-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 text-right px-2">Utilisations</th>
+              <th class="pb-4 text-xs font-medium text-on-surface-variant/40 px-2">Code</th>
+              <th class="pb-4 text-xs font-medium text-on-surface-variant/40">Créateur</th>
+              <th class="pb-4 text-xs font-medium text-on-surface-variant/40 text-right px-2">Utilisations</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant/5">
@@ -156,7 +156,7 @@
       </div>
       <div>
         <h4 class="text-lg font-semibold text-on-surface tracking-tighter">{data?.totals?.retentionRate ?? '0'}%</h4>
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-emerald-500 mt-1">Taux de Rétention</p>
+        <p class="text-xs font-medium text-emerald-500 mt-1">Taux de Rétention</p>
       </div>
       <p class="text-xs font-medium text-on-surface-variant/60 max-w-[200px] leading-relaxed">
         Proportion des nouveaux membres restés sur le serveur après 7 jours.

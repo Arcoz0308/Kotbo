@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { fetchQuestsData, createQuest, updateQuest, deleteQuest } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import EmptyState from '../lib/components/EmptyState.svelte';
 
   let loading = $state(true);
   let data: any = $state(null);
@@ -102,21 +104,20 @@
   onMount(load);
 </script>
 
-<!-- Header -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-  <div>
-    <h1 class="text-lg font-semibold flex items-center gap-2.5">
-      <Papicon icon="Compass" size={24} /> Quetes
-    </h1>
-    <p class="text-xs text-on-surface-variant/60 mt-1">Quetes quotidiennes et hebdomadaires avec recompenses</p>
-  </div>
-  <button
-    class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-    onclick={openTemplates}
-  >
-    <Papicon icon="Plus" size={16} /> Nouvelle quete
-  </button>
-</div>
+<ModulePage
+  title="Quêtes"
+  description="Quêtes quotidiennes et hebdomadaires avec récompenses."
+  icon="compass"
+  featureKey="economy"
+>
+  {#snippet actions()}
+    <button
+      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+      onclick={openTemplates}
+    >
+      <Papicon icon="Plus" size={16} /> Nouvelle quête
+    </button>
+  {/snippet}
 
 <!-- Template Picker -->
 {#if showTemplates}
@@ -140,9 +141,9 @@
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             {#if tpl.frequency === 'DAILY'}
-              <span class="px-2.5 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider rounded-full">Quotidienne</span>
+              <span class="px-2.5 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full">Quotidienne</span>
             {:else}
-              <span class="px-2.5 py-0.5 bg-pink-500/10 text-pink-500 text-[10px] font-bold uppercase tracking-wider rounded-full">Hebdomadaire</span>
+              <span class="px-2.5 py-0.5 bg-pink-500/10 text-pink-500 text-xs font-medium rounded-full">Hebdomadaire</span>
             {/if}
             <span class="text-[10px] text-on-surface-variant/40">{tpl.rewardCoins} coins / {tpl.rewardXp} XP</span>
           </div>
@@ -178,15 +179,15 @@
     <h3 class="text-base font-semibold flex items-center gap-2.5">Creer une quete</h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <div class="space-y-1">
-        <label for="new-quest-name" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nom</label>
+        <label for="new-quest-name" class="field-label">Nom</label>
         <input id="new-quest-name" type="text" bind:value={newQuest.name} placeholder="Bavard du jour" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
-        <label for="new-quest-description" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Description</label>
+        <label for="new-quest-description" class="field-label">Description</label>
         <input id="new-quest-description" type="text" bind:value={newQuest.description} placeholder="Envoyez 50 messages aujourd'hui" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
-        <label for="new-quest-type" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Type</label>
+        <label for="new-quest-type" class="field-label">Type</label>
         <select id="new-quest-type" bind:value={newQuest.type} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors">
           {#each Object.entries(questTypes) as [key, label]}
             <option value={key}>{label}</option>
@@ -194,22 +195,22 @@
         </select>
       </div>
       <div class="space-y-1">
-        <label for="new-quest-frequency" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Frequence</label>
+        <label for="new-quest-frequency" class="field-label">Frequence</label>
         <select id="new-quest-frequency" bind:value={newQuest.frequency} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors">
           <option value="DAILY">Quotidienne</option>
           <option value="WEEKLY">Hebdomadaire</option>
         </select>
       </div>
       <div class="space-y-1">
-        <label for="new-quest-target" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Objectif</label>
+        <label for="new-quest-target" class="field-label">Objectif</label>
         <input id="new-quest-target" type="number" bind:value={newQuest.target} min="1" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
-        <label for="new-quest-reward-coins" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompense (coins)</label>
+        <label for="new-quest-reward-coins" class="field-label">Recompense (coins)</label>
         <input id="new-quest-reward-coins" type="number" bind:value={newQuest.rewardCoins} min="0" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
-        <label for="new-quest-reward-xp" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompense (XP)</label>
+        <label for="new-quest-reward-xp" class="field-label">Recompense (XP)</label>
         <input id="new-quest-reward-xp" type="number" bind:value={newQuest.rewardXp} min="0" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
     </div>
@@ -221,7 +222,7 @@
         Annuler
       </button>
       <button
-        class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={handleCreate}
       >
         Creer
@@ -245,7 +246,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.definitions.length}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Quetes configurees</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">Quetes configurees</span>
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
@@ -254,7 +255,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.definitions.filter((q: any) => q.enabled).length}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Quetes actives</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">Quetes actives</span>
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
@@ -263,17 +264,14 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.totalClaimed}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Recompenses reclamees</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">Recompenses reclamees</span>
       </div>
     </div>
   </div>
 
   <!-- Quest List or Empty State -->
   {#if data.definitions.length === 0}
-    <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
-      <Papicon icon="Compass" size={48} />
-      <p class="text-sm">Aucune quete configuree. Cliquez sur "Nouvelle quete" pour commencer.</p>
-    </div>
+    <EmptyState icon="compass" title="Aucune quête configurée" description="Cliquez sur « Nouvelle quête » pour commencer." />
   {:else}
     <div class="space-y-3">
       {#each data.definitions as quest}
@@ -288,11 +286,11 @@
             </div>
             <div class="flex items-center gap-2 shrink-0">
               {#if quest.frequency === 'DAILY'}
-                <span class="px-2.5 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider rounded-full">Quotidienne</span>
+                <span class="px-2.5 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full">Quotidienne</span>
               {:else}
-                <span class="px-2.5 py-0.5 bg-pink-500/10 text-pink-500 text-[10px] font-bold uppercase tracking-wider rounded-full">Hebdomadaire</span>
+                <span class="px-2.5 py-0.5 bg-pink-500/10 text-pink-500 text-xs font-medium rounded-full">Hebdomadaire</span>
               {/if}
-              <span class="px-2.5 py-0.5 bg-surface-container-high/40 text-on-surface-variant/60 text-[10px] font-bold uppercase tracking-wider rounded-full">{questTypes[quest.type] ?? quest.type}</span>
+              <span class="px-2.5 py-0.5 bg-surface-container-high/40 text-on-surface-variant/60 text-xs font-medium rounded-full">{questTypes[quest.type] ?? quest.type}</span>
             </div>
           </div>
 
@@ -357,3 +355,4 @@
     </div>
   {/if}
 {/if}
+</ModulePage>

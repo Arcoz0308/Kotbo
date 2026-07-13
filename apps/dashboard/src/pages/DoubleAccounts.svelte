@@ -7,6 +7,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, scanSuspectedDetections, fetchSuspectedDetections, fetchChannelsManagementConfig, updateChannelsManagementConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
@@ -303,7 +304,7 @@
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Voulez-vous vraiment supprimer cette liaison ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cette liaison ?'))) return;
     await saveAction.run(async () => {
       const ok = await deleteLinkedAccount(id);
       if (!ok) return false;
@@ -423,12 +424,12 @@
     ] as tab (tab.key)}
       <button
         onclick={() => gotoTab('/double-accounts', tab.key, 'links')}
-        class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all whitespace-nowrap {activeTab === tab.key ? 'bg-surface text-primary shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
+        class="tab-button {activeTab === tab.key ? 'active' : ''}"
       >
         <Papicon icon={tab.icon} size={14} />
         <span>{tab.label}</span>
         {#if tab.count}
-          <span class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold {activeTab === tab.key ? 'bg-primary/10 text-primary' : 'bg-surface-container-high text-on-surface-variant/40'}">{tab.count}</span>
+          <span class="tab-button {activeTab === tab.key ? 'active' : ''}">{tab.count}</span>
         {/if}
       </button>
     {/each}
@@ -479,8 +480,8 @@
           <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4 transition-all hover:border-primary/20">
             <!-- Header: status + date -->
             <div class="flex items-center justify-between mb-3">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
-                {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : link.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}">
+              <span class="px-2 py-0.5 rounded text-xs font-medium
+ {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : link.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}">
                 {link.status === 'VALIDATED' ? 'Validé' : link.status === 'PENDING' ? 'En attente' : 'Rejeté'}
               </span>
               <span class="text-[10px] text-on-surface-variant/30">{new Date(link.createdAt).toLocaleDateString('fr-FR')}</span>
@@ -507,15 +508,15 @@
             <div class="flex items-center gap-2 pt-3 border-t border-outline-variant/5">
               {#if link.status === 'PENDING'}
                 <button onclick={() => handleUpdateStatus(link.id, 'VALIDATED')} disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Papicon icon="Check" size={12} /> Valider
                 </button>
                 <button onclick={() => handleUpdateStatus(link.id, 'REJECTED')} disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-rose-500/10 text-rose-500 text-[10px] font-bold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  class="flex-1 py-2 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-medium hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Papicon icon="X" size={12} /> Rejeter
                 </button>
               {:else}
-                <span class="flex-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/20">{link.type}</span>
+                <span class="flex-1 text-xs font-medium text-on-surface-variant/20">{link.type}</span>
                 <button onclick={() => handleDelete(link.id)} disabled={saveAction.state.loading}
                   class="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-50" title="Supprimer">
                   <Papicon icon="Trash2" size={14} />
@@ -532,15 +533,15 @@
     <!-- Stats -->
     <div class="grid grid-cols-3 gap-3 mb-6">
       <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-4 text-center">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Suspects</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Suspects</p>
         <p class="mt-1 text-xl font-bold text-on-surface">{detectionStats.total}</p>
       </div>
       <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-4 text-center">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Présents</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Présents</p>
         <p class="mt-1 text-xl font-bold text-emerald-500">{detectionStats.onServer}</p>
       </div>
       <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-4 text-center">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Partis</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Partis</p>
         <p class="mt-1 text-xl font-bold text-amber-500">{detectionStats.left}</p>
       </div>
     </div>
@@ -676,17 +677,17 @@
               {#if d.suspectedAlts && d.suspectedAlts.length > 0}
                 <button onclick={() => { const alt = d.suspectedAlts?.[0]; if (alt) handleLinkDetection(d, alt.userId); }}
                   disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 min-w-25">
+                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 min-w-25">
                   <Papicon icon="Link2" size={12} /> Lier
                 </button>
               {/if}
               <button onclick={() => reportModalDetection = d}
-                class="flex-1 py-2 rounded-lg bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider hover:bg-primary hover:text-white transition-all flex items-center justify-center gap-1.5 min-w-25">
+                class="flex-1 py-2 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary hover:text-white transition-all flex items-center justify-center gap-1.5 min-w-25">
                 <Papicon icon="FileSearch" size={12} /> Rapport
               </button>
               <button onclick={() => handleDismissDetection(d)}
                 disabled={saveAction.state.loading}
-                class="py-2 px-3 rounded-lg border border-outline-variant/10 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 hover:text-on-surface hover:border-primary/20 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                class="py-2 px-3 rounded-lg border border-outline-variant/10 text-xs font-medium text-on-surface-variant/40 hover:text-on-surface hover:border-primary/20 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
                 <Papicon icon="X" size={12} /> Ignorer
               </button>
             </div>
@@ -721,14 +722,14 @@
           <!-- Mode & Action -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Mode d'envoi</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Mode d'envoi</span>
               <select bind:value={verifConfig.verificationMode} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
                 <option value="DM">MP automatique</option>
                 <option value="EMBED">Bouton embed</option>
               </select>
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Action si DC détecté</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Action si DC détecté</span>
               <select bind:value={verifConfig.verificationAction} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
                 <option value="NOTIFY_STAFF">Notifier le staff</option>
                 <option value="AUTO_LINK">Lier automatiquement</option>
@@ -739,7 +740,7 @@
           <!-- Niveaux de vérification -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Niveau de vérification (Commandes & Bouton Embed)</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Niveau de vérification (Commandes & Bouton Embed)</span>
               <select bind:value={verifConfig.verificationLevelCommand} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
                 <option value="LOW">Bas (identify uniquement)</option>
                 <option value="MEDIUM">Moyen (identify, email)</option>
@@ -747,7 +748,7 @@
               </select>
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Niveau de vérification (Arrivée)</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Niveau de vérification (Arrivée)</span>
               <select bind:value={verifConfig.verificationLevelJoin} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
                 <option value="LOW">Bas (identify uniquement)</option>
                 <option value="MEDIUM">Moyen (identify, email)</option>
@@ -760,15 +761,15 @@
           <!-- Channels & Roles -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de vérification</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Salon de vérification</span>
               <SearchableSelect bind:value={verifConfig.verificationChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Aucun salon" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle vérifié</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Rôle vérifié</span>
               <SearchableSelect bind:value={verifConfig.verificationRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de logs</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Salon de logs</span>
               <SearchableSelect bind:value={verifConfig.verificationLogChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Par défaut" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
           </div>
@@ -776,11 +777,11 @@
           <!-- Embed customization -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Titre de l'embed</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Titre de l'embed</span>
               <input type="text" bind:value={verifConfig.verificationEmbedTitle} maxlength="256" class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Couleur</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Couleur</span>
               <div class="flex items-center gap-2">
                 <input type="color" bind:value={verifConfig.verificationEmbedColor} class="h-9.5 w-9.5 rounded-lg border border-outline-variant/10 bg-transparent cursor-pointer shrink-0" />
                 <input type="text" bind:value={verifConfig.verificationEmbedColor} maxlength="7" class="flex-1 rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm font-mono" />
@@ -789,7 +790,7 @@
           </div>
 
           <label class="space-y-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Description</span>
+            <span class="text-xs font-medium text-on-surface-variant/40">Description</span>
             <textarea bind:value={verifConfig.verificationEmbedDesc} rows="3" maxlength="2048" class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm resize-y"></textarea>
           </label>
 
@@ -846,7 +847,7 @@
 
             <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
               <label class="space-y-1.5">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Seuil de warns</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Seuil de warns</span>
                 <div class="flex items-center gap-2">
                   <input
                     type="number"
@@ -868,7 +869,7 @@
               </label>
 
               <label class="space-y-1.5">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Mode de déclenchement</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Mode de déclenchement</span>
                 <select bind:value={verifConfig.verificationWarnAutoMode} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" disabled={!verifConfig.verificationWarnThreshold}>
                   <option value="FULL_AUTO">🤖 Full automatique (timeout + DM)</option>
                   <option value="NOTIFY_STAFF">📣 Notifier le staff (bouton manuel)</option>
@@ -878,7 +879,7 @@
 
             {#if verifConfig.verificationWarnThreshold}
               <label class="space-y-1.5 block">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Raison affichée dans le DM / la notification</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Raison affichée dans le DM / la notification</span>
                 <input
                   type="text"
                   maxlength="512"
@@ -903,12 +904,12 @@
           <!-- Actions -->
           <div class="flex flex-wrap gap-2">
             <button onclick={saveVerifConfig}
-              class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-indigo-500 transition-all flex items-center gap-1.5">
+              class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-[13px] font-medium hover:bg-indigo-500 transition-all flex items-center gap-1.5">
               <Papicon icon="Save" size={13} /> Sauvegarder
             </button>
             {#if verifConfig.verificationMode === 'EMBED' && verifConfig.verificationChannelId}
               <button onclick={deployVerifEmbed} disabled={deployingEmbed}
-                class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
+                class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-[13px] font-medium hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
                 {#if deployingEmbed}
                   <div class="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
                   Envoi...
@@ -952,15 +953,15 @@
         <!-- Roles -->
         <div class="grid gap-4 grid-cols-1 sm:grid-cols-3">
           <label class="space-y-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle validation</span>
+            <span class="text-xs font-medium text-on-surface-variant/40">Rôle validation</span>
             <SearchableSelect bind:value={workflowDraft.validationRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
           </label>
           <label class="space-y-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle sanction</span>
+            <span class="text-xs font-medium text-on-surface-variant/40">Rôle sanction</span>
             <SearchableSelect bind:value={workflowDraft.sanctionRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
           </label>
           <label class="space-y-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle DS</span>
+            <span class="text-xs font-medium text-on-surface-variant/40">Rôle DS</span>
             <SearchableSelect bind:value={workflowDraft.dsRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
           </label>
         </div>
@@ -1023,7 +1024,7 @@
         <!-- Score -->
         {#if det.evidence}
           <div class="flex items-center gap-3 p-4 rounded-xl border {scoreBg(det.evidence.totalScore)}">
-            <div class="text-2xl font-black {scoreColor(det.evidence.totalScore)}">{det.evidence.totalScore}</div>
+            <div class="text-2xl font-bold {scoreColor(det.evidence.totalScore)}">{det.evidence.totalScore}</div>
             <div>
               <p class="text-xs font-bold text-on-surface">Score de confiance</p>
               <p class="text-[10px] text-on-surface-variant/50">{det.evidence.totalScore >= 60 ? 'Risque élevé' : det.evidence.totalScore >= 30 ? 'Risque moyen' : 'Risque faible'} — {det.evidence.reasons.length} signal{det.evidence.reasons.length > 1 ? 'aux' : ''}</p>
@@ -1034,7 +1035,7 @@
         <!-- Suspected alts -->
         {#if det.suspectedAlts && det.suspectedAlts.length > 0}
           <div>
-            <h4 class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Comptes suspects associés</h4>
+            <h4 class="text-xs font-medium text-on-surface-variant/40 mb-2">Comptes suspects associés</h4>
             <div class="space-y-2">
               {#each det.suspectedAlts as alt}
                 <div class="flex items-center justify-between gap-2 p-3 rounded-lg bg-surface-container-low/50 border border-outline-variant/5">
@@ -1045,7 +1046,7 @@
                   </button>
                   <button onclick={() => { handleLinkDetection(det, alt.userId); reportModalDetection = null; }}
                     disabled={saveAction.state.loading}
-                    class="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1">
+                    class="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1">
                     <Papicon icon="Link2" size={11} /> Lier
                   </button>
                 </div>
@@ -1057,7 +1058,7 @@
         <!-- Heuristics detail -->
         {#if det.evidence && det.evidence.reasons.length > 0}
           <div>
-            <h4 class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Détail des heuristiques</h4>
+            <h4 class="text-xs font-medium text-on-surface-variant/40 mb-2">Détail des heuristiques</h4>
             <div class="space-y-1.5">
               {#each [...det.evidence.reasons].sort((a, b) => b.score - a.score) as reason}
                 <div class="p-3 rounded-lg bg-surface-container-low/40 border border-outline-variant/5">
@@ -1081,7 +1082,7 @@
 
         <!-- Member info -->
         <div>
-          <h4 class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Informations</h4>
+          <h4 class="text-xs font-medium text-on-surface-variant/40 mb-2">Informations</h4>
           <div class="grid grid-cols-2 gap-2 text-[11px]">
             <div class="p-2.5 rounded-lg bg-surface-container-low/40">
               <span class="text-on-surface-variant/40">Créé</span>

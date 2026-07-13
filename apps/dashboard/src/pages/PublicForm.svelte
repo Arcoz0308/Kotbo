@@ -326,10 +326,10 @@
       <!-- Discord association section -->
       {#if !authStore.isAuthenticated}
         <div class="rounded-xl border p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300
-          {authRequired ? 'border-amber-500/30 bg-amber-500/5' : 'border-blue-500/20 bg-blue-500/5'}">
+ {authRequired ? 'border-amber-500/30 bg-amber-500/5' : 'border-blue-500/20 bg-blue-500/5'}">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0
-              {authRequired ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'}">
+ {authRequired ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'}">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 127.14 96.36">
                 <path d="M107.7,8.07A105.15,105.15,0,0,0,77.26,0a77.19,77.19,0,0,0-3.3,6.83A96.67,96.67,0,0,0,53.22,6.83,77.19,77.19,0,0,0,49.88,0,105.15,105.15,0,0,0,19.44,8.07C3.66,31.58-1.86,54.65,1,77.53A105.73,105.73,0,0,0,32,96.36a77.7,77.7,0,0,0,6.63-10.85,68.43,68.43,0,0,1-10.5-5c.9-.65,1.76-1.34,2.58-2a75.58,75.58,0,0,0,72.9,0c.82.71,1.68,1.4,2.58,2a68.69,68.69,0,0,1-10.5,5,77.7,77.7,0,0,0,6.63,10.85,105.73,105.73,0,0,0,31-18.83C129.87,49.86,124.15,26.91,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53S36.18,40.36,42.45,40.36,53.83,46,53.83,53,48.72,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.24,60,73.24,53S78.41,40.36,84.69,40.36,96.07,46,96.07,53,91,65.69,84.69,65.69Z"/>
               </svg>
@@ -347,8 +347,8 @@
           </div>
           <button
             onclick={loginWithDiscord}
-            class="px-4 py-2 text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-md shrink-0 flex items-center gap-2
-              {authRequired ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}"
+            class="px-4 py-2 text-white rounded-lg text-[13px] font-medium transition-all shadow-md shrink-0 flex items-center gap-2
+ {authRequired ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}"
           >
             Se connecter
           </button>
@@ -386,7 +386,7 @@
       {#each currentFields as field (field.id)}
         {@const error = errors[field.id]}
         <div class="pf-card pf-field rounded-lg bg-surface border border-outline-variant/20 p-5 shadow-sm
-          {error ? 'ring-2 ring-rose-500/40' : ''}">
+ {error ? 'ring-2 ring-rose-500/40' : ''}">
 
           <label for={field.id} class="block font-semibold text-on-surface mb-1 text-[15px]">
             {field.label}
@@ -427,7 +427,7 @@
               {#each field.options || [] as opt}
                 <label class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-surface-container/50 transition-colors group">
                   <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all
-                    {answers[field.id] === opt ? 'border-primary' : 'border-outline-variant/50 group-hover:border-primary/50'}"
+ {answers[field.id] === opt ? 'border-primary' : 'border-outline-variant/50 group-hover:border-primary/50'}"
                     style={answers[field.id] === opt ? `border-color:var(--form-color)` : ''}>
                     {#if answers[field.id] === opt}
                       <div class="w-2.5 h-2.5 rounded-full" style="background:var(--form-color)"></div>
@@ -446,7 +446,7 @@
                 {@const checked = ((answers[field.id] as string[]) || []).includes(opt)}
                 <label class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-surface-container/50 transition-colors group">
                   <div class="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all
-                    {checked ? 'border-primary' : 'border-outline-variant/50 group-hover:border-primary/50'}"
+ {checked ? 'border-primary' : 'border-outline-variant/50 group-hover:border-primary/50'}"
                     style={checked ? `border-color:var(--form-color);background:var(--form-color)` : ''}>
                     {#if checked}
                       <svg class="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
@@ -485,7 +485,7 @@
                     {@const selected = answers[field.id] === String(n)}
                     <label class="flex flex-col items-center gap-1 cursor-pointer">
                       <div class="w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm font-bold transition-all
-                        {selected ? 'text-white scale-110' : 'border-outline-variant/40 hover:border-primary/50 text-on-surface-variant/70'}"
+ {selected ? 'text-white scale-110' : 'border-outline-variant/40 hover:border-primary/50 text-on-surface-variant/70'}"
                         style={selected ? `background:var(--form-color);border-color:var(--form-color)` : ''}>
                         {n}
                       </div>
@@ -534,7 +534,7 @@
                         <td class="py-3 px-3 text-center">
                           <button onclick={() => setGridAnswer(field.id, row.id, col.id, isMulti)}
                             class="w-5 h-5 mx-auto flex items-center justify-center transition-all
-                              {isMulti ? 'rounded' : 'rounded-full'} border-2
+ {isMulti ? 'rounded' : 'rounded-full'} border-2
                               {selected ? 'border-primary scale-110' : 'border-outline-variant/40 hover:border-primary/50'}"
                             style={selected ? `border-color:var(--form-color);background:var(--form-color)` : ''}>
                             {#if selected && !isMulti}
@@ -587,7 +587,7 @@
         {/if}
         <div class="flex-1"></div>
         <button onclick={nextSection} disabled={submitting}
-          class="pf-submit px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:scale-100"
+          class="pf-submit px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all active:scale-[0.98] disabled:opacity-60 disabled:scale-100"
           style="background:var(--form-color)">
           {#if submitting}
             <span class="flex items-center gap-2">

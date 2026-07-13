@@ -175,7 +175,7 @@
             <button
               onclick={() => metric = m}
               class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
-                ? 'bg-primary text-on-primary border-primary '
+ ? 'bg-primary text-on-primary border-primary '
                 : 'bg-surface-container-high/40 text-on-surface-variant/60 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
             >
               <Papicon icon={metricConfig[m].icon} size={12} />
@@ -188,7 +188,7 @@
             <button
               onclick={() => metric = m}
               class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
-                ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/25'
+ ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
                 : 'bg-surface-container-high/40 text-on-surface-variant/60 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
             >
               <Papicon icon={metricConfig[m].icon} size={12} />
@@ -201,7 +201,7 @@
         <button
           onclick={() => showValues = !showValues}
           class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-[10px] uppercase tracking-widest transition-all duration-200 border {showValues
-            ? 'bg-surface-container-high text-on-surface border-outline-variant/30'
+ ? 'bg-surface-container-high text-on-surface border-outline-variant/30'
             : 'text-on-surface-variant/40 border-outline-variant/10 hover:bg-surface-container-high'}"
           title="Afficher les valeurs"
         >
@@ -274,7 +274,7 @@
               {@const isPeak = dow === peakCell.dow && hour === peakCell.hour && (metric === 'net' ? peakCell.val !== 0 : peakCell.val > 0)}
               <div
                 class="flex-1 aspect-square rounded-lg border transition-all duration-150 flex items-center justify-center cursor-default relative group/cell
-                  {(isHovDow || isHovHour) ? 'scale-[1.12] z-10 shadow-lg' : ''}
+ {(isHovDow || isHovHour) ? 'scale-[1.12] z-10 shadow-lg' : ''}
                   {isPeak ? 'ring-1 ring-amber-400/60' : ''}"
                 style="{getCellStyle(val, maxValue)}"
                 onmouseenter={() => { hoveredDow = dow; hoveredHour = hour; }}
@@ -294,7 +294,7 @@
 
                 <!-- Tooltip -->
                 <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-container-highest/95 text-on-surface rounded-xl text-[10px] font-bold
-                  opacity-0 group-hover/cell:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50
+ opacity-0 group-hover/cell:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50
                   border border-outline-variant/20 shadow-sm shadow-black/40">
                   <div class="font-semibold text-[11px]">{dayNamesFull[dow]} {String(hour).padStart(2, '0')}h–{String(hour + 1).padStart(2, '0')}h</div>
                   <div class="text-primary font-semibold mt-0.5">
