@@ -145,6 +145,20 @@
       status: string;
     }>;
     isSuspectedDC: boolean;
+    crossServerSanctions?: {
+      enabled: boolean;
+      serverCount: number;
+      total: number;
+      breakdown: Record<string, number>;
+      recent: Array<{
+        type: string;
+        status: string;
+        durationSeconds: number | null;
+        createdAt: string;
+        guildId: string;
+        guildName: string;
+      }>;
+    };
     interactionGraph: {
       nodes: Array<{ id: string; label: string; type: 'user' | 'target'; avatar?: string | null }>;
       edges: Array<{ from: string; to: string; type: 'mention' | 'reply' | 'reaction'; count: number }>;
@@ -386,6 +400,25 @@
       ? [...caseData?.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : []
   );
+
+  const crossServer = $derived(caseData?.crossServerSanctions ?? null);
+  const crossServerBreakdown = $derived(
+    crossServer
+      ? Object.entries(crossServer.breakdown).filter(([, count]) => (count as number) > 0)
+      : []
+  );
+
+  function getSanctionTypeEmoji(type: string) {
+    switch (type.toUpperCase()) {
+      case 'WARN': return '⚠️';
+      case 'TIMEOUT': return '⏳';
+      case 'KICK': return '👢';
+      case 'TEMP_BAN': return '⏱️';
+      case 'BAN': return '🔨';
+      case 'SOFTBAN': return '🧹';
+      default: return '⚖️';
+    }
+  }
 
   const reportRuleOptions = $derived(buildReportRuleOptions(dashboardStore.state.regulationRules || []));
   const selectedSanctionForReport = $derived(sanctions.find(s => s.id === viewingReportSanctionId) || null);
@@ -1473,6 +1506,54 @@
                 </div>
 
               {:else if activeTab === 'sanctions'}
+                {#if crossServer?.enabled && crossServer.total > 0}
+                  <div class="mb-6 rounded-xl bg-amber-500/5 border border-amber-500/20 overflow-hidden shadow-sm">
+                    <div class="flex items-center gap-3 px-6 py-4 border-b border-amber-500/10 bg-amber-500/5">
+                      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
+                        <Papicon icon="globe" size={20} />
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Casier inter-serveurs</p>
+                        <p class="text-sm font-semibold text-on-surface">
+                          {crossServer.total} sanction{crossServer.total > 1 ? 's' : ''} sur {crossServer.serverCount} autre{crossServer.serverCount > 1 ? 's' : ''} serveur{crossServer.serverCount > 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <div class="hidden sm:flex flex-wrap items-center justify-end gap-1.5">
+                        {#each crossServerBreakdown as [type, count]}
+                          <span class="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                            {getSanctionTypeEmoji(type)} {formatTypeLabel(type)} ×{count}
+                          </span>
+                        {/each}
+                      </div>
+                    </div>
+                    <ul class="divide-y divide-amber-500/10">
+                      {#each crossServer.recent as entry}
+                        <li class="flex items-center gap-3 px-6 py-3">
+                          <span class="text-base">{getSanctionTypeEmoji(entry.type)}</span>
+                          <span class="text-xs font-semibold text-on-surface uppercase tracking-wide w-24 shrink-0">{formatTypeLabel(entry.type)}</span>
+                          <span class="text-xs font-bold text-on-surface-variant/60 w-20 shrink-0">
+                            {entry.durationSeconds ? formatDurationFromSeconds(entry.durationSeconds) : '—'}
+                          </span>
+                          <span class="text-xs font-medium text-on-surface-variant truncate flex-1 min-w-0" title={entry.guildName}>
+                            <Papicon icon="server" size={12} class="inline-block mr-1 opacity-50" />{entry.guildName}
+                          </span>
+                          <span class="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-widest shrink-0 {entry.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            {getSanctionStatusLabel(entry.status)}
+                          </span>
+                          <span class="text-[10px] font-bold text-on-surface-variant/40 w-24 text-right shrink-0">{formatRelative(entry.createdAt)}</span>
+                        </li>
+                      {/each}
+                    </ul>
+                    {#if crossServer.total > crossServer.recent.length}
+                      <div class="px-6 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-amber-600/60 dark:text-amber-400/50 bg-amber-500/5">
+                        + {crossServer.total - crossServer.recent.length} autre(s) sanction(s) non affichée(s)
+                      </div>
+                    {/if}
+                    <p class="px-6 py-2 text-[10px] font-medium text-on-surface-variant/40 bg-surface-container-low/30 border-t border-amber-500/10">
+                      Historique des serveurs de la même instance. Modérateur et raison non partagés.
+                    </p>
+                  </div>
+                {/if}
                 <div class="rounded-xl bg-surface-container-low/50 overflow-hidden border border-outline-variant/10 shadow-sm">
                   <table class="w-full text-left border-collapse">
                     <thead>

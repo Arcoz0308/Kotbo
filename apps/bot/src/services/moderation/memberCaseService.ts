@@ -15,6 +15,7 @@ import prisma from '../../utils/db.js';
 import { truncate } from '../../utils/embeds.js';
 import { formatDurationFr, getSanctionTypeBreakdown, listSanctionsByMember, type ListedSanction } from './sanctionService.js';
 import * as altAccountService from './altAccountService.js';
+import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from './crossServerSanctionService.js';
 import { generateMemberStatsImage } from '../core/imageService.js';
 
 export type MemberCaseSection = 'resume' | 'sanctions' | 'identite' | 'activite';
@@ -39,6 +40,7 @@ type MemberCaseContext = {
   sanctions: ListedSanction[];
   sanctionsTotal: number;
   sanctionsBreakdown: Record<SanctionType, number>;
+  crossServer: CrossServerSanctionSummary;
   pageIndex: number;
   totalPages: number;
 };
@@ -188,7 +190,10 @@ async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0
     }),
   ]);
 
-  const sanctionsBreakdown = await getSanctionTypeBreakdown(guild.id, userId, linkedUserIds);
+  const [sanctionsBreakdown, crossServer] = await Promise.all([
+    getSanctionTypeBreakdown(guild.id, userId, linkedUserIds),
+    getCrossServerSanctionSummary(guild.client, guild.id, linkedUserIds),
+  ]);
   const totalPages = Math.max(1, Math.ceil(sanctions.total / MEMBER_CASE_PAGE_SIZE));
   const safePageIndex = Math.min(Math.max(0, pageIndex), totalPages - 1);
   const pageSanctions = safePageIndex === pageIndex
@@ -210,9 +215,45 @@ async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0
     sanctions: pageSanctions,
     sanctionsTotal: sanctions.total,
     sanctionsBreakdown,
+    crossServer,
     pageIndex: safePageIndex,
     totalPages,
   };
+}
+
+const CROSS_SERVER_TYPE_LABELS: Record<SanctionType, string> = {
+  WARN: 'Warn',
+  KICK: 'Kick',
+  TIMEOUT: 'Timeout',
+  TEMP_BAN: 'Tempban',
+  BAN: 'Ban',
+  SOFTBAN: 'Softban',
+};
+
+/**
+ * Construit le texte du bloc "casier cross-serveur" affiché dans l'embed des sanctions.
+ * Retourne null s'il n'y a rien de pertinent à montrer.
+ */
+function buildCrossServerFieldValue(crossServer: CrossServerSanctionSummary): string | null {
+  if (!crossServer.enabled || crossServer.total === 0) return null;
+
+  const lines = crossServer.recent.slice(0, 5).map((entry) => {
+    const label = CROSS_SERVER_TYPE_LABELS[entry.type] ?? entry.type;
+    const duration = entry.durationSeconds ? ` · ${formatDurationFr(entry.durationSeconds * 1000)}` : '';
+    const when = `<t:${Math.floor(new Date(entry.createdAt).getTime() / 1000)}:R>`;
+    const state = entry.status === 'ACTIVE' ? '🔴' : '⚪';
+    return `${state} **${label}**${duration} · ${truncate(entry.guildName, 30)} · ${when}`;
+  });
+
+  const breakdown = Object.entries(crossServer.breakdown)
+    .filter(([, count]) => count > 0)
+    .map(([type, count]) => `${CROSS_SERVER_TYPE_LABELS[type as SanctionType]} ×${count}`)
+    .join(' · ');
+
+  const extra = crossServer.total > 5 ? `\n*… et ${crossServer.total - 5} autre(s)*` : '';
+  const footer = breakdown ? `\n\`${breakdown}\`` : '';
+
+  return `${lines.join('\n')}${extra}${footer}`;
 }
 
 function buildSectionSelectRow(userId: string, section: MemberCaseSection, pageIndex: number): ActionRowBuilder<StringSelectMenuBuilder> {
@@ -333,6 +374,10 @@ function buildSummaryEmbed(context: MemberCaseContext): EmbedBuilder {
     ? context.sanctions.slice(0, 3).map((s, i) => `**${i + 1}. ${s.type}** · ${truncate(s.reason, 60)} · <t:${Math.floor(s.createdAt.getTime() / 1000)}:R>`).join('\n')
     : '*Aucune sanction enregistrée pour ce membre.*';
 
+  const crossServerLine = context.crossServer.enabled && context.crossServer.total > 0
+    ? `\n🌐 **Autres serveurs :** ${context.crossServer.total} sanction${context.crossServer.total > 1 ? 's' : ''} sur ${context.crossServer.serverCount} serveur${context.crossServer.serverCount > 1 ? 's' : ''}`
+    : '';
+
   const description = `🌐 <@${userId}> (\`${username}\`)
 ${statusLabel}
 ────────────────────────
@@ -350,7 +395,7 @@ ${statusLabel}
 ────────────────────────
 
 🚨 **Dernières sanctions (${context.sanctions.length}/${context.sanctionsTotal})**
-${recentSanctions}
+${recentSanctions}${crossServerLine}
 ────────────────────────
 
 \`ID\` \`${userId}\``;
@@ -446,7 +491,7 @@ function buildSanctionsEmbed(context: MemberCaseContext): EmbedBuilder {
   const tempBanCount = context.sanctionsBreakdown.TEMP_BAN ?? 0;
   const banCount = context.sanctionsBreakdown.BAN ?? 0;
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(0xef476f)
     .setTitle('🧾 Casier disciplinaire')
     .setDescription(summary)
@@ -460,6 +505,17 @@ function buildSanctionsEmbed(context: MemberCaseContext): EmbedBuilder {
     )
     .setFooter({ text: `Page ${context.pageIndex + 1} / ${context.totalPages}` })
     .setTimestamp();
+
+  const crossServerValue = buildCrossServerFieldValue(context.crossServer);
+  if (crossServerValue) {
+    embed.addFields({
+      name: `🌐 Autres serveurs (${context.crossServer.total} · ${context.crossServer.serverCount} serveur${context.crossServer.serverCount > 1 ? 's' : ''})`,
+      value: truncate(crossServerValue, 1024),
+      inline: false,
+    });
+  }
+
+  return embed;
 }
 
 export async function touchMemberProfileFromMember(member: GuildMember): Promise<void> {

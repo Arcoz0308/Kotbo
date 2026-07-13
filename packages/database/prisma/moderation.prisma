@@ -134,6 +134,8 @@ model Sanction {
   @@index([guildId, status, type])
   @@index([status, nextActionAt])
   @@index([sanctionTableId])
+  // Recherches par membre à travers plusieurs serveurs (casier + casier cross-serveur)
+  @@index([targetUserId, createdAt])
   @@map("sanctions")
 }
 

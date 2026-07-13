@@ -7,6 +7,10 @@ enum DigestFrequency {
 model Guild {
   id String @id
   propagateSanctions Boolean @default(false)
+  // Vue "casier cross-serveur" : partage/consultation de l'historique des sanctions
+  // entre serveurs d'une même instance white-label. Réciproque : un serveur désactivé
+  // ne partage plus ses sanctions ET ne voit plus celles des autres.
+  crossServerSanctionsEnabled Boolean @default(true)
 
   // White-label instance (null = instance principale/default)
   instanceId String?

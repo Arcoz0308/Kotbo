@@ -39,6 +39,7 @@
     githubReleasesEnabled: false,
     logChannelId: '',
     propagateSanctions: false,
+    crossServerSanctionsEnabled: true,
   });
 
   let savedSettings = $state<Record<string, any>>({
@@ -55,6 +56,7 @@
     githubReleasesEnabled: false,
     logChannelId: '',
     propagateSanctions: false,
+    crossServerSanctionsEnabled: true,
   });
 
   $effect(() => {
@@ -106,6 +108,7 @@
         githubReleasesEnabled: s.githubReleasesEnabled || false,
         logChannelId: s.logChannelId || '',
         propagateSanctions: s.propagateSanctions || false,
+        crossServerSanctionsEnabled: s.crossServerSanctionsEnabled ?? true,
       };
       guildSettings = loaded;
       savedSettings = { ...loaded };
@@ -153,6 +156,7 @@
     { key: 'dailyAlgoEnabled', label: 'Daily Algo', desc: 'Défis quotidiens' },
     { key: 'githubReleasesEnabled', label: 'GitHub Releases', desc: 'Notifications releases' },
     { key: 'propagateSanctions', label: 'Propager les sanctions', desc: 'Synchronisation inter-serveurs' },
+    { key: 'crossServerSanctionsEnabled', label: 'Casier inter-serveurs', desc: 'Partager/voir les sanctions des autres serveurs de l\'instance' },
   ];
 </script>
 
