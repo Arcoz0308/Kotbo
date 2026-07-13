@@ -242,7 +242,8 @@ function buildCrossServerFieldValue(crossServer: CrossServerSanctionSummary): st
     const duration = entry.durationSeconds ? ` · ${formatDurationFr(entry.durationSeconds * 1000)}` : '';
     const when = `<t:${Math.floor(new Date(entry.createdAt).getTime() / 1000)}:R>`;
     const state = entry.status === 'ACTIVE' ? '🔴' : '⚪';
-    return `${state} **${label}**${duration} · ${truncate(entry.guildName, 30)} · ${when}`;
+    const reason = entry.reason.trim() ? `\n┗ *${truncate(entry.reason.trim(), 90)}*` : '';
+    return `${state} **${label}**${duration} · ${truncate(entry.guildName, 30)} · ${when}${reason}`;
   });
 
   const breakdown = Object.entries(crossServer.breakdown)

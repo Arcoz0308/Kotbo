@@ -154,6 +154,7 @@
         type: string;
         status: string;
         durationSeconds: number | null;
+        reason: string;
         createdAt: string;
         guildId: string;
         guildName: string;
@@ -1548,7 +1549,10 @@
                                 <span class="text-[11px] font-medium text-on-surface-variant/50">· {formatDurationFromSeconds(entry.durationSeconds)}</span>
                               {/if}
                             </div>
-                            <p class="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-on-surface-variant/60 truncate" title={entry.guildName}>
+                            {#if entry.reason?.trim()}
+                              <p class="mt-0.5 text-xs text-on-surface-variant/80 truncate" title={entry.reason}>{entry.reason}</p>
+                            {/if}
+                            <p class="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-on-surface-variant/50 truncate" title={entry.guildName}>
                               <Papicon icon="map-pin" size={11} class="shrink-0 opacity-50" />
                               <span class="truncate">{entry.guildName}</span>
                             </p>
@@ -1566,7 +1570,7 @@
                     <div class="flex items-center justify-between gap-3 px-6 py-3 border-t border-outline-variant/10 bg-surface-container-low/30">
                       <p class="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/40">
                         <Papicon icon="lock" size={12} class="shrink-0" />
-                        Même instance · modérateur et raison non partagés
+                        Même instance · modérateur non partagé
                       </p>
                       {#if crossServer.total > crossServer.recent.length}
                         <span class="text-[11px] font-semibold text-on-surface-variant/50 shrink-0">+{crossServer.total - crossServer.recent.length} autre{crossServer.total - crossServer.recent.length > 1 ? 's' : ''}</span>

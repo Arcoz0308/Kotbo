@@ -16,8 +16,8 @@ import { logger } from '../../utils/logger.js';
  *    opérateurs de bot différents ne voient jamais les données l'un de l'autre.
  *  - Réciprocité : un serveur dont `crossServerSanctionsEnabled` est désactivé ne partage
  *    plus ses sanctions ET ne voit plus celles des autres.
- *  - On n'expose ni le modérateur ni la raison des sanctions étrangères (seulement type,
- *    durée, date, statut et le nom du serveur source).
+ *  - On n'expose pas le modérateur des sanctions étrangères (seulement type, durée,
+ *    raison, date, statut et le nom du serveur source).
  *
  * Performance : le résultat est mémoïsé (cache L1 mémoire + L2 Redis) avec un TTL court,
  * la clé dépendant du serveur courant et de l'ensemble trié des comptes liés. On évite
@@ -32,10 +32,13 @@ export type CrossServerSanctionEntry = {
   type: SanctionType;
   status: SanctionStatus;
   durationSeconds: number | null;
+  reason: string;
   createdAt: string;
   guildId: string;
   guildName: string;
 };
+
+const MAX_REASON_LENGTH = 280;
 
 export type CrossServerSanctionSummary = {
   /** true si le serveur courant participe au partage cross-serveur. */
@@ -140,7 +143,7 @@ async function computeSummary(
       where,
       orderBy: { createdAt: 'desc' },
       take: RECENT_LIMIT,
-      select: { type: true, status: true, durationSeconds: true, createdAt: true, guildId: true },
+      select: { type: true, status: true, durationSeconds: true, reason: true, createdAt: true, guildId: true },
     }),
   ]);
 
@@ -165,6 +168,7 @@ async function computeSummary(
     type: row.type,
     status: row.status,
     durationSeconds: row.durationSeconds,
+    reason: row.reason.length > MAX_REASON_LENGTH ? `${row.reason.slice(0, MAX_REASON_LENGTH)}…` : row.reason,
     createdAt: row.createdAt.toISOString(),
     guildId: row.guildId,
     guildName: resolveGuildName(row.guildId),
