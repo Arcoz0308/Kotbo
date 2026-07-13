@@ -4,6 +4,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  PermissionFlagsBits,
   StringSelectMenuBuilder,
   type Client,
   type Guild,
@@ -168,7 +169,7 @@ async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0
   const linkedUserIds = await altAccountService.getAllLinkedUserIds(guild.id, userId);
 
   const [user, member, profile, bans, sanctions] = await Promise.all([
-    guild.client.users.cache.get(userId) ?? guild.client.users.fetch(userId).catch(() => null),
+    guild.client.users.fetch(userId, { force: true }).catch(() => guild.client.users.cache.get(userId) ?? null),
     guild.members.cache.get(userId) ?? guild.members.fetch(userId).catch(() => null),
     prisma.memberProfile.findUnique({
       where: {
@@ -284,6 +285,72 @@ function buildCaseTargetRow(userId: string): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
+const MODERATOR_PERMISSIONS = [
+  PermissionFlagsBits.Administrator,
+  PermissionFlagsBits.ManageGuild,
+  PermissionFlagsBits.BanMembers,
+  PermissionFlagsBits.KickMembers,
+  PermissionFlagsBits.ModerateMembers,
+  PermissionFlagsBits.ManageRoles,
+  PermissionFlagsBits.ManageChannels,
+  PermissionFlagsBits.ManageMessages,
+];
+
+function getPermissionLabel(member: GuildMember | null): string {
+  if (!member) return 'Inconnu';
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return 'Administrateur';
+  if (MODERATOR_PERMISSIONS.some((perm) => member.permissions.has(perm))) return 'Modérateur';
+  return 'Membre';
+}
+
+const USER_FLAG_EMOJIS: Record<string, string> = {
+  Staff: '🛠️',
+  Partner: '🎫',
+  Hypesquad: '🎉',
+  HypeSquadOnlineHouse1: '🦁',
+  HypeSquadOnlineHouse2: '🧠',
+  HypeSquadOnlineHouse3: '⚖️',
+  BugHunterLevel1: '🐛',
+  BugHunterLevel2: '🐞',
+  PremiumEarlySupporter: '🌟',
+  VerifiedDeveloper: '👨‍💻',
+  CertifiedModerator: '🛡️',
+  VerifiedBot: '✅',
+  ActiveDeveloper: '💻',
+};
+
+function getFlagsDisplay(user: User | null, isBot: boolean): string {
+  const emojis: string[] = [];
+  for (const flag of user?.flags?.toArray() ?? []) {
+    const emoji = USER_FLAG_EMOJIS[flag];
+    if (emoji && !emojis.includes(emoji)) emojis.push(emoji);
+  }
+  if (isBot) emojis.push('🤖');
+  return emojis.length > 0 ? emojis.join(' ') : 'Aucun';
+}
+
+function getRolesDisplay(member: GuildMember | null): { count: number; text: string } {
+  if (!member) return { count: 0, text: '*Membre non présent sur le serveur.*' };
+
+  const roles = [...member.roles.cache.values()]
+    .filter((role) => role.id !== member.guild.id)
+    .sort((a, b) => b.position - a.position);
+
+  if (roles.length === 0) return { count: 0, text: 'Aucun' };
+
+  const mentions: string[] = [];
+  let length = 0;
+  for (const role of roles) {
+    const mention = `<@&${role.id}>`;
+    if (length + mention.length + 1 > 1000) break;
+    mentions.push(mention);
+    length += mention.length + 1;
+  }
+
+  const hidden = roles.length - mentions.length;
+  return { count: roles.length, text: mentions.join(' ') + (hidden > 0 ? ` *+${hidden} autre${hidden > 1 ? 's' : ''}*` : '') };
+}
+
 function buildSummaryEmbed(context: MemberCaseContext): EmbedBuilder {
   const profile = context.profile;
   const user = context.user;
@@ -292,6 +359,7 @@ function buildSummaryEmbed(context: MemberCaseContext): EmbedBuilder {
   const userId = user?.id ?? profile?.userId ?? member?.id ?? 'inconnu';
   const username = user?.username ?? profile?.username ?? member?.user.username ?? 'inconnu';
   const globalName = user?.globalName ?? profile?.globalName ?? member?.user.globalName ?? username;
+  const displayName = member?.displayName ?? profile?.displayName ?? globalName;
 
   const accountCreatedAt = user?.createdTimestamp
     ? `<t:${Math.floor(user.createdTimestamp / 1000)}:d> (<t:${Math.floor(user.createdTimestamp / 1000)}:R>)`
@@ -315,54 +383,55 @@ function buildSummaryEmbed(context: MemberCaseContext): EmbedBuilder {
       ? '🔨 Banni du serveur'
       : '❌ Ancien membre';
 
-  let rolesText = '';
-  if (member) {
-    const rolesCount = Math.max(0, member.roles.cache.size - 1);
-    const highestRole = member.roles.highest.name !== '@everyone' ? member.roles.highest.name : 'Aucun';
-    rolesText = `\n**Permissions :** ${highestRole} (${rolesCount} rôle${rolesCount > 1 ? 's' : ''})`;
-  }
-
   const msgCount = profile?.messageCount ?? 0;
   const lastMsg = profile?.lastMessageAt ? `<t:${Math.floor(profile.lastMessageAt.getTime() / 1000)}:R>` : 'Aucun';
   const voiceTime = formatDurationFr((profile?.voiceTimeSeconds ?? 0) * 1000);
   const lastVoice = profile?.voiceLastChannelId ? `<#${profile.voiceLastChannelId}>` : 'Aucun';
-  
-  const noteDisplay = profile?.moderatorNote ? `\n> ${profile.moderatorNote.replace(/\n/g, '\n> ')}` : '\n*Aucune note.*';
-  
+
   const recentSanctions = context.sanctions.length > 0
     ? context.sanctions.slice(0, 3).map((s, i) => `**${i + 1}. ${s.type}** · ${truncate(s.reason, 60)} · <t:${Math.floor(s.createdAt.getTime() / 1000)}:R>`).join('\n')
     : '*Aucune sanction enregistrée pour ce membre.*';
 
-  const description = `🌐 <@${userId}> (\`${username}\`)
-${statusLabel}
-────────────────────────
+  const roles = getRolesDisplay(member);
+  const bannerUrl = user?.bannerURL({ size: 1024 }) ?? profile?.bannerUrl ?? null;
 
-**Création du compte** ${accountCreatedAt}
-**Membre depuis** ${joinedAt}${!member && !context.banned ? `\n**Dernier départ** ${leftAt}` : ''}${rolesText}
-────────────────────────
-
-📊 **Activité globale**
-💬 **Messages :** ${msgCount} *(Dernier : ${lastMsg})*
-🎙️ **Vocal :** ${voiceTime} *(Dernier : ${lastVoice})*
-────────────────────────
-
-✏️ **Note**${noteDisplay}
-────────────────────────
-
-🚨 **Dernières sanctions (${context.sanctions.length}/${context.sanctionsTotal})**
-${recentSanctions}
-────────────────────────
-
-\`ID\` \`${userId}\``;
-
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(context.banned ? 0xd62828 : member ? 0x2a9d8f : 0x5865f2)
     .setAuthor({
       name: `🧑‍⚖️ ${globalName}`,
       iconURL: user?.displayAvatarURL() ?? undefined,
     })
     .setThumbnail(user?.displayAvatarURL({ size: 256 }) ?? null)
-    .setDescription(description);
+    .setDescription(`🌐 <@${userId}> (\`${username}\`)\n${statusLabel}`)
+    .addFields(
+      { name: 'Création du compte', value: accountCreatedAt, inline: false },
+      { name: 'Membre depuis', value: joinedAt, inline: false },
+    );
+
+  if (!member && !context.banned) {
+    embed.addFields({ name: 'Dernier départ', value: leftAt, inline: false });
+  }
+
+  embed.addFields({ name: 'Pseudo', value: `\`${displayName}\``, inline: false });
+
+  if (member?.premiumSinceTimestamp) {
+    const boostTs = Math.floor(member.premiumSinceTimestamp / 1000);
+    embed.addFields({ name: 'Boost depuis', value: `<t:${boostTs}:d> (<t:${boostTs}:R>)`, inline: false });
+  }
+
+  embed.addFields(
+    { name: `Rôles (${roles.count})`, value: roles.text, inline: false },
+    { name: 'Permissions', value: `\`${getPermissionLabel(member)}\``, inline: false },
+    { name: 'Flags', value: getFlagsDisplay(user, profile?.isBot ?? user?.bot ?? false), inline: false },
+    { name: '📊 Activité globale', value: `💬 **Messages :** ${msgCount} *(Dernier : ${lastMsg})*\n🎙️ **Vocal :** ${voiceTime} *(Dernier : ${lastVoice})*`, inline: false },
+    { name: '✏️ Note', value: profile?.moderatorNote ? `> ${profile.moderatorNote.replace(/\n/g, '\n> ')}` : '*Aucune note.*', inline: false },
+    { name: `🚨 Dernières sanctions (${context.sanctions.length}/${context.sanctionsTotal})`, value: recentSanctions, inline: false },
+    { name: 'ID', value: `\`${userId}\``, inline: false },
+  );
+
+  if (bannerUrl) embed.setImage(bannerUrl);
+
+  return embed;
 }
 
 function buildIdentityEmbed(context: MemberCaseContext): EmbedBuilder {
