@@ -2857,6 +2857,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         moderatorRoleId?: string | null;
         regulationChannelId?: string | null;
         propagateSanctions?: boolean;
+        crossServerSanctionsEnabled?: boolean;
         messageTemplate?: string;
         sidebarFavorites?: unknown;
         configChannelId?: string | null;
@@ -2927,6 +2928,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
       if (Object.prototype.hasOwnProperty.call(body, 'propagateSanctions')) {
         data.propagateSanctions = !!body.propagateSanctions;
         data.sanctionSyncEnabled = !!body.propagateSanctions;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'crossServerSanctionsEnabled')) {
+        data.crossServerSanctionsEnabled = !!body.crossServerSanctionsEnabled;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'sanctionReportEnabled')) {
         data.sanctionReportEnabled = !!body.sanctionReportEnabled;

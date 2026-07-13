@@ -26,6 +26,7 @@ class DashboardStore {
     discordRoles: [] as any[],
     moderatorRoleId: '',
     propagateSanctions: false,
+    crossServerSanctionsEnabled: true,
     sanctionReportEnabled: true,
     translationEnabled: false,
     codePoliceEnabled: false,
@@ -148,6 +149,7 @@ class DashboardStore {
         this.state.discordRoles = data.discordRoles || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
         this.state.propagateSanctions = data.propagateSanctions || false;
+        this.state.crossServerSanctionsEnabled = data.crossServerSanctionsEnabled ?? true;
         this.state.sanctionReportEnabled = data.sanctionReportEnabled ?? true;
         this.state.translationEnabled = data.translationEnabled || false;
         this.state.codePoliceEnabled = data.codePoliceEnabled || false;
