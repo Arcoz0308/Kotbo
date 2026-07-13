@@ -148,6 +148,57 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
     },
   });
 
+  // Incrémenter la contribution de clan si activé
+  try {
+    const guildConfig = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { clansEnabled: true, currentClanSeason: true }
+    });
+    if (guildConfig?.clansEnabled) {
+      const clans = await prisma.clan.findMany({
+        where: { guildId },
+        select: { id: true, roleId: true }
+      });
+      if (clans.length > 0) {
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (discordGuild) {
+          const member = await discordGuild.members.fetch(userId).catch(() => null);
+          if (member) {
+            const clanRoleIds = clans.map(c => c.roleId);
+            const memberClanRole = member.roles.cache.find(r => clanRoleIds.includes(r.id));
+            if (memberClanRole) {
+              const clan = clans.find(c => c.roleId === memberClanRole.id);
+              if (clan) {
+                await prisma.clanMemberContribution.upsert({
+                  where: {
+                    guildId_clanId_userId_season: {
+                      guildId,
+                      clanId: clan.id,
+                      userId,
+                      season: guildConfig.currentClanSeason
+                    }
+                  },
+                  update: {
+                    xp: { increment: amount }
+                  },
+                  create: {
+                    guildId,
+                    clanId: clan.id,
+                    userId,
+                    season: guildConfig.currentClanSeason,
+                    xp: amount
+                  }
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    logger.error('LevelingService', `Erreur de traitement des clans lors de l'ajout d'XP pour ${userId}:`, err);
+  }
+
   const previousLevel = memberLevel.level;
   // Le niveau est toujours recalculé depuis l'XP totale : ça gère les montées
   // de niveau et auto-répare les lignes dont le niveau était incohérent.

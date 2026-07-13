@@ -60,6 +60,7 @@ import { registerChannelLinkListener } from './events/channelLinkEvents.js';
 import { registerStaffServerListener } from './events/staffServerEvents.js';
 import { registerAbsenceMentionListener } from './events/absenceMentionEvents.js';
 import { registerPartnershipListener } from './services/features/partnershipService.js';
+import { registerClanListener } from './events/clanEvents.js';
 import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
@@ -341,6 +342,7 @@ client.once(Events.ClientReady, async (c) => {
   registerStaffServerListener(client);
   registerAbsenceMentionListener(client);
   registerPartnershipListener(client);
+  registerClanListener(client);
 
   // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
   logger.info('System', 'Enregistrement des cron jobs...');

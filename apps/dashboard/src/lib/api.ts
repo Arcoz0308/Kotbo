@@ -3135,3 +3135,113 @@ export async function updateMessageLogConfig(
     errorContext: 'API Error (Message Config):',
   });
 }
+
+// ─────────────────────────────────────────────────────────────
+// Clans
+// ─────────────────────────────────────────────────────────────
+
+export interface ClanEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  roleId: string;
+  memberCount: number;
+  totalXp: number;
+}
+
+export interface ClansDataResult {
+  clansEnabled: boolean;
+  clansUnique: boolean;
+  currentClanSeason: number;
+  clans: ClanEntry[];
+  taskInProgress: { type: 'distribute' | 'clear'; processed: number; total: number } | null;
+}
+
+export async function fetchClansData(guildId = authStore.selectedGuildId): Promise<ClansDataResult | null> {
+  return dashboardRequest('/clans', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Clans):',
+    silent: true,
+  });
+}
+
+export async function updateClanSettings(
+  payload: { clansEnabled?: boolean; clansUnique?: boolean },
+  guildId = authStore.selectedGuildId,
+): Promise<{ clansEnabled: boolean; clansUnique: boolean } | null> {
+  return dashboardRequest('/clans', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Clans Settings):',
+  });
+}
+
+export async function createClan(
+  payload: { name: string; description?: string; roleId: string },
+  guildId = authStore.selectedGuildId,
+): Promise<{ clan: ClanEntry } | null> {
+  return dashboardRequest('/clans', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Create Clan):',
+  });
+}
+
+export async function updateClan(
+  id: string,
+  payload: { name: string; description?: string; roleId: string },
+  guildId = authStore.selectedGuildId,
+): Promise<{ clan: ClanEntry } | null> {
+  return dashboardRequest(`/clans/${id}`, {
+    method: 'PUT',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Clan):',
+  });
+}
+
+export async function deleteClan(id: string, guildId = authStore.selectedGuildId): Promise<boolean> {
+  return dashboardMutation(`/clans/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Clan):',
+  });
+}
+
+export async function distributeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
+  return dashboardRequest('/clans/distribute', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Distribute Clans):',
+  });
+}
+
+export async function clearClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
+  return dashboardRequest('/clans/clear', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Clear Clans):',
+  });
+}
+
+export async function resetClanSeason(guildId = authStore.selectedGuildId): Promise<{ currentClanSeason: number } | null> {
+  return dashboardRequest('/clans/reset-season', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Reset Clan Season):',
+  });
+}
+
+export async function fetchPublicClans(guildId: string): Promise<any | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (err) {
+    console.error('API Error (Fetch Public Clans):', err);
+    return null;
+  }
+}
