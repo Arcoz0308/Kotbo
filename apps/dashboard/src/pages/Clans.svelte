@@ -33,7 +33,6 @@
   let clansEnabled = $state(false);
   let clansUnique = $state(true);
   let currentClanSeason = $state(1);
-  let clanXpFromActivity = $state(true);
   let clanXpFromLevelUp = $state(false);
   let clanXpPerLevelUp = $state(50);
   let clans = $state<ClanEntry[]>([]);
@@ -42,7 +41,6 @@
   // Saved states (for dirty checking)
   let savedClansEnabled = $state(false);
   let savedClansUnique = $state(true);
-  let savedClanXpFromActivity = $state(true);
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
 
@@ -67,7 +65,6 @@
   $effect(() => {
     const dirty = clansEnabled !== savedClansEnabled 
       || clansUnique !== savedClansUnique
-      || clanXpFromActivity !== savedClanXpFromActivity
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
       || clanXpPerLevelUp !== savedClanXpPerLevelUp;
 
@@ -79,7 +76,6 @@
           onReset: () => {
             clansEnabled = savedClansEnabled;
             clansUnique = savedClansUnique;
-            clanXpFromActivity = savedClanXpFromActivity;
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
           }
@@ -124,7 +120,6 @@
         clansEnabled = res.clansEnabled;
         clansUnique = res.clansUnique;
         currentClanSeason = res.currentClanSeason;
-        clanXpFromActivity = res.clanXpFromActivity;
         clanXpFromLevelUp = res.clanXpFromLevelUp;
         clanXpPerLevelUp = res.clanXpPerLevelUp;
         clans = res.clans;
@@ -133,7 +128,6 @@
         if (!silent) {
           savedClansEnabled = res.clansEnabled;
           savedClansUnique = res.clansUnique;
-          savedClanXpFromActivity = res.clanXpFromActivity;
           savedClanXpFromLevelUp = res.clanXpFromLevelUp;
           savedClanXpPerLevelUp = res.clanXpPerLevelUp;
         }
@@ -157,7 +151,6 @@
       const res = await updateClanSettings({
         clansEnabled,
         clansUnique,
-        clanXpFromActivity,
         clanXpFromLevelUp,
         clanXpPerLevelUp
       });
@@ -165,7 +158,6 @@
       
       savedClansEnabled = res.clansEnabled;
       savedClansUnique = res.clansUnique;
-      savedClanXpFromActivity = res.clanXpFromActivity;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
       success = true;
@@ -333,14 +325,6 @@
 
             <div class="space-y-4 pt-4">
               <h4 class="text-xs font-bold text-on-surface-variant/80 uppercase tracking-wider">⚡ Sources de points</h4>
-              
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="text-sm font-medium text-on-surface">Activité (écrit / vocal)</span>
-                  <p class="text-xs text-on-surface-variant/70">Gagne des points de clan via l'XP de chat/vocal.</p>
-                </div>
-                <ToggleSwitch bind:checked={clanXpFromActivity} disabled={!canManageSettings} />
-              </div>
 
               <div class="flex items-center justify-between">
                 <div>

@@ -29,7 +29,6 @@ export async function handleClansRoutes(
           clansEnabled: true,
           clansUnique: true,
           currentClanSeason: true,
-          clanXpFromActivity: true,
           clanXpFromLevelUp: true,
           clanXpPerLevelUp: true,
         },
@@ -77,7 +76,6 @@ export async function handleClansRoutes(
         clansEnabled: guildData.clansEnabled,
         clansUnique: guildData.clansUnique,
         currentClanSeason: guildData.currentClanSeason,
-        clanXpFromActivity: guildData.clanXpFromActivity,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
         clanXpPerLevelUp: guildData.clanXpPerLevelUp,
         clans: clansWithStats,
@@ -90,13 +88,11 @@ export async function handleClansRoutes(
     return true;
   }
 
-  // PATCH /api/dashboard/guilds/:guildId/clans (Update Settings)
   if (!subAction && method === 'PATCH') {
     try {
       const body = await readJsonBody<{
         clansEnabled?: boolean;
         clansUnique?: boolean;
-        clanXpFromActivity?: boolean;
         clanXpFromLevelUp?: boolean;
         clanXpPerLevelUp?: number;
       }>(req);
@@ -104,7 +100,6 @@ export async function handleClansRoutes(
       const updateData: Record<string, any> = {};
       if (body?.clansEnabled !== undefined) updateData.clansEnabled = body.clansEnabled;
       if (body?.clansUnique !== undefined) updateData.clansUnique = body.clansUnique;
-      if (body?.clanXpFromActivity !== undefined) updateData.clanXpFromActivity = body.clanXpFromActivity;
       if (body?.clanXpFromLevelUp !== undefined) updateData.clanXpFromLevelUp = body.clanXpFromLevelUp;
       if (body?.clanXpPerLevelUp !== undefined) {
         if (typeof body.clanXpPerLevelUp !== 'number' || body.clanXpPerLevelUp < 0) {
@@ -130,14 +125,13 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, XP Activité: ${updatedGuild.clanXpFromActivity}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
+        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
         channelId: null,
       });
 
       json(res, 200, {
         clansEnabled: updatedGuild.clansEnabled,
         clansUnique: updatedGuild.clansUnique,
-        clanXpFromActivity: updatedGuild.clanXpFromActivity,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
       });
