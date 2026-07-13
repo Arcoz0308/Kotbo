@@ -3153,6 +3153,9 @@ export interface ClansDataResult {
   clansEnabled: boolean;
   clansUnique: boolean;
   currentClanSeason: number;
+  clanXpFromActivity: boolean;
+  clanXpFromLevelUp: boolean;
+  clanXpPerLevelUp: number;
   clans: ClanEntry[];
   taskInProgress: { type: 'distribute' | 'clear'; processed: number; total: number } | null;
 }
@@ -3167,9 +3170,21 @@ export async function fetchClansData(guildId = authStore.selectedGuildId): Promi
 }
 
 export async function updateClanSettings(
-  payload: { clansEnabled?: boolean; clansUnique?: boolean },
+  payload: {
+    clansEnabled?: boolean;
+    clansUnique?: boolean;
+    clanXpFromActivity?: boolean;
+    clanXpFromLevelUp?: boolean;
+    clanXpPerLevelUp?: number;
+  },
   guildId = authStore.selectedGuildId,
-): Promise<{ clansEnabled: boolean; clansUnique: boolean } | null> {
+): Promise<{
+  clansEnabled: boolean;
+  clansUnique: boolean;
+  clanXpFromActivity: boolean;
+  clanXpFromLevelUp: boolean;
+  clanXpPerLevelUp: number;
+} | null> {
   return dashboardRequest('/clans', {
     method: 'PATCH',
     payload,

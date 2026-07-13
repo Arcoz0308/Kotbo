@@ -29,6 +29,9 @@ export async function handleClansRoutes(
           clansEnabled: true,
           clansUnique: true,
           currentClanSeason: true,
+          clanXpFromActivity: true,
+          clanXpFromLevelUp: true,
+          clanXpPerLevelUp: true,
         },
       });
 
@@ -74,6 +77,9 @@ export async function handleClansRoutes(
         clansEnabled: guildData.clansEnabled,
         clansUnique: guildData.clansUnique,
         currentClanSeason: guildData.currentClanSeason,
+        clanXpFromActivity: guildData.clanXpFromActivity,
+        clanXpFromLevelUp: guildData.clanXpFromLevelUp,
+        clanXpPerLevelUp: guildData.clanXpPerLevelUp,
         clans: clansWithStats,
         taskInProgress,
       });
@@ -90,11 +96,23 @@ export async function handleClansRoutes(
       const body = await readJsonBody<{
         clansEnabled?: boolean;
         clansUnique?: boolean;
+        clanXpFromActivity?: boolean;
+        clanXpFromLevelUp?: boolean;
+        clanXpPerLevelUp?: number;
       }>(req);
 
       const updateData: Record<string, any> = {};
       if (body?.clansEnabled !== undefined) updateData.clansEnabled = body.clansEnabled;
       if (body?.clansUnique !== undefined) updateData.clansUnique = body.clansUnique;
+      if (body?.clanXpFromActivity !== undefined) updateData.clanXpFromActivity = body.clanXpFromActivity;
+      if (body?.clanXpFromLevelUp !== undefined) updateData.clanXpFromLevelUp = body.clanXpFromLevelUp;
+      if (body?.clanXpPerLevelUp !== undefined) {
+        if (typeof body.clanXpPerLevelUp !== 'number' || body.clanXpPerLevelUp < 0) {
+          json(res, 400, { error: 'Le nombre de points par passage de niveau doit être un entier positif.' });
+          return true;
+        }
+        updateData.clanXpPerLevelUp = Math.floor(body.clanXpPerLevelUp);
+      }
 
       if (Object.keys(updateData).length === 0) {
         json(res, 400, { error: 'Aucune donnée valide à mettre à jour.' });
@@ -112,13 +130,16 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}`,
+        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, XP Activité: ${updatedGuild.clanXpFromActivity}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
         channelId: null,
       });
 
       json(res, 200, {
         clansEnabled: updatedGuild.clansEnabled,
         clansUnique: updatedGuild.clansUnique,
+        clanXpFromActivity: updatedGuild.clanXpFromActivity,
+        clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
+        clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error updating clan settings:', err);

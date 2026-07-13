@@ -152,9 +152,9 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
   try {
     const guildConfig = await prisma.guild.findUnique({
       where: { id: guildId },
-      select: { clansEnabled: true, currentClanSeason: true }
+      select: { clansEnabled: true, currentClanSeason: true, clanXpFromActivity: true }
     });
-    if (guildConfig?.clansEnabled) {
+    if (guildConfig?.clansEnabled && guildConfig?.clanXpFromActivity) {
       const clans = await prisma.clan.findMany({
         where: { guildId },
         select: { id: true, roleId: true }
@@ -232,6 +232,52 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
 
     const member = await discordGuild.members.fetch(userId).catch(() => null);
     if (!member) return;
+
+    // 0. Attribution des points de clan pour la montée de niveau si activé
+    try {
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { clansEnabled: true, currentClanSeason: true, clanXpFromLevelUp: true, clanXpPerLevelUp: true }
+      });
+      if (guildConfig?.clansEnabled && guildConfig?.clanXpFromLevelUp && guildConfig?.clanXpPerLevelUp > 0) {
+        const clans = await prisma.clan.findMany({
+          where: { guildId },
+          select: { id: true, roleId: true }
+        });
+        if (clans.length > 0) {
+          const clanRoleIds = clans.map(c => c.roleId);
+          const memberClanRole = member.roles.cache.find(r => clanRoleIds.includes(r.id));
+          if (memberClanRole) {
+            const clan = clans.find(c => c.roleId === memberClanRole.id);
+            if (clan) {
+              await prisma.clanMemberContribution.upsert({
+                where: {
+                  guildId_clanId_userId_season: {
+                    guildId,
+                    clanId: clan.id,
+                    userId,
+                    season: guildConfig.currentClanSeason
+                  }
+                },
+                update: {
+                  xp: { increment: guildConfig.clanXpPerLevelUp }
+                },
+                create: {
+                  guildId,
+                  clanId: clan.id,
+                  userId,
+                  season: guildConfig.currentClanSeason,
+                  xp: guildConfig.clanXpPerLevelUp
+                }
+              });
+              logger.info('LevelingService', `Points de clan (${guildConfig.clanXpPerLevelUp} XP) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
+            }
+          }
+        }
+      }
+    } catch (clanErr) {
+      logger.error('LevelingService', `Erreur lors de l'attribution des points de clan pour le level up de ${userId}:`, clanErr);
+    }
 
     // 1. Attribution des rôles de récompense
     const rewards = await prisma.levelRoleReward.findMany({

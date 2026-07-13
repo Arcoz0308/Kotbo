@@ -111,6 +111,9 @@ model Guild {
   clansEnabled      Boolean @default(false)
   clansUnique       Boolean @default(true)
   currentClanSeason Int     @default(1)
+  clanXpFromActivity Boolean @default(true)
+  clanXpFromLevelUp  Boolean @default(false)
+  clanXpPerLevelUp   Int     @default(50)
 
   clans                 Clan[]
   clanMemberContributions ClanMemberContribution[]

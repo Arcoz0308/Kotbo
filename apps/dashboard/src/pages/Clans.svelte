@@ -33,12 +33,18 @@
   let clansEnabled = $state(false);
   let clansUnique = $state(true);
   let currentClanSeason = $state(1);
+  let clanXpFromActivity = $state(true);
+  let clanXpFromLevelUp = $state(false);
+  let clanXpPerLevelUp = $state(50);
   let clans = $state<ClanEntry[]>([]);
   let taskInProgress = $state<ClansDataResult['taskInProgress']>(null);
 
   // Saved states (for dirty checking)
   let savedClansEnabled = $state(false);
   let savedClansUnique = $state(true);
+  let savedClanXpFromActivity = $state(true);
+  let savedClanXpFromLevelUp = $state(false);
+  let savedClanXpPerLevelUp = $state(50);
 
   // Form states
   let formName = $state('');
@@ -59,7 +65,12 @@
 
   // Sync state changes with the unsaved changes bar
   $effect(() => {
-    const dirty = clansEnabled !== savedClansEnabled || clansUnique !== savedClansUnique;
+    const dirty = clansEnabled !== savedClansEnabled 
+      || clansUnique !== savedClansUnique
+      || clanXpFromActivity !== savedClanXpFromActivity
+      || clanXpFromLevelUp !== savedClanXpFromLevelUp
+      || clanXpPerLevelUp !== savedClanXpPerLevelUp;
+
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
@@ -68,6 +79,9 @@
           onReset: () => {
             clansEnabled = savedClansEnabled;
             clansUnique = savedClansUnique;
+            clanXpFromActivity = savedClanXpFromActivity;
+            clanXpFromLevelUp = savedClanXpFromLevelUp;
+            clanXpPerLevelUp = savedClanXpPerLevelUp;
           }
         });
       });
@@ -110,12 +124,18 @@
         clansEnabled = res.clansEnabled;
         clansUnique = res.clansUnique;
         currentClanSeason = res.currentClanSeason;
+        clanXpFromActivity = res.clanXpFromActivity;
+        clanXpFromLevelUp = res.clanXpFromLevelUp;
+        clanXpPerLevelUp = res.clanXpPerLevelUp;
         clans = res.clans;
         taskInProgress = res.taskInProgress;
 
         if (!silent) {
           savedClansEnabled = res.clansEnabled;
           savedClansUnique = res.clansUnique;
+          savedClanXpFromActivity = res.clanXpFromActivity;
+          savedClanXpFromLevelUp = res.clanXpFromLevelUp;
+          savedClanXpPerLevelUp = res.clanXpPerLevelUp;
         }
       }
     } catch (err) {
@@ -134,11 +154,20 @@
     if (!canManageSettings) return false;
     let success = false;
     await actionState.run(async () => {
-      const res = await updateClanSettings({ clansEnabled, clansUnique });
+      const res = await updateClanSettings({
+        clansEnabled,
+        clansUnique,
+        clanXpFromActivity,
+        clanXpFromLevelUp,
+        clanXpPerLevelUp
+      });
       if (!res) throw new Error('Erreur de sauvegarde');
       
       savedClansEnabled = res.clansEnabled;
       savedClansUnique = res.clansUnique;
+      savedClanXpFromActivity = res.clanXpFromActivity;
+      savedClanXpFromLevelUp = res.clanXpFromLevelUp;
+      savedClanXpPerLevelUp = res.clanXpPerLevelUp;
       success = true;
       return true;
     }, { successMessage: 'Paramètres des clans sauvegardés avec succès !' });
@@ -283,21 +312,60 @@
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
           <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2">⚙️ Configuration</h3>
           
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <span class="text-sm font-medium text-on-surface">Activer les clans</span>
-                <p class="text-xs text-on-surface-variant/70">Active les commandes slash /clan et la sécurité.</p>
+          <div class="space-y-4 divide-y divide-outline-variant/10">
+            <div class="space-y-4 pb-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Activer les clans</span>
+                  <p class="text-xs text-on-surface-variant/70">Active les commandes slash /clan et la sécurité.</p>
+                </div>
+                <ToggleSwitch bind:checked={clansEnabled} disabled={!canManageSettings} />
               </div>
-              <ToggleSwitch bind:checked={clansEnabled} disabled={!canManageSettings} />
+
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Clan Unique</span>
+                  <p class="text-xs text-on-surface-variant/70">Force un seul rôle de clan par membre Discord.</p>
+                </div>
+                <ToggleSwitch bind:checked={clansUnique} disabled={!canManageSettings} />
+              </div>
             </div>
 
-            <div class="flex items-center justify-between">
-              <div>
-                <span class="text-sm font-medium text-on-surface">Clan Unique</span>
-                <p class="text-xs text-on-surface-variant/70">Force un seul rôle de clan par membre Discord.</p>
+            <div class="space-y-4 pt-4">
+              <h4 class="text-xs font-bold text-on-surface-variant/80 uppercase tracking-wider">⚡ Sources de points</h4>
+              
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Activité (écrit / vocal)</span>
+                  <p class="text-xs text-on-surface-variant/70">Gagne des points de clan via l'XP de chat/vocal.</p>
+                </div>
+                <ToggleSwitch bind:checked={clanXpFromActivity} disabled={!canManageSettings} />
               </div>
-              <ToggleSwitch bind:checked={clansUnique} disabled={!canManageSettings} />
+
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Passage de niveau</span>
+                  <p class="text-xs text-on-surface-variant/70">Points bonus offerts lors d'un level up sur le serveur.</p>
+                </div>
+                <ToggleSwitch bind:checked={clanXpFromLevelUp} disabled={!canManageSettings} />
+              </div>
+
+              {#if clanXpFromLevelUp}
+                <div class="space-y-1.5 pl-4 animate-in slide-in-from-top-2 duration-200">
+                  <label for="clan-xp-levelup-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Points attribués par niveau</label>
+                  <div class="flex items-center gap-2">
+                    <input
+                      id="clan-xp-levelup-amount"
+                      type="number"
+                      bind:value={clanXpPerLevelUp}
+                      min="0"
+                      class="w-24 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-2.5 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/40 font-bold"
+                      disabled={!canManageSettings}
+                    />
+                    <span class="text-xs text-on-surface-variant/60 font-semibold">XP / niveau</span>
+                  </div>
+                </div>
+              {/if}
             </div>
           </div>
         </section>
