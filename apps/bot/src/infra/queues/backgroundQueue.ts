@@ -30,6 +30,7 @@ export type BackgroundJobName =
   | 'season-check'
   | 'marketplace-expiration'
   | 'quest-expiration'
+  | 'giveaways-expiration'
   | 'stats-ping';
 
 

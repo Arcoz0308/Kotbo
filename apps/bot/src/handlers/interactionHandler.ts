@@ -190,10 +190,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       });
 
       const resourceName = result.drop.type === 'COINS' ? 'KotboCoins 🪙' : 'XP RPG ⭐';
-      const originalEmbed = interaction.message.embeds[0];
-      const updatedEmbed = EmbedBuilder.from(originalEmbed)
+      // Le message du drop est en Components V2 (voir utils/patchV2.ts) :
+      // `interaction.message.embeds` est vide, on reconstruit donc l'embed.
+      const updatedEmbed = new EmbedBuilder()
+        .setTitle('🎁 Un drop est apparu !')
         .setDescription(`🎁 **Réclamé !**\n\nCe drop de **${result.drop.amount}** **${resourceName}** a été ramassé par <@${user.id}> !`)
-        .setColor(COLORS.success);
+        .setColor(COLORS.success)
+        .setTimestamp();
 
       const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
