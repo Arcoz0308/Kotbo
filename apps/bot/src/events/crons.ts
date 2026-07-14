@@ -13,6 +13,7 @@ import { checkYoutubeFollows } from '../services/integrations/youtubeService.js'
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
 import { initializeDatabaseBackup } from '../services/system/databaseBackupService.js';
 import { checkTicketInactivity } from '../services/features/ticketService.js';
+import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 import { pruneOldMessageLogs } from './messageLogging.js';
 
@@ -269,6 +270,13 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('scheduled-events', async () => {
       const { checkScheduledEvents } = await import('../services/features/eventService.js');
       await checkScheduledEvents(client);
+    }, 1000);
+  });
+
+  // 🎉 Giveaways: Toutes les minutes (clôture des concours arrivés à échéance)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('giveaways-expiration', async () => {
+      await checkExpiredGiveaways(client);
     }, 1000);
   });
 

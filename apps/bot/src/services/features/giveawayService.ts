@@ -272,23 +272,25 @@ export async function endGiveaway(client: Client, giveawayId: string) {
     }
   }
 
-  // Mettre à jour le message d'origine
-  if (giveaway.messageId) {
-    const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
-    if (message) {
-      const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
+  const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
 
-      if (giveaway.needValidation) {
-        // Mettre à jour avec validationStatus = PENDING et pendingWinners
-        await prisma.giveaway.update({
-          where: { id: giveawayId },
-          data: {
-            ended: true,
-            validationStatus: 'PENDING',
-            pendingWinners: winners,
-          },
-        });
+  if (giveaway.needValidation) {
+    // On marque le giveaway comme terminé AVANT toute opération Discord : la
+    // transition d'état doit avoir lieu même si le message n'est plus
+    // récupérable, sinon le cron le reclôturerait en boucle chaque minute.
+    await prisma.giveaway.update({
+      where: { id: giveawayId },
+      data: {
+        ended: true,
+        validationStatus: 'PENDING',
+        pendingWinners: winners,
+      },
+    });
 
+    // Mise à jour du message d'origine (best-effort)
+    if (giveaway.messageId) {
+      const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+      if (message) {
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
           `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${participants.length}`,
@@ -307,40 +309,47 @@ export async function endGiveaway(client: Client, giveawayId: string) {
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
         await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
-
-        await channel.send(`⏳ **Le giveaway pour **${giveaway.prize}** (ID: \`${giveaway.id}\`) s'est terminé !** Gagnants tirés : ${winnersMentions}. En attente de validation par un administrateur.`).catch(() => null);
-        return;
-      } else {
-        // Pas de validation requise, gain direct
-        await prisma.giveaway.update({
-          where: { id: giveawayId },
-          data: {
-            ended: true,
-            validationStatus: 'APPROVED',
-            winners,
-          },
-        });
-
-        await distributeGiveawayPrizes(giveaway, winners).catch((err) => {
-          logger.error('GiveawayService', 'Error distributing prizes in endGiveaway:', err);
-        });
-
-        const endedEmbed = buildGiveawayEmbed(
-          giveaway,
-          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${participants.length}`,
-          '#ED4245'
-        );
-
-        const disabledButton = new ButtonBuilder()
-          .setCustomId(`giveaway_ended:${giveaway.id}`)
-          .setEmoji('🎉')
-          .setLabel('Terminé')
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(true);
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
-
-        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
       }
+    }
+
+    await channel.send(`⏳ **Le giveaway pour **${giveaway.prize}** (ID: \`${giveaway.id}\`) s'est terminé !** Gagnants tirés : ${winnersMentions}. En attente de validation par un administrateur.`).catch(() => null);
+    return;
+  }
+
+  // Pas de validation requise, gain direct : on fige l'état et on distribue
+  // exactement une fois, indépendamment de la disponibilité du message.
+  await prisma.giveaway.update({
+    where: { id: giveawayId },
+    data: {
+      ended: true,
+      validationStatus: 'APPROVED',
+      winners,
+    },
+  });
+
+  await distributeGiveawayPrizes(giveaway, winners).catch((err) => {
+    logger.error('GiveawayService', 'Error distributing prizes in endGiveaway:', err);
+  });
+
+  // Mise à jour du message d'origine (best-effort)
+  if (giveaway.messageId) {
+    const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+    if (message) {
+      const endedEmbed = buildGiveawayEmbed(
+        giveaway,
+        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${participants.length}`,
+        '#ED4245'
+      );
+
+      const disabledButton = new ButtonBuilder()
+        .setCustomId(`giveaway_ended:${giveaway.id}`)
+        .setEmoji('🎉')
+        .setLabel('Terminé')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true);
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
+
+      await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
     }
   }
 
