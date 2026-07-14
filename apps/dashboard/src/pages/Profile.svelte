@@ -44,6 +44,8 @@
   let gradeHistory: any[] = $state([]);
   let stats: any = $state(null);
   let accessibleTools: string[] = $state([]);
+  let scorecard = $state<any>(null);
+  let loadingScorecard = $state(false);
   
   let loading = $state(true);
   let error = $state('');
@@ -136,6 +138,7 @@
         // Default active tab
         if (staffMember) {
           activeTab = 'staff_overview';
+          await loadScorecard(staffMember.guildId, id);
         } else {
           activeTab = 'community_overview';
         }
@@ -163,6 +166,26 @@
       error = err.message || 'Erreur lors du chargement du profil';
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadScorecard(guildId: string, userId: string) {
+    loadingScorecard = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}/scorecard`, {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        scorecard = data.scorecard;
+      } else {
+        scorecard = null;
+      }
+    } catch (err) {
+      console.error('Error loading staff scorecard:', err);
+      scorecard = null;
+    } finally {
+      loadingScorecard = false;
     }
   }
 
@@ -864,6 +887,100 @@
         </div>
 
       {:else if activeTab === 'staff_activity' && staffMember}
+        <!-- Scorecard d'Activité RH -->
+        {#if scorecard}
+          <div class="mb-6 space-y-6">
+            <!-- Burnout warning alert -->
+            {#if scorecard.burnoutRisk}
+              <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 p-5 flex items-start gap-3">
+                <Papicon icon="ShieldAlert" size={24} class="text-rose-500 shrink-0 mt-0.5" />
+                <div>
+                  <h5 class="text-sm font-bold text-rose-500">🚨 Risque de Burnout / Baisse critique d'activité</h5>
+                  <p class="text-xs text-rose-500/80 leading-relaxed mt-1">
+                    Ce membre présente une baisse critique d'activité globale de <strong>{scorecard.activityDropPercent}%</strong> par rapport à la semaine passée. Un repos ou un entretien d'accompagnement est fortement suggéré.
+                  </p>
+                </div>
+              </div>
+            {/if}
+
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <!-- Score global -->
+              <div class="md:col-span-2 rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-6 flex flex-col items-center justify-center text-center">
+                <p class="text-xs font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Performance Globale</p>
+                <div class="relative flex items-center justify-center h-28 w-28">
+                  <!-- Circular progress gauge -->
+                  <svg class="w-full h-full transform -rotate-90">
+                    <circle cx="56" cy="56" r="48" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" />
+                    <circle cx="56" cy="56" r="48" stroke="#5865F2" stroke-width="8" fill="transparent"
+                      stroke-dasharray={2 * Math.PI * 48}
+                      stroke-dashoffset={2 * Math.PI * 48 * (1 - scorecard.scores.overall / 100)}
+                    />
+                  </svg>
+                  <span class="absolute text-2xl font-bold text-on-surface">{scorecard.scores.overall}%</span>
+                </div>
+                <p class="text-xs text-on-surface-variant/60 mt-3 font-medium">Index de santé et d'activité du personnel</p>
+              </div>
+
+              <!-- Bento details subscores -->
+              <div class="md:col-span-3 grid grid-cols-2 gap-4">
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-on-surface-variant">Messages</span>
+                    <span class="text-xs font-bold text-primary">{scorecard.scores.messages}%</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-primary" style="width: {scorecard.scores.messages}%"></div>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/50 font-bold">Cette semaine : {scorecard.messageCount} msg</p>
+                  <p class="text-[9px] text-on-surface-variant/30">Semaine dernière : {scorecard.previousMessageCount} msg</p>
+                </div>
+
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-on-surface-variant">Vocal</span>
+                    <span class="text-xs font-bold text-emerald-500">{scorecard.scores.voice}%</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-emerald-500" style="width: {scorecard.scores.voice}%"></div>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/50 font-bold">Cette semaine : {scorecard.voiceMinutes} min</p>
+                  <p class="text-[9px] text-on-surface-variant/30">Semaine dernière : {scorecard.previousVoiceMinutes} min</p>
+                </div>
+
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-on-surface-variant">Modération</span>
+                    <span class="text-xs font-bold text-amber-500">{scorecard.scores.moderation}%</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-amber-500" style="width: {scorecard.scores.moderation}%"></div>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/50 font-bold">Sanctions : {scorecard.sanctionsCount}</p>
+                  <p class="text-[9px] text-on-surface-variant/30">Semaine dernière : {scorecard.previousSanctionsCount}</p>
+                </div>
+
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-on-surface-variant">Support</span>
+                    <span class="text-xs font-bold text-purple-500">{scorecard.scores.support}%</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-purple-500" style="width: {scorecard.scores.support}%"></div>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/50 font-bold">Tickets clos : {scorecard.ticketsClosed}</p>
+                  <p class="text-[9px] text-on-surface-variant/30">Semaine dernière : {scorecard.previousTicketsClosed}</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Statistiques de réunions -->
+            <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-4 flex items-center justify-between text-xs font-semibold text-on-surface-variant">
+              <span>Réunions de staff assistées cette semaine : <strong class="text-on-surface">{scorecard.meetingsAttended}</strong> (Semaine passée : {scorecard.previousMeetingsAttended})</span>
+              <span class="text-on-surface-variant/40">Mise à jour en temps réel</span>
+            </div>
+          </div>
+        {/if}
+
         <!-- Activity Chart & Metrics -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="lg:col-span-2 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm">

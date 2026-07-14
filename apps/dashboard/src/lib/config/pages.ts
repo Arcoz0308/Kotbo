@@ -21,7 +21,6 @@ export function isPageWip(page: PageConfig): boolean {
 
 export const generalItems: PageConfig[] = [
   { name: "Accueil",           icon: "home",      href: "/",          featureKey: "dashboard", beta: false, wip: false },
-  { name: "Vue personnalisée", icon: "grid",      href: "/overview",  featureKey: "dashboard", beta: false, wip: false },
   { name: "Pulse & IA",        icon: "activity",  href: "/pulse",     featureKey: "dashboard", beta: true, wip: false },
   { name: "Inbox",             icon: "inbox",     href: "/inbox",     featureKey: "inbox", beta: false, wip: false },
   { name: "Analytics",         icon: "pie-chart", href: "/analytics", featureKey: "analytics", beta: false, wip: false },

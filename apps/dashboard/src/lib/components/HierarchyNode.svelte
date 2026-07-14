@@ -42,69 +42,80 @@
   );
 </script>
 
-<div class:root-node={isRoot} class="hierarchy-node flex flex-col items-center relative w-full">
-  <div class="hierarchy-card w-full p-6 rounded-xl bg-surface-container-low border border-outline-variant/10 shadow-sm transition-all duration-300 hover:shadow-sm flex flex-col items-center text-center relative"
-       style="border-top: 4px solid {node.color || 'var(--color-primary)'}">
-    <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold mb-3 shadow-md"
-         style="background-color: {node.color ? node.color + '15' : 'var(--color-primary-container)'}; color: {node.color || 'var(--color-primary)'}">
-      {node.icon || '🔵'}
+<div class:root-node={isRoot} 
+     class="hierarchy-node flex flex-col items-center relative w-full"
+     style="--node-color: {node.color || 'var(--color-primary)'};">
+  
+  <!-- Hierarchy Card -->
+  <div class="hierarchy-card group w-full max-w-[320px] p-6 rounded-2xl bg-surface-container-low border border-outline-variant/60 flex flex-col items-center text-center relative"
+       style="border-top: 4px solid var(--node-color)">
+    
+    <div class="node-icon-wrapper flex items-center justify-center w-14 h-14 rounded-2xl mb-4 transition-all duration-300 group-hover:scale-110"
+         style="background: color-mix(in srgb, var(--node-color) 12%, transparent); color: var(--node-color); border: 1px solid color-mix(in srgb, var(--node-color) 25%, transparent); box-shadow: 0 4px 12px color-mix(in srgb, var(--node-color) 6%, transparent);">
+      <span class="text-2xl">{node.icon || '📁'}</span>
     </div>
-    <h3 class="text-base font-semibold text-on-surface">{node.name}</h3>
+    
+    <h3 class="text-base font-bold text-on-surface tracking-tight">{node.name}</h3>
+    
     {#if node.description}
-      <p class="text-xs text-on-surface-variant/75 mt-1 leading-relaxed max-w-60">{node.description}</p>
+      <p class="text-xs text-on-surface-variant/70 mt-1.5 leading-relaxed max-w-[260px]">{node.description}</p>
     {/if}
 
     {#if node.responsable && node.responsable.name}
-      <div class="mt-4 px-4 py-1.5 rounded-full bg-surface-container-high border border-outline-variant/10 flex items-center gap-2">
-        <span class="text-xs font-medium text-on-surface-variant/70">Resp :</span>
-        <span class="text-xs font-bold text-on-surface">{node.responsable.name}</span>
+      <div class="mt-4 px-3.5 py-1 rounded-full bg-surface-container-high/40 border border-outline-variant/10 flex items-center gap-1.5 transition-all duration-200 hover:bg-surface-container-high/70 cursor-default">
+        <span class="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant/50">Resp</span>
+        <span class="text-xs font-semibold text-on-surface">{node.responsable.name}</span>
       </div>
     {/if}
   </div>
 
+  <!-- Vertical connector from Hierarchy Card to Roles (or Children) -->
   {#if node.roles && node.roles.length > 0}
-    <div class="vertical-line" style="background-color: {node.color || 'rgba(99, 102, 241, 0.2)'}"></div>
+    <div class="vertical-connector-line"></div>
   {/if}
 
+  <!-- Roles Stack -->
   {#if node.roles && node.roles.length > 0}
-    <div class="roles-stack w-full space-y-4">
+    <div class="roles-stack w-full max-w-[560px] space-y-3">
       {#each groupedRolesByLevel as group}
         <div class="flex flex-wrap gap-4 justify-center w-full">
           {#each group.roles as role}
             {@const roleMembers = getMembersForRole(node.members, role.name)}
-            <div class="role-card flex-1 min-w-[200px] max-w-[280px] p-4 rounded-xl bg-surface-container-low/40 border border-outline-variant/10 shadow-md flex flex-col relative text-left"
-                 style="border-left: 3px solid {role.color || node.color || '#999'}">
+            <div class="role-card group/role flex-1 min-w-[210px] max-w-[260px] p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/60 shadow-xs flex flex-col relative text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm"
+                 style="--role-color: {role.color || node.color || 'var(--outline)'}; border-left: 3px solid var(--role-color);">
+              
               <div class="flex items-center justify-between">
-                <h4 class="text-sm font-semibold text-on-surface flex items-center gap-2">
+                <h4 class="text-xs font-bold text-on-surface flex items-center gap-1.5 tracking-tight">
                   {role.name}
                   {#if role.isResponsable}
-                    <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-semibold uppercase tracking-wider">Chef</span>
+                    <span class="px-1.5 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[8px] font-bold uppercase tracking-wider">Chef</span>
                   {/if}
                 </h4>
-                <span class="text-[10px] font-bold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-md">
+                <span class="text-[9px] font-bold text-on-surface-variant bg-surface-container-high/60 px-1.5 py-0.5 rounded-sm">
                   {roleMembers.length}
                 </span>
               </div>
 
               {#if roleMembers.length > 0}
-                <div class="mt-3 space-y-2 border-t border-outline-variant/10 pt-3">
+                <div class="mt-3 space-y-1.5 border-t border-outline-variant/30 pt-3">
                   {#each roleMembers as member}
-                    <div class="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface-container-high/50 transition-colors">
+                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-container-low transition-colors duration-150">
                       {#if member.avatarUrl}
-                        <img src={member.avatarUrl} alt="" class="w-6 h-6 rounded-full object-cover shadow-xs border border-outline-variant/15" />
+                        <img src={member.avatarUrl} alt="" class="w-6 h-6 rounded-full object-cover shadow-xs border border-outline-variant/10" />
                       {:else}
-                        <div class="w-6 h-6 rounded-full bg-surface-container-high text-xs font-semibold flex items-center justify-center text-on-surface-variant">
-                          {member.displayName?.charAt(0).toUpperCase() || member.username.charAt(0).toUpperCase()}
+                        {@const initials = member.displayName?.charAt(0).toUpperCase() || member.username.charAt(0).toUpperCase()}
+                        <div class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center border border-primary/20">
+                          {initials}
                         </div>
                       {/if}
-                      <div class="text-xs">
-                        <p class="font-bold text-on-surface leading-tight">{member.displayName || member.username}</p>
+                      <div class="flex flex-col min-w-0">
+                        <p class="text-xs font-semibold text-on-surface truncate leading-tight">{member.displayName || member.username}</p>
                       </div>
                     </div>
                   {/each}
                 </div>
               {:else}
-                <div class="mt-2 text-center py-2 text-[10px] text-on-surface-variant/40 italic">
+                <div class="mt-2 text-center py-2.5 text-[10px] text-on-surface-variant/40 italic bg-surface-container-low/20 rounded-md border border-dashed border-outline-variant/10">
                   Aucun membre
                 </div>
               {/if}
@@ -115,11 +126,12 @@
     </div>
   {/if}
 
+  <!-- Children Connector and Sub-Hierarchies -->
   {#if node.children && node.children.length > 0}
     <div class="children-connector"></div>
-    <div class="children-row flex flex-wrap justify-center gap-8 mt-10 relative">
+    <div class="children-row">
       {#each node.children as child (child.id)}
-        <div class="child-wrap flex-1 min-w-65 max-w-90">
+        <div class="child-wrap">
           <!-- svelte-ignore svelte_self_deprecated -->
           <HierarchyNode node={child} />
         </div>
@@ -133,19 +145,95 @@
     position: relative;
   }
 
-  .vertical-line {
+  .vertical-connector-line {
     width: 2px;
-    height: 40px;
+    height: 32px;
+    background: var(--outline-variant);
+    transition: background-color 0.2s, box-shadow 0.2s;
+  }
+  .hierarchy-node:hover > .vertical-connector-line {
+    background: var(--node-color);
+    box-shadow: 0 0 8px var(--node-color);
   }
 
   .children-connector {
     width: 2px;
     height: 32px;
-    background: rgba(99, 102, 241, 0.15);
+    background: var(--outline-variant);
     margin-top: 6px;
+    transition: background-color 0.2s, box-shadow 0.2s;
+  }
+  .hierarchy-node:hover > .children-connector {
+    background: var(--node-color);
+    box-shadow: 0 0 8px var(--node-color);
   }
 
-  .root-node > .children-row {
+  .children-row {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 3rem;
     margin-top: 2rem;
+    position: relative;
+  }
+
+  .child-wrap {
+    position: relative;
+  }
+
+  /* Tree connection lines */
+  .child-wrap::before {
+    content: '';
+    position: absolute;
+    top: -2rem;
+    left: 50%;
+    width: 2px;
+    height: 2rem;
+    background: var(--outline-variant);
+    transform: translateX(-50%);
+    transition: background-color 0.2s, box-shadow 0.2s;
+    z-index: 1;
+  }
+
+  .child-wrap::after {
+    content: '';
+    position: absolute;
+    top: -2rem;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--outline-variant);
+    transition: background-color 0.2s, box-shadow 0.2s;
+    z-index: 0;
+  }
+
+  .child-wrap:first-child::after {
+    left: 50%;
+    width: 50%;
+  }
+
+  .child-wrap:last-child::after {
+    width: 50%;
+  }
+
+  .child-wrap:only-child::after {
+    display: none;
+  }
+
+  /* hover animations for connector lines */
+  .child-wrap:hover::before {
+    background: var(--node-color);
+    box-shadow: 0 0 8px var(--node-color);
+  }
+
+  .hierarchy-card {
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.02);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .hierarchy-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px -10px color-mix(in srgb, var(--node-color) 20%, transparent), 0 4px 20px -2px rgba(0, 0, 0, 0.02);
+    border-color: color-mix(in srgb, var(--node-color) 30%, var(--outline-variant));
   }
 </style>

@@ -104,7 +104,7 @@
   </div>
 
   <!-- ======================== TABS ======================== -->
-  <div class="tab-group w-fit mb-6">
+  <div class="tab-group w-fit">
     <button
       class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all flex items-center gap-1.5 {tab === 'listings' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
       onclick={() => gotoTab('/marketplace', 'listings', 'listings')}

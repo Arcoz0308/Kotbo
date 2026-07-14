@@ -669,10 +669,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   <th class="py-4 px-4">Rang</th>
                   <th class="py-4 px-4">Joueur</th>
                   <th class="py-4 px-4">Solde</th>
-                  <th class="py-4 px-4">Niveau / XP</th>
-                  <th class="py-4 px-4">Points de Vie (PV)</th>
-                  <th class="py-4 px-4">Énergie</th>
-                  <th class="py-4 px-4">Guilde</th>
+                  <th class="py-4 px-4">Stats & Équipement</th>
+                  <th class="py-4 px-4">PV & Énergie</th>
+                  <th class="py-4 px-4">Localisation & Guilde</th>
                   {#if canManageSettings}
                     <th class="py-4 px-4 text-right">Actions</th>
                   {/if}
@@ -691,6 +690,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       <div>
                         <div class="font-semibold text-sm">{player.displayName || player.username}</div>
                         <div class="text-[10px] text-on-surface-variant/40 font-mono mt-0.5">{player.userId}</div>
+                        <!-- Bento mini-stats -->
+                        <div class="flex items-center gap-2 mt-1 text-[9px] font-bold text-on-surface-variant/50">
+                          <span class="bg-red-500/5 text-red-400 px-1.5 py-0.5 rounded">⚔️ {player.attack} ATK</span>
+                          <span class="bg-blue-500/5 text-blue-400 px-1.5 py-0.5 rounded">🛡️ {player.defense} DEF</span>
+                          <span class="bg-amber-500/5 text-amber-400 px-1.5 py-0.5 rounded">⚡ {player.speed} SPD</span>
+                        </div>
                       </div>
                     </td>
                     <td class="py-4 px-4 font-bold text-on-surface">
@@ -702,34 +707,71 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         {/if}
                         <span>{player.balance} {config.currencyName}</span>
                       </div>
+                      <div class="text-[10px] text-on-surface-variant/50 mt-0.5 font-normal">Niveau {player.level} • {player.xp} XP</div>
                     </td>
                     <td class="py-4 px-4">
-                      <div class="font-bold">Niveau {player.level}</div>
-                      <div class="text-[10px] text-on-surface-variant/50 mt-0.5">{player.xp} XP</div>
+                      <!-- Equipment display -->
+                      <div class="space-y-1.5">
+                        {#if player.weapon}
+                          <div class="flex items-center gap-1.5 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-lg w-fit font-bold">
+                            <span>{player.weapon.emoji || '⚔️'}</span>
+                            <span class="truncate max-w-[120px]">{player.weapon.name} (+{player.weapon.atkBonus} ATK)</span>
+                          </div>
+                        {:else}
+                          <div class="text-[10px] text-on-surface-variant/30 italic">Pas d'arme équipée</div>
+                        {/if}
+
+                        {#if player.armor}
+                          <div class="flex items-center gap-1.5 text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg w-fit font-bold">
+                            <span>{player.armor.emoji || '🛡️'}</span>
+                            <span class="truncate max-w-[120px]">{player.armor.name} (+{player.armor.defBonus} DEF)</span>
+                          </div>
+                        {:else}
+                          <div class="text-[10px] text-on-surface-variant/30 italic">Pas d'armure équipée</div>
+                        {/if}
+                      </div>
                     </td>
                     <td class="py-4 px-4">
                       <div class="flex items-center gap-2">
-                        <div class="w-24 bg-surface-container-high rounded-full h-2">
+                        <div class="w-20 bg-surface-container-high rounded-full h-2">
                           <div class="bg-red-500 h-2 rounded-full" style="width: {Math.round((player.health / player.maxHealth) * 100)}%"></div>
                         </div>
-                        <span class="font-bold">{player.health} / {player.maxHealth}</span>
+                        <span class="font-bold">{player.health} / {player.maxHealth} HP</span>
+                      </div>
+                      <div class="flex items-center gap-2 mt-1.5">
+                        <div class="w-20 bg-surface-container-high rounded-full h-2">
+                          <div class="bg-purple-500 h-2 rounded-full" style="width: {player.energy}%"></div>
+                        </div>
+                        <span class="font-bold text-on-surface-variant/70">{player.energy}% Énergie</span>
                       </div>
                     </td>
-                    <td class="py-4 px-4 font-bold">{player.energy} %</td>
-                    <td class="py-4 px-4">
-                      {#if player.rpgGuild}
-                        <span>{player.rpgGuild.emoji} {player.rpgGuild.name}</span>
-                      {:else}
-                        <span class="text-on-surface-variant/40 italic">Aucune</span>
-                      {/if}
+                    <td class="py-4 px-4 space-y-1">
+                      <!-- Location -->
+                      <div class="font-semibold text-on-surface flex items-center gap-1">
+                        {#if player.isTraveling}
+                          <span>🚗 En voyage vers :</span>
+                          <span class="text-primary font-bold">{player.travelDestination}</span>
+                        {:else}
+                          <span>📍 Position :</span>
+                          <span class="text-emerald-400 font-bold">{player.travelDestination || 'Contrée sauvage'}</span>
+                        {/if}
+                      </div>
+                      <!-- Guild -->
+                      <div class="text-[10px] text-on-surface-variant/60 font-medium">
+                        {#if player.rpgGuild}
+                          <span>🛡️ Alliance : <strong>{player.rpgGuild.emoji} {player.rpgGuild.name}</strong></span>
+                        {:else}
+                          <span class="italic text-on-surface-variant/30">Sans guilde</span>
+                        {/if}
+                      </div>
                     </td>
                     {#if canManageSettings}
                       <td class="py-4 px-4 text-right">
                         <button 
-                          type="button" 
-                          onclick={() => openEditPlayer(player)}
-                          disabled={!config.enabled}
-                          class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-auto w-fit"
+                           type="button" 
+                           onclick={() => openEditPlayer(player)}
+                           disabled={!config.enabled}
+                           class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-auto w-fit"
                         >
                           <Papicon icon="edit" size={12} /> Modifier
                         </button>
@@ -738,7 +780,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   </tr>
                 {:else}
                   <tr>
-                    <td colspan="8" class="text-center py-8 text-on-surface-variant/50 italic">Aucun joueur trouvé.</td>
+                    <td colspan="7" class="text-center py-8 text-on-surface-variant/50 italic">Aucun joueur trouvé.</td>
                   </tr>
                 {/each}
               </tbody>

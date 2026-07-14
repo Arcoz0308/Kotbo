@@ -29,7 +29,6 @@
 
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
-  import Overview from "./pages/Overview.svelte";
   import Home from "./pages/Home.svelte";
   import Analytics from "./pages/Analytics.svelte";
   import ModuleCatalog from "./pages/ModuleCatalog.svelte";
@@ -144,7 +143,7 @@
   }
 
   function resolveRouteFeatureKey(path: string): string | null {
-    if (path === "/" || path === "/overview" || path.startsWith("/profile")) return "dashboard";
+    if (path === "/" || path.startsWith("/profile")) return "dashboard";
     if (path.startsWith("/analytics")) return "analytics";
     if (path.startsWith("/inbox")) return "inbox";
     if (path.startsWith("/dailyalgo")) return "daily_algo";
@@ -183,6 +182,7 @@
       if (segment === "leadership") return "staff_directory";
       return "staff_directory";
     }
+    if (path.startsWith("/evaluations")) return "staff_directory";
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/command-access")) return "commands";
     if (path.startsWith("/settings")) return "settings";
@@ -666,10 +666,6 @@
           <MainLayout>
             <Route path="/">
               <Home />
-            </Route>
-
-            <Route path="/overview">
-              <Overview />
             </Route>
 
             <Route path="/analytics/*">

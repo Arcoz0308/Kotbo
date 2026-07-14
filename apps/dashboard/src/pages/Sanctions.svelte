@@ -1078,25 +1078,19 @@
   {/snippet}
 
   <div class="space-y-8">
-    <div class="flex border-b border-outline-variant/10">
-      <button 
+    <div class="tab-group w-fit">
+      <button
         onclick={() => gotoTab('/sanctions', 'sanctions', 'sanctions')}
         class="tab-button {activeTab === 'sanctions' ? 'active' : ''}"
       >
         Historique
-        {#if activeTab === 'sanctions'}
-          <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-        {/if}
       </button>
       {#if canManageSettings}
-        <button 
+        <button
           onclick={() => gotoTab('/sanctions', 'settings', 'sanctions')}
           class="tab-button {activeTab === 'settings' ? 'active' : ''}"
         >
           Configuration
-          {#if activeTab === 'settings'}
-            <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-          {/if}
         </button>
       {/if}
     </div>
