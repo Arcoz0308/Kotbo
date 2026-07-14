@@ -350,49 +350,53 @@ export async function resolveSuggestion(
       if (channel?.isTextBased()) {
         const message = await channel.messages.fetch(suggestion.messageId).catch(() => null);
         if (message) {
-          const originalEmbed = message.embeds[0];
-          if (originalEmbed) {
-            let statusText = "⏳ En cours d'évaluation";
-            let color: ColorResolvable = '#FE75C2';
+          let statusText = "⏳ En cours d'évaluation";
+          let color: ColorResolvable = '#FE75C2';
 
-            if (status === 'APPROVED') {
-              statusText = '✅ **Approuvée par le Staff**';
-              color = '#57F287';
-            } else if (status === 'REJECTED') {
-              statusText = '❌ **Refusée par le Staff**';
-              color = '#ED4245';
-            } else if (status === 'IMPLEMENTED') {
-              statusText = '🚀 **Implémentée dans la communauté**';
-              color = '#5865F2';
-            }
-
-            const updatedEmbed = EmbedBuilder.from(originalEmbed)
-              .setColor(color)
-              .setFields(
-                { name: 'Statut', value: statusText, inline: true },
-                { name: 'Votes finaux', value: `👍 Upvotes : \`${updated.upvoters.length}\` | 👎 Downvotes : \`${updated.downvoters.length}\``, inline: true },
-                { name: `Réponse de la modération`, value: responseText || 'Aucun commentaire.', inline: false }
-              );
-
-            // Désactiver les boutons de vote pour sceller le scrutin
-            const upBtn = new ButtonBuilder()
-              .setCustomId(`suggest_vote_disabled_up:${suggestion.id}`)
-              .setEmoji('👍')
-              .setLabel(String(updated.upvoters.length))
-              .setStyle(ButtonStyle.Secondary)
-              .setDisabled(true);
-
-            const downBtn = new ButtonBuilder()
-              .setCustomId(`suggest_vote_disabled_down:${suggestion.id}`)
-              .setEmoji('👎')
-              .setLabel(String(updated.downvoters.length))
-              .setStyle(ButtonStyle.Secondary)
-              .setDisabled(true);
-
-            const row = new ActionRowBuilder<ButtonBuilder>().addComponents(upBtn, downBtn);
-
-            await message.edit({ embeds: [updatedEmbed], components: [row] }).catch(() => null);
+          if (status === 'APPROVED') {
+            statusText = '✅ **Approuvée par le Staff**';
+            color = '#57F287';
+          } else if (status === 'REJECTED') {
+            statusText = '❌ **Refusée par le Staff**';
+            color = '#ED4245';
+          } else if (status === 'IMPLEMENTED') {
+            statusText = '🚀 **Implémentée dans la communauté**';
+            color = '#5865F2';
           }
+
+          // Le message est en Components V2 (voir utils/patchV2.ts) : `message.embeds`
+          // est vide, on reconstruit donc l'embed à partir des données de la BDD.
+          const updatedEmbed = new EmbedBuilder()
+            .setTitle('💡 Nouvelle Suggestion')
+            .setDescription(resolveEmojiShortcodes(suggestion.content))
+            .setAuthor({ name: suggestion.username })
+            .setColor(color)
+            .setFooter({ text: `ID de la suggestion : ${suggestion.id}` })
+            .setTimestamp()
+            .setFields(
+              { name: 'Statut', value: statusText, inline: true },
+              { name: 'Votes finaux', value: `👍 Upvotes : \`${updated.upvoters.length}\` | 👎 Downvotes : \`${updated.downvoters.length}\``, inline: true },
+              { name: `Réponse de la modération`, value: responseText || 'Aucun commentaire.', inline: false }
+            );
+
+          // Désactiver les boutons de vote pour sceller le scrutin
+          const upBtn = new ButtonBuilder()
+            .setCustomId(`suggest_vote_disabled_up:${suggestion.id}`)
+            .setEmoji('👍')
+            .setLabel(String(updated.upvoters.length))
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true);
+
+          const downBtn = new ButtonBuilder()
+            .setCustomId(`suggest_vote_disabled_down:${suggestion.id}`)
+            .setEmoji('👎')
+            .setLabel(String(updated.downvoters.length))
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true);
+
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(upBtn, downBtn);
+
+          await message.edit({ embeds: [updatedEmbed], components: [row] }).catch(() => null);
         }
       }
     }
