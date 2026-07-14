@@ -163,6 +163,10 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Actualisation des leaderboards automatiques...');
       await refreshAllAutoLeaderboards(client);
     },
+    'giveaways-expiration': async () => {
+      logger.debug('Cron', 'Clôture des giveaways arrivés à échéance...');
+      await checkExpiredGiveaways(client);
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },

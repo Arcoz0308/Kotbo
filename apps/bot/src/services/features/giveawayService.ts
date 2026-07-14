@@ -255,7 +255,8 @@ export async function endGiveaway(client: Client, giveawayId: string) {
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
   if (!discordGuild) return;
 
-  const channel = discordGuild.channels.cache.get(giveaway.channelId);
+  const channel = discordGuild.channels.cache.get(giveaway.channelId)
+    || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
   // Tirer les gagnants
