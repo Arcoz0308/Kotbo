@@ -16,6 +16,8 @@ import {
   getGrowthAndRetention,
   getDailyAlgoAnalytics,
   getGlobalInteractions,
+  getCommandUsageAnalytics,
+  getStaffPerformanceAnalytics,
 } from '../../../services/analytics/dashboardAnalyticsService.js';
 
 export async function handleAnalyticsRoutes(
@@ -305,7 +307,7 @@ export async function handleAnalyticsRoutes(
       const days = parseInt(url.searchParams.get('period') || '30', 10);
       const startDate = url.searchParams.get('startDate') || undefined;
       const endDate = url.searchParams.get('endDate') || undefined;
-      const data = await getGlobalInteractions(guildId, { days, startDate, endDate });
+      const data = await getGlobalInteractions(client, guildId, { days, startDate, endDate });
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error getting global interactions:', err);
@@ -560,6 +562,11 @@ export async function handleAnalyticsRoutes(
           take: 20,
           select: { userId: true, displayName: true, username: true, globalName: true, avatarUrl: true, guildLeftAt: true },
         }),
+      ]);
+
+      const [commandUsage, staffPerformance] = await Promise.all([
+        getCommandUsageAnalytics(guildId, { startDate: startDate.toISOString(), endDate: endDate.toISOString() }),
+        getStaffPerformanceAnalytics(guildId, { startDate: startDate.toISOString(), endDate: endDate.toISOString() }),
       ]);
 
       // ── Process daily stats for weekly aggregation if needed ──
@@ -992,6 +999,8 @@ export async function handleAnalyticsRoutes(
         },
         recruitmentPipeline,
         roleDistribution,
+        commandUsage,
+        staffPerformance,
         recentJoins: recentJoinsList.map(m => ({
           userId: m.userId,
           name: m.displayName ?? m.globalName ?? m.username ?? 'Inconnu',

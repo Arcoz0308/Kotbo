@@ -700,9 +700,9 @@ export async function handleTicketButton(client: Client, customId: string, inter
     try {
       const panel = await buildMemberCasePanel(guild, ticket.userId, 'resume', 0);
       await interaction.editReply({
-        embeds: [panel.embed],
         components: panel.components,
-        files: panel.files
+        files: panel.files,
+        flags: [MessageFlags.IsComponentsV2],
       });
     } catch (err) {
       logger.error('Ticket', 'Error building member profile card for ticket:', err);

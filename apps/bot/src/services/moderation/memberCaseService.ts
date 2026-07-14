@@ -3,9 +3,9 @@ import {
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
+  ContainerBuilder,
   PermissionFlagsBits,
-  StringSelectMenuBuilder,
+  SeparatorSpacingSize,
   type Client,
   type Guild,
   type GuildMember,
@@ -13,7 +13,9 @@ import {
 } from 'discord.js';
 import { Prisma, SanctionType, type MemberProfile } from '@prisma/client';
 import prisma from '../../utils/db.js';
-import { truncate } from '../../utils/embeds.js';
+import { mediaGallery, section, separator, text, thumbnail, truncate } from '../../utils/embeds.js';
+import { E, buildProgressBar } from '../../utils/emojis.js';
+import { getCurrentInstance } from '../../utils/instanceContext.js';
 import { formatDurationFr, getSanctionTypeBreakdown, listSanctionsByMember, type ListedSanction } from './sanctionService.js';
 import * as altAccountService from './altAccountService.js';
 import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from './crossServerSanctionService.js';
@@ -21,11 +23,12 @@ import { generateMemberStatsImage } from '../core/imageService.js';
 
 export type MemberCaseSection = 'resume' | 'sanctions' | 'identite' | 'activite';
 
-export const MEMBER_CASE_PAGE_SIZE = 5;
+// 4 sanctions par page : chaque carte active consomme jusqu'à 3 composants V2
+// (section + texte + bouton Révoquer) et le message est plafonné à 40 composants.
+export const MEMBER_CASE_PAGE_SIZE = 4;
 
 export type MemberCasePanel = {
-  embed: EmbedBuilder;
-  components: Array<ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>>;
+  components: Array<ContainerBuilder | ActionRowBuilder<ButtonBuilder>>;
   section: MemberCaseSection;
   pageIndex: number;
   totalPages: number;
@@ -42,6 +45,7 @@ type MemberCaseContext = {
   sanctionsTotal: number;
   sanctionsBreakdown: Record<SanctionType, number>;
   crossServer: CrossServerSanctionSummary;
+  linkedUserIds: string[];
   pageIndex: number;
   totalPages: number;
 };
@@ -72,15 +76,6 @@ type MemberProfileSnapshot = {
   voiceLastLeftAt?: Date | null;
   rolesSnapshot?: string[];
 };
-
-function normalizeString(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : null;
-}
-
-function buildUserLabel(userId: string, label?: string | null): string {
-  return `${normalizeString(label) ?? `Utilisateur ${userId}`} (<@${userId}>)`;
-}
 
 async function upsertMemberProfile(snapshot: MemberProfileSnapshot): Promise<void> {
   const now = new Date();
@@ -217,6 +212,7 @@ async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0
     sanctionsTotal: sanctions.total,
     sanctionsBreakdown,
     crossServer,
+    linkedUserIds: linkedUserIds.filter((id) => id !== userId),
     pageIndex: safePageIndex,
     totalPages,
   };
@@ -258,63 +254,68 @@ function buildCrossServerFieldValue(crossServer: CrossServerSanctionSummary): st
   return `${lines.join('\n')}${extra}${footer}`;
 }
 
-function buildSectionSelectRow(userId: string, section: MemberCaseSection, pageIndex: number): ActionRowBuilder<StringSelectMenuBuilder> {
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(`case:section:${userId}:${pageIndex}`)
-    .setPlaceholder('Choisir une vue du casier')
-    .addOptions(
-      { label: 'Résumé', value: 'resume', emoji: '🪪', default: section === 'resume' },
-      { label: 'Sanctions', value: 'sanctions', emoji: '🧾', default: section === 'sanctions' },
-      { label: 'Identité', value: 'identite', emoji: '👤', default: section === 'identite' },
-      { label: 'Activité', value: 'activite', emoji: '📊', default: section === 'activite' },
-    );
-
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+function getDashboardMemberUrl(userId: string): string {
+  let base = process.env.DASHBOARD_URL || 'http://localhost:5173';
+  try {
+    base = getCurrentInstance().dashboardUrl || base;
+  } catch { /* instance non initialisée : fallback env */ }
+  return `${base.replace(/\/$/, '')}/members/${userId}`;
 }
 
-function buildSanctionSelectRow(userId: string): ActionRowBuilder<StringSelectMenuBuilder> {
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(`case:sanction_action:${userId}`)
-    .setPlaceholder("Sanctionner l'utilisateur")
-    .addOptions(
-      { label: 'Avertissement (Warn)', value: 'warn', emoji: '⚠️' },
-      { label: 'Exclusion temporaire (Timeout)', value: 'timeout', emoji: '⏳' },
-      { label: 'Expulsion (Kick)', value: 'kick', emoji: '👢' },
-      { label: 'Bannissement (Ban)', value: 'ban', emoji: '🔨' },
-    );
+const SECTION_TABS: Array<{ section: MemberCaseSection; label: string; emojiKey: string }> = [
+  { section: 'resume', label: 'Résumé', emojiKey: 'info' },
+  { section: 'sanctions', label: 'Sanctions', emojiKey: 'moderation' },
+  { section: 'identite', label: 'Identité', emojiKey: 'profile' },
+  { section: 'activite', label: 'Activité', emojiKey: 'stats' },
+];
 
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-}
-
-function buildCaseNavigationRow(userId: string, section: MemberCaseSection, pageIndex: number, totalPages: number): ActionRowBuilder<ButtonBuilder> {
-  const prevDisabled = section !== 'sanctions' || pageIndex <= 0 || totalPages <= 1;
-  const nextDisabled = section !== 'sanctions' || pageIndex >= totalPages - 1 || totalPages <= 1;
-
+function buildTabsRow(userId: string, active: MemberCaseSection): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`case:prev:${userId}:${section}:${pageIndex}`)
-      .setLabel('Précédent')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(prevDisabled),
-    new ButtonBuilder()
-      .setCustomId(`case:refresh:${userId}:${section}:${pageIndex}`)
-      .setLabel('Actualiser')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(`case:next:${userId}:${section}:${pageIndex}`)
-      .setLabel('Suivant')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(nextDisabled),
-    new ButtonBuilder()
-      .setCustomId(`case:note:${userId}`)
-      .setLabel('Note')
-      .setEmoji('📝')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`case:close:${userId}`)
-      .setLabel('Fermer')
-      .setStyle(ButtonStyle.Danger),
+    SECTION_TABS.map(({ section: tabSection, label, emojiKey }) =>
+      new ButtonBuilder()
+        // Réutilise la route `refresh` : cliquer un onglet = re-rendre la section demandée
+        // (l'onglet actif sert donc aussi de bouton "Actualiser").
+        .setCustomId(`case:refresh:${userId}:${tabSection}:0`)
+        .setLabel(label)
+        .setEmoji(E[emojiKey])
+        .setStyle(active === tabSection ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    ),
   );
+}
+
+function buildQuickSanctionRow(userId: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`case:sanction:${userId}:warn`).setLabel('Warn').setEmoji(E.warning).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`case:sanction:${userId}:timeout`).setLabel('Timeout').setEmoji(E.mute).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`case:sanction:${userId}:kick`).setLabel('Kick').setEmoji(E.kick).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`case:sanction:${userId}:ban`).setLabel('Ban').setEmoji(E.ban).setStyle(ButtonStyle.Danger),
+  );
+}
+
+function buildFooterRow(userId: string, section: MemberCaseSection, pageIndex: number, totalPages: number): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+
+  if (section === 'sanctions') {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`case:prev:${userId}:${section}:${pageIndex}`)
+        .setLabel('Précédent')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(pageIndex <= 0 || totalPages <= 1),
+      new ButtonBuilder()
+        .setCustomId(`case:next:${userId}:${section}:${pageIndex}`)
+        .setLabel('Suivant')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(pageIndex >= totalPages - 1 || totalPages <= 1),
+    );
+  }
+
+  row.addComponents(
+    new ButtonBuilder().setLabel('Dashboard').setEmoji(E.link).setStyle(ButtonStyle.Link).setURL(getDashboardMemberUrl(userId)),
+    new ButtonBuilder().setCustomId(`case:close:${userId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger),
+  );
+
+  return row;
 }
 
 function buildCaseTargetRow(userId: string): ActionRowBuilder<ButtonBuilder> {
@@ -322,7 +323,7 @@ function buildCaseTargetRow(userId: string): ActionRowBuilder<ButtonBuilder> {
     new ButtonBuilder()
       .setCustomId(`case:open:${userId}`)
       .setLabel('Voir le casier')
-      .setEmoji('📁')
+      .setEmoji(E.moderation)
       .setStyle(ButtonStyle.Primary),
   );
 }
@@ -371,37 +372,97 @@ function getFlagsDisplay(user: User | null, isBot: boolean): string {
   return emojis.length > 0 ? emojis.join(' ') : 'Aucun';
 }
 
-function getRolesDisplay(member: GuildMember | null): { count: number; text: string } {
-  if (!member) return { count: 0, text: '*Membre non présent sur le serveur.*' };
-
-  const roles = [...member.roles.cache.values()]
-    .filter((role) => role.id !== member.guild.id)
-    .sort((a, b) => b.position - a.position);
-
-  if (roles.length === 0) return { count: 0, text: 'Aucun' };
-
-  const mentions: string[] = [];
-  let length = 0;
-  for (const role of roles) {
-    const mention = `<@&${role.id}>`;
-    if (length + mention.length + 1 > 1000) break;
-    mentions.push(mention);
-    length += mention.length + 1;
-  }
-
-  const hidden = roles.length - mentions.length;
-  return { count: roles.length, text: mentions.join(' ') + (hidden > 0 ? ` *+${hidden} autre${hidden > 1 ? 's' : ''}*` : '') };
+function getRolesCount(member: GuildMember | null): number {
+  if (!member) return 0;
+  return member.roles.cache.filter((role) => role.id !== member.guild.id).size;
 }
 
-function buildSummaryEmbed(context: MemberCaseContext): EmbedBuilder {
+const SANCTION_TYPE_EMOJI_KEY: Record<SanctionType, string> = {
+  WARN: 'warning',
+  KICK: 'kick',
+  TIMEOUT: 'mute',
+  TEMP_BAN: 'ban',
+  BAN: 'ban',
+  SOFTBAN: 'ban',
+};
+
+type CaseIdentity = {
+  userId: string;
+  username: string;
+  globalName: string;
+  displayName: string;
+  statusLabel: string;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+};
+
+function getCaseIdentity(context: MemberCaseContext): CaseIdentity {
+  const { profile, user, member } = context;
+  const userId = user?.id ?? profile?.userId ?? member?.id ?? 'inconnu';
+  const username = user?.username ?? profile?.username ?? member?.user.username ?? 'inconnu';
+  const globalName = user?.globalName ?? profile?.globalName ?? member?.user.globalName ?? username;
+
+  return {
+    userId,
+    username,
+    globalName,
+    displayName: member?.displayName ?? profile?.displayName ?? globalName,
+    statusLabel: member
+      ? `${E.success} Membre du serveur`
+      : context.banned
+        ? `${E.ban} Banni du serveur`
+        : `${E.error} Ancien membre`,
+    avatarUrl: user?.displayAvatarURL({ size: 256 }) ?? member?.user.displayAvatarURL({ size: 256 }) ?? profile?.avatarUrl ?? null,
+    bannerUrl: user?.bannerURL({ size: 1024 }) ?? profile?.bannerUrl ?? null,
+  };
+}
+
+/**
+ * Tronc commun de toutes les sections du casier : en-tête identité (avatar,
+ * statut), bannière optionnelle, puis rangée d'onglets de navigation.
+ */
+function addCaseHeader(
+  container: ContainerBuilder,
+  context: MemberCaseContext,
+  active: MemberCaseSection,
+  opts?: { withBanner?: boolean },
+): CaseIdentity {
+  const identity = getCaseIdentity(context);
+  const headerText = `### ${E.moderation} ${identity.displayName}\n<@${identity.userId}> (\`${identity.username}\`)\n${identity.statusLabel}`;
+
+  if (identity.avatarUrl) {
+    container.addSectionComponents(section(headerText, thumbnail(identity.avatarUrl)));
+  } else {
+    container.addTextDisplayComponents(text(headerText));
+  }
+
+  if (opts?.withBanner && identity.bannerUrl) {
+    container.addMediaGalleryComponents(mediaGallery(identity.bannerUrl));
+  }
+
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addActionRowComponents(buildTabsRow(identity.userId, active));
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Large));
+
+  return identity;
+}
+
+function addCaseFooter(container: ContainerBuilder, context: MemberCaseContext, sectionName: MemberCaseSection, identity: CaseIdentity): void {
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Large));
+  if (sectionName === 'resume') {
+    container.addActionRowComponents(buildQuickSanctionRow(identity.userId));
+  }
+  container.addActionRowComponents(buildFooterRow(identity.userId, sectionName, context.pageIndex, context.totalPages));
+}
+
+function buildSummaryContainer(context: MemberCaseContext): ContainerBuilder {
   const profile = context.profile;
   const user = context.user;
   const member = context.member;
 
-  const userId = user?.id ?? profile?.userId ?? member?.id ?? 'inconnu';
-  const username = user?.username ?? profile?.username ?? member?.user.username ?? 'inconnu';
-  const globalName = user?.globalName ?? profile?.globalName ?? member?.user.globalName ?? username;
-  const displayName = member?.displayName ?? profile?.displayName ?? globalName;
+  const container = new ContainerBuilder()
+    .setAccentColor(context.banned ? 0xd62828 : member ? 0x2a9d8f : 0x5865f2);
+  const identity = addCaseHeader(container, context, 'resume', { withBanner: true });
 
   const accountCreatedAt = user?.createdTimestamp
     ? `<t:${Math.floor(user.createdTimestamp / 1000)}:d> (<t:${Math.floor(user.createdTimestamp / 1000)}:R>)`
@@ -415,200 +476,267 @@ function buildSummaryEmbed(context: MemberCaseContext): EmbedBuilder {
       ? `<t:${Math.floor(profile.guildJoinedAt.getTime() / 1000)}:d> (<t:${Math.floor(profile.guildJoinedAt.getTime() / 1000)}:R>)`
       : 'Inconnue';
 
-  const leftAt = profile?.guildLeftAt
-    ? `<t:${Math.floor(profile.guildLeftAt.getTime() / 1000)}:d> (<t:${Math.floor(profile.guildLeftAt.getTime() / 1000)}:R>)`
-    : 'Inconnue';
+  const rolesCount = getRolesCount(member);
+  const dateLines = [
+    `${E.calendar} **Création du compte** ${accountCreatedAt}`,
+    `${E.clock} **Membre depuis** ${joinedAt}`,
+  ];
+  if (!member && !context.banned) {
+    const leftAt = profile?.guildLeftAt
+      ? `<t:${Math.floor(profile.guildLeftAt.getTime() / 1000)}:d> (<t:${Math.floor(profile.guildLeftAt.getTime() / 1000)}:R>)`
+      : 'Inconnue';
+    dateLines.push(`${E.arrow} **Dernier départ** ${leftAt}`);
+  }
+  if (member?.premiumSinceTimestamp) {
+    const boostTs = Math.floor(member.premiumSinceTimestamp / 1000);
+    dateLines.push(`${E.star} **Boost depuis** <t:${boostTs}:d> (<t:${boostTs}:R>)`);
+  }
+  dateLines.push(`${E.shield} **Permissions :** \`${getPermissionLabel(member)}\` (**${rolesCount}** rôle${rolesCount > 1 ? 's' : ''})`);
+  dateLines.push(`${E.dot} **Flags :** ${getFlagsDisplay(user, profile?.isBot ?? user?.bot ?? false)}`);
+  container.addTextDisplayComponents(text(dateLines.join('\n')));
 
-  const statusLabel = member
-    ? '✅ Membre du serveur'
-    : context.banned
-      ? '🔨 Banni du serveur'
-      : '❌ Ancien membre';
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
 
   const msgCount = profile?.messageCount ?? 0;
   const lastMsg = profile?.lastMessageAt ? `<t:${Math.floor(profile.lastMessageAt.getTime() / 1000)}:R>` : 'Aucun';
   const voiceTime = formatDurationFr((profile?.voiceTimeSeconds ?? 0) * 1000);
   const lastVoice = profile?.voiceLastChannelId ? `<#${profile.voiceLastChannelId}>` : 'Aucun';
+  container.addTextDisplayComponents(
+    text(`${E.messages} **Messages :** ${msgCount} *(Dernier : ${lastMsg})*\n${E.voice} **Vocal :** ${voiceTime} *(Dernier : ${lastVoice})*`),
+  );
+
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+
+  const noteButton = new ButtonBuilder()
+    .setCustomId(`case:note:${identity.userId}`)
+    .setLabel('Modifier')
+    .setEmoji('📝')
+    .setStyle(ButtonStyle.Primary);
+  container.addSectionComponents(
+    section(`**📝 Note de modération**\n${profile?.moderatorNote ? `> ${profile.moderatorNote.replace(/\n/g, '\n> ')}` : '*Aucune note.*'}`, noteButton),
+  );
+
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
 
   const recentSanctions = context.sanctions.length > 0
-    ? context.sanctions.slice(0, 3).map((s, i) => `**${i + 1}. ${s.type}** · ${truncate(s.reason, 60)} · <t:${Math.floor(s.createdAt.getTime() / 1000)}:R>`).join('\n')
+    ? context.sanctions.slice(0, 3).map((s) => {
+        const emoji = E[SANCTION_TYPE_EMOJI_KEY[s.type]] ?? E.moderation;
+        return `${emoji} **${s.type}** · ${truncate(s.reason, 60)} · <t:${Math.floor(s.createdAt.getTime() / 1000)}:R>`;
+      }).join('\n')
     : '*Aucune sanction enregistrée pour ce membre.*';
-
-  const roles = getRolesDisplay(member);
-  const bannerUrl = user?.bannerURL({ size: 1024 }) ?? profile?.bannerUrl ?? null;
-
-  const embed = new EmbedBuilder()
   const crossServerLine = context.crossServer.enabled && context.crossServer.total > 0
     ? `\n🌐 **Autres serveurs :** ${context.crossServer.total} sanction${context.crossServer.total > 1 ? 's' : ''} sur ${context.crossServer.serverCount} serveur${context.crossServer.serverCount > 1 ? 's' : ''}`
     : '';
-
-  const description = `🌐 <@${userId}> (\`${username}\`)
-${statusLabel}
-────────────────────────
-
-**Création du compte** ${accountCreatedAt}
-**Membre depuis** ${joinedAt}${!member && !context.banned ? `\n**Dernier départ** ${leftAt}` : ''}${rolesText}
-────────────────────────
-
-📊 **Activité globale**
-💬 **Messages :** ${msgCount} *(Dernier : ${lastMsg})*
-🎙️ **Vocal :** ${voiceTime} *(Dernier : ${lastVoice})*
-────────────────────────
-
-✏️ **Note**${noteDisplay}
-────────────────────────
-
-🚨 **Dernières sanctions (${context.sanctions.length}/${context.sanctionsTotal})**
-${recentSanctions}${crossServerLine}
-────────────────────────
-
-\`ID\` \`${userId}\``;
-
-  return new EmbedBuilder()
-    .setColor(context.banned ? 0xd62828 : member ? 0x2a9d8f : 0x5865f2)
-    .setAuthor({
-      name: `🧑‍⚖️ ${globalName}`,
-      iconURL: user?.displayAvatarURL() ?? undefined,
-    })
-    .setThumbnail(user?.displayAvatarURL({ size: 256 }) ?? null)
-    .setDescription(`🌐 <@${userId}> (\`${username}\`)\n${statusLabel}`)
-    .addFields(
-      { name: 'Création du compte', value: accountCreatedAt, inline: false },
-      { name: 'Membre depuis', value: joinedAt, inline: false },
-    );
-
-  if (!member && !context.banned) {
-    embed.addFields({ name: 'Dernier départ', value: leftAt, inline: false });
-  }
-
-  embed.addFields({ name: 'Pseudo', value: `\`${displayName}\``, inline: false });
-
-  if (member?.premiumSinceTimestamp) {
-    const boostTs = Math.floor(member.premiumSinceTimestamp / 1000);
-    embed.addFields({ name: 'Boost depuis', value: `<t:${boostTs}:d> (<t:${boostTs}:R>)`, inline: false });
-  }
-
-  embed.addFields(
-    { name: `Rôles (${roles.count})`, value: roles.text, inline: false },
-    { name: 'Permissions', value: `\`${getPermissionLabel(member)}\``, inline: false },
-    { name: 'Flags', value: getFlagsDisplay(user, profile?.isBot ?? user?.bot ?? false), inline: false },
-    { name: '📊 Activité globale', value: `💬 **Messages :** ${msgCount} *(Dernier : ${lastMsg})*\n🎙️ **Vocal :** ${voiceTime} *(Dernier : ${lastVoice})*`, inline: false },
-    { name: '✏️ Note', value: profile?.moderatorNote ? `> ${profile.moderatorNote.replace(/\n/g, '\n> ')}` : '*Aucune note.*', inline: false },
-    { name: `🚨 Dernières sanctions (${context.sanctions.length}/${context.sanctionsTotal})`, value: recentSanctions, inline: false },
-    { name: 'ID', value: `\`${userId}\``, inline: false },
+  container.addTextDisplayComponents(
+    text(`**${E.moderation} Dernières sanctions (${context.sanctions.length}/${context.sanctionsTotal})**\n${recentSanctions}${crossServerLine}`),
   );
 
-  if (bannerUrl) embed.setImage(bannerUrl);
+  if (context.linkedUserIds.length > 0) {
+    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    const linked = context.linkedUserIds.slice(0, 3);
+    container.addTextDisplayComponents(
+      text(`**${E.link} Comptes liés (${context.linkedUserIds.length})**\n${linked.map((id) => `<@${id}>`).join(' · ')}${context.linkedUserIds.length > 3 ? ` *+${context.linkedUserIds.length - 3} autre(s)*` : ''}`),
+    );
+    container.addActionRowComponents(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        linked.map((id, index) =>
+          new ButtonBuilder()
+            .setCustomId(`case:open:${id}`)
+            .setLabel(`Casier lié ${index + 1}`)
+            .setEmoji(E.link)
+            .setStyle(ButtonStyle.Secondary),
+        ),
+      ),
+    );
+  }
 
-  return embed;
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(text(`-# \`ID\` \`${identity.userId}\``));
+
+  addCaseFooter(container, context, 'resume', identity);
+  return container;
 }
 
-function buildIdentityEmbed(context: MemberCaseContext): EmbedBuilder {
+function buildIdentityContainer(context: MemberCaseContext): ContainerBuilder {
   const profile = context.profile;
   const user = context.user;
-  const userId = user?.id ?? profile?.userId ?? context.member?.id ?? 'inconnu';
-  const userTag = user?.tag ?? profile?.userTag ?? context.member?.user.tag ?? `Utilisateur ${userId}`;
-  const globalName = user?.globalName ?? profile?.globalName ?? 'Inconnu';
-  const username = user?.username ?? profile?.username ?? 'Inconnu';
+
+  const container = new ContainerBuilder().setAccentColor(0x8ecae6);
+  const identity = addCaseHeader(container, context, 'identite');
+
+  const userTag = user?.tag ?? profile?.userTag ?? context.member?.user.tag ?? `Utilisateur ${identity.userId}`;
   const locale = profile?.locale ?? (user as { locale?: string | null } | null)?.locale ?? 'Inconnue';
   const accentColor = profile?.accentColor != null
     ? `#${profile.accentColor.toString(16).padStart(6, '0')}`
     : 'Inconnue';
-  const avatarUrl = profile?.avatarUrl ?? user?.displayAvatarURL({ size: 512 });
-  const bannerUrl = profile?.bannerUrl ?? null;
 
-  return new EmbedBuilder()
-    .setColor(0x8ecae6)
-    .setTitle('👤 Identité du compte')
-    .setDescription(buildUserLabel(userId, userTag))
-    .addFields(
-      { name: 'ID Discord', value: userId, inline: true },
-      { name: "Nom d'utilisateur", value: username, inline: true },
-      { name: 'Nom global', value: globalName, inline: true },
-      { name: 'Locale', value: locale, inline: true },
-      { name: 'Compte bot', value: profile?.isBot ? 'Oui' : user?.bot ? 'Oui' : 'Non', inline: true },
-      { name: "Couleur d'accent", value: accentColor, inline: true },
-      { name: 'Avatar', value: avatarUrl ?? 'Inconnu', inline: false },
-      { name: 'Bannière', value: bannerUrl ?? 'Aucune', inline: false },
-    )
-    .setTimestamp();
+  container.addTextDisplayComponents(
+    text([
+      `${E.profile} **Tag complet** ${userTag}`,
+      `${E.dot} **Nom d'utilisateur** \`${identity.username}\``,
+      `${E.dot} **Nom global** ${identity.globalName}`,
+      `${E.dot} **Pseudo serveur** \`${identity.displayName}\``,
+      `${E.dot} **Locale** ${locale}`,
+      `${E.dot} **Compte bot** ${profile?.isBot || user?.bot ? 'Oui 🤖' : 'Non'}`,
+      `${E.dot} **Couleur d'accent** ${accentColor}`,
+      `${E.dot} **Flags** ${getFlagsDisplay(user, profile?.isBot ?? user?.bot ?? false)}`,
+    ].join('\n')),
+  );
+
+  if (identity.bannerUrl) {
+    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addMediaGalleryComponents(mediaGallery(identity.bannerUrl));
+  }
+
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(text(`-# \`ID\` \`${identity.userId}\``));
+
+  addCaseFooter(container, context, 'identite', identity);
+  return container;
 }
 
-function buildActivityEmbed(context: MemberCaseContext): EmbedBuilder {
+export type ActivityExtras = {
+  activeDays: number;
+  totalMessages14d: number;
+  totalVoiceMinutes14d: number;
+  serverAvgMessages: number;
+  serverAvgVoiceSeconds: number;
+};
+
+function buildActivityBar(value: number, average: number): string {
+  // 50 % de barre = pile dans la moyenne du serveur, 100 % = double ou plus.
+  const ratio = value / Math.max(average, 1);
+  const percent = Math.max(0, Math.min(100, ratio * 50));
+  const label = ratio >= 0.95 && ratio <= 1.05 ? 'dans la moyenne' : `×${ratio.toFixed(1)} de la moyenne`;
+  return `${buildProgressBar(percent, 8)} *${label}*`;
+}
+
+function buildActivityContainer(context: MemberCaseContext, extras?: ActivityExtras, withChart = false): ContainerBuilder {
   const profile = context.profile;
+
+  const container = new ContainerBuilder().setAccentColor(0xffb703);
+  const identity = addCaseHeader(container, context, 'activite');
+
+  const kpiParts = [
+    `${E.messages} **${profile?.messageCount ?? 0}** messages`,
+    `${E.voice} **${formatDurationFr((profile?.voiceTimeSeconds ?? 0) * 1000)}** en vocal`,
+    `${E.calendar} **${profile?.voiceSessionCount ?? 0}** sessions vocales`,
+  ];
+  if (extras) {
+    kpiParts.push(`${E.fire} **${extras.activeDays}**/14 jours actifs`);
+  }
+  container.addTextDisplayComponents(text(kpiParts.join(' · ')));
+
+  if (extras) {
+    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(
+      text([
+        `**${E.stats} Comparé au serveur**`,
+        `${E.messages} Messages ${buildActivityBar(profile?.messageCount ?? 0, extras.serverAvgMessages)}`,
+        `${E.voice} Vocal ${buildActivityBar(profile?.voiceTimeSeconds ?? 0, extras.serverAvgVoiceSeconds)}`,
+      ].join('\n')),
+    );
+  }
+
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+
   const lastVoice = profile?.voiceLastChannelId ? `<#${profile.voiceLastChannelId}>` : 'Aucun';
   const lastVoiceJoin = profile?.voiceLastJoinedAt
-    ? `<t:${Math.floor(profile.voiceLastJoinedAt.getTime() / 1000)}:F> (<t:${Math.floor(profile.voiceLastJoinedAt.getTime() / 1000)}:R>)`
+    ? `<t:${Math.floor(profile.voiceLastJoinedAt.getTime() / 1000)}:R>`
     : 'Inconnu';
-  const lastVoiceLeave = profile?.voiceLastLeftAt
-    ? `<t:${Math.floor(profile.voiceLastLeftAt.getTime() / 1000)}:F> (<t:${Math.floor(profile.voiceLastLeftAt.getTime() / 1000)}:R>)`
-    : 'Inconnu';
-  const rolesSnapshot = profile?.rolesSnapshot ?? [];
-  const rolesPreview = rolesSnapshot.length > 0
-    ? rolesSnapshot.slice(0, 12).map((roleId) => `<@&${roleId}>`).join(', ')
-    : 'Aucun';
+  container.addTextDisplayComponents(
+    text([
+      `${E.messages} **Dernier message** ${profile?.lastMessageAt ? `<t:${Math.floor(profile.lastMessageAt.getTime() / 1000)}:R>` : 'Aucun'} ${profile?.lastMessageChannelId ? `dans <#${profile.lastMessageChannelId}>` : ''}`,
+      `${E.voice} **Dernier vocal** ${lastVoiceJoin} dans ${lastVoice}`,
+    ].join('\n')),
+  );
 
-  return new EmbedBuilder()
-    .setColor(0xffb703)
-    .setTitle('📊 Activité serveur')
-    .setDescription(buildUserLabel(context.user?.id ?? profile?.userId ?? context.member?.id ?? 'inconnu', context.user?.tag ?? profile?.userTag ?? context.member?.user.tag ?? null))
-    .addFields(
-      { name: 'Messages observés', value: `${profile?.messageCount ?? 0}`, inline: true },
-      { name: 'Dernier message', value: profile?.lastMessageAt ? `<t:${Math.floor(profile.lastMessageAt.getTime() / 1000)}:R>` : 'Aucun', inline: true },
-      { name: 'Dernier salon message', value: profile?.lastMessageChannelId ? `<#${profile.lastMessageChannelId}>` : 'Aucun', inline: true },
-      { name: 'Sessions vocales', value: `${profile?.voiceSessionCount ?? 0}`, inline: true },
-      { name: 'Temps vocal total', value: formatDurationFr((profile?.voiceTimeSeconds ?? 0) * 1000), inline: true },
-      { name: 'Dernier salon vocal', value: lastVoice, inline: true },
-      { name: 'Début dernière session vocale', value: lastVoiceJoin, inline: true },
-      { name: 'Fin dernière session vocale', value: lastVoiceLeave, inline: true },
-      { name: 'Rôles mémorisés', value: rolesPreview, inline: false },
-    )
-    .setTimestamp();
+  const roles = context.member
+    ? [...context.member.roles.cache.values()]
+        .filter((role) => role.id !== context.guild.id)
+        .sort((a, b) => b.position - a.position)
+        .map((role) => `<@&${role.id}>`)
+    : (profile?.rolesSnapshot ?? []).map((roleId) => `<@&${roleId}>`);
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(
+    text(`**${E.crown} Rôles (${roles.length})**\n${roles.length > 0 ? truncate(roles.slice(0, 20).join(' '), 900) : 'Aucun'}`),
+  );
+
+  if (withChart) {
+    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addMediaGalleryComponents(mediaGallery('attachment://activity_stats.png'));
+  }
+
+  addCaseFooter(container, context, 'activite', identity);
+  return container;
 }
 
-function buildSanctionsEmbed(context: MemberCaseContext): EmbedBuilder {
-  const total = context.sanctionsTotal;
-  const sanctions = context.sanctions;
-  const summary = sanctions.length > 0
-    ? sanctions.map((sanction, index) => {
-        const reason = truncate(sanction.reason, 140);
-        const moderator = sanction.moderatorTag ?? `<@${sanction.moderatorUserId}>`;
-        const duration = sanction.durationSeconds ? ` · ${formatDurationFr(sanction.durationSeconds * 1000)}` : '';
-        return `**${index + 1}. ${sanction.type}** (${sanction.status})${duration}\nMotif: ${reason}\nModération: ${moderator} · <t:${Math.floor(sanction.createdAt.getTime() / 1000)}:R>`;
-      }).join('\n\n')
-    : 'Aucune sanction sur cette page.';
+// Fonction (et non constante) : E est un proxy rafraîchi après le chargement
+// des emojis d'application, il faut donc résoudre au moment du rendu.
+function sanctionStatusLabel(status: string): string {
+  if (status === 'ACTIVE') return `${E.dnd} Active`;
+  if (status === 'RESOLVED') return `${E.offline} Résolue`;
+  if (status === 'FAILED') return `${E.error} Échouée`;
+  return status;
+}
 
-  const warningCount = context.sanctionsBreakdown.WARN ?? 0;
-  const timeoutCount = context.sanctionsBreakdown.TIMEOUT ?? 0;
-  const kickCount = context.sanctionsBreakdown.KICK ?? 0;
-  const tempBanCount = context.sanctionsBreakdown.TEMP_BAN ?? 0;
-  const banCount = context.sanctionsBreakdown.BAN ?? 0;
+function buildSanctionsContainer(context: MemberCaseContext): ContainerBuilder {
+  const container = new ContainerBuilder().setAccentColor(0xef476f);
+  const identity = addCaseHeader(container, context, 'sanctions');
 
-  const embed = new EmbedBuilder()
-    .setColor(0xef476f)
-    .setTitle('🧾 Casier disciplinaire')
-    .setDescription(summary)
-    .addFields(
-      { name: 'Total', value: `${total}`, inline: true },
-      { name: 'Warn', value: `${warningCount}`, inline: true },
-      { name: 'Timeout', value: `${timeoutCount}`, inline: true },
-      { name: 'Kick', value: `${kickCount}`, inline: true },
-      { name: 'Tempban', value: `${tempBanCount}`, inline: true },
-      { name: 'Ban', value: `${banCount}`, inline: true },
-    )
-    .setFooter({ text: `Page ${context.pageIndex + 1} / ${context.totalPages}` })
-    .setTimestamp();
+  if (context.sanctions.length === 0) {
+    container.addTextDisplayComponents(text(`${E.success} *Aucune sanction sur cette page.*`));
+  }
+
+  context.sanctions.forEach((sanction, index) => {
+    if (index > 0) container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+
+    const emoji = E[SANCTION_TYPE_EMOJI_KEY[sanction.type]] ?? E.moderation;
+    const statusLabel = sanctionStatusLabel(sanction.status);
+    const duration = sanction.durationSeconds ? ` · ${formatDurationFr(sanction.durationSeconds * 1000)}` : '';
+    const moderator = sanction.moderatorTag ?? `<@${sanction.moderatorUserId}>`;
+    const cardText = [
+      `${emoji} **${sanction.type}**${duration} · ${statusLabel} · <t:${Math.floor(sanction.createdAt.getTime() / 1000)}:R>`,
+      `> ${truncate(sanction.reason, 140)}`,
+      `-# Par ${moderator}`,
+    ].join('\n');
+
+    if (sanction.status === 'ACTIVE' && sanction.type !== 'KICK') {
+      container.addSectionComponents(
+        section(
+          cardText,
+          new ButtonBuilder()
+            .setCustomId(`case:revoke:${identity.userId}:${sanction.id}:${context.pageIndex}`)
+            .setLabel('Révoquer')
+            .setEmoji(E.unlock)
+            .setStyle(ButtonStyle.Danger),
+        ),
+      );
+    } else {
+      container.addTextDisplayComponents(text(cardText));
+    }
+  });
+
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+
+  const b = context.sanctionsBreakdown;
+  container.addTextDisplayComponents(
+    text(`**Total ${context.sanctionsTotal}** · ${E.warning} ${b.WARN ?? 0} · ${E.mute} ${b.TIMEOUT ?? 0} · ${E.kick} ${b.KICK ?? 0} · ${E.ban} ${(b.BAN ?? 0) + (b.TEMP_BAN ?? 0) + (b.SOFTBAN ?? 0)}`),
+  );
 
   const crossServerValue = buildCrossServerFieldValue(context.crossServer);
   if (crossServerValue) {
-    embed.addFields({
-      name: `🌐 Autres serveurs (${context.crossServer.total} · ${context.crossServer.serverCount} serveur${context.crossServer.serverCount > 1 ? 's' : ''})`,
-      value: truncate(crossServerValue, 1024),
-      inline: false,
-    });
+    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addTextDisplayComponents(
+      text(`**🌐 Autres serveurs (${context.crossServer.total} · ${context.crossServer.serverCount} serveur${context.crossServer.serverCount > 1 ? 's' : ''})**\n${truncate(crossServerValue, 1000)}`),
+    );
   }
 
-  return embed;
+  container.addSeparatorComponents(separator(false, SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(text(`-# Page ${context.pageIndex + 1} / ${context.totalPages}`));
+
+  addCaseFooter(container, context, 'sanctions', identity);
+  return container;
 }
 
 export async function touchMemberProfileFromMember(member: GuildMember): Promise<void> {
@@ -827,15 +955,16 @@ export async function buildMemberCasePanel(
   const contextPageIndex = section === 'sanctions' ? pageIndex : 0;
   const context = await fetchGuildUserContext(guild, userId, contextPageIndex);
 
-  let embed: EmbedBuilder;
+  let panelContainer: ContainerBuilder;
   let files: import('discord.js').AttachmentBuilder[] | undefined;
 
   if (section === 'sanctions') {
-    embed = buildSanctionsEmbed(context);
+    panelContainer = buildSanctionsContainer(context);
   } else if (section === 'identite') {
-    embed = buildIdentityEmbed(context);
+    panelContainer = buildIdentityContainer(context);
   } else if (section === 'activite') {
-    embed = buildActivityEmbed(context);
+    let extras: ActivityExtras | undefined;
+    let chartAttachment: AttachmentBuilder | undefined;
 
     try {
       const periodDays = 14;
@@ -843,10 +972,16 @@ export async function buildMemberCasePanel(
       sinceDate.setDate(sinceDate.getDate() - periodDays);
       const startDateKey = `${sinceDate.getFullYear()}-${String(sinceDate.getMonth() + 1).padStart(2, '0')}-${String(sinceDate.getDate()).padStart(2, '0')}`;
 
-      const dailyStats = await prisma.memberDailyStat.findMany({
-        where: { guildId: guild.id, userId, dateKey: { gte: startDateKey } },
-        orderBy: { dateKey: 'asc' },
-      });
+      const [dailyStats, serverAvg] = await Promise.all([
+        prisma.memberDailyStat.findMany({
+          where: { guildId: guild.id, userId, dateKey: { gte: startDateKey } },
+          orderBy: { dateKey: 'asc' },
+        }),
+        prisma.memberProfile.aggregate({
+          where: { guildId: guild.id, isBot: false },
+          _avg: { messageCount: true, voiceTimeSeconds: true },
+        }),
+      ]);
 
       const activeDays = dailyStats.length;
       let totalMessages = 0;
@@ -864,6 +999,14 @@ export async function buildMemberCasePanel(
         };
       });
 
+      extras = {
+        activeDays,
+        totalMessages14d: totalMessages,
+        totalVoiceMinutes14d: totalVoice,
+        serverAvgMessages: serverAvg._avg.messageCount ?? 0,
+        serverAvgVoiceSeconds: serverAvg._avg.voiceTimeSeconds ?? 0,
+      };
+
       const username = context.user?.username ?? context.profile?.username ?? context.member?.user.username ?? 'inconnu';
 
       const imageBuffer = await generateMemberStatsImage(
@@ -873,27 +1016,21 @@ export async function buildMemberCasePanel(
         dailyData
       );
 
-      const attachment = new AttachmentBuilder(imageBuffer, { name: 'activity_stats.png' });
-      embed.setImage('attachment://activity_stats.png');
-      files = [attachment];
+      chartAttachment = new AttachmentBuilder(imageBuffer, { name: 'activity_stats.png' });
     } catch (error) {
       import('../../utils/logger.js').then(({ logger }) => {
         logger.error('Casier', `Erreur de génération du graphique d'activité: ${String(error)}`);
       });
     }
+
+    panelContainer = buildActivityContainer(context, extras, Boolean(chartAttachment));
+    if (chartAttachment) files = [chartAttachment];
   } else {
-    embed = buildSummaryEmbed(context);
+    panelContainer = buildSummaryContainer(context);
   }
 
-  const components: Array<ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>> = [
-    buildSectionSelectRow(userId, section, context.pageIndex),
-    buildCaseNavigationRow(userId, section, context.pageIndex, context.totalPages),
-    buildSanctionSelectRow(userId),
-  ];
-
   return {
-    embed,
-    components,
+    components: [panelContainer],
     section,
     pageIndex: context.pageIndex,
     totalPages: context.totalPages,

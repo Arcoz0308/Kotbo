@@ -439,7 +439,7 @@ export async function handleGuildGeneralRoutes(
         where: { id: presetId },
         data: { shareToken, isPublic: true }
       });
-      json(res, 200, { shareToken: updated.shareToken, shareUrl: `/overview?importPreset=${updated.shareToken}` });
+      json(res, 200, { shareToken: updated.shareToken, shareUrl: `/?importPreset=${updated.shareToken}` });
     } catch (err) {
       logger.error('GeneralAPI', `Error sharing preset ${presetId}:`, err);
       json(res, 500, { error: 'Erreur lors du partage du preset.' });
