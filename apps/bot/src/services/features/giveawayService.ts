@@ -47,6 +47,21 @@ function buildActiveGiveawayEmbed(giveaway: GiveawayEmbedData, participantCount:
   return buildGiveawayEmbed(giveaway, description, '#5865F2');
 }
 
+/**
+ * Ligne du bouton « Rejoindre » d'un giveaway actif.
+ * En Components V2, les boutons vivent dans `components` au même titre que
+ * l'embed : toute édition qui ne les repasse pas les efface. Il faut donc les
+ * réinjecter à chaque `message.edit`.
+ */
+function buildGiveawayJoinRow(giveawayId: string): ActionRowBuilder<ButtonBuilder> {
+  const button = new ButtonBuilder()
+    .setCustomId(`giveaway_join:${giveawayId}`)
+    .setEmoji('🎉')
+    .setLabel('Rejoindre')
+    .setStyle(ButtonStyle.Primary);
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+}
+
 /** Embed d'un giveaway dans un état terminé/validé (description & couleur fournies). */
 function buildGiveawayEmbed(
   giveaway: GiveawayEmbedData,
@@ -108,14 +123,7 @@ export async function createGiveaway(
   if (!channel?.isTextBased()) return giveaway;
 
   const embed = buildActiveGiveawayEmbed(giveaway, 0);
-
-  const button = new ButtonBuilder()
-    .setCustomId(`giveaway_join:${giveaway.id}`)
-    .setEmoji('🎉')
-    .setLabel('Rejoindre')
-    .setStyle(ButtonStyle.Primary);
-
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+  const row = buildGiveawayJoinRow(giveaway.id);
 
   const message = await channel.send({ embeds: [embed], components: [row] }).catch(() => null);
   if (message) {
@@ -205,7 +213,12 @@ export async function handleGiveawayJoin(interaction: unknown) {
         const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
         if (message) {
           const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length);
-          await message.edit({ embeds: [updatedEmbed] }).catch(() => null);
+          // On repasse le bouton « Rejoindre » : en Components V2 une édition qui
+          // ne fournit pas `components` efface les boutons du message.
+          await message.edit({
+            embeds: [updatedEmbed],
+            components: [buildGiveawayJoinRow(giveaway.id)],
+          }).catch(() => null);
         }
       }
     }

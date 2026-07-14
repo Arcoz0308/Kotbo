@@ -525,23 +525,7 @@ export const createMeeting = async (
       .setColor('#5865F2')
       .setTimestamp(scheduledAt);
 
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`meeting_rsvp:${meeting.id}:PRESENT`)
-        .setLabel('Présent')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('✅'),
-      new ButtonBuilder()
-        .setCustomId(`meeting_rsvp:${meeting.id}:EXCUSED`)
-        .setLabel("S'excuser")
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('⏳'),
-      new ButtonBuilder()
-        .setCustomId(`meeting_rsvp:${meeting.id}:ABSENT`)
-        .setLabel('Absent')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('❌')
-    );
+    const row = buildMeetingRsvpRow(meeting.id);
 
     const announcementMessage = await (announcementChannel as unknown).send({
       content: '📢 **Nouvelle réunion staff planifiée !** @everyone',
@@ -838,6 +822,31 @@ function buildMeetingAnnouncementEmbed(meeting: {
   return embed;
 }
 
+/**
+ * Ligne des boutons de présence (RSVP) de l'annonce de réunion.
+ * En Components V2, les boutons vivent dans `components` : toute édition de
+ * l'annonce doit les repasser sinon ils disparaissent.
+ */
+function buildMeetingRsvpRow(meetingId: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`meeting_rsvp:${meetingId}:PRESENT`)
+      .setLabel('Présent')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅'),
+    new ButtonBuilder()
+      .setCustomId(`meeting_rsvp:${meetingId}:EXCUSED`)
+      .setLabel("S'excuser")
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('⏳'),
+    new ButtonBuilder()
+      .setCustomId(`meeting_rsvp:${meetingId}:ABSENT`)
+      .setLabel('Absent')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('❌')
+  );
+}
+
 export const updateMeetingAnnouncement = async (client: unknown, meetingId: string) => {
   const meeting = await prisma.staffMeeting.findUnique({
     where: { id: meetingId },
@@ -866,7 +875,9 @@ export const updateMeetingAnnouncement = async (client: unknown, meetingId: stri
   if (!message) return;
 
   const embed = buildMeetingAnnouncementEmbed(meeting);
-  await message.edit({ embeds: [embed] });
+  // On repasse les boutons RSVP : en Components V2 une édition sans `components`
+  // efface les boutons de présence.
+  await message.edit({ embeds: [embed], components: [buildMeetingRsvpRow(meeting.id)] });
 };
 
 export const syncMeetingPresencesWithAbsences = async (client: Client, meetingId: string) => {
