@@ -4,6 +4,9 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -184,7 +187,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   async function handleSaveConfig(): Promise<boolean> {
     if (!canManageSettings) return false;
     if (config.dailyRewardMax < config.dailyRewardMin) {
-      alert('Le gain journalier maximal doit être supérieur ou égal au gain minimal.');
+      toast.error('Le gain journalier maximal doit être supérieur ou égal au gain minimal.');
       return false;
     }
 
@@ -223,7 +226,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   async function handleSaveItem() {
     if (!editingItem.name || !editingItem.type || editingItem.price === undefined) {
-      alert('Champs obligatoires manquants.');
+      toast.error('Champs obligatoires manquants.');
       return;
     }
 
@@ -238,7 +241,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   async function handleDeleteItem(itemId: string) {
-    if (!confirm('Voulez-vous vraiment supprimer cet objet de la boutique ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cet objet de la boutique ?'))) return;
 
     await actionState.run(async () => {
       await deleteRpgItem(itemId);
@@ -281,18 +284,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   );
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <!-- Header -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="Coins" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Économie & Jeu RPG</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Gérez la monnaie locale, configurez les aventures textuelles RNG et gérez la boutique du serveur.</p>
-      </div>
-    </div>
+<ModulePage
+  title="Économie & Jeu RPG"
+  description="Gérez la monnaie locale, configurez les aventures textuelles RNG et gérez la boutique du serveur."
+  icon="coins"
+>
+  {#snippet actions()}
     {#if !loading}
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">Statut du module :</span>
@@ -305,29 +302,29 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         />
       </div>
     {/if}
-  </header>
+  {/snippet}
 
   <InlineFeedback state={actionState} />
 
   <!-- Navigation Tabs -->
-  <div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-lg border border-outline-variant/10 w-fit">
+  <div class="tab-group w-fit">
     <button 
       onclick={() => gotoTab('/economy', 'config', 'config')}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="tab-button {activeTab === 'config' ? 'active' : ''}"
     >
       <Papicon icon="settings" size={14} />
       Configuration
     </button>
     <button
       onclick={() => gotoTab('/economy', 'items', 'config')}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'items' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="tab-button {activeTab === 'items' ? 'active' : ''}"
     >
       <Papicon icon="package" size={14} />
       Objets Boutique
     </button>
     <button
       onclick={() => gotoTab('/economy', 'players', 'config')}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'players' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="tab-button {activeTab === 'players' ? 'active' : ''}"
     >
       <Papicon icon="users" size={14} />
       Joueurs & Classement
@@ -566,7 +563,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               type="button" 
               onclick={openNewItem}
               disabled={!config.enabled}
-              class="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <Papicon icon="plus" size={14} />
               Créer un objet
@@ -672,10 +669,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   <th class="py-4 px-4">Rang</th>
                   <th class="py-4 px-4">Joueur</th>
                   <th class="py-4 px-4">Solde</th>
-                  <th class="py-4 px-4">Niveau / XP</th>
-                  <th class="py-4 px-4">Points de Vie (PV)</th>
-                  <th class="py-4 px-4">Énergie</th>
-                  <th class="py-4 px-4">Guilde</th>
+                  <th class="py-4 px-4">Stats & Équipement</th>
+                  <th class="py-4 px-4">PV & Énergie</th>
+                  <th class="py-4 px-4">Localisation & Guilde</th>
                   {#if canManageSettings}
                     <th class="py-4 px-4 text-right">Actions</th>
                   {/if}
@@ -694,6 +690,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       <div>
                         <div class="font-semibold text-sm">{player.displayName || player.username}</div>
                         <div class="text-[10px] text-on-surface-variant/40 font-mono mt-0.5">{player.userId}</div>
+                        <!-- Bento mini-stats -->
+                        <div class="flex items-center gap-2 mt-1 text-[9px] font-bold text-on-surface-variant/50">
+                          <span class="bg-red-500/5 text-red-400 px-1.5 py-0.5 rounded">⚔️ {player.attack} ATK</span>
+                          <span class="bg-blue-500/5 text-blue-400 px-1.5 py-0.5 rounded">🛡️ {player.defense} DEF</span>
+                          <span class="bg-amber-500/5 text-amber-400 px-1.5 py-0.5 rounded">⚡ {player.speed} SPD</span>
+                        </div>
                       </div>
                     </td>
                     <td class="py-4 px-4 font-bold text-on-surface">
@@ -705,34 +707,71 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         {/if}
                         <span>{player.balance} {config.currencyName}</span>
                       </div>
+                      <div class="text-[10px] text-on-surface-variant/50 mt-0.5 font-normal">Niveau {player.level} • {player.xp} XP</div>
                     </td>
                     <td class="py-4 px-4">
-                      <div class="font-bold">Niveau {player.level}</div>
-                      <div class="text-[10px] text-on-surface-variant/50 mt-0.5">{player.xp} XP</div>
+                      <!-- Equipment display -->
+                      <div class="space-y-1.5">
+                        {#if player.weapon}
+                          <div class="flex items-center gap-1.5 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-lg w-fit font-bold">
+                            <span>{player.weapon.emoji || '⚔️'}</span>
+                            <span class="truncate max-w-[120px]">{player.weapon.name} (+{player.weapon.atkBonus} ATK)</span>
+                          </div>
+                        {:else}
+                          <div class="text-[10px] text-on-surface-variant/30 italic">Pas d'arme équipée</div>
+                        {/if}
+
+                        {#if player.armor}
+                          <div class="flex items-center gap-1.5 text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg w-fit font-bold">
+                            <span>{player.armor.emoji || '🛡️'}</span>
+                            <span class="truncate max-w-[120px]">{player.armor.name} (+{player.armor.defBonus} DEF)</span>
+                          </div>
+                        {:else}
+                          <div class="text-[10px] text-on-surface-variant/30 italic">Pas d'armure équipée</div>
+                        {/if}
+                      </div>
                     </td>
                     <td class="py-4 px-4">
                       <div class="flex items-center gap-2">
-                        <div class="w-24 bg-surface-container-high rounded-full h-2">
+                        <div class="w-20 bg-surface-container-high rounded-full h-2">
                           <div class="bg-red-500 h-2 rounded-full" style="width: {Math.round((player.health / player.maxHealth) * 100)}%"></div>
                         </div>
-                        <span class="font-bold">{player.health} / {player.maxHealth}</span>
+                        <span class="font-bold">{player.health} / {player.maxHealth} HP</span>
+                      </div>
+                      <div class="flex items-center gap-2 mt-1.5">
+                        <div class="w-20 bg-surface-container-high rounded-full h-2">
+                          <div class="bg-purple-500 h-2 rounded-full" style="width: {player.energy}%"></div>
+                        </div>
+                        <span class="font-bold text-on-surface-variant/70">{player.energy}% Énergie</span>
                       </div>
                     </td>
-                    <td class="py-4 px-4 font-bold">{player.energy} %</td>
-                    <td class="py-4 px-4">
-                      {#if player.rpgGuild}
-                        <span>{player.rpgGuild.emoji} {player.rpgGuild.name}</span>
-                      {:else}
-                        <span class="text-on-surface-variant/40 italic">Aucune</span>
-                      {/if}
+                    <td class="py-4 px-4 space-y-1">
+                      <!-- Location -->
+                      <div class="font-semibold text-on-surface flex items-center gap-1">
+                        {#if player.isTraveling}
+                          <span>🚗 En voyage vers :</span>
+                          <span class="text-primary font-bold">{player.travelDestination}</span>
+                        {:else}
+                          <span>📍 Position :</span>
+                          <span class="text-emerald-400 font-bold">{player.travelDestination || 'Contrée sauvage'}</span>
+                        {/if}
+                      </div>
+                      <!-- Guild -->
+                      <div class="text-[10px] text-on-surface-variant/60 font-medium">
+                        {#if player.rpgGuild}
+                          <span>🛡️ Alliance : <strong>{player.rpgGuild.emoji} {player.rpgGuild.name}</strong></span>
+                        {:else}
+                          <span class="italic text-on-surface-variant/30">Sans guilde</span>
+                        {/if}
+                      </div>
                     </td>
                     {#if canManageSettings}
                       <td class="py-4 px-4 text-right">
                         <button 
-                          type="button" 
-                          onclick={() => openEditPlayer(player)}
-                          disabled={!config.enabled}
-                          class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-auto w-fit"
+                           type="button" 
+                           onclick={() => openEditPlayer(player)}
+                           disabled={!config.enabled}
+                           class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-auto w-fit"
                         >
                           <Papicon icon="edit" size={12} /> Modifier
                         </button>
@@ -741,7 +780,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   </tr>
                 {:else}
                   <tr>
-                    <td colspan="8" class="text-center py-8 text-on-surface-variant/50 italic">Aucun joueur trouvé.</td>
+                    <td colspan="7" class="text-center py-8 text-on-surface-variant/50 italic">Aucun joueur trouvé.</td>
                   </tr>
                 {/each}
               </tbody>
@@ -751,7 +790,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
     {/if}
   {/if}
-</div>
+</ModulePage>
 
 <!-- ITEM MODAL EDITOR -->
 {#if editingItem}
@@ -836,7 +875,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <button 
           type="button" 
           onclick={handleSaveItem}
-          class="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-xl shadow-lg transition-all"
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
           Enregistrer
         </button>
@@ -904,7 +943,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <button 
           type="button" 
           onclick={handleSavePlayer}
-          class="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-xl shadow-lg transition-all"
+          class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
           Enregistrer
         </button>
@@ -939,7 +978,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <button
           type="button"
           onclick={confirmReset}
-          class="px-5 py-2.5 bg-error hover:bg-error-hover text-on-error text-xs font-bold rounded-xl shadow-lg transition-all"
+          class="px-5 py-2.5 bg-error hover:bg-error-hover text-on-error text-[13px] font-medium rounded-lg transition-all"
         >
           Confirmer la suppression
         </button>

@@ -328,7 +328,7 @@
       {#if canManageSettings}
         <button
           onclick={openDailyAlgoProblemModal}
-          class="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-[10px] uppercase tracking-widest  hover:scale-105 transition-transform"
+          class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
         >
           Nouvel Exercice
         </button>
@@ -341,11 +341,11 @@
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Soumissions du jour</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Soumissions du jour</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoToday?.submissions?.length ?? 0}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Bibliothèque</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Bibliothèque</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoProblems.length}</p>
       </div>
       <button 
@@ -353,7 +353,7 @@
         class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10 text-left hover:bg-surface-container-high/60 transition-colors group"
       >
         <div class="flex items-center justify-between">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Planning</p>
+          <p class="text-xs font-medium text-on-surface-variant/40">Planning</p>
           <Papicon icon="Calendar" size={14} class="text-on-surface-variant/20 group-hover:text-primary transition-colors" />
         </div>
         <p class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoSchedule.length} jours</p>
@@ -369,13 +369,13 @@
         <div>
           <div class="flex items-center gap-3">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Défi en cours</span>
+            <span class="text-xs font-medium text-primary">Défi en cours</span>
           </div>
           <h3 class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoToday?.run?.problem?.title ?? 'Aucun défi actif'}</h3>
           <p class="text-on-surface-variant/60 mt-2 max-w-2xl line-clamp-2">{dailyAlgoToday?.run?.problem?.description ?? 'Planifiez un défi pour commencer.'}</p>
         </div>
         {#if canManageSettings}
-          <button class="px-6 py-3 bg-surface-container-high rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors">
+          <button class="px-6 py-3 bg-surface-container-high rounded-lg text-xs font-medium border border-outline-variant/10 hover:bg-surface-container-highest transition-colors">
             Changer le défi
           </button>
         {/if}
@@ -402,10 +402,10 @@
         <table class="w-full text-left">
           <thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
             <tr>
-              <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Auteur</th>
-              <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut</th>
-              <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Date</th>
-              <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Actions</th>
+              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Auteur</th>
+              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Statut</th>
+              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Date</th>
+              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant/5">
@@ -424,7 +424,7 @@
                 <td class="px-8 py-5">
                   <button 
                     onclick={() => openSubmissionInIntegratedIde(sub)}
-                    class="p-2 rounded-xl bg-primary/10 text-primary  transition-transform"
+                    class="p-2 rounded-xl bg-primary/10 text-primary transition-transform"
                   >
                     <Papicon icon="Code" size={18} />
                   </button>
@@ -474,7 +474,7 @@
               <p class="text-on-surface-variant/60 font-bold">Aucun programme généré pour l'instant.</p>
               <button 
                 onclick={loadDailyAlgoSchedule}
-                class="mt-6 px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold text-[10px] uppercase tracking-widest"
+                class="mt-6 px-4 py-2 bg-primary text-on-primary rounded-lg font-medium text-[13px]"
               >
                 Générer le planning
               </button>
@@ -494,7 +494,7 @@
                   <div>
                     <h4 class="font-semibold text-on-surface">{run.problem?.title ?? 'Problème inconnu'}</h4>
                     <div class="flex items-center gap-3 mt-1">
-                      <span class="px-2 py-0.5 bg-on-surface/5 rounded-lg text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 border border-outline-variant/5">
+                      <span class="px-2 py-0.5 bg-on-surface/5 rounded-lg text-xs font-medium text-on-surface-variant/60 border border-outline-variant/5">
                         {run.problem?.difficulty ?? 'normal'}
                       </span>
                       <span class="text-[10px] font-bold text-on-surface-variant/40">
@@ -505,7 +505,7 @@
                 </div>
                 
                 {#if run.dateKey === new Date().toISOString().split('T')[0]}
-                  <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-emerald-500/20">Aujourd'hui</span>
+                  <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-xs font-medium border border-emerald-500/20">Aujourd'hui</span>
                 {/if}
               </div>
             {/each}
@@ -516,7 +516,7 @@
           <footer class="p-8 bg-surface-container-high/30 border-t border-outline-variant/5">
             <button 
               onclick={() => ensureDailyAlgoSchedule(21).then(loadDailyAlgoSchedule)}
-              class="w-full py-4 bg-primary text-on-primary rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-sm shadow-primary/20 hover: transition-transform flex items-center justify-center gap-3"
+              class="w-full py-4 bg-primary text-on-primary rounded-xl font-medium text-[13px] shadow-sm shadow-primary/20 hover: transition-transform flex items-center justify-center gap-3"
             >
               <Papicon icon="RefreshCw" size={14} />
               Étendre le planning de 3 semaines

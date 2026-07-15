@@ -1141,38 +1141,336 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  const result = await simulateBattle(profile, monster);
-  const turnSummary = result.turns.slice(-6).map(t => {
-    const who = t.attacker === 'player' ? '🗡️ Vous' : `${monster.emoji} ${monster.name}`;
-    const crit = t.critical ? ' **CRITIQUE !**' : '';
-    return `${who} inflige **${t.damage}** dégâts${crit}`;
-  }).join('\n');
+  const weapon = profile.weaponId
+    ? await prisma.rpgItem.findUnique({ where: { id: profile.weaponId } })
+    : null;
+  const armor = profile.armorId
+    ? await prisma.rpgItem.findUnique({ where: { id: profile.armorId } })
+    : null;
 
-  const embed = new EmbedBuilder()
-    .setTitle(`${result.won ? '🏆 Victoire' : '💀 Défaite'} — ${monster.emoji} ${monster.name}`)
-    .setDescription(
-      `${monster.description}\n\n` +
-      `**Résumé du combat** (${result.turns.length} tours)\n${turnSummary}`
-    )
-    .setColor(result.won ? COLORS.success : COLORS.danger)
-    .addFields(
-      { name: '💥 Dégâts infligés', value: `${result.totalDamageDealt}`, inline: true },
-      { name: '🩸 Dégâts reçus', value: `${result.totalDamageTaken}`, inline: true },
-      { name: '❤️ PV restants', value: `${result.playerHpRemaining} / ${profile.maxHealth}`, inline: true },
-      { name: '⭐ XP gagné', value: `+${result.xpEarned}`, inline: true },
-      { name: `${config.currencyEmoji} Pièces gagnées`, value: `+${result.coinsEarned}`, inline: true },
-    )
-    .setTimestamp();
+  const playerAtk = profile.attack + (weapon?.atkBonus ?? 0);
+  const playerDef = profile.defense + (armor?.defBonus ?? 0);
+  const playerSpd = profile.speed + (weapon?.spdBonus ?? 0) + (armor?.spdBonus ?? 0);
+  const playerMaxHp = profile.maxHealth;
 
-  if (result.itemDropped) {
-    embed.addFields({ name: '🎁 Drop !', value: `${result.itemDropEmoji || '📦'} **${result.itemDropped}**`, inline: true });
-  }
+  let playerHp = profile.health;
+  let monsterHp = monster.health;
+  const monsterMaxHp = monster.health;
 
-  if (result.levelUp) {
-    embed.addFields({ name: '🎉 NIVEAU SUPÉRIEUR !', value: `Vous passez au **Niveau ${result.levelUp}** !` });
-  }
+  const getPotions = () => prisma.rpgInventoryItem.findMany({
+    where: {
+      rpgProfileId: profile.id,
+      item: { type: 'POTION' },
+      quantity: { gte: 1 }
+    },
+    include: { item: true }
+  });
 
-  await interaction.editReply({ embeds: [embed] });
+  const buildHpBar = (current: number, max: number) => {
+    const barsCount = 10;
+    const filled = Math.max(0, Math.min(barsCount, Math.round((current / max) * barsCount)));
+    const empty = barsCount - filled;
+    return `[${'🟩'.repeat(filled)}${'🟥'.repeat(empty)}] \`${current}/${max} PV\``;
+  };
+
+  const getEmbed = (turnsLog: string[]) => {
+    const logs = turnsLog.slice(-5).join('\n') || '*Le combat commence...*';
+    return new EmbedBuilder()
+      .setTitle(`⚔️ Combat : Vous vs ${monster.emoji} ${monster.name}`)
+      .setDescription(
+        `${monster.description}\n\n` +
+        `**Vous** :\n${buildHpBar(playerHp, playerMaxHp)}\n\n` +
+        `**${monster.emoji} ${monster.name}** (Niveau ${monster.level}) :\n${buildHpBar(monsterHp, monsterMaxHp)}\n\n` +
+        `**Journal de combat** :\n${logs}`
+      )
+      .setColor('#5865F2')
+      .setTimestamp();
+  };
+
+  const getActionRow = async () => {
+    const userPotions = await getPotions();
+    const potionsCount = userPotions.reduce((sum, p) => sum + p.quantity, 0);
+
+    const attackBtn = new ButtonBuilder()
+      .setCustomId('combat_attack')
+      .setLabel('Attaquer')
+      .setEmoji('⚔️')
+      .setStyle(ButtonStyle.Primary);
+
+    const defendBtn = new ButtonBuilder()
+      .setCustomId('combat_defend')
+      .setLabel('Défendre')
+      .setEmoji('🛡️')
+      .setStyle(ButtonStyle.Secondary);
+
+    const potionBtn = new ButtonBuilder()
+      .setCustomId('combat_potion')
+      .setLabel(`Potion (${potionsCount})`)
+      .setEmoji('🧪')
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(potionsCount === 0);
+
+    const fleeBtn = new ButtonBuilder()
+      .setCustomId('combat_flee')
+      .setLabel('Fuir')
+      .setEmoji('🏃')
+      .setStyle(ButtonStyle.Danger);
+
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(attackBtn, defendBtn, potionBtn, fleeBtn);
+  };
+
+  const message = await interaction.editReply({
+    embeds: [getEmbed([])],
+    components: [await getActionRow()]
+  });
+
+  const collector = message.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    filter: (i) => i.user.id === userId,
+    time: 60 * 1000
+  });
+
+  const turnsLog: string[] = [];
+  let isDefending = false;
+  let totalDamageDealt = 0;
+  let totalDamageTaken = 0;
+
+  collector.on('collect', async (btnInt) => {
+    try {
+      await btnInt.deferUpdate();
+      collector.resetTimer();
+
+      isDefending = false;
+      let actionTaken = '';
+
+      if (btnInt.customId === 'combat_attack') {
+        const critical = Math.random() < 0.1;
+        const baseDmg = Math.max(1, playerAtk - Math.floor(monster.defense / 2)) + Math.floor(Math.random() * Math.max(1, Math.floor(playerSpd / 3)));
+        const damage = critical ? Math.floor(baseDmg * 1.5) : baseDmg;
+        monsterHp = Math.max(0, monsterHp - damage);
+        totalDamageDealt += damage;
+        actionTaken = `🗡️ Vous infligez **${damage}** dégâts${critical ? ' **CRITIQUE !**' : ''} au ${monster.name}.`;
+      } else if (btnInt.customId === 'combat_defend') {
+        isDefending = true;
+        actionTaken = `🛡️ Vous vous mettez en posture défensive.`;
+      } else if (btnInt.customId === 'combat_potion') {
+        const userPotions = await getPotions();
+        if (userPotions.length === 0) {
+          actionTaken = `❌ Vous n'avez pas de potions !`;
+        } else {
+          const potItem = userPotions[0];
+          const restored = potItem.item.hpRestore;
+          playerHp = Math.min(playerMaxHp, playerHp + restored);
+          
+          if (potItem.quantity > 1) {
+            await prisma.rpgInventoryItem.update({ where: { id: potItem.id }, data: { quantity: { decrement: 1 } } });
+          } else {
+            await prisma.rpgInventoryItem.delete({ where: { id: potItem.id } });
+          }
+          actionTaken = `🧪 Vous buvez une **${potItem.item.name}** (+${restored} PV).`;
+        }
+      } else if (btnInt.customId === 'combat_flee') {
+        turnsLog.push(`🏃 Vous fuyez le combat !`);
+        collector.stop('fled');
+        return;
+      }
+
+      turnsLog.push(actionTaken);
+
+      if (monsterHp <= 0) {
+        collector.stop('victory');
+        return;
+      }
+
+      // Tour du monstre
+      const monsterCrit = Math.random() < 0.08;
+      const monsterBaseDmg = Math.max(1, monster.attack - Math.floor((playerDef * (isDefending ? 2 : 1)) / 2)) + Math.floor(Math.random() * Math.max(1, Math.floor(monster.speed / 3)));
+      const monsterDamage = monsterCrit ? Math.floor(monsterBaseDmg * 1.5) : monsterBaseDmg;
+      playerHp = Math.max(0, playerHp - monsterDamage);
+      totalDamageTaken += monsterDamage;
+      turnsLog.push(`${monster.emoji} Le ${monster.name} vous inflige **${monsterDamage}** dégâts${monsterCrit ? ' **CRITIQUE !**' : ''}.`);
+
+      if (playerHp <= 0) {
+        collector.stop('defeat');
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [getEmbed(turnsLog)],
+        components: [await getActionRow()]
+      });
+
+    } catch (err) {
+      console.error(err);
+    }
+  });
+
+  collector.on('end', async (_, reason) => {
+    try {
+      const row = await getActionRow();
+      row.components.forEach(c => c.setDisabled(true));
+
+      if (reason === 'fled') {
+        await prisma.rpgProfile.update({
+          where: { guildId_userId: { guildId, userId } },
+          data: { health: playerHp, lastBattle: new Date() }
+        });
+
+        const fledEmbed = new EmbedBuilder()
+          .setTitle(`🏃 Fuite — ${monster.emoji} ${monster.name}`)
+          .setDescription(
+            `Vous avez fui le combat !\n\n` +
+            `**Vous** :\n${buildHpBar(playerHp, playerMaxHp)}\n` +
+            `**${monster.name}** :\n${buildHpBar(monsterHp, monsterMaxHp)}`
+          )
+          .setColor('#FFA500')
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [fledEmbed], components: [row] });
+        return;
+      }
+
+      if (reason === 'time') {
+        await prisma.rpgProfile.update({
+          where: { guildId_userId: { guildId, userId } },
+          data: { health: playerHp, lastBattle: new Date() }
+        });
+
+        const timeoutEmbed = new EmbedBuilder()
+          .setTitle(`⏳ Combat interrompu`)
+          .setDescription(`Vous avez mis trop de temps à répondre. Le combat s'est arrêté.`)
+          .setColor('#808080')
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [timeoutEmbed], components: [row] });
+        return;
+      }
+
+      if (reason === 'victory') {
+        const xpEarned = monster.xpReward + Math.floor(Math.random() * Math.floor(monster.xpReward * 0.3));
+        let coinsEarned = monster.coinReward + Math.floor(Math.random() * Math.floor(monster.coinReward * 0.3));
+
+        let itemDropped: string | null = null;
+        let itemDropEmoji: string | null = null;
+        
+        const drops = (Array.isArray(monster.drops) ? monster.drops : JSON.parse(String(monster.drops || '[]'))) as { itemName: string; chance: number; emoji?: string; coinBonus?: number }[];
+        for (const drop of drops) {
+          if (Math.random() < drop.chance) {
+            itemDropped = drop.itemName;
+            itemDropEmoji = drop.emoji || null;
+            if (drop.coinBonus) coinsEarned += drop.coinBonus;
+
+            const dropItem = await prisma.rpgItem.findFirst({
+              where: {
+                OR: [{ guildId: null }, { guildId }],
+                name: drop.itemName
+              }
+            });
+            if (dropItem) {
+              await prisma.rpgInventoryItem.upsert({
+                where: { rpgProfileId_itemId: { rpgProfileId: profile.id, itemId: dropItem.id } },
+                update: { quantity: { increment: 1 } },
+                create: { rpgProfileId: profile.id, itemId: dropItem.id, quantity: 1 }
+              });
+            }
+            break;
+          }
+        }
+
+        await prisma.rpgProfile.update({
+          where: { guildId_userId: { guildId, userId } },
+          data: {
+            health: Math.max(1, playerHp),
+            balance: { increment: coinsEarned },
+            xp: { increment: xpEarned },
+            totalMonstersKilled: !monster.isBoss ? { increment: 1 } : undefined,
+            totalBossesKilled: monster.isBoss ? { increment: 1 } : undefined,
+            lastBattle: new Date()
+          }
+        });
+
+        await prisma.rpgBattle.create({
+          data: {
+            guildId, userId, monsterId: monster.id, monsterName: monster.name, won: true,
+            damageDealt: totalDamageDealt, damageTaken: totalDamageTaken, xpEarned, coinsEarned, itemDropped
+          }
+        });
+
+        const { checkLevelUp } = await import('../../services/features/economyService.js');
+        const beforeLevel = profile.level;
+        await checkLevelUp(guildId, userId);
+        const afterProfile = await prisma.rpgProfile.findUnique({ where: { guildId_userId: { guildId, userId } } });
+        const levelUp = afterProfile && afterProfile.level > beforeLevel ? afterProfile.level : null;
+
+        const victoryEmbed = new EmbedBuilder()
+          .setTitle(`🏆 Victoire — ${monster.emoji} ${monster.name}`)
+          .setDescription(
+            `Vous avez vaincu le **${monster.name}** !\n\n` +
+            `**Vous** :\n${buildHpBar(playerHp, playerMaxHp)}\n\n` +
+            `**Journal de combat** :\n${turnsLog.slice(-4).join('\n')}`
+          )
+          .setColor(COLORS.success)
+          .addFields(
+            { name: '💥 Dégâts infligés', value: `${totalDamageDealt}`, inline: true },
+            { name: '🩸 Dégâts reçus', value: `${totalDamageTaken}`, inline: true },
+            { name: '⭐ XP gagné', value: `+${xpEarned}`, inline: true },
+            { name: `${config.currencyEmoji} Pièces gagnées`, value: `+${coinsEarned}`, inline: true },
+          )
+          .setTimestamp();
+
+        if (itemDropped) {
+          victoryEmbed.addFields({ name: '🎁 Drop !', value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
+        }
+
+        if (levelUp) {
+          victoryEmbed.addFields({ name: '🎉 NIVEAU SUPÉRIEUR !', value: `Vous passez au **Niveau ${levelUp}** !` });
+        }
+
+        await interaction.editReply({ embeds: [victoryEmbed], components: [row] });
+        return;
+      }
+
+      if (reason === 'defeat') {
+        const xpEarned = Math.floor(monster.xpReward * 0.15);
+
+        await prisma.rpgProfile.update({
+          where: { guildId_userId: { guildId, userId } },
+          data: {
+            health: 1,
+            xp: { increment: xpEarned },
+            lastBattle: new Date()
+          }
+        });
+
+        await prisma.rpgBattle.create({
+          data: {
+            guildId, userId, monsterId: monster.id, monsterName: monster.name, won: false,
+            damageDealt: totalDamageDealt, damageTaken: totalDamageTaken, xpEarned, coinsEarned: 0, itemDropped: null
+          }
+        });
+
+        const defeatEmbed = new EmbedBuilder()
+          .setTitle(`💀 Défaite — ${monster.emoji} ${monster.name}`)
+          .setDescription(
+            `Vous avez succombé face au **${monster.name}**...\n\n` +
+            `**Vous** :\n${buildHpBar(0, playerMaxHp)}\n\n` +
+            `**Journal de combat** :\n${turnsLog.slice(-4).join('\n')}`
+          )
+          .setColor(COLORS.danger)
+          .addFields(
+            { name: '💥 Dégâts infligés', value: `${totalDamageDealt}`, inline: true },
+            { name: '🩸 Dégâts reçus', value: `${totalDamageTaken}`, inline: true },
+            { name: '⭐ XP gagné', value: `+${xpEarned}`, inline: true },
+          )
+          .setTimestamp();
+
+        await interaction.editReply({ embeds: [defeatEmbed], components: [row] });
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  });
 }
 
 export const rpgFightCommand = { data: rpgFightData, execute: rpgFightExecute } satisfies SlashCommandDefinition;

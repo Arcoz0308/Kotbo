@@ -2,6 +2,7 @@
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -794,7 +795,7 @@
       meetingDeleteModalOpen = true;
       return;
     }
-    if (!confirm('Voulez-vous vraiment supprimer cet élément ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cet élément ?'))) return;
     try {
       if (type === 'absence') await deleteAbsence(id);
       else if (type === 'call') await deleteCall(id);
@@ -924,7 +925,7 @@
                 <button
                   onclick={() => navigateToDate(date)}
                   class="text-center text-[10px] w-full aspect-square rounded-full flex items-center justify-center transition-all
-                    {isCurrentMonth ? 'text-on-surface hover:bg-primary/15' : 'text-on-surface-variant/25'}
+ {isCurrentMonth ? 'text-on-surface hover:bg-primary/15' : 'text-on-surface-variant/25'}
                     {isToday(date) ? 'bg-primary text-white font-bold hover:bg-primary/90' : ''}
                     {isSameDay(date, calendarCurrentDate) && !isToday(date) ? 'ring-1.5 ring-primary/50 text-primary font-semibold' : ''}"
                 >
@@ -949,7 +950,7 @@
                   class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition-all text-left group {visibleTypes.includes(key) ? 'hover:bg-surface-hover' : 'opacity-40 hover:opacity-60'}"
                 >
                   <div class="w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors
-                    {color === 'emerald' ? (visibleTypes.includes(key) ? 'bg-emerald-500 border-emerald-600' : 'border-emerald-500/40') : ''}
+ {color === 'emerald' ? (visibleTypes.includes(key) ? 'bg-emerald-500 border-emerald-600' : 'border-emerald-500/40') : ''}
                     {color === 'green' ? (visibleTypes.includes(key) ? 'bg-green-500 border-green-600' : 'border-green-500/40') : ''}
                     {color === 'amber' ? (visibleTypes.includes(key) ? 'bg-amber-500 border-amber-600' : 'border-amber-500/40') : ''}
                     {color === 'purple' ? (visibleTypes.includes(key) ? 'bg-purple-500 border-purple-600' : 'border-purple-500/40') : ''}"
@@ -1058,7 +1059,7 @@
                       <button
                         onclick={() => toggleTaskCompletion(task)}
                         class="mt-0.5 w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors
-                          {task.status === 'COMPLETED' ? 'border-purple-500 bg-purple-500' : 'border-on-surface-variant/30 hover:border-purple-500'}"
+ {task.status === 'COMPLETED' ? 'border-purple-500 bg-purple-500' : 'border-on-surface-variant/30 hover:border-purple-500'}"
                       >
                         {#if task.status === 'COMPLETED'}
                           <Papicon icon="check" size={10} class="text-white" />
@@ -1144,7 +1145,7 @@
               <button
                 onclick={() => gotoTab('/planning', key, 'meeting')}
                 class="flex-1 py-2 text-[11px] font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 whitespace-nowrap
-                  {currentTab === key
+ {currentTab === key
                     ? (color === 'emerald' ? 'bg-emerald-500 text-white shadow-sm' :
                        color === 'green' ? 'bg-green-600 text-white shadow-sm' :
                        color === 'amber' ? 'bg-amber-500 text-white shadow-sm' :
@@ -1413,7 +1414,7 @@
           <div class="flex justify-between items-start mb-4">
             <div class="flex-1 min-w-0">
               <span class="text-[9px] font-bold uppercase tracking-wider
-                {typeColor === 'emerald' ? 'text-emerald-400' : typeColor === 'green' ? 'text-green-400' : typeColor === 'amber' ? 'text-amber-400' : 'text-purple-400'}">
+ {typeColor === 'emerald' ? 'text-emerald-400' : typeColor === 'green' ? 'text-green-400' : typeColor === 'amber' ? 'text-amber-400' : 'text-purple-400'}">
                 {getTypeLabel(currentItemDetail.type)}
               </span>
               <h3 class="text-base font-bold mt-0.5 leading-tight">{currentItemDetail.title}</h3>
@@ -1929,7 +1930,7 @@
             <button 
               onclick={confirmDeleteMeeting}
               disabled={deletingMeeting}
-              class="px-8 py-2.5 bg-red-500 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 hover:shadow-red-500/40 disabled:opacity-50 transition-all flex items-center gap-2"
+              class="px-8 py-2.5 bg-red-500 text-white rounded-xl font-semibold shadow-sm hover:shadow-red-500/40 disabled:opacity-50 transition-all flex items-center gap-2"
             >
               {#if deletingMeeting}
                 <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
@@ -2020,7 +2021,7 @@
             <button 
               onclick={saveMeetingEdit}
               disabled={savingMeetingEdit || !editMeetingTitle || !editMeetingDate}
-              class="px-8 py-2.5 bg-primary text-white rounded-xl font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/40 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
+              class="px-8 py-2.5 bg-primary text-white rounded-xl font-semibold shadow-sm hover:shadow-primary/40 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
             >
               {#if savingMeetingEdit}
                 <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>

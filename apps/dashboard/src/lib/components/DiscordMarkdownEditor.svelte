@@ -1,5 +1,6 @@
 <script lang="ts">
   import { parseDiscordEmojisAndMarkdown } from '../emojiParser';
+  import { confirmDialog } from '../stores/confirmDialog.svelte';
   import Papicon from './Papicon.svelte';
 
   let {
@@ -201,9 +202,9 @@ Description de l'annonce...
     });
   }
 
-  function applyTemplate(template: typeof agendaTemplates[0]) {
+  async function applyTemplate(template: typeof agendaTemplates[0]) {
     if (disabled) return;
-    if (value.trim() && !confirm('Le contenu actuel sera remplacé par le modèle. Continuer ?')) return;
+    if (value.trim() && !(await confirmDialog.ask({ title: 'Appliquer ce modèle ?', description: 'Le contenu actuel sera remplacé.', confirmLabel: 'Remplacer', variant: 'warning' }))) return;
     value = template.content;
     activeTab = 'editor';
     tick().then(() => textareaEl?.focus());
@@ -294,7 +295,7 @@ Description de l'annonce...
           type="button"
           {disabled}
           onclick={() => insertFormat(action)}
-          class="h-7 px-1.5 flex items-center justify-center rounded-md text-on-surface-variant/70 hover:bg-surface-container-high/60 hover:text-on-surface transition-all text-[10px] font-bold uppercase tracking-wider disabled:opacity-30 disabled:pointer-events-none"
+          class="h-7 px-1.5 flex items-center justify-center rounded-md text-on-surface-variant/70 hover:bg-surface-container-high/60 hover:text-on-surface transition-all text-xs font-medium disabled:opacity-30 disabled:pointer-events-none"
           title={action.label}
         >
           {#if action.label === 'Titre 1'}H1
@@ -361,12 +362,12 @@ Description de l'annonce...
         <button
           type="button"
           onclick={() => activeTab = 'editor'}
-          class="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {activeTab === 'editor' ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface-variant'}"
+          class="px-3 py-1 rounded-md text-xs font-medium transition-all {activeTab === 'editor' ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface-variant'}"
         >Éditeur</button>
         <button
           type="button"
           onclick={() => activeTab = 'preview'}
-          class="px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {activeTab === 'preview' ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface-variant'}"
+          class="px-3 py-1 rounded-md text-xs font-medium transition-all {activeTab === 'preview' ? 'bg-primary/15 text-primary' : 'text-on-surface-variant/60 hover:text-on-surface-variant'}"
         >Aperçu</button>
       </div>
     {/if}

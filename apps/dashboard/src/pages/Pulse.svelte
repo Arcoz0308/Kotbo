@@ -4,7 +4,9 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { fetchPulseData, refreshPulse, fetchPredictions } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import EmptyState from '../lib/components/EmptyState.svelte';
 
   type TabId = 'sante' | 'predictions' | 'apercu';
 
@@ -110,36 +112,31 @@
   onMount(load);
 </script>
 
-<!-- ======================== HEADER ======================== -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-  <div>
-    <h1 class="text-lg font-semibold flex items-center gap-2.5">
-      <Papicon icon="activity" size={24} />
-      Pulse &mdash; Intelligence Serveur
-    </h1>
-    <p class="text-xs text-on-surface-variant/60 mt-1">Score de santé, prédictions et analyse en temps réel</p>
-  </div>
-  <div class="flex items-center gap-3 flex-wrap">
-    <button class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2" onclick={handleRefresh}>
+<ModulePage
+  title="Pulse — Intelligence Serveur"
+  description="Score de santé, prédictions et analyse en temps réel."
+  icon="activity"
+>
+  {#snippet actions()}
+    <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={handleRefresh}>
       <Papicon icon="refresh-cw" size={16} />
       Recalculer
     </button>
     <div class="flex gap-1">
       {#each [7, 14, 30, 60, 90] as p}
         <button
-          class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all {period === p ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high/60'}"
+          class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all {period === p ? 'bg-primary text-on-primary shadow-sm' : 'bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high/60'}"
           onclick={() => changePeriod(p)}
         >{p}j</button>
       {/each}
     </div>
-  </div>
-</div>
+  {/snippet}
 
 <!-- ======================== TABS ======================== -->
-<div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-xl border border-outline-variant/10 w-fit mb-6">
+<div class="tab-group w-fit mb-6">
   {#each tabs as tab}
     <button
-      class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+      class="tab-button {activeTab === tab.id ? 'active' : ''}"
       onclick={() => gotoTab('/pulse', tab.id, 'apercu')}
     >
       <Papicon icon={tab.icon} size={15} />
@@ -214,29 +211,29 @@
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{pulseData.metrics.totalMessages.toLocaleString()}</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Messages</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Messages</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{Math.round(pulseData.metrics.totalVoiceMinutes / 60)}h</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Vocal</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Vocal</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{pulseData.metrics.activeMembers}/{pulseData.metrics.totalMembers}</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Membres actifs</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Membres actifs</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold {pulseData.metrics.membersJoined > pulseData.metrics.membersLeft ? 'text-emerald-500' : ''}">
                 +{pulseData.metrics.membersJoined} / -{pulseData.metrics.membersLeft}
               </div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Arrivées / Départs</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Arrivées / Départs</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{pulseData.metrics.sanctionsCount}</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Sanctions</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Sanctions</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{pulseData.metrics.ticketsResolved}/{pulseData.metrics.ticketsOpen + pulseData.metrics.ticketsResolved}</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Tickets résolus</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Tickets résolus</div>
             </div>
           </div>
         </div>
@@ -275,7 +272,7 @@
                 ></div>
               {/each}
             </div>
-            <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">
+            <div class="flex justify-between text-xs font-medium text-on-surface-variant/60">
               <span>{pulseData.history[0]?.dateKey?.slice(5)}</span>
               <span>{pulseData.history[pulseData.history.length - 1]?.dateKey?.slice(5)}</span>
             </div>
@@ -283,10 +280,7 @@
         {/if}
       </div>
     {:else}
-      <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
-        <Papicon icon="heart" size={48} />
-        <p class="text-sm">Aucune donnée Pulse disponible. Cliquez sur &laquo; Recalculer &raquo; pour générer le premier snapshot.</p>
-      </div>
+      <EmptyState icon="heart" title="Aucune donnée Pulse" description="Cliquez sur « Recalculer » pour générer le premier snapshot." />
     {/if}
 
   <!-- ==================== TAB: PREDICTIONS ==================== -->
@@ -302,15 +296,15 @@
           <div class="grid grid-cols-3 gap-4">
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{predData.growthForecast.predicted7d.toLocaleString()}</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Membres 7j</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Membres 7j</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{predData.growthForecast.predicted30d.toLocaleString()}</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Membres 30j</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Membres 30j</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-4 text-center">
               <div class="text-2xl font-bold">{predData.growthForecast.confidence}%</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Confiance</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Confiance</div>
             </div>
           </div>
         </div>
@@ -363,7 +357,7 @@
                   ></div>
                 {/each}
               </div>
-              <div class="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">
+              <div class="flex gap-4 text-xs font-medium text-on-surface-variant/60">
                 <span class="flex items-center gap-1.5">
                   <span class="w-2 h-2 rounded-sm" style="background: {trend.color}"></span>
                   Réel
@@ -397,10 +391,7 @@
         {/if}
       </div>
     {:else}
-      <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
-        <Papicon icon="trending-up" size={48} />
-        <p class="text-sm">Aucune donnée de prédiction disponible.</p>
-      </div>
+      <EmptyState icon="trending-up" title="Aucune donnée de prédiction" description="Les prédictions apparaîtront quand assez d'historique aura été collecté." />
     {/if}
 
   <!-- ==================== TAB: APERCU ==================== -->
@@ -451,7 +442,7 @@
           <!-- Alerts -->
           {#if pulseData.current.alerts && pulseData.current.alerts.length > 0}
             <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/60">Alertes</h4>
+              <h4 class="text-[13px] font-medium text-on-surface-variant/60">Alertes</h4>
               {#each pulseData.current.alerts.slice(0, 3) as alert}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs {getAlertClasses(alert.severity)}">
                   <Papicon icon={getAlertIcon(alert.severity)} size={14} />
@@ -475,15 +466,15 @@
           <div class="grid grid-cols-3 gap-3">
             <div class="bg-surface-container-high/30 rounded-xl p-3 text-center">
               <div class="text-lg font-bold">{predData.growthForecast.predicted7d.toLocaleString()}</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-0.5">Membres 7j</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Membres 7j</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-3 text-center">
               <div class="text-lg font-bold">{predData.growthForecast.predicted30d.toLocaleString()}</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-0.5">Membres 30j</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Membres 30j</div>
             </div>
             <div class="bg-surface-container-high/30 rounded-xl p-3 text-center">
               <div class="text-lg font-bold">{predData.growthForecast.confidence}%</div>
-              <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-0.5">Confiance</div>
+              <div class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Confiance</div>
             </div>
           </div>
           <div class="space-y-2 text-sm text-on-surface-variant">
@@ -499,7 +490,7 @@
           <!-- Anomalies -->
           {#if predData.anomalies && predData.anomalies.length > 0}
             <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/60">Anomalies</h4>
+              <h4 class="text-[13px] font-medium text-on-surface-variant/60">Anomalies</h4>
               {#each predData.anomalies.slice(0, 3) as anomaly}
                 <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs {getAnomalyClasses(anomaly.severity)}">
                   <Papicon icon={anomaly.type === 'spike' ? 'arrow-up' : 'arrow-down'} size={14} />
@@ -515,3 +506,4 @@
     </div>
   {/if}
 {/if}
+</ModulePage>

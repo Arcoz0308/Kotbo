@@ -5,6 +5,7 @@
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
 
 
@@ -204,12 +205,13 @@
 </script>
 
 
-<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 font-inter">
-  <div>
-    <h2 class="text-lg font-extrabold text-primary tracking-tight font-headline">Journal d'Activité</h2>
-    <p class="text-on-surface-variant mt-1 leading-relaxed">Historique des actions de configuration pour {dashboardStore.state.guildName}.</p>
-  </div>
-  <div class="flex items-center gap-3">
+<ModulePage
+  title="Journal d'activité"
+  description="Historique des actions de configuration pour {dashboardStore.state.guildName}."
+  icon="history"
+  featureKey="activity"
+>
+  {#snippet actions()}
     <RefreshButton
       onClick={() => dashboardStore.refresh()}
       loading={dashboardStore.state.loading}
@@ -217,8 +219,7 @@
       className="px-5 py-2.5 font-bold "
       iconClass="text-lg"
     />
-  </div>
-</div>
+  {/snippet}
 
 
 <div class="section-card p-6 mb-8 font-inter">
@@ -361,7 +362,7 @@
             </td>
             <td class="px-6 py-6 text-center">
               <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-bold 
-                {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
+ {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
                 {entry.eventType}
               </span>
             </td>
@@ -387,10 +388,11 @@
     <div class="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
       <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
       <div class="flex items-end justify-between mt-2">
-        <p class="text-lg font-extrabold text-on-surface">{kpi.val}</p>
+        <p class="text-lg font-semibold text-on-surface">{kpi.val}</p>
         <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
       </div>
     </div>
   {/each}
 </div>
+</ModulePage>
 

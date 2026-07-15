@@ -234,9 +234,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     try {
       const panel = await buildMemberCasePanel(interaction.guild!, ticket.userId, 'resume', 0);
       await interaction.editReply({
-        embeds: [panel.embed],
         components: panel.components,
         files: panel.files,
+        flags: [MessageFlags.IsComponentsV2],
       });
     } catch {
       await interaction.editReply({

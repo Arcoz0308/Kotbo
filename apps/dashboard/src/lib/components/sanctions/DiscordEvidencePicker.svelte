@@ -214,7 +214,7 @@
       </div>
 
       <div class="max-w-md rounded-xl bg-surface-container-high/25 p-5 ring-1 ring-outline-variant/10">
-        <label for="evidence-message-limit" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/55">
+        <label for="evidence-message-limit" class="text-xs font-medium text-on-surface-variant/55">
           Nombre maximum de messages
         </label>
         <div class="mt-2 flex items-center gap-3">
@@ -295,7 +295,7 @@
       {:else}
         <div class="grid min-h-0 flex-1 md:grid-cols-[14rem_minmax(0,1fr)]">
           <aside class="border-b border-outline-variant/10 bg-surface-container-high/10 p-3 md:border-b-0 md:border-r">
-            <p class="px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/45">Filtrer par salon</p>
+            <p class="px-2 pb-2 pt-1 text-xs font-medium text-on-surface-variant/45">Filtrer par salon</p>
             <nav class="flex gap-2 overflow-x-auto pb-1 md:max-h-[29rem] md:flex-col md:overflow-y-auto md:pr-1" aria-label="Filtres par salon">
               <button
                 type="button"
@@ -323,7 +323,7 @@
               <p class="text-xs font-medium text-on-surface-variant/60">
                 {visibleMessages.length} message{visibleMessages.length > 1 ? 's' : ''} affiché{visibleMessages.length > 1 ? 's' : ''}
               </p>
-              <button type="button" onclick={toggleSelectVisible} class="rounded-md px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-primary transition-colors hover:bg-primary/8 focus-visible:outline-2 focus-visible:outline-primary">
+              <button type="button" onclick={toggleSelectVisible} class="rounded-md px-2 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/8 focus-visible:outline-2 focus-visible:outline-primary">
                 {allVisibleSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
               </button>
             </div>
@@ -423,7 +423,7 @@
         <div class="h-14 animate-pulse rounded-xl bg-surface-container-high/40"></div>
         <div class="h-14 animate-pulse rounded-xl bg-surface-container-high/25"></div>
       </div>
-      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">
+      <p class="text-[13px] font-medium text-on-surface-variant/60">
         Génération de la transcription…
       </p>
     </div>

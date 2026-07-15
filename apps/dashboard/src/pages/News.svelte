@@ -7,6 +7,8 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { 
     fetchNews, 
     fetchPublicNews,
@@ -226,7 +228,7 @@
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cet article ?'))) return;
 
     await actionState.run(async () => {
       await deleteNews(id);
@@ -256,7 +258,7 @@
   }
 
   async function handleDeleteConfig(id: string) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette configuration ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cette configuration ?'))) return;
 
     await actionState.run(async () => {
       await deleteNewsCategoryConfig(id);
@@ -309,40 +311,30 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <!-- Header -->
-  <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="rss" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Actualités & RSS</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">
-          {isPublicView
-            ? 'Consultez les dernières annonces publiées pour ce serveur.'
-            : 'Rédigez des annonces, des patch notes et générez le flux RSS du serveur.'}
-        </p>
-      </div>
-    </div>
-    <div class="flex gap-3">
-      {#if showEditor}
-        <button
-          onclick={() => showEditor = false}
-          class="px-5 py-2.5 bg-surface-container-high text-on-surface font-semibold uppercase tracking-widest text-xs rounded-lg shadow hover:bg-surface-container-highest transition-all"
-        >
-          Retour à la liste
-        </button>
-      {:else if canEdit}
-        <button
-          onclick={openCreate}
-          class="px-6 py-2.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-105 transition-all"
-        >
-          Créer un article
-        </button>
-      {/if}
-    </div>
-  </header>
+<ModulePage
+  title="Actualités & RSS"
+  description={isPublicView
+    ? 'Consultez les dernières annonces publiées pour ce serveur.'
+    : 'Rédigez des annonces, des patch notes et générez le flux RSS du serveur.'}
+  icon="rss"
+>
+  {#snippet actions()}
+    {#if showEditor}
+      <button
+        onclick={() => showEditor = false}
+        class="px-5 py-2.5 bg-surface-container-high text-on-surface font-medium text-[13px] rounded-lg shadow hover:bg-surface-container-highest transition-all"
+      >
+        Retour à la liste
+      </button>
+    {:else if canEdit}
+      <button
+        onclick={openCreate}
+        class="px-6 py-2.5 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all"
+      >
+        Créer un article
+      </button>
+    {/if}
+  {/snippet}
 
   {#if !isPublicView}
     <InlineFeedback state={actionState} />
@@ -485,7 +477,7 @@
             </button>
             <button 
               onclick={handleSave}
-              class="px-8 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-105 transition-all"
+              class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all"
             >
               {isEditing ? 'Mettre à jour' : 'Créer l\'article'}
             </button>
@@ -529,7 +521,7 @@
     <div class="flex border-b border-outline-variant/20 mb-8 shrink-0">
       <button 
         onclick={() => gotoTab('/news', 'articles', 'articles')}
-        class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'articles' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="tab-button {activeTab === 'articles' ? 'active' : ''}"
       >
         Articles
         {#if activeTab === 'articles'}
@@ -539,7 +531,7 @@
       {#if !isPublicView}
         <button 
           onclick={() => gotoTab('/news', 'configs', 'articles')}
-          class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'configs' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+          class="tab-button {activeTab === 'configs' ? 'active' : ''}"
         >
           Flux & Salons par Catégorie
           {#if activeTab === 'configs'}
@@ -669,7 +661,7 @@
                         {#each section.subcategories as subcategorySection}
                           <div class="grid gap-4 px-5 py-4 md:grid-cols-[220px_minmax(0,1fr)] md:gap-6">
                             <div class="space-y-2">
-                              <div class="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-secondary">
+                              <div class="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-3 py-1 text-xs font-medium text-secondary">
                                 <Papicon icon="hash" size={14} />
                                 {subcategorySection.subcategoryName}
                               </div>
@@ -743,7 +735,7 @@
               <div class="overflow-x-auto rounded-xl border border-outline-variant/10">
                 <table class="w-full border-collapse text-left">
                   <thead>
-                    <tr class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+                    <tr class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
                       <th class="px-6 py-4">Article</th>
                       <th class="px-6 py-4">Catégorie</th>
                       <th class="px-6 py-4">Auteur</th>
@@ -842,7 +834,7 @@
               {#if canEdit}
                 <button 
                   onclick={openCreate}
-                  class="mt-6 px-6 py-2.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-xl hover:scale-105 transition-all"
+                  class="mt-6 px-6 py-2.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-xl transition-all"
                 >
                   Créer un article
                 </button>
@@ -936,7 +928,7 @@
                   <!-- Save Config Button -->
                   <button
                     onclick={handleSaveConfig}
-                    class="w-full mt-2 py-3 bg-on-surface text-surface font-semibold uppercase tracking-wider text-xs rounded-lg hover:opacity-90 transition-all"
+                    class="w-full mt-2 py-3 bg-on-surface text-surface font-medium text-[13px] rounded-lg hover:opacity-90 transition-all"
                   >
                     Enregistrer la rubrique
                   </button>
@@ -1043,4 +1035,4 @@
       </div>
     {/if}
   {/if}
-</div>
+</ModulePage>

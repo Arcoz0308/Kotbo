@@ -504,11 +504,11 @@
 
         <!-- Header color picker -->
         <div class="p-4 border-b border-outline-variant/10">
-          <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-2">Couleur d'en-tête</p>
+          <p class="text-[13px] font-medium text-on-surface-variant/60 mb-2">Couleur d'en-tête</p>
           <div class="flex flex-wrap gap-2">
             {#each PALETTE as color}
               <button onclick={() => headerColor = color}
-                class="w-6 h-6 rounded-full transition-transform  {headerColor === color ? 'ring-2 ring-offset-2 ring-offset-surface ring-primary scale-110' : ''}"
+                class="w-6 h-6 rounded-full transition-transform {headerColor === color ? 'ring-2 ring-offset-2 ring-offset-surface ring-primary scale-110' : ''}"
                 style="background:{color}"
                 aria-label="Sélectionner la couleur d'en-tête {color}"
               ></button>
@@ -521,7 +521,7 @@
           <div class="border-b border-outline-variant/10">
             <button onclick={() => showAppearance = !showAppearance}
               class="w-full p-4 flex items-center justify-between hover:bg-surface-container/50 transition-colors">
-              <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 flex items-center gap-2">
+              <p class="text-[13px] font-medium text-on-surface-variant/60 flex items-center gap-2">
                 <Papicon icon="palette" size={14} /> Apparence
               </p>
               <Papicon icon={showAppearance ? 'expand_less' : 'expand_more'} size={16} />
@@ -617,7 +617,7 @@
         <!-- Sections -->
         <div class="p-4 border-b border-outline-variant/10">
           <div class="flex items-center justify-between mb-2">
-            <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Sections</p>
+            <p class="text-[13px] font-medium text-on-surface-variant/60">Sections</p>
             <button onclick={addSection}
               class="p-1 rounded-lg hover:bg-surface-container transition-colors text-primary">
               <Papicon icon="add" size={16} />
@@ -643,7 +643,7 @@
 
         <!-- Add question types -->
         <div class="p-4 flex-1">
-          <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-3">Ajouter une question</p>
+          <p class="text-[13px] font-medium text-on-surface-variant/60 mb-3">Ajouter une question</p>
           <div class="grid grid-cols-1 gap-1">
             {#each FIELD_TYPES as ft}
               <button onclick={() => addField(ft.type)}
@@ -699,7 +699,7 @@
               onclick={() => activeFieldId = field.id}
               onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') activeFieldId = field.id; }}
               class="rounded-lg bg-surface border-2 shadow-sm cursor-pointer transition-all outline-none focus:ring-2 focus:ring-primary/40
-                {isActive ? 'border-primary shadow-primary/10' : 'border-outline-variant/20 hover:border-outline-variant/40'}
+ {isActive ? 'border-primary shadow-primary/10' : 'border-outline-variant/20 hover:border-outline-variant/40'}
                 {dragOverId === field.id ? 'scale-[1.01] border-primary/60' : ''}">
 
               <!-- Drag handle row -->

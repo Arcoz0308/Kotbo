@@ -59,7 +59,7 @@
           <!-- Animated icon -->
           <div class="relative mx-auto w-20 h-20 mb-6">
             <div class="absolute inset-0 bg-primary/10 rounded-2xl rotate-6 animate-pulse"></div>
-            <div class="relative w-full h-full bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
+            <div class="relative w-full h-full bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center shadow-sm">
               <Rocket class="w-10 h-10 text-on-primary" />
             </div>
           </div>
@@ -91,7 +91,7 @@
 
           <button
             onclick={() => (step = 1)}
-            class="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary font-semibold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
+            class="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary font-semibold text-sm hover:opacity-90 transition-opacity shadow-sm"
           >
             Continuer
             <ArrowRight class="w-4 h-4" />
@@ -158,7 +158,7 @@
             </button>
             <button
               onclick={getStarted}
-              class="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary font-semibold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
+              class="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary font-semibold text-sm hover:opacity-90 transition-opacity shadow-sm"
             >
               C'est parti !
               <Rocket class="w-4 h-4" />

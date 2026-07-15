@@ -3,6 +3,7 @@
   import { fly, fade } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { applyGuildPreset, updateModuleStatus } from '../lib/api';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import { getModuleIcon } from '../lib/moduleMeta';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -65,7 +66,7 @@
   let applyingPreset = $state(false);
   async function applyPreset(presetKey) {
     if (!canApplyPreset || applyingPreset) return;
-    if (!confirm(`Souhaitez-vous appliquer le preset "${presetKey}" ? Certains réglages actuels seront remplacés.`)) return;
+    if (!(await confirmDialog.ask({ title: `Appliquer le preset « ${presetKey} » ?`, description: 'Certains réglages actuels seront remplacés.', confirmLabel: 'Appliquer', variant: 'warning' }))) return;
     
     applyingPreset = true;
     const success = await applyGuildPreset(presetKey);
@@ -129,7 +130,7 @@
           <Papicon icon="Package" size={20} />
         </div>
         <div>
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Modules & Extensions</span>
+          <span class="text-xs font-medium text-primary">Modules & Extensions</span>
           <h2 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">
             Catalogue <span class="text-primary">Système</span>
           </h2>
@@ -142,14 +143,14 @@
           {#each ['Tous', 'Actifs', 'Inactifs', 'Erreurs'] as f}
             <button
               onclick={() => filter = f}
-              class="px-4 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {filter === f ? 'bg-primary text-on-primary shadow-sm ' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+              class="px-4 py-2 rounded-lg text-xs font-medium transition-all duration-300 whitespace-nowrap {filter === f ? 'bg-primary text-on-primary shadow-sm ' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
             >
               {f}
             </button>
           {/each}
         </div>
 
-        <div class="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-lg border border-outline-variant/5">
+        <div class="flex items-center gap-3 text-xs font-medium text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-lg border border-outline-variant/5">
            <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/20"></span>
               <span>{activeCount} Actifs</span>
@@ -196,7 +197,7 @@
             <button
               onclick={() => applyPreset(preset.key)}
               disabled={!canApplyPreset || applyingPreset}
-              class={`w-full py-4 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-all duration-300
+              class={`w-full py-4 rounded-lg text-xs font-medium transition-all duration-300
                 ${!canApplyPreset || applyingPreset 
                   ? 'bg-surface-container-high text-on-surface-variant/40 cursor-not-allowed' 
                   : `bg-primary text-on-primary hover: shadow-sm shadow-primary/20 hover:shadow-primary/30 active:scale-95`}`}

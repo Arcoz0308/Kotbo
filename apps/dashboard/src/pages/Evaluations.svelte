@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { fetchEvaluations, generateEvaluation } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import EmptyState from '../lib/components/EmptyState.svelte';
 
   let loading = $state(true);
   let generating = $state(false);
@@ -54,24 +56,22 @@
   onMount(load);
 </script>
 
-<!-- ======================== HEADER ======================== -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-  <div>
-    <h1 class="text-lg font-semibold flex items-center gap-2.5">
-      <Papicon icon="award" size={24} />
-      Evaluations Staff
-    </h1>
-    <p class="text-xs text-on-surface-variant/60 mt-1">Rapports de performance automatises</p>
-  </div>
-  <button
-    class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
-    onclick={handleGenerateAll}
-    disabled={generating}
-  >
-    <Papicon icon="zap" size={16} />
-    {generating ? 'Generation...' : 'Generer toutes'}
-  </button>
-</div>
+<ModulePage
+  title="Évaluations Staff"
+  description="Rapports de performance automatisés."
+  icon="award"
+  featureKey="staff_directory"
+>
+  {#snippet actions()}
+    <button
+      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+      onclick={handleGenerateAll}
+      disabled={generating}
+    >
+      <Papicon icon="zap" size={16} />
+      {generating ? 'Génération…' : 'Générer toutes'}
+    </button>
+  {/snippet}
 
 <!-- ======================== CONTENT ======================== -->
 {#if loading}
@@ -90,15 +90,15 @@
             <span class="text-2xl font-bold text-on-surface leading-none">{data.averageScore}</span>
             <span class="text-[10px] text-on-surface-variant/60">/100</span>
           </div>
-          <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Score moyen</div>
+          <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Score moyen</div>
         </div>
         <div class="bg-surface-container-high/30 rounded-xl p-4 text-center flex flex-col items-center justify-center">
           <span class="text-3xl font-bold text-on-surface">{data.latestByStaff.length}</span>
-          <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Staff evalues</div>
+          <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Staff evalues</div>
         </div>
         <div class="bg-surface-container-high/30 rounded-xl p-4 text-center flex flex-col items-center justify-center">
           <span class="text-3xl font-bold text-on-surface">{data.evaluations.length}</span>
-          <div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mt-1">Evaluations totales</div>
+          <div class="text-xs font-medium text-on-surface-variant/60 mt-1">Evaluations totales</div>
         </div>
       </div>
     </div>
@@ -112,13 +112,13 @@
         <table class="w-full">
           <thead>
             <tr class="border-b border-outline-variant/10">
-              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Staff</th>
-              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Activite</th>
-              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Moderation</th>
-              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Presence</th>
-              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Global</th>
-              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Tendance</th>
-              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Periode</th>
+              <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Staff</th>
+              <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Activite</th>
+              <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Moderation</th>
+              <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Presence</th>
+              <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Global</th>
+              <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Tendance</th>
+              <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Periode</th>
             </tr>
           </thead>
           <tbody>
@@ -175,10 +175,7 @@
     </div>
   {:else}
     <!-- Empty state -->
-    <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
-      <Papicon icon="award" size={48} />
-      <p class="text-sm">Aucune evaluation generee. Cliquez sur "Generer toutes" pour creer les premieres evaluations.</p>
-    </div>
+    <EmptyState icon="award" title="Aucune évaluation générée" description="Cliquez sur « Générer toutes » pour créer les premières évaluations." />
   {/if}
 
   <!-- ==================== HISTORY ==================== -->
@@ -200,3 +197,4 @@
     </div>
   {/if}
 {/if}
+</ModulePage>

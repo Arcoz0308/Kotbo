@@ -6,6 +6,7 @@
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -512,19 +513,12 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="Megaphone" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Annonces & Auto-Rôle</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Gérez les messages de bienvenue, départ, boosts Discord et les attributions automatiques de rôles.</p>
-      </div>
-    </div>
-  </header>
-
+<ModulePage
+  title="Annonces & Auto-Rôle"
+  description="Gérez les messages de bienvenue, départ, boosts Discord et les attributions automatiques de rôles."
+  icon="megaphone"
+  featureKey="welcome_goodbye"
+>
   <InlineFeedback state={actionState} />
 
   {#if loading}
@@ -537,38 +531,38 @@
     </div>
   {:else}
     <!-- Tabs Header -->
-    <div class="flex flex-wrap border-b border-outline-variant/15 gap-2 pb-2">
+    <div class="tab-group w-fit">
       <button
         onclick={() => gotoTab(ANNOUNCE_BASE, 'welcome', 'welcome')}
-        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'welcome' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="tab-button {activeTab === 'welcome' ? 'active' : ''}"
       >
         <Papicon icon="DoorOpen" size={14} />
         Accueil
       </button>
       <button
         onclick={() => gotoTab(ANNOUNCE_BASE, 'leave', 'welcome')}
-        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'leave' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="tab-button {activeTab === 'leave' ? 'active' : ''}"
       >
         <Papicon icon="Logout" size={14} />
         Départ
       </button>
       <button
         onclick={() => gotoTab(ANNOUNCE_BASE, 'boost', 'welcome')}
-        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'boost' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="tab-button {activeTab === 'boost' ? 'active' : ''}"
       >
         <Papicon icon="Zap" size={14} />
         Boosts
       </button>
       <button
         onclick={() => gotoTab(ANNOUNCE_BASE, 'autoroles', 'welcome')}
-        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'autoroles' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="tab-button {activeTab === 'autoroles' ? 'active' : ''}"
       >
         <Papicon icon="Shield" size={14} />
         Auto-Rôles
       </button>
       <button
         onclick={() => gotoTab(ANNOUNCE_BASE, 'thread', 'welcome')}
-        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'thread' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="tab-button {activeTab === 'thread' ? 'active' : ''}"
       >
         <Papicon icon="chat" size={14} />
         Thread d'accueil
@@ -1105,7 +1099,7 @@
                           type="button"
                           onclick={() => threadConfig.threadMode = 'public'}
                           disabled={!canManageSettings}
-                          class="flex-1 px-4 py-2.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all {threadConfig.threadMode === 'public' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                          class="flex-1 px-4 py-2.5 rounded-md text-[13px] font-medium transition-all {threadConfig.threadMode === 'public' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
                         >
                           Public
                         </button>
@@ -1113,7 +1107,7 @@
                           type="button"
                           onclick={() => threadConfig.threadMode = 'private'}
                           disabled={!canManageSettings}
-                          class="flex-1 px-4 py-2.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all {threadConfig.threadMode === 'private' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                          class="flex-1 px-4 py-2.5 rounded-md text-[13px] font-medium transition-all {threadConfig.threadMode === 'private' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
                         >
                           Privé
                         </button>
@@ -1215,7 +1209,7 @@
                               type="button"
                               onclick={() => threadConfig.menuStyle = 'buttons'}
                               disabled={!canManageSettings}
-                              class="flex-1 px-4 py-2.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all {threadConfig.menuStyle === 'buttons' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                              class="flex-1 px-4 py-2.5 rounded-md text-[13px] font-medium transition-all {threadConfig.menuStyle === 'buttons' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
                             >
                               Boutons
                             </button>
@@ -1223,7 +1217,7 @@
                               type="button"
                               onclick={() => threadConfig.menuStyle = 'select'}
                               disabled={!canManageSettings}
-                              class="flex-1 px-4 py-2.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all {threadConfig.menuStyle === 'select' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                              class="flex-1 px-4 py-2.5 rounded-md text-[13px] font-medium transition-all {threadConfig.menuStyle === 'select' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
                             >
                               Menu déroulant
                             </button>
@@ -1541,7 +1535,7 @@
                             type="button"
                             onclick={() => page.actionType = 'EMBED'}
                             disabled={!canManageSettings}
-                            class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.actionType === 'EMBED' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                            class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.actionType === 'EMBED' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
                           >
                             Afficher un embed
                           </button>
@@ -1549,7 +1543,7 @@
                             type="button"
                             onclick={() => page.actionType = 'ROLE'}
                             disabled={!canManageSettings}
-                            class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.actionType === 'ROLE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                            class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.actionType === 'ROLE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
                           >
                             Gérer un rôle
                           </button>
@@ -1557,7 +1551,7 @@
                             type="button"
                             onclick={() => page.actionType = 'LINK'}
                             disabled={!canManageSettings}
-                            class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.actionType === 'LINK' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                            class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.actionType === 'LINK' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}"
                           >
                             Lien
                           </button>
@@ -1621,9 +1615,9 @@
                             <div class="space-y-1">
                               <span class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">Comportement</span>
                               <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
-                                <button type="button" onclick={() => page.roleAction = 'ADD'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.roleAction === 'ADD' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Ajouter</button>
-                                <button type="button" onclick={() => page.roleAction = 'REMOVE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.roleAction === 'REMOVE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Retirer</button>
-                                <button type="button" onclick={() => page.roleAction = 'TOGGLE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.roleAction === 'TOGGLE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Basculer</button>
+                                <button type="button" onclick={() => page.roleAction = 'ADD'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'ADD' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Ajouter</button>
+                                <button type="button" onclick={() => page.roleAction = 'REMOVE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'REMOVE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Retirer</button>
+                                <button type="button" onclick={() => page.roleAction = 'TOGGLE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'TOGGLE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Basculer</button>
                               </div>
                             </div>
                           </div>
@@ -1632,8 +1626,8 @@
                       {:else if page.actionType === 'LINK'}
                         <div class="space-y-3 animate-in fade-in duration-200">
                           <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
-                            <button type="button" onclick={() => page.linkMode = 'channel'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.linkMode === 'channel' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}" aria-label="Lien vers un salon du serveur">Salon du serveur</button>
-                            <button type="button" onclick={() => page.linkMode = 'url'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all {page.linkMode === 'url' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}" aria-label="Lien vers une URL externe">URL externe</button>
+                            <button type="button" onclick={() => page.linkMode = 'channel'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.linkMode === 'channel' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}" aria-label="Lien vers un salon du serveur">Salon du serveur</button>
+                            <button type="button" onclick={() => page.linkMode = 'url'} disabled={!canManageSettings} class="flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all {page.linkMode === 'url' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}" aria-label="Lien vers une URL externe">URL externe</button>
                           </div>
                           {#if page.linkMode === 'channel'}
                             <div class="space-y-1">
@@ -1684,4 +1678,4 @@
 
     </div>
   {/if}
-</div>
+</ModulePage>

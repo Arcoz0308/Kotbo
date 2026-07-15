@@ -4,6 +4,7 @@
   import { dashboardStore } from '../stores/dashboard.svelte.ts';
   import { authStore } from '../stores/auth.svelte.ts';
   import { toast } from '../stores/toast.svelte';
+  import { confirmDialog } from '../stores/confirmDialog.svelte';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
   import { router } from 'tinro';
@@ -145,6 +146,21 @@
       status: string;
     }>;
     isSuspectedDC: boolean;
+    crossServerSanctions?: {
+      enabled: boolean;
+      serverCount: number;
+      total: number;
+      breakdown: Record<string, number>;
+      recent: Array<{
+        type: string;
+        status: string;
+        durationSeconds: number | null;
+        reason: string;
+        createdAt: string;
+        guildId: string;
+        guildName: string;
+      }>;
+    };
     interactionGraph: {
       nodes: Array<{ id: string; label: string; type: 'user' | 'target'; avatar?: string | null }>;
       edges: Array<{ from: string; to: string; type: 'mention' | 'reply' | 'reaction'; count: number }>;
@@ -202,7 +218,7 @@
 
   async function handleRequestVerification() {
     if (!userId) return;
-    if (!confirm("Voulez-vous vraiment forcer la vérification de sécurité pour cet utilisateur ? Il sera mis en Timeout temporairement et recevra les instructions par MP (DM).")) return;
+    if (!(await confirmDialog.ask({ title: 'Forcer la vérification de sécurité ?', description: "L'utilisateur sera mis en timeout temporairement et recevra les instructions par message privé.", confirmLabel: 'Forcer la vérification', variant: 'warning' }))) return;
     requestVerificationBusy = true;
     try {
       const res = await runMemberCaseAction(userId, 'REQUEST_VERIFICATION', {
@@ -274,7 +290,7 @@
   let unlinkingAccountId = $state<string | null>(null);
 
   async function handleUnlinkAccount(targetId: string) {
-    if (!confirm('Êtes-vous sûr de vouloir séparer ces comptes ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Séparer ces comptes ?', confirmLabel: 'Séparer', variant: 'warning' }))) return;
     unlinkingAccountId = targetId;
 
     try {
@@ -386,6 +402,26 @@
       ? [...caseData?.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : []
   );
+
+  const crossServer = $derived(caseData?.crossServerSanctions ?? null);
+  const crossServerBreakdown = $derived(
+    crossServer
+      ? Object.entries(crossServer.breakdown).filter(([, count]) => (count as number) > 0)
+      : []
+  );
+
+  // Icône Papicon + classes de couleur (statiques pour Tailwind) par type de sanction.
+  function getSanctionTypeStyle(type: string): { icon: string; tile: string; dot: string } {
+    switch (type.toUpperCase()) {
+      case 'WARN': return { icon: 'alert-triangle', tile: 'bg-amber-500/10 text-amber-500', dot: 'bg-amber-500' };
+      case 'TIMEOUT': return { icon: 'clock', tile: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500' };
+      case 'KICK': return { icon: 'log-out', tile: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500' };
+      case 'TEMP_BAN': return { icon: 'ban', tile: 'bg-rose-500/10 text-rose-500', dot: 'bg-rose-500' };
+      case 'BAN': return { icon: 'gavel', tile: 'bg-rose-600/10 text-rose-600', dot: 'bg-rose-600' };
+      case 'SOFTBAN': return { icon: 'eraser', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
+      default: return { icon: 'shield', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
+    }
+  }
 
   const reportRuleOptions = $derived(buildReportRuleOptions(dashboardStore.state.regulationRules || []));
   const selectedSanctionForReport = $derived(sanctions.find(s => s.id === viewingReportSanctionId) || null);
@@ -763,7 +799,7 @@
             
             {#if caseData?.isSuspectedDC}
               <div class="rounded-xl bg-rose-500/10 border-2 border-rose-500/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
-                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 text-rose-500 shadow-lg shadow-rose-500/20">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 text-rose-500 shadow-sm">
                   <Papicon icon="alert-octagon" size={24} />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -798,17 +834,17 @@
 
                    <div class="grid grid-cols-2 gap-8">
                      <div class="space-y-1">
-                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Âge du compte</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">Âge du compte</p>
                        <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.accountCreatedAt)}</p>
                        <p class="text-[10px] font-bold text-on-surface-variant/60">Créé le {formatDateShort(caseData?.profile?.accountCreatedAt)}</p>
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Présence Serveur</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">Présence Serveur</p>
                        <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.guildJoinedAt)}</p>
                        <p class="text-[10px] font-bold text-on-surface-variant/60">Arrivé le {formatDateShort(caseData?.profile?.guildJoinedAt)}</p>
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Invité par</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">Invité par</p>
                         {#if caseData?.invite?.inviterTag}
                           {#if caseData?.invite?.inviterId}
                             <button
@@ -851,7 +887,7 @@
                         {/if}
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Code d'invitation</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">Code d'invitation</p>
                        {#if caseData?.invite?.code}
                          <button
                            type="button"
@@ -883,7 +919,7 @@
                    <div class="space-y-4">
                      <div class="flex items-end justify-between">
                         <span class="text-4xl font-semibold text-on-surface">{sanctions.length}</span>
-                        <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 pb-1">Total</span>
+                        <span class="text-xs font-medium text-on-surface-variant/40 pb-1">Total</span>
                      </div>
                      <div class="h-2 w-full rounded-full bg-on-surface/5 overflow-hidden">
                         <div class="h-full bg-rose-500 transition-all duration-1000" style="width: {sanctions.length > 0 ? (sanctions.filter(s => s.status === 'ACTIVE').length / sanctions.length) * 100 : 0}%"></div>
@@ -938,12 +974,12 @@
                        <div class="flex gap-2">
                          <div class="flex flex-col items-end">
                            <p class="text-2xl font-semibold text-primary">{analyticsData.totalMessages.toLocaleString('fr-FR')}</p>
-                           <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/40">Messages totaux</p>
+                           <p class="text-xs font-medium text-on-surface-variant/40">Messages totaux</p>
                          </div>
                          <div class="h-8 w-px bg-outline-variant/20 mx-4"></div>
                          <div class="flex flex-col items-end">
                            <p class="text-2xl font-semibold text-secondary">{Math.round(analyticsData.totalVoiceMinutes)}m</p>
-                           <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/40">Temps vocal</p>
+                           <p class="text-xs font-medium text-on-surface-variant/40">Temps vocal</p>
                          </div>
                        </div>
                     </div>
@@ -991,7 +1027,7 @@
                 {:else if analyticsLoading}
                   <div class="md:col-span-3 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm animate-pulse flex flex-col justify-center items-center">
                     <Papicon icon="loader" size={32} class="animate-spin text-primary/20 mb-4" />
-                    <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/20">Calcul des stats...</p>
+                    <p class="text-[13px] font-medium text-on-surface-variant/20">Calcul des stats...</p>
                   </div>
                 {:else}
                   <div class="md:col-span-3 rounded-xl bg-surface-container-low/10 p-10 border border-dashed border-outline-variant/20 flex flex-col justify-center items-center text-center">
@@ -1146,27 +1182,27 @@
                    </div>
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">ID Discord</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">ID Discord</dt>
                        <dd class="text-sm font-semibold text-on-surface select-all">{caseData?.profile?.userId ?? userId}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Nom d'utilisateur</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Nom d'utilisateur</dt>
                        <dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Nom Global</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Nom Global</dt>
                        <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Surnom Serveur</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Surnom Serveur</dt>
                        <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Pronoms</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Pronoms</dt>
                        <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd>
                      </div>
                      <div class="flex items-center justify-between">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Langue (Locale)</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Langue (Locale)</dt>
                        <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd>
                      </div>
                    </dl>
@@ -1176,7 +1212,7 @@
                   <!-- Staff Role Section -->
                   <div class="rounded-xl bg-amber-500/5 dark:bg-amber-500/10 p-8 border border-amber-500/20 dark:border-amber-400/20 shadow-sm hover:bg-amber-500/10 dark:hover:bg-amber-500/15 transition-all duration-500 group">
                      <div class="flex items-center gap-3 mb-8">
-                       <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-lg shadow-amber-500/20">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-sm">
                          <Papicon icon="star" size={24} />
                        </div>
                        <div>
@@ -1186,11 +1222,11 @@
                      </div>
                      <dl class="space-y-5">
                        <div class="flex items-center justify-between border-b border-amber-500/15 pb-2">
-                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Grade Actuel</dt>
+                         <dt class="text-xs font-medium text-on-surface-variant/40">Grade Actuel</dt>
                          <dd class="text-sm font-semibold text-amber-600 dark:text-amber-400">{caseData?.profile?.staffGrade}</dd>
                        </div>
                        <div class="flex items-center justify-between">
-                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</dt>
+                         <dt class="text-xs font-medium text-on-surface-variant/40">Statut Tuteur</dt>
                          <dd class="text-sm font-semibold text-on-surface">
                            {caseData?.profile?.isTutor ? 'Oui (Actif)' : 'Non'}
                          </dd>
@@ -1212,25 +1248,25 @@
                    </div>
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Création Compte</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Création Compte</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.accountCreatedAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Arrivée Serveur</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Arrivée Serveur</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd>
                      </div>
                      {#if caseData?.profile?.guildLeftAt}
                        <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-rose-500/60">Dernier Départ</dt>
+                         <dt class="text-xs font-medium text-rose-500/60">Dernier Départ</dt>
                          <dd class="text-sm font-semibold text-rose-500">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd>
                        </div>
                      {/if}
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Première Vue</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Première Vue</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Dernière Vue</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Dernière Vue</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.lastSeenAt)}</dd>
                      </div>
                    </dl>
@@ -1249,7 +1285,7 @@
                    </div>
                    <div class="flex flex-wrap gap-3">
                      {#each caseData?.roles as role}
-                       <span class="px-5 py-2.5 rounded-lg bg-surface-container-high text-xs font-semibold text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest flex items-center gap-2">
+                       <span class="px-5 py-2.5 rounded-lg bg-surface-container-high text-xs font-semibold text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:bg-surface-container-highest flex items-center gap-2">
                          {#if role.color && role.color !== '#000000'}
                            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {role.color}"></span>
                          {/if}
@@ -1318,14 +1354,14 @@
                         <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
                         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
                       </div>
-                      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Analyse du comportement...</p>
+                      <p class="text-[13px] font-medium text-on-surface-variant/60">Analyse du comportement...</p>
                     </div>
                   {:else if analyticsData && analyticsData.dailyTrend && analyticsData.dailyTrend.length > 0}
                     <div class="grid gap-6 lg:grid-cols-2">
                        <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
                             <div>
-                              <p class="text-[10px] font-semibold uppercase tracking-widest text-primary mb-1">Activité</p>
+                              <p class="text-xs font-medium text-primary mb-1">Activité</p>
                               <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Volume Messages</h4>
                             </div>
                             <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">30 derniers jours</span>
@@ -1355,7 +1391,7 @@
                        <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
                             <div>
-                              <p class="text-[10px] font-semibold uppercase tracking-widest text-secondary mb-1">Engagement</p>
+                              <p class="text-xs font-medium text-secondary mb-1">Engagement</p>
                               <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Activité Vocal</h4>
                             </div>
                             <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Minutes / jour</span>
@@ -1454,7 +1490,7 @@
                         <div class="flex items-start justify-between gap-4 mb-2">
                           <div>
                             <p class="text-sm font-semibold text-on-surface tracking-tight">{log.action}</p>
-                            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mt-1">{log.module} · {log.source}</p>
+                            <p class="text-xs font-medium text-on-surface-variant/40 mt-1">{log.module} · {log.source}</p>
                           </div>
                           <span class="text-[10px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{formatDateTime(log.dateIso)}</span>
                         </div>
@@ -1473,15 +1509,85 @@
                 </div>
 
               {:else if activeTab === 'sanctions'}
+                {#if crossServer?.enabled && crossServer.total > 0}
+                  <div class="mb-6 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 overflow-hidden shadow-sm">
+                    <!-- En-tête -->
+                    <div class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10">
+                      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                        <Papicon icon="globe" size={22} />
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Casier inter-serveurs</p>
+                        <p class="text-sm font-semibold text-on-surface">
+                          {crossServer.total} sanction{crossServer.total > 1 ? 's' : ''}
+                          <span class="text-on-surface-variant/50 font-medium">sur {crossServer.serverCount} autre{crossServer.serverCount > 1 ? 's' : ''} serveur{crossServer.serverCount > 1 ? 's' : ''}</span>
+                        </p>
+                      </div>
+                      <div class="hidden md:flex flex-wrap items-center justify-end gap-1.5">
+                        {#each crossServerBreakdown as [type, count]}
+                          {@const style = getSanctionTypeStyle(type)}
+                          <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                            <span class="h-1.5 w-1.5 rounded-full {style.dot}"></span>
+                            {formatTypeLabel(type)}
+                            <span class="text-on-surface-variant/50">{count}</span>
+                          </span>
+                        {/each}
+                      </div>
+                    </div>
+
+                    <!-- Liste -->
+                    <ul class="divide-y divide-outline-variant/10">
+                      {#each crossServer.recent as entry}
+                        {@const style = getSanctionTypeStyle(entry.type)}
+                        <li class="flex items-center gap-4 px-6 py-3.5 hover:bg-surface-container-high/20 transition-colors">
+                          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {style.tile}">
+                            <Papicon icon={style.icon} size={16} />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm font-semibold text-on-surface">{formatTypeLabel(entry.type)}</span>
+                              {#if entry.durationSeconds}
+                                <span class="text-[11px] font-medium text-on-surface-variant/50">· {formatDurationFromSeconds(entry.durationSeconds)}</span>
+                              {/if}
+                            </div>
+                            {#if entry.reason?.trim()}
+                              <p class="mt-0.5 text-xs text-on-surface-variant/80 truncate" title={entry.reason}>{entry.reason}</p>
+                            {/if}
+                            <p class="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-on-surface-variant/50 truncate" title={entry.guildName}>
+                              <Papicon icon="map-pin" size={11} class="shrink-0 opacity-50" />
+                              <span class="truncate">{entry.guildName}</span>
+                            </p>
+                          </div>
+                          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-widest shrink-0 {entry.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            <span class="h-1.5 w-1.5 rounded-full {entry.status === 'ACTIVE' ? 'bg-rose-500' : 'bg-emerald-500'}"></span>
+                            {getSanctionStatusLabel(entry.status)}
+                          </span>
+                          <span class="text-[11px] font-medium text-on-surface-variant/40 w-24 text-right shrink-0 hidden sm:block">{formatRelative(entry.createdAt)}</span>
+                        </li>
+                      {/each}
+                    </ul>
+
+                    <!-- Pied -->
+                    <div class="flex items-center justify-between gap-3 px-6 py-3 border-t border-outline-variant/10 bg-surface-container-low/30">
+                      <p class="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/40">
+                        <Papicon icon="lock" size={12} class="shrink-0" />
+                        Même instance · modérateur non partagé
+                      </p>
+                      {#if crossServer.total > crossServer.recent.length}
+                        <span class="text-[11px] font-semibold text-on-surface-variant/50 shrink-0">+{crossServer.total - crossServer.recent.length} autre{crossServer.total - crossServer.recent.length > 1 ? 's' : ''}</span>
+                      {/if}
+                    </div>
+                  </div>
+                {/if}
                 <div class="rounded-xl bg-surface-container-low/50 overflow-hidden border border-outline-variant/10 shadow-sm">
                   <table class="w-full text-left border-collapse">
                     <thead>
                       <tr class="bg-surface-container-high/30">
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Date</th>
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Action</th>
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut</th>
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Raison</th>
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Rapport</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Date</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Action</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Statut</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Raison</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Rapport</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/10">
@@ -1494,7 +1600,7 @@
                             <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">par @{sanction.moderatorTag}</p>
                           </td>
                           <td class="px-6 py-4">
-                            <span class="px-3 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-widest {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            <span class="px-3 py-1 rounded-lg text-xs font-medium {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
                               {getSanctionStatusLabel(sanction.status)}
                             </span>
                           </td>
@@ -1634,8 +1740,8 @@
                     <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 space-y-6">
                       <div class="flex items-start justify-between">
                          <div>
-                            <span class="text-[10px] font-semibold uppercase tracking-widest text-primary mb-2 block">{formatDateShort(cand.createdAt)}</span>
-                            <span class="px-4 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-widest {cand.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
+                            <span class="text-xs font-medium text-primary mb-2 block">{formatDateShort(cand.createdAt)}</span>
+                            <span class="px-4 py-1.5 rounded-xl text-[13px] font-medium {cand.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
                               {cand.status}
                             </span>
                          </div>
@@ -1785,7 +1891,7 @@
                       <button
                         onclick={handleSaveNote}
                         disabled={noteBusy}
-                        class="flex items-center gap-2 px-8 py-3 rounded-lg bg-primary text-on-primary text-sm font-semibold uppercase tracking-widest transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+                        class="flex items-center gap-2 px-8 py-3 rounded-lg bg-primary text-on-primary text-sm font-semibold uppercase tracking-widest transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                       >
                         {#if noteBusy}
                           <div class="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent"></div>
@@ -1837,7 +1943,7 @@
                <div class="space-y-6 animate-in fade-in duration-300">
                  <div class="grid grid-cols-2 gap-4">
                    <div class="space-y-1.5">
-                     <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                     <p class="text-xs font-medium text-on-surface-variant/40 px-1">Date de l'incident</p>
                      <input 
                        type="datetime-local" 
                        bind:value={editReportData.incidentAt} 
@@ -1845,7 +1951,7 @@
                      />
                    </div>
                    <div class="space-y-1.5">
-                     <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</p>
+                     <p class="text-xs font-medium text-on-surface-variant/40 px-1">Durée appliquée</p>
                      <input 
                        type="text" 
                        bind:value={editReportData.sanctionDurationLabel} 
@@ -1856,7 +1962,7 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Règles enfreintes</p>
                    <ReportRuleSelector
                      options={reportRuleOptions}
                      selectedIds={editReportData.selectedRuleIds}
@@ -1872,7 +1978,7 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Raison détaillée</p>
                    <textarea 
                      bind:value={editReportData.detailedReason} 
                      rows="4"
@@ -1882,12 +1988,12 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves (URLs)</p>
                    <EvidenceInputList bind:links={editReportData.evidenceLinks} sanctionId={viewingReportSanctionId} />
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Notes complémentaires</p>
                    <textarea 
                      bind:value={editReportData.additionalNotes} 
                      rows="2"
@@ -1899,14 +2005,14 @@
                  <div class="flex gap-3 pt-4">
                    <button
                      onclick={() => isEditingReport = false}
-                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-xs font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-[13px] font-medium text-on-surface-variant transition-all hover:bg-on-surface/10"
                    >
                      Annuler
                    </button>
                    <button
                      onclick={handleUpdateReport}
                      disabled={updateReportBusy}
-                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-xs font-semibold uppercase tracking-widest transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
+                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-[13px] font-medium transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
                    >
                      {updateReportBusy ? 'Enregistrement...' : 'Enregistrer'}
                    </button>
@@ -1917,22 +2023,22 @@
               <div class="space-y-6">
                 <div class="grid grid-cols-2 gap-4">
                   <div class="space-y-1">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Incident</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Incident</p>
                     <p class="text-sm font-bold text-on-surface">{formatDateTime(selectedReport.incidentAt)}</p>
                   </div>
                   <div class="space-y-1">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Durée</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Durée</p>
                     <p class="text-sm font-bold text-on-surface">{selectedReport.sanctionDurationLabel || 'N/A'}</p>
                   </div>
                 </div>
 
                 <div class="space-y-2">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Règles enfreintes</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Règles enfreintes</p>
                   <SelectedRuleChips selectedRules={selectedReportRules} />
                 </div>
 
                 <div class="space-y-2">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Raison détaillée</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Raison détaillée</p>
                   <div class="rounded-lg bg-surface-container-high/30 p-4 text-sm text-on-surface-variant leading-relaxed italic">
                     "{selectedReport.detailedReason}"
                   </div>
@@ -1940,7 +2046,7 @@
 
                 {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
                   <div class="space-y-2">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Preuves</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Preuves</p>
                     <div class="flex flex-wrap gap-2">
                       {#each selectedReport.evidenceLinks as link}
                         <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-on-surface/5 px-4 py-2 text-xs font-bold text-primary transition-all hover:bg-primary/10">
@@ -1954,7 +2060,7 @@
 
                 {#if selectedReport.additionalNotes}
                   <div class="space-y-2">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Notes complémentaires</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Notes complémentaires</p>
                     <p class="text-xs text-on-surface-variant/70 leading-relaxed">{selectedReport.additionalNotes}</p>
                   </div>
                 {/if}

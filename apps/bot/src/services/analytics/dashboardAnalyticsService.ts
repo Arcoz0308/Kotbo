@@ -843,7 +843,7 @@ export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: n
 /**
  * Get global member-to-member interaction graph
  */
-export const getGlobalInteractions = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+export const getGlobalInteractions = async (client: any, guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
   const days = options.days || 30;
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
@@ -960,6 +960,30 @@ export const getGlobalInteractions = async (guildId: string, options: { days?: n
     }
   }
 
+  // Fetch member presences from Discord
+  const statusMap = new Map<string, string>();
+  const guild = client?.guilds?.cache?.get(guildId);
+  if (guild && topUsers.length > 0) {
+    try {
+      const memberList = await guild.members.fetch({
+        user: topUsers,
+        withPresences: true
+      });
+      memberList.forEach((member: any) => {
+        statusMap.set(member.id, member.presence?.status || 'offline');
+      });
+    } catch (fetchErr) {
+      for (const userId of topUsers) {
+        const member = guild.members.cache.get(userId);
+        statusMap.set(userId, member?.presence?.status || 'offline');
+      }
+    }
+  } else {
+    for (const userId of topUsers) {
+      statusMap.set(userId, 'offline');
+    }
+  }
+
   // Get user details for top users
   const profiles = await prisma.memberProfile.findMany({
     where: {
@@ -989,7 +1013,8 @@ export const getGlobalInteractions = async (guildId: string, options: { days?: n
         id: userId,
         label: p?.displayName || p?.globalName || p?.username || `User ${userId}`,
         avatar: p?.avatarUrl || null,
-        activityCount: userActivity.get(userId) || 0
+        activityCount: userActivity.get(userId) || 0,
+        status: statusMap.get(userId) || 'offline'
       };
     });
 

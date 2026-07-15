@@ -12,6 +12,7 @@
   import { fetchChannelsManagementConfig, updateChannelsManagementConfig, rescanChannelsManagementStats, fetchTempVoiceChannels, updateTempVoiceChannel } from '../lib/api';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
 
   // Config State
@@ -212,7 +213,7 @@
   }
 
   async function handleDeleteChannel(channelId: string) {
-    if (!confirm('Êtes-vous sûr de vouloir fermer ce salon temporaire et expulser tous ses membres ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Fermer ce salon temporaire ?', description: 'Tous ses membres seront expulsés.', confirmLabel: 'Fermer le salon', variant: 'danger' }))) return;
     actionInProgress = true;
     try {
       const res = await updateTempVoiceChannel(channelId, { action: 'DELETE' });
@@ -370,7 +371,7 @@
     <div class="flex border-b border-outline-variant/20 mb-8 overflow-x-auto no-scrollbar">
       <button 
         onclick={() => gotoTab('/channels-management', 'auto-thread', 'auto-thread')}
-        class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'auto-thread' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="tab-button {activeTab === 'auto-thread' ? 'active' : ''}"
       >
         Auto-Thread
         {#if activeTab === 'auto-thread'}
@@ -380,7 +381,7 @@
 
       <button 
         onclick={() => gotoTab('/channels-management', 'stats', 'auto-thread')}
-        class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'stats' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="tab-button {activeTab === 'stats' ? 'active' : ''}"
       >
         Salons Stats
         {#if activeTab === 'stats'}
@@ -390,7 +391,7 @@
 
       <button 
         onclick={() => gotoTab('/channels-management', 'temp-voice', 'auto-thread')}
-        class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'temp-voice' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="tab-button {activeTab === 'temp-voice' ? 'active' : ''}"
       >
         Créer son salon
         {#if activeTab === 'temp-voice'}
@@ -400,7 +401,7 @@
 
       <button 
         onclick={() => gotoTab('/channels-management', 'honeypot', 'auto-thread')}
-        class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'honeypot' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="tab-button {activeTab === 'honeypot' ? 'active' : ''}"
       >
         Salon Honeypot
         {#if activeTab === 'honeypot'}
@@ -465,7 +466,7 @@
                 <button
                   onclick={() => toggleChannel(channel.id)}
                   class="flex items-center justify-between p-4 rounded-lg border transition-all text-left group
-                    {isChecked 
+ {isChecked 
                       ? 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10' 
                       : 'bg-surface-container-high/10 border-outline-variant/5 hover:bg-surface-container-high/30'}"
                 >
@@ -477,7 +478,7 @@
                   </div>
                   
                   <div class="w-5 h-5 rounded-md border flex items-center justify-center transition-all
-                    {isChecked 
+ {isChecked 
                       ? 'bg-primary border-primary text-on-primary' 
                       : 'border-outline-variant/30 group-hover:border-outline-variant/60'}"
                   >
@@ -571,7 +572,7 @@
                 <button
                   type="button"
                   onclick={async () => {
-                    if (confirm("Attention : Cela écrasera et recalculera toutes les statistiques existantes du serveur. Continuer ?")) {
+                    if (await confirmDialog.ask({ title: 'Recalculer toutes les statistiques ?', description: 'Les statistiques existantes du serveur seront écrasées puis recalculées.', confirmLabel: 'Recalculer', variant: 'warning' })) {
                       await handleRescanStats(true);
                     }
                   }}
@@ -1288,7 +1289,7 @@
               <div class="hidden md:block overflow-x-auto w-full">
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr class="border-b border-outline-variant/15 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70">
+                    <tr class="border-b border-outline-variant/15 text-xs font-medium text-on-surface-variant/70">
                       <th class="py-3 px-4">Nom du Salon</th>
                       <th class="py-3 px-4">Créateur</th>
                       <th class="py-3 px-4 text-center">Membres</th>
@@ -1311,7 +1312,7 @@
                                 type="button"
                                 onclick={() => handleRenameChannel(chan.id)}
                                 disabled={actionInProgress}
-                                class="px-2 py-1 bg-primary text-white text-[10px] font-semibold rounded-md hover:scale-105 active:scale-95 transition-transform"
+                                class="px-2 py-1 bg-primary text-white text-[10px] font-semibold rounded-md active:scale-[0.98] transition-transform"
                               >
                                 Valider
                               </button>
@@ -1554,7 +1555,7 @@
 
               <!-- Alert Warning Card -->
               <div class="p-5 bg-error/10 border border-error/20 text-error rounded-xl space-y-3">
-                <h4 class="text-xs font-semibold uppercase tracking-wider flex items-center gap-2">
+                <h4 class="text-[13px] font-medium flex items-center gap-2">
                   <Papicon icon="alert-triangle" size={16} />
                   Avertissement de Sécurité
                 </h4>

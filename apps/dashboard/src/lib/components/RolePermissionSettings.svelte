@@ -74,7 +74,7 @@
     </div>
     <button 
       onclick={addRole}
-      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-xs font-semibold uppercase tracking-widest hover:bg-primary/20 transition-all"
+      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-[13px] font-medium hover:bg-primary/20 transition-all"
     >
       <Papicon icon="plus" size={14} />
       Ajouter un rôle

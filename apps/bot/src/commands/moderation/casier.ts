@@ -65,10 +65,9 @@ async function execute(interaction: ChatInputCommandInteraction | UserContextMen
   try {
     const panel = await buildMemberCasePanel(interaction.guild, targetUserId, 'resume', 0);
     await renderPanelTarget(interaction, {
-      embeds: [panel.embed],
       components: panel.components,
       files: panel.files,
-      flags: [MessageFlags.Ephemeral],
+      flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
     });
   } catch (error) {
     await renderPanelTarget(interaction, {

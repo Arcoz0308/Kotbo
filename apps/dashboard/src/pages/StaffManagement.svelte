@@ -5,6 +5,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import {
     API_BASE_URL,
     fetchGuildState,
@@ -1050,7 +1051,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   async function closePoll(pollId: string) {
-    if (!guildId || !authStore.token || !confirm('Voulez-vous clôturer ce sondage prématurément ?')) return;
+    if (!guildId || !authStore.token || !(await confirmDialog.ask({ title: 'Clôturer ce sondage ?', description: 'Le sondage sera fermé avant son échéance.', confirmLabel: 'Clôturer', variant: 'warning' }))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/polls/${pollId}/close`, {
         method: 'PATCH',
@@ -1159,7 +1160,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   async function deleteHierarchy(id: string) {
-    if (!confirm('Voulez-vous vraiment supprimer cette hiérarchie ? Les rôles associés seront détachés.')) return;
+    if (!(await confirmDialog.danger('Supprimer cette hiérarchie ?', 'Les rôles associés seront détachés.'))) return;
     try {
       await deleteStaffHierarchy(id, guildId);
       await Promise.all([loadHierarchies(), loadHierarchySchema(), loadStaffRoles()]);
@@ -1216,7 +1217,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   async function removeMemberHierarchy(userId: string, hierarchyId: string) {
-    if (!confirm('Voulez-vous retirer ce membre de cette hiérarchie ?')) return;
+    if (!(await confirmDialog.danger('Retirer ce membre de la hiérarchie ?', '', 'Retirer'))) return;
     try {
       await removeMemberHierarchyGrade(userId, hierarchyId, guildId);
       await loadStaffMembers();
@@ -1308,7 +1309,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   async function removeStaff(userId: string) {
-    if (!guildId || !authStore.token || !confirm('Confirmer le retrait du staff?')) return;
+    if (!guildId || !authStore.token || !(await confirmDialog.danger('Retirer ce membre du staff ?', '', 'Retirer du staff'))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}`, {
@@ -1323,7 +1324,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       if (!res.ok) throw new Error('Erreur');
       await loadStaffMembers();
     } catch (err) {
-      alert('Erreur lors du retrait');
+      toast.error('Erreur lors du retrait');
     }
   }
 
@@ -1415,7 +1416,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   async function removeStaffRole(roleId: string, roleName: string) {
     if (!guildId || !authStore.token) return;
-    if (!confirm(`Voulez-vous vraiment supprimer le rôle "${roleName}" de la hiérarchie ?`)) return;
+    if (!(await confirmDialog.danger(`Supprimer le rôle « ${roleName} » ?`, 'Il sera retiré de la hiérarchie staff.'))) return;
 
     try {
       const success = await deleteStaffRole(roleId, guildId);
@@ -1458,7 +1459,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   async function deleteWarning(warningId: string) {
     if (!guildId || !authStore.token) return;
-    if (!confirm('Voulez-vous vraiment supprimer cet avertissement ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cet avertissement ?'))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/warnings/${warningId}`, {
@@ -1506,7 +1507,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   }
 
   async function removeStaffBlacklist(userId: string) {
-    if (!guildId || !authStore.token || !confirm('Voulez-vous retirer cette personne de la blacklist ?')) return;
+    if (!guildId || !authStore.token || !(await confirmDialog.ask({ title: 'Retirer de la blacklist ?', confirmLabel: 'Retirer', variant: 'warning' }))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/blacklist/${userId}`, {
@@ -1636,9 +1637,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       ].filter(t => t.visible) as tab}
         <button
           onclick={() => switchTab(tab.id as StaffTab)}
-          class="inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] transition-all {activeTab === tab.id
-            ? 'bg-primary text-white shadow-sm shadow-primary/20 '
-            : 'border border-outline-variant/20 bg-surface-container-low/50 text-on-surface-variant/70 hover:bg-surface-container-low hover:text-on-surface'}"
+          class="tab-button {activeTab === tab.id ? 'active' : ''}"
         >
         <Papicon icon={tab.icon} size={16} class="shrink-0" />
           {tab.label}
@@ -1670,7 +1669,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="flex flex-col gap-4 md:flex-row md:items-end">
               <div class="flex-1">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Utilisateur Discord</span>
+                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Utilisateur Discord</span>
                   <div class="min-w-0">
                     <DiscordMemberLookup
                       {guildId}
@@ -1687,7 +1686,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               </div>
               <div class="md:w-64 shrink-0">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade Global</span>
+                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Grade Global</span>
                   <select bind:value={newMemberGrade} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
                     {#each orderedStaffRoles as role}
                       <option value={role.name}>{role.name}</option>
@@ -1700,9 +1699,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   checked={newMemberCreateTutoring}
                   onToggle={(v: boolean) => newMemberCreateTutoring = v}
                 />
-                <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/70">Créer un tutorat</span>
+                <span class="text-[13px] font-medium text-on-surface-variant/70">Créer un tutorat</span>
               </div>
-              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white  transition-all hover: active:scale-[0.98]">
+              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98]">
                 Ajouter
               </button>
             </div>
@@ -1803,7 +1802,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if canModerate}
                       <button
                         onclick={() => toggleTutor(member.userId)}
-                        class="group/tutor relative inline-flex items-center justify-center rounded-xl p-2.5 transition-all {member.isTutor ? 'text-indigo-600 bg-indigo-500/15 border border-indigo-500/30 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/20' : 'text-on-surface-variant/40 hover:text-indigo-600 hover:bg-indigo-500/10 border border-outline-variant/20 bg-surface-container-low/50 hover:border-indigo-500/30'}"
+                        class="group/tutor relative inline-flex items-center justify-center rounded-xl p-2.5 transition-all {member.isTutor ? 'text-indigo-600 bg-indigo-500/15 border border-indigo-500/30 shadow-sm ring-2 ring-indigo-500/20' : 'text-on-surface-variant/40 hover:text-indigo-600 hover:bg-indigo-500/10 border border-outline-variant/20 bg-surface-container-low/50 hover:border-indigo-500/30'}"
                         title={member.isTutor ? 'Retirer le statut de tuteur' : 'Désigner comme Tuteur'}
                       >
                         <Papicon 
@@ -1907,7 +1906,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <div class="p-6 md:p-8 border-b border-outline-variant/20 bg-surface-container-lowest/50">
           <div class="flex items-center justify-between mb-4">
-            <h4 class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/50">Configuration Globale</h4>
+            <h4 class="text-[13px] font-medium text-on-surface-variant/50">Configuration Globale</h4>
             {#if isSavingConfig}
               <span class="text-[10px] font-bold uppercase text-primary animate-pulse">Sauvegarde...</span>
             {/if}
@@ -1961,7 +1960,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="flex flex-col gap-6">
               <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="relative">
-                  <label for="staff-role-search" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
+                  <label for="staff-role-search" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
                   <div class="relative">
                     <Papicon icon="search" size={20} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
                     <input
@@ -1996,7 +1995,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 </div>
 
                 <div>
-                  <label for="role-hierarchy-select" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Hiérarchie associée</label>
+                  <label for="role-hierarchy-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Hiérarchie associée</label>
                   <select
                     id="role-hierarchy-select"
                     bind:value={newRoleHierarchyId}
@@ -2010,7 +2009,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 </div>
 
                 <div>
-                  <label for="role-level-input" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Poids / Niveau du rôle</label>
+                  <label for="role-level-input" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Poids / Niveau du rôle</label>
                   <input
                     id="role-level-input"
                     type="number"
@@ -2026,12 +2025,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     checked={newRoleIsResponsable}
                     onToggle={(v: boolean) => newRoleIsResponsable = v}
                   />
-                  <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/70">Chef de hiérarchie</span>
+                  <span class="text-[13px] font-medium text-on-surface-variant/70">Chef de hiérarchie</span>
                 </div>
               </div>
 
               <div class="flex justify-end">
-                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white  transition-all hover: active:scale-[0.98]">
+                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98]">
                   Créer l'association
                 </button>
               </div>
@@ -2040,7 +2039,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {/if}
 
         {#if isSavingRoleOrder}
-          <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-700">
+          <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-[13px] font-medium text-blue-700">
              <Papicon icon="refresh-cw" size={14} class="animate-spin" />
              Sauvegarde de l'ordre...
           </div>
@@ -2077,7 +2076,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     </div>
                     <div class="flex items-center gap-2">
                       {#if rolesAccess.canConfigure}
-                        <button onclick={() => openImportModal(h)} class="px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary hover:text-white transition-all text-xs font-bold uppercase tracking-wider" title="Importer des membres depuis Discord">
+                        <button onclick={() => openImportModal(h)} class="px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary hover:text-white transition-all text-[13px] font-medium" title="Importer des membres depuis Discord">
                           Importer
                         </button>
                         <button onclick={() => openEditHierarchyForm(h)} class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Modifier la hiérarchie">
@@ -2113,7 +2112,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if hRoles.length > 0}
                       {#each hRoles as role (role.id)}
                         <div
-                          class="group flex items-center justify-between gap-4 rounded-xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary   bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
+                          class="group flex items-center justify-between gap-4 rounded-xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
                           role="listitem"
                           ondragover={(event) => {
                             event.preventDefault();
@@ -2216,7 +2215,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   {#if unlinkedRoles.length > 0}
                     {#each unlinkedRoles as role (role.id)}
                       <div
-                        class="group flex items-center justify-between gap-4 rounded-xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary   bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
+                        class="group flex items-center justify-between gap-4 rounded-xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
                         role="listitem"
                         ondragover={(event) => {
                           event.preventDefault();
@@ -2316,7 +2315,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
-                <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">
+                <label class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">
                   Membre visé
                   <DiscordMemberLookup
                     {guildId}
@@ -2331,7 +2330,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
               <div class="space-y-4">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Raison de l'avertissement</span>
+                  <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Raison de l'avertissement</span>
                   <textarea
                     bind:value={warnReason}
                     placeholder="Décrivez précisément le manquement constaté..."
@@ -2343,7 +2342,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label for="warn-expires-at" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Expire le (Optionnel)</label>
+                   <label for="warn-expires-at" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Expire le (Optionnel)</label>
                    <input
                      id="warn-expires-at"
                      type="datetime-local"
@@ -2352,7 +2351,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-lg shadow-amber-500/20 transition-all hover: hover:bg-amber-600 active:scale-[0.98]">
+                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover: hover:bg-amber-600 active:scale-[0.98]">
                     <Papicon icon="gavel" size={14} />
                     Sanctionner
                   </button>
@@ -2478,7 +2477,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-widest text-rose-700/80 mb-2">Membre à blacklister</span>
+                  <span class="block text-[13px] font-medium text-rose-700/80 mb-2">Membre à blacklister</span>
                   <DiscordMemberLookup
                     {guildId}
                     bind:query={blacklistLookupQuery}
@@ -2492,7 +2491,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
               <div class="space-y-4">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-widest text-rose-700/80 mb-2">Raison de l'exclusion</span>
+                  <span class="block text-[13px] font-medium text-rose-700/80 mb-2">Raison de l'exclusion</span>
                   <textarea
                     bind:value={blacklistReason}
                     placeholder="Décrivez précisément ce qui a mené à cette blacklist..."
@@ -2504,7 +2503,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label for="blacklist-end-date" class="block text-xs font-bold uppercase tracking-widest text-rose-700/80 mb-2">Fin de blacklist (vide = permanent)</label>
+                   <label for="blacklist-end-date" class="block text-[13px] font-medium text-rose-700/80 mb-2">Fin de blacklist (vide = permanent)</label>
                    <input
                      id="blacklist-end-date"
                      type="date"
@@ -2513,7 +2512,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-lg shadow-rose-500/20 transition-all hover: hover:bg-rose-700 active:scale-[0.98]">
+                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-sm transition-all hover: hover:bg-rose-700 active:scale-[0.98]">
                     <Papicon icon="slash" size={14} />
                     Appliquer Blacklist
                   </button>
@@ -2576,7 +2575,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if canModerate}
                       <button
                         onclick={() => removeStaffBlacklist(member.userId)}
-                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
+                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-[13px] font-medium text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
                         title="Retirer de la blacklist"
                       >
                         <Papicon icon="trash-2" size={16} />
@@ -2611,20 +2610,20 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="grid gap-6 lg:grid-cols-2">
               <div class="space-y-4">
                 <div>
-                  <label for="poll-title" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Titre du sondage</label>
+                  <label for="poll-title" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Titre du sondage</label>
                   <FormInput id="poll-title" bind:value={newPollTitle} placeholder="Ex: Nouveau règlement du salon général" className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
                 <div>
-                  <label for="poll-description" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Description</label>
+                  <label for="poll-description" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Description</label>
                   <textarea id="poll-description" bind:value={newPollDescription} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 h-32 resize-none" placeholder="Détaillez le sujet du vote..."></textarea>
                 </div>
                 <div>
-                  <label for="poll-closes-at" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Date de clôture automatique (optionnelle)</label>
+                  <label for="poll-closes-at" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Date de clôture automatique (optionnelle)</label>
                   <input id="poll-closes-at" type="datetime-local" bind:value={newPollClosesAt} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
               </div>
               <div class="space-y-4">
-                <div class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Options de réponse</div>
+                <div class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Options de réponse</div>
                 <div class="space-y-3">
                   {#each newPollOptions as option, i}
                     <div class="flex items-center gap-2">
@@ -2637,12 +2636,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     </div>
                   {/each}
                 </div>
-                <button onclick={addPollOptionInput} class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary/70 hover:text-primary transition-colors mt-2">
+                <button onclick={addPollOptionInput} class="inline-flex items-center gap-2 text-[13px] font-medium text-primary/70 hover:text-primary transition-colors mt-2">
                   <Papicon icon="plus-circle" size={18} />
                   Ajouter une option
                 </button>
                 <div class="pt-6 border-t border-outline-variant/10">
-                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
+                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
                     <Papicon icon={isSavingPoll ? 'refresh-cw' : 'check-square'} size={14} class={isSavingPoll ? 'animate-spin' : ''} />
                     Publier le sondage
                   </button>
@@ -2799,7 +2798,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <div class="overflow-x-auto rounded-xl border border-outline-variant/10 bg-surface-container-low/50">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="border-b border-outline-variant/10 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
+                <tr class="border-b border-outline-variant/10 text-xs font-medium text-on-surface-variant/40">
                   <th class="px-8 py-5">Membre</th>
                   <th class="px-8 py-5">Score Progression</th>
                   <th class="px-8 py-5">Activité (30j / 7j)</th>
@@ -2900,7 +2899,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="flex flex-col gap-4">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label for="tutoring-item-category" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Catégorie</label>
+                  <label for="tutoring-item-category" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Catégorie</label>
                   <input
                     id="tutoring-item-category"
                     type="text"
@@ -2910,7 +2909,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   />
                 </div>
                 <div>
-                  <label for="tutoring-item-title" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Titre de l'item</label>
+                  <label for="tutoring-item-title" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Titre de l'item</label>
                   <input
                     id="tutoring-item-title"
                     type="text"
@@ -2922,7 +2921,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               </div>
 
               <div>
-                <label for="tutoring-item-description" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Description <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></label>
+                <label for="tutoring-item-description" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Description <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></label>
                 <input
                   id="tutoring-item-description"
                   type="text"
@@ -2934,7 +2933,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label for="tutoring-item-hierarchy" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Hiérarchie ciblée</label>
+                  <label for="tutoring-item-hierarchy" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Hiérarchie ciblée</label>
                   <select
                     id="tutoring-item-hierarchy"
                     bind:value={newTutoringItemHierarchyId}
@@ -2948,7 +2947,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   </select>
                 </div>
                 <div>
-                  <label for="tutoring-item-grade" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade ciblé</label>
+                  <label for="tutoring-item-grade" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Grade ciblé</label>
                   {#if newTutoringItemHierarchyId}
                     <select
                       id="tutoring-item-grade"
@@ -2995,7 +2994,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <div class="divide-y divide-outline-variant/10">
             {#each tutoringGroups as group (group.key)}
               <div class="p-6 md:p-8">
-                <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-4">
+                <h4 class="text-[13px] font-medium text-primary mb-4">
                   {tutoringGroupLabel(group.hierarchyId, group.grade)}
                 </h4>
                 <div class="space-y-3">
@@ -3115,7 +3114,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
         <div class="flex items-center gap-4">
           {#if isSavingConfig}
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-primary">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               <span class="relative flex h-2 w-2">
                 <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
                 <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
@@ -3247,25 +3246,25 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <div class="space-y-4">
         <div>
-          <label for="hierarchy-name" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Nom de la hiérarchie</label>
+          <label for="hierarchy-name" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Nom de la hiérarchie</label>
           <input id="hierarchy-name" type="text" bind:value={newHierarchyName} placeholder="Ex: Modération, Animation..." class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
         </div>
 
         <div>
-          <label for="hierarchy-desc" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Description</label>
+          <label for="hierarchy-desc" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Description</label>
           <textarea id="hierarchy-desc" bind:value={newHierarchyDescription} placeholder="Décrivez le but de cette hiérarchie..." rows="3" class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"></textarea>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label for="hierarchy-color" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Couleur (Hex)</label>
+            <label for="hierarchy-color" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Couleur (Hex)</label>
             <div class="flex gap-2">
               <input id="hierarchy-color" type="color" bind:value={newHierarchyColor} class="h-11 w-12 rounded-xl border border-outline-variant/20 bg-surface-container-low p-1 cursor-pointer" />
               <input type="text" bind:value={newHierarchyColor} class="flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-none transition focus:border-primary/40" />
             </div>
           </div>
           <div>
-            <label for="hierarchy-icon" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Emoji / Icone</label>
+            <label for="hierarchy-icon" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Emoji / Icone</label>
             <div class="flex gap-2">
               <input id="hierarchy-icon" type="text" bind:value={newHierarchyIcon} placeholder="🔵, 🛡️, 🎭..." class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
               <EmojiPicker bind:value={newHierarchyIcon} />
@@ -3274,7 +3273,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
 
         <div>
-          <label for="hierarchy-role" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rôle Discord Responsable (Optionnel)</label>
+          <label for="hierarchy-role" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Rôle Discord Responsable (Optionnel)</label>
           <select id="hierarchy-role" bind:value={newHierarchyDiscordRoleId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Aucun --</option>
             {#each availableDiscordRoles as dr}
@@ -3284,7 +3283,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
 
         <div>
-          <label for="hierarchy-resp" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Membre Responsable (Optionnel)</label>
+          <label for="hierarchy-resp" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Membre Responsable (Optionnel)</label>
           <select id="hierarchy-resp" bind:value={newHierarchyResponsableUserId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Aucun --</option>
             {#each staffMembers as sm}
@@ -3294,7 +3293,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
 
         <div>
-          <label for="hierarchy-parent" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Hiérarchie supérieure (Optionnel)</label>
+          <label for="hierarchy-parent" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Hiérarchie supérieure (Optionnel)</label>
           <select id="hierarchy-parent" bind:value={newHierarchyParentId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Aucune --</option>
             {#each hierarchies.filter((h) => !editingHierarchy || h.id !== editingHierarchy.id) as h}
@@ -3305,10 +3304,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-semibold uppercase tracking-wider text-on-surface transition-all">
+        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
           Annuler
         </button>
-        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
           {isSavingHierarchy ? 'Enregistrement...' : 'Enregistrer'}
         </button>
       </div>
@@ -3351,7 +3350,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <div class="space-y-4">
         <div>
-          <label for="import-role-select" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rôle Discord à importer</label>
+          <label for="import-role-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Rôle Discord à importer</label>
           <select id="import-role-select" bind:value={importDiscordRoleId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Choisir un rôle --</option>
             {#each availableDiscordRoles as dr}
@@ -3361,7 +3360,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
 
         <div>
-          <label for="import-grade-select" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade de destination</label>
+          <label for="import-grade-select" class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Grade de destination</label>
           <select id="import-grade-select" bind:value={importGradeName} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Choisir un grade --</option>
             {#each getOrderedStaffRoles().filter(r => r.hierarchyId === importHierarchyTarget?.id) as r}
@@ -3372,11 +3371,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-semibold uppercase tracking-wider text-on-surface transition-all">
+        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
           {importResult ? 'Fermer' : 'Annuler'}
         </button>
         {#if !importResult}
-          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
+          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
             {isImporting ? 'Importation en cours...' : 'Lancer l\'import'}
           </button>
         {/if}
@@ -3409,7 +3408,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <!-- Existing Hierarchies list -->
       <div class="mb-6 space-y-2">
-        <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grades Actuels</span>
+        <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Grades Actuels</span>
         {#if memberHierarchyGradeTarget?.hierarchyGrades && memberHierarchyGradeTarget.hierarchyGrades.length > 0}
           <div class="divide-y divide-outline-variant/10 border border-outline-variant/15 rounded-lg bg-surface-container-low overflow-hidden">
             {#each memberHierarchyGradeTarget.hierarchyGrades as hGrade}
@@ -3419,7 +3418,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   <span class="font-bold">{hGrade.hierarchy?.name}</span>
                   <span class="text-on-surface-variant/75">— {hGrade.grade}</span>
                 </div>
-                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-xs font-semibold uppercase tracking-wider">
+                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-[13px] font-medium">
                   Retirer
                 </button>
               </div>
@@ -3432,7 +3431,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <!-- Form to add new hierarchy grade -->
       <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-        <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Associer une nouvelle hiérarchie</span>
+        <span class="block text-[13px] font-medium text-on-surface-variant/70 mb-2">Associer une nouvelle hiérarchie</span>
         
         <div>
           <label for="member-h-select" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Hiérarchie</label>
@@ -3476,10 +3475,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-semibold uppercase tracking-wider text-on-surface transition-all">
+        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
           Fermer
         </button>
-        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover: active:scale-[0.98] disabled:opacity-50">
           {isSavingMemberHierarchyGrade ? 'Ajout...' : 'Ajouter'}
         </button>
       </div>
@@ -3576,15 +3575,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             checked={editRoleIsResponsable}
             onToggle={(v: boolean) => editRoleIsResponsable = v}
           />
-          <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/70">Chef de hiérarchie</span>
+          <span class="text-[13px] font-medium text-on-surface-variant/70">Chef de hiérarchie</span>
         </div>
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-semibold uppercase tracking-wider text-on-surface transition-all">
+        <button onclick={() => { showEditRoleModal = false; editingRole = null; }} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-[13px] font-medium text-on-surface transition-all">
           Annuler
         </button>
-        <button onclick={saveRoleEdit} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white transition-all hover:active:scale-[0.98]">
+        <button onclick={saveRoleEdit} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-[13px] font-medium text-white transition-all hover:active:scale-[0.98]">
           Enregistrer
         </button>
       </div>

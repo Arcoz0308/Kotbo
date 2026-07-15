@@ -20,6 +20,7 @@
     purgeInviterMembers,
   } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
 
   type InviteStatus = 'active' | 'suspended' | 'deleted' | 'expired';
   type Tab = 'invites' | 'top' | 'suspensions';
@@ -239,7 +240,7 @@
 
   async function purgeInvite(invite: any) {
     if (!canModerate) return;
-    const confirmPurge = confirm(`Purger les membres invités via ${invite.code} ?`);
+    const confirmPurge = await confirmDialog.danger(`Purger les membres invités via ${invite.code} ?`, '', 'Purger');
     if (!confirmPurge) return;
     try {
       const result = await purgeInvitationMembers(invite.code);
@@ -253,7 +254,7 @@
 
   async function deleteInvite(invite: any) {
     if (!canModerate) return;
-    const confirmDelete = confirm(`Supprimer définitivement l'invitation ${invite.code} ?`);
+    const confirmDelete = await confirmDialog.danger(`Supprimer l'invitation ${invite.code} ?`, 'Cette suppression est définitive.');
     if (!confirmDelete) return;
     try {
       await deleteInvitation(invite.code);
@@ -385,7 +386,7 @@
 
   async function purgeByInviter(userId: string) {
     if (!canModerate) return;
-    const confirmPurge = confirm('Purger en cascade les membres invités par ce créateur ?');
+    const confirmPurge = await confirmDialog.danger('Purger en cascade ?', 'Tous les membres invités par ce créateur seront purgés.', 'Purger');
     if (!confirmPurge) return;
     try {
       const result = await purgeInviterMembers(userId);
@@ -459,16 +460,12 @@
     <div class="flex gap-2 border-b border-outline-variant/20 pb-2">
       {#each tabs as tab}
         <button
-          class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all {activeTab === tab.id
-            ? 'bg-primary/10 text-primary'
-            : 'bg-surface-container-high/30 text-on-surface-variant/70 hover:bg-surface-container-high/50'}"
+          class="tab-button {activeTab === tab.id ? 'active' : ''}"
           onclick={() => gotoTab('/invitations', tab.id, 'invites')}
         >
           <Papicon icon={tab.icon} size={16} />
           <span>{tab.label}</span>
-          <span class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold {activeTab === tab.id
-            ? 'bg-primary/20 text-primary'
-            : 'bg-surface-container-high/50 text-on-surface-variant/50'}">{tab.count}</span>
+          <span class="tab-button {activeTab === tab.id ? 'active' : ''}">{tab.count}</span>
         </button>
       {/each}
     </div>
@@ -537,7 +534,7 @@
           {:else}
             <table class="w-full">
               <thead>
-                <tr class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10">
+                <tr class="text-left text-xs font-medium text-on-surface-variant/50 border-b border-outline-variant/10">
                   <th class="pb-3 pr-4">Code</th>
                   <th class="pb-3 pr-4">Créateur</th>
                   <th class="pb-3 pr-4">Statut</th>

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { API_BASE_URL, fetchMcpKeys, createMcpKey, deleteMcpKey, fetchMcpDirectUrl, fetchMcpLogs } from '../lib/api';
   import Modal from '../lib/components/Modal.svelte';
   import ConfirmModal from '../lib/components/ConfirmModal.svelte';
@@ -11,7 +12,7 @@
 
   const PERMISSIONS = [
     { value: 'READ_STATS',      label: 'Stats serveur',     desc: 'Membres, messages, activité' },
-    { value: 'READ_MEMBERS',    label: 'Membres',            desc: 'Profils, recherche, messages récents' },
+    { value: 'READ_MEMBERS',    label: 'Membres & messages', desc: 'Profils, messages récents, lecture des forums et articles' },
     { value: 'READ_SANCTIONS',  label: 'Sanctions',          desc: 'Liste et historique' },
     { value: 'READ_STAFF',      label: 'Staff',              desc: 'Liste et profils du staff' },
     { value: 'READ_TICKETS',    label: 'Tickets',            desc: 'Liste des tickets ouverts' },
@@ -20,7 +21,7 @@
     { value: 'READ_MODERATION', label: 'Modération',         desc: 'AutoMod, mots bannis, réponses auto, CodePolice' },
     { value: 'READ_ANALYTICS',  label: 'Analytics',          desc: 'Stats par salon, heatmap horaire, Pulse, prédictions' },
     { value: 'WRITE_SANCTIONS', label: 'Sanctionner',        desc: '⚠ Appliquer / lever des sanctions via IA' },
-    { value: 'WRITE_MESSAGES',  label: 'Envoyer messages',   desc: '⚠ Poster des messages dans un salon en tant que bot' },
+    { value: 'WRITE_MESSAGES',  label: 'Gérer messages',     desc: '⚠ Envoyer, éditer/supprimer des messages et gérer forums, articles et tags' },
     { value: 'WRITE_TICKETS',   label: 'Gérer tickets',      desc: '⚠ Répondre et fermer des tickets via IA' },
     { value: 'WRITE_COMMUNITY', label: 'Gérer communauté',   desc: '⚠ Répondre aux suggestions, gérer événements et giveaways' },
     { value: 'WRITE_MEMBERS',   label: 'Gérer membres',      desc: '⚠ Notes modérateur, ajout/retrait de rôles, niveaux, invitations' },
@@ -319,36 +320,27 @@
   }
 </script>
 
-<div class="max-w-4xl space-y-6">
-
-  <!-- Header -->
-  <div class="flex items-start justify-between">
-    <div>
-      <div class="flex items-center gap-2 mb-1">
-        <h1 class="text-xl font-bold text-white">MCP — Model Context Protocol</h1>
-        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30">BETA</span>
-      </div>
-      <p class="text-sm text-gray-400">
-        Connecte une IA (Claude, ChatGPT…) à ton bot pour interroger et piloter ton serveur Discord.
-      </p>
-    </div>
-    <div class="shrink-0 flex items-center gap-2">
-      <button
-        onclick={() => { helpOpen = true; }}
-        class="p-2 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:border-white/20 transition-colors"
-        title="Aide de connexion"
-      >
-        <Papicon icon="help-circle" size={16} />
-      </button>
-      <button
-        onclick={() => { createOpen = true; createdKey = null; }}
-        class="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-primary/20"
-      >
-        <Papicon icon="plus" size={14} />
-        Nouvelle clé
-      </button>
-    </div>
-  </div>
+<ModulePage
+  title="MCP — Model Context Protocol"
+  description="Connecte une IA (Claude, ChatGPT…) à ton bot pour interroger et piloter ton serveur Discord."
+  icon="cpu"
+>
+  {#snippet actions()}
+    <button
+      onclick={() => { helpOpen = true; }}
+      class="p-2 rounded-lg border border-outline-variant text-on-surface-variant hover:text-on-surface hover:border-outline transition-colors"
+      title="Aide de connexion"
+    >
+      <Papicon icon="help-circle" size={16} />
+    </button>
+    <button
+      onclick={() => { createOpen = true; createdKey = null; }}
+      class="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-primary/20"
+    >
+      <Papicon icon="plus" size={14} />
+      Nouvelle clé
+    </button>
+  {/snippet}
 
   <!-- Endpoint -->
   <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-4">
@@ -424,7 +416,7 @@
               <div class="hidden sm:flex flex-wrap gap-1 max-w-xs">
                 {#each key.permissions as perm}
                   <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
-                    {perm.startsWith('WRITE_') ? 'bg-red-500/15 text-red-400' : 'bg-primary/12 text-primary/80'}">
+ {perm.startsWith('WRITE_') ? 'bg-red-500/15 text-red-400' : 'bg-primary/12 text-primary/80'}">
                     {permLabel(perm)}
                   </span>
                 {/each}
@@ -527,7 +519,7 @@
                   <div class="flex flex-wrap gap-1.5">
                     {#each key.permissions as perm}
                       <span class="px-2 py-1 rounded-lg text-xs font-medium
-                        {perm.startsWith('WRITE_') ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-primary/10 text-primary/80 border border-primary/15'}">
+ {perm.startsWith('WRITE_') ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-primary/10 text-primary/80 border border-primary/15'}">
                         {permLabel(perm)}
                         <span class="text-gray-600 font-normal ml-1">— {PERMISSIONS.find(p => p.value === perm)?.desc}</span>
                       </span>
@@ -541,7 +533,7 @@
       </div>
     {/if}
   </div>
-</div>
+</ModulePage>
 
 <!-- ── Create Modal ──────────────────────────────────────────────────────── -->
 <Modal bind:open={createOpen} onClose={closeCreateModal} title={createdKey ? '🎉 Clé créée' : 'Nouvelle clé MCP'}>
@@ -729,7 +721,7 @@
         <button
           onclick={() => selectAiGuide(id)}
           class="min-h-24 rounded-lg border p-3 text-left transition-colors
-            {selectedAi === id ? `${guide.bg} ${guide.border}` : 'border-white/8 bg-black/20 hover:border-white/16'}"
+ {selectedAi === id ? `${guide.bg} ${guide.border}` : 'border-white/8 bg-black/20 hover:border-white/16'}"
         >
           <div class="flex h-full items-start gap-3">
             <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white">

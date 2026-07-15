@@ -158,7 +158,7 @@
     <div class="flex flex-wrap items-center gap-3">
       <!-- Seuil selection -->
       <div class="flex items-center gap-2 bg-surface-container-low/60 rounded-lg border border-outline-variant/10 px-3 py-1.5">
-        <label for="threshold-select" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Seuil :</label>
+        <label for="threshold-select" class="field-label">Seuil :</label>
         <select
           id="threshold-select"
           bind:value={thresholdDays}
@@ -190,19 +190,19 @@
 
   <div class="grid gap-4 md:grid-cols-4 mb-8">
     <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
-      <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Suspects</p>
+      <p class="text-xs font-medium text-on-surface-variant/40">Suspects</p>
       <p class="mt-2 text-lg font-semibold text-on-surface">{stats.total}</p>
     </div>
     <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
-      <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Encore présents</p>
+      <p class="text-xs font-medium text-on-surface-variant/40">Encore présents</p>
       <p class="mt-2 text-lg font-semibold text-emerald-500">{stats.onServer}</p>
     </div>
     <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
-      <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Partis</p>
+      <p class="text-xs font-medium text-on-surface-variant/40">Partis</p>
       <p class="mt-2 text-lg font-semibold text-amber-500">{stats.left}</p>
     </div>
     <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
-      <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Bots</p>
+      <p class="text-xs font-medium text-on-surface-variant/40">Bots</p>
       <p class="mt-2 text-lg font-semibold text-sky-500">{stats.bot}</p>
     </div>
   </div>
@@ -228,7 +228,7 @@
       </div>
       <button
         onclick={copyCommand}
-        class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest bg-amber-500 text-white hover:opacity-90 transition-all active:scale-95"
+        class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium bg-amber-500 text-white hover:opacity-90 transition-all active:scale-95"
       >
         <Papicon icon={commandCopied ? "check" : "copy"} size={12} />
         {commandCopied ? "Copié !" : "Copier"}
@@ -245,7 +245,7 @@
   {:else if error}
     <div class="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-6 text-center">
       <p class="text-rose-500 font-bold">{error}</p>
-      <button onclick={loadDetections} class="mt-4 text-xs font-semibold uppercase tracking-widest text-primary">Réessayer</button>
+      <button onclick={loadDetections} class="mt-4 text-[13px] font-medium text-primary">Réessayer</button>
     </div>
   {:else if detections.length === 0}
     <div class="flex flex-col items-center justify-center py-24 text-center rounded-xl border border-outline-variant/10 bg-surface-container-low/30">
@@ -298,11 +298,11 @@
           <div class="mt-5 flex flex-wrap items-center gap-2">
             <button
               onclick={() => openMemberCase(detection)}
-              class="rounded-xl bg-primary px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-on-primary transition-transform hover:"
+              class="rounded-xl bg-primary px-4 py-2 text-xs font-medium text-on-primary transition-transform hover:"
             >
               Ouvrir le dossier
             </button>
-            <a href={`/members/${detection.id}`} class="rounded-xl border border-outline-variant/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant transition-colors hover:text-on-surface hover:border-primary/20">
+            <a href={`/members/${detection.id}`} class="rounded-xl border border-outline-variant/10 px-4 py-2 text-xs font-medium text-on-surface-variant transition-colors hover:text-on-surface hover:border-primary/20">
               Voir dans les membres
             </a>
           </div>

@@ -128,7 +128,7 @@
             <button
               type="button"
               onclick={() => selectEmoji(emoji)}
-              class="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-primary/10  active:scale-95 transition-all cursor-pointer"
+              class="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-primary/10 active:scale-95 transition-all cursor-pointer"
             >
               {emoji}
             </button>

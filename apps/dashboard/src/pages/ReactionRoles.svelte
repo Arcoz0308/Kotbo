@@ -4,6 +4,8 @@
   import { fade, scale } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -98,7 +100,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
   async function handleDelete(id: string) {
     if (!canManageSettings) return;
-    if (!confirm('Supprimer ce menu de rôles du dashboard ? (Le message Discord ne sera pas supprimé automatiquement)')) return;
+    if (!(await confirmDialog.danger('Supprimer ce menu de rôles ?', 'Le message Discord ne sera pas supprimé automatiquement.'))) return;
     await actionState.run(async () => {
       const ok = await deleteReactionRoleMenu(id);
       if (!ok) throw new Error('Erreur de suppression');
@@ -118,19 +120,12 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="MousePointer" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Reaction Roles</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Déployez des messages contenant des boutons interactifs pour attribuer des rôles aux membres.</p>
-      </div>
-    </div>
-  </header>
-
+<ModulePage
+  title="Reaction Roles"
+  description="Déployez des messages contenant des boutons interactifs pour attribuer des rôles aux membres."
+  icon="mouse-pointer"
+  featureKey="reaction_roles"
+>
   <InlineFeedback state={actionState} />
 
   {#if loading}
@@ -151,7 +146,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
         {#if canManageSettings}
           <button
             onclick={openCreateModal}
-            class="flex items-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-hover text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
+            class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
             Déployer un Panel
@@ -212,7 +207,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
             {#if canManageSettings}
               <button
                 onclick={openCreateModal}
-                class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
+                class="mt-4 flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
               >
                 <Papicon icon="Add" size={14} /> Créer un premier panel
               </button>
@@ -222,7 +217,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
       </div>
     </div>
   {/if}
-</div>
+</ModulePage>
 
 <!-- Modal Déployer un Panel -->
 {#if showModal}
@@ -405,14 +400,14 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
           <button
             type="button"
             onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
           >
             Annuler
           </button>
           {#if canManageSettings}
             <button
               type="submit"
-              class="px-8 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
+              class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
             >
               Déployer le Panel
             </button>

@@ -49,7 +49,7 @@
   function interpretMarkdown(text: string) {
     if (!text) return '';
     return text
-      .replace(/### (.*)/g, '<h5 class="text-xs font-semibold uppercase tracking-wider text-primary mt-4 mb-2">$1</h5>')
+      .replace(/### (.*)/g, '<h5 class="text-[13px] font-medium text-primary mt-4 mb-2">$1</h5>')
       .replace(/## (.*)/g, '<h4 class="text-sm font-semibold text-on-surface mt-6 mb-3 border-b border-outline-variant/20 pb-1">$1</h4>')
       .replace(/# (.*)/g, '<h3 class="text-lg font-semibold text-on-surface mt-8 mb-4">$1</h3>')
       .replace(/\*\*(.*)\*\*/g, '<strong class="font-semibold text-primary">$1</strong>')
@@ -117,12 +117,12 @@
                 <Papicon icon="volume-2" size={20} />
              </div>
              <div>
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Salon Vocal</p>
+                <p class="text-xs font-medium text-on-surface-variant">Salon Vocal</p>
                 <p class="text-sm font-bold text-on-surface">{event.details}</p>
              </div>
              {#if event.raw?.durationSeconds}
                <div class="ml-auto text-right">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Durée</p>
+                  <p class="text-xs font-medium text-on-surface-variant">Durée</p>
                   <p class="text-sm font-semibold text-primary">{formatDuration(event.raw.durationSeconds)}</p>
                </div>
              {/if}
@@ -133,11 +133,11 @@
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
                <div class="p-3 bg-surface-container rounded-xl border border-outline-variant/20">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Type</p>
+                  <p class="text-xs font-medium text-on-surface-variant">Type</p>
                   <p class="text-xs font-bold text-amber-600">{event.raw?.type || 'Autre'}</p>
                </div>
                <div class="p-3 bg-surface-container rounded-xl border border-outline-variant/20">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Statut</p>
+                  <p class="text-xs font-medium text-on-surface-variant">Statut</p>
                   <p class="text-xs font-bold {event.raw?.status === 'APPROVED' ? 'text-emerald-600' : 'text-amber-600'}">
                     {event.raw?.status === 'APPROVED' ? 'Approuvé' : event.raw?.status === 'PENDING' ? 'En attente' : 'Validé'}
                   </p>

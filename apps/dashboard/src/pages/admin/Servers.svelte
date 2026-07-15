@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import {
     fetchAdminStats,
     fetchAdminGuilds,
@@ -92,7 +93,7 @@
   }
 
   async function handleLeaveGuild(guildId: string, guildName: string) {
-    if (!confirm(`Faire quitter le bot du serveur ${guildName} ?`)) return;
+    if (!(await confirmDialog.danger(`Faire quitter le bot de ${guildName} ?`, '', 'Faire quitter'))) return;
     try {
       await leaveAdminGuild(guildId);
       guilds = guilds.filter(g => g.id !== guildId);
@@ -101,7 +102,7 @@
   }
 
   async function handleActivateGuildAuto(guildId: string, guildName: string) {
-    if (!confirm(`Activer automatiquement "${guildName}" ?`)) return;
+    if (!(await confirmDialog.ask({ title: `Activer automatiquement « ${guildName} » ?`, confirmLabel: 'Activer' }))) return;
     try {
       const res = await activateAdminGuildAuto(guildId);
       toast.success(`Serveur activé ! Code : ${res.code}`);
@@ -110,7 +111,7 @@
   }
 
   async function handleDeactivateGuild(guildId: string, guildName: string) {
-    if (!confirm(`Désactiver "${guildName}" ?`)) return;
+    if (!(await confirmDialog.ask({ title: `Désactiver « ${guildName} » ?`, confirmLabel: 'Désactiver', variant: 'warning' }))) return;
     try {
       await deactivateAdminGuild(guildId);
       toast.success('Serveur désactivé.');
@@ -131,7 +132,7 @@
   }
 
   async function handleRescanStats(guildId: string, guildName: string, force: boolean) {
-    if (force && !confirm(`Écraser et recalculer toutes les stats de "${guildName}" ?`)) return;
+    if (force && !(await confirmDialog.ask({ title: `Recalculer les stats de « ${guildName} » ?`, description: 'Les statistiques existantes seront écrasées.', confirmLabel: 'Recalculer', variant: 'warning' }))) return;
     try {
       const res = await rescanAdminGuildStats(guildId, force);
       toast.success(res.message || 'Scan lancé.');
@@ -221,12 +222,12 @@
           <table class="w-full">
             <thead>
               <tr class="border-b border-outline-variant/10 bg-on-surface/3">
-                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Serveur</th>
-                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Shard</th>
-                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Statut</th>
-                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Scan Stats</th>
-                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Rejoint</th>
-                <th class="text-right text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Actions</th>
+                <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Serveur</th>
+                <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Shard</th>
+                <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Statut</th>
+                <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Scan Stats</th>
+                <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Rejoint</th>
+                <th class="text-right text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant/8">
@@ -263,7 +264,7 @@
                   <td class="px-5 py-4">
                     {#if guild.activated}
                       <div class="flex flex-col gap-1">
-                        <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full w-fit">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full w-fit">
                           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                           Activé
                         </span>
@@ -274,7 +275,7 @@
                     {:else}
                       <button
                         onclick={() => handleActivateGuildAuto(guild.id, guild.name)}
-                        class="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-full cursor-pointer transition-all"
+                        class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-full cursor-pointer transition-all"
                       >
                         <Papicon icon="Key" size={10} />
                         Activer
@@ -286,7 +287,7 @@
                   <td class="px-5 py-4">
                     {#if guild.activated}
                       <div class="flex flex-col gap-1.5">
-                        <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest border px-2.5 py-1 rounded-full w-fit {scanCfg.chip}">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-medium border px-2.5 py-1 rounded-full w-fit {scanCfg.chip}">
                           <span class="w-1.5 h-1.5 rounded-full {scanCfg.dot}"></span>
                           {scanCfg.label}
                         </span>

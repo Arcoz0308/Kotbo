@@ -25,7 +25,7 @@
 
     <div class="overflow-x-auto no-scrollbar rounded-lg border border-outline-variant/5">
       <table class="w-full text-left border-collapse">
-        <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+        <thead class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
           <tr>
             <th class="px-6 py-4">Membre Staff</th>
             {#each metrics as m}

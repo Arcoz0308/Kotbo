@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ColorResolvable } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
@@ -6,6 +6,75 @@ import { isStaffServerGuild } from '../staff/staffServerService.js';
 
 // Cooldown map to prevent spamming/double clicks on the join button
 const joinCooldowns = new Map<string, number>();
+
+/**
+ * Données minimales d'un giveaway nécessaires pour reconstruire son embed.
+ * On reconstruit toujours l'embed à partir de la BDD car les messages sont
+ * envoyés en Components V2 (voir utils/patchV2.ts) : `message.embeds` est vide,
+ * donc on ne peut pas relire l'embed d'origine sur le message pour l'éditer.
+ */
+interface GiveawayEmbedData {
+  id: string;
+  prize: string;
+  description?: string | null;
+  winnerCount: number;
+  endsAt: Date;
+  rpgXp?: number | null;
+  rpgCoins?: number | null;
+  rpgItemId?: string | null;
+  needValidation?: boolean | null;
+}
+
+function buildGiveawayBonusInfo(giveaway: GiveawayEmbedData): string {
+  let info = '';
+  if ((giveaway.rpgCoins ?? 0) > 0) info += `\n🪙 **Pièces :** +${giveaway.rpgCoins}`;
+  if ((giveaway.rpgXp ?? 0) > 0) info += `\n✨ **XP RPG :** +${giveaway.rpgXp}`;
+  if (giveaway.rpgItemId) info += `\n📦 **Objet :** ${giveaway.rpgItemId}`;
+  if (giveaway.needValidation) info += `\n⚠️ *Validation du staff requise*`;
+  return info;
+}
+
+/** Embed d'un giveaway toujours en cours (création + inscriptions). */
+function buildActiveGiveawayEmbed(giveaway: GiveawayEmbedData, participantCount: number): EmbedBuilder {
+  const endsSec = Math.floor(giveaway.endsAt.getTime() / 1000);
+  const bonus = buildGiveawayBonusInfo(giveaway);
+  const description = `${giveaway.description ? `${giveaway.description}\n\n` : ''}` +
+    `Cliquez sur le bouton ci-dessous pour participer !\n` +
+    (bonus ? `\n**Récompenses bonus :**${bonus}\n` : '') +
+    `\n**Fin :** <t:${endsSec}:R> (<t:${endsSec}:f>)\n` +
+    `**Nombre de gagnants :** ${giveaway.winnerCount}\n` +
+    `**Participants :** ${participantCount}`;
+  return buildGiveawayEmbed(giveaway, description, '#5865F2');
+}
+
+/**
+ * Ligne du bouton « Rejoindre » d'un giveaway actif.
+ * En Components V2, les boutons vivent dans `components` au même titre que
+ * l'embed : toute édition qui ne les repasse pas les efface. Il faut donc les
+ * réinjecter à chaque `message.edit`.
+ */
+function buildGiveawayJoinRow(giveawayId: string): ActionRowBuilder<ButtonBuilder> {
+  const button = new ButtonBuilder()
+    .setCustomId(`giveaway_join:${giveawayId}`)
+    .setEmoji('🎉')
+    .setLabel('Rejoindre')
+    .setStyle(ButtonStyle.Primary);
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+}
+
+/** Embed d'un giveaway dans un état terminé/validé (description & couleur fournies). */
+function buildGiveawayEmbed(
+  giveaway: GiveawayEmbedData,
+  description: string,
+  color: ColorResolvable
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle(resolveEmojiShortcodes(`🎉 GIVEAWAY : ${giveaway.prize} 🎉`))
+    .setDescription(resolveEmojiShortcodes(description))
+    .setColor(color)
+    .setFooter({ text: `ID : ${giveaway.id}` })
+    .setTimestamp();
+}
 
 /**
  * Crée un nouveau giveaway sur Discord et en BDD
@@ -53,33 +122,8 @@ export async function createGiveaway(
   const channel = discordGuild.channels.cache.get(channelId);
   if (!channel?.isTextBased()) return giveaway;
 
-  let extraPrizeInfo = '';
-  if (rpgCoins > 0) extraPrizeInfo += `\n🪙 **Pièces :** +${rpgCoins}`;
-  if (rpgXp > 0) extraPrizeInfo += `\n✨ **XP RPG :** +${rpgXp}`;
-  if (rpgItemId) extraPrizeInfo += `\n📦 **Objet :** ${rpgItemId}`;
-  if (needValidation) extraPrizeInfo += `\n⚠️ *Validation du staff requise*`;
-
-  const embedDescription = `${description ? `${description}\n\n` : ''}` +
-    `Cliquez sur le bouton ci-dessous pour participer !\n` +
-    (extraPrizeInfo ? `\n**Récompenses bonus :**${extraPrizeInfo}\n` : '') +
-    `\n**Fin :** <t:${Math.floor(endsAt.getTime() / 1000)}:R> (<t:${Math.floor(endsAt.getTime() / 1000)}:f>)\n` +
-    `**Nombre de gagnants :** ${winnerCount}\n` +
-    `**Participants :** 0`;
-
-  const embed = new EmbedBuilder()
-    .setTitle(resolveEmojiShortcodes(`🎉 GIVEAWAY : ${prize} 🎉`))
-    .setDescription(resolveEmojiShortcodes(embedDescription))
-    .setColor('#5865F2')
-    .setFooter({ text: `ID : ${giveaway.id}` })
-    .setTimestamp();
-
-  const button = new ButtonBuilder()
-    .setCustomId(`giveaway_join:${giveaway.id}`)
-    .setEmoji('🎉')
-    .setLabel('Rejoindre')
-    .setStyle(ButtonStyle.Primary);
-
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+  const embed = buildActiveGiveawayEmbed(giveaway, 0);
+  const row = buildGiveawayJoinRow(giveaway.id);
 
   const message = await channel.send({ embeds: [embed], components: [row] }).catch(() => null);
   if (message) {
@@ -168,13 +212,13 @@ export async function handleGiveawayJoin(interaction: unknown) {
       if (channel?.isTextBased()) {
         const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
         if (message) {
-          const originalEmbed = message.embeds[0];
-          if (originalEmbed) {
-            const updatedEmbed = EmbedBuilder.from(originalEmbed)
-              .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}Cliquez sur le bouton ci-dessous pour participer !\n\n**Fin :** <t:${Math.floor(giveaway.endsAt.getTime() / 1000)}:R> (<t:${Math.floor(giveaway.endsAt.getTime() / 1000)}:f>)\n**Nombre de gagnants :** ${giveaway.winnerCount}\n**Participants :** ${updatedParticipants.length}`);
-            
-            await message.edit({ embeds: [updatedEmbed] }).catch(() => null);
-          }
+          const updatedEmbed = buildActiveGiveawayEmbed(giveaway, updatedParticipants.length);
+          // On repasse le bouton « Rejoindre » : en Components V2 une édition qui
+          // ne fournit pas `components` efface les boutons du message.
+          await message.edit({
+            embeds: [updatedEmbed],
+            components: [buildGiveawayJoinRow(giveaway.id)],
+          }).catch(() => null);
         }
       }
     }
@@ -211,7 +255,8 @@ export async function endGiveaway(client: Client, giveawayId: string) {
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
   if (!discordGuild) return;
 
-  const channel = discordGuild.channels.cache.get(giveaway.channelId);
+  const channel = discordGuild.channels.cache.get(giveaway.channelId)
+    || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
   // Tirer les gagnants
@@ -228,76 +273,84 @@ export async function endGiveaway(client: Client, giveawayId: string) {
     }
   }
 
-  // Mettre à jour le message d'origine
+  const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
+
+  if (giveaway.needValidation) {
+    // On marque le giveaway comme terminé AVANT toute opération Discord : la
+    // transition d'état doit avoir lieu même si le message n'est plus
+    // récupérable, sinon le cron le reclôturerait en boucle chaque minute.
+    await prisma.giveaway.update({
+      where: { id: giveawayId },
+      data: {
+        ended: true,
+        validationStatus: 'PENDING',
+        pendingWinners: winners,
+      },
+    });
+
+    // Mise à jour du message d'origine (best-effort)
+    if (giveaway.messageId) {
+      const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+      if (message) {
+        const endedEmbed = buildGiveawayEmbed(
+          giveaway,
+          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${participants.length}`,
+          '#FAA81A'
+        );
+
+        const approveBtn = new ButtonBuilder()
+          .setCustomId(`giveaway_val_approve:${giveaway.id}`)
+          .setLabel('Valider les gagnants ✅')
+          .setStyle(ButtonStyle.Success);
+
+        const rerollBtn = new ButtonBuilder()
+          .setCustomId(`giveaway_val_reroll:${giveaway.id}`)
+          .setLabel('Relancer (Reroll) 🎲')
+          .setStyle(ButtonStyle.Danger);
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
+        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+      }
+    }
+
+    await channel.send(`⏳ **Le giveaway pour **${giveaway.prize}** (ID: \`${giveaway.id}\`) s'est terminé !** Gagnants tirés : ${winnersMentions}. En attente de validation par un administrateur.`).catch(() => null);
+    return;
+  }
+
+  // Pas de validation requise, gain direct : on fige l'état et on distribue
+  // exactement une fois, indépendamment de la disponibilité du message.
+  await prisma.giveaway.update({
+    where: { id: giveawayId },
+    data: {
+      ended: true,
+      validationStatus: 'APPROVED',
+      winners,
+    },
+  });
+
+  await distributeGiveawayPrizes(giveaway, winners).catch((err) => {
+    logger.error('GiveawayService', 'Error distributing prizes in endGiveaway:', err);
+  });
+
+  // Mise à jour du message d'origine (best-effort)
   if (giveaway.messageId) {
     const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
     if (message) {
-      const originalEmbed = message.embeds[0];
-      if (originalEmbed) {
-        const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
+      const endedEmbed = buildGiveawayEmbed(
+        giveaway,
+        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${participants.length}`,
+        '#ED4245'
+      );
 
-        if (giveaway.needValidation) {
-          // Mettre à jour avec validationStatus = PENDING et pendingWinners
-          await prisma.giveaway.update({
-            where: { id: giveawayId },
-            data: {
-              ended: true,
-              validationStatus: 'PENDING',
-              pendingWinners: winners,
-            },
-          });
+      const disabledButton = new ButtonBuilder()
+        .setCustomId(`giveaway_ended:${giveaway.id}`)
+        .setEmoji('🎉')
+        .setLabel('Terminé')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true);
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
-          const endedEmbed = EmbedBuilder.from(originalEmbed)
-            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${participants.length}`)
-            .setColor('#FAA81A')
-            .setTimestamp();
-
-          const approveBtn = new ButtonBuilder()
-            .setCustomId(`giveaway_val_approve:${giveaway.id}`)
-            .setLabel('Valider les gagnants ✅')
-            .setStyle(ButtonStyle.Success);
-
-          const rerollBtn = new ButtonBuilder()
-            .setCustomId(`giveaway_val_reroll:${giveaway.id}`)
-            .setLabel('Relancer (Reroll) 🎲')
-            .setStyle(ButtonStyle.Danger);
-
-          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
-          await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
-
-          await channel.send(`⏳ **Le giveaway pour **${giveaway.prize}** (ID: \`${giveaway.id}\`) s'est terminé !** Gagnants tirés : ${winnersMentions}. En attente de validation par un administrateur.`).catch(() => null);
-          return;
-        } else {
-          // Pas de validation requise, gain direct
-          await prisma.giveaway.update({
-            where: { id: giveawayId },
-            data: {
-              ended: true,
-              validationStatus: 'APPROVED',
-              winners,
-            },
-          });
-
-          await distributeGiveawayPrizes(giveaway, winners).catch((err) => {
-            logger.error('GiveawayService', 'Error distributing prizes in endGiveaway:', err);
-          });
-
-          const endedEmbed = EmbedBuilder.from(originalEmbed)
-            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${participants.length}`)
-            .setColor('#ED4245')
-            .setTimestamp();
-
-          const disabledButton = new ButtonBuilder()
-            .setCustomId(`giveaway_ended:${giveaway.id}`)
-            .setEmoji('🎉')
-            .setLabel('Terminé')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(true);
-          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
-
-          await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
-        }
-      }
+      await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
     }
   }
 
@@ -348,26 +401,24 @@ export async function rerollGiveaway(client: Client, giveawayId: string) {
     if (giveaway.messageId) {
       const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
       if (message) {
-        const originalEmbed = message.embeds[0];
-        if (originalEmbed) {
-          const endedEmbed = EmbedBuilder.from(originalEmbed)
-            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnant Tiré après Reroll (En attente de validation) :** <@${newWinner}>\n**Participants :** ${giveaway.participants.length}`)
-            .setColor('#FAA81A')
-            .setTimestamp();
+        const endedEmbed = buildGiveawayEmbed(
+          giveaway,
+          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnant Tiré après Reroll (En attente de validation) :** <@${newWinner}>\n**Participants :** ${giveaway.participants.length}`,
+          '#FAA81A'
+        );
 
-          const approveBtn = new ButtonBuilder()
-            .setCustomId(`giveaway_val_approve:${giveaway.id}`)
-            .setLabel('Valider le gagnant ✅')
-            .setStyle(ButtonStyle.Success);
+        const approveBtn = new ButtonBuilder()
+          .setCustomId(`giveaway_val_approve:${giveaway.id}`)
+          .setLabel('Valider le gagnant ✅')
+          .setStyle(ButtonStyle.Success);
 
-          const rerollBtn = new ButtonBuilder()
-            .setCustomId(`giveaway_val_reroll:${giveaway.id}`)
-            .setLabel('Relancer (Reroll) 🎲')
-            .setStyle(ButtonStyle.Danger);
+        const rerollBtn = new ButtonBuilder()
+          .setCustomId(`giveaway_val_reroll:${giveaway.id}`)
+          .setLabel('Relancer (Reroll) 🎲')
+          .setStyle(ButtonStyle.Danger);
 
-          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
-          await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
-        }
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
+        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
       }
     }
 
@@ -391,24 +442,22 @@ export async function rerollGiveaway(client: Client, giveawayId: string) {
     if (giveaway.messageId) {
       const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
       if (message) {
-        const originalEmbed = message.embeds[0];
-        if (originalEmbed) {
-          const winnersMentions = updatedWinners.map(w => `<@${w}>`).join(', ');
-          const endedEmbed = EmbedBuilder.from(originalEmbed)
-            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants (après reroll) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`)
-            .setColor('#ED4245')
-            .setTimestamp();
+        const winnersMentions = updatedWinners.map(w => `<@${w}>`).join(', ');
+        const endedEmbed = buildGiveawayEmbed(
+          giveaway,
+          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants (après reroll) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
+          '#ED4245'
+        );
 
-          const disabledButton = new ButtonBuilder()
-            .setCustomId(`giveaway_ended:${giveaway.id}`)
-            .setEmoji('🎉')
-            .setLabel('Terminé')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(true);
-          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
+        const disabledButton = new ButtonBuilder()
+          .setCustomId(`giveaway_ended:${giveaway.id}`)
+          .setEmoji('🎉')
+          .setLabel('Terminé')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true);
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
-          await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
-        }
+        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
       }
     }
 
@@ -452,24 +501,22 @@ export async function approveGiveawayWinners(client: Client, giveawayId: string)
   if (giveaway.messageId) {
     const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
     if (message) {
-      const originalEmbed = message.embeds[0];
-      if (originalEmbed) {
-        const winnersMentions = winners.length > 0 ? winners.map((w: string) => `<@${w}>`).join(', ') : 'Aucun.';
-        const endedEmbed = EmbedBuilder.from(originalEmbed)
-          .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Validés :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`)
-          .setColor('#57F287') // Vert
-          .setTimestamp();
+      const winnersMentions = winners.length > 0 ? winners.map((w: string) => `<@${w}>`).join(', ') : 'Aucun.';
+      const endedEmbed = buildGiveawayEmbed(
+        giveaway,
+        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Validés :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
+        '#57F287' // Vert
+      );
 
-        const disabledButton = new ButtonBuilder()
-          .setCustomId(`giveaway_ended:${giveaway.id}`)
-          .setEmoji('🎉')
-          .setLabel('Terminé & Validé')
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(true);
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
+      const disabledButton = new ButtonBuilder()
+        .setCustomId(`giveaway_ended:${giveaway.id}`)
+        .setEmoji('🎉')
+        .setLabel('Terminé & Validé')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true);
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
-        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
-      }
+      await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
     }
   }
 

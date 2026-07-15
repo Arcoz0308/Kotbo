@@ -5,6 +5,7 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -262,19 +263,12 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="ShieldAlert" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">AutoMod</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Configurez les filtres de sécurité pour modérer automatiquement les comportements néfastes.</p>
-      </div>
-    </div>
-  </header>
-
+<ModulePage
+  title="AutoMod"
+  description="Configurez les filtres de sécurité pour modérer automatiquement les comportements néfastes."
+  icon="shield-alert"
+  featureKey="automod"
+>
   <InlineFeedback state={actionState} />
 
   {#if loading}
@@ -287,11 +281,11 @@
     </div>
   {:else}
     <!-- Navigation Tabs -->
-    <div class="flex flex-wrap gap-2 border-b border-outline-variant/10 pb-5">
+    <div class="tab-group w-fit">
       <button
         type="button"
         onclick={() => activeTab = 'bot-filters'}
-        class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 {activeTab === 'bot-filters' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+        class="tab-button {activeTab === 'bot-filters' ? 'active' : ''}"
       >
         <Papicon icon="Shield" size={14} />
         Filtres Bot
@@ -299,7 +293,7 @@
       <button
         type="button"
         onclick={() => activeTab = 'discord-filters'}
-        class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 {activeTab === 'discord-filters' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+        class="tab-button {activeTab === 'discord-filters' ? 'active' : ''}"
       >
         <Papicon icon="MessageSquare" size={14} />
         AutoMod Discord (Natif)
@@ -307,7 +301,7 @@
       <button
         type="button"
         onclick={() => activeTab = 'security'}
-        class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 {activeTab === 'security' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+        class="tab-button {activeTab === 'security' ? 'active' : ''}"
       >
         <Papicon icon="Lock" size={14} />
         Sécurité & Anti-Raid
@@ -315,7 +309,7 @@
       <button
         type="button"
         onclick={() => activeTab = 'exceptions'}
-        class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 {activeTab === 'exceptions' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+        class="tab-button {activeTab === 'exceptions' ? 'active' : ''}"
       >
         <Papicon icon="Unlock" size={14} />
         Exceptions
@@ -1183,4 +1177,4 @@
       </div>
     {/if}
   {/if}
-</div>
+</ModulePage>

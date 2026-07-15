@@ -4,6 +4,7 @@
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { 
     fetchAbsences, 
     createAbsence, 
@@ -633,7 +634,7 @@
               <ActionButton 
                 variant="danger" 
                 onClick={async () => {
-                  if (confirm('Voulez-vous vraiment supprimer cette absence ?')) {
+                  if (await confirmDialog.danger('Supprimer cette absence ?')) {
                     try {
                       await deleteAbsence(selectedEvent.id);
                       detailModalOpen = false;
@@ -717,7 +718,7 @@
             <button 
               onclick={confirmDecision}
               disabled={decisionSaving}
-              class="flex-1 py-3 {decisionStatus === 'APPROVED' ? 'bg-emerald-500' : 'bg-red-500'} text-white rounded-xl text-sm font-semibold  disabled:opacity-50 transition-all"
+              class="flex-1 py-3 {decisionStatus === 'APPROVED' ? 'bg-emerald-500' : 'bg-red-500'} text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition-all"
             >
               Confirmer
             </button>

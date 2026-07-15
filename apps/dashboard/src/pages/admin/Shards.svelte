@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import { fetchAdminShards, restartAdminShard, restartAllAdminShards, reconfigureAdminShards } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
@@ -85,7 +86,7 @@
   }
 
   async function handleRestartShard(shardId: number) {
-    if (!confirm(`Redémarrer le shard ${shardId} ?`)) return;
+    if (!(await confirmDialog.ask({ title: `Redémarrer le shard ${shardId} ?`, confirmLabel: 'Redémarrer', variant: 'warning' }))) return;
     try {
       shardActionLoading = `restart:${shardId}`;
       await restartAdminShard(shardId);
@@ -99,7 +100,7 @@
   }
 
   async function handleRestartAllShards() {
-    if (!confirm('Redémarrer tous les shards ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Redémarrer tous les shards ?', description: 'Le bot sera brièvement indisponible sur tous les serveurs.', confirmLabel: 'Tout redémarrer', variant: 'warning' }))) return;
     try {
       shardActionLoading = 'restart-all';
       await restartAllAdminShards();
@@ -165,15 +166,15 @@
       <div class="grid grid-cols-3 gap-4">
         <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-xl p-4">
           <p class="text-2xl font-semibold font-mono text-on-surface">{shardConfiguredCount}</p>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mt-1">Shards total</p>
+          <p class="text-xs font-medium text-on-surface-variant/40 mt-1">Shards total</p>
         </div>
         <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-xl p-4">
           <p class="text-2xl font-semibold font-mono text-emerald-400">{shardState?.onlineShardCount ?? 0}</p>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mt-1">En ligne</p>
+          <p class="text-xs font-medium text-on-surface-variant/40 mt-1">En ligne</p>
         </div>
         <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-xl p-4">
           <p class="text-2xl font-semibold font-mono text-blue-400">{shardAveragePing} ms</p>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mt-1">Ping moyen</p>
+          <p class="text-xs font-medium text-on-surface-variant/40 mt-1">Ping moyen</p>
         </div>
       </div>
 
@@ -202,7 +203,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Mode de sharding</p>
+            <p class="text-xs font-medium text-on-surface-variant/40">Mode de sharding</p>
             <select
               bind:value={shardMode}
               class="w-full bg-on-surface/4 border border-outline-variant/10 rounded-xl px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/30 transition-all"
@@ -213,7 +214,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Nombre de shards</p>
+            <p class="text-xs font-medium text-on-surface-variant/40">Nombre de shards</p>
             <input
               type="number"
               min="1"
@@ -248,14 +249,14 @@
         <div class="xl:col-span-2 space-y-5">
           <!-- Visual bar chart -->
           <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-5">
-            <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/30 mb-4">Répartition par shard</p>
+            <p class="text-[13px] font-medium text-on-surface-variant/30 mb-4">Répartition par shard</p>
             <div class="flex items-end gap-3 h-24">
               {#each shardRows as shard (shard.shardId)}
                 <div class="flex-1 flex flex-col items-center gap-1.5 min-w-0">
                   <div class="w-full relative h-20">
                     <div
                       class="absolute bottom-0 w-full rounded-t-lg transition-all duration-700
-                        {shard.status === 'online' ? 'bg-linear-to-t from-emerald-600 to-emerald-400'
+ {shard.status === 'online' ? 'bg-linear-to-t from-emerald-600 to-emerald-400'
                         : shard.status === 'starting' ? 'bg-linear-to-t from-amber-600 to-amber-400'
                         : shard.status === 'restarting' ? 'bg-linear-to-t from-blue-600 to-blue-400'
                         : 'bg-linear-to-t from-red-700 to-red-500'}"
@@ -274,13 +275,13 @@
               <table class="w-full">
                 <thead>
                   <tr class="border-b border-outline-variant/10 bg-on-surface/3">
-                    <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Shard</th>
-                    <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">État</th>
-                    <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Serveurs</th>
-                    <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Membres</th>
-                    <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Ping</th>
-                    <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Uptime</th>
-                    <th class="text-right text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Action</th>
+                    <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Shard</th>
+                    <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">État</th>
+                    <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Serveurs</th>
+                    <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Membres</th>
+                    <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Ping</th>
+                    <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Uptime</th>
+                    <th class="text-right text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Action</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/8">
@@ -291,7 +292,7 @@
                         <p class="text-[11px] font-mono text-on-surface-variant/30">{shard.readyAt ? new Date(shard.readyAt).toLocaleTimeString('fr-FR') : '—'}</p>
                       </td>
                       <td class="px-5 py-3.5">
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-widest border {shardStatusTone(shard.status)}">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border {shardStatusTone(shard.status)}">
                           <span class="w-1.5 h-1.5 rounded-full {shard.status === 'online' ? 'bg-emerald-400' : shard.status === 'starting' ? 'bg-amber-400 animate-pulse' : shard.status === 'restarting' ? 'bg-blue-400 animate-pulse' : 'bg-red-400'}"></span>
                           {shardStatusLabel(shard.status)}
                         </span>
@@ -307,7 +308,7 @@
                           type="button"
                           onclick={() => handleRestartShard(shard.shardId)}
                           disabled={shardActionLoading === `restart:${shard.shardId}`}
-                          class="px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-on-surface/5 hover:bg-amber-500/15 text-on-surface-variant hover:text-amber-400 border border-outline-variant/10 hover:border-amber-500/20 transition-all disabled:opacity-40"
+                          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-on-surface/5 hover:bg-amber-500/15 text-on-surface-variant hover:text-amber-400 border border-outline-variant/10 hover:border-amber-500/20 transition-all disabled:opacity-40"
                         >
                           {shardActionLoading === `restart:${shard.shardId}` ? '...' : 'Restart'}
                         </button>

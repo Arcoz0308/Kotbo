@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { fetchReputationData } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import EmptyState from '../lib/components/EmptyState.svelte';
 
   let loading = $state(true);
   let data: any = $state(null);
@@ -32,15 +34,12 @@
   onMount(load);
 </script>
 
-<!-- Header -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-  <div>
-    <h1 class="text-lg font-semibold flex items-center gap-2.5">
-      <Papicon icon="Star" size={24} /> Reputation
-    </h1>
-    <p class="text-xs text-on-surface-variant/60 mt-1">Reconnaissance communautaire par les pairs</p>
-  </div>
-</div>
+<ModulePage
+  title="Réputation"
+  description="Reconnaissance communautaire par les pairs."
+  icon="star"
+  featureKey="leveling"
+>
 
 <!-- Loading -->
 {#if loading}
@@ -57,7 +56,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.totalVotes}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Total de votes</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">Total de votes</span>
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
@@ -66,7 +65,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.leaderboard.totalVoters}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Votants uniques</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">Votants uniques</span>
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
@@ -75,7 +74,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{totalRepGiven}</span>
-        <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Total rep donne</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">Total rep donne</span>
       </div>
     </div>
   </div>
@@ -89,10 +88,7 @@
         Classement Reputation
       </h3>
       {#if data.leaderboard.entries.length === 0}
-        <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
-          <Papicon icon="Star" size={48} />
-          <p class="text-sm">Aucun vote pour le moment.</p>
-        </div>
+        <EmptyState icon="star" title="Aucun vote pour le moment" description="Les votes de réputation entre membres apparaîtront ici." />
       {:else}
         <div class="space-y-1">
           {#each data.leaderboard.entries as entry, i}
@@ -120,10 +116,7 @@
         Votes recents
       </h3>
       {#if data.recentVotes.length === 0}
-        <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
-          <Papicon icon="Heart" size={48} />
-          <p class="text-sm">Aucun vote recent.</p>
-        </div>
+        <EmptyState icon="heart" title="Aucun vote récent" />
       {:else}
         <div class="space-y-2">
           {#each data.recentVotes.slice(0, 20) as vote}
@@ -153,3 +146,4 @@
     </div>
   </div>
 {/if}
+</ModulePage>

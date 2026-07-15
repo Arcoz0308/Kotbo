@@ -27,7 +27,9 @@ function toEditReplyOptions(payload: InteractionReplyOptions): InteractionEditRe
     content: payload.content,
     embeds: payload.embeds,
     components: payload.components,
+    files: payload.files,
     allowedMentions: payload.allowedMentions,
+    flags: payload.flags as InteractionEditReplyOptions['flags'],
   };
 }
 
@@ -36,7 +38,9 @@ function toUpdateOptions(payload: InteractionReplyOptions): InteractionUpdateOpt
     content: payload.content,
     embeds: payload.embeds,
     components: payload.components,
+    files: payload.files,
     allowedMentions: payload.allowedMentions,
+    flags: payload.flags as InteractionUpdateOptions['flags'],
   };
 }
 
@@ -45,7 +49,9 @@ function toChannelMessageOptions(payload: InteractionReplyOptions): MessageCreat
     content: payload.content,
     embeds: payload.embeds,
     components: payload.components,
+    files: payload.files,
     allowedMentions: payload.allowedMentions,
+    flags: payload.flags as MessageCreateOptions['flags'],
   };
 }
 

@@ -41,7 +41,7 @@
       <h3 class="text-2xl font-semibold">Fonctionnalités</h3>
       <p class="text-xs text-on-surface-variant/50 mt-1">Activez ou désactivez chaque module, ses logs et son suivi utilisateur.</p>
     </div>
-    <button onclick={onSave} class="px-7 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-lg  hover:scale-105 transition-transform">
+    <button onclick={onSave} class="px-7 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-lg transition-transform">
       Sauvegarder
     </button>
   </div>
@@ -70,7 +70,7 @@
         {#if isCatExpanded}
           <div class="overflow-hidden rounded-xl border border-outline-variant/5 animate-in fade-in slide-in-from-top-1 duration-300">
             <table class="w-full text-left border-collapse">
-              <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+              <thead class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
                 <tr>
                   <th class="px-6 py-4">Module</th>
                   <th class="px-6 py-4 text-center">Activé</th>

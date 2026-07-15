@@ -1312,18 +1312,27 @@ export async function reviewDailyAlgoSubmission(params: {
             : '❌ Rejeté';
         }
 
-        const embed = EmbedBuilder.from(message.embeds[0] ?? new EmbedBuilder().setTitle('Réponse Daily Algo'))
+        // Le message de validation est en Components V2 (voir utils/patchV2.ts) :
+        // `message.embeds` est vide, on reconstruit donc l'embed depuis la
+        // soumission (l'énoncé/réponse seraient perdus en relisant le message).
+        const elapsed = timeDiff(submission.run.createdAt, submission.submittedAt);
+        const embed = new EmbedBuilder()
           .setColor(params.action === 'approve' ? COLORS.success : COLORS.danger)
+          .setTitle('🧪 Réponse Daily Algo à valider')
+          .addFields(
+            { name: 'Auteur', value: submission.authorName, inline: true },
+            { name: 'Défi', value: truncate(submission.run.problem.title, 256), inline: true },
+            {
+              name: 'Rapidité',
+              value: submission.speedBonusPoints > 0
+                ? `${formatRankMedal(submission.speedRank)} (${elapsed}) +${submission.speedBonusPoints}pts`
+                : `${formatRankMedal(submission.speedRank)} (${elapsed})`,
+              inline: true,
+            },
+          )
+          .setDescription(`\`\`\`\n${truncate(submission.solution, 1800)}\n\`\`\``)
+          .setTimestamp()
           .setFooter({ text: `Kotbo · ${footerLabel}` });
-
-        const existingNonFeedbackFields = (message.embeds[0]?.fields ?? [])
-          .filter((field) => field.name !== '🗒️ Feedback staff')
-          .map((field) => ({
-            name: field.name,
-            value: field.value,
-            inline: field.inline,
-          }));
-        embed.setFields(existingNonFeedbackFields);
 
         if (normalizedFeedback) {
           embed.addFields({

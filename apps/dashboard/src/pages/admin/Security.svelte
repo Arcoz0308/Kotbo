@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import { fetchGlobalAdmins, addGlobalAdmin, removeGlobalAdmin, fetchGlobalBlacklist, addGlobalBlacklist, removeGlobalBlacklist } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
@@ -62,7 +63,7 @@
   }
 
   async function handleRemoveAdmin(userId: string, username: string) {
-    if (!confirm(`Retirer l'accès global à ${username} ?`)) return;
+    if (!(await confirmDialog.danger(`Retirer l'accès global à ${username} ?`, '', 'Retirer'))) return;
     try {
       await removeGlobalAdmin(userId);
       globalAdmins = globalAdmins.filter(a => a.userId !== userId);
@@ -84,7 +85,7 @@
   }
 
   async function handleRemoveBlacklist(userId: string) {
-    if (!confirm('Retirer cet utilisateur de la blacklist globale ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Retirer de la blacklist globale ?', confirmLabel: 'Retirer', variant: 'warning' }))) return;
     try {
       await removeGlobalBlacklist(userId);
       globalBlacklist = globalBlacklist.filter(b => b.userId !== userId);
@@ -122,7 +123,7 @@
       <button
         onclick={() => adminTab = 'admins'}
         class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200
-          {adminTab === 'admins' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
+ {adminTab === 'admins' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
       >
         <Papicon icon="ShieldCheck" size={13} />
         Administrateurs
@@ -130,7 +131,7 @@
       <button
         onclick={() => adminTab = 'blacklist'}
         class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200
-          {adminTab === 'blacklist' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
+ {adminTab === 'blacklist' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
       >
         <Papicon icon="UserX" size={13} />
         Blacklist
@@ -163,7 +164,7 @@
       <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-6 space-y-5">
         <!-- Add form -->
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Ajouter un administrateur</p>
+          <p class="text-xs font-medium text-on-surface-variant/40 mb-2">Ajouter un administrateur</p>
           <form onsubmit={handleAddAdmin} class="flex gap-2">
             <input
               type="text"
@@ -174,7 +175,7 @@
             />
             <button
               type="submit"
-              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold uppercase tracking-widest hover: transition-all shadow-md shadow-primary/20"
+              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-[13px] font-medium hover: transition-all shadow-md shadow-primary/20"
             >
               Ajouter
             </button>
@@ -223,7 +224,7 @@
       <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-6 space-y-5">
         <!-- Add form -->
         <div class="space-y-2">
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Ajouter à la blacklist</p>
+          <p class="text-xs font-medium text-on-surface-variant/40">Ajouter à la blacklist</p>
           <form onsubmit={handleAddBlacklist} class="space-y-2">
             <input
               type="text"
@@ -241,7 +242,7 @@
               />
               <button
                 type="submit"
-                class="px-5 py-2.5 rounded-xl bg-red-500 text-white text-xs font-semibold uppercase tracking-widest hover:bg-red-600 transition-all shadow-md shadow-red-500/20"
+                class="px-5 py-2.5 rounded-xl bg-red-500 text-white text-[13px] font-medium hover:bg-red-600 transition-all shadow-md shadow-red-500/20"
               >
                 Bannir
               </button>

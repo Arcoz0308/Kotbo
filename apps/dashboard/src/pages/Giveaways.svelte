@@ -4,6 +4,8 @@
   import { fade, scale } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
@@ -139,7 +141,7 @@
 
   async function handleDelete(id: string) {
     if (!canManageSettings) return;
-    if (!confirm('Supprimer ce concours de la base de données ?')) return;
+    if (!(await confirmDialog.danger('Supprimer ce concours ?', 'Il sera retiré définitivement de la base de données.'))) return;
     await actionState.run(async () => {
       const ok = await deleteGiveaway(id);
       if (!ok) throw new Error('Erreur de suppression');
@@ -169,19 +171,12 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="Sparkles" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Giveaways</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Créez et gérez des tirages au sort interactifs avec boutons de participation.</p>
-      </div>
-    </div>
-  </header>
-
+<ModulePage
+  title="Giveaways"
+  description="Créez et gérez des tirages au sort interactifs avec boutons de participation."
+  icon="sparkles"
+  featureKey="giveaways"
+>
   <InlineFeedback state={actionState} />
 
   {#if loading}
@@ -202,7 +197,7 @@
         {#if canManageSettings}
           <button
             onclick={openCreateModal}
-            class="flex items-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-hover text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
+            class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
             Lancer un Concours
@@ -235,10 +230,10 @@
 
               <!-- Stats row -->
               <div class="flex flex-wrap gap-2 pt-3 border-t border-outline-variant/10">
-                <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/10">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/10">
                   <Papicon icon="Users" size={10} />{giveaway.participants.length} participants
                 </span>
-                <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/10">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/10">
                   <Papicon icon="Crown" size={10} />{giveaway.winnerCount} gagnants
                 </span>
               </div>
@@ -246,7 +241,7 @@
               <!-- Winners or Clock -->
               {#if giveaway.ended}
                 <div class="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 space-y-1">
-                  <span class="text-[10px] font-semibold uppercase tracking-widest text-emerald-400 flex items-center gap-1">
+                  <span class="text-xs font-medium text-emerald-400 flex items-center gap-1">
                     <Papicon icon="Crown" size={10} /> Gagnant(s)
                   </span>
                   <p class="text-xs font-bold text-emerald-300/95 wrap-break-word">
@@ -302,7 +297,7 @@
             {#if canManageSettings}
               <button
                 onclick={openCreateModal}
-                class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
+                class="mt-4 flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
               >
                 <Papicon icon="Add" size={14} /> Lancer un premier concours
               </button>
@@ -312,7 +307,7 @@
       </div>
     </div>
   {/if}
-</div>
+</ModulePage>
 
 <!-- Modal Création Giveaway -->
 {#if showModal}
@@ -437,14 +432,14 @@
           <button
             type="button"
             onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
           >
             Annuler
           </button>
           {#if canManageSettings}
             <button
               type="submit"
-              class="px-8 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
+              class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
             >
               Envoyer sur Discord
             </button>

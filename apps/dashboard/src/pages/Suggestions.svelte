@@ -4,6 +4,9 @@
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
+  import SectionCard from '../lib/components/SectionCard.svelte';
+  import EmptyState from '../lib/components/EmptyState.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
@@ -186,29 +189,25 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="ThumbsUp" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Suggestions</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Consultez et modérez les suggestions de la communauté avec vote en temps réel.</p>
-      </div>
-    </div>
-
-    <div class="flex flex-wrap gap-1.5 bg-surface-container-high/30 p-1.5 rounded-lg border border-outline-variant/10">
+<ModulePage
+  title="Suggestions"
+  description="Consultez et modérez les suggestions de la communauté avec vote en temps réel."
+  icon="thumbs-up"
+  featureKey="suggestions"
+>
+  {#snippet actions()}
+    <div class="tab-group" role="tablist">
       {#each ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'IMPLEMENTED'] as filter}
         <button
           onclick={() => currentFilter = filter as any}
-          class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg transition-all {currentFilter === filter ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-surface-hover/30'}"
+          role="tab" aria-selected={currentFilter === filter}
+          class="tab-button {currentFilter === filter ? 'active' : ''}"
         >
           {filter === 'ALL' ? 'Toutes' : statusLabels[filter]}
         </button>
       {/each}
     </div>
-  </header>
+  {/snippet}
 
   <InlineFeedback state={actionState} />
   <InlineFeedback state={configAction} />
@@ -221,46 +220,6 @@
       <Skeleton height="150px" radius="2rem" />
     </div>
   {:else}
-    <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-semibold">Configuration</h2>
-          <p class="text-xs text-on-surface-variant/70 font-medium mt-1">
-            Définissez le salon où les nouvelles suggestions sont publiées sur Discord.
-          </p>
-        </div>
-        <!-- Save button removed since global bottom bar handles saving -->
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="flex items-center justify-between p-4 bg-surface-container-high/20 rounded-lg border border-outline-variant/10">
-          <div>
-            <p class="text-sm font-bold">Système de suggestions</p>
-            <p class="text-[10px] text-on-surface-variant/60 font-medium">Active ou désactive la publication des suggestions.</p>
-          </div>
-          <ToggleSwitch
-            checked={moduleConfig.enabled}
-            onToggle={(v: boolean) => { moduleConfig.enabled = v; }}
-            disabled={!canConfigure}
-          />
-        </div>
-
-        <div class="space-y-1.5">
-          <label for="suggestions-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">
-            Salon des suggestions
-          </label>
-          <SearchableSelect
-            id="suggestions-channel"
-            bind:value={moduleConfig.channelId}
-            options={availableChannels.map((c) => ({ id: c.id, name: channelDisplayName(c) }))}
-            placeholder="Sélectionner un salon"
-            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm"
-            disabled={!canConfigure || !moduleConfig.enabled}
-          />
-        </div>
-      </div>
-    </section>
-
     <div class="space-y-6">
       {#each filteredSuggestions as suggestion}
         <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 hover:bg-surface-container-low/40 transition-all">
@@ -284,7 +243,7 @@
                 <Papicon icon="Minus" size={12} /> {suggestion.downvoters.length}
               </div>
               <!-- Status badge -->
-              <span class="px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider border {statusColors[suggestion.status]}">
+              <span class="px-4 py-1.5 rounded-full text-[13px] font-medium border {statusColors[suggestion.status]}">
                 {statusLabels[suggestion.status]}
               </span>
             </div>
@@ -321,21 +280,21 @@
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'REJECTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-6 py-3.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold uppercase tracking-widest rounded-lg hover:scale-105 transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   Refuser
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'APPROVED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold uppercase tracking-widest rounded-lg hover:scale-105 transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   Approuver
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'IMPLEMENTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-6 py-3.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold uppercase tracking-widest rounded-lg hover:scale-105 transition-all disabled:opacity-50"
+                  class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
                 >
                   Implémentée
                 </button>
@@ -344,11 +303,48 @@
           {/if}
         </div>
       {:else}
-        <div class="flex flex-col items-center justify-center py-24 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
-          <Papicon icon="Info" size={36} class="text-on-surface-variant/20 mb-3" />
-          <p class="text-sm text-on-surface-variant/60 font-medium">Aucune suggestion trouvée dans cette catégorie.</p>
+        <div class="section-card">
+          <EmptyState
+            icon="thumbs-up"
+            title="Aucune suggestion"
+            description="Aucune suggestion trouvée dans cette catégorie. Les membres peuvent en proposer via la commande Discord."
+          />
         </div>
       {/each}
     </div>
+
+    {#if canConfigure}
+      <SectionCard
+        title="Configuration"
+        description="Définissez le salon où les nouvelles suggestions sont publiées sur Discord."
+        icon="settings"
+      >
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="flex items-center justify-between gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
+            <div>
+              <p class="text-sm font-medium text-on-surface">Système de suggestions</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">Active ou désactive la publication des suggestions.</p>
+            </div>
+            <ToggleSwitch
+              checked={moduleConfig.enabled}
+              onToggle={(v: boolean) => { moduleConfig.enabled = v; }}
+              disabled={!canConfigure}
+            />
+          </div>
+
+          <div>
+            <label for="suggestions-channel" class="field-label">Salon des suggestions</label>
+            <SearchableSelect
+              id="suggestions-channel"
+              bind:value={moduleConfig.channelId}
+              options={availableChannels.map((c) => ({ id: c.id, name: channelDisplayName(c) }))}
+              placeholder="Sélectionner un salon"
+              className="w-full bg-surface-container border border-outline-variant rounded-lg px-4 py-3 text-sm"
+              disabled={!canConfigure || !moduleConfig.enabled}
+            />
+          </div>
+        </div>
+      </SectionCard>
+    {/if}
   {/if}
-</div>
+</ModulePage>

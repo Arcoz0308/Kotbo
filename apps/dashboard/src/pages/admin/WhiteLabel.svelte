@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import {
     fetchWhiteLabelInstances,
     createWhiteLabelInstance,
@@ -108,7 +109,7 @@
   }
 
   async function handleDelete(inst: WLInstance) {
-    if (!confirm(`Supprimer l'instance "${inst.name}" (${inst.slug}) ? Cette action est irreversible.`)) return;
+    if (!(await confirmDialog.danger(`Supprimer l'instance « ${inst.name} » ?`, `(${inst.slug}) Cette action est irréversible.`))) return;
     try {
       await deleteWhiteLabelInstance(inst.id);
       toast.success('Instance supprimee.');

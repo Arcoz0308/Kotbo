@@ -126,6 +126,7 @@ import {
   getCandidatureHistory,
 } from '../services/staff/recruitmentService.js';
 import * as altAccountService from '../services/moderation/altAccountService.js';
+import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from '../services/moderation/crossServerSanctionService.js';
 
 import crypto from 'node:crypto';
 import { fetchAllMembers } from '../utils/discord.js';
@@ -647,6 +648,7 @@ export type MemberCaseResponse = {
   isSuspectedDC: boolean;
   sanctionReports: SanctionReportItem[];
   interactionGraph: MemberCaseInteractionGraph;
+  crossServerSanctions: CrossServerSanctionSummary;
 };
 
 export type CommandRestrictionState = CommandRestrictionRule;
@@ -725,6 +727,7 @@ export type DashboardState = {
   baseStaffRoleId: string;
   testStaffRoleId: string;
   propagateSanctions: boolean;
+  crossServerSanctionsEnabled: boolean;
   translationEnabled: boolean;
   codePoliceEnabled: boolean;
   dailyAlgoEnabled: boolean;
@@ -1923,6 +1926,10 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       .getAllLinkedUserIds(guildId, actualUserId)
       .catch(() => [actualUserId]);
 
+    // Résumé des sanctions sur les autres serveurs de l'instance (lancé en parallèle du reste).
+    const crossServerPromise = getCrossServerSanctionSummary(client, guildId, linkedUserIds)
+      .catch(() => ({ enabled: false, serverCount: 0, total: 0, breakdown: { WARN: 0, KICK: 0, TIMEOUT: 0, TEMP_BAN: 0, BAN: 0, SOFTBAN: 0 }, recent: [] } as CrossServerSanctionSummary));
+
     const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports, dbInvite] = await Promise.all([
       Promise.race([
         client.users.fetch(actualUserId).catch(() => null),
@@ -1979,6 +1986,8 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
     ) {
       return null;
     }
+
+  const crossServerSanctions = await crossServerPromise;
 
   const isOnServer = !!member;
   const displayLabel = resolveMemberDisplayLabel(actualUserId, user, profile);
@@ -2339,6 +2348,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       connections: inviteConnections?.connections || [],
       connectionsNote: inviteConnections?.note || "",
       isSuspectedDC: profile?.isSuspectedDC ?? false,
+      crossServerSanctions,
       interactionGraph: { nodes, edges },
       candidatures: (candidatureHistory || []).map((c) => ({
         id: c.id,
@@ -3172,6 +3182,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     baseStaffRoleId: guild.baseStaffRoleId ?? '',
     testStaffRoleId: guild.testStaffRoleId ?? '',
     propagateSanctions: guild.propagateSanctions,
+    crossServerSanctionsEnabled: guild.crossServerSanctionsEnabled,
     sanctionReportEnabled: guild.sanctionReportEnabled,
     translationEnabled: guild.translationEnabled,
     codePoliceEnabled: guild.codePoliceEnabled,

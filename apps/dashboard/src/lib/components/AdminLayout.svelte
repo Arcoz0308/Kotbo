@@ -135,7 +135,7 @@
           <Papicon icon="Lock" size={16} class="text-primary" />
         </div>
         <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-primary/80 leading-none">{brandingStore.brandName}</p>
+          <p class="text-[13px] font-medium text-primary/80 leading-none">{brandingStore.brandName}</p>
           <h1 class="text-base font-semibold text-on-surface leading-none mt-0.5">Console Admin</h1>
         </div>
       </div>
@@ -154,7 +154,7 @@
 
       <!-- Right: Status badge + back button -->
       <div class="flex items-center gap-3">
-        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20 text-success text-[10px] font-semibold uppercase tracking-widest">
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20 text-success text-xs font-medium">
           <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
           Opérationnel
         </div>
@@ -182,7 +182,7 @@
           <a
             href={item.path}
             class="flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-[11px] whitespace-nowrap transition-all duration-200
-              {isActive(item.path, item.exact)
+ {isActive(item.path, item.exact)
                 ? 'bg-primary text-on-primary shadow-md shadow-primary/25'
                 : 'text-on-surface-variant/60 hover:bg-on-surface/5 hover:text-on-surface'}"
           >
@@ -208,7 +208,7 @@
               <a
                 href={item.path}
                 class="group relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200
-                  {active
+ {active
                     ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm'
                     : 'text-on-surface-variant/60 hover:bg-on-surface/5 hover:text-on-surface border border-transparent'}"
               >
@@ -216,7 +216,7 @@
                   <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full"></div>
                 {/if}
                 <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all duration-200
-                  {active ? 'bg-primary/20 text-primary' : 'bg-on-surface/5 text-on-surface-variant/50 group-hover:bg-on-surface/10 group-hover:text-on-surface'}">
+ {active ? 'bg-primary/20 text-primary' : 'bg-on-surface/5 text-on-surface-variant/50 group-hover:bg-on-surface/10 group-hover:text-on-surface'}">
                   <Papicon icon={item.icon} size={15} />
                 </div>
                 <span class="font-bold text-sm leading-none">{item.label}</span>
@@ -243,7 +243,7 @@
             <div class="h-1.5 bg-on-surface/5 rounded-full overflow-hidden">
               <div
                 class="h-full rounded-full transition-all duration-1000
-                  {heapPercent > 80 ? 'bg-red-500' : heapPercent > 60 ? 'bg-amber-500' : 'bg-emerald-500'}"
+ {heapPercent > 80 ? 'bg-red-500' : heapPercent > 60 ? 'bg-amber-500' : 'bg-emerald-500'}"
                 style="width: {heapPercent}%"
               ></div>
             </div>

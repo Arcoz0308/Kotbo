@@ -105,7 +105,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <!-- Methods -->
                       <div class="space-y-3">
-                        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Méthodes d'envoi</p>
+                        <p class="text-xs font-medium text-on-surface-variant/40">Méthodes d'envoi</p>
                         <div class="space-y-2">
                           {#each notificationMethods as method}
                             <div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/5">
@@ -124,7 +124,7 @@
 
                       <!-- Configuration -->
                       <div class="space-y-3">
-                        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Paramètres</p>
+                        <p class="text-xs font-medium text-on-surface-variant/40">Paramètres</p>
                         <div class="space-y-4">
                           <div class="space-y-1.5">
                             <label for="notify-channel-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
@@ -156,7 +156,7 @@
                     <div class="flex justify-end pt-2">
                       <button
                         onclick={() => onSave(feature.featureKey)}
-                        class="px-6 py-2.5 bg-primary text-on-primary text-[10px] font-semibold uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
+                        class="px-6 py-2.5 bg-primary text-on-primary text-xs font-medium rounded-xl transition-transform"
                       >
                         Appliquer
                       </button>

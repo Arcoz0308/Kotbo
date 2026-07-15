@@ -5,6 +5,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { API_BASE_URL } from '../lib/api';
 
   const { eventId } = $props<{ eventId: string }>();
@@ -78,7 +79,7 @@
   }
 
   async function removeRegistration(userId: string) {
-    if (!confirm('Retirer cette inscription ?')) return;
+    if (!(await confirmDialog.danger('Retirer cette inscription ?', '', 'Retirer'))) return;
     try {
       const guildId = authStore.selectedGuildId;
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/registrations/${userId}`, {
@@ -141,7 +142,7 @@
   }
 
   async function finishEvent() {
-    if (!confirm('Voulez-vous vraiment terminer cet événement ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Terminer cet événement ?', confirmLabel: 'Terminer', variant: 'warning' }))) return;
     try {
       const guildId = authStore.selectedGuildId;
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/finish`, {
@@ -171,21 +172,21 @@
     <div class="flex gap-3">
       <button
         onclick={() => router.goto('/events')}
-        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
+        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
       >
         Retour
       </button>
       {#if event && !isCustom && event.type !== 'CTF'}
         <button
           onclick={prevQuestion}
-          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 disabled:opacity-30"
+          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 disabled:opacity-30"
           disabled={currentQIdx <= 1}
         >
           <Papicon icon="SkipBack" size={12} /> Précédente
         </button>
         <button
           onclick={nextQuestion}
-          class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center gap-2"
+          class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-medium text-[13px] shadow-sm transition-transform flex items-center gap-2"
         >
           <Papicon icon="SkipForward" size={12} /> {currentQIdx === totalQ ? 'Terminer Quiz' : 'Question Suivante'}
         </button>
@@ -193,14 +194,14 @@
       {#if isCustom}
         <button
           onclick={() => router.goto(`/events/edit/${eventId}`)}
-          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
         >
           <Papicon icon="Edit3" size={12} /> Modifier
         </button>
       {/if}
       <button
         onclick={finishEvent}
-        class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-colors"
+        class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-medium text-[13px] border border-red-500/20 hover:bg-red-500/20 transition-colors"
       >
         Terminer
       </button>
@@ -213,7 +214,7 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-8">
             <div>
-              <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">
+              <span class="text-xs font-medium text-primary">
                 {isCustom ? 'Événement personnalisé' : 'Événement en cours'}
               </span>
               <h3 class="text-lg font-semibold text-on-surface mt-2">{event.title}</h3>
@@ -221,35 +222,35 @@
             <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
             {#if isCustom}
               <div class="hidden md:block">
-                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Statut</span>
                 <p class="text-2xl font-semibold mt-1 {event.status === 'PUBLISHED' ? 'text-blue-500' : event.status === 'COMPLETED' ? 'text-purple-500' : 'text-on-surface'}">
                   {event.status === 'DRAFT' ? 'Brouillon' : event.status === 'PUBLISHED' ? 'Publié' : event.status === 'COMPLETED' ? 'Terminé' : event.status === 'CANCELLED' ? 'Annulé' : event.status}
                 </p>
               </div>
               <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
               <div class="hidden md:block">
-                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Formulaire</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Formulaire</span>
                 <p class="text-lg font-semibold text-on-surface mt-1">{event.customForm?.name || 'Inscription directe'}</p>
               </div>
             {:else if event.type === 'CTF'}
               <div class="hidden md:block">
-                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Type</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Type</span>
                 <p class="text-2xl font-semibold text-emerald-500 mt-1">Capture The Flag</p>
               </div>
               <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
               <div class="hidden md:block">
-                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Défis</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Défis</span>
                 <p class="text-2xl font-semibold text-on-surface mt-1">{event.ctfChallenges?.length || 0}</p>
               </div>
             {:else}
               <div class="hidden md:block">
-                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Progression</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Progression</span>
                 <p class="text-2xl font-semibold text-on-surface mt-1">Question {currentQIdx || 1} / {totalQ}</p>
               </div>
             {/if}
           </div>
           <div class="text-right">
-            <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
+            <span class="text-xs font-medium text-on-surface-variant/40">
               {isCustom ? 'Inscrits' : 'Participants'}
             </span>
             <p class="text-lg font-semibold text-on-surface mt-1">
@@ -263,7 +264,7 @@
         <div class="flex gap-2 bg-surface-container-low/50 p-1.5 rounded-lg w-fit border border-outline-variant/10">
           <button
             onclick={() => activeTab = 'registrations'}
-            class="px-6 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all {activeTab === 'registrations' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
+            class="px-6 py-2.5 rounded-xl text-xs font-medium transition-all {activeTab === 'registrations' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
           >
             Inscriptions ({registrations.length})
           </button>
@@ -272,13 +273,13 @@
         <div class="flex gap-2 bg-surface-container-low/50 p-1.5 rounded-lg w-fit border border-outline-variant/10">
           <button
             onclick={() => activeTab = 'stats'}
-            class="px-6 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all {activeTab === 'stats' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
+            class="px-6 py-2.5 rounded-xl text-xs font-medium transition-all {activeTab === 'stats' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
           >
             {event.type === 'CTF' ? 'Défis' : 'Graphique'}
           </button>
           <button
             onclick={() => activeTab = 'participants'}
-            class="px-6 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all {activeTab === 'participants' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
+            class="px-6 py-2.5 rounded-xl text-xs font-medium transition-all {activeTab === 'participants' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
           >
             Participants
           </button>
@@ -298,12 +299,12 @@
             <table class="w-full text-left">
               <thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
                 <tr>
-                  <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Utilisateur</th>
-                  <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Date d'inscription</th>
+                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Utilisateur</th>
+                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Date d'inscription</th>
                   {#if event.formId}
-                    <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Formulaire</th>
+                    <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Formulaire</th>
                   {/if}
-                  <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 text-right">Actions</th>
+                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/5">
@@ -336,7 +337,7 @@
                     <td class="px-8 py-5 text-right">
                       <button
                         onclick={() => removeRegistration(reg.userId)}
-                        class="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-[10px] font-semibold uppercase tracking-widest hover:bg-red-500/20 transition-colors"
+                        class="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-xs font-medium hover:bg-red-500/20 transition-colors"
                       >
                         Retirer
                       </button>
@@ -367,14 +368,14 @@
                         </p>
                       </div>
                       <div class="text-right">
-                        <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-semibold uppercase tracking-widest">
+                        <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-xs font-medium">
                           {challenge.solveCount} résolutions
                         </span>
                       </div>
                     </div>
 
                     <div class="space-y-3">
-                      <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Dernières résolutions</span>
+                      <span class="text-xs font-medium text-on-surface-variant/40">Dernières résolutions</span>
                       {#if challenge.solves && challenge.solves.length > 0}
                         <div class="max-h-36 overflow-y-auto space-y-2 pr-2">
                           {#each challenge.solves as solve}
@@ -457,7 +458,7 @@
                     </svg>
                     <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <span class="text-lg font-semibold text-on-surface">{total}</span>
-                      <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Réponses</span>
+                      <span class="text-xs font-medium text-on-surface-variant/40">Réponses</span>
                     </div>
                   </div>
                 </div>
@@ -471,7 +472,7 @@
                     {@const isCorrect = i === currentQuestion?.correctOptionIndex}
                     
                     <div class="space-y-2">
-                      <div class="flex justify-between items-center text-[10px] font-semibold uppercase tracking-widest">
+                      <div class="flex justify-between items-center text-xs font-medium">
                         <div class="flex items-center gap-2">
                           {#if isCorrect}
                             <div class="w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
@@ -507,9 +508,9 @@
           <table class="w-full text-left">
             <thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
               <tr>
-                <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Utilisateur</th>
-                <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Score</th>
-                <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
+                <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Utilisateur</th>
+                <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Score</th>
+                <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">
                   {event.type === 'CTF' ? 'Dernière résolution' : 'Dernière réponse'}
                 </th>
               </tr>

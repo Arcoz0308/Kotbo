@@ -6,6 +6,7 @@
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -351,18 +352,12 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <!-- En-tête -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="Trophy" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Leveling & XP</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Configurez le gain d'expérience des membres et les rôles de récompense.</p>
-      </div>
-    </div>
+<ModulePage
+  title="Leveling & XP"
+  description="Configurez le gain d'expérience des membres et les rôles de récompense."
+  icon="trophy"
+>
+  {#snippet actions()}
     {#if !loading}
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">Statut du module :</span>
@@ -375,17 +370,17 @@
         />
       </div>
     {/if}
-  </header>
+  {/snippet}
 
   <InlineFeedback state={saveAction} />
   <InlineFeedback state={rewardAction} />
 
   <!-- Navigation par onglets -->
-  <nav class="flex gap-2 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-2 w-fit">
+  <nav class="tab-group w-fit">
     <button
       id="tab-config"
       onclick={() => gotoTab('/leveling', 'config', 'config')}
-      class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary  ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
+      class="tab-button {activeTab === 'config' ? 'active' : ''}"
     >
       <Papicon icon="Settings" size={16} />
       Configuration
@@ -501,7 +496,7 @@
                   <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
                     #{channel ? channel.name : channelId}
                     {#if canManageSettings}
-                      <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error  transition-transform">✕</button>
+                      <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error transition-transform">✕</button>
                     {/if}
                   </span>
                 {:else}
@@ -530,7 +525,7 @@
                   <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
                     @{role ? role.name : roleId}
                     {#if canManageSettings}
-                      <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error  transition-transform">✕</button>
+                      <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error transition-transform">✕</button>
                     {/if}
                   </span>
                 {:else}
@@ -585,7 +580,7 @@
                     type="button"
                     onclick={handleAddMultiplier}
                     disabled={!newMultRoleId || !newMultValue}
-                    class="w-full py-3.5 bg-secondary text-on-secondary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-105 transition-all disabled:opacity-50"
+                    class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
                   >
                     Ajouter
                   </button>
@@ -705,7 +700,7 @@
             <button 
               type="submit"
               disabled={!newRewardLevel || !newRewardRoleId}
-              class="w-full py-3.5 bg-secondary text-on-secondary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-105 transition-all disabled:opacity-50"
+              class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
             >
               Ajouter le rôle récompense
             </button>
@@ -759,7 +754,7 @@
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-linear-to-r from-tertiary/10 to-secondary/10 border border-tertiary/20 rounded-xl p-6 px-8 shadow-xs relative overflow-hidden group">
         <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" style="background: radial-gradient(circle, color-mix(in srgb, var(--color-tertiary) 5%, transparent) 0%, transparent 70%);"></div>
         <div class="flex items-center gap-4 relative z-10">
-          <div class="w-12 h-12 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary shadow-inner transform  transition-transform duration-350">
+          <div class="w-12 h-12 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary shadow-inner transform transition-transform duration-350">
             <Papicon icon="Globe" size={22} />
           </div>
           <div>
@@ -796,19 +791,19 @@
       {#if levels.length > 0}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-primary/20 transition-all duration-300 group">
-            <p class="text-2xl font-semibold text-primary  transition-transform duration-300">{levels.length}</p>
+            <p class="text-2xl font-semibold text-primary transition-transform duration-300">{levels.length}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Membres classés</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-secondary/20 transition-all duration-300 group">
-            <p class="text-2xl font-semibold text-secondary  transition-transform duration-300">{maxLevel}</p>
+            <p class="text-2xl font-semibold text-secondary transition-transform duration-300">{maxLevel}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Niveau max</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-tertiary/20 transition-all duration-300 group">
-            <p class="text-2xl font-semibold text-tertiary  transition-transform duration-300">{avgLevel}</p>
+            <p class="text-2xl font-semibold text-tertiary transition-transform duration-300">{avgLevel}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Niveau moyen</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-amber-500/20 transition-all duration-300 group">
-            <p class="text-2xl font-semibold text-amber-500  transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
+            <p class="text-2xl font-semibold text-amber-500 transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">XP Total</p>
           </div>
         </div>
@@ -913,7 +908,7 @@
                 
                 <div class="mt-6 space-y-4">
                   <div class="space-y-0.5">
-                    <p class="font-extrabold text-on-surface text-lg truncate group-hover:text-tertiary transition-colors" title={levels[0].displayName}>
+                    <p class="font-semibold text-on-surface text-lg truncate group-hover:text-tertiary transition-colors" title={levels[0].displayName}>
                       {levels[0].displayName || levels[0].username || 'Inconnu'}
                     </p>
                     {#if levels[0].username && levels[0].displayName !== levels[0].username}
@@ -922,7 +917,7 @@
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-tertiary/10 pt-3 text-sm">
-                    <span class="text-tertiary font-extrabold">Niveau {getLevelFromXp(levels[0].xp)}</span>
+                    <span class="text-tertiary font-semibold">Niveau {getLevelFromXp(levels[0].xp)}</span>
                     <span class="text-tertiary/90 font-mono font-bold">{levels[0].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
@@ -984,8 +979,8 @@
             
             <div class="flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/15 border border-outline-variant/5 hover:bg-surface-container-high/30 hover:border-outline-variant/15 transition-all duration-350 group">
               <!-- Rang -->
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 font-mono
-                {index === 0 ? 'bg-amber-400/15 text-amber-500 border border-amber-400/25 shadow-sm shadow-amber-400/5' : 
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center font-semibold text-sm shrink-0 font-mono
+ {index === 0 ? 'bg-amber-400/15 text-amber-500 border border-amber-400/25 shadow-sm shadow-amber-400/5' : 
                  index === 1 ? 'bg-slate-400/15 text-slate-500 border border-slate-400/25 shadow-sm shadow-slate-400/5' : 
                  index === 2 ? 'bg-amber-700/15 text-amber-600 border border-amber-700/25 shadow-sm shadow-amber-700/5' : 
                  'bg-surface-container text-on-surface-variant/50 border border-outline-variant/5'}">
@@ -1002,7 +997,7 @@
               <!-- Nom & Progression -->
               <div class="flex-1 min-w-0">
                 <div class="flex items-baseline gap-2 mb-1.5">
-                  <p class="text-sm font-extrabold text-on-surface truncate">{userLvl.displayName || userLvl.username || 'Inconnu'}</p>
+                  <p class="text-sm font-semibold text-on-surface truncate">{userLvl.displayName || userLvl.username || 'Inconnu'}</p>
                   {#if userLvl.username && userLvl.displayName !== userLvl.username}
                     <span class="text-[10px] text-on-surface-variant/40 truncate font-semibold font-mono">@{userLvl.username}</span>
                   {/if}
@@ -1013,7 +1008,7 @@
                   <div class="flex-1 h-2 bg-surface-container/60 rounded-full overflow-hidden p-[2px] border border-outline-variant/5">
                     <div 
                       class="h-full rounded-full transition-all duration-700
-                        {index === 0 ? 'bg-linear-to-r from-amber-400 to-yellow-300' : 
+ {index === 0 ? 'bg-linear-to-r from-amber-400 to-yellow-300' : 
                          index === 1 ? 'bg-linear-to-r from-slate-300 to-slate-400' : 
                          index === 2 ? 'bg-linear-to-r from-amber-700 to-amber-600' : 
                          'bg-linear-to-r from-primary to-secondary'}" 
@@ -1026,8 +1021,8 @@
 
               <!-- Niveau Badge -->
               <div class="text-right shrink-0">
-                <span class="text-xs font-semibold uppercase tracking-wider px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
-                  {index === 0 ? 'bg-amber-400/10 text-amber-500 border-amber-400/20' : 
+                <span class="text-[13px] font-medium px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
+ {index === 0 ? 'bg-amber-400/10 text-amber-500 border-amber-400/20' : 
                    index === 1 ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' : 
                    index === 2 ? 'bg-amber-700/10 text-amber-600 border-amber-700/20' : 
                    'bg-primary/10 text-primary border-primary/15'}">
@@ -1046,7 +1041,7 @@
                 {/if}
               </div>
               <div class="space-y-1">
-                <p class="text-sm text-on-surface font-extrabold">
+                <p class="text-sm text-on-surface font-semibold">
                   {#if searchQuery}Aucun membre trouvé pour "{searchQuery}"{:else}Le classement est vide.{/if}
                 </p>
                 {#if searchQuery}
@@ -1132,7 +1127,7 @@
               <button
                 type="button"
                 onclick={() => { importRawJson = ''; importFileError = null; importResults = null; }}
-                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-semibold uppercase tracking-widest text-xs rounded-lg hover:bg-surface-container-high transition-all"
+                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-[13px] rounded-lg hover:bg-surface-container-high transition-all"
               >
                 Vider
               </button>
@@ -1140,7 +1135,7 @@
                 type="button"
                 onclick={handleImportSubmit}
                 disabled={!importRawJson.trim()}
-                class="px-8 py-3.5 bg-secondary text-on-secondary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-105 transition-all disabled:opacity-50"
+                class="px-8 py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
               >
                 Lancer l'importation
               </button>
@@ -1247,4 +1242,4 @@
       </div>
     </div>
   {/if}
-</div>
+</ModulePage>
