@@ -12,7 +12,7 @@
 
   const PERMISSIONS = [
     { value: 'READ_STATS',      label: 'Stats serveur',     desc: 'Membres, messages, activité' },
-    { value: 'READ_MEMBERS',    label: 'Membres',            desc: 'Profils, recherche, messages récents' },
+    { value: 'READ_MEMBERS',    label: 'Membres & messages', desc: 'Profils, messages récents, lecture des forums et articles' },
     { value: 'READ_SANCTIONS',  label: 'Sanctions',          desc: 'Liste et historique' },
     { value: 'READ_STAFF',      label: 'Staff',              desc: 'Liste et profils du staff' },
     { value: 'READ_TICKETS',    label: 'Tickets',            desc: 'Liste des tickets ouverts' },
@@ -21,7 +21,7 @@
     { value: 'READ_MODERATION', label: 'Modération',         desc: 'AutoMod, mots bannis, réponses auto, CodePolice' },
     { value: 'READ_ANALYTICS',  label: 'Analytics',          desc: 'Stats par salon, heatmap horaire, Pulse, prédictions' },
     { value: 'WRITE_SANCTIONS', label: 'Sanctionner',        desc: '⚠ Appliquer / lever des sanctions via IA' },
-    { value: 'WRITE_MESSAGES',  label: 'Envoyer messages',   desc: '⚠ Poster des messages dans un salon en tant que bot' },
+    { value: 'WRITE_MESSAGES',  label: 'Gérer messages',     desc: '⚠ Envoyer, éditer/supprimer des messages et gérer forums, articles et tags' },
     { value: 'WRITE_TICKETS',   label: 'Gérer tickets',      desc: '⚠ Répondre et fermer des tickets via IA' },
     { value: 'WRITE_COMMUNITY', label: 'Gérer communauté',   desc: '⚠ Répondre aux suggestions, gérer événements et giveaways' },
     { value: 'WRITE_MEMBERS',   label: 'Gérer membres',      desc: '⚠ Notes modérateur, ajout/retrait de rôles, niveaux, invitations' },
