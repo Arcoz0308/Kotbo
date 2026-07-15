@@ -299,8 +299,23 @@ model Guild {
   verificationWarnThreshold Int?               // null = désactivé. Nombre de warns déclenchant la vérif auto
   verificationWarnAutoMode  String             @default("FULL_AUTO") // FULL_AUTO | NOTIFY_STAFF
   verificationWarnReason    String             @default("Seuil d'avertissements atteint — vérification de sécurité requise.")
+
+  // Warns pondérés : chaque warn porte un poids (1/2/3) et perd sa valeur avec le temps.
+  // Quand actif, les seuils (vérif auto, escalade) utilisent le score pondéré au lieu du compte brut.
+  warnWeightingEnabled Boolean @default(false)
+  warnDecayDays        Int?    // null = pas de décroissance. Un warn ne compte plus après N jours.
+
+  // Statistiques de mots fréquents (agrégats anonymes par jour, sans contenu brut)
+  wordStatsEnabled Boolean @default(false)
+  // Suivi de l'indexation initiale depuis les messages déjà journalisés
+  wordStatsBackfillStatus Json?
+
+  // Hygiène des bans : détection des comptes bannis supprimés par Discord
+  banHygieneEnabled Boolean @default(true)
   securityVerifications SecurityVerification[]
   autoLeaderboards AutoLeaderboard[]
+  wordStats GuildWordStat[]
+  banHygieneRecords BanHygieneRecord[]
 
   // Détection de double compte — intelligence avancée
   dcVoiceSessions    DcVoiceSession[]
@@ -387,6 +402,8 @@ model MemberProfile {
   guildLeftAt DateTime?
   firstSeenAt DateTime @default(now())
   lastSeenAt DateTime @default(now())
+  // Fin de l'écran d'accueil Discord (membership screening) : pending → validé
+  onboardingCompletedAt DateTime?
 
   lastMessageAt DateTime?
   lastMessageChannelId String?

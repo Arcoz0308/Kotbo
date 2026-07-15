@@ -559,6 +559,18 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
 
 
+  // ── Ban Hygiene (comptes supprimés) ──────────────────────────────────
+  if (customId.startsWith('banhygiene:')) {
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    const { handleBanHygieneButton } = await import('../services/moderation/banHygieneService.js');
+    await handleBanHygieneButton(interaction);
+    return;
+  }
+
   // ── Security Verification Buttons ────────────────────────────────────
   if (customId.startsWith('secverif_start_')) {
     const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
@@ -1073,6 +1085,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 
   if (!guildId) return;
 
+  // Hub des menus contextuels (clic droit → « ⚡ Actions Kotbo »)
+  if (customId.startsWith('ctxhub:') && interaction.isStringSelectMenu()) {
+    const { handleHubSelect } = await import('../services/core/contextMenuHubService.js');
+    await handleHubSelect(interaction);
+    return;
+  }
+
   // Menu déroulant des pages de présentation du thread d'accueil
   if (customId === 'wpage_select' && interaction.isStringSelectMenu()) {
     const { handleWelcomeMenuInteraction } = await import('../services/features/welcomeThreadService.js');
@@ -1213,6 +1232,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   }
 
   if (!guildId) return;
+
+  // Modals des actions du hub des menus contextuels
+  if (customId.startsWith('ctxhub_modal:')) {
+    const { handleHubModal } = await import('../services/core/contextMenuHubService.js');
+    await handleHubModal(interaction);
+    return;
+  }
 
   // Ban appeal decision modals (staff channel)
   if (customId.startsWith('appeal_modal:')) {

@@ -17,6 +17,9 @@ model MessageLog {
   attachments  Json?     // [{ name, url, contentType }]
   embedCount   Int       @default(0)
   hasAttachment Boolean  @default(false)
+  // Analytics sociales : qui mentionne qui, qui répond à qui
+  mentionedUserIds  String[] @default([])
+  repliedToAuthorId String?  // Auteur du message auquel celui-ci répond
   createdAt    DateTime
   editedAt     DateTime?
   deletedAt    DateTime?
@@ -28,5 +31,6 @@ model MessageLog {
   @@index([guildId, channelId])
   @@index([guildId, authorId])
   @@index([guildId, deletedAt])
+  @@index([guildId, repliedToAuthorId])
   @@map("message_logs")
 }

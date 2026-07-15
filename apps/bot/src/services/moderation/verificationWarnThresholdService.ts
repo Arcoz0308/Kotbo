@@ -20,7 +20,7 @@ import {
   buildVerificationEmbed,
 } from './securityVerificationService.js';
 import { deliverVerification } from './verificationDeliveryService.js';
-import { countWarns } from './sanctionService.js';
+import { getWarnScore } from './sanctionService.js';
 import { queueAuditLog } from '../../utils/auditLogger.js';
 import { getDashboardUrl } from '../../api/shared.js';
 
@@ -60,8 +60,8 @@ export async function checkAndTriggerVerificationThreshold(params: {
 
     const threshold = guildConfig.verificationWarnThreshold;
 
-    // Compter les warns actuels (comptes liés inclus gérés en amont si besoin)
-    const warnCount = await countWarns(guildId, targetUser.id);
+    // Score de warns (pondéré si warnWeightingEnabled, sinon compte brut)
+    const warnCount = await getWarnScore(guildId, targetUser.id);
     if (warnCount < threshold) return;
 
     // Ne pas relancer si une vérification PENDING existe déjà

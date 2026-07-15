@@ -65,6 +65,7 @@ async function dashboardMutation(path: string, options: {
   payload?: any;
   guildId?: string;
   errorContext?: string;
+  silent?: boolean;
 } = {}): Promise<boolean> {
   const selectedGuildId = getGuildId(options.guildId);
   if (!selectedGuildId) return false;
@@ -81,7 +82,7 @@ async function dashboardMutation(path: string, options: {
     });
 
     if (response.ok) {
-      if (method !== 'GET') {
+      if (method !== 'GET' && !options.silent) {
         toast.success('Opération réussie');
       }
     } else {
@@ -941,6 +942,17 @@ export async function fetchHourlyHeatmap(options: { days?: number, startDate?: s
   });
 }
 
+export type AdvancedAnalyticsSection =
+  | 'retention' | 'activity' | 'churn' | 'channels' | 'social' | 'words' | 'moderation';
+
+export async function fetchAdvancedAnalytics(section: AdvancedAnalyticsSection, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/analytics/advanced?section=${section}`, {
+    method: 'GET',
+    guildId,
+    errorContext: `API Error (Advanced Analytics ${section}):`
+  });
+}
+
 export async function fetchWeeklyComparison(options: { offset?: number, mode?: 'week' | 'month' } = {}, guildId = authStore.selectedGuildId) {
   const params = new URLSearchParams();
   if (options.offset) params.append('offset', options.offset.toString());
@@ -1087,7 +1099,8 @@ export async function dismissDetection(userId: string, guildId = authStore.selec
   return dashboardMutation(`/detections/${userId}/dismiss`, {
     method: 'POST',
     guildId,
-    errorContext: 'API Error (Dismiss Detection):'
+    errorContext: 'API Error (Dismiss Detection):',
+    silent: true
   });
 }
 
@@ -1095,7 +1108,8 @@ export async function restoreDetection(userId: string, guildId = authStore.selec
   return dashboardMutation(`/detections/${userId}/restore`, {
     method: 'POST',
     guildId,
-    errorContext: 'API Error (Restore Detection):'
+    errorContext: 'API Error (Restore Detection):',
+    silent: true
   });
 }
 
@@ -1779,6 +1793,13 @@ export async function updateChannelsManagementConfig(
     verificationSaveIp?: boolean;
     verificationLevelCommand?: string;
     verificationLevelJoin?: string;
+    verificationWarnThreshold?: number | null;
+    verificationWarnAutoMode?: string;
+    verificationWarnReason?: string;
+    warnWeightingEnabled?: boolean;
+    warnDecayDays?: number | null;
+    wordStatsEnabled?: boolean;
+    banHygieneEnabled?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {
@@ -3043,6 +3064,8 @@ export interface MessageLogEntry {
   attachments: { name: string; url: string; contentType: string | null }[] | null;
   embedCount: number;
   hasAttachment: boolean;
+  mentionedUserIds: string[];
+  repliedToAuthorId: string | null;
   createdAt: string;
   editedAt: string | null;
   deletedAt: string | null;
@@ -3096,8 +3119,10 @@ export async function searchMessages(
 
 export async function fetchMessageLogChannels(
   guildId = authStore.selectedGuildId,
+  authorId?: string,
 ): Promise<{ channelId: string; channelName: string; count: number }[]> {
-  const data = await dashboardRequest('/message-logs/channels', {
+  const qs = authorId ? `?authorId=${encodeURIComponent(authorId)}` : '';
+  const data = await dashboardRequest(`/message-logs/channels${qs}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Message Channels):',

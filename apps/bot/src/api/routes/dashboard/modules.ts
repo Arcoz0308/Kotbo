@@ -1,4 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
+import { cache } from '../../../utils/cache.js';
 import {
   Client,
   ChannelType,
@@ -1964,6 +1965,10 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             verificationWarnThreshold: true,
             verificationWarnAutoMode: true,
             verificationWarnReason: true,
+            warnWeightingEnabled: true,
+            warnDecayDays: true,
+            wordStatsEnabled: true,
+            banHygieneEnabled: true,
           },
         });
         if (!guild) {
@@ -2004,6 +2009,10 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           verificationWarnThreshold: guild.verificationWarnThreshold,
           verificationWarnAutoMode: guild.verificationWarnAutoMode,
           verificationWarnReason: guild.verificationWarnReason,
+          warnWeightingEnabled: guild.warnWeightingEnabled,
+          warnDecayDays: guild.warnDecayDays,
+          wordStatsEnabled: guild.wordStatsEnabled,
+          banHygieneEnabled: guild.banHygieneEnabled,
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -2048,6 +2057,10 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           verificationWarnThreshold?: number | null;
           verificationWarnAutoMode?: string;
           verificationWarnReason?: string;
+          warnWeightingEnabled?: boolean;
+          warnDecayDays?: number | null;
+          wordStatsEnabled?: boolean;
+          banHygieneEnabled?: boolean;
         }>(req);
 
         if (!body) {
@@ -2174,6 +2187,27 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
         if (Object.prototype.hasOwnProperty.call(body, 'verificationWarnReason')) {
           data.verificationWarnReason = (body.verificationWarnReason || '').slice(0, 512);
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'warnWeightingEnabled')) {
+          data.warnWeightingEnabled = !!body.warnWeightingEnabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'warnDecayDays')) {
+          // null ou 0 = pas de décroissance, entier positif = fenêtre en jours
+          if (body.warnDecayDays === null || body.warnDecayDays === 0) {
+            data.warnDecayDays = null;
+          } else if (typeof body.warnDecayDays === 'number' && body.warnDecayDays > 0) {
+            data.warnDecayDays = Math.floor(body.warnDecayDays);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'wordStatsEnabled')) {
+          data.wordStatsEnabled = !!body.wordStatsEnabled;
+        }
+        // Capturé avant l'update : sert à détecter la bascule off → on plus bas.
+        const wordStatsWasEnabled = Object.prototype.hasOwnProperty.call(body, 'wordStatsEnabled')
+          ? (await prisma.guild.findUnique({ where: { id: guildId }, select: { wordStatsEnabled: true } }))?.wordStatsEnabled ?? false
+          : null;
+        if (Object.prototype.hasOwnProperty.call(body, 'banHygieneEnabled')) {
+          data.banHygieneEnabled = !!body.banHygieneEnabled;
         }
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -2382,6 +2416,26 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           where: { id: guildId },
           data,
         });
+
+        // Purge les caches préfixés guild:<id>: — config du bot (getCachedGuild)
+        // et payloads d'analytics avancées, qui embarquent les toggles (ex.
+        // wordStatsEnabled). Sans ça, le dashboard continue d'afficher l'ancien
+        // état pendant toute la durée du TTL.
+        await cache.invalidateGuild(guildId);
+
+        // Activation des stats de mots : indexer les messages déjà journalisés
+        // plutôt que d'attendre que le tracker live accumule des données.
+        if (wordStatsWasEnabled === false && data.wordStatsEnabled === true) {
+          void (async () => {
+            const { startWordStatsBackfill, backfillMessageMentions } = await import('../../../services/analytics/wordStatsBackfillService.js');
+            await backfillMessageMentions(guildId).catch((err) =>
+              logger.error('ChannelsManagementAPI', `Backfill des mentions échoué pour ${guildId}:`, err),
+            );
+            await startWordStatsBackfill(guildId);
+          })().catch((err) =>
+            logger.error('ChannelsManagementAPI', `Lancement du backfill des stats de mots échoué pour ${guildId}:`, err),
+          );
+        }
 
         await pushAudit(guildId, {
           user: auditUser,

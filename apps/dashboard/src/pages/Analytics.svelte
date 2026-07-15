@@ -5,7 +5,8 @@ import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 import { authStore } from '../lib/stores/auth.svelte';
 import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions } from '../lib/api';
+import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions, type AdvancedAnalyticsSection } from '../lib/api';
+import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
 import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
 import LoadingHint from '../lib/components/LoadingHint.svelte';
 import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
@@ -388,9 +389,10 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
   const categories = [
     { id: 'overview', label: 'Aperçu', icon: 'Grid', description: 'Vue générale' },
     { id: 'engagement', label: 'Engagement', icon: 'ChatBubbles', description: 'Messages, Vocal, Membres' },
+    { id: 'community', label: 'Communauté', icon: 'Compass', description: 'Pouls, salons, social, mots' },
+    { id: 'growth', label: 'Croissance', icon: 'TrendingUp', description: 'Rétention, cohortes, churn' },
     { id: 'moderation', label: 'Modération', icon: 'Gavel', description: 'Modération et Staff' },
     { id: 'invitations', label: 'Invitations', icon: 'MailOpen', description: 'Analyse des invites' },
-    { id: 'growth', label: 'Croissance', icon: 'TrendingUp', description: 'Croissance & Rétention' },
   ];
 
   const tabsByCategory: Record<string, Array<{ id: string; label: string; icon: string; badge?: string; disabled?: boolean }>> = {
@@ -404,8 +406,15 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       { id: 'commands', label: 'Commandes', icon: 'Code' },
       { id: 'members', label: 'Membres', icon: 'UsersFour' },
     ],
+    community: [
+      { id: 'pulse', label: 'Pouls', icon: 'Activity' },
+      { id: 'channels', label: 'Salons', icon: 'ChatBubbles' },
+      { id: 'social', label: 'Social', icon: 'Users' },
+      { id: 'words', label: 'Mots', icon: 'ChatCircleDots' },
+    ],
     moderation: [
       { id: 'moderation', label: 'Modération', icon: 'Gavel' },
+      { id: 'mod-advanced', label: 'Analyse avancée', icon: 'ChartLineUp' },
       { id: 'staff', label: 'Annuaire Staff', icon: 'Users' },
       { id: 'performance', label: 'Performance Staff', icon: 'TrendUp' },
     ],
@@ -413,10 +422,23 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       { id: 'invitations', label: 'Invitations', icon: 'MailOpen' },
     ],
     growth: [
+      { id: 'cohorts', label: 'Cohortes', icon: 'UsersFour' },
+      { id: 'churn', label: 'Churn & Risque', icon: 'Warning' },
       { id: 'heatmap', label: 'Heatmap Horaire', icon: 'Fire' },
       { id: 'weekly', label: 'Semaine vs Semaine', icon: 'Calendar' },
       { id: 'algo', label: 'Daily Algo', icon: 'Code' },
     ],
+  };
+
+  /** Onglets servis par AdvancedAnalyticsPanel (chargent leurs propres données). */
+  const ADVANCED_TABS: Record<string, AdvancedAnalyticsSection> = {
+    pulse: 'activity',
+    channels: 'channels',
+    social: 'social',
+    words: 'words',
+    cohorts: 'retention',
+    churn: 'churn',
+    'mod-advanced': 'moderation',
   };
 
   const allValidTabs = Object.values(tabsByCategory).flatMap(tabs => tabs.map(t => t.id));
@@ -609,7 +631,10 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
   {/if}
 
 
-  {#if loading}
+  {#if ADVANCED_TABS[activeTab]}
+    <!-- Sections avancées : autonomes, elles chargent et cachent leurs propres données -->
+    <AdvancedAnalyticsPanel section={ADVANCED_TABS[activeTab]} />
+  {:else if loading}
     <AnalyticsSkeleton />
     <div class="flex justify-center mt-4">
       <LoadingHint context="analytics" />

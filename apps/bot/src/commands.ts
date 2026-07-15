@@ -76,6 +76,7 @@ import { pulseCommand } from './commands/admin/pulse.js';
 import { evaluationsCommand } from './commands/admin/evaluations.js';
 import { rappelCommand } from './commands/utility/rappel.js';
 import { messageTranscriptContextCommand, messageTranscriptFromContextCommand } from './commands/moderation/messageTranscript.js';
+import { messageHubContextCommand, userHubContextCommand } from './commands/context/hub.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; description: string; toJSON: () => unknown };
@@ -184,17 +185,47 @@ export const commands: SlashCommandDefinition[] = [
   rappelCommand,
 ];
 
-export const contextCommands: ContextCommandDefinition[] = [
-  noteContextCommand,
-  casierContextCommand,
+/**
+ * Menus contextuels déployés globalement.
+ *
+ * Discord plafonne une application à 5 entrées de type User et 5 de type
+ * Message au global — ces deux listes sont donc pleines et toute nouvelle
+ * feature passe par le hub (`services/core/contextActionRegistry.ts`) ou par le
+ * scope guilde ci-dessous.
+ */
+export const globalContextCommands: ContextCommandDefinition[] = [
+  // User (5/5)
   sanctionContextCommand,
-  signalContextCommand,
+  casierContextCommand,
+  noteContextCommand,
   requestVerificationContextCommand,
+  userHubContextCommand,
+  // Message (3/5)
   messageTranscriptFromContextCommand,
   messageTranscriptContextCommand,
+  messageHubContextCommand,
+];
+
+/**
+ * Menus contextuels déployés par serveur, sur les guilds activées uniquement.
+ * Chaque guild dispose de son propre quota de 5 User + 5 Message, distinct du
+ * quota global.
+ */
+export const guildContextCommands: ContextCommandDefinition[] = [
+  // User (1/5)
+  signalContextCommand,
+];
+
+export const contextCommands: ContextCommandDefinition[] = [
+  ...globalContextCommands,
+  ...guildContextCommands,
 ];
 
 export const applicationCommands: ApplicationCommandDefinition[] = [
   ...commands,
-  ...contextCommands,
+  ...globalContextCommands,
+];
+
+export const guildApplicationCommands: ApplicationCommandDefinition[] = [
+  ...guildContextCommands,
 ];

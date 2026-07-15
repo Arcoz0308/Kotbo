@@ -56,6 +56,33 @@ export async function handleAnalyticsRoutes(
     return false;
   }
 
+  // GET /api/dashboard/guilds/:guildId/analytics/advanced?section=<retention|activity|churn|channels|social|words|moderation>
+  if (parts.length === 6 && parts[5] === 'advanced') {
+    const section = url.searchParams.get('section') ?? '';
+    const { ADVANCED_SECTIONS, getAdvancedAnalytics } = await import('../../../services/analytics/advancedAnalyticsService.js');
+    if (!(ADVANCED_SECTIONS as string[]).includes(section)) {
+      json(res, 400, { error: `Section invalide. Attendu: ${ADVANCED_SECTIONS.join(', ')}` });
+      return true;
+    }
+    try {
+      // Préfixe `guild:<id>:` obligatoire : c'est ce que cache.invalidateGuild()
+      // purge quand la config change (ex. activation des stats de mots).
+      const cacheKey = `guild:${guildId}:analytics:advanced:${section}`;
+      const cached = await cache.get(cacheKey);
+      if (cached) {
+        json(res, 200, cached);
+        return true;
+      }
+      const data = await getAdvancedAnalytics(guildId, section as never);
+      await cache.set(cacheKey, data, 300); // 5 min — calculs lourds
+      json(res, 200, data);
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics avancées (${section}):`, err);
+      json(res, 500, { error: 'Erreur lors du calcul des statistiques avancées' });
+    }
+    return true;
+  }
+
   // GET /api/dashboard/guilds/:guildId/analytics/members/:userId - Member detailed analytics
   if (parts.length === 6 && parts[5] === 'members') {
     const userId = url.searchParams.get('userId');

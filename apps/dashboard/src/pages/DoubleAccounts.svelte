@@ -330,6 +330,10 @@
     verificationLevelCommand: string;
     verificationLevelJoin: string;
     verificationWarnThreshold: number | null;
+    warnWeightingEnabled: boolean;
+    warnDecayDays: number | null;
+    wordStatsEnabled: boolean;
+    banHygieneEnabled: boolean;
     verificationWarnAutoMode: string;
     verificationWarnReason: string;
   } | null>(null);
@@ -356,6 +360,10 @@
           verificationLevelCommand: data.verificationLevelCommand ?? 'HIGH',
           verificationLevelJoin: data.verificationLevelJoin ?? 'HIGH',
           verificationWarnThreshold: data.verificationWarnThreshold ?? null,
+          warnWeightingEnabled: data.warnWeightingEnabled ?? false,
+          warnDecayDays: data.warnDecayDays ?? null,
+          wordStatsEnabled: data.wordStatsEnabled ?? false,
+          banHygieneEnabled: data.banHygieneEnabled ?? true,
           verificationWarnAutoMode: data.verificationWarnAutoMode ?? 'FULL_AUTO',
           verificationWarnReason: data.verificationWarnReason ?? "Seuil d'avertissements atteint — vérification de sécurité requise.",
         };
@@ -1241,6 +1249,78 @@
                 </span>
               </div>
             {/if}
+
+            <!-- Warns pondérés -->
+            <div class="pt-4 mt-2 border-t border-outline-variant/10 space-y-4">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={verifConfig.warnWeightingEnabled} class="mt-0.5 accent-indigo-500" />
+                <span>
+                  <span class="text-sm font-medium text-on-surface block">Warns pondérés</span>
+                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                    Chaque warn porte une gravité (léger = 1 pt, normal = 2 pts, grave = 3 pts) choisie à la commande <code class="text-indigo-400">/sanction warn</code>.
+                    Le seuil ci-dessus compare alors le <strong>score en points</strong> au lieu du nombre de warns.
+                  </span>
+                </span>
+              </label>
+
+              {#if verifConfig.warnWeightingEnabled}
+                <label class="space-y-1.5 block">
+                  <span class="text-xs font-medium text-on-surface-variant/40">Décroissance des warns (jours)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="3650"
+                    placeholder="Jamais (0)"
+                    value={verifConfig.warnDecayDays ?? ''}
+                    oninput={(e) => {
+                      const v = parseInt((e.target as HTMLInputElement).value);
+                      verifConfig!.warnDecayDays = isNaN(v) || v <= 0 ? null : v;
+                    }}
+                    class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm"
+                  />
+                  <p class="text-[10px] text-on-surface-variant/40">
+                    Un warn plus vieux que ce délai ne compte plus dans le score. Vide ou 0 = les warns comptent indéfiniment.
+                  </p>
+                </label>
+
+                <div class="flex items-start gap-2 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/15 text-xs text-indigo-300">
+                  <Papicon icon="Info" size={13} class_="shrink-0 mt-0.5" />
+                  <span>
+                    Avec un seuil de <strong>{verifConfig.verificationWarnThreshold ?? '—'}</strong>,
+                    il faudra {verifConfig.verificationWarnThreshold ? `${verifConfig.verificationWarnThreshold} warn(s) léger(s) ou ${Math.ceil(verifConfig.verificationWarnThreshold / 3)} warn(s) grave(s)` : 'configurer un seuil ci-dessus'} pour déclencher la vérification{verifConfig.warnDecayDays ? `, en ne comptant que les warns des ${verifConfig.warnDecayDays} derniers jours` : ''}.
+                    Les warns déjà enregistrés valent 1 point.
+                  </span>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Statistiques de mots -->
+            <div class="pt-4 mt-2 border-t border-outline-variant/10">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={verifConfig.wordStatsEnabled} class="mt-0.5 accent-indigo-500" />
+                <span>
+                  <span class="text-sm font-medium text-on-surface block">Statistiques de mots</span>
+                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                    Compte anonymement la fréquence des mots pour l'onglet <strong>Communauté › Mots</strong> des statistiques.
+                    Aucun message ni auteur n'est conservé — uniquement des compteurs par mot et par jour, purgés après 90 jours.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <!-- Hygiène des bans -->
+            <div class="pt-4 mt-2 border-t border-outline-variant/10">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={verifConfig.banHygieneEnabled} class="mt-0.5 accent-indigo-500" />
+                <span>
+                  <span class="text-sm font-medium text-on-surface block">Hygiène des bans</span>
+                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                    Analyse quotidiennement la liste des bans et prévient le staff quand des comptes bannis ont été
+                    <strong>supprimés par Discord</strong>, avec un bouton pour nettoyer la liste. Ces comptes ne peuvent jamais revenir.
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
 
           <!-- Actions -->

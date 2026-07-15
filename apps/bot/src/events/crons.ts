@@ -16,6 +16,8 @@ import { checkTicketInactivity } from '../services/features/ticketService.js';
 import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 import { pruneOldMessageLogs } from './messageLogging.js';
+import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
+import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
 
 const runningJobs = new Set<string>();
 
@@ -304,6 +306,20 @@ export async function registerCrons(client: Client): Promise<void> {
   // 🗂️ Journalisation des messages: purge selon la rétention (tous les jours à 03:30)
   cron.schedule('30 3 * * *', async () => {
     await runCronJob('message-logs-prune', pruneOldMessageLogs, 2000);
+  });
+
+  // 📊 Stats de mots: purge des agrégats de plus de 90 jours (tous les jours à 03:45)
+  cron.schedule('45 3 * * *', async () => {
+    await runCronJob('word-stats-prune', async () => {
+      await pruneOldWordStats();
+    }, 2000);
+  });
+
+  // 🧹 Hygiène des bans: détection des comptes supprimés (tous les jours à 05:15)
+  cron.schedule('15 5 * * *', async () => {
+    await runCronJob('ban-hygiene-scan', async () => {
+      await runBanHygieneScan(client);
+    }, 3000);
   });
 
   // 🛡️ Sanctions: Rapports manquants (tous les jours à 12:00, heure de Paris)
