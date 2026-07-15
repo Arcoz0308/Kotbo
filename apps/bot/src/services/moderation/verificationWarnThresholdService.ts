@@ -15,10 +15,11 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { VerificationStatus } from '@prisma/client';
 import {
-  createVerificationSession,
+  createVerificationSessionRecord,
   buildVerificationUrl,
   buildVerificationEmbed,
 } from './securityVerificationService.js';
+import { deliverVerification } from './verificationDeliveryService.js';
 import { countWarns } from './sanctionService.js';
 import { queueAuditLog } from '../../utils/auditLogger.js';
 import { getDashboardUrl } from '../../api/shared.js';
@@ -120,12 +121,12 @@ async function triggerFullAuto(params: {
 
   // 1. Créer la session de vérification
   const dashboardUrl = getDashboardUrl();
-  const token = await createVerificationSession(
+  const verification = await createVerificationSessionRecord(
     guildId,
     targetUser.id,
     (guildConfig.verificationLevelCommand as any) || 'HIGH',
   );
-  const verifyUrl = buildVerificationUrl(dashboardUrl, guildId, token);
+  const verifyUrl = buildVerificationUrl(dashboardUrl, guildId, verification.token);
 
   // 2. Appliquer le timeout (28j)
   let timeoutSuccess = false;
@@ -159,15 +160,25 @@ async function triggerFullAuto(params: {
     inline: false,
   });
 
-  let dmSent = false;
-  try {
-    await targetUser.send({ embeds: [dmEmbed], components: [row] });
-    dmSent = true;
-  } catch {
-    logger.warn('VerifThreshold', `Impossible d'envoyer le DM de vérification à ${targetUser.tag}.`);
-  }
+  // Repli automatique (thread privé ou ticket) si les MP sont fermés + notification staff.
+  const { dmSent, fallbackChannelId, fallbackKind } = await deliverVerification({
+    client,
+    guildId,
+    user: targetUser,
+    member: targetMember,
+    embed: dmEmbed,
+    row,
+    reason,
+    verificationId: verification.id,
+  });
 
   // 4. Audit log
+  const deliveryDetail = dmSent
+    ? 'DM: Oui.'
+    : fallbackChannelId
+      ? `DM: Non (MP fermés). Repli: ${fallbackKind === 'THREAD' ? 'thread privé' : 'ticket'} <#${fallbackChannelId}>.`
+      : 'DM: Non (MP fermés). Repli: aucun (échec de création).';
+
   queueAuditLog({
     guildId,
     user: 'Bot (automatique)',
@@ -175,12 +186,12 @@ async function triggerFullAuto(params: {
     context: `${targetUser.tag} (${targetUser.id})`,
     module: 'Vérification',
     eventType: 'Automatique',
-    details: `Seuil atteint. Timeout: ${timeoutSuccess ? 'Oui' : 'Non'}. DM: ${dmSent ? 'Oui' : 'Non (MP fermés)'}.`,
+    details: `Seuil atteint. Timeout: ${timeoutSuccess ? 'Oui' : 'Non'}. ${deliveryDetail}`,
   });
 
   logger.info(
     'VerifThreshold',
-    `FULL_AUTO déclenché pour ${targetUser.tag}. Timeout: ${timeoutSuccess}, DM: ${dmSent}.`,
+    `FULL_AUTO déclenché pour ${targetUser.tag}. Timeout: ${timeoutSuccess}, DM: ${dmSent}, repli: ${fallbackChannelId ?? 'aucun'}.`,
   );
 }
 

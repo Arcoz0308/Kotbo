@@ -1769,6 +1769,7 @@ export async function updateChannelsManagementConfig(
     verificationMode?: string;
     verificationAction?: string;
     verificationChannelId?: string | null;
+    verificationFallbackChannelId?: string | null;
     verificationRoleId?: string | null;
     verificationLogChannelId?: string | null;
     verificationEmbedTitle?: string;

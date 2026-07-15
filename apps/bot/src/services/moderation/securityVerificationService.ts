@@ -13,11 +13,42 @@ import { logger } from '../../utils/logger.js';
 import { LinkedAccountType, LinkedAccountStatus, VerificationStatus, VerificationLevel } from '@prisma/client';
 import * as altAccountService from './altAccountService.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
+import {
+  closeFallbackChannel,
+  deliverVerification,
+  notifyStaffVerificationCompleted,
+  type VerificationDeliveryResult,
+} from './verificationDeliveryService.js';
 
 const VERIFICATION_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24h
 
 export function generateVerificationToken(): string {
   return crypto.randomBytes(32).toString('hex');
+}
+
+/** Crée la session et renvoie l'enregistrement complet (id nécessaire pour le repli). */
+export async function createVerificationSessionRecord(
+  guildId: string,
+  userId: string,
+  level: VerificationLevel = VerificationLevel.HIGH,
+  appealId?: string | null
+) {
+  await prisma.securityVerification.updateMany({
+    where: { guildId, userId, status: VerificationStatus.PENDING },
+    data: { status: VerificationStatus.EXPIRED },
+  });
+
+  return prisma.securityVerification.create({
+    data: {
+      guildId,
+      userId,
+      token: generateVerificationToken(),
+      level,
+      appealId: appealId || null,
+      status: VerificationStatus.PENDING,
+      expiresAt: new Date(Date.now() + VERIFICATION_TOKEN_EXPIRY_MS),
+    },
+  });
 }
 
 export async function createVerificationSession(
@@ -26,25 +57,8 @@ export async function createVerificationSession(
   level: VerificationLevel = VerificationLevel.HIGH,
   appealId?: string | null
 ): Promise<string> {
-  await prisma.securityVerification.updateMany({
-    where: { guildId, userId, status: VerificationStatus.PENDING },
-    data: { status: VerificationStatus.EXPIRED },
-  });
-
-  const token = generateVerificationToken();
-  await prisma.securityVerification.create({
-    data: {
-      guildId,
-      userId,
-      token,
-      level,
-      appealId: appealId || null,
-      status: VerificationStatus.PENDING,
-      expiresAt: new Date(Date.now() + VERIFICATION_TOKEN_EXPIRY_MS),
-    },
-  });
-
-  return token;
+  const verification = await createVerificationSessionRecord(guildId, userId, level, appealId);
+  return verification.token;
 }
 
 export async function getVerificationByToken(token: string) {
@@ -98,10 +112,15 @@ export function buildVerificationEmbed(
   return { embed, row };
 }
 
+/**
+ * Envoie le lien de vérification à un membre qui vient de rejoindre.
+ * Si ses MP sont fermés, le lien est déposé dans un thread privé (ou un ticket)
+ * et le staff est notifié — voir verificationDeliveryService.
+ */
 export async function sendVerificationDM(
   member: GuildMember,
   dashboardUrl: string,
-): Promise<boolean> {
+): Promise<VerificationDeliveryResult | null> {
   const guild = member.guild;
   const guildConfig = await prisma.guild.findUnique({
     where: { id: guild.id },
@@ -114,14 +133,14 @@ export async function sendVerificationDM(
     },
   });
 
-  if (!guildConfig?.verificationEnabled) return false;
+  if (!guildConfig?.verificationEnabled) return null;
 
-  const token = await createVerificationSession(
+  const verification = await createVerificationSessionRecord(
     guild.id,
     member.id,
     guildConfig.verificationLevelJoin || VerificationLevel.HIGH
   );
-  const verifyUrl = buildVerificationUrl(dashboardUrl, guild.id, token);
+  const verifyUrl = buildVerificationUrl(dashboardUrl, guild.id, verification.token);
   const { embed, row } = buildVerificationEmbed(
     guild.name,
     guildConfig.verificationEmbedTitle,
@@ -130,14 +149,22 @@ export async function sendVerificationDM(
     verifyUrl,
   );
 
-  try {
-    await member.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
+  const result = await deliverVerification({
+    client: member.client,
+    guildId: guild.id,
+    user: member.user,
+    member,
+    embed,
+    row,
+    reason: 'Vérification automatique à l’arrivée sur le serveur.',
+    verificationId: verification.id,
+  });
+
+  if (result.dmSent) {
     logger.info('SecurityVerif', `DM de vérification envoyé à ${member.user.tag} sur ${guild.name}`);
-    return true;
-  } catch {
-    logger.warn('SecurityVerif', `Impossible d'envoyer le DM de vérification à ${member.user.tag}`);
-    return false;
   }
+
+  return result;
 }
 
 export async function sendVerificationEmbed(
@@ -503,6 +530,23 @@ export async function completeVerification(params: {
   } catch (err) {
     logger.warn('SecurityVerif', `Impossible d'ajuster les rôles/timeout/débannissement pour ${verifiedDiscordId}:`, err);
   }
+
+  // Le lien avait été déposé en serveur (MP fermés) : on referme le salon de repli.
+  await closeFallbackChannel({
+    client,
+    guildId: verification.guildId,
+    fallbackChannelId: verification.fallbackChannelId,
+    fallbackKind: verification.fallbackKind,
+  });
+
+  await notifyStaffVerificationCompleted({
+    client,
+    guildId: verification.guildId,
+    userId: verifiedDiscordId,
+    status: duplicateDetected ? VerificationStatus.FLAGGED : VerificationStatus.VERIFIED,
+    duplicateDetected,
+    origin: verification.appealId ? "Appel de bannissement" : 'Vérification de sécurité',
+  });
 
   return {
     success: true,

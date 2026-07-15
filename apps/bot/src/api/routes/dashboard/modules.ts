@@ -1950,6 +1950,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             verificationMode: true,
             verificationAction: true,
             verificationChannelId: true,
+            verificationFallbackChannelId: true,
             verificationRoleId: true,
             verificationLogChannelId: true,
             verificationEmbedTitle: true,
@@ -1989,6 +1990,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           verificationMode: guild.verificationMode,
           verificationAction: guild.verificationAction,
           verificationChannelId: guild.verificationChannelId,
+          verificationFallbackChannelId: guild.verificationFallbackChannelId,
           verificationRoleId: guild.verificationRoleId,
           verificationLogChannelId: guild.verificationLogChannelId,
           verificationEmbedTitle: guild.verificationEmbedTitle,
@@ -2032,6 +2034,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           verificationMode?: string;
           verificationAction?: string;
           verificationChannelId?: string | null;
+          verificationFallbackChannelId?: string | null;
           verificationRoleId?: string | null;
           verificationLogChannelId?: string | null;
           verificationEmbedTitle?: string;
@@ -2118,6 +2121,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
         if (Object.prototype.hasOwnProperty.call(body, 'verificationChannelId')) {
           data.verificationChannelId = body.verificationChannelId;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationFallbackChannelId')) {
+          data.verificationFallbackChannelId = body.verificationFallbackChannelId;
         }
         if (Object.prototype.hasOwnProperty.call(body, 'verificationRoleId')) {
           data.verificationRoleId = body.verificationRoleId;

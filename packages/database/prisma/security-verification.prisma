@@ -21,6 +21,11 @@ enum VerificationLevel {
   HIGH
 }
 
+enum VerificationFallbackKind {
+  THREAD
+  TICKET
+}
+
 model SecurityVerification {
   id String @id @default(cuid())
 
@@ -44,6 +49,10 @@ model SecurityVerification {
   duplicateDetected   Boolean @default(false)
   duplicateUserId     String?
   duplicateEvidence   Json?
+
+  // Salon de repli créé quand le MP n'a pas pu être délivré (thread privé ou ticket)
+  fallbackChannelId String?
+  fallbackKind      VerificationFallbackKind?
 
   createdAt DateTime @default(now())
   expiresAt DateTime

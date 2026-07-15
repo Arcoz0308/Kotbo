@@ -317,6 +317,7 @@
     verificationMode: string;
     verificationAction: string;
     verificationChannelId: string | null;
+    verificationFallbackChannelId: string | null;
     verificationRoleId: string | null;
     verificationLogChannelId: string | null;
     verificationEmbedTitle: string;
@@ -342,6 +343,7 @@
           verificationMode: data.verificationMode ?? 'EMBED',
           verificationAction: data.verificationAction ?? 'NOTIFY_STAFF',
           verificationChannelId: data.verificationChannelId ?? null,
+          verificationFallbackChannelId: data.verificationFallbackChannelId ?? null,
           verificationRoleId: data.verificationRoleId ?? null,
           verificationLogChannelId: data.verificationLogChannelId ?? null,
           verificationEmbedTitle: data.verificationEmbedTitle ?? 'Vérification de sécurité',
@@ -770,6 +772,11 @@
             <label class="space-y-1.5">
               <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de logs</span>
               <SearchableSelect bind:value={verifConfig.verificationLogChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Par défaut" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
+            </label>
+            <label class="space-y-1.5 sm:col-span-2 lg:col-span-3">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de repli (MP fermés)</span>
+              <SearchableSelect bind:value={verifConfig.verificationFallbackChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Salon de vérification par défaut" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
+              <span class="block text-[11px] text-on-surface-variant/50">Quand un membre a ses MP fermés, un thread privé contenant son lien de vérification est créé dans ce salon. Sans salon défini ici, le salon de vérification est utilisé ; si aucun des deux n'est configuré, un ticket est ouvert à la place.</span>
             </label>
           </div>
 
