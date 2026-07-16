@@ -20,6 +20,7 @@
     distributeClans,
     clearClans,
     resetClanSeason,
+    addClanPoints,
     type ClanEntry,
     type ClansDataResult
   } from '../lib/api';
@@ -35,19 +36,77 @@
   let currentClanSeason = $state(1);
   let clanXpFromLevelUp = $state(false);
   let clanXpPerLevelUp = $state(50);
+  let clanAnnouncementChannelId = $state<string | null>(null);
+  let clanRewardGiveaway = $state(false);
+  let clanRewardLeaderRole = $state(false);
+  let clanRewardXpBoost = $state(false); // needed for handleSaveSettings update
+  let clanRewardXpBoostRate = $state(1.2); // needed for handleSaveSettings update
   let clans = $state<ClanEntry[]>([]);
   let taskInProgress = $state<ClansDataResult['taskInProgress']>(null);
+
+  // Season dates states
+  let clanSeasonStartsAt = $state<string | null>(null);
+  let clanSeasonEndsAt = $state<string | null>(null);
+  let formSeasonStartsAt = $state('');
+  let formSeasonEndsAt = $state('');
 
   // Saved states (for dirty checking)
   let savedClansEnabled = $state(false);
   let savedClansUnique = $state(true);
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
+  let savedClanAnnouncementChannelId = $state<string | null>(null);
+  let savedClanRewardGiveaway = $state(false);
+  let savedClanRewardLeaderRole = $state(false);
+  let savedClanSeasonStartsAt = $state<string | null>(null);
+  let savedClanSeasonEndsAt = $state<string | null>(null);
+
+  // Tab routing
+  let activeTab = $state<'clans' | 'seasons' | 'points'>('clans');
 
   // Form states
   let formName = $state('');
   let formDescription = $state('');
   let formRoleId = $state('');
+  let formGeneralChannelId = $state('');
+  let formLeaderRoleId = $state('');
+
+  let availableChannels = $state<any[]>([]);
+
+  // Points Management tab states & handlers
+  let selectedClanIdForPoints = $state('');
+  let manualPointsAmountClan = $state(100);
+  let selectedClanIdForMemberPoints = $state('');
+  let manualPointsMemberUserId = $state('');
+  let manualPointsAmountMember = $state(100);
+
+  async function handleAddClanPoints() {
+    if (!canManageSettings || !selectedClanIdForPoints || !manualPointsAmountClan) return;
+    await actionState.run(async () => {
+      const res = await addClanPoints({
+        clanId: selectedClanIdForPoints,
+        amount: manualPointsAmountClan,
+      });
+      if (!res) throw new Error('Erreur lors de l\'ajout de points au clan.');
+      await refreshData(true);
+      manualPointsAmountClan = 100;
+    }, { successMessage: 'Points ajustés avec succès !' });
+  }
+
+  async function handleAddMemberPoints() {
+    if (!canManageSettings || !selectedClanIdForMemberPoints || !manualPointsMemberUserId || !manualPointsAmountMember) return;
+    await actionState.run(async () => {
+      const res = await addClanPoints({
+        clanId: selectedClanIdForMemberPoints,
+        userId: manualPointsMemberUserId,
+        amount: manualPointsAmountMember,
+      });
+      if (!res) throw new Error('Erreur lors de l\'ajout de points au membre.');
+      await refreshData(true);
+      manualPointsMemberUserId = '';
+      manualPointsAmountMember = 100;
+    }, { successMessage: 'Points du membre ajustés avec succès !' });
+  }
 
   // Confirmation state for reset/clear/distribute
   let confirmInput = $state('');
@@ -61,12 +120,25 @@
 
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
+  const formatLocal = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '';
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
   // Sync state changes with the unsaved changes bar
   $effect(() => {
     const dirty = clansEnabled !== savedClansEnabled 
       || clansUnique !== savedClansUnique
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
-      || clanXpPerLevelUp !== savedClanXpPerLevelUp;
+      || clanXpPerLevelUp !== savedClanXpPerLevelUp
+      || clanAnnouncementChannelId !== savedClanAnnouncementChannelId
+      || clanRewardGiveaway !== savedClanRewardGiveaway
+      || clanRewardLeaderRole !== savedClanRewardLeaderRole
+      || formSeasonStartsAt !== formatLocal(savedClanSeasonStartsAt)
+      || formSeasonEndsAt !== formatLocal(savedClanSeasonEndsAt);
 
     if (dirty && canManageSettings) {
       untrack(() => {
@@ -78,6 +150,11 @@
             clansUnique = savedClansUnique;
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
+            clanAnnouncementChannelId = savedClanAnnouncementChannelId;
+            clanRewardGiveaway = savedClanRewardGiveaway;
+            clanRewardLeaderRole = savedClanRewardLeaderRole;
+            formSeasonStartsAt = formatLocal(savedClanSeasonStartsAt);
+            formSeasonEndsAt = formatLocal(savedClanSeasonEndsAt);
           }
         });
       });
@@ -112,6 +189,30 @@
     }
   });
 
+  // Countdown helper
+  let timeRemaining = $state('');
+  $effect(() => {
+    if (clanSeasonEndsAt) {
+      const target = new Date(clanSeasonEndsAt).getTime();
+      const update = () => {
+        const diff = target - Date.now();
+        if (diff <= 0) {
+          timeRemaining = 'Saison terminée (clôture imminente par le Bot)';
+          return;
+        }
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        timeRemaining = `Se termine dans ${days}j ${hours}h ${minutes}m`;
+      };
+      update();
+      const interval = setInterval(update, 60000);
+      return () => clearInterval(interval);
+    } else {
+      timeRemaining = 'Non planifiée (durée indéterminée)';
+    }
+  });
+
   async function refreshData(silent = false) {
     if (!silent) loading = true;
     try {
@@ -122,14 +223,30 @@
         currentClanSeason = res.currentClanSeason;
         clanXpFromLevelUp = res.clanXpFromLevelUp;
         clanXpPerLevelUp = res.clanXpPerLevelUp;
+        clanAnnouncementChannelId = res.clanAnnouncementChannelId;
+        clanRewardGiveaway = res.clanRewardGiveaway;
+        clanRewardLeaderRole = res.clanRewardLeaderRole;
+        clanRewardXpBoost = res.clanRewardXpBoost;
+        clanRewardXpBoostRate = res.clanRewardXpBoostRate;
+        clanSeasonStartsAt = res.clanSeasonStartsAt;
+        clanSeasonEndsAt = res.clanSeasonEndsAt;
         clans = res.clans;
         taskInProgress = res.taskInProgress;
+
+        // Formater les dates pour l'input type datetime-local (YYYY-MM-DDTHH:MM)
+        formSeasonStartsAt = formatLocal(res.clanSeasonStartsAt);
+        formSeasonEndsAt = formatLocal(res.clanSeasonEndsAt);
 
         if (!silent) {
           savedClansEnabled = res.clansEnabled;
           savedClansUnique = res.clansUnique;
           savedClanXpFromLevelUp = res.clanXpFromLevelUp;
           savedClanXpPerLevelUp = res.clanXpPerLevelUp;
+          savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
+          savedClanRewardGiveaway = res.clanRewardGiveaway;
+          savedClanRewardLeaderRole = res.clanRewardLeaderRole;
+          savedClanSeasonStartsAt = res.clanSeasonStartsAt;
+          savedClanSeasonEndsAt = res.clanSeasonEndsAt;
         }
       }
     } catch (err) {
@@ -142,7 +259,14 @@
   onMount(async () => {
     await dashboardStore.refresh();
     await refreshData();
+    const channelsData = await fetchDiscordChannels().catch(() => null);
+    if (channelsData) {
+      availableChannels = channelsData.textChannels || [];
+    }
   });
+
+  // Dynamically import channels fetch
+  import { fetchDiscordChannels } from '../lib/api';
 
   async function handleSaveSettings(): Promise<boolean> {
     if (!canManageSettings) return false;
@@ -152,7 +276,14 @@
         clansEnabled,
         clansUnique,
         clanXpFromLevelUp,
-        clanXpPerLevelUp
+        clanXpPerLevelUp,
+        clanAnnouncementChannelId: clanAnnouncementChannelId || null,
+        clanRewardGiveaway,
+        clanRewardLeaderRole,
+        clanRewardXpBoost,
+        clanRewardXpBoostRate,
+        clanSeasonStartsAt: formSeasonStartsAt ? new Date(formSeasonStartsAt).toISOString() : null,
+        clanSeasonEndsAt: formSeasonEndsAt ? new Date(formSeasonEndsAt).toISOString() : null
       });
       if (!res) throw new Error('Erreur de sauvegarde');
       
@@ -160,6 +291,11 @@
       savedClansUnique = res.clansUnique;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
+      savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
+      savedClanRewardGiveaway = res.clanRewardGiveaway;
+      savedClanRewardLeaderRole = res.clanRewardLeaderRole;
+      savedClanSeasonStartsAt = res.clanSeasonStartsAt;
+      savedClanSeasonEndsAt = res.clanSeasonEndsAt;
       success = true;
       return true;
     }, { successMessage: 'Paramètres des clans sauvegardés avec succès !' });
@@ -171,6 +307,8 @@
     formName = '';
     formDescription = '';
     formRoleId = '';
+    formGeneralChannelId = '';
+    formLeaderRoleId = '';
     actionState.clearFeedback();
     showModal = true;
   }
@@ -180,6 +318,8 @@
     formName = clan.name;
     formDescription = clan.description || '';
     formRoleId = clan.roleId;
+    formGeneralChannelId = clan.generalChannelId || '';
+    formLeaderRoleId = clan.leaderRoleId || '';
     actionState.clearFeedback();
     showModal = true;
   }
@@ -188,20 +328,20 @@
     if (!canManageSettings || !formName || !formRoleId) return;
 
     await actionState.run(async () => {
+      const payload = {
+        name: formName,
+        description: formDescription || undefined,
+        roleId: formRoleId,
+        generalChannelId: formGeneralChannelId || null,
+        leaderRoleId: formLeaderRoleId || null
+      };
+
       if (editingClan) {
-        const res = await updateClan(editingClan.id, {
-          name: formName,
-          description: formDescription || undefined,
-          roleId: formRoleId
-        });
+        const res = await updateClan(editingClan.id, payload);
         if (!res) throw new Error('Erreur lors de la modification');
         clans = clans.map(c => c.id === editingClan!.id ? res.clan : c);
       } else {
-        const res = await createClan({
-          name: formName,
-          description: formDescription || undefined,
-          roleId: formRoleId
-        });
+        const res = await createClan(payload);
         if (!res) throw new Error('Erreur lors de la création');
         clans = [...clans, res.clan];
       }
@@ -288,6 +428,28 @@
 >
   <InlineFeedback state={actionState} />
 
+  <!-- Navigation par Onglets -->
+  <div class="flex border-b border-outline-variant/15 mb-6">
+    <button
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer {activeTab === 'clans' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      onclick={() => activeTab = 'clans'}
+    >
+      🛡️ Clans & Rôles
+    </button>
+    <button
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer {activeTab === 'seasons' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      onclick={() => activeTab = 'seasons'}
+    >
+      📅 Gestion des Saisons
+    </button>
+    <button
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer {activeTab === 'points' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      onclick={() => activeTab = 'points'}
+    >
+      ⚡ Gestion des Points
+    </button>
+  </div>
+
   {#if loading}
     <div class="space-y-6">
       <Skeleton height="80px" />
@@ -297,6 +459,7 @@
       <LoadingHint context="clans" />
     </div>
   {:else}
+    {#if activeTab === 'clans'}
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
       
       <!-- Left side: General Settings -->
@@ -304,52 +467,58 @@
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
           <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2">⚙️ Configuration</h3>
           
-          <div class="space-y-4 divide-y divide-outline-variant/10">
-            <div class="space-y-4 pb-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="text-sm font-medium text-on-surface">Activer les clans</span>
-                  <p class="text-xs text-on-surface-variant/70">Active les commandes slash /clan et la sécurité.</p>
-                </div>
-                <ToggleSwitch bind:checked={clansEnabled} disabled={!canManageSettings} />
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-sm font-medium text-on-surface">Activer les clans</span>
+                <p class="text-xs text-on-surface-variant/70">Active les commandes slash /clan et la sécurité.</p>
               </div>
-
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="text-sm font-medium text-on-surface">Clan Unique</span>
-                  <p class="text-xs text-on-surface-variant/70">Force un seul rôle de clan par membre Discord.</p>
-                </div>
-                <ToggleSwitch bind:checked={clansUnique} disabled={!canManageSettings} />
-              </div>
+              <ToggleSwitch bind:checked={clansEnabled} disabled={!canManageSettings} />
             </div>
 
-            <div class="space-y-4 pt-4">
-              <h4 class="text-xs font-bold text-on-surface-variant/80 uppercase tracking-wider">⚡ Sources de points</h4>
+            <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+              <div>
+                <span class="text-sm font-medium text-on-surface">Clan Unique</span>
+                <p class="text-xs text-on-surface-variant/70">Force un seul rôle de clan par membre Discord.</p>
+              </div>
+              <ToggleSwitch bind:checked={clansUnique} disabled={!canManageSettings} />
+            </div>
+          </div>
+        </section>
+ 
+        <!-- Season Rewards / Advantages -->
+        <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2">🏆 Récompenses de fin de saison</h3>
+          
+          <div class="space-y-4">
+            <div class="space-y-1.5">
+              <label for="clan-announcement-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Salon d'Annonces de Saison</label>
+              <SearchableSelect
+                id="clan-announcement-channel"
+                bind:value={clanAnnouncementChannelId}
+                options={[{ id: '', name: 'Aucun (Désactivé)' }, ...availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))]}
+                placeholder="Sélectionner le salon"
+                disabled={!canManageSettings}
+              />
+              <p class="text-[10px] text-on-surface-variant/60 mt-1">Salon où est publiée l'annonce du vainqueur à la fin de la saison.</p>
+            </div>
+
+            <div class="space-y-4 pt-2 border-t border-outline-variant/10">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Boost de Giveaways</span>
+                  <p class="text-xs text-on-surface-variant/70">Augmente les chances du clan gagnant dans les giveaways.</p>
+                </div>
+                <ToggleSwitch bind:checked={clanRewardGiveaway} disabled={!canManageSettings} />
+              </div>
 
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="text-sm font-medium text-on-surface">Passage de niveau</span>
-                  <p class="text-xs text-on-surface-variant/70">Points bonus offerts lors d'un level up sur le serveur.</p>
+                  <span class="text-sm font-medium text-on-surface">Rôle de Chef de Clan</span>
+                  <p class="text-xs text-on-surface-variant/70">Attribue le rôle de chef configuré sur le clan au meilleur contributeur.</p>
                 </div>
-                <ToggleSwitch bind:checked={clanXpFromLevelUp} disabled={!canManageSettings} />
+                <ToggleSwitch bind:checked={clanRewardLeaderRole} disabled={!canManageSettings} />
               </div>
-
-              {#if clanXpFromLevelUp}
-                <div class="space-y-1.5 pl-4 animate-in slide-in-from-top-2 duration-200">
-                  <label for="clan-xp-levelup-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Points attribués par niveau</label>
-                  <div class="flex items-center gap-2">
-                    <input
-                      id="clan-xp-levelup-amount"
-                      type="number"
-                      bind:value={clanXpPerLevelUp}
-                      min="0"
-                      class="w-24 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-2.5 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary/40 font-bold"
-                      disabled={!canManageSettings}
-                    />
-                    <span class="text-xs text-on-surface-variant/60 font-semibold">XP / niveau</span>
-                  </div>
-                </div>
-              {/if}
             </div>
           </div>
         </section>
@@ -444,6 +613,8 @@
                   <tr class="border-b border-outline-variant/10 text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wider">
                     <th class="pb-3">Clan</th>
                     <th class="pb-3">Rôle Discord</th>
+                    <th class="pb-3">Général de clan</th>
+                    <th class="pb-3">Rôle du Chef</th>
                     <th class="pb-3 text-center">Membres</th>
                     <th class="pb-3 text-right">XP Cumulée</th>
                     {#if canManageSettings}
@@ -464,6 +635,24 @@
                         <span class="px-2 py-1 bg-surface-container-high rounded text-xs text-on-surface-variant">
                           {availableRoles.find(r => r.id === clan.roleId)?.name || `ID: ${clan.roleId}`}
                         </span>
+                      </td>
+                      <td class="py-4">
+                        {#if clan.generalChannelId}
+                          <span class="text-xs text-on-surface-variant">
+                            #{availableChannels.find(ch => ch.id === clan.generalChannelId)?.name || `ID: ${clan.generalChannelId}`}
+                          </span>
+                        {:else}
+                          <span class="text-xs text-on-surface-variant/40 italic">Aucun</span>
+                        {/if}
+                      </td>
+                      <td class="py-4">
+                        {#if clan.leaderRoleId}
+                          <span class="px-2 py-1 bg-primary/10 rounded text-xs text-primary font-medium">
+                            {availableRoles.find(r => r.id === clan.leaderRoleId)?.name || `ID: ${clan.leaderRoleId}`}
+                          </span>
+                        {:else}
+                          <span class="text-xs text-on-surface-variant/40 italic">Aucun</span>
+                        {/if}
                       </td>
                       <td class="py-4 text-center font-medium text-xs text-on-surface">
                         {clan.memberCount}
@@ -498,7 +687,238 @@
         </section>
       </div>
 
-    </div>
+    {:else if activeTab === 'seasons'}
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        
+        <!-- Left Column: Current Season Status Card -->
+        <div class="xl:col-span-1 space-y-6">
+          <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
+              <h3 class="text-lg font-semibold flex items-center gap-2">
+                <Papicon icon="calendar" size={16} class="text-primary" />
+                Saison Actuelle
+              </h3>
+              <span class="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs font-bold rounded-full">Saison {currentClanSeason}</span>
+            </div>
+
+            <div class="space-y-4">
+              <div class="p-4 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 space-y-3">
+                <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block">Temps Restant</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-xl font-extrabold text-on-surface">{timeRemaining}</span>
+                </div>
+                {#if clanSeasonStartsAt && clanSeasonEndsAt}
+                  <p class="text-[10px] text-on-surface-variant/50 leading-relaxed">
+                    Début : {new Date(clanSeasonStartsAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                    <br />
+                    Fin : {new Date(clanSeasonEndsAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                {/if}
+              </div>
+
+              <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+                La clôture de la saison calcule automatiquement le clan vainqueur, attribue les avantages, renomme le QG et réinitialise l'XP de clan active de tous les membres à 0.
+              </p>
+
+              {#if canManageSettings}
+                <button
+                  type="button"
+                  onclick={() => openConfirmation('reset')}
+                  class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                >
+                  <Papicon icon="Refresh" size={14} /> Clôturer manuellement la Saison
+                </button>
+              {/if}
+            </div>
+          </section>
+        </div>
+
+        <!-- Right Column: Schedule / Planning Form -->
+        <div class="xl:col-span-2 space-y-6">
+          <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+            <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
+              <Papicon icon="flag" size={16} class="text-secondary" />
+              Planifier la saison de clans
+            </h3>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div class="space-y-2">
+                <label for="clanSeasonStartsAtInput" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Date & Heure de Début</label>
+                <input
+                  id="clanSeasonStartsAtInput"
+                  type="datetime-local"
+                  bind:value={formSeasonStartsAt}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label for="clanSeasonEndsAtInput" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Date & Heure de Fin</label>
+                <input
+                  id="clanSeasonEndsAtInput"
+                  type="datetime-local"
+                  bind:value={formSeasonEndsAt}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
+                  disabled={!canManageSettings}
+                />
+              </div>
+            </div>
+
+            <div class="p-4 bg-primary/5 border border-primary/20 rounded-xl text-xs text-primary leading-relaxed space-y-1">
+              <p class="font-bold">💡 Fonctionnement Automatique</p>
+              <p>Lorsque la date de fin est dépassée, le Bot lancera automatiquement le traitement de fin de saison. Si une date de début et de fin étaient configurées, le système calculera automatiquement l'intervalle et programmera la saison suivante pour la même durée.</p>
+            </div>
+          </section>
+        </div>
+
+      </div>
+
+    {:else if activeTab === 'points'}
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        
+        <!-- Left Column: Points Configuration (Module Toggle) -->
+        <div class="xl:col-span-1 space-y-6">
+          <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+            <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
+              <Papicon icon="Settings" size={16} class="text-primary" />
+              Configuration des Points
+            </h3>
+
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Gain par passage de niveau</span>
+                  <p class="text-xs text-on-surface-variant/70">Points bonus offerts lors d'un level up sur le serveur.</p>
+                </div>
+                <ToggleSwitch bind:checked={clanXpFromLevelUp} disabled={!canManageSettings} />
+              </div>
+
+              {#if clanXpFromLevelUp}
+                <div class="space-y-1.5 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
+                  <label for="clan-xp-levelup-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Points attribués par niveau</label>
+                  <div class="flex items-center gap-2">
+                    <input
+                      id="clan-xp-levelup-amount"
+                      type="number"
+                      bind:value={clanXpPerLevelUp}
+                      min="0"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                      disabled={!canManageSettings}
+                    />
+                    <span class="text-xs text-on-surface-variant/60 font-semibold shrink-0">XP / niveau</span>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          </section>
+        </div>
+
+        <!-- Right Column: Manual Points Adjustments -->
+        <div class="xl:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+          
+          <!-- Card 1: Add points to a Clan -->
+          <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+            <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
+              <Papicon icon="Shield" size={16} class="text-amber-500" />
+              Points de Clan (Global)
+            </h3>
+
+            <div class="space-y-4">
+              <div class="space-y-1.5">
+                <label for="manual-points-clan-select" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Sélectionner le Clan</label>
+                <SearchableSelect
+                  id="manual-points-clan-select"
+                  bind:value={selectedClanIdForPoints}
+                  options={clans.map(c => ({ id: c.id, name: c.name }))}
+                  placeholder="Choisir un clan"
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              <div class="space-y-1.5">
+                <label for="manual-points-clan-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Montant d'XP à ajouter (ou retirer)</label>
+                <input
+                  id="manual-points-clan-amount"
+                  type="number"
+                  bind:value={manualPointsAmountClan}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              {#if canManageSettings}
+                <button
+                  type="button"
+                  onclick={handleAddClanPoints}
+                  class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                  disabled={!selectedClanIdForPoints}
+                >
+                  ⚡ Ajuster les points du Clan
+                </button>
+              {/if}
+            </div>
+          </section>
+
+          <!-- Card 2: Add points to a Member -->
+          <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+            <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
+              <Papicon icon="user" size={16} class="text-secondary" />
+              Points d'un Membre
+            </h3>
+
+            <div class="space-y-4">
+              <div class="space-y-1.5">
+                <label for="manual-points-member-clan-select" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Sélectionner son Clan</label>
+                <SearchableSelect
+                  id="manual-points-member-clan-select"
+                  bind:value={selectedClanIdForMemberPoints}
+                  options={clans.map(c => ({ id: c.id, name: c.name }))}
+                  placeholder="Choisir un clan"
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              <div class="space-y-1.5">
+                <label for="manual-points-member-user-id" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">ID Discord du Membre</label>
+                <input
+                  id="manual-points-member-user-id"
+                  type="text"
+                  placeholder="Ex: 123456789012345678"
+                  bind:value={manualPointsMemberUserId}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              <div class="space-y-1.5">
+                <label for="manual-points-member-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Montant d'XP à ajouter (ou retirer)</label>
+                <input
+                  id="manual-points-member-amount"
+                  type="number"
+                  bind:value={manualPointsAmountMember}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              {#if canManageSettings}
+                <button
+                  type="button"
+                  onclick={handleAddMemberPoints}
+                  class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                  disabled={!selectedClanIdForMemberPoints || !manualPointsMemberUserId}
+                >
+                  ⚡ Ajuster les points du Membre
+                </button>
+              {/if}
+            </div>
+          </section>
+
+        </div>
+
+      </div>
+    {/if}
   {/if}
 </ModulePage>
 
@@ -551,6 +971,28 @@
             bind:value={formRoleId}
             options={availableRoles.map(r => ({ id: r.id, name: r.name }))}
             placeholder="Choisir le rôle Discord"
+            disabled={!canManageSettings}
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="clan-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Général de clan (QG)</label>
+          <SearchableSelect
+            id="clan-channel"
+            bind:value={formGeneralChannelId}
+            options={[{ id: '', name: 'Aucun (Désactivé)' }, ...availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))]}
+            placeholder="Choisir le salon général"
+            disabled={!canManageSettings}
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="clan-leader-role" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Rôle du Chef de Clan</label>
+          <SearchableSelect
+            id="clan-leader-role"
+            bind:value={formLeaderRoleId}
+            options={[{ id: '', name: 'Aucun (Désactivé)' }, ...availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))]}
+            placeholder="Choisir le rôle du chef"
             disabled={!canManageSettings}
           />
         </div>

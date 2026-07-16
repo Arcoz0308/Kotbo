@@ -3,7 +3,7 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
-import { clanTasks, runDistribution, runClear } from '../../../services/community/clanService.js';
+import { clanTasks, runDistribution, runClear, handleEndSeason } from '../../../services/community/clanService.js';
 
 export async function handleClansRoutes(
   req: IncomingMessage,
@@ -31,6 +31,14 @@ export async function handleClansRoutes(
           currentClanSeason: true,
           clanXpFromLevelUp: true,
           clanXpPerLevelUp: true,
+          clanAnnouncementChannelId: true,
+          clanRewardGiveaway: true,
+          clanRewardXpBoost: true,
+          clanRewardXpBoostRate: true,
+          clanRewardLeaderRole: true,
+          lastWinningClanId: true,
+          clanSeasonStartsAt: true,
+          clanSeasonEndsAt: true,
         },
       });
 
@@ -78,6 +86,14 @@ export async function handleClansRoutes(
         currentClanSeason: guildData.currentClanSeason,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
         clanXpPerLevelUp: guildData.clanXpPerLevelUp,
+        clanAnnouncementChannelId: guildData.clanAnnouncementChannelId,
+        clanRewardGiveaway: guildData.clanRewardGiveaway,
+        clanRewardXpBoost: guildData.clanRewardXpBoost,
+        clanRewardXpBoostRate: guildData.clanRewardXpBoostRate,
+        clanRewardLeaderRole: guildData.clanRewardLeaderRole,
+        lastWinningClanId: guildData.lastWinningClanId,
+        clanSeasonStartsAt: guildData.clanSeasonStartsAt,
+        clanSeasonEndsAt: guildData.clanSeasonEndsAt,
         clans: clansWithStats,
         taskInProgress,
       });
@@ -95,6 +111,13 @@ export async function handleClansRoutes(
         clansUnique?: boolean;
         clanXpFromLevelUp?: boolean;
         clanXpPerLevelUp?: number;
+        clanAnnouncementChannelId?: string | null;
+        clanRewardGiveaway?: boolean;
+        clanRewardXpBoost?: boolean;
+        clanRewardXpBoostRate?: number;
+        clanRewardLeaderRole?: boolean;
+        clanSeasonStartsAt?: string | null;
+        clanSeasonEndsAt?: string | null;
       }>(req);
 
       const updateData: Record<string, any> = {};
@@ -107,6 +130,23 @@ export async function handleClansRoutes(
           return true;
         }
         updateData.clanXpPerLevelUp = Math.floor(body.clanXpPerLevelUp);
+      }
+      if (body?.clanAnnouncementChannelId !== undefined) updateData.clanAnnouncementChannelId = body.clanAnnouncementChannelId || null;
+      if (body?.clanRewardGiveaway !== undefined) updateData.clanRewardGiveaway = body.clanRewardGiveaway;
+      if (body?.clanRewardXpBoost !== undefined) updateData.clanRewardXpBoost = body.clanRewardXpBoost;
+      if (body?.clanRewardXpBoostRate !== undefined) {
+        if (typeof body.clanRewardXpBoostRate !== 'number' || body.clanRewardXpBoostRate < 1.0) {
+          json(res, 400, { error: "Le taux de boost d'XP doit être supérieur ou égal à 1.0." });
+          return true;
+        }
+        updateData.clanRewardXpBoostRate = body.clanRewardXpBoostRate;
+      }
+      if (body?.clanRewardLeaderRole !== undefined) updateData.clanRewardLeaderRole = body.clanRewardLeaderRole;
+      if (body?.clanSeasonStartsAt !== undefined) {
+        updateData.clanSeasonStartsAt = body.clanSeasonStartsAt ? new Date(body.clanSeasonStartsAt) : null;
+      }
+      if (body?.clanSeasonEndsAt !== undefined) {
+        updateData.clanSeasonEndsAt = body.clanSeasonEndsAt ? new Date(body.clanSeasonEndsAt) : null;
       }
 
       if (Object.keys(updateData).length === 0) {
@@ -134,6 +174,13 @@ export async function handleClansRoutes(
         clansUnique: updatedGuild.clansUnique,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
+        clanAnnouncementChannelId: updatedGuild.clanAnnouncementChannelId,
+        clanRewardGiveaway: updatedGuild.clanRewardGiveaway,
+        clanRewardXpBoost: updatedGuild.clanRewardXpBoost,
+        clanRewardXpBoostRate: updatedGuild.clanRewardXpBoostRate,
+        clanRewardLeaderRole: updatedGuild.clanRewardLeaderRole,
+        clanSeasonStartsAt: updatedGuild.clanSeasonStartsAt,
+        clanSeasonEndsAt: updatedGuild.clanSeasonEndsAt,
       });
     } catch (err) {
       logger.error('ClansAPI', 'Error updating clan settings:', err);
@@ -149,6 +196,8 @@ export async function handleClansRoutes(
         name: string;
         description?: string;
         roleId: string;
+        generalChannelId?: string | null;
+        leaderRoleId?: string | null;
       }>(req);
 
       if (!body?.name || !body?.roleId) {
@@ -185,6 +234,8 @@ export async function handleClansRoutes(
           name: body.name,
           description: body.description ?? null,
           roleId: body.roleId,
+          generalChannelId: body.generalChannelId ?? null,
+          leaderRoleId: body.leaderRoleId ?? null,
         },
       });
 
@@ -214,6 +265,8 @@ export async function handleClansRoutes(
         name: string;
         description?: string;
         roleId: string;
+        generalChannelId?: string | null;
+        leaderRoleId?: string | null;
       }>(req);
 
       if (!body?.name || !body?.roleId) {
@@ -243,6 +296,8 @@ export async function handleClansRoutes(
           name: body.name,
           description: body.description ?? null,
           roleId: body.roleId,
+          generalChannelId: body.generalChannelId ?? null,
+          leaderRoleId: body.leaderRoleId ?? null,
         },
       });
 
@@ -330,6 +385,10 @@ export async function handleClansRoutes(
 
       const nextSeason = guild.currentClanSeason + 1;
 
+      // 1. Décerner les bonus, renommer les QG et publier les annonces de fin de saison
+      await handleEndSeason(guildId, client, auditUser, guild.currentClanSeason, nextSeason);
+
+      // 2. Mettre à jour la saison en base de données
       await prisma.guild.update({
         where: { id: guildId },
         data: { currentClanSeason: nextSeason },
@@ -349,6 +408,82 @@ export async function handleClansRoutes(
     } catch (err) {
       logger.error('ClansAPI', 'Error resetting clan season:', err);
       json(res, 500, { error: 'Erreur lors de la réinitialisation de la saison.' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/clans/points (Add points manually to a clan or a member)
+  if (subAction === 'points' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{
+        clanId: string;
+        userId?: string | null;
+        amount: number;
+      }>(req);
+
+      if (!body?.clanId || typeof body.amount !== 'number') {
+        json(res, 400, { error: 'Paramètres clanId et amount (nombre) requis.' });
+        return true;
+      }
+
+      // 1. Vérifier si le clan existe
+      const clan = await prisma.clan.findUnique({
+        where: { id: body.clanId }
+      });
+      if (!clan || clan.guildId !== guildId) {
+        json(res, 404, { error: 'Clan introuvable pour ce serveur.' });
+        return true;
+      }
+
+      // 2. Récupérer la saison en cours
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { currentClanSeason: true }
+      });
+      if (!guild) {
+        json(res, 404, { error: 'Serveur introuvable.' });
+        return true;
+      }
+
+      const season = guild.currentClanSeason;
+      const targetUserId = body.userId?.trim() || 'system_manual_points';
+
+      // 3. Upsert la contribution
+      const contribution = await prisma.clanMemberContribution.upsert({
+        where: {
+          guildId_clanId_userId_season: {
+            guildId,
+            clanId: body.clanId,
+            userId: targetUserId,
+            season,
+          }
+        },
+        update: {
+          xp: { increment: body.amount }
+        },
+        create: {
+          guildId,
+          clanId: body.clanId,
+          userId: targetUserId,
+          season,
+          xp: body.amount
+        }
+      });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Ajout de points de clan',
+        context: getGuildName(client, guildId),
+        module: 'Clans',
+        eventType: 'Manuel',
+        details: `Ajout manuel de ${body.amount} XP au clan "${clan.name}"` + (body.userId ? ` pour l'utilisateur ${body.userId}` : ' (global)'),
+        channelId: null,
+      });
+
+      json(res, 200, { success: true, contribution });
+    } catch (err) {
+      logger.error('ClansAPI', 'Error adding manual points:', err);
+      json(res, 500, { error: 'Erreur lors de l\'ajout de points manuel.' });
     }
     return true;
   }

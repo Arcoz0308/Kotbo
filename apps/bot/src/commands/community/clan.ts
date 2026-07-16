@@ -12,44 +12,43 @@ import { runDistribution, runClear } from '../../services/community/clanService.
 import { E, rankEmoji } from '../../utils/emojis.js';
 import { COLORS_RAW } from '../../utils/embeds.js';
 
-export const clanCommand: SlashCommandDefinition = {
-  data: new SlashCommandBuilder()
-    .setName('clan')
-    .setDescription('🛡️ Gestion et classements des clans du serveur')
-    .addSubcommand((sub) =>
-      sub
-        .setName('list')
-        .setDescription('📋 Liste tous les clans configurés sur le serveur')
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName('leaderboard')
-        .setDescription('🏆 Affiche le classement des clans pour la saison active')
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName('info')
-        .setDescription('ℹ️ Affiche les informations et le classement des membres d\'un clan')
-        .addStringOption((opt) =>
-          opt
-            .setName('nom')
-            .setDescription('Le nom du clan')
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName('distribute')
-        .setDescription('🎲 (Admin) Répartit aléatoirement les membres sans clan')
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName('clear')
-        .setDescription('🧹 (Admin) Retire tous les rôles de clan du serveur')
-    ) as any,
+export const data = new SlashCommandBuilder()
+  .setName('clan')
+  .setDescription('🛡️ Gestion et classements des clans du serveur')
+  .addSubcommand((sub) =>
+    sub
+      .setName('list')
+      .setDescription('📋 Liste tous les clans configurés sur le serveur')
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('leaderboard')
+      .setDescription('🏆 Affiche le classement des clans pour la saison active')
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('info')
+      .setDescription('ℹ️ Affiche les informations et le classement des membres d\'un clan')
+      .addStringOption((opt) =>
+        opt
+          .setName('nom')
+          .setDescription('Le nom du clan')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('distribute')
+      .setDescription('🎲 (Admin) Répartit aléatoirement les membres sans clan')
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('clear')
+      .setDescription('🧹 (Admin) Retire tous les rôles de clan du serveur')
+  ) as any;
 
-  async autocomplete(interaction: AutocompleteInteraction) {
+export async function autocomplete(interaction: AutocompleteInteraction) {
     const guildId = interaction.guildId;
     if (!guildId) return;
 
@@ -66,9 +65,9 @@ export const clanCommand: SlashCommandDefinition = {
     await interaction.respond(
       clans.map((c) => ({ name: c.name, value: c.name }))
     );
-  },
+  }
 
-  async execute(interaction: ChatInputCommandInteraction) {
+export async function execute(interaction: ChatInputCommandInteraction) {
     const guildId = interaction.guildId;
     if (!guildId) {
       await interaction.reply({
@@ -290,5 +289,6 @@ export const clanCommand: SlashCommandDefinition = {
       }
       return;
     }
-  },
-};
+}
+
+export const clanCommand = { data, autocomplete, execute } satisfies SlashCommandDefinition;

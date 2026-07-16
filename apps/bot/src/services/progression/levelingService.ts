@@ -134,16 +134,49 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
  * Ajoute de l'XP brute à un utilisateur et gère le passage de niveau
  */
 export async function addXp(guildId: string, userId: string, amount: number, client: Client, channelId?: string) {
+  if (amount <= 0) return;
+
+  let finalAmount = amount;
+  try {
+    const guildSettings = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: {
+        clanRewardXpBoost: true,
+        clanRewardXpBoostRate: true,
+        lastWinningClanId: true,
+      },
+    });
+
+    if (guildSettings?.clanRewardXpBoost && guildSettings.lastWinningClanId) {
+      const winningClan = await prisma.clan.findUnique({
+        where: { id: guildSettings.lastWinningClanId },
+        select: { roleId: true },
+      });
+
+      if (winningClan) {
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (discordGuild) {
+          const member = discordGuild.members.cache.get(userId) || await discordGuild.members.fetch(userId).catch(() => null);
+          if (member && member.roles.cache.has(winningClan.roleId)) {
+            finalAmount = Math.round(amount * guildSettings.clanRewardXpBoostRate);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    logger.error('LevelingService', `Erreur lors de l'application du multiplicateur d'XP de clan pour ${userId}:`, err);
+  }
+
   const memberLevel = await prisma.memberLevel.upsert({
     where: { guildId_userId: { guildId, userId } },
     update: {
-      xp: { increment: amount },
+      xp: { increment: finalAmount },
       lastXpGain: new Date(),
     },
     create: {
       guildId,
       userId,
-      xp: amount,
+      xp: finalAmount,
       level: 0,
     },
   });

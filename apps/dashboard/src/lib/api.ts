@@ -3145,6 +3145,8 @@ export interface ClanEntry {
   name: string;
   description: string | null;
   roleId: string;
+  generalChannelId: string | null;
+  leaderRoleId: string | null;
   memberCount: number;
   totalXp: number;
 }
@@ -3155,6 +3157,14 @@ export interface ClansDataResult {
   currentClanSeason: number;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
+  clanAnnouncementChannelId: string | null;
+  clanRewardGiveaway: boolean;
+  clanRewardXpBoost: boolean;
+  clanRewardXpBoostRate: number;
+  clanRewardLeaderRole: boolean;
+  lastWinningClanId: string | null;
+  clanSeasonStartsAt: string | null;
+  clanSeasonEndsAt: string | null;
   clans: ClanEntry[];
   taskInProgress: { type: 'distribute' | 'clear'; processed: number; total: number } | null;
 }
@@ -3174,6 +3184,13 @@ export async function updateClanSettings(
     clansUnique?: boolean;
     clanXpFromLevelUp?: boolean;
     clanXpPerLevelUp?: number;
+    clanAnnouncementChannelId?: string | null;
+    clanRewardGiveaway?: boolean;
+    clanRewardLeaderRole?: boolean;
+    clanRewardXpBoost?: boolean;
+    clanRewardXpBoostRate?: number;
+    clanSeasonStartsAt?: string | null;
+    clanSeasonEndsAt?: string | null;
   },
   guildId = authStore.selectedGuildId,
 ): Promise<{
@@ -3181,6 +3198,13 @@ export async function updateClanSettings(
   clansUnique: boolean;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
+  clanAnnouncementChannelId: string | null;
+  clanRewardGiveaway: boolean;
+  clanRewardLeaderRole: boolean;
+  clanRewardXpBoost: boolean;
+  clanRewardXpBoostRate: number;
+  clanSeasonStartsAt: string | null;
+  clanSeasonEndsAt: string | null;
 } | null> {
   return dashboardRequest('/clans', {
     method: 'PATCH',
@@ -3191,7 +3215,13 @@ export async function updateClanSettings(
 }
 
 export async function createClan(
-  payload: { name: string; description?: string; roleId: string },
+  payload: {
+    name: string;
+    description?: string;
+    roleId: string;
+    generalChannelId?: string | null;
+    leaderRoleId?: string | null;
+  },
   guildId = authStore.selectedGuildId,
 ): Promise<{ clan: ClanEntry } | null> {
   return dashboardRequest('/clans', {
@@ -3204,7 +3234,13 @@ export async function createClan(
 
 export async function updateClan(
   id: string,
-  payload: { name: string; description?: string; roleId: string },
+  payload: {
+    name: string;
+    description?: string;
+    roleId: string;
+    generalChannelId?: string | null;
+    leaderRoleId?: string | null;
+  },
   guildId = authStore.selectedGuildId,
 ): Promise<{ clan: ClanEntry } | null> {
   return dashboardRequest(`/clans/${id}`, {
@@ -3244,6 +3280,18 @@ export async function resetClanSeason(guildId = authStore.selectedGuildId): Prom
     method: 'POST',
     guildId,
     errorContext: 'API Error (Reset Clan Season):',
+  });
+}
+
+export async function addClanPoints(
+  payload: { clanId: string; userId?: string | null; amount: number },
+  guildId = authStore.selectedGuildId
+): Promise<{ success: boolean; contribution?: any } | null> {
+  return dashboardRequest('/clans/points', {
+    method: 'POST',
+    guildId,
+    body: JSON.stringify(payload),
+    errorContext: 'API Error (Add Clan Points):',
   });
 }
 

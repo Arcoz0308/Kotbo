@@ -48,6 +48,7 @@ export const levelingItems: PageConfig[] = [
   { name: "Leveling & XP",       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
   { name: "Saisons",             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: true, wip: false },
   { name: "Réputation",          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: true, wip: false },
+  { name: "Clans",               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },
 ];
 
 export const economyItems: PageConfig[] = [
@@ -67,7 +68,6 @@ export const communityItems: PageConfig[] = [
   { name: "Actualités & RSS",    icon: "rss",           href: "/news",             featureKey: "news", beta: false, wip: false },
   { name: "Salons Fun",          icon: "smile",         href: "/fun",              featureKey: "fun",  beta: true, wip: false },
   { name: "Réseaux sociaux",     icon: "share-2",       href: "/social-networks",  featureKey: "social_networks", beta: true, wip: false },
-  { name: "Clans",               icon: "shield",        href: "/clans",            featureKey: "welcome_goodbye", beta: true, wip: false },
 ];
 
 export const staffItems: PageConfig[] = [

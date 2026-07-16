@@ -131,7 +131,7 @@
   const navGroups = $derived.by((): NavGroup[] => {
     const general    = { key: 'general',    label: 'Général',       items: visibleGeneral    };
     const moderation = { key: 'moderation', label: 'Modération',     items: visibleModeration };
-    const leveling   = { key: 'leveling',   label: "Système d'XP",  items: visibleLeveling   };
+    const leveling   = { key: 'leveling',   label: "Système d'XP & Clans", items: visibleLeveling   };
     const economy    = { key: 'economy',    label: 'Économie & RPG',items: visibleEconomy    };
     const community  = { key: 'community',  label: 'Communauté',     items: visibleCommunity  };
     const staff      = { key: 'staff',      label: 'Staff',          items: visibleStaff      };
