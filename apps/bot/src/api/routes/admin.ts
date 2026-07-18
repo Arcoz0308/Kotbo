@@ -11,27 +11,7 @@ import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FAL
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const servicePath = path.resolve(__dirname, '../../services/analytics/messageScraperService.js');
-import {
-  json,
-  verifyAuth,
-  resolveAdminAccess,
-  collectShardSnapshots,
-  collectShardGuilds,
-  loadShardingConfig,
-  saveShardingConfig,
-  requestContainerRestart,
-  requestShardRespawn,
-  resolveGuildById,
-  normalizeGlobalBannedWord,
-  normalizeGlobalBannedWordCategory,
-  cleanupGlobalBannedWords,
-  getGuildName,
-  readJsonBody,
-  COLORS,
-  ShardSnapshot,
-  ShardingMode,
-  ShardingConfig,
-} from '../shared.js';
+import { json, verifyAuth, resolveAdminAccess, collectShardSnapshots, collectShardGuilds, loadShardingConfig, saveShardingConfig, requestContainerRestart, requestShardRespawn, normalizeGlobalBannedWord, normalizeGlobalBannedWordCategory, cleanupGlobalBannedWords, getGuildName, readJsonBody, ShardSnapshot, ShardingMode, ShardingConfig } from '../shared.js';
 import {
   getModuleActivationStats,
   getModuleUsageStats,

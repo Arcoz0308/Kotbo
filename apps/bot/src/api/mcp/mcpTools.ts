@@ -1,27 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import {
-  Client,
-  TextChannel,
-  ForumChannel,
-  ThreadChannel,
-  ChannelType,
-  EmbedBuilder,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  MessageFlags,
-  ComponentType,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  GuildScheduledEventPrivacyLevel,
-  GuildScheduledEventEntityType,
-  PermissionFlagsBits,
-  type Message,
-  type Guild,
-  type APIEmbed,
-  type GuildForumTagData,
-} from 'discord.js';
+import { Client, TextChannel, ForumChannel, ThreadChannel, ChannelType, EmbedBuilder, ContainerBuilder, TextDisplayBuilder, MessageFlags, ComponentType, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, type Message, type Guild, type APIEmbed, type GuildForumTagData } from 'discord.js';
 import type { McpKeyPermission, SanctionType, SanctionStatus } from '@prisma/client';
 import { LinkedAccountType, LinkedAccountStatus, Prisma } from '@prisma/client';
 import pLimit from 'p-limit';
@@ -32,7 +11,7 @@ import {
   registerBanSanction,
   registerTimeoutSanction,
 } from '../../services/moderation/sanctionService.js';
-import { renameChannelToClosed, closeTicket } from '../../services/features/ticketService.js';
+import { closeTicket } from '../../services/features/ticketService.js';
 import { getPredictionData } from '../../services/analytics/predictionService.js';
 import { getPulseDashboardData } from '../../services/analytics/pulseService.js';
 import { getHourlyHeatmapData } from '../../services/analytics/dashboardAnalyticsService.js';
@@ -82,37 +61,7 @@ import {
 } from '../../services/features/transcriptService.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../utils/formCustomization.js';
 import { embedToV2 } from '../../utils/patchV2.js';
-import {
-  getCallPermissionConfig,
-  updateCallPermissionConfig,
-  getAbsences,
-  createAbsence,
-  updateAbsenceStatus,
-  deleteAbsence,
-  getMeetings,
-  createMeeting,
-  updateMeeting,
-  deleteMeeting,
-  getNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-  getPolls,
-  createPoll,
-  castPollVote,
-  getCalls,
-  createCall,
-  updateCall,
-  deleteCall,
-  getTasks,
-  createTask,
-  updateTask,
-  deleteTask,
-  getManagerNotes,
-  createManagerNote,
-  deleteManagerNote,
-  getStaffAlertsAndProgression,
-  getStaffCalendarData,
-} from '../../services/staff/staffLeadershipService.js';
+import { getCallPermissionConfig, updateCallPermissionConfig, getAbsences, createAbsence, updateAbsenceStatus, deleteAbsence, getMeetings, createMeeting, updateMeeting, deleteMeeting, getNotifications, markNotificationRead, markAllNotificationsRead, getPolls, createPoll, castPollVote, getCalls, createCall, updateCall, deleteCall, getTasks, createTask, updateTask, deleteTask, createManagerNote, deleteManagerNote, getStaffAlertsAndProgression, getStaffCalendarData } from '../../services/staff/staffLeadershipService.js';
 import { addStaffMember, removeStaffMember } from '../../services/staff/staffManagementService.js';
 import {
   getStaffRoles,

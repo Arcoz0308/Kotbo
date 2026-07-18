@@ -1,21 +1,5 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import {
-  SlashCommandBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  SectionBuilder,
-  ThumbnailBuilder,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
-  AttachmentBuilder,
-  MessageFlags,
-  SeparatorSpacingSize,
-  type ChatInputCommandInteraction,
-} from 'discord.js';
+import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, SeparatorBuilder, SectionBuilder, ThumbnailBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, AttachmentBuilder, MessageFlags, SeparatorSpacingSize, type ChatInputCommandInteraction } from 'discord.js';
 import { getPublicProfileSnapshot } from '../../services/progression/profileService.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { generateProfileCard } from '../../services/core/imageService.js';

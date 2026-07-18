@@ -1,15 +1,4 @@
-import {
-  type Client,
-  type Message,
-  type MessageReaction,
-  type TextChannel,
-  type NewsChannel,
-  type ThreadChannel,
-  type User,
-  EmbedBuilder,
-  WebhookClient,
-  ChannelType,
-} from 'discord.js';
+import { type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, WebhookClient } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';

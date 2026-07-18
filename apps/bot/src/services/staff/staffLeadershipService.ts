@@ -11,12 +11,7 @@ import {
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
-import type { 
-  StaffAbsence, StaffMeeting, StaffMeetingPresence, 
-  StaffManagerNote, StaffPoll, StaffPollOption, StaffPollVote,
-  StaffProcedure, StaffProcedureRead,
-  StaffTask, StaffCall, StaffCallInvitee
-} from '@prisma/client';
+
 import { getClient } from '../../utils/client.js';
 
 type AbsenceMutableStatus = 'PENDING' | 'ACKNOWLEDGED' | 'APPROVED' | 'REJECTED' | 'CANCELED' | 'ENDED';

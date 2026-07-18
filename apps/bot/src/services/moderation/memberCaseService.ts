@@ -1,16 +1,4 @@
-import {
-  ActionRowBuilder,
-  AttachmentBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ContainerBuilder,
-  PermissionFlagsBits,
-  SeparatorSpacingSize,
-  type Client,
-  type Guild,
-  type GuildMember,
-  type User,
-} from 'discord.js';
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, PermissionFlagsBits, SeparatorSpacingSize, type Guild, type GuildMember, type User } from 'discord.js';
 import { Prisma, SanctionType, type MemberProfile } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { mediaGallery, section, separator, text, thumbnail, truncate } from '../../utils/embeds.js';

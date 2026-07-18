@@ -1,4 +1,4 @@
-import { Message, EmbedBuilder, Client, TextChannel, ChannelType, PermissionFlagsBits, type TextBasedChannel } from 'discord.js';
+import { Message, EmbedBuilder, Client, ChannelType, PermissionFlagsBits, type TextBasedChannel } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 

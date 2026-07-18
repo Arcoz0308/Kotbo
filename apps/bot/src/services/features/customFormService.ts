@@ -1,18 +1,4 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  GuildScheduledEventEntityType,
-  GuildScheduledEventPrivacyLevel,
-  type Client,
-  type TextChannel,
-  type ButtonInteraction,
-  type ModalSubmitInteraction,
-} from 'discord.js';
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, type Client, type ButtonInteraction, type ModalSubmitInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { Prisma } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
