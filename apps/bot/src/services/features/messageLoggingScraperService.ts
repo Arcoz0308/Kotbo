@@ -1,6 +1,6 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { Client, ChannelType, TextChannel, Collection, Message } from 'discord.js';
+import { Client, TextChannel, Collection, Message } from 'discord.js';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -74,7 +74,7 @@ export async function startMessageLoggingBackfill(client: Client, guildId: strin
 /**
  * The actual message log backfilling task running in the background.
  */
-async function runBackfillTask(client: Client, guildId: string, force = false): Promise<void> {
+async function runBackfillTask(client: Client, guildId: string, _force = false): Promise<void> {
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) {
     logger.error('MessageLoggingScraper', `Impossible de récupérer la guilde ${guildId} depuis l'API Discord.`);

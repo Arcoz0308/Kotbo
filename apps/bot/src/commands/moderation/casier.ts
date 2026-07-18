@@ -29,11 +29,6 @@ const contextData = new ContextMenuCommandBuilder()
   .setType(ApplicationCommandType.User)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
-function canModerate(interaction: ChatInputCommandInteraction): interaction is ChatInputCommandInteraction<'cached'> {
-  if (!interaction.inCachedGuild()) return false;
-  return Boolean(interaction.guild.members.me);
-}
-
 function extractUserId(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;

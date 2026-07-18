@@ -2,7 +2,6 @@ import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 export const REP_DAILY_VOTE_LIMIT = 3;
-const COOLDOWN_HOURS = 24;
 
 export interface ReputationProfile {
   userId: string;
@@ -15,10 +14,6 @@ export interface ReputationProfile {
 export interface ReputationLeaderboard {
   entries: Array<{ userId: string; totalRep: number; rank: number }>;
   totalVoters: number;
-}
-
-function getDateKey(date = new Date()): string {
-  return date.toISOString().slice(0, 10);
 }
 
 export async function getVotesGivenToday(guildId: string, userId: string): Promise<number> {

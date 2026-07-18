@@ -369,8 +369,14 @@ async function getIconNodes(name: string): Promise<IconNode[]> {
     throw new Error(`Could not find iconNode in Svelte file: ${resolvedPath}`);
   }
 
-  // Evaluate the static javascript array literal safely
-  return eval(match[1]);
+  // Parse the static array literal without eval(): normalize the JS literal
+  // (unquoted keys, single quotes, trailing commas) into JSON. The source is a
+  // trusted local Lucide package file, but this avoids arbitrary code execution.
+  const json = match[1]
+    .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":')
+    .replace(/'([^'\\]*)'/g, '"$1"')
+    .replace(/,\s*([\]}])/g, '$1');
+  return JSON.parse(json) as IconNode[];
 }
 
 function buildSvgString(

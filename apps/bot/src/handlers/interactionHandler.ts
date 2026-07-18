@@ -1,21 +1,4 @@
-import {
-  type Interaction,
-  type Client,
-  TextChannel,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  ModalSubmitInteraction,
-  MessageFlags,
-  type AnySelectMenuInteraction,
-  PermissionFlagsBits,
-  type GuildMember,
-  TextInputBuilder,
-  TextInputStyle,
-  ModalBuilder,
-  StringSelectMenuBuilder,
-} from 'discord.js';
+import { type Interaction, type Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalSubmitInteraction, MessageFlags, type AnySelectMenuInteraction, PermissionFlagsBits, type GuildMember, TextInputBuilder, TextInputStyle, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
@@ -37,14 +20,7 @@ import { handleDCInteraction } from '../services/moderation/dcDetectionService.j
 import { handleVerifyButtonClick, handleVerificationStaffAction } from '../services/moderation/securityVerificationService.js';
 import { showModeratorNoteModal } from '../commands/moderation/note.js';
 import { sendReportToAdmin } from '../commands/moderation/signal.js';
-import {
-  parseDurationToMs,
-  registerBanSanction,
-  registerKickSanction,
-  registerTimeoutSanction,
-  registerWarnSanction,
-  runGuildBan,
-} from '../services/moderation/sanctionService.js';
+import { parseDurationToMs, registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction } from '../services/moderation/sanctionService.js';
 
 
 /** Modal de saisie de raison (et durée pour timeout) partagé entre le select historique et les boutons rapides du casier. */

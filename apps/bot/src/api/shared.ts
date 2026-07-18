@@ -1,21 +1,7 @@
 import { type IncomingMessage, ServerResponse } from 'node:http';
 
 
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChannelType,
-  EmbedBuilder,
-  GuildScheduledEventEntityType,
-  GuildScheduledEventPrivacyLevel,
-  PermissionFlagsBits,
-  type Client,
-  TextChannel,
-  Collection,
-  GuildMember,
-  Guild,
-} from 'discord.js';
+import { ChannelType, PermissionFlagsBits, type Client, TextChannel, Collection, GuildMember, Guild } from 'discord.js';
 import { SanctionType } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/db.js';
@@ -39,92 +25,15 @@ import {
 } from '../utils/commandAccess.js';
 import { commands } from '../commands.js';
 
-import {
-  hashAPIKey,
-  generateAPIKey,
-  getStaffMember,
-  addStaffMember,
-  toggleTutorStatus,
-  updateStaffGrade,
-  removeStaffMember,
-  getStaffMemberStats,
-  issueStaffWarning,
-  blacklistStaff,
-  getActiveBlacklist,
-  createTestingPeriod,
-  addMentorReport,
-  endTestingPeriod,
-  getStaffRoles,
-  createStaffRole,
-  reorderStaffRoles,
-  deleteStaffRole,
-  updateStaffRole,
-  createAPIKey,
-  getAPIKeys,
-  deleteAPIKey,
-  verifyAPIKey,
-  recordStaffActivity,
-  getStaffHierarchies,
-  createStaffHierarchy,
-  updateStaffHierarchy,
-  deleteStaffHierarchy,
-  getHierarchySchema,
-  addMemberToHierarchy,
-  removeMemberFromHierarchy,
-  syncStaffHierarchyMemberships,
-  importRoleMembers,
-} from '../services/staff/staffManagementService.js';
+import { hashAPIKey, getStaffMember, verifyAPIKey } from '../services/staff/staffManagementService.js';
 export {
   getPublicProfileSnapshot,
   getStaffProfileSnapshot,
 } from '../services/progression/profileService.js';
-import {
-  getPolls,
-  createPoll,
-  castPollVote,
-  getAbsences,
-  createAbsence,
-  deleteAbsence,
-  getMeetings,
-  updateAbsenceStatus,
-  getManagerNotes,
-  createManagerNote,
-  deleteManagerNote,
-  getStaffAlertsAndProgression,
-  createMeeting,
-  updateMeeting,
-  deleteMeeting,
-  syncMeetingPresencesWithAbsences,
-  getNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-  createNotification,
-  getStaffCalendarData,
-} from '../services/staff/staffLeadershipService.js';
+
 import * as tutoringService from '../services/core/tutoringService.js';
-import {
-  getEvents,
-  getEvent,
-  createEvent,
-  publishEvent,
-  nextQuestion,
-  getEventStats,
-  prevQuestion,
-  finishEvent,
-  deleteEvent
-} from '../services/features/eventService.js';
-import {
-  getCandidatures,
-  createCandidature,
-  getEligibleTutors,
-  updateCandidatureStatus,
-  deleteCandidature as deleteRecruitmentCandidature,
-  approveCandidature,
-  rejectCandidature,
-  completeOral,
-  assignTutor,
-  getCandidatureHistory,
-} from '../services/staff/recruitmentService.js';
+
+import { getCandidatureHistory } from '../services/staff/recruitmentService.js';
 import * as altAccountService from '../services/moderation/altAccountService.js';
 import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from '../services/moderation/crossServerSanctionService.js';
 

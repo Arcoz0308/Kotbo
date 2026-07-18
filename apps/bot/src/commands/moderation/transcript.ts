@@ -193,7 +193,7 @@ function transcriptPublicLink(transcriptId: string): string {
   return `${dashboardUrl}/transcripts/${transcriptId}`;
 }
 
-async function executeGenerate(interaction: ChatInputCommandInteraction, guildId: string) {
+async function executeGenerate(interaction: ChatInputCommandInteraction, _guildId: string) {
   const channel = interaction.channel;
   if (!channel || !(channel instanceof TextChannel)) {
     await interaction.reply({
