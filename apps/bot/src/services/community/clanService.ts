@@ -459,7 +459,12 @@ export async function handleEndSeason(
         const category = channel.parent as CategoryChannel;
         const isWinner = winningClan && clan.id === winningClan.id;
         
-        let targetName = category.name.split('[')[0].trim(); // Retirer les anciennes balises
+        let targetName = category.name;
+        // Retirer uniquement la balise [🏆 ...] de fin si elle existe
+        const trophyIndex = targetName.indexOf('[🏆');
+        if (trophyIndex !== -1) {
+          targetName = targetName.substring(0, trophyIndex).trim();
+        }
         
         if (isWinner) {
           const activeRewards: string[] = [];
