@@ -18,7 +18,9 @@
     updateLevelingConfig, 
     addLevelingReward, 
     deleteLevelingReward,
-    importLevelingData
+    importLevelingData,
+    fetchClansData,
+    updateClanSettings
   } from '../lib/api';
 
   const saveAction = createAsyncActionState();
@@ -77,8 +79,22 @@
     xpMultipliers: {} as Record<string, number>
   })));
 
+  // Clan states for boost configuration
+  let clansEnabled = $state(false);
+  let clanRewardXpBoost = $state(false);
+  let clanRewardXpBoostRate = $state(1.2);
+  let lastWinningClanId = $state<string | null>(null);
+  let clans = $state<any[]>([]);
+
+  // Saved versions for dirty checking
+  let savedClanRewardXpBoost = $state(false);
+  let savedClanRewardXpBoostRate = $state(1.2);
+
   $effect(() => {
-    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig)
+      || clanRewardXpBoost !== savedClanRewardXpBoost
+      || clanRewardXpBoostRate !== savedClanRewardXpBoostRate;
+
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
@@ -86,6 +102,8 @@
           onSave: () => handleSaveConfig(),
           onReset: () => {
             config = JSON.parse(JSON.stringify(savedConfig));
+            clanRewardXpBoost = savedClanRewardXpBoost;
+            clanRewardXpBoostRate = savedClanRewardXpBoostRate;
           }
         });
       });
@@ -155,6 +173,19 @@
         rewards = res.rewards || [];
         levels = res.levels || [];
       }
+
+      // Récupérer les paramètres de clan pour le boost d'XP de saison
+      const clansRes = await fetchClansData().catch(() => null);
+      if (clansRes) {
+        clansEnabled = clansRes.clansEnabled;
+        clanRewardXpBoost = clansRes.clanRewardXpBoost;
+        clanRewardXpBoostRate = clansRes.clanRewardXpBoostRate;
+        lastWinningClanId = clansRes.lastWinningClanId;
+        clans = clansRes.clans;
+
+        savedClanRewardXpBoost = clansRes.clanRewardXpBoost;
+        savedClanRewardXpBoostRate = clansRes.clanRewardXpBoostRate;
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -166,10 +197,25 @@
     if (!canManageSettings) return false;
     let success = false;
     await saveAction.run(async () => {
+      // 1. Enregistrer la configuration du leveling
       const res = await updateLevelingConfig(config);
       if (!res) throw new Error('Erreur de sauvegarde');
       config = res.config;
       savedConfig = JSON.parse(JSON.stringify(res.config));
+
+      // 2. Enregistrer la configuration du boost d'XP de clan si modifiée
+      if (clanRewardXpBoost !== savedClanRewardXpBoost || clanRewardXpBoostRate !== savedClanRewardXpBoostRate) {
+        const clanRes = await updateClanSettings({
+          clanRewardXpBoost,
+          clanRewardXpBoostRate,
+        });
+        if (!clanRes) throw new Error('Erreur de sauvegarde des paramètres de clan');
+        clanRewardXpBoost = clanRes.clanRewardXpBoost;
+        clanRewardXpBoostRate = clanRes.clanRewardXpBoostRate;
+        savedClanRewardXpBoost = clanRes.clanRewardXpBoost;
+        savedClanRewardXpBoostRate = clanRes.clanRewardXpBoostRate;
+      }
+
       success = true;
       return true;
     }, { successMessage: 'Configuration XP enregistrée.' });
@@ -661,6 +707,72 @@
           </div>
 
           <!-- Save button removed since global bottom bar handles saving -->
+        </section>
+
+        <!-- Boost de Saison de Clan -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
+            <Papicon icon="Award" size={20} class="text-amber-500" />
+            Boost de Saison de Clan
+          </h3>
+
+          {#if !clansEnabled}
+            <div class="p-6 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
+              <span class="text-3xl">🔒</span>
+              <div>
+                <h4 class="text-sm font-semibold text-on-surface">Les clans ne sont pas activés</h4>
+                <p class="text-xs text-on-surface-variant/70 max-w-md mt-1">
+                  Les clans ne sont pas activés sur ce serveur. Activez-les dans l'onglet Clans pour configurer ce boost.
+                </p>
+              </div>
+            </div>
+          {:else}
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Activer le Boost d'XP automatique</span>
+                  <p class="text-xs text-on-surface-variant/70">
+                    Attribue automatiquement un boost d'XP aux membres du clan gagnant de la dernière saison.
+                  </p>
+                </div>
+                <ToggleSwitch bind:checked={clanRewardXpBoost} disabled={!canManageSettings} />
+              </div>
+
+              {#if clanRewardXpBoost}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
+                  <div class="space-y-1.5">
+                    <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle Discord Cible (Automatique)</span>
+                    <div class="px-4 py-3 bg-primary/10 rounded-lg text-sm text-primary font-semibold border border-primary/20 flex items-center gap-2">
+                      <span>👑</span>
+                      {#if lastWinningClanId}
+                        {@const winningClan = clans.find(c => c.id === lastWinningClanId)}
+                        {@const targetRole = availableRoles.find(r => r.id === winningClan?.roleId)}
+                        <span>
+                          {winningClan ? `${winningClan.name} (@${targetRole?.name || 'Rôle Inconnu'})` : 'Clan Gagnant'}
+                        </span>
+                      {:else}
+                        <span class="italic text-primary/70">En attente de la fin de la première saison</span>
+                      {/if}
+                    </div>
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label for="clanXpBoostRate" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Multiplicateur d'XP (ex: 1.2 = +20%)</label>
+                    <input 
+                      id="clanXpBoostRate"
+                      type="number" 
+                      step="0.05"
+                      min="1.0"
+                      max="10"
+                      bind:value={clanRewardXpBoostRate} 
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-bold"
+                      disabled={!canManageSettings}
+                    />
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
         </section>
       </div>
 

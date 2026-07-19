@@ -187,6 +187,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { checkAndProgressSeasons } = await import('../services/progression/seasonService.js');
       await checkAndProgressSeasons(client);
     },
+    'clan-season-check': async () => {
+      logger.debug('Cron', 'Vérification des saisons de clans...');
+      const { checkAndProgressClanSeasons } = await import('../services/community/clanService.js');
+      await checkAndProgressClanSeasons(client);
+    },
     'marketplace-expiration': async () => {
       logger.debug('Cron', 'Traitement des annonces marketplace expirées...');
       const { processExpiredListings } = await import('../services/economy/marketplaceService.js');
@@ -419,6 +424,14 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('season-check', async () => {
       const { checkAndProgressSeasons } = await import('../services/progression/seasonService.js');
       await checkAndProgressSeasons(client);
+    }, 3000);
+  }, { timezone: 'Europe/Paris' });
+
+  // 🛡️ Clan Seasons: Vérification quotidienne à 0h05
+  cron.schedule('5 0 * * *', async () => {
+    await runCronJob('clan-season-check', async () => {
+      const { checkAndProgressClanSeasons } = await import('../services/community/clanService.js');
+      await checkAndProgressClanSeasons(client);
     }, 3000);
   }, { timezone: 'Europe/Paris' });
 

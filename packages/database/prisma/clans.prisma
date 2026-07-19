@@ -1,0 +1,39 @@
+// ============================================================================
+// CLANS & CONTRIBUTIONS SCHEMA
+// ============================================================================
+
+model Clan {
+  id          String   @id @default(cuid())
+  guildId     String
+  name        String
+  description String?
+  roleId      String   @unique // ID du rôle Discord unique associé
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  generalChannelId String?
+  leaderRoleId     String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  contributions ClanMemberContribution[]
+
+  @@unique([guildId, name])
+  @@map("clans")
+}
+
+model ClanMemberContribution {
+  id        String   @id @default(cuid())
+  guildId   String
+  clanId    String
+  userId    String
+  xp        Int      @default(0) // Points accumulés dans ce clan pour cette saison
+  season    Int      @default(1) // Numéro de la saison
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  clan  Clan  @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, clanId, userId, season])
+  @@map("clan_member_contributions")
+}

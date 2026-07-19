@@ -259,19 +259,8 @@ export async function endGiveaway(client: Client, giveawayId: string) {
     || await discordGuild.channels.fetch(giveaway.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  // Tirer les gagnants
-  const participants = giveaway.participants;
-  const winners: string[] = [];
-  const count = Math.min(giveaway.winnerCount, participants.length);
-
-  if (count > 0) {
-    const pool = [...participants];
-    for (let i = 0; i < count; i++) {
-      const randIndex = Math.floor(Math.random() * pool.length);
-      winners.push(pool[randIndex]);
-      pool.splice(randIndex, 1);
-    }
-  }
+  // Tirer les gagnants avec pondération de clan
+  const winners = await drawWinnersWeighted(giveaway.guildId, giveaway.participants, giveaway.winnerCount, channel);
 
   const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
 
@@ -386,7 +375,8 @@ export async function rerollGiveaway(client: Client, giveawayId: string) {
     return;
   }
 
-  const newWinner = candidates[Math.floor(Math.random() * candidates.length)];
+  const newWinners = await drawWinnersWeighted(giveaway.guildId, candidates, 1, channel);
+  const newWinner = newWinners[0];
 
   if (giveaway.needValidation) {
     // Si validation requise, on met à jour en tant que gagnant en attente
@@ -652,4 +642,85 @@ export async function checkExpiredGiveaways(client: Client) {
   } catch (err) {
     logger.error('GiveawayService', 'Erreur lors de la vérification des giveaways expirés :', err);
   }
+}
+
+/**
+ * Choisit `count` gagnants parmi les candidats en appliquant le bonus de chances
+ * du clan gagnant de la saison de clans active.
+ */
+async function drawWinnersWeighted(
+  guildId: string,
+  candidates: string[],
+  count: number,
+  channel: any
+): Promise<string[]> {
+  if (candidates.length === 0 || count <= 0) return [];
+
+  // Récupérer les paramètres de bonus du clan vainqueur
+  let winningRoleId: string | null = null;
+  try {
+    const guildSettings = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { clanRewardGiveaway: true, lastWinningClanId: true },
+    });
+    if (guildSettings?.clanRewardGiveaway && guildSettings.lastWinningClanId) {
+      const winningClan = await prisma.clan.findUnique({
+        where: { id: guildSettings.lastWinningClanId },
+        select: { roleId: true },
+      });
+      if (winningClan) {
+        winningRoleId = winningClan.roleId;
+      }
+    }
+  } catch (err) {
+    logger.error('GiveawayService', 'Erreur lors de la récupération du bonus de giveaway de clan:', err);
+  }
+
+  const winners: string[] = [];
+  const pool = [...candidates];
+  const discordGuild = channel.guild;
+
+  // Si pas de bonus actif, tirage uniforme standard
+  if (!winningRoleId || !discordGuild) {
+    const actualCount = Math.min(count, pool.length);
+    for (let i = 0; i < actualCount; i++) {
+      const randIndex = Math.floor(Math.random() * pool.length);
+      winners.push(pool[randIndex]);
+      pool.splice(randIndex, 1);
+    }
+    return winners;
+  }
+
+  // Tirage pondéré
+  const actualCount = Math.min(count, pool.length);
+  for (let i = 0; i < actualCount; i++) {
+    // Calculer les poids de chaque candidat restant
+    const weights: number[] = [];
+    let totalWeight = 0;
+
+    for (const userId of pool) {
+      const member = discordGuild.members.cache.get(userId);
+      // Poids de 2 si le membre est dans le clan vainqueur (a le rôle), sinon 1
+      const weight = (member && member.roles.cache.has(winningRoleId)) ? 2 : 1;
+      weights.push(weight);
+      totalWeight += weight;
+    }
+
+    // Sélection aléatoire pondérée
+    let randomVal = Math.random() * totalWeight;
+    let selectedIndex = 0;
+
+    for (let j = 0; j < pool.length; j++) {
+      randomVal -= weights[j];
+      if (randomVal <= 0) {
+        selectedIndex = j;
+        break;
+      }
+    }
+
+    winners.push(pool[selectedIndex]);
+    pool.splice(selectedIndex, 1);
+  }
+
+  return winners;
 }

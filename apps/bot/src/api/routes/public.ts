@@ -595,6 +595,107 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /api/public/guilds/:guildId/clans
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'clans' && !parts[5] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+
+    try {
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { clansEnabled: true, currentClanSeason: true },
+      });
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+
+      if (!guildConfig?.clansEnabled) {
+        json(res, 200, {
+          enabled: false,
+          guildName: discordGuild?.name || 'Kotbo Server',
+          guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+          clans: [],
+        });
+        return true;
+      }
+
+      const clans = await prisma.clan.findMany({
+        where: { guildId },
+        orderBy: { name: 'asc' },
+      });
+
+      // Charger toutes les contributions pour la saison en cours
+      const contributions = await prisma.clanMemberContribution.findMany({
+        where: {
+          guildId,
+          season: guildConfig.currentClanSeason,
+        },
+        orderBy: { xp: 'desc' },
+      });
+
+      // Charger les profils utilisateur impliqués pour récupérer noms et avatars
+      const userIds = [...new Set(contributions.map((c) => c.userId))];
+      const dbProfiles = await prisma.memberProfile.findMany({
+        where: {
+          guildId,
+          userId: { in: userIds },
+        },
+      });
+      const profileMap = new Map(dbProfiles.map((p) => [p.userId, p]));
+
+      // Associer les contributions avec les données utilisateur
+      const clansData = clans.map((clan) => {
+        const role = discordGuild?.roles.cache.get(clan.roleId);
+        const memberCount = role?.members.size ?? 0;
+
+        const clanContributions = contributions.filter((c) => c.clanId === clan.id);
+        const totalXp = clanContributions.reduce((sum, c) => sum + c.xp, 0);
+
+        // Top participants du clan
+        const topParticipants = clanContributions.slice(0, 10).map((c) => {
+          const profile = profileMap.get(c.userId);
+          const discordMember = discordGuild?.members.cache.get(c.userId);
+
+          const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
+          const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+
+          return {
+            userId: c.userId,
+            xp: c.xp,
+            displayName,
+            avatarUrl,
+          };
+        });
+
+        return {
+          id: clan.id,
+          name: clan.name,
+          description: clan.description,
+          roleId: clan.roleId,
+          roleColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
+          totalXp,
+          memberCount,
+          topParticipants,
+        };
+      });
+
+      json(res, 200, {
+        enabled: true,
+        currentClanSeason: guildConfig.currentClanSeason,
+        guildName: discordGuild?.name || 'Kotbo Server',
+        guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+        clans: clansData,
+      });
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error fetching public clans for guild ${guildId}: ${errMessage}`);
+      json(res, 500, { error: 'Erreur lors du chargement du classement de clans' });
+    }
+    return true;
+  }
+
   // GET /api/public/transcripts/:transcriptId?expires=...&sig=...
   if (parts[2] === 'transcripts' && parts[3] && method === 'GET') {
     const transcriptId = parts[3];
