@@ -258,7 +258,7 @@ export async function handleClansRoutes(
   }
 
   // PUT /api/dashboard/guilds/:guildId/clans/:id
-  if (subAction && subAction !== 'distribute' && subAction !== 'clear' && subAction !== 'reset-season' && method === 'PUT') {
+  if (subAction && subAction !== 'distribute' && subAction !== 'clear' && subAction !== 'reset-season' && subAction !== 'points' && method === 'PUT') {
     try {
       const clanId = subAction;
       const body = await readJsonBody<{
@@ -320,7 +320,7 @@ export async function handleClansRoutes(
   }
 
   // DELETE /api/dashboard/guilds/:guildId/clans/:id
-  if (subAction && subAction !== 'distribute' && subAction !== 'clear' && subAction !== 'reset-season' && method === 'DELETE') {
+  if (subAction && subAction !== 'distribute' && subAction !== 'clear' && subAction !== 'reset-season' && subAction !== 'points' && method === 'DELETE') {
     try {
       const clanId = subAction;
 

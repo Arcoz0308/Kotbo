@@ -302,36 +302,39 @@ async function migrateContributions(
       where: { guildId, clanId: sourceClanId, userId },
     });
 
-    for (const contrib of sourceContribs) {
-      const targetContrib = await prisma.clanMemberContribution.findUnique({
-        where: {
-          guildId_clanId_userId_season: {
-            guildId,
-            clanId: targetClanId,
-            userId,
-            season: contrib.season,
+    // Utiliser une transaction pour garantir l'intégrité de la migration
+    await prisma.$transaction(async (tx) => {
+      for (const contrib of sourceContribs) {
+        const targetContrib = await tx.clanMemberContribution.findUnique({
+          where: {
+            guildId_clanId_userId_season: {
+              guildId,
+              clanId: targetClanId,
+              userId,
+              season: contrib.season,
+            },
           },
-        },
-      });
+        });
 
-      if (targetContrib) {
-        // Fusionner l'XP
-        await prisma.clanMemberContribution.update({
-          where: { id: targetContrib.id },
-          data: { xp: targetContrib.xp + contrib.xp },
-        });
-        // Supprimer l'ancienne contribution source
-        await prisma.clanMemberContribution.delete({
-          where: { id: contrib.id },
-        });
-      } else {
-        // Simplement changer le clanId
-        await prisma.clanMemberContribution.update({
-          where: { id: contrib.id },
-          data: { clanId: targetClanId },
-        });
+        if (targetContrib) {
+          // Fusionner l'XP (utilisation d'increment atomique pour éviter les race conditions)
+          await tx.clanMemberContribution.update({
+            where: { id: targetContrib.id },
+            data: { xp: { increment: contrib.xp } },
+          });
+          // Supprimer l'ancienne contribution source
+          await tx.clanMemberContribution.delete({
+            where: { id: contrib.id },
+          });
+        } else {
+          // Simplement changer le clanId
+          await tx.clanMemberContribution.update({
+            where: { id: contrib.id },
+            data: { clanId: targetClanId },
+          });
+        }
       }
-    }
+    });
     logger.info('ClanService', `Contributions de l'utilisateur ${userId} migrées avec succès de ${sourceClanId} vers ${targetClanId}`);
   } catch (err) {
     logger.error('ClanService', `Erreur lors de la migration des contributions pour ${userId} de ${sourceClanId} vers ${targetClanId}:`, err);
@@ -422,9 +425,9 @@ export async function handleEndSeason(
         data: { lastWinningClanId: winningClan.id },
       });
 
-      // Trouver le chef de coalition (meilleur contributeur) du clan gagnant
+      // Trouver le chef de coalition (meilleur contributeur réel) du clan gagnant
       const topContributor = await prisma.clanMemberContribution.findFirst({
-        where: { guildId, clanId: winningClan.id, season: currentSeason },
+        where: { guildId, clanId: winningClan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
         orderBy: { xp: 'desc' },
       });
 
