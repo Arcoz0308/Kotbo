@@ -2,14 +2,12 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
-  ContainerBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
 } from 'discord.js';
-import { COLORS_RAW, text, errorContainer, v2 } from '../../utils/embeds.js';
+import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { createHash } from 'crypto';
+import { separator, v2Message } from '@arcscord/components';
 
 const data = new SlashCommandBuilder()
   .setName('devutils')
@@ -99,21 +97,24 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       const decoded = decodeJwt(token);
 
       if (!decoded) {
-        await interaction.reply({
-          ...v2(errorContainer('JWT invalide', "Le token fourni n'est pas un JWT valide")),
-          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-        });
+        await interaction.reply(v2Message(
+          { flags: MessageFlags.Ephemeral },
+          errorContainer('JWT invalide', "Le token fourni n'est pas un JWT valide"),
+        ));
         return;
       }
 
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.info)
-        .addTextDisplayComponents(text(`### ${E.info} Décodage JWT`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`**Header**\n\`\`\`json\n${JSON.stringify(decoded.header, null, 2)}\n\`\`\``))
-        .addTextDisplayComponents(text(`**Payload**\n\`\`\`json\n${JSON.stringify(decoded.payload, null, 2)}\n\`\`\``));
-
-      await interaction.reply(v2(container));
+      await interaction.reply(v2Message(
+        kotboContainer({
+          color: 'info',
+          title: `${E.info} Décodage JWT`,
+          fields: [
+            separator({ divider: true, spacing: 'small' }),
+            `**Header**\n\`\`\`json\n${JSON.stringify(decoded.header, null, 2)}\n\`\`\``,
+            `**Payload**\n\`\`\`json\n${JSON.stringify(decoded.payload, null, 2)}\n\`\`\``,
+          ],
+        }),
+      ));
     } else if (subcommand === 'base64') {
       const action = interaction.options.getString('action', true);
       const content = interaction.options.getString('content', true);
@@ -125,31 +126,37 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         result = base64Decode(content);
       }
 
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.info)
-        .addTextDisplayComponents(text(`### ${E.info} Base64 ${action === 'encode' ? 'Encodé' : 'Décodé'}`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`**Résultat**\n\`\`\`\n${result}\n\`\`\``));
-
-      await interaction.reply(v2(container));
+      await interaction.reply(v2Message(
+        kotboContainer({
+          color: 'info',
+          title: `${E.info} Base64 ${action === 'encode' ? 'Encodé' : 'Décodé'}`,
+          fields: [
+            separator({ divider: true, spacing: 'small' }),
+            `**Résultat**\n\`\`\`\n${result}\n\`\`\``,
+          ],
+        }),
+      ));
     } else if (subcommand === 'hash') {
       const content = interaction.options.getString('content', true);
       const hash = sha256(content);
 
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.info)
-        .addTextDisplayComponents(text(`### ${E.info} SHA-256 Hash`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`**Résultat**\n\`\`\`\n${hash}\n\`\`\``));
-
-      await interaction.reply(v2(container));
+      await interaction.reply(v2Message(
+        kotboContainer({
+          color: 'info',
+          title: `${E.info} SHA-256 Hash`,
+          fields: [
+            separator({ divider: true, spacing: 'small' }),
+            `**Résultat**\n\`\`\`\n${hash}\n\`\`\``,
+          ],
+        }),
+      ));
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Une erreur est survenue';
-    await interaction.reply({
-      ...v2(errorContainer('Erreur', message)),
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-    });
+    await interaction.reply(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      errorContainer('Erreur', message),
+    ));
   }
 }
 

@@ -258,7 +258,7 @@ export async function recordModulePerformance(options: PerformanceRecordOptions)
 /**
  * Récupère les stats d'activation des modules
  */
-export async function getModuleActivationStats(guildId?: string): Promise<unknown[]> {
+export async function getModuleActivationStats(guildId?: string) {
   const where = guildId ? { guildId } : { guildId: null };
   
   const stats = await prisma.moduleActivationStat.findMany({
