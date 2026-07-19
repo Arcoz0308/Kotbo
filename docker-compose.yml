@@ -1,0 +1,66 @@
+name: kotbo
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: kotbo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kotbo
+      POSTGRES_PASSWORD: kotbo
+      POSTGRES_DB: kotbo
+    # 5432 est deja pris sur beaucoup de postes (Postgres.app, Homebrew).
+    # On expose 5433 cote hote : DATABASE_URL doit pointer sur ce port.
+    ports:
+      - '5433:5432'
+    volumes:
+      - kotbo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kotbo -d kotbo']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: kotbo-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - kotbo_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Traduction locale. Optionnel : sans lui, translationService se desactive
+  # proprement. Demarrage long au premier lancement (telechargement des modeles),
+  # d'ou le profile dedie : `docker compose --profile translation up -d`.
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: kotbo-libretranslate
+    restart: unless-stopped
+    profiles: ['translation']
+    environment:
+      # Limite aux langues reellement utilisees par le bot : demarrage bien plus rapide.
+      LT_LOAD_ONLY: 'fr,en'
+      LT_DISABLE_WEB_UI: 'true'
+    # 5000 est occupe par AirPlay Receiver sur macOS.
+    ports:
+      - '5001:5000'
+    volumes:
+      - kotbo_ltdata:/home/libretranslate/.local
+    healthcheck:
+      test: ['CMD-SHELL', 'python -c "import urllib.request;urllib.request.urlopen(\"http://localhost:5000/languages\")"']
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 180s
+
+volumes:
+  kotbo_pgdata:
+  kotbo_redisdata:
+  kotbo_ltdata:
