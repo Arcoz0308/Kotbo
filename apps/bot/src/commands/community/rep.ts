@@ -8,7 +8,7 @@ import { E, rankEmoji } from '../../utils/emojis.js';
 import { giveRep, getReputation, getReputationLeaderboard, REP_DAILY_VOTE_LIMIT } from '../../services/community/reputationService.js';
 import { incrementQuestProgress } from '../../services/community/questService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
-import { separator, v2Message } from "@arcscord/components"
+import { separator, v2Message } from '@arcscord/components'
 
 const data = new SlashCommandBuilder()
   .setName('rep')
@@ -48,7 +48,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.reply(v2Message(
       kotboContainer({
-        color: "success",
+        color: 'success',
         title: `${E.star} +Rep !`,
         fields: [
           `<@${interaction.user.id}> a donné un **+rep** à <@${target.id}>` + (reason ? `\n${E.dot} *${reason}*` : ''),
@@ -64,18 +64,18 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.reply(v2Message(
       kotboContainer({
-        color: "primary",
+        color: 'primary',
         title: `${E.star} Réputation · <@${target.id}>`,
         titleThumbnail: { url: target.displayAvatarURL() },
         fields: [
-          separator({ divider: true, spacing: "small" }),
+          separator({ divider: true, spacing: 'small' }),
           [
             `${E.arrow} **Total** · **${profile.totalRep}** rep`,
             `${E.arrow} **Rang** · #${profile.rank}`,
             `${E.arrow} **Votes restants** · ${REP_DAILY_VOTE_LIMIT - profile.votesGivenToday}/${REP_DAILY_VOTE_LIMIT}`,
           ].join('\n'),
         ],
-        footerTitle: "Réputation"
+        footerTitle: 'Réputation'
       })
     ));
   }
@@ -87,12 +87,12 @@ async function execute(interaction: ChatInputCommandInteraction) {
     if (lb.entries.length === 0) {
       await interaction.editReply(v2Message(
         kotboContainer({
-          color: "dark",
+          color: 'dark',
           title: `${E.trophy} Classement Réputation`,
           fields: [
             `${E.info} Aucune réputation enregistrée pour le moment.`,
           ],
-          footerTitle: "Réputation"
+          footerTitle: 'Réputation'
         })
       ));
       return;
@@ -105,11 +105,11 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.editReply(v2Message(
       kotboContainer({
-        color: "primary",
+        color: 'primary',
         title: `${E.trophy} Classement Réputation`,
         fields: [
-          separator({ divider: true, spacing: "small" }),
-          lines.join("\n"),
+          separator({ divider: true, spacing: 'small' }),
+          lines.join('\n'),
         ],
         footerTitle: `${lb.totalVoters} votants au total`
       })

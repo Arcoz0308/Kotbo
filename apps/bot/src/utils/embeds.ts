@@ -129,7 +129,7 @@ export type KotboContainerOptions = {
    */
   color?: number | keyof typeof COLORS_RAW
   /**
-   * Set a title of the container, add "### " at begin of the string
+   * Set a title of the container, add '### ' at begin of the string
    * if {@link KotboContainerOptions.titleOverwrite} is set, this value are ignored
    */
   title?: string;
@@ -138,7 +138,7 @@ export type KotboContainerOptions = {
    */
   titleThumbnail?: { url: string, description?: string }
   /**
-   * Title overwrite, if set, title don't include "### "
+   * Title overwrite, if set, title don't include '### '
    * have priority over {@link KotboContainerOptions.title}
    */
   titleOverwrite?: string;
@@ -147,7 +147,7 @@ export type KotboContainerOptions = {
    */
   fields?: ContainerChild[],
   /**
-   * Set a footer below the container, add "-# ${E.kotbo} Kotbo · " at begin of the string
+   * Set a footer below the container, add '-# ${E.kotbo} Kotbo · ' at begin of the string
    * if {@link KotboContainerOptions.footerOverwrite} is set, this value are ignored
    */
   footerTitle?: string;
@@ -157,7 +157,7 @@ export type KotboContainerOptions = {
    */
   footerSeparator?: boolean;
   /**
-   * Footer overwrite, if set, footer don't include "-# ${E.kotbo} Kotbo · "
+   * Footer overwrite, if set, footer don't include '-# ${E.kotbo} Kotbo · '
    * have priority over {@link KotboContainerOptions.footerTitle}
    */
   footerOverwrite?: string;
@@ -168,7 +168,7 @@ export function kotboContainer(options: KotboContainerOptions) {
 
   const title = options.titleOverwrite ?? options.footerTitle ? `### ${options.footerTitle}` : undefined;
 
-  if (typeof title !== "undefined") {
+  if (typeof title !== 'undefined') {
     if (options.titleThumbnail) {
       fields.push(
         section(
@@ -191,18 +191,18 @@ export function kotboContainer(options: KotboContainerOptions) {
     options.footerTitle ? `-# ${E.kotbo} Kotbo · ${options.footerTitle}` : undefined;
   if (footer) {
 
-    if (typeof options.footerSeparator === "undefined" || options.footerSeparator) {
-      fields.push(separator({ divider: false, spacing: "small" }))
+    if (typeof options.footerSeparator === 'undefined' || options.footerSeparator) {
+      fields.push(separator({ divider: false, spacing: 'small' }))
     }
     fields.push(footer)
 
   }
 
-  const accentColor = typeof options.color === "string" ? COLORS_RAW[options.color] : options.color;
+  const accentColor = typeof options.color === 'string' ? COLORS_RAW[options.color] : options.color;
 
   const firstField = fields.shift()
-  if (typeof firstField === "undefined") {
-    throw TypeError("Try to create a container with 0 fields");
+  if (typeof firstField === 'undefined') {
+    throw TypeError('Try to create a container with 0 fields');
   }
 
   // firstField are here for respect typescript (fields can have 0 length and container need 1 or more)

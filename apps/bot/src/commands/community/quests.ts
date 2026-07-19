@@ -34,12 +34,12 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
       await interaction.editReply(v2Message(
         kotboContainer({
-          color: "dark",
+          color: 'dark',
           title: `${E.fire} Quêtes`,
           fields: [
             `${E.info} Aucune quête disponible pour le moment.`,
           ],
-          footerTitle: "Quêtes"
+          footerTitle: 'Quêtes'
         })
       ));
       return;
@@ -75,7 +75,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     if (daily.length > 0) {
       fields.push(
-        separator({ divider: true, spacing: "small" }),
+        separator({ divider: true, spacing: 'small' }),
         `**${E.calendar} Quotidiennes**`,
         daily.map(formatQuest).join('\n\n')
       )
@@ -83,7 +83,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     if (weekly.length > 0) {
       fields.push(
-        separator({ divider: true, spacing: "small" }),
+        separator({ divider: true, spacing: 'small' }),
         `**${E.calendar} Hebdomadaires**`,
         weekly.map(formatQuest).join('\n\n')
       )
@@ -92,10 +92,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.editReply(v2Message(
       kotboContainer({
-        color: "primary",
+        color: 'primary',
         title: `${E.fire} Quêtes`,
         fields,
-        footerTitle: claimable.length > 0 ? `${claimable.length} récompense(s) à réclamer — /quests claim` : "Quêtes"
+        footerTitle: claimable.length > 0 ? `${claimable.length} récompense(s) à réclamer — /quests claim` : 'Quêtes'
       })
     ));
   }
@@ -118,12 +118,12 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.reply(v2Message(
       kotboContainer({
-        color: "success",
+        color: 'success',
         title: `${E.trophy} Quête terminée !`,
         fields: [
           `Vous avez reçu ${rewards.join(' et ')}.`
         ],
-        footerTitle: "Quêtes"
+        footerTitle: 'Quêtes'
       })
     ));
   }
