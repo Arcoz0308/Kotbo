@@ -1,7 +1,7 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, PermissionFlagsBits, SeparatorSpacingSize, type Guild, type GuildMember, type User } from 'discord.js';
 import { Prisma, SanctionType, type MemberProfile } from '@prisma/client';
 import prisma from '../../utils/db.js';
-import { mediaGallery, section, separator, text, thumbnail, truncate } from '../../utils/embeds.js';
+import { mediaGallery, sectionOld, separatorOld, text, thumbnailOld, truncate } from '../../utils/embeds.js';
 import { E, buildProgressBar } from '../../utils/emojis.js';
 import { getCurrentInstance } from '../../utils/instanceContext.js';
 import { formatDurationFr, getSanctionTypeBreakdown, listSanctionsByMember, type ListedSanction } from './sanctionService.js';
@@ -419,7 +419,7 @@ function addCaseHeader(
   const headerText = `### ${E.moderation} ${identity.displayName}\n<@${identity.userId}> (\`${identity.username}\`)\n${identity.statusLabel}`;
 
   if (identity.avatarUrl) {
-    container.addSectionComponents(section(headerText, thumbnail(identity.avatarUrl)));
+    container.addSectionComponents(sectionOld(headerText, thumbnailOld(identity.avatarUrl)));
   } else {
     container.addTextDisplayComponents(text(headerText));
   }
@@ -428,15 +428,15 @@ function addCaseHeader(
     container.addMediaGalleryComponents(mediaGallery(identity.bannerUrl));
   }
 
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
   container.addActionRowComponents(buildTabsRow(identity.userId, active));
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Large));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Large));
 
   return identity;
 }
 
 function addCaseFooter(container: ContainerBuilder, context: MemberCaseContext, sectionName: MemberCaseSection, identity: CaseIdentity): void {
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Large));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Large));
   if (sectionName === 'resume') {
     container.addActionRowComponents(buildQuickSanctionRow(identity.userId));
   }
@@ -483,7 +483,7 @@ function buildSummaryContainer(context: MemberCaseContext): ContainerBuilder {
   dateLines.push(`${E.dot} **Flags :** ${getFlagsDisplay(user, profile?.isBot ?? user?.bot ?? false)}`);
   container.addTextDisplayComponents(text(dateLines.join('\n')));
 
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
 
   const msgCount = profile?.messageCount ?? 0;
   const lastMsg = profile?.lastMessageAt ? `<t:${Math.floor(profile.lastMessageAt.getTime() / 1000)}:R>` : 'Aucun';
@@ -493,7 +493,7 @@ function buildSummaryContainer(context: MemberCaseContext): ContainerBuilder {
     text(`${E.messages} **Messages :** ${msgCount} *(Dernier : ${lastMsg})*\n${E.voice} **Vocal :** ${voiceTime} *(Dernier : ${lastVoice})*`),
   );
 
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
 
   const noteButton = new ButtonBuilder()
     .setCustomId(`case:note:${identity.userId}`)
@@ -501,10 +501,10 @@ function buildSummaryContainer(context: MemberCaseContext): ContainerBuilder {
     .setEmoji('📝')
     .setStyle(ButtonStyle.Primary);
   container.addSectionComponents(
-    section(`**📝 Note de modération**\n${profile?.moderatorNote ? `> ${profile.moderatorNote.replace(/\n/g, '\n> ')}` : '*Aucune note.*'}`, noteButton),
+    sectionOld(`**📝 Note de modération**\n${profile?.moderatorNote ? `> ${profile.moderatorNote.replace(/\n/g, '\n> ')}` : '*Aucune note.*'}`, noteButton),
   );
 
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
 
   const recentSanctions = context.sanctions.length > 0
     ? context.sanctions.slice(0, 3).map((s) => {
@@ -520,7 +520,7 @@ function buildSummaryContainer(context: MemberCaseContext): ContainerBuilder {
   );
 
   if (context.linkedUserIds.length > 0) {
-    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
     const linked = context.linkedUserIds.slice(0, 3);
     container.addTextDisplayComponents(
       text(`**${E.link} Comptes liés (${context.linkedUserIds.length})**\n${linked.map((id) => `<@${id}>`).join(' · ')}${context.linkedUserIds.length > 3 ? ` *+${context.linkedUserIds.length - 3} autre(s)*` : ''}`),
@@ -538,7 +538,7 @@ function buildSummaryContainer(context: MemberCaseContext): ContainerBuilder {
     );
   }
 
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
   container.addTextDisplayComponents(text(`-# \`ID\` \`${identity.userId}\``));
 
   addCaseFooter(container, context, 'resume', identity);
@@ -572,11 +572,11 @@ function buildIdentityContainer(context: MemberCaseContext): ContainerBuilder {
   );
 
   if (identity.bannerUrl) {
-    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
     container.addMediaGalleryComponents(mediaGallery(identity.bannerUrl));
   }
 
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
   container.addTextDisplayComponents(text(`-# \`ID\` \`${identity.userId}\``));
 
   addCaseFooter(container, context, 'identite', identity);
@@ -616,7 +616,7 @@ function buildActivityContainer(context: MemberCaseContext, extras?: ActivityExt
   container.addTextDisplayComponents(text(kpiParts.join(' · ')));
 
   if (extras) {
-    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
     container.addTextDisplayComponents(
       text([
         `**${E.stats} Comparé au serveur**`,
@@ -626,7 +626,7 @@ function buildActivityContainer(context: MemberCaseContext, extras?: ActivityExt
     );
   }
 
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
 
   const lastVoice = profile?.voiceLastChannelId ? `<#${profile.voiceLastChannelId}>` : 'Aucun';
   const lastVoiceJoin = profile?.voiceLastJoinedAt
@@ -645,13 +645,13 @@ function buildActivityContainer(context: MemberCaseContext, extras?: ActivityExt
         .sort((a, b) => b.position - a.position)
         .map((role) => `<@&${role.id}>`)
     : (profile?.rolesSnapshot ?? []).map((roleId) => `<@&${roleId}>`);
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
   container.addTextDisplayComponents(
     text(`**${E.crown} Rôles (${roles.length})**\n${roles.length > 0 ? truncate(roles.slice(0, 20).join(' '), 900) : 'Aucun'}`),
   );
 
   if (withChart) {
-    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
     container.addMediaGalleryComponents(mediaGallery('attachment://activity_stats.png'));
   }
 
@@ -677,7 +677,7 @@ function buildSanctionsContainer(context: MemberCaseContext): ContainerBuilder {
   }
 
   context.sanctions.forEach((sanction, index) => {
-    if (index > 0) container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    if (index > 0) container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
 
     const emoji = E[SANCTION_TYPE_EMOJI_KEY[sanction.type]] ?? E.moderation;
     const statusLabel = sanctionStatusLabel(sanction.status);
@@ -691,7 +691,7 @@ function buildSanctionsContainer(context: MemberCaseContext): ContainerBuilder {
 
     if (sanction.status === 'ACTIVE' && sanction.type !== 'KICK') {
       container.addSectionComponents(
-        section(
+        sectionOld(
           cardText,
           new ButtonBuilder()
             .setCustomId(`case:revoke:${identity.userId}:${sanction.id}:${context.pageIndex}`)
@@ -705,7 +705,7 @@ function buildSanctionsContainer(context: MemberCaseContext): ContainerBuilder {
     }
   });
 
-  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
 
   const b = context.sanctionsBreakdown;
   container.addTextDisplayComponents(
@@ -714,13 +714,13 @@ function buildSanctionsContainer(context: MemberCaseContext): ContainerBuilder {
 
   const crossServerValue = buildCrossServerFieldValue(context.crossServer);
   if (crossServerValue) {
-    container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    container.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
     container.addTextDisplayComponents(
       text(`**🌐 Autres serveurs (${context.crossServer.total} · ${context.crossServer.serverCount} serveur${context.crossServer.serverCount > 1 ? 's' : ''})**\n${truncate(crossServerValue, 1000)}`),
     );
   }
 
-  container.addSeparatorComponents(separator(false, SeparatorSpacingSize.Small));
+  container.addSeparatorComponents(separatorOld(false, SeparatorSpacingSize.Small));
   container.addTextDisplayComponents(text(`-# Page ${context.pageIndex + 1} / ${context.totalPages}`));
 
   addCaseFooter(container, context, 'sanctions', identity);

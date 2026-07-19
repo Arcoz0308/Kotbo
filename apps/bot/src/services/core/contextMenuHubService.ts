@@ -11,7 +11,7 @@ import {
   type StringSelectMenuInteraction,
   type UserContextMenuCommandInteraction,
 } from 'discord.js';
-import { COLORS_RAW, separator, text, truncate } from '../../utils/embeds.js';
+import { COLORS_RAW, separatorOld, text, truncate } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import {
   buildActionModal,
@@ -88,14 +88,14 @@ export function buildHubPanel(params: {
   container.addTextDisplayComponents(text(params.headline));
 
   if (actions.length === 0) {
-    container.addSeparatorComponents(separator(true));
+    container.addSeparatorComponents(separatorOld(true));
     container.addTextDisplayComponents(
       text("Aucune action n'est disponible pour toi sur cette cible."),
     );
     return { components: [container] };
   }
 
-  container.addSeparatorComponents(separator(true));
+  container.addSeparatorComponents(separatorOld(true));
 
   // Discord plafonne un select à 25 options : le registre reste sous cette
   // limite, mais on tronque défensivement plutôt que de faire échouer l'envoi.
@@ -114,7 +114,7 @@ export function buildHubPanel(params: {
   container.addActionRowComponents(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
 
   const categories = [...groupByCategory(actions).keys()];
-  container.addSeparatorComponents(separator(false));
+  container.addSeparatorComponents(separatorOld(false));
   container.addTextDisplayComponents(text(`-# ${actions.length} action(s) disponible(s) · ${categories.join(' · ')}`));
 
   return { components: [container] };

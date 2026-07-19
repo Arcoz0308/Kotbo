@@ -1,0 +1,1 @@
+export type ExtractArrayValue<T extends unknown[]> = T extends (infer U)[] ? U : never;

@@ -10,7 +10,7 @@ import {
   type Message,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { COLORS_RAW, separator, text, truncate } from '../../utils/embeds.js';
+import { COLORS_RAW, separatorOld, text, truncate } from '../../utils/embeds.js';
 
 /**
  * Registre déclaratif des actions des menus contextuels.
@@ -153,7 +153,7 @@ const messageActions: MessageAction[] = [
           ].join('\n'),
         ),
       );
-      container.addSeparatorComponents(separator(true));
+      container.addSeparatorComponents(separatorOld(true));
       container.addTextDisplayComponents(text(messagePreview(ctx.message)));
       container.addTextDisplayComponents(text(`-# [Aller au message](${messageLink(ctx.message)})`));
 
@@ -378,7 +378,7 @@ const messageActions: MessageAction[] = [
         container.addTextDisplayComponents(
           text(`Ton message dans **${channelName}** sur **${ctx.guild.name}** a été supprimé par la modération.`),
         );
-        container.addSeparatorComponents(separator(true));
+        container.addSeparatorComponents(separatorOld(true));
         container.addTextDisplayComponents(text(`**Motif**\n${input.reason}`));
         container.addTextDisplayComponents(text(`**Contenu supprimé**\n>>> ${preview}`));
 
