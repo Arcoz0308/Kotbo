@@ -686,6 +686,7 @@
           {/if}
         </section>
       </div>
+    </div>
 
     {:else if activeTab === 'seasons'}
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
