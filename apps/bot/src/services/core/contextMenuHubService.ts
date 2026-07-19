@@ -1,6 +1,5 @@
 import {
   ActionRowBuilder,
-  ContainerBuilder,
   MessageFlags,
   StringSelectMenuBuilder,
   type Guild,
@@ -11,8 +10,9 @@ import {
   type StringSelectMenuInteraction,
   type UserContextMenuCommandInteraction,
 } from 'discord.js';
-import { COLORS_RAW, separatorOld, text, truncate } from '../../utils/embeds.js';
+import { kotboContainer, truncate } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
+import { actionRow, separator, v2Message } from '@arcscord/components';
 import {
   buildActionModal,
   getAction,
@@ -80,22 +80,22 @@ export function buildHubPanel(params: {
   targetRef: string;
   targetId: string;
   headline: string;
-}): { components: ContainerBuilder[] } {
+}): { components: ReturnType<typeof kotboContainer> } {
   const actions = visibleActions(params.scope, params.invoker, params.targetId);
-  const container = new ContainerBuilder().setAccentColor(COLORS_RAW.primary);
-
-  container.addTextDisplayComponents(text('### ⚡ Actions Kotbo'));
-  container.addTextDisplayComponents(text(params.headline));
 
   if (actions.length === 0) {
-    container.addSeparatorComponents(separatorOld(true));
-    container.addTextDisplayComponents(
-      text("Aucune action n'est disponible pour toi sur cette cible."),
-    );
-    return { components: [container] };
+    return {
+      components: kotboContainer({
+        color: 'primary',
+        title: '⚡ Actions Kotbo',
+        fields: [
+          params.headline,
+          separator({ divider: true, spacing: 'small' }),
+          "Aucune action n'est disponible pour toi sur cette cible.",
+        ],
+      }),
+    };
   }
-
-  container.addSeparatorComponents(separatorOld(true));
 
   // Discord plafonne un select à 25 options : le registre reste sous cette
   // limite, mais on tronque défensivement plutôt que de faire échouer l'envoi.
@@ -111,13 +111,21 @@ export function buildHubPanel(params: {
     .setPlaceholder('Choisis une action...')
     .addOptions(options);
 
-  container.addActionRowComponents(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
-
   const categories = [...groupByCategory(actions).keys()];
-  container.addSeparatorComponents(separatorOld(false));
-  container.addTextDisplayComponents(text(`-# ${actions.length} action(s) disponible(s) · ${categories.join(' · ')}`));
 
-  return { components: [container] };
+  return {
+    components: kotboContainer({
+      color: 'primary',
+      title: '⚡ Actions Kotbo',
+      fields: [
+        params.headline,
+        separator({ divider: true, spacing: 'small' }),
+        actionRow(select),
+        separator({ divider: false, spacing: 'small' }),
+        `-# ${actions.length} action(s) disponible(s) · ${categories.join(' · ')}`,
+      ],
+    }),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -136,10 +144,7 @@ export async function openUserHub(interaction: UserContextMenuCommandInteraction
     headline: `Cible : <@${interaction.targetId}>`,
   });
 
-  await interaction.reply({
-    components: panel.components,
-    flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
-  });
+  await interaction.reply(v2Message({ flags: MessageFlags.Ephemeral }, panel.components));
 }
 
 export async function openMessageHub(interaction: MessageContextMenuCommandInteraction): Promise<void> {
@@ -155,10 +160,7 @@ export async function openMessageHub(interaction: MessageContextMenuCommandInter
     headline: `Message de ${message.author} dans <#${message.channelId}>`,
   });
 
-  await interaction.reply({
-    components: panel.components,
-    flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
-  });
+  await interaction.reply(v2Message({ flags: MessageFlags.Ephemeral }, panel.components));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -191,44 +193,35 @@ async function runAndRender(params: {
     if (action.scope === 'user') {
       const denial = assertAllowed(action, invoker, targetRef);
       if (denial) {
-        await interaction.editReply({ components: [denyContainer(denial)], flags: [MessageFlags.IsComponentsV2] });
+        await interaction.editReply(v2Message(denyContainer(denial)));
         return;
       }
       result = await action.run({ guild, invoker, targetId: targetRef }, input);
     } else {
       const message = await resolveMessage(guild, targetRef);
       if (!message) {
-        await interaction.editReply({
-          components: [denyContainer('Ce message est introuvable : il a probablement été supprimé.')],
-          flags: [MessageFlags.IsComponentsV2],
-        });
+        await interaction.editReply(v2Message(denyContainer('Ce message est introuvable : il a probablement été supprimé.')));
         return;
       }
 
       const denial = assertAllowed(action, invoker, message.author.id);
       if (denial) {
-        await interaction.editReply({ components: [denyContainer(denial)], flags: [MessageFlags.IsComponentsV2] });
+        await interaction.editReply(v2Message(denyContainer(denial)));
         return;
       }
       result = await action.run({ guild, invoker, message }, input);
     }
   } catch (error) {
     logger.error('ContextHub', `Action "${action.scope}:${action.id}" en échec`, error);
-    await interaction.editReply({
-      components: [denyContainer(error instanceof Error ? error.message : 'Une erreur inattendue est survenue.')],
-      flags: [MessageFlags.IsComponentsV2],
-    });
+    await interaction.editReply(v2Message(denyContainer(error instanceof Error ? error.message : 'Une erreur inattendue est survenue.')));
     return;
   }
 
-  await interaction.editReply({ components: [result.container], flags: [MessageFlags.IsComponentsV2] });
+  await interaction.editReply(v2Message(result.container));
 }
 
-function denyContainer(reason: string): ContainerBuilder {
-  const container = new ContainerBuilder().setAccentColor(COLORS_RAW.danger);
-  container.addTextDisplayComponents(text('### ❌ Action impossible'));
-  container.addTextDisplayComponents(text(reason));
-  return container;
+function denyContainer(reason: string) {
+  return kotboContainer({ color: 'danger', title: '❌ Action impossible', fields: [reason] });
 }
 
 /** Route `ctxhub:<scope>:<targetRef>` — sélection d'une action dans le hub. */

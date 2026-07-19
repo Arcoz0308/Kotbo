@@ -1,6 +1,5 @@
 import {
   ActionRowBuilder,
-  ContainerBuilder,
   ModalBuilder,
   PermissionFlagsBits,
   TextInputBuilder,
@@ -10,7 +9,8 @@ import {
   type Message,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { COLORS_RAW, separatorOld, text, truncate } from '../../utils/embeds.js';
+import { COLORS_RAW, kotboContainer, truncate } from '../../utils/embeds.js';
+import { separator, v2Message } from '@arcscord/components';
 
 /**
  * Registre déclaratif des actions des menus contextuels.
@@ -36,7 +36,7 @@ export type MessageActionContext = {
 };
 
 export type ActionResult = {
-  container: ContainerBuilder;
+  container: ReturnType<typeof kotboContainer>;
 };
 
 type BaseAction = {
@@ -80,10 +80,7 @@ export type ContextAction = UserAction | MessageAction;
 // ─────────────────────────────────────────────────────────────
 
 function panel(color: number, title: string, body: string): ActionResult {
-  const container = new ContainerBuilder().setAccentColor(color);
-  container.addTextDisplayComponents(text(`### ${title}`));
-  container.addTextDisplayComponents(text(body));
-  return { container };
+  return { container: kotboContainer({ color, title, fields: [body] }) };
 }
 
 const ok = (title: string, body: string) => panel(COLORS_RAW.success, title, body);
@@ -142,24 +139,23 @@ const messageActions: MessageAction[] = [
     description: 'T\'envoie ce message en message privé',
     category: 'Utilitaire',
     async run(ctx) {
-      const container = new ContainerBuilder().setAccentColor(COLORS_RAW.primary);
-      container.addTextDisplayComponents(text('### 🔖 Message sauvegardé'));
-      container.addTextDisplayComponents(
-        text(
+      const container = kotboContainer({
+        color: 'primary',
+        title: '🔖 Message sauvegardé',
+        fields: [
           [
             `**Auteur** : ${ctx.message.author} (@${ctx.message.author.username})`,
             `**Salon** : <#${ctx.message.channelId}> · ${ctx.guild.name}`,
             `**Envoyé** : <t:${Math.floor(ctx.message.createdTimestamp / 1000)}:F>`,
           ].join('\n'),
-        ),
-      );
-      container.addSeparatorComponents(separatorOld(true));
-      container.addTextDisplayComponents(text(messagePreview(ctx.message)));
-      container.addTextDisplayComponents(text(`-# [Aller au message](${messageLink(ctx.message)})`));
+          separator({ divider: true, spacing: 'small' }),
+          messagePreview(ctx.message),
+          `-# [Aller au message](${messageLink(ctx.message)})`,
+        ],
+      });
 
       try {
-        const { MessageFlags } = await import('discord.js');
-        await ctx.invoker.send({ components: [container], flags: [MessageFlags.IsComponentsV2] });
+        await ctx.invoker.send(v2Message(container));
       } catch {
         return fail(
           'MP bloqué',
@@ -373,17 +369,18 @@ const messageActions: MessageAction[] = [
 
       let dmSent = true;
       try {
-        const container = new ContainerBuilder().setAccentColor(COLORS_RAW.warning);
-        container.addTextDisplayComponents(text('### ⚠️ Message supprimé'));
-        container.addTextDisplayComponents(
-          text(`Ton message dans **${channelName}** sur **${ctx.guild.name}** a été supprimé par la modération.`),
-        );
-        container.addSeparatorComponents(separatorOld(true));
-        container.addTextDisplayComponents(text(`**Motif**\n${input.reason}`));
-        container.addTextDisplayComponents(text(`**Contenu supprimé**\n>>> ${preview}`));
+        const container = kotboContainer({
+          color: 'warning',
+          title: '⚠️ Message supprimé',
+          fields: [
+            `Ton message dans **${channelName}** sur **${ctx.guild.name}** a été supprimé par la modération.`,
+            separator({ divider: true, spacing: 'small' }),
+            `**Motif**\n${input.reason}`,
+            `**Contenu supprimé**\n>>> ${preview}`,
+          ],
+        });
 
-        const { MessageFlags } = await import('discord.js');
-        await author.send({ components: [container], flags: [MessageFlags.IsComponentsV2] });
+        await author.send(v2Message(container));
       } catch {
         dmSent = false;
       }
@@ -692,12 +689,13 @@ const userActions: UserAction[] = [
       if (!member) return fail('Membre introuvable', "Ce membre n'est plus sur le serveur.");
 
       try {
-        const container = new ContainerBuilder().setAccentColor(COLORS_RAW.primary);
-        container.addTextDisplayComponents(text(`### 📨 Message de l'équipe de ${ctx.guild.name}`));
-        container.addTextDisplayComponents(text(input.content ?? ''));
+        const container = kotboContainer({
+          color: 'primary',
+          title: `📨 Message de l'équipe de ${ctx.guild.name}`,
+          fields: [input.content ?? ''],
+        });
 
-        const { MessageFlags } = await import('discord.js');
-        await member.send({ components: [container], flags: [MessageFlags.IsComponentsV2] });
+        await member.send(v2Message(container));
       } catch {
         return fail('MP bloqué', `<@${ctx.targetId}> n'accepte pas les messages privés venant de ce serveur.`);
       }
