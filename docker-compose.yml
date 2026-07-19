@@ -1,22 +1,34 @@
 name: kotbo
 
+# Toutes les valeurs ci-dessous sont surchargeables via le .env de la racine,
+# que Docker Compose charge automatiquement. Les defauts suffisent pour un
+# environnement de dev local ; aucune valeur n'est ecrite en dur ici.
+#
+#   POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB / POSTGRES_PORT
+#   REDIS_PORT / LIBRETRANSLATE_PORT
+#
+# Attention : POSTGRES_USER/PASSWORD/DB ne sont lus qu'au PREMIER demarrage,
+# quand le volume est initialise. Les changer ensuite n'a aucun effet tant que
+# le volume existe -> `docker compose down -v` pour repartir de zero.
+# Pense a garder DATABASE_URL coherent avec ces valeurs.
+
 services:
   postgres:
     image: postgres:17-alpine
     container_name: kotbo-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: kotbo
-      POSTGRES_PASSWORD: kotbo
-      POSTGRES_DB: kotbo
+      POSTGRES_USER: ${POSTGRES_USER:-kotbo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kotbo}
+      POSTGRES_DB: ${POSTGRES_DB:-kotbo}
     # 5432 est deja pris sur beaucoup de postes (Postgres.app, Homebrew).
     # On expose 5433 cote hote : DATABASE_URL doit pointer sur ce port.
     ports:
-      - '5433:5432'
+      - '${POSTGRES_PORT:-5433}:5432'
     volumes:
       - kotbo_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U kotbo -d kotbo']
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -27,7 +39,7 @@ services:
     restart: unless-stopped
     command: ['redis-server', '--appendonly', 'yes']
     ports:
-      - '6379:6379'
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - kotbo_redisdata:/data
     healthcheck:
@@ -50,7 +62,7 @@ services:
       LT_DISABLE_WEB_UI: 'true'
     # 5000 est occupe par AirPlay Receiver sur macOS.
     ports:
-      - '5001:5000'
+      - '${LIBRETRANSLATE_PORT:-5001}:5000'
     volumes:
       - kotbo_ltdata:/home/libretranslate/.local
     healthcheck:
