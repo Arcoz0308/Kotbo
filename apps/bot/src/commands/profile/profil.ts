@@ -1,15 +1,5 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import {
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  SectionBuilder,
-  ThumbnailBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
-  SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-} from 'discord.js';
+import { ContainerBuilder, SeparatorBuilder, SectionBuilder, ThumbnailBuilder, SeparatorSpacingSize, MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { getStaffMember, getStaffMemberStats } from '../../services/staff/staffManagementService.js';
 import { getStaffProfileSnapshot } from '../../services/progression/profileService.js';
 import { COLORS_RAW, text, truncate } from '../../utils/embeds.js';

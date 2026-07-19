@@ -6,7 +6,7 @@ import {
   MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { COLORS_RAW, text, successContainer, errorContainer } from '../../utils/embeds.js';
+import { COLORS_RAW, text, errorContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import {
   createListing,

@@ -11,15 +11,8 @@ import {
 import { COLORS_RAW, text, successContainer, errorContainer, infoContainer, v2 } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
-
 import { logger } from '../../utils/logger.js';
-import {
-  getModuleStatsSummary,
-  getModuleActivationStats,
-  getModuleUsageStats,
-  getModulePerformanceStats,
-  KOTBO_MODULES,
-} from '../../services/analytics/moduleStatsService.js';
+import { getModuleStatsSummary, getModuleActivationStats, getModuleUsageStats, getModulePerformanceStats } from '../../services/analytics/moduleStatsService.js';
 
 
 

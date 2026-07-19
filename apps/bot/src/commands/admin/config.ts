@@ -1,10 +1,5 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import {
-  SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-  PermissionFlagsBits,
-  MessageFlags,
-} from 'discord.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits } from 'discord.js';
 import { sendMainConfigPanel } from '../../panels/generalConfigPanel.js';
 import prisma from '../../utils/db.js';
 
