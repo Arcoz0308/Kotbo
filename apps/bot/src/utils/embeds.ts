@@ -166,7 +166,7 @@ export type KotboContainerOptions = {
 export function kotboContainer(options: KotboContainerOptions) {
   const fields: ContainerChild[] = [];
 
-  const title = options.titleOverwrite ?? options.footerTitle ? `### ${options.footerTitle}` : undefined;
+  const title = options.titleOverwrite ?? (options.title ? `### ${options.title}` : undefined);
 
   if (typeof title !== 'undefined') {
     if (options.titleThumbnail) {
@@ -188,7 +188,7 @@ export function kotboContainer(options: KotboContainerOptions) {
   }
 
   const footer = options.footerOverwrite ??
-    options.footerTitle ? `-# ${E.kotbo} Kotbo · ${options.footerTitle}` : undefined;
+    (options.footerTitle ? `-# ${E.kotbo} Kotbo · ${options.footerTitle}` : undefined);
   if (footer) {
 
     if (typeof options.footerSeparator === 'undefined' || options.footerSeparator) {
