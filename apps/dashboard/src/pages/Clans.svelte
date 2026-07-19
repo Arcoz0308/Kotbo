@@ -339,11 +339,11 @@
       if (editingClan) {
         const res = await updateClan(editingClan.id, payload);
         if (!res) throw new Error('Erreur lors de la modification');
-        clans = clans.map(c => c.id === editingClan!.id ? res.clan : c);
+        clans = clans.map(c => c.id === editingClan!.id ? { ...res.clan, memberCount: editingClan!.memberCount, totalXp: editingClan!.totalXp } : c);
       } else {
         const res = await createClan(payload);
         if (!res) throw new Error('Erreur lors de la création');
-        clans = [...clans, res.clan];
+        clans = [...clans, { ...res.clan, memberCount: 0, totalXp: 0 }];
       }
       showModal = false;
       await refreshData(true);
@@ -473,7 +473,7 @@
                 <span class="text-sm font-medium text-on-surface">Activer les clans</span>
                 <p class="text-xs text-on-surface-variant/70">Active les commandes slash /clan et la sécurité.</p>
               </div>
-              <ToggleSwitch bind:checked={clansEnabled} disabled={!canManageSettings} />
+              <ToggleSwitch checked={clansEnabled} onToggle={(v) => clansEnabled = v} disabled={!canManageSettings} />
             </div>
 
             <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
@@ -481,7 +481,7 @@
                 <span class="text-sm font-medium text-on-surface">Clan Unique</span>
                 <p class="text-xs text-on-surface-variant/70">Force un seul rôle de clan par membre Discord.</p>
               </div>
-              <ToggleSwitch bind:checked={clansUnique} disabled={!canManageSettings} />
+              <ToggleSwitch checked={clansUnique} onToggle={(v) => clansUnique = v} disabled={!canManageSettings} />
             </div>
           </div>
         </section>
@@ -509,7 +509,7 @@
                   <span class="text-sm font-medium text-on-surface">Boost de Giveaways</span>
                   <p class="text-xs text-on-surface-variant/70">Augmente les chances du clan gagnant dans les giveaways.</p>
                 </div>
-                <ToggleSwitch bind:checked={clanRewardGiveaway} disabled={!canManageSettings} />
+                <ToggleSwitch checked={clanRewardGiveaway} onToggle={(v) => clanRewardGiveaway = v} disabled={!canManageSettings} />
               </div>
 
               <div class="flex items-center justify-between">
@@ -517,7 +517,7 @@
                   <span class="text-sm font-medium text-on-surface">Rôle de Chef de Clan</span>
                   <p class="text-xs text-on-surface-variant/70">Attribue le rôle de chef configuré sur le clan au meilleur contributeur.</p>
                 </div>
-                <ToggleSwitch bind:checked={clanRewardLeaderRole} disabled={!canManageSettings} />
+                <ToggleSwitch checked={clanRewardLeaderRole} onToggle={(v) => clanRewardLeaderRole = v} disabled={!canManageSettings} />
               </div>
             </div>
           </div>
@@ -655,10 +655,10 @@
                         {/if}
                       </td>
                       <td class="py-4 text-center font-medium text-xs text-on-surface">
-                        {clan.memberCount}
+                        {clan.memberCount ?? 0}
                       </td>
                       <td class="py-4 text-right font-bold text-xs text-amber-500">
-                        {clan.totalXp.toLocaleString('fr-FR')} XP
+                        {(clan.totalXp ?? 0).toLocaleString('fr-FR')} XP
                       </td>
                       {#if canManageSettings}
                         <td class="py-4 text-right space-x-2">
@@ -792,7 +792,7 @@
                   <span class="text-sm font-medium text-on-surface">Gain par passage de niveau</span>
                   <p class="text-xs text-on-surface-variant/70">Points bonus offerts lors d'un level up sur le serveur.</p>
                 </div>
-                <ToggleSwitch bind:checked={clanXpFromLevelUp} disabled={!canManageSettings} />
+                <ToggleSwitch checked={clanXpFromLevelUp} onToggle={(v) => clanXpFromLevelUp = v} disabled={!canManageSettings} />
               </div>
 
               {#if clanXpFromLevelUp}

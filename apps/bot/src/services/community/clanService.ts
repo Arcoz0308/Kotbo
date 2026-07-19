@@ -46,17 +46,30 @@ export async function runDistribution(guildId: string, client: Client, initiator
 
   // Lancement asynchrone non-bloquant
   (async () => {
-    logger.info('ClanService', `Lancement de la distribution aléatoire pour ${targetList.length} membres dans "${discordGuild.name}" par ${initiatorName}`);
+    logger.info('ClanService', `Lancement de la distribution équilibrée pour ${targetList.length} membres dans "${discordGuild.name}" par ${initiatorName}`);
     
-    for (let i = 0; i < targetList.length; i++) {
+    // Récupérer le nombre initial de membres sur Discord pour chaque clan
+    const clanCounts = clans.map((c) => {
+      const count = discordGuild.roles.cache.get(c.roleId)?.members.size ?? 0;
+      return { roleId: c.roleId, count };
+    });
+
+    // Mélanger la liste pour préserver le côté aléatoire
+    const shuffledList = [...targetList].sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < shuffledList.length; i++) {
       const currentTask = clanTasks.get(guildId);
       if (!currentTask || currentTask.type !== 'distribute') break;
 
-      const member = targetList[i];
-      const randomClan = clans[Math.floor(Math.random() * clans.length)];
+      const member = shuffledList[i];
+      
+      // Trouver le clan qui a actuellement le moins de membres
+      clanCounts.sort((a, b) => a.count - b.count);
+      const targetClan = clanCounts[0];
 
       try {
-        await member.roles.add(randomClan.roleId, 'Distribution globale et aléatoire des clans');
+        await member.roles.add(targetClan.roleId, 'Distribution globale et équilibrée des clans');
+        targetClan.count++; // Incrémenter pour la répartition suivante
       } catch (e) {
         logger.warn('ClanService', `Impossible d'attribuer le clan à ${member.user.tag}:`, e);
       }
@@ -64,13 +77,13 @@ export async function runDistribution(guildId: string, client: Client, initiator
       clanTasks.set(guildId, {
         type: 'distribute',
         processed: i + 1,
-        total: targetList.length,
+        total: shuffledList.length,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 450));
     }
 
-    logger.info('ClanService', `Distribution aléatoire terminée pour "${discordGuild.name}"`);
+    logger.info('ClanService', `Distribution équilibrée terminée pour "${discordGuild.name}"`);
     clanTasks.delete(guildId);
   })().catch((e) => logger.error('ClanService', 'Erreur critique dans le thread de distribution:', e));
 

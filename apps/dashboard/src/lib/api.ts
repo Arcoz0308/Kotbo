@@ -3290,7 +3290,7 @@ export async function addClanPoints(
   return dashboardRequest('/clans/points', {
     method: 'POST',
     guildId,
-    body: JSON.stringify(payload),
+    payload,
     errorContext: 'API Error (Add Clan Points):',
   });
 }
