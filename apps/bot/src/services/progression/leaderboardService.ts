@@ -1,20 +1,15 @@
 import {
   type Client,
   type TextChannel,
-  ContainerBuilder,
-  SeparatorBuilder,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
-  MessageFlags,
-  SeparatorSpacingSize,
   AttachmentBuilder,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { generateLeaderboardImage } from '../core/imageService.js';
-import { COLORS_RAW, text } from '../../utils/embeds.js';
+import { COLORS_RAW, kotboContainer } from '../../utils/embeds.js';
 import { E, rankEmoji, buildProgressBar } from '../../utils/emojis.js';
 import { getXpForLevel, getLevelFromXp } from './levelingService.js';
 import { logger } from '../../utils/logger.js';
+import { mediaGallery, separator, v2Message } from '@arcscord/components';
 
 const MAX_MESSAGES_BEFORE_REPOST = 5;
 
@@ -191,33 +186,34 @@ async function sendLeaderboardMessage(
 ) {
   if (style === 'embed') {
     const description = buildTextContent(formattedTopMembers, type, typeLabel, subTitle);
-    const container = new ContainerBuilder()
-      .setAccentColor(themeColor)
-      .addTextDisplayComponents(text(`### ${E.trophy} Top 10 — ${typeLabel}`))
-      .addTextDisplayComponents(text(`-# ${subTitle}`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(description))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# Kotbo Analytics · Mis à jour <t:${Math.floor(Date.now() / 1000)}:R>`));
 
-    return channel.send({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    return channel.send(v2Message(
+      kotboContainer({
+        color: themeColor,
+        title: `${E.trophy} Top 10 — ${typeLabel}`,
+        fields: [
+          `-# ${subTitle}`,
+          separator({ divider: true, spacing: 'small' }),
+          description,
+        ],
+        footerOverwrite: `-# Kotbo Analytics · Mis à jour <t:${Math.floor(Date.now() / 1000)}:R>`,
+      }),
+    ));
   } else {
     const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, formattedTopMembers.length > 0 ? 30 : 30);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'leaderboard.png' });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(themeColor)
-      .addMediaGalleryComponents(
-        new MediaGalleryBuilder().addItems(
-          new MediaGalleryItemBuilder({ media: { url: 'attachment://leaderboard.png' } })
-        )
-      )
-      .addTextDisplayComponents(text(`-# Kotbo Analytics · Mis à jour <t:${Math.floor(Date.now() / 1000)}:R>`));
-
     return channel.send({
-      components: [container],
+      ...v2Message(
+        kotboContainer({
+          color: themeColor,
+          fields: [
+            mediaGallery({ items: [{ media: { url: 'attachment://leaderboard.png' } }] }),
+            `-# Kotbo Analytics · Mis à jour <t:${Math.floor(Date.now() / 1000)}:R>`,
+          ],
+        }),
+      ),
       files: [attachment],
-      flags: MessageFlags.IsComponentsV2,
     });
   }
 }
@@ -233,33 +229,34 @@ async function editLeaderboardMessage(
 ) {
   if (style === 'embed') {
     const description = buildTextContent(formattedTopMembers, type, typeLabel, subTitle);
-    const container = new ContainerBuilder()
-      .setAccentColor(themeColor)
-      .addTextDisplayComponents(text(`### ${E.trophy} Top 10 — ${typeLabel}`))
-      .addTextDisplayComponents(text(`-# ${subTitle}`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(description))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# Kotbo Analytics · Mis à jour <t:${Math.floor(Date.now() / 1000)}:R>`));
 
-    await message.edit({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await message.edit(v2Message(
+      kotboContainer({
+        color: themeColor,
+        title: `${E.trophy} Top 10 — ${typeLabel}`,
+        fields: [
+          `-# ${subTitle}`,
+          separator({ divider: true, spacing: 'small' }),
+          description,
+        ],
+        footerOverwrite: `-# Kotbo Analytics · Mis à jour <t:${Math.floor(Date.now() / 1000)}:R>`,
+      }),
+    ));
   } else {
     const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, 30);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'leaderboard.png' });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(themeColor)
-      .addMediaGalleryComponents(
-        new MediaGalleryBuilder().addItems(
-          new MediaGalleryItemBuilder({ media: { url: 'attachment://leaderboard.png' } })
-        )
-      )
-      .addTextDisplayComponents(text(`-# Kotbo Analytics · Mis à jour <t:${Math.floor(Date.now() / 1000)}:R>`));
-
     await message.edit({
-      components: [container],
+      ...v2Message(
+        kotboContainer({
+          color: themeColor,
+          fields: [
+            mediaGallery({ items: [{ media: { url: 'attachment://leaderboard.png' } }] }),
+            `-# Kotbo Analytics · Mis à jour <t:${Math.floor(Date.now() / 1000)}:R>`,
+          ],
+        }),
+      ),
       files: [attachment],
-      flags: MessageFlags.IsComponentsV2,
     });
   }
 }
