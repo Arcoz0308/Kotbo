@@ -430,6 +430,17 @@ export async function handleEndSeason(
         where: { id: guildId },
         data: { lastWinningClanId: winningClan.id },
       });
+
+      // Trouver le chef du clan gagnant pour l'annonce
+      const topWinnerContributor = await prisma.clanMemberContribution.findFirst({
+        where: { guildId, clanId: winningClan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
+        orderBy: { xp: 'desc' },
+      });
+
+      if (topWinnerContributor && topWinnerContributor.xp > 0) {
+        leaderUserId = topWinnerContributor.userId;
+        leaderXp = topWinnerContributor.xp;
+      }
     }
 
     // 4. Attribuer le rôle de chef de clan pour chaque clan si activé
