@@ -62,6 +62,9 @@ export async function getOrCreateLevelConfig(guildId: string) {
         ignoredChannels: [],
         ignoredRoles: [],
         xpMultipliers: {},
+        lengthBonusEnabled: false,
+        lengthBonusThreshold: 200,
+        lengthBonusMaxMultiplier: 2.0,
       },
     });
   }
@@ -71,9 +74,27 @@ export async function getOrCreateLevelConfig(guildId: string) {
 }
 
 /**
+ * Calcule le facteur multiplicateur d'XP en fonction de la longueur du message.
+ * Progression linéaire de 1.0 (message vide/court) jusqu'à `maxMultiplier`
+ * atteint à `threshold` caractères, puis plafonné.
+ */
+export function computeLengthBonusFactor(
+  messageLength: number,
+  enabled: boolean,
+  threshold: number,
+  maxMultiplier: number,
+): number {
+  if (!enabled) return 1;
+  if (!threshold || threshold <= 0) return 1;
+  if (!maxMultiplier || maxMultiplier <= 1) return 1;
+  const ratio = Math.min(1, Math.max(0, messageLength / threshold));
+  return 1 + ratio * (maxMultiplier - 1);
+}
+
+/**
  * Ajoute de l'XP à un utilisateur (Textuel)
  */
-export async function handleTextXp(guildId: string, userId: string, client: Client, channelId: string) {
+export async function handleTextXp(guildId: string, userId: string, client: Client, channelId: string, messageLength = 0) {
   try {
     const config = await getOrCreateLevelConfig(guildId);
     if (!config.enabled) return;
@@ -118,10 +139,18 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
       }
     }
 
-    // Assigner l'XP en appliquant le multiplicateur
+    // Bonus selon la longueur du message (plus le message est long, plus le gain est élevé)
+    const lengthFactor = computeLengthBonusFactor(
+      messageLength,
+      Boolean(config.lengthBonusEnabled),
+      Number(config.lengthBonusThreshold ?? 0),
+      Number(config.lengthBonusMaxMultiplier ?? 1),
+    );
+
+    // Assigner l'XP en appliquant le multiplicateur de rôle puis le bonus de longueur
     const baseGain = Math.floor(Math.random() * (config.xpMax - config.xpMin + 1)) + config.xpMin;
-    const xpGain = Math.floor(baseGain * multiplier);
-    
+    const xpGain = Math.floor(baseGain * multiplier * lengthFactor);
+
     if (xpGain > 0) {
       await addXp(guildId, userId, xpGain, client, channelId);
     }
