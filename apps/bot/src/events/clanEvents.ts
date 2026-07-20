@@ -3,58 +3,6 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 
 export function registerClanListener(client: Client) {
-  client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
-    try {
-      if (member.user.bot) return;
-
-      const guildId = member.guild.id;
-      const config = await prisma.guild.findUnique({
-        where: { id: guildId },
-        select: { clansEnabled: true, clansAutoAssignOnJoin: true },
-      });
-
-      if (!config?.clansEnabled || !config.clansAutoAssignOnJoin) return;
-
-      const linkedAccount = await prisma.linkedAccount.findFirst({
-        where: {
-          guildId,
-          status: 'VALIDATED',
-          OR: [
-            { user1Id: member.id },
-            { user2Id: member.id },
-          ],
-        },
-        select: { id: true },
-      });
-
-      if (linkedAccount) return;
-
-      const clans = await prisma.clan.findMany({
-        where: { guildId },
-        select: { id: true, name: true, roleId: true },
-      });
-
-      if (clans.length === 0) return;
-
-      const availableClans = clans
-        .map((clan) => ({
-          ...clan,
-          memberCount: member.guild.roles.cache.get(clan.roleId)?.members.size ?? 0,
-        }))
-        .filter((clan) => clan.memberCount >= 0);
-
-      if (availableClans.length === 0) return;
-
-      availableClans.sort((a, b) => a.memberCount - b.memberCount || a.name.localeCompare(b.name, 'fr'));
-      const targetClan = availableClans[0];
-
-      await member.roles.add(targetClan.roleId, 'Attribution automatique du clan à l\'arrivée').catch(() => null);
-      logger.info('ClansSecurity', `Attribution automatique du clan "${targetClan.name}" à ${member.user.tag}`);
-    } catch (error) {
-      logger.error('ClansSecurity', `Erreur lors de l'attribution automatique du clan pour ${member.user.tag}:`, error);
-    }
-  });
-
   // 1. Sécurité de Clan Unique (guildMemberUpdate)
   client.on(Events.GuildMemberUpdate, async (oldMember: GuildMember, newMember: GuildMember) => {
     try {
