@@ -28,7 +28,6 @@ export async function handleClansRoutes(
         select: {
           clansEnabled: true,
           clansUnique: true,
-          clansAutoAssignOnJoin: true,
           currentClanSeason: true,
           clanXpFromLevelUp: true,
           clanXpPerLevelUp: true,
@@ -42,6 +41,12 @@ export async function handleClansRoutes(
           clanSeasonEndsAt: true,
         },
       });
+
+      const currentDashboardSettings = await prisma.dashboardSettings.findUnique({
+        where: { guildId },
+        select: { commandRestrictions: true },
+      });
+      const dashboardSettings = currentDashboardSettings;
 
       if (!guildData) {
         json(res, 404, { error: 'Serveur non trouvé en base de données.' });
@@ -84,7 +89,7 @@ export async function handleClansRoutes(
       json(res, 200, {
         clansEnabled: guildData.clansEnabled,
         clansUnique: guildData.clansUnique,
-        clansAutoAssignOnJoin: guildData.clansAutoAssignOnJoin,
+        clansAutoAssignOnJoin: Boolean((dashboardSettings?.commandRestrictions as Record<string, any> | null)?.clansAutoAssignOnJoin),
         currentClanSeason: guildData.currentClanSeason,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
         clanXpPerLevelUp: guildData.clanXpPerLevelUp,
@@ -108,7 +113,12 @@ export async function handleClansRoutes(
 
   if (!subAction && method === 'PATCH') {
     try {
-      const body = await readJsonBody<{
+      const dashboardSettings = await prisma.dashboardSettings.findUnique({
+        where: { guildId },
+        select: { commandRestrictions: true },
+      });
+
+      const body = (await readJsonBody<{
         clansEnabled?: boolean;
         clansUnique?: boolean;
         clansAutoAssignOnJoin?: boolean;
@@ -121,12 +131,25 @@ export async function handleClansRoutes(
         clanRewardLeaderRole?: boolean;
         clanSeasonStartsAt?: string | null;
         clanSeasonEndsAt?: string | null;
-      }>(req);
+      }>(req)) ?? {};
 
       const updateData: Record<string, any> = {};
+      let dashboardSettingsPatch: Record<string, any> | null = null;
       if (body?.clansEnabled !== undefined) updateData.clansEnabled = body.clansEnabled;
       if (body?.clansUnique !== undefined) updateData.clansUnique = body.clansUnique;
-      if (body?.clansAutoAssignOnJoin !== undefined) updateData.clansAutoAssignOnJoin = body.clansAutoAssignOnJoin;
+      if (body?.clansAutoAssignOnJoin !== undefined) {
+        const existingSettings = await prisma.dashboardSettings.findUnique({
+          where: { guildId },
+          select: { commandRestrictions: true },
+        });
+        const currentRestrictions = (existingSettings?.commandRestrictions as Record<string, any> | null) ?? {};
+        dashboardSettingsPatch = {
+          commandRestrictions: {
+            ...currentRestrictions,
+            clansAutoAssignOnJoin: body.clansAutoAssignOnJoin,
+          },
+        };
+      }
       if (body?.clanXpFromLevelUp !== undefined) updateData.clanXpFromLevelUp = body.clanXpFromLevelUp;
       if (body?.clanXpPerLevelUp !== undefined) {
         if (typeof body.clanXpPerLevelUp !== 'number' || body.clanXpPerLevelUp < 0) {
@@ -153,8 +176,44 @@ export async function handleClansRoutes(
         updateData.clanSeasonEndsAt = body.clanSeasonEndsAt ? new Date(body.clanSeasonEndsAt) : null;
       }
 
+      const currentAutoAssignEnabled = dashboardSettingsPatch
+        ? Boolean((dashboardSettingsPatch.commandRestrictions as Record<string, any> | null)?.clansAutoAssignOnJoin)
+        : Boolean((dashboardSettings?.commandRestrictions as Record<string, any> | null)?.clansAutoAssignOnJoin);
+
       if (Object.keys(updateData).length === 0) {
-        json(res, 400, { error: 'Aucune donnée valide à mettre à jour.' });
+        if (!dashboardSettingsPatch) {
+          json(res, 400, { error: 'Aucune donnée valide à mettre à jour.' });
+          return true;
+        }
+      }
+
+      if (dashboardSettingsPatch) {
+        await prisma.dashboardSettings.update({
+          where: { guildId },
+          data: dashboardSettingsPatch,
+        });
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        const currentGuild = await prisma.guild.findUnique({ where: { id: guildId } });
+        if (!currentGuild) {
+          json(res, 404, { error: 'Serveur non trouvé en base de données.' });
+          return true;
+        }
+        json(res, 200, {
+          clansEnabled: currentGuild.clansEnabled,
+          clansUnique: currentGuild.clansUnique,
+          clansAutoAssignOnJoin: currentAutoAssignEnabled,
+          clanXpFromLevelUp: currentGuild.clanXpFromLevelUp,
+          clanXpPerLevelUp: currentGuild.clanXpPerLevelUp,
+          clanAnnouncementChannelId: currentGuild.clanAnnouncementChannelId,
+          clanRewardGiveaway: currentGuild.clanRewardGiveaway,
+          clanRewardXpBoost: currentGuild.clanRewardXpBoost,
+          clanRewardXpBoostRate: currentGuild.clanRewardXpBoostRate,
+          clanRewardLeaderRole: currentGuild.clanRewardLeaderRole,
+          clanSeasonStartsAt: currentGuild.clanSeasonStartsAt,
+          clanSeasonEndsAt: currentGuild.clanSeasonEndsAt,
+        });
         return true;
       }
 
@@ -169,7 +228,7 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, Auto-assign: ${updatedGuild.clansAutoAssignOnJoin}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
+        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, Auto-assign: ${currentAutoAssignEnabled}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
         channelId: null,
       });
 
@@ -178,7 +237,7 @@ export async function handleClansRoutes(
       json(res, 200, {
         clansEnabled: updatedGuild.clansEnabled,
         clansUnique: updatedGuild.clansUnique,
-        clansAutoAssignOnJoin: updatedGuild.clansAutoAssignOnJoin,
+        clansAutoAssignOnJoin: currentAutoAssignEnabled,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
         clanAnnouncementChannelId: updatedGuild.clanAnnouncementChannelId,
@@ -378,12 +437,12 @@ export async function handleClansRoutes(
       json(res, 200, { message });
     } catch (err: any) {
       logger.error('ClansAPI', 'Error launching clear:', err);
-      json(res, err.message.includes('déjà en cours') || err.message.includes('Aucun clan') ? 400 : 500, { error: err.message });
+      json(res, err.message.includes('déjà en cours') || err.message.includes('aucun membre') ? 400 : 500, { error: err.message });
     }
     return true;
   }
 
-  // POST /api/dashboard/guilds/:guildId/clans/reset-season (New Season / Reset)
+  // POST /api/dashboard/guilds/:guildId/clans/reset-season (Reset Current Season)
   if (subAction === 'reset-season' && method === 'POST') {
     try {
       const guild = await prisma.guild.findUnique({
@@ -407,13 +466,11 @@ export async function handleClansRoutes(
         nextEndsAt = new Date(nextStartsAt.getTime() + durationMs);
       }
 
-      // 1. Décerner les bonus, renommer les QG et publier les annonces de fin de saison
       await handleEndSeason(guildId, client, auditUser, guild.currentClanSeason, nextSeason);
 
-      // 2. Mettre à jour la saison en base de données
       await prisma.guild.update({
         where: { id: guildId },
-        data: { 
+        data: {
           currentClanSeason: nextSeason,
           clanSeasonStartsAt: nextStartsAt,
           clanSeasonEndsAt: nextEndsAt,
@@ -617,11 +674,18 @@ export async function handleClansRoutes(
   // POST /api/dashboard/guilds/:guildId/clans/points (Add points manually to a clan or a member)
   if (subAction === 'points' && method === 'POST') {
     try {
-      const body = await readJsonBody<{
+      const rawBody = await readJsonBody<{
         clanId?: string | null;
         userId?: string | null;
         amount: number;
       }>(req);
+
+      if (!rawBody) {
+        json(res, 400, { error: 'Le corps de la requête est requis.' });
+        return true;
+      }
+
+      const body = rawBody;
 
       if (typeof body.amount !== 'number') {
         json(res, 400, { error: 'Le paramètre amount (nombre) est requis.' });
@@ -645,15 +709,6 @@ export async function handleClansRoutes(
 
       if (body.userId?.trim()) {
         const userId = body.userId.trim();
-        // Vérifier si l'utilisateur existe dans la base de données
-        const dbMember = await prisma.member.findUnique({
-          where: { id: userId }
-        });
-        if (!dbMember) {
-          json(res, 404, { error: "L'utilisateur n'existe pas dans la base de données de Kotbo (il doit interagir sur Discord d'abord)." });
-          return true;
-        }
-
         // Récupérer le membre Discord et ses rôles
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
         if (!discordGuild) {
