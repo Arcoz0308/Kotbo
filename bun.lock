@@ -15,7 +15,7 @@
     "apps/bot": {
       "name": "@kotbo/bot",
       "dependencies": {
-        "@arcscord/components": "^1.0.0",
+        "@arcscord/components": "^1.0.1",
         "@hono/swagger-ui": "^0.6.1",
         "@hono/zod-openapi": "^0.19.6",
         "@kotbo/core": "workspace:*",
@@ -115,7 +115,7 @@
     },
   },
   "packages": {
-    "@arcscord/components": ["@arcscord/components@1.0.0", "", { "dependencies": { "discord-api-types": "^0.38.49" }, "peerDependencies": { "discord.js": "^14.26.4", "typescript": "^5.4.0 || ^6.0.0" } }, "sha512-mb3LSSG3dZ/6ZzNAtLH3yVExphUkw7Q6iEZgISo/0DermhBXP7BlV5iSCrMxjN7fxpHVuagWAVe+ZR8W/FKVXg=="],
+    "@arcscord/components": ["@arcscord/components@1.0.1", "", { "dependencies": { "discord-api-types": "^0.38.49" }, "peerDependencies": { "discord.js": "^14.26.4", "typescript": "^5.4.0 || ^6.0.0" } }, "sha512-Vgn0RL2J9wgKaZtkqvLdjo45DtOseN6Jcss3/gFXcUCgDnRh3EvyIRyk3u/NdMtn4J0dtieO8d6Ear0GeRO3fQ=="],
 
     "@asteasolutions/zod-to-openapi": ["@asteasolutions/zod-to-openapi@7.3.4", "", { "dependencies": { "openapi3-ts": "^4.1.2" }, "peerDependencies": { "zod": "^3.20.2" } }, "sha512-/2rThQ5zPi9OzVwes6U7lK1+Yvug0iXu25olp7S0XsYmOqnyMfxH7gdSQjn/+DSOHRg7wnotwGJSyL+fBKdnEA=="],
 
