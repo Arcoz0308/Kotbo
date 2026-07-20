@@ -735,7 +735,7 @@
                     Attribue automatiquement un boost d'XP aux membres du clan gagnant de la dernière saison.
                   </p>
                 </div>
-                <ToggleSwitch bind:checked={clanRewardXpBoost} disabled={!canManageSettings} />
+                <ToggleSwitch checked={clanRewardXpBoost} onToggle={(v) => clanRewardXpBoost = v} disabled={!canManageSettings} />
               </div>
 
               {#if clanRewardXpBoost}

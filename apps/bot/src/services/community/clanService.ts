@@ -46,17 +46,30 @@ export async function runDistribution(guildId: string, client: Client, initiator
 
   // Lancement asynchrone non-bloquant
   (async () => {
-    logger.info('ClanService', `Lancement de la distribution aléatoire pour ${targetList.length} membres dans "${discordGuild.name}" par ${initiatorName}`);
+    logger.info('ClanService', `Lancement de la distribution équilibrée pour ${targetList.length} membres dans "${discordGuild.name}" par ${initiatorName}`);
     
-    for (let i = 0; i < targetList.length; i++) {
+    // Récupérer le nombre initial de membres sur Discord pour chaque clan
+    const clanCounts = clans.map((c) => {
+      const count = discordGuild.roles.cache.get(c.roleId)?.members.size ?? 0;
+      return { roleId: c.roleId, count };
+    });
+
+    // Mélanger la liste pour préserver le côté aléatoire
+    const shuffledList = [...targetList].sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < shuffledList.length; i++) {
       const currentTask = clanTasks.get(guildId);
       if (!currentTask || currentTask.type !== 'distribute') break;
 
-      const member = targetList[i];
-      const randomClan = clans[Math.floor(Math.random() * clans.length)];
+      const member = shuffledList[i];
+      
+      // Trouver le clan qui a actuellement le moins de membres
+      clanCounts.sort((a, b) => a.count - b.count);
+      const targetClan = clanCounts[0];
 
       try {
-        await member.roles.add(randomClan.roleId, 'Distribution globale et aléatoire des clans');
+        await member.roles.add(targetClan.roleId, 'Distribution globale et équilibrée des clans');
+        targetClan.count++; // Incrémenter pour la répartition suivante
       } catch (e) {
         logger.warn('ClanService', `Impossible d'attribuer le clan à ${member.user.tag}:`, e);
       }
@@ -64,13 +77,13 @@ export async function runDistribution(guildId: string, client: Client, initiator
       clanTasks.set(guildId, {
         type: 'distribute',
         processed: i + 1,
-        total: targetList.length,
+        total: shuffledList.length,
       });
 
       await new Promise((resolve) => setTimeout(resolve, 450));
     }
 
-    logger.info('ClanService', `Distribution aléatoire terminée pour "${discordGuild.name}"`);
+    logger.info('ClanService', `Distribution équilibrée terminée pour "${discordGuild.name}"`);
     clanTasks.delete(guildId);
   })().catch((e) => logger.error('ClanService', 'Erreur critique dans le thread de distribution:', e));
 
@@ -289,36 +302,39 @@ async function migrateContributions(
       where: { guildId, clanId: sourceClanId, userId },
     });
 
-    for (const contrib of sourceContribs) {
-      const targetContrib = await prisma.clanMemberContribution.findUnique({
-        where: {
-          guildId_clanId_userId_season: {
-            guildId,
-            clanId: targetClanId,
-            userId,
-            season: contrib.season,
+    // Utiliser une transaction pour garantir l'intégrité de la migration
+    await prisma.$transaction(async (tx) => {
+      for (const contrib of sourceContribs) {
+        const targetContrib = await tx.clanMemberContribution.findUnique({
+          where: {
+            guildId_clanId_userId_season: {
+              guildId,
+              clanId: targetClanId,
+              userId,
+              season: contrib.season,
+            },
           },
-        },
-      });
+        });
 
-      if (targetContrib) {
-        // Fusionner l'XP
-        await prisma.clanMemberContribution.update({
-          where: { id: targetContrib.id },
-          data: { xp: targetContrib.xp + contrib.xp },
-        });
-        // Supprimer l'ancienne contribution source
-        await prisma.clanMemberContribution.delete({
-          where: { id: contrib.id },
-        });
-      } else {
-        // Simplement changer le clanId
-        await prisma.clanMemberContribution.update({
-          where: { id: contrib.id },
-          data: { clanId: targetClanId },
-        });
+        if (targetContrib) {
+          // Fusionner l'XP (utilisation d'increment atomique pour éviter les race conditions)
+          await tx.clanMemberContribution.update({
+            where: { id: targetContrib.id },
+            data: { xp: { increment: contrib.xp } },
+          });
+          // Supprimer l'ancienne contribution source
+          await tx.clanMemberContribution.delete({
+            where: { id: contrib.id },
+          });
+        } else {
+          // Simplement changer le clanId
+          await tx.clanMemberContribution.update({
+            where: { id: contrib.id },
+            data: { clanId: targetClanId },
+          });
+        }
       }
-    }
+    });
     logger.info('ClanService', `Contributions de l'utilisateur ${userId} migrées avec succès de ${sourceClanId} vers ${targetClanId}`);
   } catch (err) {
     logger.error('ClanService', `Erreur lors de la migration des contributions pour ${userId} de ${sourceClanId} vers ${targetClanId}:`, err);
@@ -409,9 +425,9 @@ export async function handleEndSeason(
         data: { lastWinningClanId: winningClan.id },
       });
 
-      // Trouver le chef de coalition (meilleur contributeur) du clan gagnant
+      // Trouver le chef de coalition (meilleur contributeur réel) du clan gagnant
       const topContributor = await prisma.clanMemberContribution.findFirst({
-        where: { guildId, clanId: winningClan.id, season: currentSeason },
+        where: { guildId, clanId: winningClan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
         orderBy: { xp: 'desc' },
       });
 
@@ -443,7 +459,12 @@ export async function handleEndSeason(
         const category = channel.parent as CategoryChannel;
         const isWinner = winningClan && clan.id === winningClan.id;
         
-        let targetName = category.name.split('[')[0].trim(); // Retirer les anciennes balises
+        let targetName = category.name;
+        // Retirer uniquement la balise [🏆 ...] de fin si elle existe
+        const trophyIndex = targetName.indexOf('[🏆');
+        if (trophyIndex !== -1) {
+          targetName = targetName.substring(0, trophyIndex).trim();
+        }
         
         if (isWinner) {
           const activeRewards: string[] = [];
