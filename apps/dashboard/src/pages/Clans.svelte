@@ -400,6 +400,43 @@
     }, { successMessage: 'Planification de la saison enregistrée avec succès !' });
   }
 
+  // Remplit les champs date/heure à partir de deux objets Date (heure locale)
+  function applyDateRange(start: Date, end: Date) {
+    const toLocal = (d: Date) => {
+      const tzOffset = d.getTimezoneOffset() * 60000;
+      return new Date(d.getTime() - tzOffset).toISOString();
+    };
+    const s = toLocal(start);
+    const e = toLocal(end);
+    startDate = s.slice(0, 10);
+    startTime = s.slice(11, 16);
+    endDate = e.slice(0, 10);
+    endTime = e.slice(11, 16);
+  }
+
+  // Presets de remplissage rapide : début = maintenant, fin = maintenant + N mois
+  function applyQuickRange(months: number) {
+    const start = new Date();
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + months);
+    applyDateRange(start, end);
+  }
+
+  // Enchaîne la prochaine saison juste après la saison actuelle planifiée,
+  // en conservant la même durée (fallback 3 mois si la durée est indéterminée).
+  const canChainNextSeason = $derived(!!savedClanSeasonEndsAt);
+  function applyChainAfterCurrent() {
+    if (!savedClanSeasonEndsAt) return;
+    const start = new Date(savedClanSeasonEndsAt);
+    let durationMs = 1000 * 60 * 60 * 24 * 90; // ~3 mois par défaut
+    if (savedClanSeasonStartsAt) {
+      const d = new Date(savedClanSeasonEndsAt).getTime() - new Date(savedClanSeasonStartsAt).getTime();
+      if (d > 0) durationMs = d;
+    }
+    const end = new Date(start.getTime() + durationMs);
+    applyDateRange(start, end);
+  }
+
   async function handleClearSeasonPlanning() {
     if (!canManageSettings) return;
     if (!confirm("Voulez-vous vraiment annuler la planification de la saison ?")) return;
@@ -629,7 +666,7 @@
 
             <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
               <div>
-                <span class="text-sm font-medium text-on-surface">Attribution Automatique à la Jointure</span>
+                <span class="text-sm font-medium text-on-surface">Attribution d'un clan à l'arrivée sur le serveur</span>
                 <p class="text-xs text-on-surface-variant/70">Attribue automatiquement le clan le moins peuplé à chaque nouveau membre qui rejoint le serveur. Les membres reconnus comme double compte validé ne sont pas concernés (leur clan est aligné sur celui de leur compte principal).</p>
               </div>
               <ToggleSwitch checked={clanAutoAssignOnJoin} onToggle={(v) => clanAutoAssignOnJoin = v} disabled={!canManageSettings} />
@@ -893,6 +930,21 @@
               Planifier la saison de clans
             </h3>
 
+            {#if canManageSettings}
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mr-1">Remplissage rapide</span>
+                <button type="button" onclick={() => applyQuickRange(1)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-[11px] font-semibold rounded-md transition-colors cursor-pointer">1 mois</button>
+                <button type="button" onclick={() => applyQuickRange(3)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-[11px] font-semibold rounded-md transition-colors cursor-pointer">Trimestre</button>
+                <button type="button" onclick={() => applyQuickRange(6)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-[11px] font-semibold rounded-md transition-colors cursor-pointer">6 mois</button>
+                <button type="button" onclick={() => applyQuickRange(12)} class="px-2.5 py-1 bg-surface-container-high/50 hover:bg-primary/15 hover:text-primary text-on-surface-variant text-[11px] font-semibold rounded-md transition-colors cursor-pointer">1 an</button>
+                {#if canChainNextSeason}
+                  <button type="button" onclick={applyChainAfterCurrent} class="px-2.5 py-1 bg-secondary/15 hover:bg-secondary/25 text-secondary text-[11px] font-semibold rounded-md transition-colors cursor-pointer flex items-center gap-1" title="Enchaîner juste après la fin de la saison actuelle, avec la même durée">
+                    <Papicon icon="Refresh" size={11} /> Enchaîner après l'actuelle
+                  </button>
+                {/if}
+              </div>
+            {/if}
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <!-- Début de saison -->
               <div class="space-y-2">
@@ -934,8 +986,15 @@
             </div>
 
             <div class="p-4 bg-primary/5 border border-primary/20 rounded-xl text-xs text-primary leading-relaxed space-y-1">
-              <p class="font-bold">💡 Fonctionnement Automatique</p>
-              <p>Lorsque la date de fin est dépassée, le Bot lancera automatiquement le traitement de fin de saison. Si une date de début et de fin étaient configurées, le système calculera automatiquement l'intervalle et programmera la saison suivante pour la même durée.</p>
+              <p class="font-bold">💡 Renouvellement automatique</p>
+              <p>Lorsque la date de fin est dépassée, le Bot clôture automatiquement la saison (récompenses, renommage des QG, annonce) puis <strong>reprogramme aussitôt la saison suivante pour la même durée</strong>. Une saison de 3 mois se renouvelle donc toute seule chaque trimestre, sans intervention.</p>
+              {#if savedClanSeasonStartsAt && savedClanSeasonEndsAt}
+                <p class="pt-1 flex items-center gap-1.5 text-primary/90">
+                  <Papicon icon="Refresh" size={12} /> Renouvellement automatique <strong>actif</strong> (durée identique reconduite à chaque fin de saison).
+                </p>
+              {:else}
+                <p class="pt-1 text-primary/70">Aucune date planifiée : la saison en cours ne se clôturera pas d'elle-même (renouvellement automatique inactif).</p>
+              {/if}
             </div>
 
             {#if canManageSettings}
