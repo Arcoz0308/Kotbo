@@ -1078,7 +1078,8 @@
           </section>
 
         </div>
-      {:else if activeTab === 'admin'}
+      </div>
+    {:else if activeTab === 'admin'}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6" transition:fade={{ duration: 150 }}>
           
           <!-- Card 1: Recommencer à la Saison 1 (Reset All) -->
