@@ -3180,6 +3180,7 @@ export interface ClanEntry {
 export interface ClansDataResult {
   clansEnabled: boolean;
   clansUnique: boolean;
+  clanAutoAssignOnJoin: boolean;
   currentClanSeason: number;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
@@ -3208,6 +3209,7 @@ export async function updateClanSettings(
   payload: {
     clansEnabled?: boolean;
     clansUnique?: boolean;
+    clanAutoAssignOnJoin?: boolean;
     clanXpFromLevelUp?: boolean;
     clanXpPerLevelUp?: number;
     clanAnnouncementChannelId?: string | null;
@@ -3222,6 +3224,7 @@ export async function updateClanSettings(
 ): Promise<{
   clansEnabled: boolean;
   clansUnique: boolean;
+  clanAutoAssignOnJoin: boolean;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
   clanAnnouncementChannelId: string | null;

@@ -28,6 +28,7 @@ export async function handleClansRoutes(
         select: {
           clansEnabled: true,
           clansUnique: true,
+          clanAutoAssignOnJoin: true,
           currentClanSeason: true,
           clanXpFromLevelUp: true,
           clanXpPerLevelUp: true,
@@ -83,6 +84,7 @@ export async function handleClansRoutes(
       json(res, 200, {
         clansEnabled: guildData.clansEnabled,
         clansUnique: guildData.clansUnique,
+        clanAutoAssignOnJoin: guildData.clanAutoAssignOnJoin,
         currentClanSeason: guildData.currentClanSeason,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
         clanXpPerLevelUp: guildData.clanXpPerLevelUp,
@@ -109,6 +111,7 @@ export async function handleClansRoutes(
       const body = await readJsonBody<{
         clansEnabled?: boolean;
         clansUnique?: boolean;
+        clanAutoAssignOnJoin?: boolean;
         clanXpFromLevelUp?: boolean;
         clanXpPerLevelUp?: number;
         clanAnnouncementChannelId?: string | null;
@@ -123,6 +126,7 @@ export async function handleClansRoutes(
       const updateData: Record<string, any> = {};
       if (body?.clansEnabled !== undefined) updateData.clansEnabled = body.clansEnabled;
       if (body?.clansUnique !== undefined) updateData.clansUnique = body.clansUnique;
+      if (body?.clanAutoAssignOnJoin !== undefined) updateData.clanAutoAssignOnJoin = body.clanAutoAssignOnJoin;
       if (body?.clanXpFromLevelUp !== undefined) updateData.clanXpFromLevelUp = body.clanXpFromLevelUp;
       if (body?.clanXpPerLevelUp !== undefined) {
         if (typeof body.clanXpPerLevelUp !== 'number' || body.clanXpPerLevelUp < 0) {
@@ -165,7 +169,7 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
+        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, Auto-assignation à la jointure: ${updatedGuild.clanAutoAssignOnJoin}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
         channelId: null,
       });
 
@@ -174,6 +178,7 @@ export async function handleClansRoutes(
       json(res, 200, {
         clansEnabled: updatedGuild.clansEnabled,
         clansUnique: updatedGuild.clansUnique,
+        clanAutoAssignOnJoin: updatedGuild.clanAutoAssignOnJoin,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
         clanAnnouncementChannelId: updatedGuild.clanAnnouncementChannelId,
