@@ -1143,7 +1143,6 @@
         </div>
       {/if}
     {/if}
-  {/if}
 </ModulePage>
 
 <!-- Modal: Créer / Éditer un Clan -->
