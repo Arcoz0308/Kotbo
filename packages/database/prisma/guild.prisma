@@ -129,6 +129,7 @@ model Guild {
 
   clans                 Clan[]
   clanMemberContributions ClanMemberContribution[]
+  clanContributionEvents ClanContributionEvent[]
   memberLevels MemberLevel[]
   levelRoleRewards LevelRoleReward[]
   levelConfig LevelConfig?

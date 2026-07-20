@@ -16,6 +16,7 @@ model Clan {
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   contributions ClanMemberContribution[]
+  contributionEvents ClanContributionEvent[]
 
   @@unique([guildId, name])
   @@map("clans")
@@ -36,4 +37,24 @@ model ClanMemberContribution {
 
   @@unique([guildId, clanId, userId, season])
   @@map("clan_member_contributions")
+}
+
+// Journal des gains de points de clan (flux « derniers scores » temps réel).
+// Contrairement à ClanMemberContribution (total agrégé par saison), cette table
+// enregistre chaque gain individuel pour pouvoir afficher l'historique récent.
+model ClanContributionEvent {
+  id        String   @id @default(cuid())
+  guildId   String
+  clanId    String
+  userId    String   // 'system_manual_points' = gain attribué au clan entier (à afficher au nom du clan)
+  amount    Int      // Points gagnés lors de cet événement (peut être négatif si retrait)
+  source    String   // 'XP' (gagné via progression) | 'ADMIN' (attribué manuellement par un admin)
+  season    Int      @default(1)
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  clan  Clan  @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
+  @@map("clan_contribution_events")
 }

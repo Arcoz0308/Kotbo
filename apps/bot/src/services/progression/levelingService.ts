@@ -287,6 +287,11 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
                   xp: guildConfig.clanXpPerLevelUp
                 }
               });
+
+              // Journaliser le gain pour le flux public « derniers scores »
+              const { logClanContribution } = await import('../community/clanService.js');
+              await logClanContribution(guildId, clan.id, canonicalUserId, guildConfig.clanXpPerLevelUp, 'XP', guildConfig.currentClanSeason);
+
               logger.info('LevelingService', `Points de clan (${guildConfig.clanXpPerLevelUp} XP) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
             }
           }
