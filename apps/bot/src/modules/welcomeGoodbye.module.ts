@@ -21,7 +21,7 @@ import {
 } from '../services/features/welcomeGoodbyeService.js';
 import { handleWelcomeThread } from '../services/features/welcomeThreadService.js';
 import { checkMemberCountTriggers } from '../services/core/ctfTriggerService.js';
-import { syncMemberClanFromDcLink } from '../services/community/clanService.js';
+import { syncMemberClanFromDcLink, autoAssignClanOnJoin } from '../services/community/clanService.js';
 import { logger } from '../utils/logger.js';
 
 const MODULE_NAME = 'welcome-goodbye';
@@ -41,6 +41,7 @@ export function registerWelcomeGoodbyeBusSubscribers(client: Client): void {
     await applyJoinAutoRole(member);
     await applyTagAutoRole(member);
     await syncMemberClanFromDcLink(payload.guildId, payload.userId, null);
+    await autoAssignClanOnJoin(payload.guildId, member);
     await handleGuildMemberAdd(member, client);
     await handleWelcomeThread(member, client);
     await checkMemberCountTriggers(guild, client);

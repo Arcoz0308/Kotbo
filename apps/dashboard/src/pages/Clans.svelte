@@ -36,6 +36,7 @@
   // States
   let clansEnabled = $state(false);
   let clansUnique = $state(true);
+  let clanAutoAssignOnJoin = $state(false);
   let currentClanSeason = $state(1);
   let clanXpFromLevelUp = $state(false);
   let clanXpPerLevelUp = $state(50);
@@ -58,6 +59,7 @@
   // Saved states (for dirty checking)
   let savedClansEnabled = $state(false);
   let savedClansUnique = $state(true);
+  let savedClanAutoAssignOnJoin = $state(false);
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
   let savedClanAnnouncementChannelId = $state<string | null>(null);
@@ -181,8 +183,9 @@
 
   // Sync state changes with the unsaved changes bar
   $effect(() => {
-    const dirty = clansEnabled !== savedClansEnabled 
+    const dirty = clansEnabled !== savedClansEnabled
       || clansUnique !== savedClansUnique
+      || clanAutoAssignOnJoin !== savedClanAutoAssignOnJoin
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
       || clanXpPerLevelUp !== savedClanXpPerLevelUp
       || clanAnnouncementChannelId !== savedClanAnnouncementChannelId
@@ -197,6 +200,7 @@
           onReset: () => {
             clansEnabled = savedClansEnabled;
             clansUnique = savedClansUnique;
+            clanAutoAssignOnJoin = savedClanAutoAssignOnJoin;
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
             clanAnnouncementChannelId = savedClanAnnouncementChannelId;
@@ -280,6 +284,7 @@
       if (res) {
         clansEnabled = res.clansEnabled;
         clansUnique = res.clansUnique;
+        clanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
         currentClanSeason = res.currentClanSeason;
         clanXpFromLevelUp = res.clanXpFromLevelUp;
         clanXpPerLevelUp = res.clanXpPerLevelUp;
@@ -298,6 +303,7 @@
         
         savedClansEnabled = res.clansEnabled;
         savedClansUnique = res.clansUnique;
+        savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
         savedClanXpFromLevelUp = res.clanXpFromLevelUp;
         savedClanXpPerLevelUp = res.clanXpPerLevelUp;
         savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
@@ -333,6 +339,7 @@
       const res = await updateClanSettings({
         clansEnabled,
         clansUnique,
+        clanAutoAssignOnJoin,
         clanXpFromLevelUp,
         clanXpPerLevelUp,
         clanAnnouncementChannelId: clanAnnouncementChannelId || null,
@@ -347,6 +354,7 @@
       
       savedClansEnabled = res.clansEnabled;
       savedClansUnique = res.clansUnique;
+      savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
       savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
@@ -617,6 +625,14 @@
                 <p class="text-xs text-on-surface-variant/70">Force un seul rôle de clan par membre Discord.</p>
               </div>
               <ToggleSwitch checked={clansUnique} onToggle={(v) => clansUnique = v} disabled={!canManageSettings} />
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+              <div>
+                <span class="text-sm font-medium text-on-surface">Attribution Automatique à la Jointure</span>
+                <p class="text-xs text-on-surface-variant/70">Attribue automatiquement le clan le moins peuplé à chaque nouveau membre qui rejoint le serveur. Les membres reconnus comme double compte validé ne sont pas concernés (leur clan est aligné sur celui de leur compte principal).</p>
+              </div>
+              <ToggleSwitch checked={clanAutoAssignOnJoin} onToggle={(v) => clanAutoAssignOnJoin = v} disabled={!canManageSettings} />
             </div>
           </div>
         </section>

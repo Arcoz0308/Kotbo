@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, ChannelType, CategoryChannel } from 'discord.js';
+import { Client, EmbedBuilder, ChannelType, CategoryChannel, type GuildMember } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
@@ -290,6 +290,77 @@ export async function syncMemberClanFromDcLink(
     }
   } catch (err) {
     logger.error('ClanService', `Erreur synchro clan DC pour ${userId}:`, err);
+  }
+}
+
+/**
+ * Attribue automatiquement un clan à un membre qui vient de rejoindre le serveur,
+ * en choisissant le clan ayant actuellement le moins de membres.
+ *
+ * Ne fait rien si :
+ * - Le module clans n'est pas activé, ou si l'option d'auto-assignation est désactivée.
+ * - Le membre possède déjà un rôle de clan (ex: déjà aligné via syncMemberClanFromDcLink).
+ * - Le membre est reconnu comme un double compte déjà validé (LinkedAccount VALIDATED) :
+ *   dans ce cas, c'est la synchronisation de double compte (syncMemberClanFromDcLink) qui
+ *   se charge d'aligner son clan sur celui de son compte principal.
+ */
+export async function autoAssignClanOnJoin(guildId: string, member: GuildMember): Promise<void> {
+  try {
+    if (member.user.bot) return;
+
+    const guildSettings = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { clansEnabled: true, clanAutoAssignOnJoin: true },
+    });
+    if (!guildSettings?.clansEnabled || !guildSettings?.clanAutoAssignOnJoin) return;
+
+    const clans = await prisma.clan.findMany({ where: { guildId } });
+    if (clans.length === 0) return;
+
+    const clanRoleIds = clans.map((c) => c.roleId);
+
+    // Le membre a déjà un clan (ex: synchro de double compte déjà exécutée juste avant) : ne rien faire.
+    if (member.roles.cache.some((r) => clanRoleIds.includes(r.id))) return;
+
+    // Exclusion : ne pas assigner automatiquement un double compte déjà validé.
+    const validatedLink = await prisma.linkedAccount.findFirst({
+      where: {
+        guildId,
+        status: 'VALIDATED',
+        OR: [{ user1Id: member.id }, { user2Id: member.id }],
+      },
+    });
+    if (validatedLink) {
+      logger.info('ClanService', `Auto-assignation ignorée pour ${member.user.tag} : double compte déjà validé.`);
+      return;
+    }
+
+    // Trouver le clan qui a actuellement le moins de membres sur Discord.
+    const clanCounts = clans.map((c) => ({
+      clan: c,
+      count: member.guild.roles.cache.get(c.roleId)?.members.size ?? 0,
+    }));
+    clanCounts.sort((a, b) => a.count - b.count);
+    const targetClan = clanCounts[0]?.clan;
+    if (!targetClan) return;
+
+    await member.roles.add(targetClan.roleId, 'Attribution automatique à la jointure (clan le moins peuplé)');
+
+    logger.info('ClanService', `Clan "${targetClan.name}" attribué automatiquement à ${member.user.tag} à la jointure.`);
+
+    await pushAudit(guildId, {
+      user: 'Système (Auto-assignation)',
+      action: 'Attribution automatique de clan',
+      context: member.guild.name,
+      module: 'Clans',
+      eventType: 'Automatique',
+      details: `Clan "${targetClan.name}" attribué automatiquement à ${member.user.tag} à son arrivée sur le serveur.`,
+      channelId: null,
+    }).catch(() => null);
+
+    broadcastDashboardStateChange(guildId, 'clans_updated');
+  } catch (err) {
+    logger.error('ClanService', `Erreur lors de l'auto-assignation de clan pour ${member.user.tag}:`, err);
   }
 }
 
