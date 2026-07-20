@@ -1,15 +1,4 @@
-import {
-  type Client,
-  type Message,
-  type MessageReaction,
-  type TextChannel,
-  type NewsChannel,
-  type ThreadChannel,
-  type User,
-  EmbedBuilder,
-  WebhookClient,
-  ChannelType,
-} from 'discord.js';
+import { type Client, type Message, type MessageReaction, type TextChannel, type NewsChannel, type ThreadChannel, type User, EmbedBuilder, WebhookClient } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
@@ -626,9 +615,20 @@ export async function relayMessageEdit(message: Message, client: Client): Promis
         webhookClient.destroy();
       } else {
         const relayedMsg = await (destChannel as TextChannel).messages.fetch(mapping.relayedMessageId).catch(() => null);
-        if (relayedMsg?.editable && relayedMsg.embeds.length > 0) {
-          const oldEmbed = relayedMsg.embeds[0];
-          const newEmbed = EmbedBuilder.from(oldEmbed).setDescription(message.content || '*[vide]*');
+        if (relayedMsg?.editable) {
+          // Le message relayé est en Components V2 (voir utils/patchV2.ts) :
+          // `relayedMsg.embeds` est vide, on reconstruit donc l'embed à partir
+          // du message source édité (mêmes en-tête/pied qu'à la création).
+          const sourceGuild = message.guild!;
+          const newEmbed = new EmbedBuilder()
+            .setColor(COLORS.info)
+            .setAuthor({
+              name: `${message.author.displayName || message.author.username} • ${sourceGuild.name}`,
+              iconURL: message.author.displayAvatarURL(),
+            })
+            .setTimestamp(message.createdAt)
+            .setFooter({ text: `🔗 ${sourceGuild.name}`, iconURL: sourceGuild.iconURL() ?? undefined })
+            .setDescription(message.content || '*[vide]*');
           await relayedMsg.edit({ embeds: [newEmbed] }).catch(() => null);
         }
       }

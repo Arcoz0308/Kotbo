@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import { fetchMaintenanceConfig, updateMaintenanceConfig, fetchBotErrors, clearBotErrors } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
   import AdminLayout from '../../lib/components/AdminLayout.svelte';
@@ -40,7 +41,7 @@
   }
 
   async function handleClearErrors() {
-    if (!confirm('Purger tous les logs d\'erreurs ?')) return;
+    if (!(await confirmDialog.danger("Purger tous les logs d'erreurs ?", '', 'Purger'))) return;
     try {
       await clearBotErrors();
       botErrors = [];
@@ -104,7 +105,7 @@
           </div>
           <button 
             onclick={handleToggleMaintenance}
-            class="px-8 py-4 rounded-xl font-semibold text-lg transition-all hover:scale-105 {maintenanceMode ? 'bg-success text-on-success shadow-success/20' : 'bg-amber-500 text-white shadow-amber-500/20'} shadow-lg"
+            class="px-8 py-4 rounded-xl font-semibold text-lg transition-all {maintenanceMode ? 'bg-success text-on-success shadow-success/20' : 'bg-amber-500 text-white shadow-amber-500/20'} shadow-lg"
           >
             {maintenanceMode ? "DÉSACTIVER (Retour Normal)" : "ACTIVER LA MAINTENANCE"}
           </button>

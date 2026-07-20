@@ -82,7 +82,7 @@
   <div class="max-w-6xl mx-auto px-6 pt-16 relative z-10">
     <!-- Back Button -->
     <div class="mb-8">
-      <button onclick={() => router.goto('/')} class="group inline-flex items-center gap-2 rounded-xl bg-surface-container-low/60 hover:bg-surface-container-high/80 border border-outline-variant/10 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-surface-variant transition-all hover:">
+      <button onclick={() => router.goto('/')} class="group inline-flex items-center gap-2 rounded-xl bg-surface-container-low/60 hover:bg-surface-container-high/80 border border-outline-variant/10 px-5 py-2.5 text-[13px] font-medium text-on-surface-variant transition-all hover:">
         <Papicon icon="ArrowLeft" size={14} class="transition-transform group-hover:-translate-x-1" />
         Retour
       </button>
@@ -106,14 +106,14 @@
     {:else if error}
       <!-- Error Panel -->
       <div class="flex flex-col items-center justify-center py-24 text-center max-w-xl mx-auto">
-        <div class="w-20 h-20 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mb-6 shadow-lg shadow-rose-500/5">
+        <div class="w-20 h-20 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mb-6 shadow-sm">
           <Papicon icon="AlertTriangle" size={36} />
         </div>
         <h3 class="text-lg font-semibold tracking-tight text-on-surface font-headline">Profil Introuvable</h3>
         <p class="mt-4 text-base font-bold text-on-surface-variant/60 leading-relaxed">
           {error}. Vérifiez que l'identifiant est correct ou que le compte n'a pas été restreint.
         </p>
-        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-widest text-on-primary shadow-sm shadow-primary/20 hover: active:scale-[0.98] transition-all">
+        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-lg bg-primary px-8 py-4 text-[13px] font-medium text-on-primary shadow-sm shadow-primary/20 hover: active:scale-[0.98] transition-all">
           <Papicon icon="Home" size={16} />
           Retour à l'accueil
         </button>
@@ -174,7 +174,7 @@
             <!-- Context CTA Button -->
             {#if authStore.isAuthenticated && authStore.user?.id === userId}
               <div class="pb-2">
-                <button onclick={() => router.goto('/profile')} class="group inline-flex items-center gap-2.5 rounded-lg bg-primary hover:bg-primary-hover px-8 py-4 text-xs font-semibold uppercase tracking-widest text-on-primary shadow-sm shadow-primary/20 hover:scale-[1.03] active:scale-[0.97] transition-all">
+                <button onclick={() => router.goto('/profile')} class="group inline-flex items-center gap-2.5 rounded-lg bg-primary hover:bg-primary-hover px-8 py-4 text-[13px] font-medium text-on-primary shadow-sm shadow-primary/20 active:scale-[0.97] transition-all">
                   <Papicon icon="ShieldUser" size={16} class="transition-transform group-hover:rotate-6" />
                   Mon Espace Staff
                 </button>

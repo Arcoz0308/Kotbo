@@ -1,13 +1,4 @@
-import {
-  PermissionFlagsBits,
-  SlashCommandBuilder,
-  ComponentType,
-  type ChatInputCommandInteraction,
-  ContainerBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
-} from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, ContainerBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { COLORS_RAW, text, successContainer, errorContainer, infoContainer, v2 } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';

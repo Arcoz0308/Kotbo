@@ -115,7 +115,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     try {
-      const reminder = await createReminder({
+      await createReminder({
         guildId,
         userId: user.id,
         channelId: channel?.id || null,

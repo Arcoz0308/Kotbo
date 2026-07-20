@@ -19,6 +19,7 @@
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { searchStore } from '../stores/search.svelte';
   import { unsavedChanges } from '../stores/unsavedChanges.svelte';
+  import { confirmDialog } from '../stores/confirmDialog.svelte';
   import { isMobile } from '../stores/media.svelte';
   import { authStore } from '../stores/auth.svelte';
   import { onboardingStore } from '../stores/tutorial.svelte';
@@ -115,15 +116,17 @@
   }
 
   // Expose a navigation guard used by Sidebar & other nav elements
-  export function guardedNavigate(href: string) {
+  export async function guardedNavigate(href: string) {
     if (!unsavedChanges.isDirty) {
       router.goto(href);
       return;
     }
-    // Show a confirm dialog and let the user decide
-    const confirmed = window.confirm(
-      `Vous avez des modifications non sauvegardées sur « ${unsavedChanges.pageLabel} ».\n\nQuitter sans enregistrer ?`
-    );
+    const confirmed = await confirmDialog.ask({
+      title: 'Modifications non sauvegardées',
+      description: `Vous avez des modifications non sauvegardées sur « ${unsavedChanges.pageLabel} ». Quitter sans enregistrer ?`,
+      confirmLabel: 'Quitter sans enregistrer',
+      variant: 'warning',
+    });
     if (confirmed) {
       unsavedChanges.clear();
       router.goto(href);

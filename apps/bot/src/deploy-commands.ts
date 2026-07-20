@@ -4,9 +4,11 @@ dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
 import { REST, Routes } from 'discord.js';
 import { logger } from './utils/logger.js';
-import { applicationCommands } from './commands.js';
+import prisma from './utils/db.js';
+import { applicationCommands, guildApplicationCommands } from './commands.js';
 
-const commands = applicationCommands.map((cmd) => cmd.data.toJSON());
+const globalPayload = applicationCommands.map((cmd) => cmd.data.toJSON());
+const guildPayload = guildApplicationCommands.map((cmd) => cmd.data.toJSON());
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
@@ -18,41 +20,62 @@ if (!token || !clientId) {
 
 const rest = new REST().setToken(token);
 
+/**
+ * Les commandes de guilde ont un quota distinct du quota global (5 menus
+ * contextuels User + 5 Message de chaque côté). On les déploie donc sur les
+ * serveurs activés, et on purge celles des serveurs non activés — ces derniers
+ * ne doivent voir que les commandes globales.
+ */
+async function loadActivatedGuildIds(): Promise<Set<string>> {
+  const rows = await prisma.guild.findMany({ where: { activated: true }, select: { id: true } });
+  return new Set(rows.map((row) => row.id));
+}
+
 try {
-  // Récupère toutes les guilds sur lesquelles le bot est présent pour nettoyer les commandes locales
-  const guilds = await rest.get(Routes.userGuilds()) as { id: string; name: string }[];
+  const guilds = (await rest.get(Routes.userGuilds())) as { id: string; name: string }[];
+  const activated = await loadActivatedGuildIds();
 
-  logger.info('Déploiement', `Nettoyage des anciennes commandes locales sur ${guilds.length} serveur(s)...`);
+  logger.info('Déploiement', `${guilds.length} serveur(s) rejoint(s), ${activated.size} activé(s) en base.`);
 
-  const cleanupResults = await Promise.allSettled(
-    guilds.map((guild) =>
-      rest
-        .put(Routes.applicationGuildCommands(clientId!, guild.id), { body: [] })
-        .then(() => ({ guild, ok: true }))
-        .catch((err) => ({ guild, ok: false, err }))
-    )
+  // ── Commandes globales ────────────────────────────────────────────────
+  logger.info('Déploiement', `Déploiement de ${globalPayload.length} commandes globales...`);
+  await rest.put(Routes.applicationCommands(clientId), { body: globalPayload });
+  logger.success('Déploiement', `✓ ${globalPayload.length} commandes globales déployées.`);
+
+  // ── Commandes de guilde ───────────────────────────────────────────────
+  const results = await Promise.allSettled(
+    guilds.map(async (guild) => {
+      const isActivated = activated.has(guild.id);
+      const body = isActivated ? guildPayload : [];
+      await rest.put(Routes.applicationGuildCommands(clientId, guild.id), { body });
+      return isActivated;
+    }),
   );
 
-  let cleanupSuccess = 0;
-  for (const result of cleanupResults) {
+  let deployed = 0;
+  let cleared = 0;
+  let failed = 0;
+
+  for (const [index, result] of results.entries()) {
     if (result.status === 'fulfilled') {
-      const { guild, ok, err } = result.value as unknown;
-      if (ok) {
-        cleanupSuccess++;
-      } else {
-        logger.error('Déploiement', `✗ Échec du nettoyage sur "${guild.name}" (${guild.id}) :`, err);
-      }
+      if (result.value) deployed++;
+      else cleared++;
+    } else {
+      failed++;
+      const guild = guilds[index];
+      logger.error('Déploiement', `✗ Échec sur "${guild?.name}" (${guild?.id}) :`, result.reason);
     }
   }
-  logger.info('Déploiement', `Nettoyage terminé : ${cleanupSuccess}/${guilds.length} serveurs nettoyés.`);
 
-  // Déploiement global des commandes
-  logger.info('Déploiement', `Déploiement de ${commands.length} commandes globales (sera visible dans le profil du bot)...`);
-  await rest.put(Routes.applicationCommands(clientId!), { body: commands });
-  
-  logger.success('Déploiement', `✓ Déploiement global réussi pour les ${commands.length} commandes !`);
-  process.exit(0);
+  logger.success(
+    'Déploiement',
+    `✓ Commandes de guilde : ${deployed} serveur(s) activé(s) à ${guildPayload.length} commande(s), ${cleared} purgé(s), ${failed} en échec.`,
+  );
+
+  await prisma.$disconnect();
+  process.exit(failed > 0 ? 1 : 0);
 } catch (err) {
   logger.error('Déploiement', 'Échec du déploiement :', err);
+  await prisma.$disconnect().catch(() => undefined);
   process.exit(1);
 }

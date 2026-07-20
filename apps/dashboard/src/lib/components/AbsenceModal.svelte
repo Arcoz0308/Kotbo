@@ -203,7 +203,7 @@
       <button
         onclick={handleSave}
         disabled={saving}
-        class="px-5 py-2.5 text-xs rounded-xl font-semibold uppercase tracking-wide bg-primary text-on-primary border border-primary  hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
+        class="px-5 py-2.5 text-xs rounded-xl font-semibold uppercase tracking-wide bg-primary text-on-primary border border-primary hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
       >
         {#if saving}
           <div class="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin"></div>

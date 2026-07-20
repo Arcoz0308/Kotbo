@@ -10,6 +10,7 @@
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
@@ -540,22 +541,13 @@
   }
 </script>
 
-<!-- ═══════════ HEADER ═══════════ -->
-<div class="flex flex-col gap-8 animate-in fade-in slide-up duration-500">
-
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden group">
-    <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/8 rounded-full blur-[60px] group-hover:bg-primary/15 transition-all duration-700"></div>
-
-    <div class="flex items-center gap-4 relative">
-      <div class="w-11 h-11 bg-linear-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-md shadow-primary/15">
-        <Papicon icon="terminal" size={22} class="text-white" />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">Commandes</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Gérez les permissions d'accès et consultez la structure de vos commandes.</p>
-      </div>
-    </div>
-
+<ModulePage
+  title="Commandes"
+  description="Gérez les permissions d'accès et consultez la structure de vos commandes."
+  icon="terminal"
+  featureKey="commands"
+>
+  {#snippet actions()}
     <div class="flex items-center gap-3 relative">
       <div class="stat-kpi flex items-center gap-2.5 !py-1.5 !px-3">
         <Papicon icon="Code" size={14} class="text-on-surface-variant" />
@@ -572,7 +564,7 @@
         </div>
       </div>
     </div>
-  </header>
+  {/snippet}
 
   <!-- ═══════════ MAIN LAYOUT ═══════════ -->
   <div class="grid grid-cols-12 gap-6">
@@ -1108,7 +1100,7 @@
       {/if}
     </div>
   </div>
-</div>
+</ModulePage>
 
 <style>
   /* ─── Custom scrollbar ─── */

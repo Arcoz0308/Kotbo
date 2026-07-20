@@ -13,8 +13,11 @@ import { checkYoutubeFollows } from '../services/integrations/youtubeService.js'
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
 import { initializeDatabaseBackup } from '../services/system/databaseBackupService.js';
 import { checkTicketInactivity } from '../services/features/ticketService.js';
+import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 import { pruneOldMessageLogs } from './messageLogging.js';
+import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
+import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
 
 const runningJobs = new Set<string>();
 
@@ -162,6 +165,10 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Actualisation des leaderboards automatiques...');
       await refreshAllAutoLeaderboards(client);
     },
+    'giveaways-expiration': async () => {
+      logger.debug('Cron', 'Clôture des giveaways arrivés à échéance...');
+      await checkExpiredGiveaways(client);
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -277,6 +284,13 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 1000);
   });
 
+  // 🎉 Giveaways: Toutes les minutes (clôture des concours arrivés à échéance)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('giveaways-expiration', async () => {
+      await checkExpiredGiveaways(client);
+    }, 1000);
+  });
+
   // 📊 Activity & Heatmap: Toutes les 10 minutes (Snapshot présences lissé)
   // Offloaded to BullMQ worker to avoid blocking the main event loop
   cron.schedule('*/10 * * * *', async () => {
@@ -297,6 +311,20 @@ export async function registerCrons(client: Client): Promise<void> {
   // 🗂️ Journalisation des messages: purge selon la rétention (tous les jours à 03:30)
   cron.schedule('30 3 * * *', async () => {
     await runCronJob('message-logs-prune', pruneOldMessageLogs, 2000);
+  });
+
+  // 📊 Stats de mots: purge des agrégats de plus de 90 jours (tous les jours à 03:45)
+  cron.schedule('45 3 * * *', async () => {
+    await runCronJob('word-stats-prune', async () => {
+      await pruneOldWordStats();
+    }, 2000);
+  });
+
+  // 🧹 Hygiène des bans: détection des comptes supprimés (tous les jours à 05:15)
+  cron.schedule('15 5 * * *', async () => {
+    await runCronJob('ban-hygiene-scan', async () => {
+      await runBanHygieneScan(client);
+    }, 3000);
   });
 
   // 🛡️ Sanctions: Rapports manquants (tous les jours à 12:00, heure de Paris)

@@ -174,7 +174,7 @@
         .filter(c => c.name.startsWith('option'));
 
       if (questionCol === -1 || responseCol === -1 || optionCols.length === 0) {
-        alert("Format CSV invalide. Assurez-vous d'avoir au moins les colonnes 'Question', 'Option X' et 'Bonne Réponse'.");
+        toast.error("Format CSV invalide. Colonnes requises : 'Question', 'Option X' et 'Bonne Réponse'.");
         return;
       }
 
@@ -223,20 +223,20 @@
     <div class="flex gap-3">
       <button 
         onclick={() => router.goto('/events')}
-        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
+        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
       >
         Retour
       </button>
       <button
         onclick={save}
         disabled={isSaving}
-        class="px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:scale-105 transition-transform"
+        class="px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl font-medium text-[13px] border border-outline-variant/10 transition-transform"
       >
         {isSaving ? 'Enregistrement...' : 'Enregistrer'}
       </button>
       <button
         onclick={publish}
-        class="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-[10px] uppercase tracking-widest  hover:scale-105 transition-transform"
+        class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
       >
         Publier sur Discord
       </button>
@@ -257,7 +257,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="event-title" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Titre de l'événement</label>
+              <label for="event-title" class="field-label">Titre de l'événement</label>
               <FormInput 
                 id="event-title"
                 bind:value={event.title} 
@@ -266,7 +266,7 @@
               />
             </div>
             <div class="space-y-2">
-              <label for="announcement-channel" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Salon d'Annonce</label>
+              <label for="announcement-channel" class="field-label">Salon d'Annonce</label>
               <select
                 id="announcement-channel"
                 bind:value={event.announcementChannelId}
@@ -281,7 +281,7 @@
           </div>
 
           <div class="space-y-2">
-            <label for="event-description" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Description</label>
+            <label for="event-description" class="field-label">Description</label>
             <FormTextarea 
               id="event-description"
               bind:value={event.description} 
@@ -293,7 +293,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="linked-form" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Formulaire d'Inscription (optionnel)</label>
+              <label for="linked-form" class="field-label">Formulaire d'Inscription (optionnel)</label>
               <select
                 id="linked-form"
                 bind:value={event.formId}
@@ -307,7 +307,7 @@
             </div>
 
             <div class="space-y-2">
-              <label for="start-date" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Date de début (Locale)</label>
+              <label for="start-date" class="field-label">Date de début (Locale)</label>
               <input
                 id="start-date"
                 type="datetime-local"
@@ -320,7 +320,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="location" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Lieu (Location)</label>
+              <label for="location" class="field-label">Lieu (Location)</label>
               <FormInput
                 id="location"
                 bind:value={event.config.location}
@@ -330,7 +330,7 @@
             </div>
 
             <div class="space-y-2">
-              <label for="end-date" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Date de fin (Locale, optionnelle)</label>
+              <label for="end-date" class="field-label">Date de fin (Locale, optionnelle)</label>
               <input
                 id="end-date"
                 type="datetime-local"
@@ -376,7 +376,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="event-title" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Titre de l'événement</label>
+              <label for="event-title" class="field-label">Titre de l'événement</label>
               <FormInput 
                 id="event-title"
                 bind:value={event.title} 
@@ -385,7 +385,7 @@
               />
             </div>
             <div class="space-y-2">
-              <label for="event-channel-id" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">ID du Salon Discord</label>
+              <label for="event-channel-id" class="field-label">ID du Salon Discord</label>
               <FormInput 
                 id="event-channel-id"
                 bind:value={event.channelId} 
@@ -396,7 +396,7 @@
           </div>
 
           <div class="space-y-2">
-            <label for="event-description" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Description</label>
+            <label for="event-description" class="field-label">Description</label>
             <FormTextarea 
               id="event-description"
               bind:value={event.description} 
@@ -408,7 +408,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4">
             <div class="space-y-2">
-              <label for="event-trigger-type" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Déclencheur automatique (Trigger)</label>
+              <label for="event-trigger-type" class="field-label">Déclencheur automatique (Trigger)</label>
               <select
                 id="event-trigger-type"
                 bind:value={event.triggerType}
@@ -422,7 +422,7 @@
 
             {#if event.triggerType === 'MEMBER_COUNT'}
               <div class="space-y-2">
-                <label for="event-trigger-value-members" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Nombre de membres cible</label>
+                <label for="event-trigger-value-members" class="field-label">Nombre de membres cible</label>
                 <FormInput 
                   id="event-trigger-value-members"
                   bind:value={event.triggerValue} 
@@ -434,7 +434,7 @@
 
             {#if event.triggerType === 'SCHEDULED'}
               <div class="space-y-2">
-                <label for="event-trigger-value-date" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Date et Heure de lancement (Locale)</label>
+                <label for="event-trigger-value-date" class="field-label">Date et Heure de lancement (Locale)</label>
                 <FormInput 
                   id="event-trigger-value-date"
                   type="datetime-local"
@@ -446,7 +446,7 @@
 
             {#if event.triggerType}
               <div class="space-y-2 flex flex-col justify-end pb-3">
-                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Statut du Déclencheur</span>
+                <span class="text-xs font-medium text-on-surface-variant/40 ml-4">Statut du Déclencheur</span>
                 <span class="text-sm font-bold ml-4 text-primary">
                   {#if event.triggerStatus === 'PENDING'}
                     ⌛ En attente
@@ -480,7 +480,7 @@
                 
                 <div class="flex flex-col gap-6">
                   <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-semibold uppercase tracking-widest text-emerald-500">Défi #{cIdx + 1}</span>
+                    <span class="text-xs font-medium text-emerald-500">Défi #{cIdx + 1}</span>
                     <button onclick={() => removeCtfChallenge(cIdx)} class="text-rose-500 hover:text-rose-600 transition-colors">
                       <Papicon icon="Trash2" size={16} />
                     </button>
@@ -489,7 +489,7 @@
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div class="space-y-6">
                       <div class="space-y-2">
-                        <label for={`challenge-${cIdx}-title`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Titre du défi</label>
+                        <label for={`challenge-${cIdx}-title`} class="field-label">Titre du défi</label>
                         <FormInput 
                           id={`challenge-${cIdx}-title`}
                           bind:value={challenge.title} 
@@ -499,7 +499,7 @@
                       </div>
 
                       <div class="space-y-2">
-                        <label for={`challenge-${cIdx}-description`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Description / Énoncé</label>
+                        <label for={`challenge-${cIdx}-description`} class="field-label">Description / Énoncé</label>
                         <FormTextarea 
                           id={`challenge-${cIdx}-description`}
                           bind:value={challenge.description} 
@@ -513,7 +513,7 @@
                     <div class="space-y-6">
                       <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-2">
-                          <label for={`challenge-${cIdx}-flag`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Flag attendu</label>
+                          <label for={`challenge-${cIdx}-flag`} class="field-label">Flag attendu</label>
                           <FormInput 
                             id={`challenge-${cIdx}-flag`}
                             bind:value={challenge.flag} 
@@ -523,7 +523,7 @@
                         </div>
 
                         <div class="space-y-2">
-                          <label for={`challenge-${cIdx}-points`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Points</label>
+                          <label for={`challenge-${cIdx}-points`} class="field-label">Points</label>
                           <FormInput 
                             id={`challenge-${cIdx}-points`}
                             type="number"
@@ -536,7 +536,7 @@
 
                       <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-2">
-                          <label for={`challenge-${cIdx}-xp`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Points d'XP Récompense</label>
+                          <label for={`challenge-${cIdx}-xp`} class="field-label">Points d'XP Récompense</label>
                           <FormInput 
                             id={`challenge-${cIdx}-xp`}
                             type="number"
@@ -547,7 +547,7 @@
                         </div>
 
                         <div class="space-y-2">
-                          <label for={`challenge-${cIdx}-role`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Rôle ID en récompense (optionnel)</label>
+                          <label for={`challenge-${cIdx}-role`} class="field-label">Rôle ID en récompense (optionnel)</label>
                           <FormInput 
                             id={`challenge-${cIdx}-role`}
                             bind:value={challenge.roleIdReward} 
@@ -558,7 +558,7 @@
                       </div>
 
                       <div class="space-y-2">
-                        <label for={`challenge-${cIdx}-image`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">URL de l'image (optionnel)</label>
+                        <label for={`challenge-${cIdx}-image`} class="field-label">URL de l'image (optionnel)</label>
                         <FormInput 
                           id={`challenge-${cIdx}-image`}
                           bind:value={challenge.imageUrl} 
@@ -587,7 +587,7 @@
               />
               <button 
                 onclick={triggerImport} 
-                class="px-4 py-2 bg-surface-container-high text-on-surface-variant rounded-xl font-bold text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+                class="px-4 py-2 bg-surface-container-high text-on-surface-variant rounded-xl font-bold text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
               >
                 <Papicon icon="FileUp" size={14} /> Importer CSV
               </button>
@@ -605,14 +605,14 @@
                 <div class="flex flex-col md:flex-row gap-8">
                   <div class="flex-1 space-y-6">
                     <div class="flex items-center justify-between">
-                      <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Question #{qIdx + 1}</span>
+                      <span class="text-xs font-medium text-primary">Question #{qIdx + 1}</span>
                       <button onclick={() => removeQuestion(qIdx)} class="text-rose-500 hover:text-rose-600 transition-colors">
                         <Papicon icon="Trash2" size={16} />
                       </button>
                     </div>
                     
                     <div class="space-y-2">
-                      <label for={`question-${qIdx}-text`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">Énoncé de la question</label>
+                      <label for={`question-${qIdx}-text`} class="field-label">Énoncé de la question</label>
                       <FormInput 
                         id={`question-${qIdx}-text`}
                         bind:value={question.text} 
@@ -621,7 +621,7 @@
                       />
                     </div>
                     <div class="space-y-2">
-                      <label for={`question-${qIdx}-image-url`} class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-4">URL de l'image (optionnel)</label>
+                      <label for={`question-${qIdx}-image-url`} class="field-label">URL de l'image (optionnel)</label>
                       <FormInput 
                         id={`question-${qIdx}-image-url`}
                         bind:value={question.imageUrl} 
@@ -633,8 +633,8 @@
 
                   <div class="flex-1 space-y-6">
                     <div class="flex items-center justify-between">
-                      <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Options de réponse</span>
-                      <button onclick={() => addOption(qIdx)} class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline">
+                      <span class="text-xs font-medium text-on-surface-variant/40">Options de réponse</span>
+                      <button onclick={() => addOption(qIdx)} class="text-xs font-medium text-primary hover:underline">
                         + Ajouter option
                       </button>
                     </div>

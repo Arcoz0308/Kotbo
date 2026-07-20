@@ -1,15 +1,4 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
-  type ChatInputCommandInteraction,
-  ComponentType,
-} from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, type ChatInputCommandInteraction, ComponentType } from 'discord.js';
 import { COLORS_RAW, text } from './embeds.js';
 
 export interface PaginationOptions {

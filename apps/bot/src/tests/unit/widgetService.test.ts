@@ -69,7 +69,26 @@ for (const [relativePath, factory] of moduleMocks) {
 const fetchMock = mock(async () => new Response(null, { status: 204 }));
 globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-const { pushWidgetForUser } = await import('../../services/integrations/widgetService.js');
+const { pushWidgetForUser, clearWidgetForUser } = await import('../../services/integrations/widgetService.js');
+
+/** Réponse réelle de Discord quand l'identité envoyée n'est pas celle enregistrée. */
+function identityMismatchResponse(sentId: string) {
+  return new Response(
+    JSON.stringify({
+      message: 'Invalid Form Body',
+      code: 50035,
+      errors: {
+        provider_issued_user_id: {
+          _errors: [{
+            code: 'APPLICATION_IDENTITY_PROVIDER_USER_ID_MISMATCH',
+            message: `Provider user ID ${sentId} does not match existing identity record`,
+          }],
+        },
+      },
+    }),
+    { status: 400 },
+  );
+}
 
 describe('widgetService identities', () => {
   beforeEach(() => {
@@ -117,5 +136,58 @@ describe('widgetService identities', () => {
     expect(result.error).toContain('déjà liée à un autre compte Discord');
     expect(result.error).not.toContain('autoriser');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('bascule sur l’identité legacy 0 quand Discord signale un mismatch d’identité', async () => {
+    fetchMock
+      .mockImplementationOnce(async () => identityMismatchResponse(userId))
+      .mockImplementationOnce(async () => new Response(null, { status: 204 }));
+
+    const result = await pushWidgetForUser(guildId, userId);
+
+    expect(result).toEqual({ ok: true });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(`/identities/${userId}/profile`);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/identities/0/profile');
+  });
+
+  test('explique le mismatch au lieu de renvoyer le JSON brut quand aucune identité ne marche', async () => {
+    fetchMock.mockImplementation(async () => identityMismatchResponse(userId));
+
+    const result = await pushWidgetForUser(guildId, userId);
+
+    expect(result.ok).toBeFalse();
+    // Les deux candidats sont tentés avant d'abandonner.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.error).toContain('Désactive puis réactive');
+    expect(result.error).not.toContain('APPLICATION_IDENTITY_PROVIDER_USER_ID_MISMATCH');
+  });
+});
+
+describe('clearWidgetForUser identities', () => {
+  beforeEach(() => {
+    process.env.DISCORD_TOKEN = 'test-token';
+    process.env.DISCORD_CLIENT_ID = 'test-app';
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async () => new Response(null, { status: 204 }));
+  });
+
+  test('bascule sur l’identité legacy 0 sur mismatch', async () => {
+    fetchMock
+      .mockImplementationOnce(async () => identityMismatchResponse(userId))
+      .mockImplementationOnce(async () => new Response(null, { status: 204 }));
+
+    const result = await clearWidgetForUser(userId);
+
+    expect(result).toEqual({ ok: true });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/identities/0/profile');
+  });
+
+  test('traite un mismatch persistant comme « rien à vider »', async () => {
+    fetchMock.mockImplementation(async () => identityMismatchResponse(userId));
+
+    const result = await clearWidgetForUser(userId);
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

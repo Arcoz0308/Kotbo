@@ -1,35 +1,7 @@
-import {
-  type Client,
-  type APIInteractionGuildMember,
-  type ButtonInteraction,
-  type ModalSubmitInteraction,
-  type StringSelectMenuInteraction,
-  TextChannel,
-  ChannelType,
-  PermissionFlagsBits,
-  PermissionsBitField,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  StringSelectMenuBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  MessageFlags,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  type GuildMember,
-  type Guild,
-  type ThreadChannel,
-  Message,
-  ComponentType
-} from 'discord.js';
+import { type Client, type APIInteractionGuildMember, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, TextChannel, ChannelType, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, type GuildMember, type ThreadChannel, Message, ComponentType } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2, text, separator } from '../../utils/embeds.js';
+import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2 } from '../../utils/embeds.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
@@ -700,9 +672,9 @@ export async function handleTicketButton(client: Client, customId: string, inter
     try {
       const panel = await buildMemberCasePanel(guild, ticket.userId, 'resume', 0);
       await interaction.editReply({
-        embeds: [panel.embed],
         components: panel.components,
-        files: panel.files
+        files: panel.files,
+        flags: [MessageFlags.IsComponentsV2],
       });
     } catch (err) {
       logger.error('Ticket', 'Error building member profile card for ticket:', err);
@@ -1246,7 +1218,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     return handleDmDirectTicket(client, interaction, targetGuildId);
   }
 
-  const { guildId, user, guild } = interaction;
+  const { guildId, guild } = interaction;
   if (!guildId || !guild) return;
 
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
@@ -1269,7 +1241,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     if (Array.isArray(customFields) && customFields.length > 0) {
       const answers: string[] = [];
       const fieldsToUse = customFields.slice(0, 5);
-      fieldsToUse.forEach((f: any, i: number) => {
+      fieldsToUse.forEach((f: any) => {
         try {
           const val = interaction.fields.getTextInputValue(f.id);
           answers.push(`**${f.label}** :\n${val || '_Non renseigné_'}`);

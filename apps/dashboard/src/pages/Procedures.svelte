@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { fetchProcedures, upsertProcedure, deleteProcedure, markProcedureRead } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
 
@@ -59,7 +60,7 @@
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Supprimer cette procédure ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cette procédure ?'))) return;
     try {
       await deleteProcedure(id);
       await loadData();
@@ -93,7 +94,7 @@
           <Papicon icon="file-text" size={20} />
         </div>
         <div>
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Manuel des Procédures</span>
+          <span class="text-xs font-medium text-primary">Manuel des Procédures</span>
           <h1 class="text-lg font-semibold tracking-tight text-on-surface">Guide Interne Staff</h1>
           <p class="text-sm font-medium text-on-surface-variant/70">Consultez et validez les étapes clés de nos protocoles de modération.</p>
         </div>
@@ -101,7 +102,7 @@
 
       <div class="flex items-center gap-4">
         <div class="flex flex-col items-end gap-1">
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Progression</span>
+          <span class="text-xs font-medium text-on-surface-variant/50">Progression</span>
           <div class="flex items-center gap-2">
              <div class="w-24 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                 <div class="h-full bg-primary transition-all duration-1000" style="width: {progressPercent}%"></div>
@@ -110,7 +111,7 @@
           </div>
         </div>
         {#if isAdmin}
-          <button onclick={openCreate} class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold uppercase tracking-widest text-white hover:scale-105 active:scale-95 transition-all">
+          <button onclick={openCreate} class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[13px] font-medium text-white active:scale-[0.98] transition-all">
              <Papicon icon="plus" size={16} />
              Nouveau
           </button>
@@ -218,7 +219,7 @@
           <textarea bind:value={editingProcedure.content} placeholder="Contenu (Markdown possible)..." rows="12" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-5 py-4 text-sm outline-none focus:border-primary transition-all resize-none"></textarea>
           <div class="flex items-center gap-4">
              <div class="flex-1 flex items-center gap-3">
-                <span class="text-xs font-bold uppercase tracking-widest opacity-50">Ordre</span>
+                <span class="text-[13px] font-medium opacity-50">Ordre</span>
                 <input type="number" bind:value={editingProcedure.sortOrder} class="w-20 bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-2 text-sm" />
              </div>
              {#if editingProcedure.id}

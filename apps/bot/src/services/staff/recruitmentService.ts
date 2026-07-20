@@ -1,5 +1,5 @@
-import type { CandidatureStatus, OralResult } from '@prisma/client';
-import { ChannelType, PermissionFlagsBits, type Client, type Guild as DiscordGuild, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, type TextChannel } from 'discord.js';
+import type { CandidatureStatus } from '@prisma/client';
+import { ChannelType, PermissionFlagsBits, type Client, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { createNotification } from './staffLeadershipService.js';
 import { logger } from '../../utils/logger.js';

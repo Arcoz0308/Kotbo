@@ -115,6 +115,10 @@ model Sanction {
   expiresAt DateTime?
   nextActionAt DateTime?
 
+  // Poids du warn (1 = léger, 2 = normal, 3 = grave). Utilisé par le score
+  // pondéré quand warnWeightingEnabled est actif sur la guilde.
+  weight Int @default(1)
+
   resolvedAt DateTime?
   resolutionNote String?
   lastReportReminderAt DateTime?
@@ -134,7 +138,28 @@ model Sanction {
   @@index([guildId, status, type])
   @@index([status, nextActionAt])
   @@index([sanctionTableId])
+  // Recherches par membre à travers plusieurs serveurs (casier + casier cross-serveur)
+  @@index([targetUserId, createdAt])
   @@map("sanctions")
+}
+
+// Comptes bannis détectés comme supprimés par Discord (cron d'hygiène des bans).
+// Permet de notifier le staff une seule fois et de proposer le nettoyage.
+model BanHygieneRecord {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+  userTag String? // Dernier tag connu avant suppression
+
+  detectedDeletedAt DateTime  @default(now())
+  notifiedAt        DateTime?
+  unbannedAt        DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, unbannedAt])
+  @@map("ban_hygiene_records")
 }
 
 model SanctionTable {

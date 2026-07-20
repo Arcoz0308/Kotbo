@@ -266,16 +266,24 @@ export async function handleEconomyRoutes(
           orderBy: { balance: 'desc' }
         });
 
+        const items = await prisma.rpgItem.findMany({
+          where: { OR: [{ guildId: null }, { guildId }] }
+        });
+
         // Resolve Discord tags/usernames from cache if possible
         const discordGuild = client.guilds.cache.get(guildId);
         const playerDetails = players.map((player: unknown) => {
           const p = player as LocalPlayerProfile;
           const member = discordGuild?.members.cache.get(p.userId);
+          const weapon = items.find(i => i.id === p.weaponId);
+          const armor = items.find(i => i.id === p.armorId);
           return {
             ...p,
             username: member?.user?.username ?? `Utilisateur ${p.userId}`,
             displayName: member?.displayName ?? `Utilisateur ${p.userId}`,
-            avatarUrl: member?.user?.displayAvatarURL({ size: 128 }) ?? null
+            avatarUrl: member?.user?.displayAvatarURL({ size: 128 }) ?? null,
+            weapon: weapon ? { name: weapon.name, emoji: weapon.emoji, atkBonus: weapon.atkBonus } : null,
+            armor: armor ? { name: armor.name, emoji: armor.emoji, defBonus: armor.defBonus } : null
           };
         });
 

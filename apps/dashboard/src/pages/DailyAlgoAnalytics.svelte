@@ -42,7 +42,7 @@
           <Papicon icon="Code" size={20} />
         </div>
         <div>
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Daily Algo</span>
+          <span class="text-xs font-medium text-primary">Daily Algo</span>
           <h1 class="text-lg font-semibold text-on-surface tracking-tight">Analytics Challenges</h1>
           <p class="text-sm text-on-surface-variant/70">Performances, participations et tendances</p>
         </div>
@@ -60,7 +60,7 @@
           loadData();
         }}
         class="px-4 py-2 rounded-lg text-sm font-bold transition-all {period === p
-          ? 'bg-primary text-primary-on'
+ ? 'bg-primary text-primary-on'
           : 'bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high'}"
       >
         {p} jours
@@ -78,7 +78,7 @@
         <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
       </div>
-      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Analyse des challenges...</p>
+      <p class="text-[13px] font-medium text-on-surface-variant/60">Analyse des challenges...</p>
     </div>
   {:else if data}
     <DailyAlgoAnalyticsCard {data} />

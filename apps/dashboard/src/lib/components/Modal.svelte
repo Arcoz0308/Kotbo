@@ -18,7 +18,7 @@
     onClose?: (e?: any) => void;
     title?: string;
     subtitle?: string;
-    size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+    size?: 'sm' | 'md' | 'lg' | 'xl' | 'full' | 'screen';
     showCloseButton?: boolean;
     closeOnBackdropClick?: boolean;
     closeOnEscape?: boolean;
@@ -30,8 +30,11 @@
     md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
-    full: 'max-w-6xl'
+    full: 'max-w-6xl',
+    screen: 'max-w-none'
   };
+
+  const isScreen = $derived(size === 'screen');
 
   function handleBackdropClick(e: MouseEvent) {
     if (closeOnBackdropClick && e.currentTarget === e.target) {
@@ -62,7 +65,7 @@
 {#if open}
   <div
     use:portal
-    class="fixed inset-0 z-9999 flex items-center justify-center p-4"
+    class="fixed inset-0 z-9999 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"
@@ -82,7 +85,9 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="relative w-full {sizeClasses[size]} bg-surface-container-lowest rounded-xl shadow-lg overflow-hidden border border-outline-variant flex flex-col max-h-[90vh] animate-in fade-in slide-up duration-150"
+      class="relative w-full {sizeClasses[size]} bg-surface-container-lowest shadow-lg overflow-hidden border border-outline-variant flex flex-col animate-in fade-in slide-up duration-150 {isScreen
+        ? 'h-full rounded-none sm:h-[calc(100vh-2rem)] sm:rounded-xl'
+        : 'rounded-xl max-h-[90vh]'}"
       onclick={(e) => e.stopPropagation()}
     >
       <!-- Header -->
@@ -109,8 +114,9 @@
         </header>
       {/if}
 
-      <!-- Content -->
-      <div class="flex-1 overflow-y-auto">
+      <!-- Content — the modal's single scroll container. Children must not nest
+           another overflow-y:auto full-height wrapper here, or two scrollbars appear. -->
+      <div class="flex-1 min-h-0 overflow-y-auto">
         {@render children?.()}
       </div>
     </div>

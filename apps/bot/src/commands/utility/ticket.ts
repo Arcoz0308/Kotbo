@@ -1,27 +1,10 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-  PermissionFlagsBits,
-  MessageFlags,
-  TextChannel,
-  Role,
-  User,
-  type GuildMember,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  StringSelectMenuBuilder,
-} from 'discord.js';
+import { ActionRowBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, MessageFlags, TextChannel, Role, User, type GuildMember, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { canManageTicket, renameTicketChannel, renameChannelToClosed, renameChannelToOpen, closeTicket } from '../../services/features/ticketService.js';
+import { canManageTicket, renameTicketChannel, renameChannelToOpen, closeTicket } from '../../services/features/ticketService.js';
 import { buildMemberCasePanel } from '../../services/moderation/memberCaseService.js';
 import { generateTranscript } from '../../services/features/transcriptService.js';
-import { COLORS, successEmbed, errorEmbed } from '../../utils/embeds.js';
+import { successEmbed } from '../../utils/embeds.js';
 import { isGuildActivated } from '../../utils/activation.js';
 
 const data = new SlashCommandBuilder()
@@ -234,9 +217,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     try {
       const panel = await buildMemberCasePanel(interaction.guild!, ticket.userId, 'resume', 0);
       await interaction.editReply({
-        embeds: [panel.embed],
         components: panel.components,
         files: panel.files,
+        flags: [MessageFlags.IsComponentsV2],
       });
     } catch {
       await interaction.editReply({

@@ -11,10 +11,11 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getDashboardUrl } from '../../api/shared.js';
 import {
-  createVerificationSession,
+  createVerificationSessionRecord,
   buildVerificationUrl,
   buildVerificationEmbed,
 } from '../../services/moderation/securityVerificationService.js';
+import { deliverVerification } from '../../services/moderation/verificationDeliveryService.js';
 import { queueAuditLog } from '../../utils/auditLogger.js';
 
 const data = new SlashCommandBuilder()
@@ -61,8 +62,8 @@ async function execute(interaction: ChatInputCommandInteraction | UserContextMen
     }
 
     // 1. Create verification session (and token)
-    const token = await createVerificationSession(guildId, targetUser.id);
-    
+    const verification = await createVerificationSessionRecord(guildId, targetUser.id);
+
     // 2. Timeout the member on Discord
     const TIMEOUT_DURATION = 28 * 24 * 60 * 60 * 1000; // 28 days
     let timeoutSuccess = true;
@@ -73,7 +74,7 @@ async function execute(interaction: ChatInputCommandInteraction | UserContextMen
 
     // 3. Send DM to the user
     const dashboardUrl = getDashboardUrl();
-    const verifyUrl = buildVerificationUrl(dashboardUrl, guildId, token);
+    const verifyUrl = buildVerificationUrl(dashboardUrl, guildId, verification.token);
     const guildConfig = await prisma.guild.findUnique({
       where: { id: guildId },
       select: {
@@ -95,17 +96,27 @@ async function execute(interaction: ChatInputCommandInteraction | UserContextMen
       verifyUrl
     );
 
-    let dmSent = false;
-    try {
-      await member.send({ embeds: [embed], components: [row] });
-      dmSent = true;
-    } catch (err) {
-      logger.warn('RequestVerificationCommand', `Failed to send DM to ${targetUser.tag}:`, err);
-    }
+    // Repli automatique (thread privé ou ticket) si les MP sont fermés + notification staff.
+    const delivery = await deliverVerification({
+      client: interaction.client,
+      guildId,
+      user: targetUser,
+      member,
+      embed,
+      row,
+      reason,
+      verificationId: verification.id,
+    });
+    const { dmSent, fallbackChannelId, fallbackKind } = delivery;
 
     // 4. Log in audit log
-    const auditDetails = `Vérification forcée pour @${targetUser.username} (${targetUser.id}). Raison: ${reason}. DM envoyé: ${dmSent ? 'Oui' : 'Non'}. Timeout appliqué: ${timeoutSuccess ? 'Oui' : 'Non (Échec permissions)'}.`;
-    
+    const deliveryDetail = dmSent
+      ? 'DM envoyé: Oui.'
+      : fallbackChannelId
+        ? `DM envoyé: Non (MP fermés). Repli: ${fallbackKind === 'THREAD' ? 'thread privé' : 'ticket'} <#${fallbackChannelId}>.`
+        : 'DM envoyé: Non (MP fermés). Repli: aucun (échec de création).';
+    const auditDetails = `Vérification forcée pour @${targetUser.username} (${targetUser.id}). Raison: ${reason}. ${deliveryDetail} Timeout appliqué: ${timeoutSuccess ? 'Oui' : 'Non (Échec permissions)'}.`;
+
     queueAuditLog({
       guildId,
       user: `@${interaction.user.tag}`,
@@ -118,7 +129,11 @@ async function execute(interaction: ChatInputCommandInteraction | UserContextMen
 
     let msg = `✅ Demande de vérification envoyée avec succès à <@${targetUser.id}>.`;
     if (!timeoutSuccess) msg += "\n⚠️ Attention : Le bot n'a pas pu appliquer le Timeout sur l'utilisateur (permissions insuffisantes).";
-    if (!dmSent) msg += "\n⚠️ Attention : Le message privé (DM) n'a pas pu être envoyé (MP fermés).";
+    if (!dmSent && fallbackChannelId) {
+      msg += `\n📪 Les MP du membre sont fermés : le lien a été posté dans ${fallbackKind === 'THREAD' ? 'un thread privé' : 'un ticket'} <#${fallbackChannelId}>.`;
+    } else if (!dmSent) {
+      msg += "\n⚠️ Attention : Le message privé (DM) n'a pas pu être envoyé (MP fermés) et aucun salon de repli n'a pu être créé. Configure un salon de vérification depuis le dashboard.";
+    }
 
     await interaction.editReply({ content: msg });
   } catch (err) {

@@ -134,11 +134,7 @@ mock.module(mcpToolsPath, () => mockMcpTools);
 mock.module(mcpToolsJsPath, () => mockMcpTools);
 
 // Import router modules and helpers after mocks are set up
-import {
-  json,
-  JWT_SECRET,
-  splitPath,
-} from '../../api/shared.js';
+import { JWT_SECRET, splitPath } from '../../api/shared.js';
 import { handlePublicRoutes } from '../../api/routes/public.js';
 import { handleAuthRoutes } from '../../api/routes/auth.js';
 import { handleReportErrorRoute } from '../../api/routes/error.js';
@@ -448,7 +444,8 @@ describe('Modular Routers Unit Tests', () => {
 
     testUserToken = jwt.sign(
       { userId: '123456789012345678', username: 'TestUser' },
-      JWT_SECRET!
+      JWT_SECRET!,
+      { expiresIn: '1h' }
     );
   });
 

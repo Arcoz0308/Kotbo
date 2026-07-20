@@ -105,13 +105,13 @@
         <div class="flex bg-surface-container-high/40 p-1 rounded-lg border border-outline-variant/10">
           <button
             onclick={() => showCumulative = false}
-            class="px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-all {!showCumulative ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+            class="px-3 py-1.5 rounded-md text-xs font-medium transition-all {!showCumulative ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface'}"
           >
             Journalier
           </button>
           <button
             onclick={() => showCumulative = true}
-            class="px-3 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-widest transition-all {showCumulative ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+            class="px-3 py-1.5 rounded-md text-xs font-medium transition-all {showCumulative ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface'}"
           >
             Cumulé
           </button>

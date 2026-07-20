@@ -5,6 +5,7 @@
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { fade, slide, fly } from 'svelte/transition';
   import Papicon from '../lib/components/Papicon.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
 
   const inboxTabs = ['tous', 'modération', 'recrutement', 'staff', 'système'] as const;
   let currentTab = $state('tous');
@@ -63,40 +64,30 @@
   ];
 </script>
 
-<div class="max-w-5xl mx-auto space-y-8" in:fade={{ duration: 300, delay: 150 }}>
-  <!-- Header -->
-  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="inbox" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold text-on-surface font-headline tracking-tight">Inbox</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium max-w-md">
-          Votre centre de communication centralisé pour toutes les activités du serveur.
-        </p>
-      </div>
-    </div>
-
-    <div class="flex items-center gap-3">
-      {#if notificationsStore.unreadCount > 0}
-        <button
-          onclick={() => notificationsStore.markAllAsRead()}
-          class="group flex items-center gap-2 px-4 py-2 bg-primary text-white font-semibold text-sm rounded-lg hover:scale-105 active:scale-95 transition-all"
-        >
-          <Papicon icon="check" size={16} />
-          Tout marquer lu
-        </button>
-      {/if}
+<ModulePage
+  title="Inbox"
+  description="Votre centre de communication centralisé pour toutes les activités du serveur."
+  icon="inbox"
+  featureKey="inbox"
+>
+  {#snippet actions()}
+    {#if notificationsStore.unreadCount > 0}
       <button
-        onclick={() => notificationsStore.fetchNotifications()}
-        class="p-2 bg-surface-container-high text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-all border border-outline-variant/30"
-        title="Rafraîchir"
+        onclick={() => notificationsStore.markAllAsRead()}
+        class="group flex items-center gap-2 px-4 py-2 bg-primary text-white font-semibold text-sm rounded-lg active:scale-[0.98] transition-all"
       >
-        <Papicon icon="refresh-cw" size={18} class={notificationsStore.loading ? 'animate-spin' : ''} />
+        <Papicon icon="check" size={16} />
+        Tout marquer lu
       </button>
-    </div>
-  </div>
+    {/if}
+    <button
+      onclick={() => notificationsStore.fetchNotifications()}
+      class="p-2 bg-surface-container-high text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-all border border-outline-variant/30"
+      title="Rafraîchir"
+    >
+      <Papicon icon="refresh-cw" size={18} class={notificationsStore.loading ? 'animate-spin' : ''} />
+    </button>
+  {/snippet}
 
   <!-- Tabs -->
   <div class="flex items-center gap-2 p-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-[22px] overflow-x-auto no-scrollbar shadow-sm">
@@ -104,7 +95,7 @@
       <button
         onclick={() => gotoTab('/inbox', tab.id, 'tous')}
         class="relative flex items-center gap-2.5 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300
-          {currentTab === tab.id ? 'text-white' : 'text-on-surface-variant hover:bg-surface-container-high'}"
+ {currentTab === tab.id ? 'text-white' : 'text-on-surface-variant hover:bg-surface-container-high'}"
       >
         {#if currentTab === tab.id}
           <div 
@@ -183,7 +174,7 @@
                   {#if notif.link}
                     <a 
                       href={notif.link}
-                      class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-xs font-semibold rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_4px_12px_rgba(var(--color-primary),0.2)]"
+                      class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-semibold rounded-xl active:scale-[0.98] transition-all shadow-sm"
                     >
                       <Papicon icon="external-link" size={14} />
                       Consulter
@@ -201,7 +192,7 @@
                   {/if}
                 </div>
 
-                <div class="hidden sm:flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30">
+                <div class="hidden sm:flex items-center gap-2 text-xs font-medium text-on-surface-variant/30">
                   <span class="w-1.5 h-1.5 rounded-full bg-current opacity-30"></span>
                   {getCategory(notif)}
                 </div>
@@ -212,7 +203,7 @@
       </div>
     {/if}
   </div>
-</div>
+</ModulePage>
 
 <style>
   .no-scrollbar::-webkit-scrollbar {

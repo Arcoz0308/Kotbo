@@ -16,6 +16,8 @@ import {
   getGrowthAndRetention,
   getDailyAlgoAnalytics,
   getGlobalInteractions,
+  getCommandUsageAnalytics,
+  getStaffPerformanceAnalytics,
 } from '../../../services/analytics/dashboardAnalyticsService.js';
 
 export async function handleAnalyticsRoutes(
@@ -52,6 +54,33 @@ export async function handleAnalyticsRoutes(
 
   if (method !== 'GET') {
     return false;
+  }
+
+  // GET /api/dashboard/guilds/:guildId/analytics/advanced?section=<retention|activity|churn|channels|social|words|moderation>
+  if (parts.length === 6 && parts[5] === 'advanced') {
+    const section = url.searchParams.get('section') ?? '';
+    const { ADVANCED_SECTIONS, getAdvancedAnalytics } = await import('../../../services/analytics/advancedAnalyticsService.js');
+    if (!(ADVANCED_SECTIONS as string[]).includes(section)) {
+      json(res, 400, { error: `Section invalide. Attendu: ${ADVANCED_SECTIONS.join(', ')}` });
+      return true;
+    }
+    try {
+      // Préfixe `guild:<id>:` obligatoire : c'est ce que cache.invalidateGuild()
+      // purge quand la config change (ex. activation des stats de mots).
+      const cacheKey = `guild:${guildId}:analytics:advanced:${section}`;
+      const cached = await cache.get(cacheKey);
+      if (cached) {
+        json(res, 200, cached);
+        return true;
+      }
+      const data = await getAdvancedAnalytics(guildId, section as never);
+      await cache.set(cacheKey, data, 300); // 5 min — calculs lourds
+      json(res, 200, data);
+    } catch (err) {
+      logger.error('AnalyticsAPI', `Erreur analytics avancées (${section}):`, err);
+      json(res, 500, { error: 'Erreur lors du calcul des statistiques avancées' });
+    }
+    return true;
   }
 
   // GET /api/dashboard/guilds/:guildId/analytics/members/:userId - Member detailed analytics
@@ -305,7 +334,7 @@ export async function handleAnalyticsRoutes(
       const days = parseInt(url.searchParams.get('period') || '30', 10);
       const startDate = url.searchParams.get('startDate') || undefined;
       const endDate = url.searchParams.get('endDate') || undefined;
-      const data = await getGlobalInteractions(guildId, { days, startDate, endDate });
+      const data = await getGlobalInteractions(client, guildId, { days, startDate, endDate });
       json(res, 200, data);
     } catch (err) {
       logger.error('AnalyticsAPI', 'Error getting global interactions:', err);
@@ -560,6 +589,11 @@ export async function handleAnalyticsRoutes(
           take: 20,
           select: { userId: true, displayName: true, username: true, globalName: true, avatarUrl: true, guildLeftAt: true },
         }),
+      ]);
+
+      const [commandUsage, staffPerformance] = await Promise.all([
+        getCommandUsageAnalytics(guildId, { startDate: startDate.toISOString(), endDate: endDate.toISOString() }),
+        getStaffPerformanceAnalytics(guildId, { startDate: startDate.toISOString(), endDate: endDate.toISOString() }),
       ]);
 
       // ── Process daily stats for weekly aggregation if needed ──
@@ -992,6 +1026,8 @@ export async function handleAnalyticsRoutes(
         },
         recruitmentPipeline,
         roleDistribution,
+        commandUsage,
+        staffPerformance,
         recentJoins: recentJoinsList.map(m => ({
           userId: m.userId,
           name: m.displayName ?? m.globalName ?? m.username ?? 'Inconnu',

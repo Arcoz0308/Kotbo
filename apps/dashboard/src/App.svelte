@@ -10,6 +10,7 @@
   import { userPrefs } from "./lib/stores/userPreferences.svelte";
   import { toast } from "./lib/stores/toast.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
+  import GlobalConfirmDialog from "./lib/components/GlobalConfirmDialog.svelte";
   import InviteDetailsModal from "./lib/components/invitations/InviteDetailsModal.svelte";
   import FeedbackModal from "./lib/components/FeedbackModal.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
@@ -28,7 +29,7 @@
 
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
-  import Overview from "./pages/Overview.svelte";
+  import Home from "./pages/Home.svelte";
   import Analytics from "./pages/Analytics.svelte";
   import ModuleCatalog from "./pages/ModuleCatalog.svelte";
 
@@ -184,6 +185,7 @@
       if (segment === "leadership") return "staff_directory";
       return "staff_directory";
     }
+    if (path.startsWith("/evaluations")) return "staff_directory";
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/command-access")) return "commands";
     if (path.startsWith("/settings")) return "settings";
@@ -669,7 +671,7 @@
         {:else}
           <MainLayout>
             <Route path="/">
-              <Overview />
+              <Home />
             </Route>
 
             <Route path="/analytics/*">
@@ -960,6 +962,7 @@
 {/if}
 
 <ToastContainer />
+<GlobalConfirmDialog />
 <InviteDetailsModal />
 <FeedbackModal />
 <CommandPalette />

@@ -1,8 +1,7 @@
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
-const DAILY_VOTE_LIMIT = 3;
-const COOLDOWN_HOURS = 24;
+export const REP_DAILY_VOTE_LIMIT = 3;
 
 export interface ReputationProfile {
   userId: string;
@@ -15,10 +14,6 @@ export interface ReputationProfile {
 export interface ReputationLeaderboard {
   entries: Array<{ userId: string; totalRep: number; rank: number }>;
   totalVoters: number;
-}
-
-function getDateKey(date = new Date()): string {
-  return date.toISOString().slice(0, 10);
 }
 
 export async function getVotesGivenToday(guildId: string, userId: string): Promise<number> {
@@ -36,8 +31,8 @@ export async function giveRep(guildId: string, giverId: string, receiverId: stri
   }
 
   const votesToday = await getVotesGivenToday(guildId, giverId);
-  if (votesToday >= DAILY_VOTE_LIMIT) {
-    return { success: false, error: `Vous avez atteint la limite de ${DAILY_VOTE_LIMIT} votes par jour.` };
+  if (votesToday >= REP_DAILY_VOTE_LIMIT) {
+    return { success: false, error: `Vous avez atteint la limite de ${REP_DAILY_VOTE_LIMIT} votes par jour.` };
   }
 
   const startOfDay = new Date();
@@ -88,7 +83,7 @@ export async function getReputation(guildId: string, userId: string): Promise<Re
     totalRep,
     rank,
     votesGivenToday: votesToday,
-    canVote: votesToday < DAILY_VOTE_LIMIT,
+    canVote: votesToday < REP_DAILY_VOTE_LIMIT,
   };
 }
 

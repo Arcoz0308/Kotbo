@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -303,26 +304,17 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
-  <!-- Header -->
-  <header class="relative overflow-hidden flex flex-col md:flex-row md:items-center gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="relative flex items-center gap-4 flex-1">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
-        <Papicon icon="archive" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Sauvegardes du serveur</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">
-          Gérez et restaurez les configurations, salons, rôles et membres de votre serveur Discord.
-        </p>
-      </div>
-    </div>
+<ModulePage
+  title="Sauvegardes du serveur"
+  description="Gérez et restaurez les configurations, salons, rôles et membres de votre serveur Discord."
+  icon="archive"
+  featureKey="settings"
+>
+  {#snippet actions()}
     {#if canManageBackups}
-      <div class="relative shrink-0">
-        <ActionButton onClick={() => showCreateModal = true} variant="primary" label="Nouvelle sauvegarde" icon="plus" />
-      </div>
+      <ActionButton onClick={() => showCreateModal = true} variant="primary" label="Nouvelle sauvegarde" icon="plus" />
     {/if}
-  </header>
+  {/snippet}
 
   <!-- Grid Layout -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -501,7 +493,7 @@
       <ActionButton onClick={() => showImportModal = true} variant="muted" label="Importer un fichier" icon="upload" />
     </section>
   {/if}
-</div>
+</ModulePage>
 
 <!-- Modal de création de backup -->
 <Modal bind:open={showCreateModal} title="Créer une sauvegarde">

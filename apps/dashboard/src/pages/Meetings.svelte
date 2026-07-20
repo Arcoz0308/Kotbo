@@ -485,7 +485,7 @@
                 {#each meeting.presences.filter(p => p.status === 'PRESENT').slice(0, 5) as p}
                   <button 
                     onclick={() => openMemberCase(p.staffUserId, p.staffMember?.displayName || p.staffMember?.username || 'Membre')}
-                    class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform  hover:z-10" 
+                    class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform hover:z-10" 
                     title={p.staffMember?.displayName || p.staffMember?.username || "Membre"}
                   >
                     {#if p.staffMember?.avatarUrl}
@@ -613,7 +613,7 @@
           <button 
             onclick={save}
             disabled={saving || !meetingTitle || !meetingDate}
-            class="px-8 py-2.5 bg-primary text-on-primary rounded-xl font-semibold  hover:shadow-primary/40 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
+            class="px-8 py-2.5 bg-primary text-on-primary rounded-xl font-semibold hover:shadow-primary/40 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
           >
             {#if saving}
               <div class="w-4 h-4 border-2 border-on-primary/20 border-t-on-primary rounded-full animate-spin"></div>
@@ -762,7 +762,7 @@
           <button 
             onclick={confirmDelete}
             disabled={deleting}
-            class="px-8 py-2.5 bg-red-500 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 hover:shadow-red-500/40 disabled:opacity-50 transition-all flex items-center gap-2"
+            class="px-8 py-2.5 bg-red-500 text-white rounded-xl font-semibold shadow-sm hover:shadow-red-500/40 disabled:opacity-50 transition-all flex items-center gap-2"
           >
             {#if deleting}
               <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>

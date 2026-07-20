@@ -193,7 +193,7 @@
               <button
                 onclick={() => toggleChannel(channel.id)}
                 class="flex items-center justify-between p-4 rounded-lg border transition-all text-left group
-                  {isChecked 
+ {isChecked 
                     ? 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10' 
                     : 'bg-surface-container-high/10 border-outline-variant/5 hover:bg-surface-container-high/30'}"
               >
@@ -205,7 +205,7 @@
                 </div>
                 
                 <div class="w-5 h-5 rounded-md border flex items-center justify-center transition-all
-                  {isChecked 
+ {isChecked 
                     ? 'bg-primary border-primary text-on-primary' 
                     : 'border-outline-variant/30 group-hover:border-outline-variant/60'}"
                 >

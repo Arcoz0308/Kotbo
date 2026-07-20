@@ -404,7 +404,7 @@
   {#if nodes.length === 0}
     <div class="absolute inset-0 flex flex-col items-center justify-center graph-empty">
       <Papicon icon="share-2" size={48} />
-      <p class="mt-4 text-xs font-semibold uppercase tracking-widest">Aucune interaction détectée</p>
+      <p class="mt-4 text-[13px] font-medium">Aucune interaction détectée</p>
     </div>
   {:else}
     <!-- Header -->

@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 import { COLORS_RAW, text, errorContainer } from '../../utils/embeds.js';
 import { E, rankEmoji } from '../../utils/emojis.js';
-import { giveRep, getReputation, getReputationLeaderboard } from '../../services/community/reputationService.js';
+import { giveRep, getReputation, getReputationLeaderboard, REP_DAILY_VOTE_LIMIT } from '../../services/community/reputationService.js';
 import { incrementQuestProgress } from '../../services/community/questService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 
@@ -54,11 +54,11 @@ async function execute(interaction: ChatInputCommandInteraction) {
       .setAccentColor(COLORS_RAW.success)
       .addTextDisplayComponents(text(`### ${E.star} +Rep !`))
       .addTextDisplayComponents(text(
-        `@${interaction.user.username} a donné un **+rep** à @${target.username}` +
+        `<@${interaction.user.id}> a donné un **+rep** à <@${target.id}>` +
         (reason ? `\n${E.dot} *${reason}*` : '')
       ))
       .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · @${target.username} a maintenant ${result.newTotal} rep`));
+      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · <@${target.id}> a maintenant ${result.newTotal} rep`));
 
     await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
   }
@@ -71,14 +71,14 @@ async function execute(interaction: ChatInputCommandInteraction) {
       .setAccentColor(COLORS_RAW.primary)
       .addSectionComponents(
         new SectionBuilder()
-          .addTextDisplayComponents(text(`### ${E.star} Réputation · @${target.username}`))
+          .addTextDisplayComponents(text(`### ${E.star} Réputation · <@${target.id}>`))
           .setThumbnailAccessory(new ThumbnailBuilder({ media: { url: target.displayAvatarURL() } }))
       )
       .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
       .addTextDisplayComponents(text([
         `${E.arrow} **Total** · **${profile.totalRep}** rep`,
         `${E.arrow} **Rang** · #${profile.rank}`,
-        `${E.arrow} **Votes restants** · ${3 - profile.votesGivenToday}/3`,
+        `${E.arrow} **Votes restants** · ${REP_DAILY_VOTE_LIMIT - profile.votesGivenToday}/${REP_DAILY_VOTE_LIMIT}`,
       ].join('\n')))
       .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
       .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Réputation`));
@@ -104,7 +104,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const lines = lb.entries.map((e) => {
       const medal = rankEmoji(e.rank);
-      return `${medal} @${e.userId} — **${e.totalRep}** rep`;
+      return `${medal} <@${e.userId}> — **${e.totalRep}** rep`;
     });
 
     const container = new ContainerBuilder()

@@ -44,6 +44,7 @@
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption, type Sanction } from '../lib/sanctions/filterSort';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import * as XLSX from 'xlsx';
 
   const sanctionTabs = ['sanctions', 'settings'] as const;
@@ -122,8 +123,8 @@
     selectedTableIndex = guildSettings.sanctionTables.length - 1;
   }
 
-  function deleteSanctionTable(index: number) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce tableau de sanction ? Toutes les sanctions liées perdront leur référence.')) {
+  async function deleteSanctionTable(index: number) {
+    if (!(await confirmDialog.danger('Supprimer ce tableau de sanction ?', 'Toutes les sanctions liées perdront leur référence.'))) {
       return;
     }
     guildSettings.sanctionTables.splice(index, 1);
@@ -1077,25 +1078,19 @@
   {/snippet}
 
   <div class="space-y-8">
-    <div class="flex border-b border-outline-variant/10">
-      <button 
+    <div class="tab-group w-fit">
+      <button
         onclick={() => gotoTab('/sanctions', 'sanctions', 'sanctions')}
-        class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'sanctions' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="tab-button {activeTab === 'sanctions' ? 'active' : ''}"
       >
         Historique
-        {#if activeTab === 'sanctions'}
-          <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-        {/if}
       </button>
       {#if canManageSettings}
-        <button 
+        <button
           onclick={() => gotoTab('/sanctions', 'settings', 'sanctions')}
-          class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'settings' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+          class="tab-button {activeTab === 'settings' ? 'active' : ''}"
         >
           Configuration
-          {#if activeTab === 'settings'}
-            <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-          {/if}
         </button>
       {/if}
     </div>
@@ -1196,7 +1191,7 @@
               onToggleValue={(value) => toggleFilter('statuses', value)}
             />
           </th>
-          <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Rapport</th>
+          <th class="px-4 py-4 text-[13px] font-bold text-on-surface-variant">Rapport</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
@@ -1515,10 +1510,10 @@
                                 <select 
                                   bind:value={tier.action}
                                   class="w-full bg-transparent font-bold py-1.5 px-2 rounded-lg cursor-pointer outline-hidden focus:bg-surface-container-high/40 border border-transparent focus:border-primary/20 transition-all
-                                    {tier.action === 'WARN' ? 'text-amber-500 dark:text-amber-400' : ''}
+ {tier.action === 'WARN' ? 'text-amber-500 dark:text-amber-400' : ''}
                                     {tier.action === 'TIMEOUT' ? 'text-blue-500 dark:text-blue-400' : ''}
                                     {tier.action === 'KICK' ? 'text-rose-500 dark:text-rose-400' : ''}
-                                    {tier.action === 'TEMP_BAN' ? 'text-red-500 dark:text-red-400 font-extrabold' : ''}
+                                    {tier.action === 'TEMP_BAN' ? 'text-red-500 dark:text-red-400 font-semibold' : ''}
                                     {tier.action === 'BAN' ? 'text-red-600 dark:text-red-500 font-semibold' : ''}
                                     {tier.action === 'SOFTBAN' ? 'text-purple-500 dark:text-purple-400' : ''}"
                                 >
@@ -1659,13 +1654,13 @@
           <div class="space-y-8 animate-in fade-in duration-300">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-1.5">
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">Date de l'incident</p>
                 <div class="rounded-lg bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
                   {new Date(selectedReport.incidentAt).toLocaleString('fr-FR')}
                 </div>
               </div>
               <div class="space-y-1.5">
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée annoncée</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">Durée annoncée</p>
                 <div class="rounded-lg bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
                   {selectedReport.sanctionDurationLabel || 'N/A'}
                 </div>
@@ -1673,12 +1668,12 @@
             </div>
 
             <div class="space-y-3">
-              <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+              <p class="text-xs font-medium text-on-surface-variant/40 px-1">Règles enfreintes</p>
               <SelectedRuleChips selectedRules={selectedReportRules} />
             </div>
 
             <div class="space-y-3">
-              <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+              <p class="text-xs font-medium text-on-surface-variant/40 px-1">Raison détaillée</p>
               <div class="rounded-xl bg-surface-container-high/30 p-6 text-sm text-on-surface-variant leading-relaxed italic border border-outline-variant/5">
                 "{selectedReport.detailedReason}"
               </div>
@@ -1686,7 +1681,7 @@
 
             {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
               <div class="space-y-3">
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves</p>
                 <div class="flex flex-wrap gap-2">
                   {#each selectedReport.evidenceLinks as link}
                     <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-[11px] font-semibold text-primary uppercase tracking-widest transition-all hover:bg-primary/10">
@@ -1700,7 +1695,7 @@
 
             {#if selectedReport.additionalNotes}
               <div class="space-y-3">
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">Notes complémentaires</p>
                 <p class="text-sm text-on-surface-variant/70 leading-relaxed bg-surface-container-low p-4 rounded-lg border border-outline-variant/10">{selectedReport.additionalNotes}</p>
               </div>
             {/if}
@@ -1739,17 +1734,17 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-1.5">
-                <label for="report-incident-at" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date et heure de l'incident</label>
+                <label for="report-incident-at" class="field-label">Date et heure de l'incident</label>
                 <input id="report-incident-at" type="datetime-local" bind:value={incidentAt} class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
               </div>
               <div class="space-y-1.5">
-                <label for="report-duration" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</label>
+                <label for="report-duration" class="field-label">Durée appliquée</label>
                 <input id="report-duration" type="text" bind:value={sanctionDurationLabel} placeholder="Ex: 2h, 1j, Permanent" class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
               </div>
             </div>
 
             <div class="space-y-3">
-              <label for="report-rules" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</label>
+              <label for="report-rules" class="field-label">Règles enfreintes</label>
               <ReportRuleSelector
                 id="report-rules"
                 options={reportRuleOptions}
@@ -1761,12 +1756,12 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="report-reason" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</label>
+              <label for="report-reason" class="field-label">Raison détaillée</label>
               <textarea id="report-reason" bind:value={detailedReason} rows={4} placeholder="Décrivez précisément les faits reprochés..." class="w-full rounded-xl bg-surface-container-high px-5 py-4 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
             </div>
 
             <div class="space-y-3">
-              <p id="report-evidence-label" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+              <p id="report-evidence-label" class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves (URLs)</p>
               <EvidenceInputList
                 bind:links={evidenceLinks}
                 labelId="report-evidence-label"
@@ -1776,12 +1771,12 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="report-notes" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes contextuelles</label>
+              <label for="report-notes" class="field-label">Notes contextuelles</label>
               <textarea id="report-notes" bind:value={additionalNotes} rows={2} placeholder="Contexte, antécédents, remarques..." class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
             </div>
 
             {#if reportMessage}
-              <div class="rounded-xl p-4 text-xs font-semibold uppercase tracking-widest {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+              <div class="rounded-xl p-4 text-[13px] font-medium {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
                 {reportMessage}
               </div>
             {/if}
@@ -1797,7 +1792,7 @@
                 <button
                   onclick={handleUpdateReport}
                   disabled={updateReportBusy}
-                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95  disabled:opacity-50"
+                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95 disabled:opacity-50"
                 >
                   {updateReportBusy ? 'Enregistrement...' : 'Mettre à jour le rapport'}
                 </button>
@@ -1805,7 +1800,7 @@
                 <button
                   onclick={submitReport}
                   disabled={creatingReport || !canCreateSelectedReport}
-                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95  disabled:opacity-50"
+                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95 disabled:opacity-50"
                 >
                   {creatingReport ? 'Création en cours...' : 'Finaliser et créer le rapport'}
                 </button>
@@ -1847,7 +1842,7 @@
       </div>
 
       <div>
-        <label for="delete-confirmation" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Tape SUPPRIMER pour valider</label>
+        <label for="delete-confirmation" class="field-label">Tape SUPPRIMER pour valider</label>
         <FormInput
           id="delete-confirmation"
           type="text"

@@ -20,6 +20,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
 
   interface Props {
     userId?: string;
@@ -43,6 +44,8 @@
   let gradeHistory: any[] = $state([]);
   let stats: any = $state(null);
   let accessibleTools: string[] = $state([]);
+  let scorecard = $state<any>(null);
+  let loadingScorecard = $state(false);
   
   let loading = $state(true);
   let error = $state('');
@@ -135,6 +138,7 @@
         // Default active tab
         if (staffMember) {
           activeTab = 'staff_overview';
+          await loadScorecard(staffMember.guildId, id);
         } else {
           activeTab = 'community_overview';
         }
@@ -162,6 +166,26 @@
       error = err.message || 'Erreur lors du chargement du profil';
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadScorecard(guildId: string, userId: string) {
+    loadingScorecard = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members/${userId}/scorecard`, {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        scorecard = data.scorecard;
+      } else {
+        scorecard = null;
+      }
+    } catch (err) {
+      console.error('Error loading staff scorecard:', err);
+      scorecard = null;
+    } finally {
+      loadingScorecard = false;
     }
   }
 
@@ -247,7 +271,7 @@
   }
 
   async function deleteKey(keyId: string) {
-    if (!staffMember || !confirm('Voulez-vous vraiment révoquer cette clé API ?')) return;
+    if (!staffMember || !(await confirmDialog.danger('Révoquer cette clé API ?', '', 'Révoquer'))) return;
     try {
       const success = await deleteMyApiKey(keyId, staffMember.guildId);
       if (success) {
@@ -289,7 +313,7 @@
   }
 
   async function removeNote(noteId: string) {
-    if (!staffMember || !confirm('Voulez-vous supprimer cette note ?')) return;
+    if (!staffMember || !(await confirmDialog.danger('Supprimer cette note ?'))) return;
     try {
       const success = await deleteManagerNote(staffMember.userId, noteId, staffMember.guildId);
       if (success) {
@@ -478,7 +502,7 @@
         
         {#if isBlacklisted}
           <div class="absolute top-6 right-6 z-20">
-            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-[10px] font-semibold text-white uppercase tracking-widest shadow-lg shadow-rose-500/40">
+            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-[10px] font-semibold text-white uppercase tracking-widest shadow-sm">
               <Papicon icon="Slash" size={14} />
               Compte Restreint
             </span>
@@ -506,7 +530,7 @@
                   {staffMember?.displayName || publicProfile?.displayName || publicProfile?.username || authStore.user?.username}
                 </h2>
                 {#if staffMember}
-                  <span class="inline-flex items-center gap-2 rounded-full border-2 {gradeBorderColor(staffMember.grade)} bg-surface-container-low/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant shadow-sm">
+                  <span class="inline-flex items-center gap-2 rounded-full border-2 {gradeBorderColor(staffMember.grade)} bg-surface-container-low/60 px-4 py-2 text-xs font-medium text-on-surface-variant shadow-sm">
                     <Papicon icon={gradeIcon(staffMember.grade)} size={14} class="text-primary" />
                     {staffMember.grade}
                   </span>
@@ -527,7 +551,7 @@
         {#each tabs as tab}
           <button 
             onclick={() => gotoTab(profileBase, tab.id, 'staff_overview')}
-            class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeTab === tab.id ? 'bg-primary text-on-primary  scale-[1.05]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+            class="tab-button {activeTab === tab.id ? 'active' : ''}"
           >
             <span class="flex items-center gap-2 pointer-events-none">
               <Papicon icon={tab.icon} size={16} class={activeTab === tab.id ? 'text-on-primary' : 'text-primary'} />
@@ -570,23 +594,23 @@
 
               <div class="grid grid-cols-2 gap-8">
                 <div class="space-y-1">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Staff depuis</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Staff depuis</p>
                   <p class="text-xl font-semibold text-on-surface">{getDurationSince(staffMember.joinedStaffAt)}</p>
                   <p class="text-[10px] font-bold text-on-surface-variant/60">{formatDate(staffMember.joinedStaffAt)}</p>
                 </div>
                 <div class="space-y-1">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Grade actuel depuis</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Grade actuel depuis</p>
                   <p class="text-xl font-semibold text-on-surface">{getDurationSince(staffMember.currentRoleStartedAt)}</p>
                   <p class="text-[10px] font-bold text-on-surface-variant/60">{formatDate(staffMember.currentRoleStartedAt)}</p>
                 </div>
                 <div class="space-y-1">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</p>
-                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-wider {staffMember.isTutor ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
+                  <p class="text-xs font-medium text-on-surface-variant/40">Statut Tuteur</p>
+                  <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-[13px] font-medium {staffMember.isTutor ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-on-surface/5 text-on-surface-variant/40 border border-outline-variant/10'}">
                     {staffMember.isTutor ? 'Tuteur Actif' : 'Non Tuteur'}
                   </span>
                 </div>
                 <div class="space-y-1">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Identifiant Unique</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Identifiant Unique</p>
                   <p class="text-xs font-mono font-bold text-on-surface-variant truncate">{staffMember.id}</p>
                 </div>
               </div>
@@ -626,9 +650,9 @@
                 <h4 class="text-lg font-semibold text-rose-700">Compte Restreint / Blacklist</h4>
                 <p class="text-sm text-rose-600/80 font-bold leading-relaxed">{blacklistReason}</p>
                 {#if blacklistEndDate}
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-rose-500 mt-2">Fin de la restriction : {formatDate(blacklistEndDate)}</p>
+                  <p class="text-xs font-medium text-rose-500 mt-2">Fin de la restriction : {formatDate(blacklistEndDate)}</p>
                 {:else}
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-rose-500 mt-2">Restriction permanente</p>
+                  <p class="text-xs font-medium text-rose-500 mt-2">Restriction permanente</p>
                 {/if}
               </div>
             </div>
@@ -644,7 +668,7 @@
                   {#each warnings as warn}
                     <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5 {warn.isActive ? 'border-amber-500/10 bg-amber-500/5' : ''}">
                       <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-semibold uppercase tracking-wider {warn.isActive ? 'text-amber-500' : 'text-on-surface-variant/40'}">
+                        <span class="text-[13px] font-medium {warn.isActive ? 'text-amber-500' : 'text-on-surface-variant/40'}">
                           {warn.isActive ? 'Actif' : 'Expiré'}
                         </span>
                         <span class="text-[11px] font-bold text-on-surface-variant/40">{formatDate(warn.createdAt)}</span>
@@ -669,7 +693,7 @@
                   {#each absences as abs}
                     <div class="p-4 rounded-lg bg-surface-container-high/40 border border-outline-variant/5">
                       <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-semibold uppercase tracking-wider text-primary">{abs.type}</span>
+                        <span class="text-[13px] font-medium text-primary">{abs.type}</span>
                         <span class="inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider {abs.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : (abs.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/40')}">
                           {abs.status}
                         </span>
@@ -696,7 +720,7 @@
                   <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/5 space-y-4">
                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-4">
                       <div>
-                        <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Objectif</span>
+                        <span class="text-xs font-medium text-on-surface-variant/40">Objectif</span>
                         <h5 class="text-base font-semibold text-on-surface">{period.targetGrade || 'Grade Staff'}</h5>
                       </div>
                       <div class="text-right">
@@ -713,7 +737,7 @@
 
                     {#if period.reports && period.reports.length > 0}
                       <div class="space-y-3 pt-2">
-                        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Rapports du mentor</p>
+                        <p class="text-xs font-medium text-on-surface-variant/40">Rapports du mentor</p>
                         {#each period.reports as rep}
                           <div class="p-3.5 rounded-xl bg-surface-container-low border border-outline-variant/5">
                             <div class="flex items-center justify-between mb-1.5">
@@ -813,7 +837,7 @@
                     Veuillez expliquer clairement vos raisons.
                   </p>
                   <div>
-                    <label for="resignation-reason" class="text-[10px] font-semibold uppercase tracking-widest text-rose-500 mb-2 block">Motif de démission *</label>
+                    <label for="resignation-reason" class="field-label">Motif de démission *</label>
                     <textarea
                       id="resignation-reason"
                       bind:value={resignationReason}
@@ -827,7 +851,7 @@
                   <div class="flex gap-3 justify-end">
                     <button
                       onclick={() => { showResignationForm = false; resignationReason = ''; }}
-                      class="px-6 py-3 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-surface-container-high/60 text-on-surface-variant hover:bg-surface-container-high transition-all"
+                      class="px-6 py-3 rounded-lg text-xs font-medium bg-surface-container-high/60 text-on-surface-variant hover:bg-surface-container-high transition-all"
                     >
                       Annuler
                     </button>
@@ -835,7 +859,7 @@
                       id="btn-submit-resignation"
                       onclick={submitResignation}
                       disabled={submittingResignation || !resignationReason.trim()}
-                      class="px-8 py-3 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-rose-500 text-white shadow-lg shadow-rose-500/25 hover:bg-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-8 py-3 rounded-lg text-xs font-medium bg-rose-500 text-white shadow-sm hover:bg-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submittingResignation ? 'Envoi...' : 'Soumettre la demande'}
                     </button>
@@ -850,7 +874,7 @@
                   <button
                     id="btn-open-resignation"
                     onclick={() => showResignationForm = true}
-                    class="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-semibold uppercase tracking-widest hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300"
+                    class="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 text-xs font-medium hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300"
                   >
                     <Papicon icon="LogOut" size={14} />
                     Demander une démission
@@ -863,6 +887,100 @@
         </div>
 
       {:else if activeTab === 'staff_activity' && staffMember}
+        <!-- Scorecard d'Activité RH -->
+        {#if scorecard}
+          <div class="mb-6 space-y-6">
+            <!-- Burnout warning alert -->
+            {#if scorecard.burnoutRisk}
+              <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 p-5 flex items-start gap-3">
+                <Papicon icon="ShieldAlert" size={24} class="text-rose-500 shrink-0 mt-0.5" />
+                <div>
+                  <h5 class="text-sm font-bold text-rose-500">🚨 Risque de Burnout / Baisse critique d'activité</h5>
+                  <p class="text-xs text-rose-500/80 leading-relaxed mt-1">
+                    Ce membre présente une baisse critique d'activité globale de <strong>{scorecard.activityDropPercent}%</strong> par rapport à la semaine passée. Un repos ou un entretien d'accompagnement est fortement suggéré.
+                  </p>
+                </div>
+              </div>
+            {/if}
+
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <!-- Score global -->
+              <div class="md:col-span-2 rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-6 flex flex-col items-center justify-center text-center">
+                <p class="text-xs font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Performance Globale</p>
+                <div class="relative flex items-center justify-center h-28 w-28">
+                  <!-- Circular progress gauge -->
+                  <svg class="w-full h-full transform -rotate-90">
+                    <circle cx="56" cy="56" r="48" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" />
+                    <circle cx="56" cy="56" r="48" stroke="#5865F2" stroke-width="8" fill="transparent"
+                      stroke-dasharray={2 * Math.PI * 48}
+                      stroke-dashoffset={2 * Math.PI * 48 * (1 - scorecard.scores.overall / 100)}
+                    />
+                  </svg>
+                  <span class="absolute text-2xl font-bold text-on-surface">{scorecard.scores.overall}%</span>
+                </div>
+                <p class="text-xs text-on-surface-variant/60 mt-3 font-medium">Index de santé et d'activité du personnel</p>
+              </div>
+
+              <!-- Bento details subscores -->
+              <div class="md:col-span-3 grid grid-cols-2 gap-4">
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-on-surface-variant">Messages</span>
+                    <span class="text-xs font-bold text-primary">{scorecard.scores.messages}%</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-primary" style="width: {scorecard.scores.messages}%"></div>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/50 font-bold">Cette semaine : {scorecard.messageCount} msg</p>
+                  <p class="text-[9px] text-on-surface-variant/30">Semaine dernière : {scorecard.previousMessageCount} msg</p>
+                </div>
+
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-on-surface-variant">Vocal</span>
+                    <span class="text-xs font-bold text-emerald-500">{scorecard.scores.voice}%</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-emerald-500" style="width: {scorecard.scores.voice}%"></div>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/50 font-bold">Cette semaine : {scorecard.voiceMinutes} min</p>
+                  <p class="text-[9px] text-on-surface-variant/30">Semaine dernière : {scorecard.previousVoiceMinutes} min</p>
+                </div>
+
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-on-surface-variant">Modération</span>
+                    <span class="text-xs font-bold text-amber-500">{scorecard.scores.moderation}%</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-amber-500" style="width: {scorecard.scores.moderation}%"></div>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/50 font-bold">Sanctions : {scorecard.sanctionsCount}</p>
+                  <p class="text-[9px] text-on-surface-variant/30">Semaine dernière : {scorecard.previousSanctionsCount}</p>
+                </div>
+
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-on-surface-variant">Support</span>
+                    <span class="text-xs font-bold text-purple-500">{scorecard.scores.support}%</span>
+                  </div>
+                  <div class="h-1.5 w-full bg-on-surface/5 rounded-full overflow-hidden mb-2">
+                    <div class="h-full bg-purple-500" style="width: {scorecard.scores.support}%"></div>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/50 font-bold">Tickets clos : {scorecard.ticketsClosed}</p>
+                  <p class="text-[9px] text-on-surface-variant/30">Semaine dernière : {scorecard.previousTicketsClosed}</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Statistiques de réunions -->
+            <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-4 flex items-center justify-between text-xs font-semibold text-on-surface-variant">
+              <span>Réunions de staff assistées cette semaine : <strong class="text-on-surface">{scorecard.meetingsAttended}</strong> (Semaine passée : {scorecard.previousMeetingsAttended})</span>
+              <span class="text-on-surface-variant/40">Mise à jour en temps réel</span>
+            </div>
+          </div>
+        {/if}
+
         <!-- Activity Chart & Metrics -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="lg:col-span-2 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm">
@@ -894,7 +1012,7 @@
             <!-- Tools Bento Grid -->
             {#if accessibleTools.length > 0}
               <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
-                <h5 class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-6">Outils Accessibles</h5>
+                <h5 class="text-xs font-medium text-on-surface-variant/40 mb-6">Outils Accessibles</h5>
                 <div class="space-y-3">
                   {#each accessibleTools as tool}
                     <div class="flex items-center gap-3 p-3.5 rounded-xl bg-surface-container-high/60 border border-outline-variant/5">
@@ -1023,7 +1141,7 @@
               </div>
               <button 
                 onclick={() => { showNewKeyForm = !showNewKeyForm; newKeyCreatedValue = ''; }}
-                class="inline-flex items-center gap-2 rounded-lg px-6 py-3.5 text-[10px] font-semibold uppercase tracking-widest transition-all {showNewKeyForm ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'bg-primary text-on-primary  hover:'}"
+                class="inline-flex items-center gap-2 rounded-lg px-6 py-3.5 text-xs font-medium transition-all {showNewKeyForm ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'bg-primary text-on-primary hover:'}"
               >
                 <Papicon icon={showNewKeyForm ? 'Cross' : 'Plus'} size={14} />
                 {showNewKeyForm ? 'Annuler' : 'Créer une clé'}
@@ -1053,13 +1171,13 @@
                 <div class="flex flex-col gap-6">
                   <div class="flex flex-col md:flex-row gap-4 items-end">
                     <div class="flex-1 w-full">
-                      <label for="key-name" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2 block px-1">Nom descriptif de la clé</label>
+                      <label for="key-name" class="field-label">Nom descriptif de la clé</label>
                       <FormInput id="key-name" bind:value={newKeyName} placeholder="Mon script de backup..." className="w-full" />
                     </div>
                   </div>
 
                   <div>
-                    <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 block mb-3 px-1">Permissions de la clé</span>
+                    <span class="text-xs font-medium text-on-surface-variant/40 block mb-3 px-1">Permissions de la clé</span>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <!-- Recruitment Checkbox -->
                       <label class="flex items-start gap-3 p-4 rounded-lg border border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low cursor-pointer select-none transition-colors">
@@ -1088,7 +1206,7 @@
                   <div class="flex justify-end border-t border-outline-variant/5 pt-4">
                     <button 
                       onclick={createNewAPIKey}
-                      class="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-white px-8 py-4 text-[10px] font-semibold uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+                      class="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 text-white px-8 py-4 text-xs font-medium shadow-sm hover:bg-emerald-600 transition-all"
                     >
                       <Papicon icon="Check" size={14} /> Confirmer la création
                     </button>

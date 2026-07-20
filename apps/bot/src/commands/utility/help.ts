@@ -1,26 +1,5 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import {
-  ApplicationCommandOptionType,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
-  SlashCommandBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  StringSelectMenuBuilder,
-  PermissionsBitField,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  type AutocompleteInteraction,
-  type ChatInputCommandInteraction,
-  type ButtonInteraction,
-  type AnySelectMenuInteraction,
-  type ModalSubmitInteraction,
-} from 'discord.js';
+import { ApplicationCommandOptionType, ContainerBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionsBitField, ModalBuilder, TextInputBuilder, TextInputStyle, type AutocompleteInteraction, type ChatInputCommandInteraction, type ButtonInteraction, type AnySelectMenuInteraction, type ModalSubmitInteraction } from 'discord.js';
 import { COLORS_RAW, text } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 

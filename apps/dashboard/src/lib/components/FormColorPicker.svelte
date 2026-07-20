@@ -78,7 +78,7 @@
 
         <!-- Custom HEX Input -->
         <label class="block">
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-1 mb-2 block">Code Hexadécimal</span>
+          <span class="text-xs font-medium text-on-surface-variant/40 ml-1 mb-2 block">Code Hexadécimal</span>
           <div class="relative">
             <input 
               type="text" 
@@ -91,12 +91,12 @@
 
         <!-- Preset Palette -->
         <div>
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 ml-1 mb-3 block">Couleurs recommandées</span>
+          <span class="text-xs font-medium text-on-surface-variant/40 ml-1 mb-3 block">Couleurs recommandées</span>
           <div class="grid grid-cols-6 gap-3">
             {#each presetColors as pc}
               <button
                 onclick={() => tempValue = pc}
-                class="w-10 h-10 rounded-full border-2 transition-transform  active:scale-95 {tempValue?.toLowerCase() === pc.toLowerCase() ? 'border-primary shadow-lg shadow-primary/30' : 'border-transparent'}"
+                class="w-10 h-10 rounded-full border-2 transition-transform active:scale-95 {tempValue?.toLowerCase() === pc.toLowerCase() ? 'border-primary shadow-sm' : 'border-transparent'}"
                 style="background-color: {pc};"
                 title={pc}
               ></button>
@@ -106,7 +106,7 @@
 
         <div class="flex gap-3 pt-4 border-t border-outline-variant/10">
           <button onclick={() => showModal = false} class="flex-1 py-3 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors text-sm text-on-surface">Annuler</button>
-          <button onclick={saveColor} class="flex-1 py-3 rounded-xl font-bold bg-primary text-white hover:scale-105 active:scale-95 transition-transform  text-sm">Appliquer</button>
+          <button onclick={saveColor} class="flex-1 py-3 rounded-xl font-bold bg-primary text-white active:scale-[0.98] transition-transform text-sm">Appliquer</button>
         </div>
       </div>
     </div>

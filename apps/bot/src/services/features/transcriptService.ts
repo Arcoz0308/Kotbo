@@ -363,7 +363,7 @@ function renderV2Button(node: V2Node): string {
   return `<span class="discord-button">${inner}</span>`;
 }
 
-function renderV2Media(items: V2Node['items'], guild?: Guild): string {
+function renderV2Media(items: V2Node['items'], _guild?: Guild): string {
   const imgs = (items || [])
     .filter((it) => it.media?.url)
     .map((it) => `<img class="discord-embed-image" src="${it.media!.url}" alt="${escapeHtml(it.description || '')}" loading="lazy" />`)

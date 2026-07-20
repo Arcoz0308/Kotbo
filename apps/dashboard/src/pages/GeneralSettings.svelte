@@ -4,6 +4,7 @@
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
@@ -39,6 +40,7 @@
     githubReleasesEnabled: false,
     logChannelId: '',
     propagateSanctions: false,
+    crossServerSanctionsEnabled: true,
   });
 
   let savedSettings = $state<Record<string, any>>({
@@ -55,6 +57,7 @@
     githubReleasesEnabled: false,
     logChannelId: '',
     propagateSanctions: false,
+    crossServerSanctionsEnabled: true,
   });
 
   $effect(() => {
@@ -106,6 +109,7 @@
         githubReleasesEnabled: s.githubReleasesEnabled || false,
         logChannelId: s.logChannelId || '',
         propagateSanctions: s.propagateSanctions || false,
+        crossServerSanctionsEnabled: s.crossServerSanctionsEnabled ?? true,
       };
       guildSettings = loaded;
       savedSettings = { ...loaded };
@@ -153,22 +157,16 @@
     { key: 'dailyAlgoEnabled', label: 'Daily Algo', desc: 'Défis quotidiens' },
     { key: 'githubReleasesEnabled', label: 'GitHub Releases', desc: 'Notifications releases' },
     { key: 'propagateSanctions', label: 'Propager les sanctions', desc: 'Synchronisation inter-serveurs' },
+    { key: 'crossServerSanctionsEnabled', label: 'Casier inter-serveurs', desc: 'Partager/voir les sanctions des autres serveurs de l\'instance' },
   ];
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="Gear" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Paramètres Généraux</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Configuration globale du serveur et des intégrations.</p>
-      </div>
-    </div>
-  </header>
-
+<ModulePage
+  title="Paramètres Généraux"
+  description="Configuration globale du serveur et des intégrations."
+  icon="settings"
+  featureKey="settings"
+>
   <InlineFeedback state={saveAction} />
 
   {#if loading}
@@ -270,5 +268,5 @@
       </div>
     </div>
   {/if}
-</div>
+</ModulePage>
 

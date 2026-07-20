@@ -412,10 +412,10 @@
                 onclick={() => runItem(item)}
                 onmouseenter={() => selectedIndex = globalIdx}
                 class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors duration-100
-                  {isSelected ? 'bg-primary/8 text-primary' : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'}"
+ {isSelected ? 'bg-primary/8 text-primary' : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'}"
               >
                 <div class="w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors
-                  {isSelected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
+ {isSelected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
                   <Papicon icon={item.icon} size={13} />
                 </div>
                 <div class="flex-1 min-w-0">

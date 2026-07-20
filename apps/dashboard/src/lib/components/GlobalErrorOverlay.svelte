@@ -67,7 +67,7 @@
       {#if errorStack}
         <div class="mt-4 pt-3 border-t border-outline-variant/30">
           <details class="group">
-            <summary class="text-xs font-black uppercase tracking-wider text-on-surface-variant cursor-pointer select-none hover:text-on-surface transition-colors flex items-center gap-2">
+            <summary class="text-xs font-bold uppercase tracking-wider text-on-surface-variant cursor-pointer select-none hover:text-on-surface transition-colors flex items-center gap-2">
               <Papicon icon="chevron-right" size={14} class="transition-transform group-open:rotate-90" />
               Stack Trace
             </summary>

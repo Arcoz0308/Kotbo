@@ -1,4 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
+import { cache } from '../../../utils/cache.js';
 import {
   Client,
   ChannelType,
@@ -16,28 +17,7 @@ import pLimit from 'p-limit';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS, successEmbed } from '../../../utils/embeds.js';
-import {
-  json,
-  readJsonBody,
-  getGuildName,
-  getAuditActor,
-  resolveDashboardAccess,
-  resolveFeatureAccessMap,
-  pushAudit,
-  extractDiscordSnowflake,
-  getOrCreateRuntime,
-  resolveAdminAccess,
-  broadcastDashboardStateChange,
-  type AuthClaims,
-  type DashboardAccess,
-  type RuntimeState,
-  type SeverityLevel,
-  type ModuleStatus,
-  type DashboardPresetKey,
-  type CommandAccessLevel,
-  type ModuleItem,
-  type NotificationSettings,
-} from '../../shared.js';
+import { json, readJsonBody, getGuildName, getAuditActor, resolveFeatureAccessMap, pushAudit, extractDiscordSnowflake, getOrCreateRuntime, resolveAdminAccess, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess, type SeverityLevel, type ModuleStatus, type DashboardPresetKey, type CommandAccessLevel, type NotificationSettings } from '../../shared.js';
 import { normalizeCommandRestrictions } from '../../../utils/commandAccess.js';
 import { getTwitchUserId } from '../../../services/integrations/twitchService.js';
 import { resolveYoutubeChannel } from '../../../services/integrations/youtubeService.js';
@@ -1950,6 +1930,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             verificationMode: true,
             verificationAction: true,
             verificationChannelId: true,
+            verificationFallbackChannelId: true,
             verificationRoleId: true,
             verificationLogChannelId: true,
             verificationEmbedTitle: true,
@@ -1963,6 +1944,10 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             verificationWarnThreshold: true,
             verificationWarnAutoMode: true,
             verificationWarnReason: true,
+            warnWeightingEnabled: true,
+            warnDecayDays: true,
+            wordStatsEnabled: true,
+            banHygieneEnabled: true,
           },
         });
         if (!guild) {
@@ -1989,6 +1974,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           verificationMode: guild.verificationMode,
           verificationAction: guild.verificationAction,
           verificationChannelId: guild.verificationChannelId,
+          verificationFallbackChannelId: guild.verificationFallbackChannelId,
           verificationRoleId: guild.verificationRoleId,
           verificationLogChannelId: guild.verificationLogChannelId,
           verificationEmbedTitle: guild.verificationEmbedTitle,
@@ -2002,6 +1988,10 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           verificationWarnThreshold: guild.verificationWarnThreshold,
           verificationWarnAutoMode: guild.verificationWarnAutoMode,
           verificationWarnReason: guild.verificationWarnReason,
+          warnWeightingEnabled: guild.warnWeightingEnabled,
+          warnDecayDays: guild.warnDecayDays,
+          wordStatsEnabled: guild.wordStatsEnabled,
+          banHygieneEnabled: guild.banHygieneEnabled,
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -2032,6 +2022,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           verificationMode?: string;
           verificationAction?: string;
           verificationChannelId?: string | null;
+          verificationFallbackChannelId?: string | null;
           verificationRoleId?: string | null;
           verificationLogChannelId?: string | null;
           verificationEmbedTitle?: string;
@@ -2045,6 +2036,10 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           verificationWarnThreshold?: number | null;
           verificationWarnAutoMode?: string;
           verificationWarnReason?: string;
+          warnWeightingEnabled?: boolean;
+          warnDecayDays?: number | null;
+          wordStatsEnabled?: boolean;
+          banHygieneEnabled?: boolean;
         }>(req);
 
         if (!body) {
@@ -2119,6 +2114,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         if (Object.prototype.hasOwnProperty.call(body, 'verificationChannelId')) {
           data.verificationChannelId = body.verificationChannelId;
         }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationFallbackChannelId')) {
+          data.verificationFallbackChannelId = body.verificationFallbackChannelId;
+        }
         if (Object.prototype.hasOwnProperty.call(body, 'verificationRoleId')) {
           data.verificationRoleId = body.verificationRoleId;
         }
@@ -2168,6 +2166,27 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
         if (Object.prototype.hasOwnProperty.call(body, 'verificationWarnReason')) {
           data.verificationWarnReason = (body.verificationWarnReason || '').slice(0, 512);
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'warnWeightingEnabled')) {
+          data.warnWeightingEnabled = !!body.warnWeightingEnabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'warnDecayDays')) {
+          // null ou 0 = pas de décroissance, entier positif = fenêtre en jours
+          if (body.warnDecayDays === null || body.warnDecayDays === 0) {
+            data.warnDecayDays = null;
+          } else if (typeof body.warnDecayDays === 'number' && body.warnDecayDays > 0) {
+            data.warnDecayDays = Math.floor(body.warnDecayDays);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'wordStatsEnabled')) {
+          data.wordStatsEnabled = !!body.wordStatsEnabled;
+        }
+        // Capturé avant l'update : sert à détecter la bascule off → on plus bas.
+        const wordStatsWasEnabled = Object.prototype.hasOwnProperty.call(body, 'wordStatsEnabled')
+          ? (await prisma.guild.findUnique({ where: { id: guildId }, select: { wordStatsEnabled: true } }))?.wordStatsEnabled ?? false
+          : null;
+        if (Object.prototype.hasOwnProperty.call(body, 'banHygieneEnabled')) {
+          data.banHygieneEnabled = !!body.banHygieneEnabled;
         }
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -2376,6 +2395,26 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           where: { id: guildId },
           data,
         });
+
+        // Purge les caches préfixés guild:<id>: — config du bot (getCachedGuild)
+        // et payloads d'analytics avancées, qui embarquent les toggles (ex.
+        // wordStatsEnabled). Sans ça, le dashboard continue d'afficher l'ancien
+        // état pendant toute la durée du TTL.
+        await cache.invalidateGuild(guildId);
+
+        // Activation des stats de mots : indexer les messages déjà journalisés
+        // plutôt que d'attendre que le tracker live accumule des données.
+        if (wordStatsWasEnabled === false && data.wordStatsEnabled === true) {
+          void (async () => {
+            const { startWordStatsBackfill, backfillMessageMentions } = await import('../../../services/analytics/wordStatsBackfillService.js');
+            await backfillMessageMentions(guildId).catch((err) =>
+              logger.error('ChannelsManagementAPI', `Backfill des mentions échoué pour ${guildId}:`, err),
+            );
+            await startWordStatsBackfill(guildId);
+          })().catch((err) =>
+            logger.error('ChannelsManagementAPI', `Lancement du backfill des stats de mots échoué pour ${guildId}:`, err),
+          );
+        }
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -2857,6 +2896,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         moderatorRoleId?: string | null;
         regulationChannelId?: string | null;
         propagateSanctions?: boolean;
+        crossServerSanctionsEnabled?: boolean;
         messageTemplate?: string;
         sidebarFavorites?: unknown;
         configChannelId?: string | null;
@@ -2927,6 +2967,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
       if (Object.prototype.hasOwnProperty.call(body, 'propagateSanctions')) {
         data.propagateSanctions = !!body.propagateSanctions;
         data.sanctionSyncEnabled = !!body.propagateSanctions;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'crossServerSanctionsEnabled')) {
+        data.crossServerSanctionsEnabled = !!body.crossServerSanctionsEnabled;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'sanctionReportEnabled')) {
         data.sanctionReportEnabled = !!body.sanctionReportEnabled;

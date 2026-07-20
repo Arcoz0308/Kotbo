@@ -170,7 +170,7 @@
 
 
 <div class="mb-12 font-inter">
-  <h2 class="text-lg font-extrabold text-primary tracking-tight font-headline">Paramètres & Notifications</h2>
+  <h2 class="text-lg font-semibold text-primary tracking-tight font-headline">Paramètres & Notifications</h2>
   <p class="text-on-surface-variant mt-2 text-lg">Configurez les alertes système et les préférences globales pour {dashboardStore.state.guildName}.</p>
 </div>
 
@@ -307,7 +307,7 @@
   <div class="col-span-12 lg:col-span-4 space-y-8">
     <div class="bg-primary p-8 rounded-xl text-white overflow-hidden relative group">
       <div class="relative z-10">
-        <h4 class="text-xs font-semibold uppercase tracking-wider opacity-60 mb-6">Statut de Connexion</h4>
+        <h4 class="text-[13px] font-medium opacity-60 mb-6">Statut de Connexion</h4>
         <div class="flex items-center gap-6 mb-8">
           <div class="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
             <Papicon 
@@ -355,7 +355,7 @@
     <div class="bg-red-50 dark:bg-red-900/10 p-8 rounded-xl border border-red-100 dark:border-red-900/20">
       <h4 class="text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider mb-4">Zone Critique</h4>
       <p class="text-xs text-red-600/70 dark:text-red-400/70 mb-6 leading-relaxed font-medium">Réinitialiser les paramètres globaux désactivera tous les modules actifs et supprimera les flux.</p>
-      <button onclick={resetAndSaveFactory} class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-all shadow-lg shadow-red-600/20 active:scale-[0.98]">
+      <button onclick={resetAndSaveFactory} class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-[0.98]">
         Réinitialisation d'usine (UI)
       </button>
     </div>

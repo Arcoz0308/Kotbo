@@ -7,10 +7,14 @@ export type ValidateRoute = {
 export type UserCaseSection = 'resume' | 'sanctions' | 'identite' | 'activite';
 
 export type UserCaseRoute = {
-  action: 'open' | 'refresh' | 'prev' | 'next' | 'close' | 'section' | 'note' | 'sanction_action';
+  action: 'open' | 'refresh' | 'prev' | 'next' | 'close' | 'section' | 'note' | 'sanction_action' | 'sanction' | 'revoke';
   userId: string;
   section?: UserCaseSection;
   pageIndex?: number;
+  /** Type de sanction rapide demandé via bouton (warn/timeout/kick/ban). */
+  sanctionType?: 'warn' | 'timeout' | 'kick' | 'ban';
+  /** ID de la sanction à révoquer. */
+  sanctionId?: string;
 };
 
 export function parseSetupStep(customId: string): string | null {
@@ -98,6 +102,29 @@ export function parseUserCaseRoute(customId: string): UserCaseRoute | null {
     return {
       action,
       userId,
+      pageIndex: Number.isFinite(pageIndex) ? pageIndex : 0,
+    };
+  }
+
+  // case:sanction:<userId>:<warn|timeout|kick|ban>
+  if (action === 'sanction') {
+    const userId = parts[2];
+    const sanctionType = parts[3];
+    if (!userId) return null;
+    if (sanctionType !== 'warn' && sanctionType !== 'timeout' && sanctionType !== 'kick' && sanctionType !== 'ban') return null;
+    return { action, userId, sanctionType };
+  }
+
+  // case:revoke:<userId>:<sanctionId>:<pageIndex>
+  if (action === 'revoke') {
+    const userId = parts[2];
+    const sanctionId = parts[3];
+    const pageIndex = Number.parseInt(parts[4] ?? '0', 10);
+    if (!userId || !sanctionId) return null;
+    return {
+      action,
+      userId,
+      sanctionId,
       pageIndex: Number.isFinite(pageIndex) ? pageIndex : 0,
     };
   }

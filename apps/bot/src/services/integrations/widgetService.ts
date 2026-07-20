@@ -26,6 +26,29 @@ interface WidgetPayload {
 interface DiscordApiError {
   code?: number;
   message?: string;
+  errors?: {
+    provider_issued_user_id?: { _errors?: Array<{ code?: string; message?: string }> };
+  };
+}
+
+/**
+ * Discord refuse le PATCH quand l'identité envoyée n'est pas celle enregistrée
+ * à la liaison du compte : 50035 (Invalid Form Body) portant
+ * APPLICATION_IDENTITY_PROVIDER_USER_ID_MISMATCH sur provider_issued_user_id.
+ * Ce n'est pas un défaut d'autorisation — c'est un identifiant d'identité erroné,
+ * qu'on corrige en essayant le candidat suivant.
+ */
+function isIdentityMismatch(parsed: DiscordApiError): boolean {
+  return (
+    parsed.errors?.provider_issued_user_id?._errors?.some(
+      (e) => e.code === 'APPLICATION_IDENTITY_PROVIDER_USER_ID_MISMATCH',
+    ) ?? false
+  );
+}
+
+/** Discord accepte une identité différente de celle tentée : essayer la suivante. */
+function shouldTryNextIdentity(parsed: DiscordApiError): boolean {
+  return parsed.code === 40113 || isIdentityMismatch(parsed);
 }
 
 function getWidgetProfileUrl(appId: string, userId: string, identityId: string): string {
@@ -207,8 +230,13 @@ export async function pushWidgetForUser(guildId: string, userId: string): Promis
       let parsed: DiscordApiError = {};
       try { parsed = JSON.parse(body); } catch { /* Preserve the raw Discord response below. */ }
 
-      if (parsed.code === 40113 && index === 0) {
-        logger.info(TAG, `Identité unique indisponible pour ${userId}; tentative avec l'identité legacy 0`);
+      const isLastCandidate = index === identityIds.length - 1;
+
+      if (shouldTryNextIdentity(parsed) && !isLastCandidate) {
+        logger.info(
+          TAG,
+          `Identité ${identityId} refusée pour ${userId} (code ${parsed.code}); tentative avec l'identité suivante`,
+        );
         continue;
       }
 
@@ -219,6 +247,16 @@ export async function pushWidgetForUser(guildId: string, userId: string): Promis
           error: 'Une identité Kotbo est déjà liée à un autre compte Discord. Contacte un administrateur.',
         };
       }
+
+      if (isIdentityMismatch(parsed)) {
+        logger.warn(TAG, `Aucune identité connue ne correspond à l'enregistrement Discord de ${userId}: ${body}`);
+        return {
+          ok: false,
+          error:
+            "Le widget est rattaché à une identité Discord que Kotbo ne connaît pas. Désactive puis réactive le widget pour recréer la liaison.",
+        };
+      }
+
       logger.error(TAG, `PATCH échoué pour ${userId} sur ${guildId}: ${res.status} ${body}`);
       return { ok: false, error: `Discord API ${res.status}: ${body}` };
     }
@@ -261,13 +299,16 @@ export async function clearWidgetForUser(userId: string): Promise<{ ok: boolean;
       let parsed: DiscordApiError = {};
       try { parsed = JSON.parse(body); } catch { /* Preserve the raw Discord response below. */ }
 
-      if (parsed.code === 40113 && index === 0) {
-        logger.info(TAG, `Clear via identité unique indisponible pour ${userId}; tentative legacy 0`);
+      const isLastCandidate = index === identityIds.length - 1;
+
+      if (shouldTryNextIdentity(parsed) && !isLastCandidate) {
+        logger.info(TAG, `Clear via identité ${identityId} refusé pour ${userId} (code ${parsed.code}); tentative suivante`);
         continue;
       }
 
-      // A conflicting or absent identity means this user has no widget to clear.
-      if (parsed.code === 40106 || parsed.code === 10069 || res.status === 404) {
+      // Identité en conflit, absente, ou ne correspondant à aucun de nos
+      // candidats : il n'y a rien à vider pour cet utilisateur.
+      if (parsed.code === 40106 || parsed.code === 10069 || res.status === 404 || isIdentityMismatch(parsed)) {
         logger.info(TAG, `Clear widget ignoré pour ${userId} (code ${parsed.code ?? res.status}): pas d'identité liée`);
         return { ok: true };
       }

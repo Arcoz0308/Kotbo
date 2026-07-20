@@ -1,18 +1,5 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import {
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
-  MessageFlags,
-  SeparatorSpacingSize,
-  SlashCommandBuilder,
-  AttachmentBuilder,
-  GuildMember,
-  PermissionFlagsBits,
-  type ChatInputCommandInteraction,
-} from 'discord.js';
+import { ContainerBuilder, SeparatorBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, MessageFlags, SeparatorSpacingSize, SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { generateLeaderboardImage } from '../../services/core/imageService.js';
 import { COLORS_RAW, text } from '../../utils/embeds.js';

@@ -59,7 +59,7 @@
       {#if module && !isFixed}
         <div class="h-8 w-px bg-outline-variant/20 mx-1 hidden md:block"></div>
         <div class="flex items-center gap-2.5 px-3 py-1.5 bg-surface-container-low/40 rounded-lg border border-outline-variant/10">
-          <span class="text-[10px] font-semibold uppercase tracking-widest {isModuleEnabled ? 'text-primary' : 'text-on-surface-variant/40'}">
+          <span class="text-xs font-medium {isModuleEnabled ? 'text-primary' : 'text-on-surface-variant/40'}">
             {isModuleEnabled ? 'Activé' : 'Désactivé'}
           </span>
           <ToggleSwitch
@@ -72,7 +72,7 @@
     </div>
   </header>
 
-  <main class="flex-1 {isModuleEnabled || isFixed || featureKey === 'sanctions' || featureKey === 'channel_links' || featureKey === 'staff_server' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
+  <main class="flex-1 space-y-8 {isModuleEnabled || isFixed || featureKey === 'sanctions' || featureKey === 'channel_links' || featureKey === 'staff_server' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
     {@render children()}
   </main>
 </div>

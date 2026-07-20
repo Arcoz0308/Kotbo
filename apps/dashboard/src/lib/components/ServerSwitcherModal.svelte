@@ -178,7 +178,7 @@
               onclick={() => selectGuild(guild.id)}
               onmouseenter={() => selectedIndex = idx}
               class="flex-1 flex items-center gap-2.5 px-2 py-2 rounded-lg text-left transition-colors duration-100
-                {isSelected ? 'bg-primary/8 text-primary' : 'text-on-surface-variant hover:bg-surface-container'}"
+ {isSelected ? 'bg-primary/8 text-primary' : 'text-on-surface-variant hover:bg-surface-container'}"
             >
               {#if iconUrl}
                 <img

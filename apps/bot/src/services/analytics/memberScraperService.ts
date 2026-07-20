@@ -51,7 +51,7 @@ export async function startMemberScraping(client: Client, guildId: string, force
   });
 }
 
-async function runMemberScrapeTask(client: Client, guildId: string, force = false): Promise<void> {
+async function runMemberScrapeTask(client: Client, guildId: string, _force = false): Promise<void> {
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) {
     logger.error('MemberScraper', `Could not fetch guild ${guildId} from Discord client.`);

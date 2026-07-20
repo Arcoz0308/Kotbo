@@ -1437,6 +1437,24 @@ export async function handleGuildLeadershipRoutes(
       return true;
     }
 
+    // GET /api/dashboard/guilds/:guildId/staff/members/:userId/scorecard
+    if (parts[5] === 'members' && parts[6] && parts[7] === 'scorecard' && method === 'GET') {
+      const staffUserId = parts[6];
+      try {
+        const { getStaffWeeklyScorecard } = await import('../../../services/staff/staffScorecardService.js');
+        const scorecard = await getStaffWeeklyScorecard(guildId, staffUserId);
+        if (!scorecard) {
+          json(res, 404, { error: 'Staff member not found or no activity records.' });
+          return true;
+        }
+        json(res, 200, { scorecard });
+      } catch (err) {
+        logger.error('StaffAPI', `Error getting staff scorecard for user ${staffUserId}:`, err);
+        json(res, 500, { error: 'Erreur lors de la récupération du scorecard d\'activité' });
+      }
+      return true;
+    }
+
     // PATCH /api/dashboard/guilds/:guildId/staff/members/:userId
     if (parts[5] === 'members' && parts[6] && method === 'PATCH' && !parts[7]) {
       const staffUserId = parts[6];

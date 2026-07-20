@@ -7,6 +7,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, scanSuspectedDetections, fetchSuspectedDetections, fetchChannelsManagementConfig, updateChannelsManagementConfig, linkDetectedAccount, dismissDetection, restoreDetection, fetchMessageLogStats, updateMessageLogConfig } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
@@ -20,8 +21,8 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
 
   // ── Tabs ──
-  type Tab = 'links' | 'detections' | 'verification' | 'config';
-  const daTabs = ['links', 'detections', 'verification', 'config'] as const;
+  type Tab = 'links' | 'detections' | 'network' | 'verification' | 'config';
+  const daTabs = ['links', 'detections', 'network', 'verification', 'config'] as const;
   let activeTab = $state<Tab>('links');
 
   $effect(() => {
@@ -303,7 +304,7 @@
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Voulez-vous vraiment supprimer cette liaison ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cette liaison ?'))) return;
     await saveAction.run(async () => {
       const ok = await deleteLinkedAccount(id);
       if (!ok) return false;
@@ -317,6 +318,7 @@
     verificationMode: string;
     verificationAction: string;
     verificationChannelId: string | null;
+    verificationFallbackChannelId: string | null;
     verificationRoleId: string | null;
     verificationLogChannelId: string | null;
     verificationEmbedTitle: string;
@@ -328,6 +330,10 @@
     verificationLevelCommand: string;
     verificationLevelJoin: string;
     verificationWarnThreshold: number | null;
+    warnWeightingEnabled: boolean;
+    warnDecayDays: number | null;
+    wordStatsEnabled: boolean;
+    banHygieneEnabled: boolean;
     verificationWarnAutoMode: string;
     verificationWarnReason: string;
   } | null>(null);
@@ -342,6 +348,7 @@
           verificationMode: data.verificationMode ?? 'EMBED',
           verificationAction: data.verificationAction ?? 'NOTIFY_STAFF',
           verificationChannelId: data.verificationChannelId ?? null,
+          verificationFallbackChannelId: data.verificationFallbackChannelId ?? null,
           verificationRoleId: data.verificationRoleId ?? null,
           verificationLogChannelId: data.verificationLogChannelId ?? null,
           verificationEmbedTitle: data.verificationEmbedTitle ?? 'Vérification de sécurité',
@@ -353,6 +360,10 @@
           verificationLevelCommand: data.verificationLevelCommand ?? 'HIGH',
           verificationLevelJoin: data.verificationLevelJoin ?? 'HIGH',
           verificationWarnThreshold: data.verificationWarnThreshold ?? null,
+          warnWeightingEnabled: data.warnWeightingEnabled ?? false,
+          warnDecayDays: data.warnDecayDays ?? null,
+          wordStatsEnabled: data.wordStatsEnabled ?? false,
+          banHygieneEnabled: data.banHygieneEnabled ?? true,
           verificationWarnAutoMode: data.verificationWarnAutoMode ?? 'FULL_AUTO',
           verificationWarnReason: data.verificationWarnReason ?? "Seuil d'avertissements atteint — vérification de sécurité requise.",
         };
@@ -383,6 +394,181 @@
     } catch { toast.error('Impossible de déployer l\'embed.'); }
     finally { deployingEmbed = false; }
   }
+
+  // ── Network Graph states ──
+  type GraphNode = { id: string; label: string; avatar: string | null; score: number; type: 'suspect' | 'alt'; x: number; y: number; vx: number; vy: number };
+  type GraphLink = { source: string; target: string; reasons: DetectionReason[]; score: number };
+
+  let graphNodes = $state<GraphNode[]>([]);
+  let graphLinks = $state<GraphLink[]>([]);
+  let draggedNode = $state<GraphNode | null>(null);
+  let hoveredLink = $state<GraphLink | null>(null);
+  let hoveredNode = $state<GraphNode | null>(null);
+  let simulationActive = $state(false);
+  let svgElement = $state<SVGElement | null>(null);
+
+  function initNetworkGraph() {
+    const nodesMap = new Map<string, GraphNode>();
+    const linksList: GraphLink[] = [];
+
+    // 1. Collect nodes
+    for (const d of detections) {
+      if (!nodesMap.has(d.userId)) {
+        nodesMap.set(d.userId, {
+          id: d.userId,
+          label: d.displayName || d.username || d.userId,
+          avatar: d.avatarUrl,
+          score: d.evidence?.totalScore || 0,
+          type: 'suspect',
+          x: 200 + Math.random() * 400,
+          y: 150 + Math.random() * 200,
+          vx: 0,
+          vy: 0
+        });
+      }
+
+      if (d.suspectedAlts) {
+        for (const alt of d.suspectedAlts) {
+          if (!nodesMap.has(alt.userId)) {
+            nodesMap.set(alt.userId, {
+              id: alt.userId,
+              label: alt.username || alt.userId,
+              avatar: alt.avatarUrl,
+              score: 0,
+              type: 'alt',
+              x: 200 + Math.random() * 400,
+              y: 150 + Math.random() * 200,
+              vx: 0,
+              vy: 0
+            });
+          }
+
+          // 2. Build link if not exists
+          const exists = linksList.some(l => 
+            (l.source === d.userId && l.target === alt.userId) || 
+            (l.source === alt.userId && l.target === d.userId)
+          );
+          if (!exists) {
+            const reasonsForAlt = d.evidence?.reasons.filter(r => r.matchedUserId === alt.userId) || [];
+            linksList.push({
+              source: d.userId,
+              target: alt.userId,
+              reasons: reasonsForAlt,
+              score: d.evidence?.totalScore || 0
+            });
+          }
+        }
+      }
+    }
+
+    graphNodes = Array.from(nodesMap.values());
+    graphLinks = linksList;
+
+    // Start simulation
+    if (graphNodes.length > 0) {
+      simulationActive = true;
+      runSimulation();
+    }
+  }
+
+  function runSimulation() {
+    if (!simulationActive) return;
+    
+    // Simple force layout
+    const cx = 400;
+    const cy = 250;
+    const kAttraction = 0.04; // Spring constant
+    const targetDist = 140; // Target distance
+
+    // 1. Node repulsion
+    for (let i = 0; i < graphNodes.length; i++) {
+      for (let j = i + 1; j < graphNodes.length; j++) {
+        const n1 = graphNodes[i];
+        const n2 = graphNodes[j];
+        const dx = n2.x - n1.x;
+        const dy = n2.y - n1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 180) {
+          const force = (180 - dist) * 0.05;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          n1.vx -= fx;
+          n1.vy -= fy;
+          n2.vx += fx;
+          n2.vy += fy;
+        }
+      }
+    }
+
+    // 2. Link attraction
+    for (const link of graphLinks) {
+      const s = graphNodes.find(n => n.id === link.source);
+      const t = graphNodes.find(n => n.id === link.target);
+      if (s && t) {
+        const dx = t.x - s.x;
+        const dy = t.y - s.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = (dist - targetDist) * kAttraction;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        s.vx += fx;
+        s.vy += fy;
+        t.vx -= fx;
+        t.vy -= fy;
+      }
+    }
+
+    // 3. Gravity to center & bounds clamp
+    for (const n of graphNodes) {
+      if (n === draggedNode) continue;
+      
+      const dx = cx - n.x;
+      const dy = cy - n.y;
+      n.vx += dx * 0.008;
+      n.vy += dy * 0.008;
+
+      n.x += n.vx;
+      n.y += n.vy;
+      n.vx *= 0.82; // friction
+      n.vy *= 0.82;
+
+      // Boundaries
+      n.x = Math.max(30, Math.min(770, n.x));
+      n.y = Math.max(30, Math.min(470, n.y));
+    }
+
+    if (activeTab === 'network' && simulationActive) {
+      requestAnimationFrame(runSimulation);
+    }
+  }
+
+  function handleSvgMouseMove(e: MouseEvent) {
+    if (draggedNode && svgElement) {
+      const rect = svgElement.getBoundingClientRect();
+      draggedNode.x = e.clientX - rect.left;
+      draggedNode.y = e.clientY - rect.top;
+      draggedNode.vx = 0;
+      draggedNode.vy = 0;
+    }
+  }
+
+  function handleNodeDragStart(node: GraphNode) {
+    draggedNode = node;
+  }
+
+  function handleNodeDragEnd() {
+    draggedNode = null;
+  }
+
+  $effect(() => {
+    if (activeTab === 'network') {
+      untrack(() => {
+        initNetworkGraph();
+      });
+    } else {
+      simulationActive = false;
+    }
+  });
 
   onMount(() => {
     loadData(); loadDetections(); loadConfig(); loadVerifConfig(); checkMessageLogging();
@@ -418,17 +604,18 @@
     {#each [
       { key: 'links', label: 'Liaisons', icon: 'Link2' },
       { key: 'detections', label: 'Détections', icon: 'ShieldAlert', count: detections.length },
+      { key: 'network', label: 'Réseau Visuel', icon: 'GitMerge' },
       { key: 'verification', label: 'Vérification', icon: 'ShieldCheck' },
       { key: 'config', label: 'Configuration', icon: 'Settings' },
     ] as tab (tab.key)}
       <button
         onclick={() => gotoTab('/double-accounts', tab.key, 'links')}
-        class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all whitespace-nowrap {activeTab === tab.key ? 'bg-surface text-primary shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
+        class="tab-button {activeTab === tab.key ? 'active' : ''}"
       >
         <Papicon icon={tab.icon} size={14} />
         <span>{tab.label}</span>
         {#if tab.count}
-          <span class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold {activeTab === tab.key ? 'bg-primary/10 text-primary' : 'bg-surface-container-high text-on-surface-variant/40'}">{tab.count}</span>
+          <span class="tab-button {activeTab === tab.key ? 'active' : ''}">{tab.count}</span>
         {/if}
       </button>
     {/each}
@@ -479,8 +666,8 @@
           <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4 transition-all hover:border-primary/20">
             <!-- Header: status + date -->
             <div class="flex items-center justify-between mb-3">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
-                {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : link.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}">
+              <span class="px-2 py-0.5 rounded text-xs font-medium
+ {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : link.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}">
                 {link.status === 'VALIDATED' ? 'Validé' : link.status === 'PENDING' ? 'En attente' : 'Rejeté'}
               </span>
               <span class="text-[10px] text-on-surface-variant/30">{new Date(link.createdAt).toLocaleDateString('fr-FR')}</span>
@@ -507,15 +694,15 @@
             <div class="flex items-center gap-2 pt-3 border-t border-outline-variant/5">
               {#if link.status === 'PENDING'}
                 <button onclick={() => handleUpdateStatus(link.id, 'VALIDATED')} disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Papicon icon="Check" size={12} /> Valider
                 </button>
                 <button onclick={() => handleUpdateStatus(link.id, 'REJECTED')} disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-rose-500/10 text-rose-500 text-[10px] font-bold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                  class="flex-1 py-2 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-medium hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
                   <Papicon icon="X" size={12} /> Rejeter
                 </button>
               {:else}
-                <span class="flex-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/20">{link.type}</span>
+                <span class="flex-1 text-xs font-medium text-on-surface-variant/20">{link.type}</span>
                 <button onclick={() => handleDelete(link.id)} disabled={saveAction.state.loading}
                   class="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-50" title="Supprimer">
                   <Papicon icon="Trash2" size={14} />
@@ -532,15 +719,15 @@
     <!-- Stats -->
     <div class="grid grid-cols-3 gap-3 mb-6">
       <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-4 text-center">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Suspects</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Suspects</p>
         <p class="mt-1 text-xl font-bold text-on-surface">{detectionStats.total}</p>
       </div>
       <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-4 text-center">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Présents</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Présents</p>
         <p class="mt-1 text-xl font-bold text-emerald-500">{detectionStats.onServer}</p>
       </div>
       <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-4 text-center">
-        <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Partis</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">Partis</p>
         <p class="mt-1 text-xl font-bold text-amber-500">{detectionStats.left}</p>
       </div>
     </div>
@@ -676,17 +863,17 @@
               {#if d.suspectedAlts && d.suspectedAlts.length > 0}
                 <button onclick={() => { const alt = d.suspectedAlts?.[0]; if (alt) handleLinkDetection(d, alt.userId); }}
                   disabled={saveAction.state.loading}
-                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 min-w-25">
+                  class="flex-1 py-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 min-w-25">
                   <Papicon icon="Link2" size={12} /> Lier
                 </button>
               {/if}
               <button onclick={() => reportModalDetection = d}
-                class="flex-1 py-2 rounded-lg bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider hover:bg-primary hover:text-white transition-all flex items-center justify-center gap-1.5 min-w-25">
+                class="flex-1 py-2 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary hover:text-white transition-all flex items-center justify-center gap-1.5 min-w-25">
                 <Papicon icon="FileSearch" size={12} /> Rapport
               </button>
               <button onclick={() => handleDismissDetection(d)}
                 disabled={saveAction.state.loading}
-                class="py-2 px-3 rounded-lg border border-outline-variant/10 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 hover:text-on-surface hover:border-primary/20 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                class="py-2 px-3 rounded-lg border border-outline-variant/10 text-xs font-medium text-on-surface-variant/40 hover:text-on-surface hover:border-primary/20 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
                 <Papicon icon="X" size={12} /> Ignorer
               </button>
             </div>
@@ -694,6 +881,165 @@
         {/each}
       </div>
     {/if}
+
+  <!-- ═══ TAB: Réseau Visuel ═══ -->
+  {:else if activeTab === 'network'}
+    <div class="rounded-lg border border-outline-variant/10 bg-surface-container-low/20 p-4 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-sm font-bold text-on-surface">Réseau des liaisons suspectes</h3>
+          <p class="text-xs text-on-surface-variant/60">Glissez-déposez les nœuds pour réorganiser la vue. Survolez les liens pour voir les motifs de suspicion.</p>
+        </div>
+        <button onclick={initNetworkGraph} class="flex items-center gap-1.5 border border-outline-variant/20 bg-surface-container-low px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-surface-container-high transition-all">
+          <Papicon icon="RefreshCw" size={12} /> Réorganiser
+        </button>
+      </div>
+
+      <div class="relative w-full aspect-[8/5] bg-surface-container-lowest/80 rounded-lg overflow-hidden border border-outline-variant/10">
+        <!-- SVG container -->
+        <svg
+          bind:this={svgElement}
+          class="w-full h-full cursor-grab active:cursor-grabbing"
+          onmousemove={handleSvgMouseMove}
+          onmouseup={handleNodeDragEnd}
+          onmouseleave={handleNodeDragEnd}
+        >
+          <!-- Grid lines background -->
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.02)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+
+          <!-- Link lines -->
+          {#each graphLinks as link}
+            {@const sourceNode = graphNodes.find(n => n.id === link.source)}
+            {@const targetNode = graphNodes.find(n => n.id === link.target)}
+            {#if sourceNode && targetNode}
+              {@const isHovered = hoveredLink === link}
+              <line
+                x1={sourceNode.x}
+                y1={sourceNode.y}
+                x2={targetNode.x}
+                y2={targetNode.y}
+                stroke={isHovered ? '#5865F2' : 'rgba(88, 101, 242, 0.2)'}
+                stroke-width={isHovered ? 3 : 1.5}
+                class="transition-all duration-150 cursor-pointer"
+                onmouseenter={() => hoveredLink = link}
+                onmouseleave={() => hoveredLink = null}
+              />
+            {/if}
+          {/each}
+
+          <!-- Nodes -->
+          {#each graphNodes as node}
+            {@const isHovered = hoveredNode === node}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <g
+              transform="translate({node.x}, {node.y})"
+              class="cursor-pointer select-none"
+              onmousedown={() => handleNodeDragStart(node)}
+              onmouseenter={() => hoveredNode = node}
+              onmouseleave={() => hoveredNode = null}
+            >
+              <!-- Outer Glow ring -->
+              <circle
+                r={node.type === 'suspect' ? 24 : 18}
+                fill="none"
+                stroke={node.type === 'suspect' ? '#ED4245' : '#3ba55d'}
+                stroke-width={isHovered ? 4 : 2}
+                class="transition-all duration-150"
+                style="filter: drop-shadow(0 0 {isHovered ? 8 : 3}px {node.type === 'suspect' ? 'rgba(237,66,69,0.4)' : 'rgba(59,165,93,0.4)'});"
+              />
+              <!-- Circle background -->
+              <circle r={node.type === 'suspect' ? 22 : 16} fill="#0f1219" />
+              
+              <!-- Avatar image if available, else letter -->
+              {#if node.avatar}
+                <clipPath id="clip-{node.id}">
+                  <circle r={node.type === 'suspect' ? 22 : 16} />
+                </clipPath>
+                <image
+                  href={node.avatar}
+                  x={node.type === 'suspect' ? -22 : -16}
+                  y={node.type === 'suspect' ? -22 : -16}
+                  width={node.type === 'suspect' ? 44 : 32}
+                  height={node.type === 'suspect' ? 44 : 32}
+                  clip-path="url(#clip-{node.id})"
+                />
+              {:else}
+                <text
+                  text-anchor="middle"
+                  dy=".3em"
+                  fill="#ffffff"
+                  font-size={node.type === 'suspect' ? '12' : '9'}
+                  font-weight="bold"
+                >
+                  {node.label.slice(0, 2).toUpperCase()}
+                </text>
+              {/if}
+
+              <!-- Label text -->
+              <text
+                y={node.type === 'suspect' ? 36 : 28}
+                text-anchor="middle"
+                fill={isHovered ? '#ffffff' : 'rgba(255,255,255,0.7)'}
+                font-size="10"
+                font-weight="600"
+                class="transition-colors duration-150"
+              >
+                {node.label}
+              </text>
+            </g>
+          {/each}
+        </svg>
+
+        <!-- Hover Link Tooltip overlay -->
+        {#if hoveredLink}
+          {@const sourceNode = graphNodes.find(n => n.id === hoveredLink.source)}
+          {@const targetNode = graphNodes.find(n => n.id === hoveredLink.target)}
+          {#if sourceNode && targetNode}
+            <div class="absolute bottom-4 left-4 p-4 rounded-lg bg-surface-container-high/95 border border-outline-variant/20 shadow-xl max-w-sm pointer-events-none backdrop-blur-md">
+              <p class="text-xs font-bold text-primary mb-1">Preuve de suspicion</p>
+              <p class="text-xs text-on-surface font-semibold mb-2">Liaison : {sourceNode.label} ↔ {targetNode.label}</p>
+              {#if hoveredLink.reasons && hoveredLink.reasons.length > 0}
+                <ul class="space-y-1.5">
+                  {#each hoveredLink.reasons as reason}
+                    <li class="text-[10px] text-on-surface-variant leading-relaxed">
+                      <span class="font-bold text-amber-500">[{reason.score}pts]</span> {reason.label}
+                      {#if reason.detail}
+                        <br/><span class="text-on-surface-variant/50 text-[9px]">{reason.detail}</span>
+                      {/if}
+                    </li>
+                  {/each}
+                </ul>
+              {:else}
+                <p class="text-[10px] text-on-surface-variant/60 italic">Pas de détails disponibles (score général: {hoveredLink.score}pts).</p>
+              {/if}
+            </div>
+          {/if}
+        {/if}
+
+        <!-- Hover Node Tooltip overlay -->
+        {#if hoveredNode}
+          <div class="absolute top-4 right-4 p-3 rounded-lg bg-surface-container-high/95 border border-outline-variant/20 shadow-xl pointer-events-none backdrop-blur-md">
+            <div class="flex items-center gap-2">
+              {#if hoveredNode.avatar}
+                <img src={hoveredNode.avatar} alt={hoveredNode.label} class="h-8 w-8 rounded-full border border-outline-variant/20" />
+              {/if}
+              <div>
+                <p class="text-xs font-bold text-on-surface">{hoveredNode.label}</p>
+                <p class="text-[9px] text-on-surface-variant/60">ID: {hoveredNode.id}</p>
+                <p class="text-[10px] mt-0.5 font-bold {hoveredNode.type === 'suspect' ? 'text-rose-400' : 'text-emerald-400'}">
+                  {hoveredNode.type === 'suspect' ? `Suspect (Score DC: ${hoveredNode.score})` : 'Alt présumé'}
+                </p>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
 
   <!-- ═══ TAB: Vérification ═══ -->
   {:else if activeTab === 'verification'}
@@ -721,14 +1067,14 @@
           <!-- Mode & Action -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Mode d'envoi</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Mode d'envoi</span>
               <select bind:value={verifConfig.verificationMode} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
                 <option value="DM">MP automatique</option>
                 <option value="EMBED">Bouton embed</option>
               </select>
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Action si DC détecté</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Action si DC détecté</span>
               <select bind:value={verifConfig.verificationAction} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
                 <option value="NOTIFY_STAFF">Notifier le staff</option>
                 <option value="AUTO_LINK">Lier automatiquement</option>
@@ -739,7 +1085,7 @@
           <!-- Niveaux de vérification -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Niveau de vérification (Commandes & Bouton Embed)</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Niveau de vérification (Commandes & Bouton Embed)</span>
               <select bind:value={verifConfig.verificationLevelCommand} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
                 <option value="LOW">Bas (identify uniquement)</option>
                 <option value="MEDIUM">Moyen (identify, email)</option>
@@ -747,7 +1093,7 @@
               </select>
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Niveau de vérification (Arrivée)</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Niveau de vérification (Arrivée)</span>
               <select bind:value={verifConfig.verificationLevelJoin} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm">
                 <option value="LOW">Bas (identify uniquement)</option>
                 <option value="MEDIUM">Moyen (identify, email)</option>
@@ -760,27 +1106,32 @@
           <!-- Channels & Roles -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de vérification</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Salon de vérification</span>
               <SearchableSelect bind:value={verifConfig.verificationChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Aucun salon" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle vérifié</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Rôle vérifié</span>
               <SearchableSelect bind:value={verifConfig.verificationRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de logs</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Salon de logs</span>
               <SearchableSelect bind:value={verifConfig.verificationLogChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Par défaut" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
+            </label>
+            <label class="space-y-1.5 sm:col-span-2 lg:col-span-3">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Salon de repli (MP fermés)</span>
+              <SearchableSelect bind:value={verifConfig.verificationFallbackChannelId} options={dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Salon de vérification par défaut" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
+              <span class="block text-[11px] text-on-surface-variant/50">Quand un membre a ses MP fermés, un thread privé contenant son lien de vérification est créé dans ce salon. Sans salon défini ici, le salon de vérification est utilisé ; si aucun des deux n'est configuré, un ticket est ouvert à la place.</span>
             </label>
           </div>
 
           <!-- Embed customization -->
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Titre de l'embed</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Titre de l'embed</span>
               <input type="text" bind:value={verifConfig.verificationEmbedTitle} maxlength="256" class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
             </label>
             <label class="space-y-1.5">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Couleur</span>
+              <span class="text-xs font-medium text-on-surface-variant/40">Couleur</span>
               <div class="flex items-center gap-2">
                 <input type="color" bind:value={verifConfig.verificationEmbedColor} class="h-9.5 w-9.5 rounded-lg border border-outline-variant/10 bg-transparent cursor-pointer shrink-0" />
                 <input type="text" bind:value={verifConfig.verificationEmbedColor} maxlength="7" class="flex-1 rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm font-mono" />
@@ -789,7 +1140,7 @@
           </div>
 
           <label class="space-y-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Description</span>
+            <span class="text-xs font-medium text-on-surface-variant/40">Description</span>
             <textarea bind:value={verifConfig.verificationEmbedDesc} rows="3" maxlength="2048" class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm resize-y"></textarea>
           </label>
 
@@ -846,7 +1197,7 @@
 
             <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
               <label class="space-y-1.5">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Seuil de warns</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Seuil de warns</span>
                 <div class="flex items-center gap-2">
                   <input
                     type="number"
@@ -868,7 +1219,7 @@
               </label>
 
               <label class="space-y-1.5">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Mode de déclenchement</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Mode de déclenchement</span>
                 <select bind:value={verifConfig.verificationWarnAutoMode} class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" disabled={!verifConfig.verificationWarnThreshold}>
                   <option value="FULL_AUTO">🤖 Full automatique (timeout + DM)</option>
                   <option value="NOTIFY_STAFF">📣 Notifier le staff (bouton manuel)</option>
@@ -878,7 +1229,7 @@
 
             {#if verifConfig.verificationWarnThreshold}
               <label class="space-y-1.5 block">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Raison affichée dans le DM / la notification</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">Raison affichée dans le DM / la notification</span>
                 <input
                   type="text"
                   maxlength="512"
@@ -898,17 +1249,89 @@
                 </span>
               </div>
             {/if}
+
+            <!-- Warns pondérés -->
+            <div class="pt-4 mt-2 border-t border-outline-variant/10 space-y-4">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={verifConfig.warnWeightingEnabled} class="mt-0.5 accent-indigo-500" />
+                <span>
+                  <span class="text-sm font-medium text-on-surface block">Warns pondérés</span>
+                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                    Chaque warn porte une gravité (léger = 1 pt, normal = 2 pts, grave = 3 pts) choisie à la commande <code class="text-indigo-400">/sanction warn</code>.
+                    Le seuil ci-dessus compare alors le <strong>score en points</strong> au lieu du nombre de warns.
+                  </span>
+                </span>
+              </label>
+
+              {#if verifConfig.warnWeightingEnabled}
+                <label class="space-y-1.5 block">
+                  <span class="text-xs font-medium text-on-surface-variant/40">Décroissance des warns (jours)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="3650"
+                    placeholder="Jamais (0)"
+                    value={verifConfig.warnDecayDays ?? ''}
+                    oninput={(e) => {
+                      const v = parseInt((e.target as HTMLInputElement).value);
+                      verifConfig!.warnDecayDays = isNaN(v) || v <= 0 ? null : v;
+                    }}
+                    class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm"
+                  />
+                  <p class="text-[10px] text-on-surface-variant/40">
+                    Un warn plus vieux que ce délai ne compte plus dans le score. Vide ou 0 = les warns comptent indéfiniment.
+                  </p>
+                </label>
+
+                <div class="flex items-start gap-2 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/15 text-xs text-indigo-300">
+                  <Papicon icon="Info" size={13} class_="shrink-0 mt-0.5" />
+                  <span>
+                    Avec un seuil de <strong>{verifConfig.verificationWarnThreshold ?? '—'}</strong>,
+                    il faudra {verifConfig.verificationWarnThreshold ? `${verifConfig.verificationWarnThreshold} warn(s) léger(s) ou ${Math.ceil(verifConfig.verificationWarnThreshold / 3)} warn(s) grave(s)` : 'configurer un seuil ci-dessus'} pour déclencher la vérification{verifConfig.warnDecayDays ? `, en ne comptant que les warns des ${verifConfig.warnDecayDays} derniers jours` : ''}.
+                    Les warns déjà enregistrés valent 1 point.
+                  </span>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Statistiques de mots -->
+            <div class="pt-4 mt-2 border-t border-outline-variant/10">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={verifConfig.wordStatsEnabled} class="mt-0.5 accent-indigo-500" />
+                <span>
+                  <span class="text-sm font-medium text-on-surface block">Statistiques de mots</span>
+                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                    Compte anonymement la fréquence des mots pour l'onglet <strong>Communauté › Mots</strong> des statistiques.
+                    Aucun message ni auteur n'est conservé — uniquement des compteurs par mot et par jour, purgés après 90 jours.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <!-- Hygiène des bans -->
+            <div class="pt-4 mt-2 border-t border-outline-variant/10">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" bind:checked={verifConfig.banHygieneEnabled} class="mt-0.5 accent-indigo-500" />
+                <span>
+                  <span class="text-sm font-medium text-on-surface block">Hygiène des bans</span>
+                  <span class="text-[11px] text-on-surface-variant/50 block mt-0.5">
+                    Analyse quotidiennement la liste des bans et prévient le staff quand des comptes bannis ont été
+                    <strong>supprimés par Discord</strong>, avec un bouton pour nettoyer la liste. Ces comptes ne peuvent jamais revenir.
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
 
           <!-- Actions -->
           <div class="flex flex-wrap gap-2">
             <button onclick={saveVerifConfig}
-              class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-indigo-500 transition-all flex items-center gap-1.5">
+              class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-[13px] font-medium hover:bg-indigo-500 transition-all flex items-center gap-1.5">
               <Papicon icon="Save" size={13} /> Sauvegarder
             </button>
             {#if verifConfig.verificationMode === 'EMBED' && verifConfig.verificationChannelId}
               <button onclick={deployVerifEmbed} disabled={deployingEmbed}
-                class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
+                class="px-5 py-2.5 border border-indigo-500/20 text-indigo-400 rounded-lg text-[13px] font-medium hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5">
                 {#if deployingEmbed}
                   <div class="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
                   Envoi...
@@ -952,15 +1375,15 @@
         <!-- Roles -->
         <div class="grid gap-4 grid-cols-1 sm:grid-cols-3">
           <label class="space-y-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle validation</span>
+            <span class="text-xs font-medium text-on-surface-variant/40">Rôle validation</span>
             <SearchableSelect bind:value={workflowDraft.validationRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
           </label>
           <label class="space-y-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle sanction</span>
+            <span class="text-xs font-medium text-on-surface-variant/40">Rôle sanction</span>
             <SearchableSelect bind:value={workflowDraft.sanctionRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
           </label>
           <label class="space-y-1.5">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Rôle DS</span>
+            <span class="text-xs font-medium text-on-surface-variant/40">Rôle DS</span>
             <SearchableSelect bind:value={workflowDraft.dsRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-3 py-2.5 text-sm" />
           </label>
         </div>
@@ -1023,7 +1446,7 @@
         <!-- Score -->
         {#if det.evidence}
           <div class="flex items-center gap-3 p-4 rounded-xl border {scoreBg(det.evidence.totalScore)}">
-            <div class="text-2xl font-black {scoreColor(det.evidence.totalScore)}">{det.evidence.totalScore}</div>
+            <div class="text-2xl font-bold {scoreColor(det.evidence.totalScore)}">{det.evidence.totalScore}</div>
             <div>
               <p class="text-xs font-bold text-on-surface">Score de confiance</p>
               <p class="text-[10px] text-on-surface-variant/50">{det.evidence.totalScore >= 60 ? 'Risque élevé' : det.evidence.totalScore >= 30 ? 'Risque moyen' : 'Risque faible'} — {det.evidence.reasons.length} signal{det.evidence.reasons.length > 1 ? 'aux' : ''}</p>
@@ -1034,7 +1457,7 @@
         <!-- Suspected alts -->
         {#if det.suspectedAlts && det.suspectedAlts.length > 0}
           <div>
-            <h4 class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Comptes suspects associés</h4>
+            <h4 class="text-xs font-medium text-on-surface-variant/40 mb-2">Comptes suspects associés</h4>
             <div class="space-y-2">
               {#each det.suspectedAlts as alt}
                 <div class="flex items-center justify-between gap-2 p-3 rounded-lg bg-surface-container-low/50 border border-outline-variant/5">
@@ -1045,7 +1468,7 @@
                   </button>
                   <button onclick={() => { handleLinkDetection(det, alt.userId); reportModalDetection = null; }}
                     disabled={saveAction.state.loading}
-                    class="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1">
+                    class="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-medium hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1">
                     <Papicon icon="Link2" size={11} /> Lier
                   </button>
                 </div>
@@ -1057,7 +1480,7 @@
         <!-- Heuristics detail -->
         {#if det.evidence && det.evidence.reasons.length > 0}
           <div>
-            <h4 class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Détail des heuristiques</h4>
+            <h4 class="text-xs font-medium text-on-surface-variant/40 mb-2">Détail des heuristiques</h4>
             <div class="space-y-1.5">
               {#each [...det.evidence.reasons].sort((a, b) => b.score - a.score) as reason}
                 <div class="p-3 rounded-lg bg-surface-container-low/40 border border-outline-variant/5">
@@ -1081,7 +1504,7 @@
 
         <!-- Member info -->
         <div>
-          <h4 class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 mb-2">Informations</h4>
+          <h4 class="text-xs font-medium text-on-surface-variant/40 mb-2">Informations</h4>
           <div class="grid grid-cols-2 gap-2 text-[11px]">
             <div class="p-2.5 rounded-lg bg-surface-container-low/40">
               <span class="text-on-surface-variant/40">Créé</span>

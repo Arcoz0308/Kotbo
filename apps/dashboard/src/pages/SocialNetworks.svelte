@@ -4,6 +4,8 @@
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
@@ -149,7 +151,7 @@
   }
 
   async function handleDeleteYoutube(id: string) {
-    if (!confirm('Voulez-vous vraiment ne plus suivre cette chaîne YouTube ?')) return;
+    if (!(await confirmDialog.danger('Ne plus suivre cette chaîne YouTube ?', '', 'Ne plus suivre'))) return;
 
     await actionState.run(async () => {
       const ok = await deleteYoutubeFollow(id);
@@ -205,7 +207,7 @@
   }
 
   async function handleDeleteTwitch(id: string) {
-    if (!confirm('Voulez-vous vraiment ne plus suivre ce streamer Twitch ?')) return;
+    if (!(await confirmDialog.danger('Ne plus suivre ce streamer Twitch ?', '', 'Ne plus suivre'))) return;
 
     await actionState.run(async () => {
       const ok = await deleteTwitchFollow(id);
@@ -217,31 +219,17 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <!-- Header Card -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden group">
-    <div class="flex items-center gap-4 relative">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="Share" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Réseaux Sociaux</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Abonnez-vous à des chaînes YouTube et Twitch et configurez leurs alertes Discord.</p>
-      </div>
-    </div>
-
-    <div class="flex items-center gap-3 px-4 py-2 rounded-lg border border-outline-variant/10 bg-surface-container-high/35 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/70">
-      <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-      <span>Module actif</span>
-    </div>
-
-    <!-- Active State & Tab Switcher Info -->
-    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 relative">
+<ModulePage
+  title="Réseaux Sociaux"
+  description="Abonnez-vous à des chaînes YouTube et Twitch et configurez leurs alertes Discord."
+  icon="share-2"
+>
+  {#snippet actions()}
       <!-- Tab switcher -->
       <div class="flex bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/20">
         <button
           onclick={() => gotoTab('/social-networks', 'youtube', 'youtube')}
-          class="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 {activeTab === 'youtube' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 scale-[1.03]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+          class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-300 flex items-center gap-2 {activeTab === 'youtube' ? 'bg-red-600 text-white shadow-sm ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
         >
           <!-- YouTube Logo SVG -->
           <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -251,7 +239,7 @@
         </button>
         <button
           onclick={() => gotoTab('/social-networks', 'twitch', 'youtube')}
-          class="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 {activeTab === 'twitch' ? 'bg-[#9146FF] text-white shadow-lg shadow-[#9146FF]/20 scale-[1.03]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+          class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-300 flex items-center gap-2 {activeTab === 'twitch' ? 'bg-[#9146FF] text-white shadow-lg shadow-[#9146FF]/20 ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
         >
           <!-- Twitch Logo SVG -->
           <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -260,8 +248,7 @@
           <span>Twitch</span>
         </button>
       </div>
-    </div>
-  </header>
+  {/snippet}
 
   <!-- Module Enable/Disable Notice & Quick toggle -->
   <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -273,7 +260,7 @@
       <p class="text-xs text-on-surface-variant/80">YouTube & Twitch sont gérés par les tâches de fond. Veillez à ce que les modules correspondants soient activés dans le <a href="/modules" class="text-primary hover:underline font-bold">Catalogue Système</a>.</p>
     </div>
     <div class="flex items-center gap-4 bg-surface-container-high/40 px-5 py-3 rounded-lg border border-outline-variant/10">
-      <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Modules Actifs</span>
+      <span class="text-xs font-medium text-primary">Modules Actifs</span>
       <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-semibold uppercase">En ligne</span>
     </div>
   </div>
@@ -423,7 +410,7 @@
               <button
                 onclick={handleAddYoutube}
                 disabled={!canManage}
-                class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold uppercase tracking-widest text-xs rounded-lg shadow-lg shadow-red-600/20 hover: active:scale-[0.98] transition-all disabled:opacity-50"
+                class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-medium text-[13px] rounded-lg shadow-sm hover: active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 Ajouter la chaîne
               </button>
@@ -467,7 +454,7 @@
               <button
                 onclick={handleAddTwitch}
                 disabled={!canManage}
-                class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-semibold uppercase tracking-widest text-xs rounded-lg shadow-lg shadow-[#9146FF]/20 hover: active:scale-[0.98] transition-all disabled:opacity-50"
+                class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-medium text-[13px] rounded-lg shadow-lg shadow-[#9146FF]/20 hover: active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 Suivre le streamer
               </button>
@@ -705,4 +692,4 @@
       </div>
     </div>
   {/if}
-</div>
+</ModulePage>
