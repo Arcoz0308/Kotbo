@@ -2254,7 +2254,7 @@ export async function updateWelcomeThreadSteps(steps: Array<{ content: string; n
   return dashboardRequest('/welcome-thread/steps', { method: 'PUT', payload: { steps }, guildId, errorContext: 'API Error (Update Welcome Thread Steps):' });
 }
 
-export async function updateWelcomeThreadPages(pages: Array<{ label: string; emoji?: string | null; summary?: string | null; actionType?: string; roleId?: string | null; roleAction?: string; linkUrl?: string | null; embedTitle?: string; embedDescription?: string; embedColor?: string; embedImageUrl?: string | null; embedThumbnailUrl?: string | null }>, guildId = authStore.selectedGuildId) {
+export async function updateWelcomeThreadPages(pages: Array<{ label: string; emoji?: string | null; summary?: string | null; actionType?: string; roleId?: string | null; roleAction?: string; roleGroup?: string | null; linkUrl?: string | null; embedTitle?: string; embedDescription?: string; embedColor?: string; embedImageUrl?: string | null; embedThumbnailUrl?: string | null }>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/welcome-thread/pages', { method: 'PUT', payload: { pages }, guildId, errorContext: 'API Error (Update Welcome Thread Pages):' });
 }
 
