@@ -2,6 +2,7 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -47,8 +48,10 @@
   // Season dates states
   let clanSeasonStartsAt = $state<string | null>(null);
   let clanSeasonEndsAt = $state<string | null>(null);
-  let formSeasonStartsAt = $state('');
-  let formSeasonEndsAt = $state('');
+  let startDate = $state('');
+  let startTime = $state('00:00');
+  let endDate = $state('');
+  let endTime = $state('00:00');
 
   // Saved states (for dirty checking)
   let savedClansEnabled = $state(false);
@@ -90,6 +93,7 @@
       if (!res) throw new Error('Erreur lors de l\'ajout de points au clan.');
       await refreshData(true);
       manualPointsAmountClan = 100;
+      return true;
     }, { successMessage: 'Points ajustés avec succès !' });
   }
 
@@ -105,6 +109,7 @@
       await refreshData(true);
       manualPointsMemberUserId = '';
       manualPointsAmountMember = 100;
+      return true;
     }, { successMessage: 'Points du membre ajustés avec succès !' });
   }
 
@@ -128,6 +133,51 @@
     return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
   };
 
+  const formSeasonStartsAt = $derived(startDate ? `${startDate}T${startTime}` : '');
+  const formSeasonEndsAt = $derived(endDate ? `${endDate}T${endTime}` : '');
+
+  function parseDateToIso(dateVal: string, timeVal: string): string | null {
+    if (!dateVal) return null;
+    const combined = `${dateVal}T${timeVal || '00:00'}`;
+    const d = new Date(combined);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
+  function setSeasonDates(startsAt: string | null, endsAt: string | null) {
+    if (startsAt) {
+      const d = new Date(startsAt);
+      if (!isNaN(d.getTime())) {
+        const tzOffset = d.getTimezoneOffset() * 60000;
+        const localIso = new Date(d.getTime() - tzOffset).toISOString();
+        startDate = localIso.slice(0, 10);
+        startTime = localIso.slice(11, 16);
+      } else {
+        startDate = '';
+        startTime = '00:00';
+      }
+    } else {
+      startDate = '';
+      startTime = '00:00';
+    }
+
+    if (endsAt) {
+      const d = new Date(endsAt);
+      if (!isNaN(d.getTime())) {
+        const tzOffset = d.getTimezoneOffset() * 60000;
+        const localIso = new Date(d.getTime() - tzOffset).toISOString();
+        endDate = localIso.slice(0, 10);
+        endTime = localIso.slice(11, 16);
+      } else {
+        endDate = '';
+        endTime = '00:00';
+      }
+    } else {
+      endDate = '';
+      endTime = '00:00';
+    }
+  }
+
   // Sync state changes with the unsaved changes bar
   $effect(() => {
     const dirty = clansEnabled !== savedClansEnabled 
@@ -136,9 +186,7 @@
       || clanXpPerLevelUp !== savedClanXpPerLevelUp
       || clanAnnouncementChannelId !== savedClanAnnouncementChannelId
       || clanRewardGiveaway !== savedClanRewardGiveaway
-      || clanRewardLeaderRole !== savedClanRewardLeaderRole
-      || formSeasonStartsAt !== formatLocal(savedClanSeasonStartsAt)
-      || formSeasonEndsAt !== formatLocal(savedClanSeasonEndsAt);
+      || clanRewardLeaderRole !== savedClanRewardLeaderRole;
 
     if (dirty && canManageSettings) {
       untrack(() => {
@@ -153,8 +201,7 @@
             clanAnnouncementChannelId = savedClanAnnouncementChannelId;
             clanRewardGiveaway = savedClanRewardGiveaway;
             clanRewardLeaderRole = savedClanRewardLeaderRole;
-            formSeasonStartsAt = formatLocal(savedClanSeasonStartsAt);
-            formSeasonEndsAt = formatLocal(savedClanSeasonEndsAt);
+            setSeasonDates(savedClanSeasonStartsAt, savedClanSeasonEndsAt);
           }
         });
       });
@@ -167,13 +214,24 @@
     }
   });
 
-  // Polling mechanism while a background operation is active
+  function handleWsMessage(e: Event) {
+    const detail = (e as CustomEvent).detail;
+    if (
+      detail?.type === 'dashboard_state_changed' &&
+      detail?.guildId === authStore.selectedGuildId &&
+      detail?.reason === 'clans_updated'
+    ) {
+      void refreshData(true);
+    }
+  }
+
+  // Polling mechanism while a background operation is active (kept as fallback)
   let pollInterval: ReturnType<typeof setInterval> | null = null;
   $effect(() => {
     if (taskInProgress && !pollInterval) {
       pollInterval = setInterval(() => {
         void refreshData(true);
-      }, 2000);
+      }, 5000); // Polling plus espacé car doublé par les WebSockets
     } else if (!taskInProgress && pollInterval) {
       clearInterval(pollInterval);
       pollInterval = null;
@@ -181,6 +239,7 @@
   });
 
   onDestroy(() => {
+    window.removeEventListener('kotbo-ws-message', handleWsMessage);
     if (unsavedChanges.pageLabel === 'Configuration des Clans') {
       unsavedChanges.clear();
     }
@@ -233,21 +292,18 @@
         clans = res.clans;
         taskInProgress = res.taskInProgress;
 
-        // Formater les dates pour l'input type datetime-local (YYYY-MM-DDTHH:MM)
-        formSeasonStartsAt = formatLocal(res.clanSeasonStartsAt);
-        formSeasonEndsAt = formatLocal(res.clanSeasonEndsAt);
-
-        if (!silent) {
-          savedClansEnabled = res.clansEnabled;
-          savedClansUnique = res.clansUnique;
-          savedClanXpFromLevelUp = res.clanXpFromLevelUp;
-          savedClanXpPerLevelUp = res.clanXpPerLevelUp;
-          savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
-          savedClanRewardGiveaway = res.clanRewardGiveaway;
-          savedClanRewardLeaderRole = res.clanRewardLeaderRole;
-          savedClanSeasonStartsAt = res.clanSeasonStartsAt;
-          savedClanSeasonEndsAt = res.clanSeasonEndsAt;
-        }
+        // Formater les dates pour l'interface
+        setSeasonDates(res.clanSeasonStartsAt, res.clanSeasonEndsAt);
+        
+        savedClansEnabled = res.clansEnabled;
+        savedClansUnique = res.clansUnique;
+        savedClanXpFromLevelUp = res.clanXpFromLevelUp;
+        savedClanXpPerLevelUp = res.clanXpPerLevelUp;
+        savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
+        savedClanRewardGiveaway = res.clanRewardGiveaway;
+        savedClanRewardLeaderRole = res.clanRewardLeaderRole;
+        savedClanSeasonStartsAt = res.clanSeasonStartsAt;
+        savedClanSeasonEndsAt = res.clanSeasonEndsAt;
       }
     } catch (err) {
       console.error(err);
@@ -257,6 +313,7 @@
   }
 
   onMount(async () => {
+    window.addEventListener('kotbo-ws-message', handleWsMessage);
     await dashboardStore.refresh();
     await refreshData();
     const channelsData = await fetchDiscordChannels().catch(() => null);
@@ -282,8 +339,8 @@
         clanRewardLeaderRole,
         clanRewardXpBoost,
         clanRewardXpBoostRate,
-        clanSeasonStartsAt: formSeasonStartsAt ? new Date(formSeasonStartsAt).toISOString() : null,
-        clanSeasonEndsAt: formSeasonEndsAt ? new Date(formSeasonEndsAt).toISOString() : null
+        clanSeasonStartsAt: parseDateToIso(startDate, startTime),
+        clanSeasonEndsAt: parseDateToIso(endDate, endTime)
       });
       if (!res) throw new Error('Erreur de sauvegarde');
       
@@ -300,6 +357,58 @@
       return true;
     }, { successMessage: 'Paramètres des clans sauvegardés avec succès !' });
     return success;
+  }
+
+  async function handleSaveSeasonPlanning() {
+    if (!canManageSettings) return;
+    
+    const startsAtIso = parseDateToIso(startDate, startTime);
+    const endsAtIso = parseDateToIso(endDate, endTime);
+    
+    if (!startsAtIso || !endsAtIso) {
+      actionState.setError("Veuillez sélectionner des dates de début et de fin valides.");
+      return;
+    }
+    
+    if (new Date(startsAtIso) >= new Date(endsAtIso)) {
+      actionState.setError("La date de fin doit être postérieure à la date de début.");
+      return;
+    }
+
+    await actionState.run(async () => {
+      const res = await updateClanSettings({
+        clanSeasonStartsAt: startsAtIso,
+        clanSeasonEndsAt: endsAtIso
+      });
+      if (!res) throw new Error("Erreur de sauvegarde de la planification.");
+      
+      savedClanSeasonStartsAt = res.clanSeasonStartsAt;
+      savedClanSeasonEndsAt = res.clanSeasonEndsAt;
+      clanSeasonStartsAt = res.clanSeasonStartsAt;
+      clanSeasonEndsAt = res.clanSeasonEndsAt;
+      setSeasonDates(res.clanSeasonStartsAt, res.clanSeasonEndsAt);
+      return true;
+    }, { successMessage: 'Planification de la saison enregistrée avec succès !' });
+  }
+
+  async function handleClearSeasonPlanning() {
+    if (!canManageSettings) return;
+    if (!confirm("Voulez-vous vraiment annuler la planification de la saison ?")) return;
+
+    await actionState.run(async () => {
+      const res = await updateClanSettings({
+        clanSeasonStartsAt: null,
+        clanSeasonEndsAt: null
+      });
+      if (!res) throw new Error("Erreur lors de l'annulation de la planification.");
+      
+      savedClanSeasonStartsAt = null;
+      savedClanSeasonEndsAt = null;
+      clanSeasonStartsAt = null;
+      clanSeasonEndsAt = null;
+      setSeasonDates(null, null);
+      return true;
+    }, { successMessage: 'Planification de la saison réinitialisée !' });
   }
 
   function openCreateModal() {
@@ -743,26 +852,42 @@
             </h3>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <!-- Début de saison -->
               <div class="space-y-2">
-                <label for="clanSeasonStartsAtInput" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Date & Heure de Début</label>
-                <input
-                  id="clanSeasonStartsAtInput"
-                  type="datetime-local"
-                  bind:value={formSeasonStartsAt}
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
-                  disabled={!canManageSettings}
-                />
+                <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Début de la Saison</span>
+                <div class="grid grid-cols-3 gap-2">
+                  <input
+                    type="date"
+                    bind:value={startDate}
+                    class="col-span-2 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
+                    disabled={!canManageSettings}
+                  />
+                  <input
+                    type="time"
+                    bind:value={startTime}
+                    class="col-span-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
+                    disabled={!canManageSettings}
+                  />
+                </div>
               </div>
 
+              <!-- Fin de saison -->
               <div class="space-y-2">
-                <label for="clanSeasonEndsAtInput" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Date & Heure de Fin</label>
-                <input
-                  id="clanSeasonEndsAtInput"
-                  type="datetime-local"
-                  bind:value={formSeasonEndsAt}
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
-                  disabled={!canManageSettings}
-                />
+                <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Fin de la Saison</span>
+                <div class="grid grid-cols-3 gap-2">
+                  <input
+                    type="date"
+                    bind:value={endDate}
+                    class="col-span-2 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
+                    disabled={!canManageSettings}
+                  />
+                  <input
+                    type="time"
+                    bind:value={endTime}
+                    class="col-span-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
+                    disabled={!canManageSettings}
+                  />
+                </div>
               </div>
             </div>
 
@@ -770,6 +895,27 @@
               <p class="font-bold">💡 Fonctionnement Automatique</p>
               <p>Lorsque la date de fin est dépassée, le Bot lancera automatiquement le traitement de fin de saison. Si une date de début et de fin étaient configurées, le système calculera automatiquement l'intervalle et programmera la saison suivante pour la même durée.</p>
             </div>
+
+            {#if canManageSettings}
+              <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant/10">
+                <button
+                  type="button"
+                  onclick={handleClearSeasonPlanning}
+                  class="px-4 py-2 border border-outline-variant/30 text-on-surface hover:bg-surface-container-high/40 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                  disabled={!savedClanSeasonStartsAt && !savedClanSeasonEndsAt && !startDate && !endDate}
+                >
+                  Annuler la planification
+                </button>
+                <button
+                  type="button"
+                  onclick={handleSaveSeasonPlanning}
+                  class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                  disabled={!startDate || !endDate}
+                >
+                  Enregistrer la planification
+                </button>
+              </div>
+            {/if}
           </section>
         </div>
 

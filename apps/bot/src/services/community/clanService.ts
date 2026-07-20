@@ -1,7 +1,7 @@
 import { Client, EmbedBuilder, ChannelType, CategoryChannel } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { pushAudit } from '../../api/shared.js';
+import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
 import { getClient } from '../../utils/client.js';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear'; processed: number; total: number }>();
@@ -43,6 +43,7 @@ export async function runDistribution(guildId: string, client: Client, initiator
   
   // Démarrer la tâche asynchrone bridée
   clanTasks.set(guildId, { type: 'distribute', processed: 0, total: targetList.length });
+  broadcastDashboardStateChange(guildId, 'clans_updated');
 
   // Lancement asynchrone non-bloquant
   (async () => {
@@ -79,12 +80,14 @@ export async function runDistribution(guildId: string, client: Client, initiator
         processed: i + 1,
         total: shuffledList.length,
       });
+      broadcastDashboardStateChange(guildId, 'clans_updated');
 
       await new Promise((resolve) => setTimeout(resolve, 450));
     }
 
     logger.info('ClanService', `Distribution équilibrée terminée pour "${discordGuild.name}"`);
     clanTasks.delete(guildId);
+    broadcastDashboardStateChange(guildId, 'clans_updated');
   })().catch((e) => logger.error('ClanService', 'Erreur critique dans le thread de distribution:', e));
 
   await pushAudit(guildId, {
@@ -136,6 +139,7 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
 
   // Démarrer la tâche
   clanTasks.set(guildId, { type: 'clear', processed: 0, total: targetList.length });
+  broadcastDashboardStateChange(guildId, 'clans_updated');
 
   // Lancement asynchrone
   (async () => {
@@ -159,12 +163,14 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
         processed: i + 1,
         total: targetList.length,
       });
+      broadcastDashboardStateChange(guildId, 'clans_updated');
 
       await new Promise((resolve) => setTimeout(resolve, 450));
     }
 
     logger.info('ClanService', `Retrait de tous les clans terminé pour "${discordGuild.name}"`);
     clanTasks.delete(guildId);
+    broadcastDashboardStateChange(guildId, 'clans_updated');
   })().catch((e) => logger.error('ClanService', 'Erreur critique dans le thread de retrait:', e));
 
   await pushAudit(guildId, {
@@ -425,23 +431,35 @@ export async function handleEndSeason(
         data: { lastWinningClanId: winningClan.id },
       });
 
-      // Trouver le chef de coalition (meilleur contributeur réel) du clan gagnant
-      const topContributor = await prisma.clanMemberContribution.findFirst({
+      // Trouver le chef du clan gagnant pour l'annonce
+      const topWinnerContributor = await prisma.clanMemberContribution.findFirst({
         where: { guildId, clanId: winningClan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
         orderBy: { xp: 'desc' },
       });
 
-      if (topContributor && topContributor.xp > 0) {
-        leaderUserId = topContributor.userId;
-        leaderXp = topContributor.xp;
+      if (topWinnerContributor && topWinnerContributor.xp > 0) {
+        leaderUserId = topWinnerContributor.userId;
+        leaderXp = topWinnerContributor.xp;
+      }
+    }
 
-        // Attribuer le rôle de chef si configuré et activé
-        if (guildSettings.clanRewardLeaderRole && winningClan.leaderRoleId) {
-          const member = discordGuild.members.cache.get(leaderUserId) 
-            || await discordGuild.members.fetch(leaderUserId).catch(() => null);
+    // 4. Attribuer le rôle de chef de clan pour chaque clan si activé
+    if (guildSettings.clanRewardLeaderRole) {
+      for (const clan of clans) {
+        if (!clan.leaderRoleId) continue;
+
+        // Trouver le meilleur contributeur de ce clan pour la saison
+        const topContributor = await prisma.clanMemberContribution.findFirst({
+          where: { guildId, clanId: clan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
+          orderBy: { xp: 'desc' },
+        });
+
+        if (topContributor && topContributor.xp > 0) {
+          const member = discordGuild.members.cache.get(topContributor.userId) 
+            || await discordGuild.members.fetch(topContributor.userId).catch(() => null);
           if (member) {
-            await member.roles.add(winningClan.leaderRoleId, `Sacre du Chef de Coalition - Fin de la Saison ${currentSeason}`).catch((err) => {
-              logger.warn('ClanService', `Impossible d'attribuer le rôle de chef de clan à ${member.user.tag}:`, err);
+            await member.roles.add(clan.leaderRoleId, `Chef du clan ${clan.name} - Fin de la Saison ${currentSeason}`).catch((err) => {
+              logger.warn('ClanService', `Impossible d'attribuer le rôle de chef du clan ${clan.name} à ${member.user.tag}:`, err);
             });
           }
         }

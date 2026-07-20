@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { clanTasks, runDistribution, runClear, handleEndSeason } from '../../../services/community/clanService.js';
 
 export async function handleClansRoutes(
@@ -169,6 +169,8 @@ export async function handleClansRoutes(
         channelId: null,
       });
 
+      broadcastDashboardStateChange(guildId, 'clans_updated');
+
       json(res, 200, {
         clansEnabled: updatedGuild.clansEnabled,
         clansUnique: updatedGuild.clansUnique,
@@ -249,6 +251,8 @@ export async function handleClansRoutes(
         channelId: null,
       });
 
+      broadcastDashboardStateChange(guildId, 'clans_updated');
+
       json(res, 201, { clan });
     } catch (err) {
       logger.error('ClansAPI', 'Error creating clan:', err);
@@ -311,6 +315,8 @@ export async function handleClansRoutes(
         channelId: null,
       });
 
+      broadcastDashboardStateChange(guildId, 'clans_updated');
+
       json(res, 200, { clan: updatedClan });
     } catch (err) {
       logger.error('ClansAPI', 'Error updating clan:', err);
@@ -337,6 +343,8 @@ export async function handleClansRoutes(
         details: `Clan "${deletedClan.name}" supprimé.`,
         channelId: null,
       });
+
+      broadcastDashboardStateChange(guildId, 'clans_updated');
 
       json(res, 200, { success: true });
     } catch (err) {
@@ -403,6 +411,8 @@ export async function handleClansRoutes(
         details: `Saison de clan réinitialisée. Nouvelle saison active: ${nextSeason}`,
         channelId: null,
       });
+
+      broadcastDashboardStateChange(guildId, 'clans_updated');
 
       json(res, 200, { currentClanSeason: nextSeason });
     } catch (err) {
@@ -479,6 +489,8 @@ export async function handleClansRoutes(
         details: `Ajout manuel de ${body.amount} XP au clan "${clan.name}"` + (body.userId ? ` pour l'utilisateur ${body.userId}` : ' (global)'),
         channelId: null,
       });
+
+      broadcastDashboardStateChange(guildId, 'clans_updated');
 
       json(res, 200, { success: true, contribution });
     } catch (err) {
