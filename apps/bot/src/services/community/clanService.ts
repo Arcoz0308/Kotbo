@@ -6,6 +6,28 @@ import { getClient } from '../../utils/client.js';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear'; processed: number; total: number }>();
 
+// ─── Balise de champion sur la catégorie QG ──────────────────────────────────
+// Format unifié : « <nom de base> [🏆 CHAMPION · <bonus>] ». La balise est
+// toujours placée en fin de nom, ce qui permet de la retirer proprement (peu
+// importe où elle a été ajoutée par une version précédente) via stripTrophyTag.
+
+/** Retire toute balise trophée « [🏆 ...] » d'un nom de catégorie (début, milieu ou fin). */
+export function stripTrophyTag(name: string): string {
+  return name.replace(/\s*\[🏆[^\]]*\]\s*/gu, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
+ * Construit le nom de catégorie du QG d'un clan pour une fin de saison.
+ * - Perdant : nom de base nettoyé (aucune balise).
+ * - Gagnant : nom de base + « [🏆 CHAMPION] » (avec la liste des bonus actifs si présents).
+ */
+export function buildCategoryName(currentName: string, isWinner: boolean, rewards: string[] = []): string {
+  const base = stripTrophyTag(currentName);
+  if (!isWinner) return base;
+  const suffix = rewards.length > 0 ? `CHAMPION · ${rewards.join(' + ')}` : 'CHAMPION';
+  return `${base} [🏆 ${suffix}]`;
+}
+
 export async function runDistribution(guildId: string, client: Client, initiatorName: string): Promise<string> {
   if (clanTasks.has(guildId)) {
     throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
@@ -552,29 +574,20 @@ export async function handleEndSeason(
         
       if (channel && channel.parent && channel.parent.type === ChannelType.GuildCategory) {
         const category = channel.parent as CategoryChannel;
-        const isWinner = winningClan && clan.id === winningClan.id;
-        
-        let targetName = category.name;
-        // Retirer uniquement la balise [🏆 ...] de fin si elle existe
-        const trophyIndex = targetName.indexOf('[🏆');
-        if (trophyIndex !== -1) {
-          targetName = targetName.substring(0, trophyIndex).trim();
+        const isWinner = Boolean(winningClan && clan.id === winningClan.id);
+
+        // Le gagnant est toujours marqué d'un 🏆 (avec ses bonus actifs le cas
+        // échéant) ; les perdants sont systématiquement nettoyés de toute balise.
+        const activeRewards: string[] = [];
+        if (guildSettings.clanRewardXpBoost) {
+          activeRewards.push(`+${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% XP`);
         }
-        
-        if (isWinner) {
-          const activeRewards: string[] = [];
-          if (guildSettings.clanRewardXpBoost) {
-            activeRewards.push(`+${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% XP`);
-          }
-          if (guildSettings.clanRewardGiveaway) {
-            activeRewards.push('GIVEAWAY BOOST');
-          }
-          
-          if (activeRewards.length > 0) {
-            targetName = `${targetName} [🏆 ${activeRewards.join(' + ')}]`;
-          }
+        if (guildSettings.clanRewardGiveaway) {
+          activeRewards.push('GIVEAWAY BOOST');
         }
-        
+
+        const targetName = buildCategoryName(category.name, isWinner, activeRewards);
+
         if (category.name !== targetName) {
           logger.info('ClanService', `Renommage du QG du clan "${clan.name}" en "${targetName}"`);
           await category.setName(targetName, `Mise à jour QG - Fin de la Saison ${currentSeason}`).catch((err) => {

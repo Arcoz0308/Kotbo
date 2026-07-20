@@ -3,7 +3,7 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
-import { clanTasks, runDistribution, runClear, handleEndSeason } from '../../../services/community/clanService.js';
+import { clanTasks, runDistribution, runClear, handleEndSeason, buildCategoryName } from '../../../services/community/clanService.js';
 
 export async function handleClansRoutes(
   req: IncomingMessage,
@@ -581,12 +581,15 @@ export async function handleClansRoutes(
         for (const clan of clans) {
           if (clan.generalChannelId) {
             const channel = discordGuild.channels.cache.get(clan.generalChannelId) || await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
-            if (channel && channel.type === ChannelType.GuildCategory) {
-              const isWinner = restoredWinningClanId && clan.id === restoredWinningClanId;
-              const cleanName = channel.name.replace(/^\[🏆\s*.*?\]\s*/, '');
-              const targetName = isWinner ? `[🏆 ${clan.name}] ${cleanName}` : cleanName;
-              if (channel.name !== targetName) {
-                await channel.setName(targetName, "Annulation clôture saison").catch(() => null);
+            // On renomme la catégorie parente du salon QG (même logique que la fin de saison).
+            const category = channel && 'parent' in channel && channel.parent && channel.parent.type === ChannelType.GuildCategory
+              ? channel.parent
+              : (channel && channel.type === ChannelType.GuildCategory ? channel : null);
+            if (category) {
+              const isWinner = Boolean(restoredWinningClanId && clan.id === restoredWinningClanId);
+              const targetName = buildCategoryName(category.name, isWinner);
+              if (category.name !== targetName) {
+                await category.setName(targetName, "Annulation clôture saison").catch(() => null);
               }
             }
           }
@@ -645,9 +648,9 @@ export async function handleClansRoutes(
 
       if (body.userId?.trim()) {
         const userId = body.userId.trim();
-        // Vérifier si l'utilisateur existe dans la base de données
-        const dbMember = await prisma.member.findUnique({
-          where: { id: userId }
+        // Vérifier si l'utilisateur existe dans la base de données (profil membre du serveur)
+        const dbMember = await prisma.memberProfile.findUnique({
+          where: { guildId_userId: { guildId, userId } }
         });
         if (!dbMember) {
           json(res, 404, { error: "L'utilisateur n'existe pas dans la base de données de Kotbo (il doit interagir sur Discord d'abord)." });
