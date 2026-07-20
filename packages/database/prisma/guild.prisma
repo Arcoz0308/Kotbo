@@ -114,6 +114,7 @@ model Guild {
 
   clansEnabled      Boolean @default(false)
   clansUnique       Boolean @default(true)
+  clansAutoAssignOnJoin Boolean @default(false)
   currentClanSeason Int     @default(1)
   clanSeasonStartsAt DateTime?
   clanSeasonEndsAt   DateTime?
