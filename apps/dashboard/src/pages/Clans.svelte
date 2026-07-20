@@ -605,28 +605,28 @@
   <!-- Navigation par Onglets -->
   <div class="flex border-b border-outline-variant/15 mb-6">
     <button
-      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer {activeTab === 'clans' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'clans' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'clans'}
     >
-      🛡️ Clans & Rôles
+      <Papicon icon="Shield" size={15} /> Clans & Rôles
     </button>
     <button
-      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer {activeTab === 'seasons' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'seasons' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'seasons'}
     >
-      📅 Gestion des Saisons
+      <Papicon icon="Calendar" size={15} /> Gestion des Saisons
     </button>
     <button
-      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer {activeTab === 'points' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'points' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'points'}
     >
-      ⚡ Gestion des Points
+      <Papicon icon="Sparkles" size={15} /> Gestion des Points
     </button>
     <button
-      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer {activeTab === 'admin' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'admin' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'admin'}
     >
-      ⚙️ Administration
+      <Papicon icon="Settings" size={15} /> Administration
     </button>
   </div>
 
@@ -645,7 +645,7 @@
       <!-- Left side: General Settings -->
       <div class="xl:col-span-1 space-y-6">
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
-          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2">⚙️ Configuration</h3>
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2"><Papicon icon="Settings" size={18} /> Configuration</h3>
           
           <div class="space-y-4">
             <div class="flex items-center justify-between">
@@ -676,7 +676,7 @@
  
         <!-- Season Rewards / Advantages -->
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
-          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2">🏆 Récompenses de fin de saison</h3>
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2"><Papicon icon="Trophy" size={18} class="text-amber-500" /> Récompenses de fin de saison</h3>
           
           <div class="space-y-4">
             <div class="space-y-1.5">
@@ -714,7 +714,7 @@
         <!-- Seasons control -->
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-2">
-            <h3 class="text-lg font-semibold">📅 Saison Actuelle</h3>
+            <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="Calendar" size={18} /> Saison Actuelle</h3>
             <span class="px-3 py-1 bg-amber-500/10 text-amber-500 text-xs font-bold rounded-full">Saison {currentClanSeason}</span>
           </div>
 
@@ -761,7 +761,7 @@
       <div class="xl:col-span-2 space-y-6">
         <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
-            <h3 class="text-lg font-semibold">🛡️ Clans Configurés</h3>
+            <h3 class="text-lg font-semibold flex items-center gap-2"><Papicon icon="Shield" size={18} /> Clans Configurés</h3>
             <div class="flex gap-2">
               {#if canManageSettings}
                 <button
@@ -986,7 +986,7 @@
             </div>
 
             <div class="p-4 bg-primary/5 border border-primary/20 rounded-xl text-xs text-primary leading-relaxed space-y-1">
-              <p class="font-bold">💡 Renouvellement automatique</p>
+              <p class="font-bold flex items-center gap-1.5"><Papicon icon="Lightbulb" size={13} /> Renouvellement automatique</p>
               <p>Lorsque la date de fin est dépassée, le Bot clôture automatiquement la saison (récompenses, renommage des QG, annonce) puis <strong>reprogramme aussitôt la saison suivante pour la même durée</strong>. Une saison de 3 mois se renouvelle donc toute seule chaque trimestre, sans intervention.</p>
               {#if savedClanSeasonStartsAt && savedClanSeasonEndsAt}
                 <p class="pt-1 flex items-center gap-1.5 text-primary/90">
@@ -1102,7 +1102,7 @@
                   class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
                   disabled={!selectedClanIdForPoints}
                 >
-                  ⚡ Ajuster les points du Clan
+                  <Papicon icon="Sparkles" size={14} /> Ajuster les points du Clan
                 </button>
               {/if}
             </div>
@@ -1146,7 +1146,7 @@
                   class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
                   disabled={!manualPointsMemberUserId}
                 >
-                  ⚡ Ajuster les points du Membre
+                  <Papicon icon="Sparkles" size={14} /> Ajuster les points du Membre
                 </button>
               {/if}
             </div>
@@ -1171,7 +1171,7 @@
               
               <div class="p-3 bg-rose-500/10 rounded-lg border border-rose-500/10 text-rose-500 text-xs flex gap-2">
                 <Papicon icon="Info" size={16} class="shrink-0 mt-0.5" />
-                <span><strong>IMPORTANT :</strong> Si vous souhaitez simplement clore la saison active et passer à la saison suivante sans perdre vos clans, utilisez l'onglet <strong>📅 Gestion des Saisons</strong>.</span>
+                <span><strong>IMPORTANT :</strong> Si vous souhaitez simplement clore la saison active et passer à la saison suivante sans perdre vos clans, utilisez l'onglet <strong><Papicon icon="Calendar" size={12} class="inline-block align-[-1px]" /> Gestion des Saisons</strong>.</span>
               </div>
             </div>
 
@@ -1181,7 +1181,7 @@
                 onclick={() => openConfirmation('reset-all')}
                 class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer mt-4"
               >
-                💥 Réinitialiser toutes les données de Clans
+                <Papicon icon="Trash" size={14} /> Réinitialiser toutes les données de Clans
               </button>
             {/if}
           </section>
@@ -1210,7 +1210,7 @@
                 class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer mt-4"
                 disabled={currentClanSeason <= 1}
               >
-                🔄 Annuler la dernière saison
+                <Papicon icon="RotateCcw" size={14} /> Annuler la dernière saison
               </button>
             {/if}
           </section>
@@ -1340,7 +1340,7 @@
           {:else if confirmActionType === 'distribute'}
             Vous vous apprêtez à <strong>distribuer aléatoirement un clan</strong> à tous les membres sans clan. Cette action s'exécute progressivement en arrière-plan.
           {:else if confirmActionType === 'reset-all'}
-            <span class="text-rose-500 font-bold">⚠️ ATTENTION :</span> Vous vous apprêtez à <strong>réinitialiser toutes les données de clans</strong> (suppression définitive de tous les clans configurés, de toutes les contributions de saison et retour à la saison 1). Cette action est totalement irréversible.
+            <span class="text-rose-500 font-bold inline-flex items-center gap-1 align-[-2px]"><Papicon icon="AlertTriangle" size={13} /> ATTENTION :</span> Vous vous apprêtez à <strong>réinitialiser toutes les données de clans</strong> (suppression définitive de tous les clans configurés, de toutes les contributions de saison et retour à la saison 1). Cette action est totalement irréversible.
           {:else if confirmActionType === 'rollback'}
             Vous vous apprêtez à <strong>annuler la dernière clôture de saison</strong>. Vous retournerez à la saison {currentClanSeason - 1}. Les contributions de la saison active (Saison {currentClanSeason}) seront supprimées, et le vainqueur de la saison {currentClanSeason - 2} ainsi que ses chefs de clan associés seront rétablis.
           {/if}
