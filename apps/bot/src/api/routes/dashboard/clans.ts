@@ -726,6 +726,10 @@ export async function handleClansRoutes(
         }
       });
 
+      // Journaliser le gain pour le flux public « derniers scores »
+      const { logClanContribution } = await import('../../../services/community/clanService.js');
+      await logClanContribution(guildId, resolvedClanId, targetUserId, body.amount, 'ADMIN', season);
+
       await pushAudit(guildId, {
         user: auditUser,
         action: 'Ajout de points de clan',

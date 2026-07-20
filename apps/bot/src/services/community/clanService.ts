@@ -11,6 +11,31 @@ export const clanTasks = new Map<string, { type: 'distribute' | 'clear'; process
 // toujours placée en fin de nom, ce qui permet de la retirer proprement (peu
 // importe où elle a été ajoutée par une version précédente) via stripTrophyTag.
 
+/**
+ * Journalise un gain de points de clan pour le flux « derniers scores » public.
+ * `source` : 'XP' (progression) ou 'ADMIN' (attribution manuelle).
+ * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain
+ * attribué au clan entier (affiché au nom du clan côté public).
+ * Best-effort : n'interrompt jamais le flux appelant en cas d'erreur.
+ */
+export async function logClanContribution(
+  guildId: string,
+  clanId: string,
+  userId: string,
+  amount: number,
+  source: 'XP' | 'ADMIN',
+  season: number,
+): Promise<void> {
+  try {
+    if (!amount) return;
+    await prisma.clanContributionEvent.create({
+      data: { guildId, clanId, userId, amount, source, season },
+    });
+  } catch (err) {
+    logger.error('ClanService', `Erreur lors de la journalisation d'un gain de clan (${clanId}, ${userId}):`, err);
+  }
+}
+
 /** Retire toute balise trophée « [🏆 ...] » d'un nom de catégorie (début, milieu ou fin). */
 export function stripTrophyTag(name: string): string {
   return name.replace(/\s*\[🏆[^\]]*\]\s*/gu, ' ').replace(/\s{2,}/g, ' ').trim();

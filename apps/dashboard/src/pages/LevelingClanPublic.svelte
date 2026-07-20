@@ -34,8 +34,28 @@
     topParticipants: Participant[];
   }
 
+  interface RecentScore {
+    id: string;
+    amount: number;
+    source: string; // 'XP' | 'ADMIN'
+    isClan: boolean;
+    displayName: string;
+    avatarUrl: string | null;
+    clanName: string | null;
+    clanColor: string | null;
+    createdAt: string;
+  }
+
   let clans = $state<ClanData[]>([]);
+  let recentScores = $state<RecentScore[]>([]);
   let searchQuery = $state('');
+
+  // Grille : autant de colonnes que de clans (responsive, se replie si trop étroit)
+  const clansGridStyle = $derived(
+    clans.length > 0
+      ? `grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));`
+      : ''
+  );
 
   onMount(async () => {
     try {
@@ -46,6 +66,7 @@
         guildIcon = res.guildIcon ?? null;
         currentClanSeason = res.currentClanSeason ?? 1;
         clans = res.clans || [];
+        recentScores = res.recentScores || [];
       }
     } catch (err: any) {
       console.error(err);
@@ -69,6 +90,25 @@
     if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
     if (xp >= 1_000) return `${(xp / 1_000).toFixed(1)}k`;
     return xp.toLocaleString();
+  }
+
+  // Temps relatif en français (ex: « il y a 2 heures »)
+  function formatRelativeTime(iso: string): string {
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) return '';
+    const diffMs = Date.now() - then;
+    const sec = Math.max(0, Math.floor(diffMs / 1000));
+    if (sec < 60) return "à l'instant";
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `il y a ${min} minute${min > 1 ? 's' : ''}`;
+    const hours = Math.floor(min / 60);
+    if (hours < 24) return `il y a ${hours} heure${hours > 1 ? 's' : ''}`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `il y a ${days} jour${days > 1 ? 's' : ''}`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `il y a ${months} mois`;
+    const years = Math.floor(days / 365);
+    return `il y a ${years} an${years > 1 ? 's' : ''}`;
   }
 
   function getRankBadgeColor(rank: number) {
@@ -166,8 +206,8 @@
         />
       </div>
 
-      <!-- ─── Side-by-side Clans Column Grid ─── -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start relative z-10">
+      <!-- ─── Side-by-side Clans Column Grid (une colonne par clan) ─── -->
+      <div class="grid gap-8 items-start relative z-10" style={clansGridStyle}>
         
         {#each clans as clan}
           {@const pList = getFilteredParticipants(clan)}
@@ -248,6 +288,73 @@
         {/each}
 
       </div>
+
+      <!-- ─── Section « Derniers Scores » ─── -->
+      <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
+        <div class="tape-accent"></div>
+
+        <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
+            <span class="text-emerald-500"><Papicon icon="Activity" size={16} /></span>
+            Derniers Scores
+          </h2>
+          <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Les gains de points les plus récents, en temps réel.</p>
+        </div>
+
+        {#if recentScores.length === 0}
+          <div class="py-14 text-center text-xs text-slate-400 dark:text-slate-500 italic">
+            Aucun gain de points enregistré pour le moment.
+          </div>
+        {:else}
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                  <th class="px-6 py-3">Date</th>
+                  <th class="px-6 py-3">Utilisateur</th>
+                  <th class="px-6 py-3">Source</th>
+                  <th class="px-6 py-3 text-right">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each recentScores as s, i}
+                  <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
+                    <td class="px-6 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatRelativeTime(s.createdAt)}</td>
+                    <td class="px-6 py-3">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        {#if s.isClan}
+                          <span class="inline-block w-3 h-3 rounded-full shrink-0" style="background-color: {s.clanColor || '#e2e8f0'};"></span>
+                          <span class="font-bold text-slate-700 dark:text-slate-200 truncate">{s.displayName}</span>
+                          <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">Clan</span>
+                        {:else}
+                          {#if s.avatarUrl}
+                            <img src={s.avatarUrl} alt={s.displayName} class="w-6 h-6 rounded-full border border-slate-200/50 dark:border-slate-800 shrink-0" />
+                          {:else}
+                            <div class="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-bold text-slate-500 uppercase shrink-0">{s.displayName.slice(0, 2)}</div>
+                          {/if}
+                          <span class="font-semibold text-orange-500 dark:text-orange-400 truncate">{s.displayName}</span>
+                        {/if}
+                      </div>
+                    </td>
+                    <td class="px-6 py-3">
+                      {#if s.source === 'ADMIN'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">Admin</span>
+                      {:else}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">XP</span>
+                      {/if}
+                    </td>
+                    <td class="px-6 py-3 text-right whitespace-nowrap">
+                      <span class="font-black tracking-tight {s.amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}">
+                        {s.amount >= 0 ? '+' : ''}{s.amount.toLocaleString('fr-FR')}
+                      </span>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </section>
     {/if}
 
   </div>

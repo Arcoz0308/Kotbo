@@ -681,12 +681,65 @@ export async function handlePublicRoutes(
         };
       });
 
+      // ─── Flux « derniers scores » : gains de points les plus récents ──────────
+      const recentEvents = await prisma.clanContributionEvent.findMany({
+        where: { guildId, season: guildConfig.currentClanSeason },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      });
+
+      const clanById = new Map(clans.map((c) => [c.id, c]));
+
+      // Compléter la table des profils avec les auteurs des événements récents
+      const eventUserIds = [...new Set(
+        recentEvents
+          .map((e) => e.userId)
+          .filter((id) => id && id !== 'system_manual_points' && !profileMap.has(id))
+      )];
+      if (eventUserIds.length > 0) {
+        const extraProfiles = await prisma.memberProfile.findMany({
+          where: { guildId, userId: { in: eventUserIds } },
+        });
+        for (const p of extraProfiles) profileMap.set(p.userId, p);
+      }
+
+      const recentScores = recentEvents.map((e) => {
+        const clan = clanById.get(e.clanId);
+        const role = clan ? discordGuild?.roles.cache.get(clan.roleId) : null;
+        const isClanGlobal = e.userId === 'system_manual_points';
+
+        let displayName: string;
+        let avatarUrl: string | null = null;
+        if (isClanGlobal) {
+          // Gain attribué au clan entier : on affiche le nom du clan
+          displayName = clan?.name || 'Clan';
+        } else {
+          const profile = profileMap.get(e.userId);
+          const discordMember = discordGuild?.members.cache.get(e.userId);
+          displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${e.userId}`;
+          avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+        }
+
+        return {
+          id: e.id,
+          amount: e.amount,
+          source: e.source, // 'XP' | 'ADMIN'
+          isClan: isClanGlobal,
+          displayName,
+          avatarUrl,
+          clanName: clan?.name || null,
+          clanColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
+          createdAt: e.createdAt.toISOString(),
+        };
+      });
+
       json(res, 200, {
         enabled: true,
         currentClanSeason: guildConfig.currentClanSeason,
         guildName: discordGuild?.name || 'Kotbo Server',
         guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
         clans: clansData,
+        recentScores,
       });
     } catch (err: unknown) {
       const errMessage = err instanceof Error ? err.message : String(err);
