@@ -61,7 +61,10 @@
     stackRewards: false,
     ignoredChannels: [] as string[],
     ignoredRoles: [] as string[],
-    xpMultipliers: {} as Record<string, number>
+    xpMultipliers: {} as Record<string, number>,
+    lengthBonusEnabled: false,
+    lengthBonusThreshold: 200,
+    lengthBonusMaxMultiplier: 2.0
   });
 
   // Snapshot of last-saved state
@@ -76,7 +79,10 @@
     stackRewards: false,
     ignoredChannels: [] as string[],
     ignoredRoles: [] as string[],
-    xpMultipliers: {} as Record<string, number>
+    xpMultipliers: {} as Record<string, number>,
+    lengthBonusEnabled: false,
+    lengthBonusThreshold: 200,
+    lengthBonusMaxMultiplier: 2.0
   })));
 
   // Clan states for boost configuration
@@ -167,7 +173,10 @@
           stackRewards: res.config.stackRewards ?? false,
           ignoredChannels: res.config.ignoredChannels ?? [],
           ignoredRoles: res.config.ignoredRoles ?? [],
-          xpMultipliers: res.config.xpMultipliers ?? {}
+          xpMultipliers: res.config.xpMultipliers ?? {},
+          lengthBonusEnabled: res.config.lengthBonusEnabled ?? false,
+          lengthBonusThreshold: res.config.lengthBonusThreshold ?? 200,
+          lengthBonusMaxMultiplier: res.config.lengthBonusMaxMultiplier ?? 2.0
         };
         savedConfig = JSON.parse(JSON.stringify(config));
         rewards = res.rewards || [];
@@ -518,6 +527,57 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
+            </div>
+
+            <!-- Bonus d'XP selon la longueur du message -->
+            <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-xs font-bold text-on-surface">Bonus d'XP selon la longueur du message</span>
+                  <p class="text-[10px] text-on-surface-variant/60 font-medium">Plus un message est long, plus il rapporte d'XP (jusqu'au multiplicateur maximum).</p>
+                </div>
+                <ToggleSwitch
+                  checked={config.lengthBonusEnabled}
+                  onToggle={(v: boolean) => { config.lengthBonusEnabled = v; }}
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              {#if config.lengthBonusEnabled}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
+                  <div class="space-y-1.5">
+                    <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Longueur pour le bonus max (caractères)</label>
+                    <input
+                      id="lengthBonusThreshold"
+                      type="number"
+                      min="1"
+                      bind:value={config.lengthBonusThreshold}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                      disabled={!canManageSettings}
+                    />
+                    <p class="text-[10px] text-on-surface-variant/50 ml-2">Un message d'au moins {config.lengthBonusThreshold} caractères touche le bonus maximum.</p>
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label for="lengthBonusMaxMultiplier" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Multiplicateur maximum (×)</label>
+                    <input
+                      id="lengthBonusMaxMultiplier"
+                      type="number"
+                      min="1"
+                      max="10"
+                      step="0.1"
+                      bind:value={config.lengthBonusMaxMultiplier}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                      disabled={!canManageSettings}
+                    />
+                    <p class="text-[10px] text-on-surface-variant/50 ml-2">Un message très court garde ×1, un message long va jusqu'à ×{config.lengthBonusMaxMultiplier}.</p>
+                  </div>
+                </div>
+
+                <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
+                  💡 Le bonus augmente progressivement avec la longueur. Exemple : un message de {Math.round((config.lengthBonusThreshold || 1) / 2)} caractères applique ≈ ×{(1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2)}, un message de {config.lengthBonusThreshold}+ caractères applique ×{Number(config.lengthBonusMaxMultiplier).toFixed(2)}.
+                </div>
+              {/if}
             </div>
 
             <!-- Toggle cumul récompenses -->
