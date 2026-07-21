@@ -959,7 +959,11 @@ export async function handleMembersRoutes(
           );
           const enrichedInviterUsage = inviterUsage.map((entry) => ({
             ...entry,
-            avatarUrl: entry.inviterId ? inviterAvatarMap.get(entry.inviterId) ?? null : null,
+            avatarUrl: entry.inviterId
+              ? inviterAvatarMap.get(entry.inviterId)
+                ?? client.users.cache.get(entry.inviterId)?.displayAvatarURL({ size: 128 })
+                ?? null
+              : null,
           }));
           const totalJoined = await prisma.memberInvite.count({
             where: { guildId },
