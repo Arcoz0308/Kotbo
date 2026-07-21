@@ -9,8 +9,12 @@
 
   let { code = '' }: Props = $props();
 
+  const invitationTabPaths = new Set(['sources', 'top', 'suspensions']);
+
   onMount(() => {
-    if (code) {
+    // Tinro also matches tab URLs such as /invitations/sources against
+    // /invitations/:code. Only open the detail modal for actual invite codes.
+    if (code && !invitationTabPaths.has(code)) {
       inviteDetailsModal.show(code);
     }
   });
