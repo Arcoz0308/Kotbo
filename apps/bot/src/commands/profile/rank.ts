@@ -2,16 +2,14 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
   AttachmentBuilder,
-  ContainerBuilder,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
   MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { getMemberRankData, generateRankCard } from '../../services/progression/levelingService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
-import { COLORS_RAW } from '../../utils/embeds.js';
+import { kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
+import { mediaGallery, v2Message } from '@arcscord/components';
 
 const data = new SlashCommandBuilder()
   .setName('rank')
@@ -59,18 +57,16 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     const imageBuffer = await generateRankCard(member, rankData.level, rankData.xp, rankData.rank);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'rank-card.png' });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addMediaGalleryComponents(
-        new MediaGalleryBuilder().addItems(
-          new MediaGalleryItemBuilder({ media: { url: 'attachment://rank-card.png' } }),
-        ),
-      );
-
     await interaction.editReply({
-      components: [container],
+      ...v2Message(
+        kotboContainer({
+          color: 'primary',
+          fields: [
+            mediaGallery({ items: [{ media: { url: 'attachment://rank-card.png' } }] }),
+          ],
+        }),
+      ),
       files: [attachment],
-      flags: MessageFlags.IsComponentsV2,
     });
   } catch {
     await interaction.editReply({ content: `${E.error} Une erreur est survenue lors de la génération de la carte de niveau.` });

@@ -49,6 +49,7 @@ import { shopCommand } from './commands/economy/shop.js';
 import { spawnItemCommand } from './commands/economy/spawnItem.js';
 import { useCommand } from './commands/economy/use.js';
 import { workCommand } from './commands/economy/work.js';
+import { levelingCommand } from './commands/admin/leveling.js';
 import { serverstatsCommand } from './commands/utility/serverstats.js';
 import { setupCommand } from './commands/admin/setup.js';
 import { statsCommand } from './commands/utility/stats.js';
@@ -67,6 +68,7 @@ import { channelhealthCommand } from './commands/admin/channelhealth.js';
 import { repCommand } from './commands/community/rep.js';
 import { marketCommand } from './commands/economy/market.js';
 import { questsCommand } from './commands/community/quests.js';
+import { clanCommand } from './commands/community/clan.js';
 import { rpgProfileCommand, rpgDailyCommand, rpgTravelCommand, rpgShopCommand, rpgInventoryCommand, rpgGuildCommand, rpgPayCommand, rpgSellCommand, rpgDropCommand, rpgAdminCommand, rpgFightCommand, rpgBossCommand, rpgBestiaryCommand, fishCommand } from './commands/fun/rpgEconomy.js';
 import { topCommand } from './commands/profile/top.js';
 import { inventaireCommand } from './commands/economy/inventaire.js';
@@ -77,6 +79,9 @@ import { evaluationsCommand } from './commands/admin/evaluations.js';
 import { rappelCommand } from './commands/utility/rappel.js';
 import { messageTranscriptContextCommand, messageTranscriptFromContextCommand } from './commands/moderation/messageTranscript.js';
 import { messageHubContextCommand, userHubContextCommand } from './commands/context/hub.js';
+import { protectionCommand } from './commands/admin/protection.js';
+import { auditCommand } from './commands/admin/audit.js';
+import { reportCommand, reportMessageContextCommand } from './commands/moderation/report.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; description: string; toJSON: () => unknown };
@@ -162,6 +167,7 @@ export const commands: SlashCommandDefinition[] = [
   repCommand,
   marketCommand,
   questsCommand,
+  clanCommand,
   rpgProfileCommand,
   rpgDailyCommand,
   rpgTravelCommand,
@@ -183,6 +189,10 @@ export const commands: SlashCommandDefinition[] = [
   pulseCommand,
   evaluationsCommand,
   rappelCommand,
+  levelingCommand,
+  protectionCommand,
+  auditCommand,
+  reportCommand,
 ];
 
 /**
@@ -214,6 +224,8 @@ export const globalContextCommands: ContextCommandDefinition[] = [
 export const guildContextCommands: ContextCommandDefinition[] = [
   // User (1/5)
   signalContextCommand,
+  // Message (1/5)
+  reportMessageContextCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [

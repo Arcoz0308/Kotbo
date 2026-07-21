@@ -1069,6 +1069,8 @@
               </div>
             {/each}
 
+            <p class="text-[9px] text-on-surface-variant/40 ml-2">Variables utilisables: <code>{`{user}`}</code> (mention), <code>{`{username}`}</code> (pseudo), <code>{`{server}`}</code> (nom du serveur), <code>{`{channel}`}</code> (salon)</p>
+
             <button
               type="button"
               onclick={addResponseEntry}

@@ -1,10 +1,11 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { ContainerBuilder, SeparatorBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, MessageFlags, SeparatorSpacingSize, SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js';
+import { MessageFlags, SlashCommandBuilder, AttachmentBuilder, PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { generateLeaderboardImage } from '../../services/core/imageService.js';
-import { COLORS_RAW, text } from '../../utils/embeds.js';
+import { COLORS_RAW, kotboContainer } from '../../utils/embeds.js';
 import { E, rankEmoji, buildProgressBar } from '../../utils/emojis.js';
 import { getXpForLevel, getLevelFromXp } from '../../services/progression/levelingService.js';
+import { mediaGallery, separator, v2Message } from '@arcscord/components';
 
 const data = new SlashCommandBuilder()
   .setName('leaderboard')
@@ -158,33 +159,33 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       }
     }
 
-    const container = new ContainerBuilder()
-      .setAccentColor(themeColor)
-      .addTextDisplayComponents(text(`### ${E.trophy} Top 10 — ${typeLabel}`))
-      .addTextDisplayComponents(text(`-# ${subTitle}`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(description))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# Kotbo Analytics · Requis par ${interaction.user.username}`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: themeColor,
+        title: `${E.trophy} Top 10 — ${typeLabel}`,
+        fields: [
+          `-# ${subTitle}`,
+          separator({ divider: true, spacing: 'small' }),
+          description,
+        ],
+        footerOverwrite: `-# Kotbo Analytics · Requis par ${interaction.user.username}`,
+      }),
+    ));
   } else {
     const imageBuffer = await generateLeaderboardImage(formattedTopMembers, type, periodDays);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'leaderboard.png' });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(themeColor)
-      .addMediaGalleryComponents(
-        new MediaGalleryBuilder().addItems(
-          new MediaGalleryItemBuilder({ media: { url: 'attachment://leaderboard.png' } })
-        )
-      )
-      .addTextDisplayComponents(text(`-# Kotbo Analytics · Requis par ${interaction.user.username}`));
-
     await interaction.editReply({
-      components: [container],
+      ...v2Message(
+        kotboContainer({
+          color: themeColor,
+          fields: [
+            mediaGallery({ items: [{ media: { url: 'attachment://leaderboard.png' } }] }),
+            `-# Kotbo Analytics · Requis par ${interaction.user.username}`,
+          ],
+        }),
+      ),
       files: [attachment],
-      flags: MessageFlags.IsComponentsV2,
     });
   }
 

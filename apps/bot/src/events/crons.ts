@@ -187,6 +187,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { checkAndProgressSeasons } = await import('../services/progression/seasonService.js');
       await checkAndProgressSeasons(client);
     },
+    'clan-season-check': async () => {
+      logger.debug('Cron', 'Vérification des saisons de clans...');
+      const { checkAndProgressClanSeasons } = await import('../services/community/clanService.js');
+      await checkAndProgressClanSeasons(client);
+    },
     'marketplace-expiration': async () => {
       logger.debug('Cron', 'Traitement des annonces marketplace expirées...');
       const { processExpiredListings } = await import('../services/economy/marketplaceService.js');
@@ -344,6 +349,24 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 1000);
   });
 
+  // 🛡️ Protection anti-raid: expiration des captchas + auto-disable du raid mode (toutes les minutes)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('raid-protection-tick', async () => {
+      const { expireOverdueCaptchaSessions } = await import('../services/moderation/captchaService.js');
+      const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');
+      await expireOverdueCaptchaSessions(client);
+      await autoDisableExpiredRaidModes(client);
+    }, 1000);
+  });
+
+  // 🛡️ Protection anti-raid: renouvellement des join/DM locks (plafond Discord 24h) — toutes les heures
+  cron.schedule('30 * * * *', async () => {
+    await runCronJob('raid-protection-locks-renew', async () => {
+      const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
+      await renewActiveLocks(client);
+    }, 2000);
+  });
+
   // 🔍 DC Scan: Toutes les heures (vérifie les guildes qui ont activé l'auto-détection)
   cron.schedule('0 * * * *', async () => {
     await runCronJob('dc-scan', async () => {
@@ -421,6 +444,14 @@ export async function registerCrons(client: Client): Promise<void> {
       await checkAndProgressSeasons(client);
     }, 3000);
   }, { timezone: 'Europe/Paris' });
+
+  // 🛡️ Clan Seasons: Vérification toutes les 15 minutes
+  cron.schedule('*/15 * * * *', async () => {
+    await runCronJob('clan-season-check', async () => {
+      const { checkAndProgressClanSeasons } = await import('../services/community/clanService.js');
+      await checkAndProgressClanSeasons(client);
+    }, 3000);
+  });
 
   // 🏪 Marketplace: Expiration des annonces toutes les 10 minutes
   cron.schedule('*/10 * * * *', async () => {

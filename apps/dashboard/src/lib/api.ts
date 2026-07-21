@@ -1554,6 +1554,15 @@ export async function toggleInvitationSuspension(code: string, suspended: boolea
   });
 }
 
+export async function updateInvitationSource(code: string, sourceLabel: string | null, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/invitations/${code}/source`, {
+    method: 'PUT',
+    payload: { sourceLabel },
+    guildId,
+    errorContext: 'Error updating invitation source'
+  });
+}
+
 export async function deleteInvitation(code: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/invitations/${code}`, {
     method: 'DELETE',
@@ -2254,7 +2263,7 @@ export async function updateWelcomeThreadSteps(steps: Array<{ content: string; n
   return dashboardRequest('/welcome-thread/steps', { method: 'PUT', payload: { steps }, guildId, errorContext: 'API Error (Update Welcome Thread Steps):' });
 }
 
-export async function updateWelcomeThreadPages(pages: Array<{ label: string; emoji?: string | null; summary?: string | null; actionType?: string; roleId?: string | null; roleAction?: string; linkUrl?: string | null; embedTitle?: string; embedDescription?: string; embedColor?: string; embedImageUrl?: string | null; embedThumbnailUrl?: string | null }>, guildId = authStore.selectedGuildId) {
+export async function updateWelcomeThreadPages(pages: Array<{ label: string; emoji?: string | null; summary?: string | null; actionType?: string; roleId?: string | null; roleAction?: string; roleGroup?: string | null; linkUrl?: string | null; embedTitle?: string; embedDescription?: string; embedColor?: string; embedImageUrl?: string | null; embedThumbnailUrl?: string | null }>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/welcome-thread/pages', { method: 'PUT', payload: { pages }, guildId, errorContext: 'API Error (Update Welcome Thread Pages):' });
 }
 
@@ -3160,4 +3169,297 @@ export async function updateMessageLogConfig(
     guildId,
     errorContext: 'API Error (Message Config):',
   });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Raid Protection (captcha, anti-raid, locks, reports, invites, scam)
+// ─────────────────────────────────────────────────────────────
+
+export async function fetchRaidProtection(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Raid Protection):'
+  });
+}
+
+export async function updateRaidProtection(payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Raid Protection):'
+  });
+}
+
+export async function setRaidMode(active: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection/raidmode', {
+    method: 'POST',
+    payload: { active },
+    guildId,
+    errorContext: 'API Error (Raid Mode):'
+  });
+}
+
+export async function setJoinLock(active: boolean, hours?: number, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection/joinlock', {
+    method: 'POST',
+    payload: { active, hours },
+    guildId,
+    errorContext: 'API Error (Join Lock):'
+  });
+}
+
+export async function setDmLock(active: boolean, hours?: number, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection/dmlock', {
+    method: 'POST',
+    payload: { active, hours },
+    guildId,
+    errorContext: 'API Error (DM Lock):'
+  });
+}
+
+export async function setInviteEmergency(active: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection/invite-emergency', {
+    method: 'POST',
+    payload: { active },
+    guildId,
+    errorContext: 'API Error (Invite Emergency):'
+  });
+}
+
+export async function fetchMemberReports(status?: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/raid-protection/reports${status ? `?status=${status}` : ''}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Member Reports):'
+  });
+}
+
+export async function decideMemberReport(reportId: string, resolved: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/raid-protection/reports/${reportId}/decision`, {
+    method: 'POST',
+    payload: { resolved },
+    guildId,
+    errorContext: 'API Error (Report Decision):'
+  });
+}
+
+export async function fetchInviteRequests(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection/invite-requests', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Invite Requests):'
+  });
+}
+
+export async function decideInviteRequest(requestId: string, approved: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/raid-protection/invite-requests/${requestId}/decision`, {
+    method: 'POST',
+    payload: { approved },
+    guildId,
+    errorContext: 'API Error (Invite Decision):'
+  });
+}
+
+export async function fetchScamImages(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection/scam-images', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Scam Images):'
+  });
+}
+
+export async function deleteScamImage(imageId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/raid-protection/scam-images/${imageId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Scam Image):'
+  });
+// Clans
+// ─────────────────────────────────────────────────────────────
+
+export interface ClanEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  roleId: string;
+  generalChannelId: string | null;
+  leaderRoleId: string | null;
+  memberCount: number;
+  totalXp: number;
+}
+
+export interface ClansDataResult {
+  clansEnabled: boolean;
+  clansUnique: boolean;
+  clanAutoAssignOnJoin: boolean;
+  currentClanSeason: number;
+  clanXpFromLevelUp: boolean;
+  clanXpPerLevelUp: number;
+  clanAnnouncementChannelId: string | null;
+  clanRewardGiveaway: boolean;
+  clanRewardXpBoost: boolean;
+  clanRewardXpBoostRate: number;
+  clanRewardLeaderRole: boolean;
+  lastWinningClanId: string | null;
+  clanSeasonStartsAt: string | null;
+  clanSeasonEndsAt: string | null;
+  clans: ClanEntry[];
+  taskInProgress: { type: 'distribute' | 'clear'; processed: number; total: number } | null;
+}
+
+export async function fetchClansData(guildId = authStore.selectedGuildId): Promise<ClansDataResult | null> {
+  return dashboardRequest('/clans', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Clans):',
+    silent: true,
+  });
+}
+
+export async function updateClanSettings(
+  payload: {
+    clansEnabled?: boolean;
+    clansUnique?: boolean;
+    clanAutoAssignOnJoin?: boolean;
+    clanXpFromLevelUp?: boolean;
+    clanXpPerLevelUp?: number;
+    clanAnnouncementChannelId?: string | null;
+    clanRewardGiveaway?: boolean;
+    clanRewardLeaderRole?: boolean;
+    clanRewardXpBoost?: boolean;
+    clanRewardXpBoostRate?: number;
+    clanSeasonStartsAt?: string | null;
+    clanSeasonEndsAt?: string | null;
+  },
+  guildId = authStore.selectedGuildId,
+): Promise<{
+  clansEnabled: boolean;
+  clansUnique: boolean;
+  clanAutoAssignOnJoin: boolean;
+  clanXpFromLevelUp: boolean;
+  clanXpPerLevelUp: number;
+  clanAnnouncementChannelId: string | null;
+  clanRewardGiveaway: boolean;
+  clanRewardLeaderRole: boolean;
+  clanRewardXpBoost: boolean;
+  clanRewardXpBoostRate: number;
+  clanSeasonStartsAt: string | null;
+  clanSeasonEndsAt: string | null;
+} | null> {
+  return dashboardRequest('/clans', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Clans Settings):',
+  });
+}
+
+export async function createClan(
+  payload: {
+    name: string;
+    description?: string;
+    roleId: string;
+    generalChannelId?: string | null;
+    leaderRoleId?: string | null;
+  },
+  guildId = authStore.selectedGuildId,
+): Promise<{ clan: ClanEntry } | null> {
+  return dashboardRequest('/clans', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Create Clan):',
+  });
+}
+
+export async function updateClan(
+  id: string,
+  payload: {
+    name: string;
+    description?: string;
+    roleId: string;
+    generalChannelId?: string | null;
+    leaderRoleId?: string | null;
+  },
+  guildId = authStore.selectedGuildId,
+): Promise<{ clan: ClanEntry } | null> {
+  return dashboardRequest(`/clans/${id}`, {
+    method: 'PUT',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Clan):',
+  });
+}
+
+export async function deleteClan(id: string, guildId = authStore.selectedGuildId): Promise<boolean> {
+  return dashboardMutation(`/clans/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Clan):',
+  });
+}
+
+export async function distributeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
+  return dashboardRequest('/clans/distribute', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Distribute Clans):',
+  });
+}
+
+export async function clearClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
+  return dashboardRequest('/clans/clear', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Clear Clans):',
+  });
+}
+
+export async function resetClanSeason(guildId = authStore.selectedGuildId): Promise<{ currentClanSeason: number } | null> {
+  return dashboardRequest('/clans/reset-season', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Reset Clan Season):',
+  });
+}
+
+export async function resetAllClans(guildId = authStore.selectedGuildId): Promise<{ success: boolean } | null> {
+  return dashboardRequest('/clans/reset-all', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Reset All Clans):',
+  });
+}
+
+export async function rollbackClanSeason(guildId = authStore.selectedGuildId): Promise<{ currentClanSeason: number } | null> {
+  return dashboardRequest('/clans/rollback-season', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Rollback Clan Season):',
+  });
+}
+
+export async function addClanPoints(
+  payload: { clanId?: string | null; userId?: string | null; amount: number },
+  guildId = authStore.selectedGuildId
+): Promise<{ success: boolean; contribution?: any } | null> {
+  return dashboardRequest('/clans/points', {
+    method: 'POST',
+    guildId,
+    payload,
+    errorContext: 'API Error (Add Clan Points):',
+  });
+}
+
+export async function fetchPublicClans(guildId: string): Promise<any | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (err) {
+    console.error('API Error (Fetch Public Clans):', err);
+    return null;
+  }
 }

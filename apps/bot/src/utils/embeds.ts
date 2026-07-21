@@ -15,6 +15,7 @@ import {
   type APIEmbedField,
 } from 'discord.js';
 import { E } from './emojis.js';
+import { accessory, container, ContainerChild, section, separator, thumbnail } from '@arcscord/components';
 
 // ─────────────────────────────────────────────────────────────
 // Color Palette
@@ -56,17 +57,17 @@ export function text(content: string) {
   return new TextDisplayBuilder().setContent(content);
 }
 
-export function separator(divider = true, spacing: SeparatorSpacingSize = SeparatorSpacingSize.Small) {
+export function separatorOld(divider = true, spacing: SeparatorSpacingSize = SeparatorSpacingSize.Small) {
   return new SeparatorBuilder().setDivider(divider).setSpacing(spacing);
 }
 
-export function thumbnail(url: string, description?: string) {
+export function thumbnailOld(url: string, description?: string) {
   const tb = new ThumbnailBuilder({ media: { url } });
   if (description) tb.setDescription(description);
   return tb;
 }
 
-export function section(content: string, accessory?: ThumbnailBuilder | ButtonBuilder) {
+export function sectionOld(content: string, accessory?: ThumbnailBuilder | ButtonBuilder) {
   const s = new SectionBuilder().addTextDisplayComponents(text(content));
   if (accessory instanceof ThumbnailBuilder) s.setThumbnailAccessory(accessory);
   else if (accessory instanceof ButtonBuilder) s.setButtonAccessory(accessory);
@@ -122,6 +123,92 @@ export interface V2Field {
   value: string;
 }
 
+export type KotboContainerOptions = {
+  /**
+   * Color of the container, accept number or a key of {@link COLORS_RAW}
+   */
+  color?: number | keyof typeof COLORS_RAW
+  /**
+   * Set a title of the container, add '### ' at begin of the string
+   * if {@link KotboContainerOptions.titleOverwrite} is set, this value are ignored
+   */
+  title?: string;
+  /**
+   * Add a Thumbnail in the title, transfor title in section
+   */
+  titleThumbnail?: { url: string, description?: string }
+  /**
+   * Title overwrite, if set, title don't include '### '
+   * have priority over {@link KotboContainerOptions.title}
+   */
+  titleOverwrite?: string;
+  /**
+   * All fields inside container
+   */
+  fields?: ContainerChild[],
+  /**
+   * Set a footer below the container, add '-# ${E.kotbo} Kotbo · ' at begin of the string
+   * if {@link KotboContainerOptions.footerOverwrite} is set, this value are ignored
+   */
+  footerTitle?: string;
+  /**
+   * Add a separator before footer, default are true
+   * @default true
+   */
+  footerSeparator?: boolean;
+  /**
+   * Footer overwrite, if set, footer don't include '-# ${E.kotbo} Kotbo · '
+   * have priority over {@link KotboContainerOptions.footerTitle}
+   */
+  footerOverwrite?: string;
+}
+
+export function kotboContainer(options: KotboContainerOptions) {
+  const fields: ContainerChild[] = [];
+
+  const title = options.titleOverwrite ?? (options.title ? `### ${options.title}` : undefined);
+
+  if (typeof title !== 'undefined') {
+    if (options.titleThumbnail) {
+      fields.push(
+        section(
+          title,
+          accessory(
+            thumbnail({media: options.titleThumbnail})
+          )
+        )
+      )
+    } else {
+      fields.push(title)
+    }
+  }
+
+  if (options.fields) {
+    fields.push(...options.fields)
+  }
+
+  const footer = options.footerOverwrite ??
+    (options.footerTitle ? `-# ${E.kotbo} Kotbo · ${options.footerTitle}` : undefined);
+  if (footer) {
+
+    if (typeof options.footerSeparator === 'undefined' || options.footerSeparator) {
+      fields.push(separator({ divider: false, spacing: 'small' }))
+    }
+    fields.push(footer)
+
+  }
+
+  const accentColor = typeof options.color === 'string' ? COLORS_RAW[options.color] : options.color;
+
+  const firstField = fields.shift()
+  if (typeof firstField === 'undefined') {
+    throw TypeError('Try to create a container with 0 fields');
+  }
+
+  // firstField are here for respect typescript (fields can have 0 length and container need 1 or more)
+  return container({accentColor}, firstField, ...fields);
+}
+
 export function richContainer(options: {
   color?: number;
   title?: string;
@@ -136,7 +223,7 @@ export function richContainer(options: {
 
   if (options.title && options.thumbnailUrl) {
     c.addSectionComponents(
-      section(`### ${options.title}`, thumbnail(options.thumbnailUrl))
+      sectionOld(`### ${options.title}`, thumbnailOld(options.thumbnailUrl))
     );
   } else if (options.title) {
     c.addTextDisplayComponents(text(`### ${options.title}`));
@@ -147,7 +234,7 @@ export function richContainer(options: {
   }
 
   if (options.fields?.length) {
-    c.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    c.addSeparatorComponents(separatorOld(true, SeparatorSpacingSize.Small));
     for (const field of options.fields) {
       c.addTextDisplayComponents(text(`**${field.name}**\n${field.value}`));
     }
@@ -162,7 +249,7 @@ export function richContainer(options: {
   }
 
   if (options.footer) {
-    c.addSeparatorComponents(separator(false, SeparatorSpacingSize.Small));
+    c.addSeparatorComponents(separatorOld(false, SeparatorSpacingSize.Small));
     c.addTextDisplayComponents(text(`-# ${options.footer}`));
   }
 

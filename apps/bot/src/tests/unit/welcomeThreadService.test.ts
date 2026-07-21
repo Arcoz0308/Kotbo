@@ -29,6 +29,7 @@ const {
   parseEmbedColor,
   buildWelcomeMenuComponents,
   buildMenuPageEmbed,
+  resolveExclusiveRoleIds,
   MAX_THREAD_STEPS,
 } = await import('../../services/features/welcomeThreadService.js');
 
@@ -67,6 +68,11 @@ function makePage(id: string, order: number, overrides: Partial<WelcomeMenuPage>
     label: `Page ${order}`,
     emoji: null,
     summary: null,
+    actionType: 'EMBED',
+    roleId: null,
+    roleAction: 'ADD',
+    roleGroup: null,
+    linkUrl: null,
     embedTitle: `Titre ${order}`,
     embedDescription: `Description ${order}`,
     embedColor: '#5865F2',
@@ -176,6 +182,49 @@ describe('buildMenuPageEmbed', () => {
     expect(embed.description).toBe('Les règles du serveur.');
     expect(embed.color).toBe(0x00ff00);
     expect(embed.image?.url).toBe('https://cdn.example/image.png');
+  });
+});
+
+describe('resolveExclusiveRoleIds', () => {
+  test('retourne uniquement les autres rôles du même groupe exclusif', () => {
+    const selected = makePage('clan-blue', 0, {
+      actionType: 'ROLE',
+      roleId: 'role-blue',
+      roleAction: 'EXCLUSIVE',
+      roleGroup: 'Clans',
+    });
+    const pages = [
+      selected,
+      makePage('clan-red', 1, { actionType: 'ROLE', roleId: 'role-red', roleAction: 'EXCLUSIVE', roleGroup: 'clans' }),
+      makePage('clan-green', 2, { actionType: 'ROLE', roleId: 'role-green', roleAction: 'EXCLUSIVE', roleGroup: '  Clans  ' }),
+      makePage('notification', 3, { actionType: 'ROLE', roleId: 'role-news', roleAction: 'ADD', roleGroup: 'Clans' }),
+      makePage('region', 4, { actionType: 'ROLE', roleId: 'role-eu', roleAction: 'EXCLUSIVE', roleGroup: 'Régions' }),
+    ];
+
+    expect(resolveExclusiveRoleIds(selected, pages)).toEqual(['role-red', 'role-green']);
+  });
+
+  test('déduplique les rôles et exclut toujours le rôle cible', () => {
+    const selected = makePage('clan-blue', 0, {
+      actionType: 'ROLE',
+      roleId: 'role-blue',
+      roleAction: 'EXCLUSIVE',
+      roleGroup: 'Clans majeurs',
+    });
+    const pages = [
+      selected,
+      makePage('duplicate-target', 1, { actionType: 'ROLE', roleId: 'role-blue', roleAction: 'EXCLUSIVE', roleGroup: 'Clans majeurs' }),
+      makePage('clan-red-a', 2, { actionType: 'ROLE', roleId: 'role-red', roleAction: 'EXCLUSIVE', roleGroup: 'Clans majeurs' }),
+      makePage('clan-red-b', 3, { actionType: 'ROLE', roleId: 'role-red', roleAction: 'EXCLUSIVE', roleGroup: 'Clans majeurs' }),
+    ];
+
+    expect(resolveExclusiveRoleIds(selected, pages)).toEqual(['role-red']);
+  });
+
+  test('retourne une liste vide sans rôle ou sans groupe', () => {
+    const pages = [makePage('clan-red', 1, { actionType: 'ROLE', roleId: 'role-red', roleAction: 'EXCLUSIVE', roleGroup: 'Clans' })];
+    expect(resolveExclusiveRoleIds({ roleId: null, roleGroup: 'Clans' }, pages)).toEqual([]);
+    expect(resolveExclusiveRoleIds({ roleId: 'role-blue', roleGroup: null }, pages)).toEqual([]);
   });
 });
 

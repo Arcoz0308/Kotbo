@@ -224,7 +224,8 @@
     summary: string | null;
     actionType: 'EMBED' | 'ROLE' | 'LINK';
     roleId: string | null;
-    roleAction: 'ADD' | 'REMOVE' | 'TOGGLE';
+    roleAction: 'ADD' | 'REMOVE' | 'TOGGLE' | 'EXCLUSIVE';
+    roleGroup: string | null;
     linkMode: 'channel' | 'url';
     linkChannelId: string | null;
     linkUrl: string | null;
@@ -327,7 +328,8 @@
         summary: p.summary ?? null,
         actionType: (p.actionType === 'ROLE' || p.actionType === 'LINK') ? p.actionType : 'EMBED',
         roleId: p.roleId ?? null,
-        roleAction: (p.roleAction === 'REMOVE' || p.roleAction === 'TOGGLE') ? p.roleAction : 'ADD',
+        roleAction: (p.roleAction === 'REMOVE' || p.roleAction === 'TOGGLE' || p.roleAction === 'EXCLUSIVE') ? p.roleAction : 'ADD',
+        roleGroup: p.roleGroup ?? null,
         linkMode: linkChannelId ? 'channel' : 'url',
         linkChannelId,
         linkUrl,
@@ -445,6 +447,7 @@
       actionType: 'EMBED',
       roleId: null,
       roleAction: 'ADD',
+      roleGroup: null,
       linkMode: 'channel',
       linkChannelId: null,
       linkUrl: null,
@@ -471,10 +474,35 @@
     return p.linkUrl?.trim() || null;
   }
 
+  function normalizeRoleGroupName(value: string | null | undefined): string {
+    return value?.trim().replace(/\s+/g, ' ') || '';
+  }
+
+  function exclusiveGroupNames(currentPage: MenuPage): string[] {
+    const names = new Map<string, string>();
+    for (const page of threadPages) {
+      if (page === currentPage || page.roleAction !== 'EXCLUSIVE') continue;
+      const label = normalizeRoleGroupName(page.roleGroup);
+      if (label) names.set(label.toLocaleLowerCase('fr-FR'), label);
+    }
+    return [...names.values()].sort((a, b) => a.localeCompare(b, 'fr'));
+  }
+
+  function exclusiveGroupMembers(currentPage: MenuPage): MenuPage[] {
+    const groupKey = normalizeRoleGroupName(currentPage.roleGroup).toLocaleLowerCase('fr-FR');
+    if (!groupKey) return [];
+    return threadPages.filter((page) =>
+      page.actionType === 'ROLE'
+      && page.roleAction === 'EXCLUSIVE'
+      && normalizeRoleGroupName(page.roleGroup).toLocaleLowerCase('fr-FR') === groupKey
+    );
+  }
+
   async function saveThreadPages(): Promise<boolean> {
     if (!canManageSettings) return false;
     let success = false;
     await threadActionState.run(async () => {
+      const exclusiveGroups = new Map<string, Set<string>>();
       for (const p of threadPages) {
         if (!p.label.trim()) throw new Error('Chaque page doit avoir un label.');
         if (p.actionType === 'EMBED' && (!p.embedTitle.trim() || !p.embedDescription.trim())) {
@@ -483,8 +511,21 @@
         if (p.actionType === 'ROLE' && !p.roleId) {
           throw new Error('Les pages de type Rôle doivent avoir un rôle sélectionné.');
         }
+        if (p.actionType === 'ROLE' && p.roleAction === 'EXCLUSIVE') {
+          const groupLabel = normalizeRoleGroupName(p.roleGroup);
+          if (!groupLabel) throw new Error('Chaque choix exclusif doit appartenir à un groupe.');
+          const groupKey = groupLabel.toLocaleLowerCase('fr-FR');
+          const roleIds = exclusiveGroups.get(groupKey) ?? new Set<string>();
+          roleIds.add(p.roleId!);
+          exclusiveGroups.set(groupKey, roleIds);
+        }
         if (p.actionType === 'LINK' && !resolvePageLinkUrl(p)) {
           throw new Error('Les pages de type Lien doivent avoir un salon ou une URL.');
+        }
+      }
+      for (const [groupName, roleIds] of exclusiveGroups) {
+        if (roleIds.size < 2) {
+          throw new Error(`Le groupe exclusif « ${groupName} » doit contenir au moins deux rôles différents.`);
         }
       }
 
@@ -495,6 +536,7 @@
         actionType: p.actionType,
         roleId: p.actionType === 'ROLE' ? p.roleId : null,
         roleAction: p.roleAction,
+        roleGroup: p.actionType === 'ROLE' && p.roleAction === 'EXCLUSIVE' ? normalizeRoleGroupName(p.roleGroup) : null,
         linkUrl: p.actionType === 'LINK' ? resolvePageLinkUrl(p) : null,
         embedTitle: p.embedTitle.trim(),
         embedDescription: p.embedDescription.trim(),
@@ -1614,14 +1656,56 @@
                             </div>
                             <div class="space-y-1">
                               <span class="text-[9px] font-bold text-on-surface-variant/50 ml-1 uppercase tracking-widest block">Comportement</span>
-                              <div class="inline-flex w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
+                              <div class="grid grid-cols-2 sm:grid-cols-4 w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 p-1 gap-1">
                                 <button type="button" onclick={() => page.roleAction = 'ADD'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'ADD' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Ajouter</button>
                                 <button type="button" onclick={() => page.roleAction = 'REMOVE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'REMOVE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Retirer</button>
                                 <button type="button" onclick={() => page.roleAction = 'TOGGLE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'TOGGLE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}">Basculer</button>
+                                <button type="button" onclick={() => page.roleAction = 'EXCLUSIVE'} disabled={!canManageSettings} class="flex-1 px-2 py-2 rounded-md text-xs font-medium transition-all {page.roleAction === 'EXCLUSIVE' ? 'bg-amber-500 text-white' : 'text-on-surface-variant/60 hover:text-on-surface'}">Exclusif</button>
                               </div>
                             </div>
                           </div>
-                          <p class="text-[11px] text-on-surface-variant/60">« Basculer » ajoute le rôle s'il est absent, et le retire s'il est déjà présent.</p>
+                          {#if page.roleAction === 'EXCLUSIVE'}
+                            {@const groupMembers = exclusiveGroupMembers(page)}
+                            <div class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                              <div class="space-y-1">
+                                <label for="page-role-group-{index}" class="text-[9px] font-bold text-amber-600 dark:text-amber-400 ml-1 uppercase tracking-widest">Groupe exclusif</label>
+                                <input
+                                  id="page-role-group-{index}"
+                                  type="text"
+                                  bind:value={page.roleGroup}
+                                  list="exclusive-role-groups-{index}"
+                                  maxlength="64"
+                                  placeholder="Ex : Clans"
+                                  class="w-full bg-surface-container-high/50 border border-amber-500/20 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/25"
+                                  disabled={!canManageSettings}
+                                />
+                                <datalist id="exclusive-role-groups-{index}">
+                                  {#each exclusiveGroupNames(page) as groupName}
+                                    <option value={groupName}></option>
+                                  {/each}
+                                </datalist>
+                              </div>
+                              <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-[10px] font-semibold text-on-surface-variant/60">Choix liés :</span>
+                                {#if groupMembers.length > 0}
+                                  {#each groupMembers as memberPage}
+                                    <span class="rounded-md border border-amber-500/15 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                                      {memberPage.label || 'Page sans nom'}
+                                    </span>
+                                  {/each}
+                                {:else}
+                                  <span class="text-[10px] text-on-surface-variant/45 italic">Saisissez un nom de groupe.</span>
+                                {/if}
+                              </div>
+                              {#if normalizeRoleGroupName(page.roleGroup) && groupMembers.length < 2}
+                                <p class="text-[10px] text-amber-700 dark:text-amber-300">Ajoutez au moins une autre page « Rôle » dans ce même groupe. Choisir l'un retirera automatiquement les autres.</p>
+                              {:else if groupMembers.length >= 2}
+                                <p class="text-[10px] text-on-surface-variant/60">Ce rôle remplacera automatiquement tout autre rôle actuellement détenu dans le groupe.</p>
+                              {/if}
+                            </div>
+                          {:else}
+                            <p class="text-[11px] text-on-surface-variant/60">« Basculer » ajoute le rôle s'il est absent, et le retire s'il est déjà présent.</p>
+                          {/if}
                         </div>
                       {:else if page.actionType === 'LINK'}
                         <div class="space-y-3 animate-in fade-in duration-200">

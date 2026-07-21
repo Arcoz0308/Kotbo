@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { type Client  } from 'discord.js';
 import * as sanctionService from './sanctionService.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
+import { syncMemberClanFromDcLink } from '../community/clanService.js';
 
 /**
  * Service pour la gestion des comptes liés (Main/Alt)
@@ -105,11 +106,12 @@ export async function linkAccounts(params: {
     }
   });
 
-  // Notifier les deux utilisateurs (uniquement si validé)
+  // Notifier les deux utilisateurs (uniquement si validé) et synchroniser leurs clans
   if (status === LinkedAccountStatus.VALIDATED) {
     await Promise.all([
       createNotification(guildId, idA, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idB}>.`, 'SUCCESS', '/profile'),
-      createNotification(guildId, idB, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idA}>.`, 'SUCCESS', '/profile')
+      createNotification(guildId, idB, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idA}>.`, 'SUCCESS', '/profile'),
+      syncMemberClanFromDcLink(guildId, idA, idB)
     ].map(p => p.catch(() => null)));
   }
 

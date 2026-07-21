@@ -115,6 +115,7 @@ model GuildInvite {
 
   inviterId   String?
   inviterTag  String?
+  sourceLabel String? // Provenance personnalisée (TikTok, Instagram, campagne, etc.)
 
   uses        Int @default(0)
   maxUses     Int?

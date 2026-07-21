@@ -1,4 +1,4 @@
-import { Message, EmbedBuilder, Client, ChannelType, PermissionFlagsBits, type TextBasedChannel } from 'discord.js';
+import { Message, EmbedBuilder, Client, ChannelType, PermissionFlagsBits, type TextBasedChannel, type GuildMember, type User } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
@@ -37,6 +37,28 @@ function resolveResponse(response: string | null): string | null {
   return response;
 }
 
+/**
+ * Remplace les variables (`{user}`, `{username}`, `{server}`, `{channel}`) dans le texte
+ * de réponse d'un déclencheur par leurs valeurs réelles pour le contexte donné.
+ */
+function resolveResponsePlaceholders(
+  text: string,
+  ctx: { userId: string; member?: GuildMember | null; user?: User | null; guildName?: string | null; channel?: TextBasedChannel | null }
+): string {
+  if (!text.includes('{')) return text;
+
+  const username = ctx.member?.displayName || ctx.user?.username || 'Utilisateur';
+  const tag = ctx.user?.username || ctx.member?.user.username || 'inconnu';
+  const channelMention = ctx.channel && 'toString' in ctx.channel ? ctx.channel.toString() : '';
+
+  return text
+    .replace(/{user}/g, `<@${ctx.userId}>`)
+    .replace(/{username}/g, username)
+    .replace(/{tag}/g, tag)
+    .replace(/{server}/g, ctx.guildName || '')
+    .replace(/{channel}/g, channelMention);
+}
+
 function buildSendPayload(responseText: string): string | { embeds: EmbedBuilder[] } {
   const isJson = responseText.startsWith('{') && responseText.endsWith('}');
   if (isJson) {
@@ -71,9 +93,16 @@ async function dispatchTriggerResponse(
   item: Pick<AutoResponse, 'responseDestination' | 'responseChannelId' | 'relayToStaffServer'>,
   responseText: string,
   targetUserId: string,
-  options: { contextChannel?: TextBasedChannel | null; replyToMessage?: Message | null } = {}
+  options: { contextChannel?: TextBasedChannel | null; replyToMessage?: Message | null; member?: GuildMember | null; guildName?: string | null } = {}
 ) {
-  const payload = buildSendPayload(responseText);
+  const resolvedText = resolveResponsePlaceholders(responseText, {
+    userId: targetUserId,
+    member: options.member,
+    user: options.member?.user,
+    guildName: options.guildName,
+    channel: options.contextChannel,
+  });
+  const payload = buildSendPayload(resolvedText);
   const destination = item.responseDestination || 'DM';
 
   if (destination === 'CHANNEL' && options.contextChannel) {
@@ -358,6 +387,8 @@ export async function handleAutoResponse(message: Message) {
           await dispatchTriggerResponse(message.client, message.guildId, item, responseText, message.author.id, {
             contextChannel,
             replyToMessage: item.deleteTrigger ? null : message,
+            member,
+            guildName: message.guild?.name,
           });
         }
 
@@ -488,7 +519,7 @@ export async function handleFormTrigger(
         } else {
           const resolvedFormResponse = resolveResponse(item.response);
           if (resolvedFormResponse && resolvedFormResponse.trim()) {
-            await dispatchTriggerResponse(client, guildId, item, resolvedFormResponse, userId).catch((e) => {
+            await dispatchTriggerResponse(client, guildId, item, resolvedFormResponse, userId, { member, guildName: guild.name }).catch((e) => {
               logger.error('AutoResponseService', `Impossible d'envoyer la réponse pour trigger de formulaire:`, e);
             });
           }
@@ -579,7 +610,7 @@ export async function handleTicketTrigger(
               if (ch?.isTextBased()) contextChannel = ch as TextBasedChannel;
             }
           }
-          await dispatchTriggerResponse(client, guildId, item, resolvedTicketResponse, userId, { contextChannel }).catch((e) => {
+          await dispatchTriggerResponse(client, guildId, item, resolvedTicketResponse, userId, { contextChannel, member, guildName: guild.name }).catch((e) => {
             logger.error('AutoResponseService', `Impossible d'envoyer la réponse pour trigger de ticket:`, e);
           });
         }

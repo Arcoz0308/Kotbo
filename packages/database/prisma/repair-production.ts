@@ -16,6 +16,7 @@ const repairs = [
   "20260708000000_add_welcome_thread_system",
   "20260709000000_add_welcome_menu_page_actions",
   "20260709010000_add_verification_device_tracking",
+  "20260720000000_add_welcome_exclusive_role_groups",
 ];
 
 async function run(command: string[]) {
@@ -118,4 +119,3 @@ for (const migration of repairsToRun) {
 }
 
 console.log("[MigrationRepair] Historique de production reconcilie.");
-

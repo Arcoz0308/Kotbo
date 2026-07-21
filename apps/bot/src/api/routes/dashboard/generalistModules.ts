@@ -102,6 +102,9 @@ export async function handleGeneralistModulesRoutes(
           ignoredRoles?: string[];
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           xpMultipliers?: any;
+          lengthBonusEnabled?: boolean;
+          lengthBonusThreshold?: number;
+          lengthBonusMaxMultiplier?: number;
         }>(req);
 
         if (!body) {
@@ -123,6 +126,13 @@ export async function handleGeneralistModulesRoutes(
             ignoredChannels: body.ignoredChannels,
             ignoredRoles: body.ignoredRoles,
             xpMultipliers: body.xpMultipliers,
+            lengthBonusEnabled: body.lengthBonusEnabled,
+            lengthBonusThreshold: body.lengthBonusThreshold !== undefined
+              ? Math.max(1, Math.floor(body.lengthBonusThreshold))
+              : undefined,
+            lengthBonusMaxMultiplier: body.lengthBonusMaxMultiplier !== undefined
+              ? Math.min(10, Math.max(1, body.lengthBonusMaxMultiplier))
+              : undefined,
           },
         });
 
@@ -715,6 +725,7 @@ export async function handleGeneralistModulesRoutes(
             actionType?: string;
             roleId?: string | null;
             roleAction?: string;
+            roleGroup?: string | null;
             linkUrl?: string | null;
             embedTitle?: string;
             embedDescription?: string;
@@ -734,7 +745,9 @@ export async function handleGeneralistModulesRoutes(
         }
 
         const VALID_ACTION_TYPES = new Set(['EMBED', 'ROLE', 'LINK']);
-        const VALID_ROLE_ACTIONS = new Set(['ADD', 'REMOVE', 'TOGGLE']);
+        const VALID_ROLE_ACTIONS = new Set(['ADD', 'REMOVE', 'TOGGLE', 'EXCLUSIVE']);
+        const exclusiveGroups = new Map<string, { label: string; roleIds: Set<string> }>();
+        const exclusiveRoleGroups = new Map<string, string>();
 
         for (const page of body.pages) {
           if (!page.label?.trim()) {
@@ -750,8 +763,38 @@ export async function handleGeneralistModulesRoutes(
             json(res, 400, { error: 'Les pages de type Rôle doivent avoir un rôle sélectionné' });
             return true;
           }
+          if (actionType === 'ROLE' && page.roleAction === 'EXCLUSIVE') {
+            const groupLabel = page.roleGroup?.trim().replace(/\s+/g, ' ') || '';
+            if (!groupLabel) {
+              json(res, 400, { error: 'Les rôles exclusifs doivent appartenir à un groupe' });
+              return true;
+            }
+            if (groupLabel.length > 64) {
+              json(res, 400, { error: 'Le nom du groupe exclusif est limité à 64 caractères' });
+              return true;
+            }
+
+            const groupKey = groupLabel.toLocaleLowerCase('fr-FR');
+            const existingRoleGroup = exclusiveRoleGroups.get(page.roleId!);
+            if (existingRoleGroup && existingRoleGroup !== groupKey) {
+              json(res, 400, { error: 'Un même rôle ne peut pas appartenir à plusieurs groupes exclusifs' });
+              return true;
+            }
+            exclusiveRoleGroups.set(page.roleId!, groupKey);
+
+            const group = exclusiveGroups.get(groupKey) ?? { label: groupLabel, roleIds: new Set<string>() };
+            group.roleIds.add(page.roleId!);
+            exclusiveGroups.set(groupKey, group);
+          }
           if (actionType === 'LINK' && !page.linkUrl?.trim()) {
             json(res, 400, { error: 'Les pages de type Lien doivent avoir un salon ou une URL' });
+            return true;
+          }
+        }
+
+        for (const group of exclusiveGroups.values()) {
+          if (group.roleIds.size < 2) {
+            json(res, 400, { error: `Le groupe exclusif « ${group.label} » doit contenir au moins deux rôles différents` });
             return true;
           }
         }
@@ -763,6 +806,7 @@ export async function handleGeneralistModulesRoutes(
             data: body.pages.map((page, index) => {
               const actionType = page.actionType && VALID_ACTION_TYPES.has(page.actionType) ? page.actionType : 'EMBED';
               const roleAction = page.roleAction && VALID_ROLE_ACTIONS.has(page.roleAction) ? page.roleAction : 'ADD';
+              const roleGroupKey = page.roleGroup?.trim().replace(/\s+/g, ' ').toLocaleLowerCase('fr-FR') || '';
               return {
                 guildId,
                 order: index,
@@ -772,6 +816,9 @@ export async function handleGeneralistModulesRoutes(
                 actionType,
                 roleId: actionType === 'ROLE' ? page.roleId : null,
                 roleAction,
+                roleGroup: actionType === 'ROLE' && roleAction === 'EXCLUSIVE'
+                  ? (exclusiveGroups.get(roleGroupKey)?.label ?? null)
+                  : null,
                 linkUrl: actionType === 'LINK' ? (page.linkUrl?.trim() || null) : null,
                 embedTitle: page.embedTitle?.trim().slice(0, 256) || null,
                 embedDescription: page.embedDescription?.trim().slice(0, 4096) || null,

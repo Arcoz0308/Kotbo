@@ -2,14 +2,12 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
-  ContainerBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
 } from 'discord.js';
-import { COLORS_RAW, text, errorContainer, v2 } from '../../utils/embeds.js';
+import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
+import { separator, v2Message } from '@arcscord/components';
 
 function getStatusEmoji(code: number): string {
   if (code >= 200 && code < 300) return E.success;
@@ -60,10 +58,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
 
     if (guild?.statusCheckChannelId && interaction.channelId !== guild.statusCheckChannelId) {
-      await interaction.reply({
-        ...v2(errorContainer('Canal non autorisé', `La commande /status est limitée à <#${guild.statusCheckChannelId}> sur ce serveur.`)),
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-      });
+      await interaction.reply(v2Message(
+        { flags: MessageFlags.Ephemeral },
+        errorContainer('Canal non autorisé', `La commande /status est limitée à <#${guild.statusCheckChannelId}> sur ce serveur.`),
+      ));
       return;
     }
   }
@@ -75,10 +73,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const urlStr = urlInput.startsWith('http') ? urlInput : `https://${urlInput}`;
     url = new URL(urlStr);
   } catch {
-    await interaction.reply({
-      ...v2(errorContainer('URL invalide', "La URL fournie n'est pas valide")),
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-    });
+    await interaction.reply(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      errorContainer('URL invalide', "La URL fournie n'est pas valide"),
+    ));
     return;
   }
 
@@ -100,15 +98,18 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const emoji = getStatusEmoji(response.status);
     const label = getStatusLabel(response.status);
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.info)
-      .addTextDisplayComponents(text(`### ${E.link} Vérification du statut`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`**URL**\n${url.hostname}`))
-      .addTextDisplayComponents(text(`**Code HTTP**\n${emoji} **${response.status}** ${label}`))
-      .addTextDisplayComponents(text(`**Latence**\n${E.clock} ${latency}ms`));
-
-    await interaction.reply(v2(container));
+    await interaction.reply(v2Message(
+      kotboContainer({
+        color: 'info',
+        title: `${E.link} Vérification du statut`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          `**URL**\n${url.hostname}`,
+          `**Code HTTP**\n${emoji} **${response.status}** ${label}`,
+          `**Latence**\n${E.clock} ${latency}ms`,
+        ],
+      }),
+    ));
   } catch (error) {
     const isTimeout = error instanceof Error && error.name === 'AbortError';
     const message = isTimeout
@@ -117,10 +118,10 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         ? error.message
         : 'Impossible de se connecter';
 
-    await interaction.reply({
-      ...v2(errorContainer('Erreur de connexion', message)),
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-    });
+    await interaction.reply(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      errorContainer('Erreur de connexion', message),
+    ));
   }
 }
 

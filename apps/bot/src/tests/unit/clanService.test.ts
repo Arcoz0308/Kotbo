@@ -1,0 +1,181 @@
+import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import path from 'node:path';
+
+// Mock the database dependency
+const mockDb = {
+  guild: {
+    findUnique: mock(() => Promise.resolve({ clansEnabled: true })),
+  },
+  linkedAccount: {
+    findFirst: mock(() => Promise.resolve(null)),
+  },
+  clan: {
+    findMany: mock(() => Promise.resolve([])),
+  },
+  memberLevel: {
+    findUnique: mock(() => Promise.resolve(null)),
+  },
+  clanMemberContribution: {
+    findMany: mock(() => Promise.resolve([])),
+    findUnique: mock(() => Promise.resolve(null)),
+    update: mock(() => Promise.resolve({})),
+    delete: mock(() => Promise.resolve({})),
+  },
+};
+
+const dbPath = path.resolve(import.meta.dir, '../../utils/db.ts');
+const dbJsPath = path.resolve(import.meta.dir, '../../utils/db.js');
+
+mock.module(dbPath, () => ({
+  default: mockDb,
+  prisma: mockDb,
+}));
+
+mock.module(dbJsPath, () => ({
+  default: mockDb,
+  prisma: mockDb,
+}));
+
+// Mock Discord Client & getClient helper
+const mockDiscordMember1 = {
+  user: { tag: 'User1#0001' },
+  roles: {
+    cache: {
+      has: mock((roleId: string) => roleId === 'role-clan-1'),
+    },
+    add: mock(() => Promise.resolve({})),
+    remove: mock(() => Promise.resolve({})),
+  },
+};
+
+const mockDiscordMember2 = {
+  user: { tag: 'User2#0002' },
+  roles: {
+    cache: {
+      has: mock((roleId: string) => roleId === 'role-clan-2'),
+    },
+    add: mock(() => Promise.resolve({})),
+    remove: mock(() => Promise.resolve({})),
+  },
+};
+
+const mockDiscordGuild = {
+  members: {
+    cache: {
+      get: mock((userId: string) => {
+        if (userId === 'user-1') return mockDiscordMember1;
+        if (userId === 'user-2') return mockDiscordMember2;
+        return null;
+      }),
+    },
+    fetch: mock((userId: string) => {
+      if (userId === 'user-1') return Promise.resolve(mockDiscordMember1);
+      if (userId === 'user-2') return Promise.resolve(mockDiscordMember2);
+      return Promise.resolve(null);
+    }),
+  },
+};
+
+const mockClient = {
+  guilds: {
+    cache: {
+      get: mock(() => mockDiscordGuild),
+    },
+    fetch: mock(() => Promise.resolve(mockDiscordGuild)),
+  },
+};
+
+const clientPath = path.resolve(import.meta.dir, '../../utils/client.ts');
+const clientJsPath = path.resolve(import.meta.dir, '../../utils/client.js');
+
+mock.module(clientPath, () => ({
+  getClient: () => mockClient,
+}));
+
+mock.module(clientJsPath, () => ({
+  getClient: () => mockClient,
+}));
+
+// Now import the service we want to test
+import { syncMemberClanFromDcLink } from '../../services/community/clanService.js';
+
+describe('clan service DC sync tests', () => {
+  beforeEach(() => {
+    mockDb.guild.findUnique.mockClear();
+    mockDb.linkedAccount.findFirst.mockClear();
+    mockDb.clan.findMany.mockClear();
+    mockDb.memberLevel.findUnique.mockClear();
+    mockDb.clanMemberContribution.findMany.mockClear();
+    mockDb.clanMemberContribution.findUnique.mockClear();
+    mockDb.clanMemberContribution.update.mockClear();
+    mockDb.clanMemberContribution.delete.mockClear();
+
+    mockDiscordMember1.roles.add.mockClear();
+    mockDiscordMember1.roles.remove.mockClear();
+    mockDiscordMember2.roles.add.mockClear();
+    mockDiscordMember2.roles.remove.mockClear();
+
+    // Reset default mock behaviors
+    mockDb.guild.findUnique.mockResolvedValue({ clansEnabled: true });
+    mockDb.clan.findMany.mockResolvedValue([
+      { id: 'clan-1', name: 'Clan One', roleId: 'role-clan-1' },
+      { id: 'clan-2', name: 'Clan Two', roleId: 'role-clan-2' },
+    ]);
+  });
+
+  test('should return early if clans are not enabled', async () => {
+    mockDb.guild.findUnique.mockResolvedValue({ clansEnabled: false });
+
+    await syncMemberClanFromDcLink('guild-123', 'user-1', 'user-2');
+
+    expect(mockDb.clan.findMany).not.toHaveBeenCalled();
+  });
+
+  test('should assign clan to member who does not have one', async () => {
+    // Member 1 has clan-1, Member 2 has no clan
+    mockDiscordMember1.roles.cache.has.mockImplementation((roleId) => roleId === 'role-clan-1');
+    mockDiscordMember2.roles.cache.has.mockImplementation(() => false);
+
+    await syncMemberClanFromDcLink('guild-123', 'user-1', 'user-2');
+
+    expect(mockDiscordMember2.roles.add).toHaveBeenCalledWith('role-clan-1', expect.any(String));
+    expect(mockDiscordMember1.roles.add).not.toHaveBeenCalled();
+  });
+
+  test('should align double accounts with different clans to the one with highest MemberLevel XP', async () => {
+    // Member 1 has clan-1, Member 2 has clan-2
+    mockDiscordMember1.roles.cache.has.mockImplementation((roleId) => roleId === 'role-clan-1');
+    mockDiscordMember2.roles.cache.has.mockImplementation((roleId) => roleId === 'role-clan-2');
+
+    // Member 1 has 500 XP, Member 2 has 100 XP
+    mockDb.memberLevel.findUnique.mockImplementation(async (options: any) => {
+      if (options.where.guildId_userId.userId === 'user-1') return { xp: 500 };
+      if (options.where.guildId_userId.userId === 'user-2') return { xp: 100 };
+      return null;
+    });
+
+    // Mock contributions migration: Member 2 has a contribution in clan-2 for season 1
+    mockDb.clanMemberContribution.findMany.mockResolvedValue([
+      { id: 'contrib-alt', guildId: 'guild-123', clanId: 'clan-2', userId: 'user-2', xp: 50, season: 1 },
+    ]);
+    // Member 2 already has a contribution in target clan-1 (to test fusion)
+    mockDb.clanMemberContribution.findUnique.mockResolvedValue({
+      id: 'contrib-main', guildId: 'guild-123', clanId: 'clan-1', userId: 'user-2', xp: 100, season: 1
+    });
+
+    await syncMemberClanFromDcLink('guild-123', 'user-1', 'user-2');
+
+    // Member 2 should be moved to clan-1 (role-clan-1)
+    expect(mockDiscordMember2.roles.remove).toHaveBeenCalledWith('role-clan-2', expect.any(String));
+    expect(mockDiscordMember2.roles.add).toHaveBeenCalledWith('role-clan-1', expect.any(String));
+
+    // Contributions should be fused
+    expect(mockDb.clanMemberContribution.update).toHaveBeenCalledWith({
+      where: { id: 'contrib-main' },
+      data: { xp: 150 },
+    });
+    expect(mockDb.clanMemberContribution.delete).toHaveBeenCalledWith({
+      where: { id: 'contrib-alt' },
+    });
+  });
+});

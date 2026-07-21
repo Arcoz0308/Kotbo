@@ -3,17 +3,19 @@ FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
 
-# Copy monorepo root configuration
-COPY package.json bun.lock tsconfig.json bunfig.toml ./
+# Copy the bot-only workspace manifest and monorepo configuration
+COPY package.bot.json ./package.json
+COPY bun.bot.lock ./bun.lock
+COPY tsconfig.json bunfig.toml ./
 
 # Copy dependency definitions for caching
 COPY packages/database/package.json packages/database/
 COPY packages/core/package.json packages/core/
 COPY packages/contracts/package.json packages/contracts/
 COPY apps/bot/package.json apps/bot/
-COPY apps/dashboard/package.json apps/dashboard/
 
-# Install dependencies
+# Install only the bot workspace and shared packages. Frontend-only dependencies
+# such as xlsx are intentionally absent from this image.
 RUN bun install --frozen-lockfile
 
 # Copy source code

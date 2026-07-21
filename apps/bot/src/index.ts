@@ -62,6 +62,8 @@ import { registerChannelLinkListener } from './events/channelLinkEvents.js';
 import { registerStaffServerListener } from './events/staffServerEvents.js';
 import { registerAbsenceMentionListener } from './events/absenceMentionEvents.js';
 import { registerPartnershipListener } from './services/features/partnershipService.js';
+import { registerRaidProtectionListener } from './events/raidProtection.js';
+import { registerClanListener } from './events/clanEvents.js';
 import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
@@ -120,6 +122,7 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildInvites,
   ],
   partials: [Partials.Message, Partials.Reaction],
 });
@@ -329,7 +332,7 @@ client.once(Events.ClientReady, async (c) => {
   registerTicketsBusSubscribers(client);
 
   // ── Direct listeners (not yet migrated to the bus) ────────
-  client.setMaxListeners(25);
+  client.setMaxListeners(30);
   registerCodePoliceListener(client);
   registerAdvancedLogsListener(client);
   registerCloseSourceWarningListener(client);
@@ -349,6 +352,8 @@ client.once(Events.ClientReady, async (c) => {
   registerStaffServerListener(client);
   registerAbsenceMentionListener(client);
   registerPartnershipListener(client);
+  registerRaidProtectionListener(client);
+  registerClanListener(client);
 
   // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
   logger.info('System', 'Enregistrement des cron jobs...');

@@ -1,8 +1,9 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { ApplicationCommandOptionType, ContainerBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionsBitField, ModalBuilder, TextInputBuilder, TextInputStyle, type AutocompleteInteraction, type ChatInputCommandInteraction, type ButtonInteraction, type AnySelectMenuInteraction, type ModalSubmitInteraction } from 'discord.js';
-import { COLORS_RAW, text } from '../../utils/embeds.js';
+import { ApplicationCommandOptionType, MessageFlags, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionsBitField, ModalBuilder, TextInputBuilder, TextInputStyle, type AutocompleteInteraction, type ChatInputCommandInteraction, type ButtonInteraction, type AnySelectMenuInteraction, type ModalSubmitInteraction } from 'discord.js';
+import { COLORS_RAW, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { getLocale, getCommandMetadata } from '../../utils/i18n.js';
+import { ContainerChild, separator, v2Message } from '@arcscord/components';
 import * as m from '../../lib/paraglide/messages.js';
 
 type Locale = 'fr' | 'en';
@@ -169,20 +170,16 @@ function formatCommandOptionsTree(command: CommandJson, locale: Locale): string 
   return trunc(lines.join('\n'), 1800);
 }
 
-function buildHomeView(commands: SlashCommandDefinition[], locale: Locale) {
-  const container = new ContainerBuilder()
-    .setAccentColor(COLORS_RAW.primary)
-    .addTextDisplayComponents(text(`### ${E.info} ${m.help_home_title({}, { locale })}`))
-    .addTextDisplayComponents(text(m.help_home_welcome({}, { locale })))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+function buildHomeView(commands: SlashCommandDefinition[]) {
+  const fields: ContainerChild[] = [
+    `Bienvenue dans le centre d'aide de **Kotbo** !\nSélectionnez une catégorie ci-dessous ou cliquez sur 🔍 pour rechercher.`,
+    separator({ divider: true, spacing: 'small' }),
+  ];
 
-  for (const id of CATEGORY_IDS) {
-    const catCmds = commands.filter(c => getCommandCategory(c.data.name) === id);
-    container.addTextDisplayComponents(text(`${CATEGORY_META[id].emoji} **${categoryLabel(id, locale)}** (${catCmds.length})\n${categoryDesc(id, locale)}`));
+  for (const cat of CATEGORIES) {
+    const catCmds = commands.filter(c => getCommandCategory(c.data.name) === cat.name);
+    fields.push(`${cat.emoji} **${cat.name}** (${catCmds.length})\n${cat.description}`);
   }
-
-  container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(`-# ${E.kotbo} ${m.help_commands_available({ count: commands.length }, { locale })}`));
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
@@ -193,7 +190,16 @@ function buildHomeView(commands: SlashCommandDefinition[], locale: Locale) {
   const searchBtn = new ButtonBuilder().setCustomId('help_search').setLabel(m.help_btn_search({}, { locale })).setEmoji('🔍').setStyle(ButtonStyle.Success);
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(searchBtn);
 
-  return { components: [container, row1, row2], flags: MessageFlags.IsComponentsV2 };
+  return v2Message(
+    kotboContainer({
+      color: 'primary',
+      title: `${E.info} Kotbo — Centre d'aide interactif`,
+      fields,
+      footerOverwrite: `-# ${E.kotbo} ${commands.length} commandes disponibles`,
+    }),
+    row1,
+    row2,
+  );
 }
 
 function buildCategoryView(commands: SlashCommandDefinition[], categoryId: CategoryId, locale: Locale) {
@@ -219,21 +225,33 @@ function buildCategoryView(commands: SlashCommandDefinition[], categoryId: Categ
     .setPlaceholder(m.help_select_other_category_placeholder({}, { locale }))
     .addOptions(CATEGORY_IDS.map(c => ({ label: categoryLabel(c, locale), value: `cat:${c}`, emoji: '📁', default: c === id })));
 
-  const components: unknown[] = [container, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory)];
+  const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory)];
 
   if (catCmds.length > 0) {
     const selectCommand = new StringSelectMenuBuilder()
       .setCustomId('help_command_select')
       .setPlaceholder(m.help_select_command_placeholder({}, { locale }))
       .addOptions(catCmds.slice(0, 25).map(c => ({ label: `/${c.data.name}`, value: `cmd:${c.data.name}`, description: trunc(c.data.description || '', 100) })));
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCommand));
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCommand));
   }
 
-  const homeBtn = new ButtonBuilder().setCustomId('help_home').setLabel(m.help_btn_home({}, { locale })).setEmoji('🏠').setStyle(ButtonStyle.Primary);
-  const searchBtn = new ButtonBuilder().setCustomId('help_search').setLabel(m.help_btn_search({}, { locale })).setEmoji('🔍').setStyle(ButtonStyle.Success);
-  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(homeBtn, searchBtn));
+  const homeBtn = new ButtonBuilder().setCustomId('help_home').setLabel('Accueil').setEmoji('🏠').setStyle(ButtonStyle.Primary);
+  const searchBtn = new ButtonBuilder().setCustomId('help_search').setLabel('Rechercher').setEmoji('🔍').setStyle(ButtonStyle.Success);
+  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(homeBtn, searchBtn));
 
-  return { components, flags: MessageFlags.IsComponentsV2 };
+  return v2Message(
+    kotboContainer({
+      color: accentColor,
+      title: `${cat.emoji} ${cat.name}`,
+      fields: [
+        `*${cat.description}*`,
+        separator({ divider: true, spacing: 'small' }),
+        cmdList,
+      ],
+      footerOverwrite: `-# ${catCmds.length} commandes dans cette catégorie`,
+    }),
+    ...rows,
+  );
 }
 
 function buildCommandView(commands: SlashCommandDefinition[], commandName: string, locale: Locale) {
@@ -267,27 +285,44 @@ function buildCommandView(commands: SlashCommandDefinition[], commandName: strin
   const prevCmd = catCmds[(currentIndex - 1 + catCmds.length) % catCmds.length];
   const nextCmd = catCmds[(currentIndex + 1) % catCmds.length];
 
-  const components: unknown[] = [container];
+  const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [];
 
   const selectCategory = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
-    .setPlaceholder(m.help_select_other_category_placeholder({}, { locale }))
-    .addOptions(CATEGORY_IDS.map(c => ({ label: categoryLabel(c, locale), value: `cat:${c}`, emoji: '📁', default: c === category })));
-  components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory));
+    .setPlaceholder('📁 Choisir une autre catégorie...')
+    .addOptions(CATEGORIES.map(c => ({ label: c.name, value: `cat:${c.name}`, emoji: '📁', default: c.name === category })));
+  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory));
 
   const selectCommand = new StringSelectMenuBuilder()
     .setCustomId('help_command_select')
     .setPlaceholder(m.help_select_other_command_placeholder({}, { locale }))
     .addOptions(catCmds.slice(0, 25).map(c => ({ label: `/${c.data.name}`, value: `cmd:${c.data.name}`, description: trunc(c.data.description || '', 100), default: c.data.name === command.data.name })));
-  components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCommand));
+  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCommand));
 
   const prevBtn = new ButtonBuilder().setCustomId(`help_prev:${category}:${prevCmd.data.name}`).setEmoji('◀️').setLabel(`/${prevCmd.data.name}`).setStyle(ButtonStyle.Secondary);
   const homeBtn = new ButtonBuilder().setCustomId('help_home').setLabel(m.help_btn_home({}, { locale })).setEmoji('🏠').setStyle(ButtonStyle.Primary);
   const searchBtn = new ButtonBuilder().setCustomId('help_search').setLabel(m.help_btn_search({}, { locale })).setEmoji('🔍').setStyle(ButtonStyle.Success);
   const nextBtn = new ButtonBuilder().setCustomId(`help_next:${category}:${nextCmd.data.name}`).setEmoji('▶️').setLabel(`/${nextCmd.data.name}`).setStyle(ButtonStyle.Secondary);
-  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, homeBtn, searchBtn, nextBtn));
+  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, homeBtn, searchBtn, nextBtn));
 
-  return { components, flags: MessageFlags.IsComponentsV2 };
+  return v2Message(
+    kotboContainer({
+      color: accentColor,
+      title: `${cat.emoji} /${command.data.name}`,
+      fields: [
+        command.data.description || 'Pas de description.',
+        separator({ divider: true, spacing: 'small' }),
+        [
+          `**${E.arrow} Catégorie** · ${category}`,
+          `**${E.lock} Permissions** · ${permissions}`,
+        ].join('\n'),
+        `**${E.info} Syntaxe**\n${syntax}`,
+        `**${E.settings} Options**\n${optionsTree}`,
+      ],
+      footerOverwrite: `-# Kotbo · Aide détaillée`,
+    }),
+    ...rows,
+  );
 }
 
 function buildHelpView(commands: SlashCommandDefinition[], state: string, locale: Locale) {
