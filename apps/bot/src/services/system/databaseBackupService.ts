@@ -1,10 +1,15 @@
 import cron from 'node-cron';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { createWriteStream } from 'fs';
+import { mkdir, readdir, stat, unlink } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createGzip } from 'zlib';
+import { pipeline } from 'stream/promises';
+import { logger } from '../../utils/logger';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,35 +18,103 @@ const __dirname = path.dirname(__filename);
 const DATABASE_BACKUP_ENABLED = true;
 const DATABASE_BACKUP_TIME = '02:00'; // 2h du matin
 const DATABASE_BACKUP_TIMEZONE = 'Europe/Paris';
-const _RETENTION_DAYS = 7; // Garder les backups pendant 7 jours
+const RETENTION_DAYS = 7; // Garder les backups pendant 7 jours
+
+const BACKUP_DIR = path.join(__dirname, '../../../../../backups/database');
 
 let backupTask: cron.ScheduledTask | null = null;
 
+function findPgDump(): string {
+  // pg_dump installé via `apk add postgresql-client` dans DockerfileBot
+  return process.env.PG_DUMP_PATH || 'pg_dump';
+}
+
 /**
- * Effectue un backup de la base de données PostgreSQL
+ * Purge les backups plus vieux que RETENTION_DAYS jours
  */
-export async function performDatabaseBackup(): Promise<void> {
-  console.log('🔄 Début du backup de la base de données PostgreSQL...');
+async function pruneOldBackups(): Promise<number> {
+  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const entries = await readdir(BACKUP_DIR).catch(() => [] as string[]);
+  let removed = 0;
 
-  try {
-    // Chemin vers le script PowerShell
-    const scriptPath = path.join(__dirname, '../../../scripts/backup-database.ps1');
-    
-    // Exécuter le script PowerShell
-    const { stdout, stderr } = await execAsync(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, {
-      cwd: path.join(__dirname, '../../../'),
-    });
+  for (const entry of entries) {
+    if (!entry.startsWith('kotbo_backup_')) continue;
+    const filePath = path.join(BACKUP_DIR, entry);
+    const info = await stat(filePath).catch(() => null);
+    if (info && info.mtimeMs < cutoff) {
+      await unlink(filePath).catch(() => {});
+      removed++;
+    }
+  }
 
-    if (stderr) {
-      console.error('⚠️ Avertissement lors du backup:', stderr);
+  return removed;
+}
+
+/**
+ * Effectue un backup de la base de données PostgreSQL via pg_dump,
+ * compressé directement en gzip (pas de dépendance à un binaire gzip externe).
+ */
+export async function performDatabaseBackup(): Promise<string> {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL non défini, impossible de faire le backup.');
+  }
+
+  logger.info('DatabaseBackup', 'Début du backup de la base de données PostgreSQL...');
+
+  await mkdir(BACKUP_DIR, { recursive: true }).catch((err: NodeJS.ErrnoException) => {
+    if (err.code !== 'EEXIST') throw err;
+  });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const outputFile = path.join(BACKUP_DIR, `kotbo_backup_${timestamp}.sql.gz`);
+
+  const pgDump = findPgDump();
+
+  await new Promise<void>((resolve, reject) => {
+    const child = execFile(
+      pgDump,
+      [connectionString, '--format=plain', '--no-owner', '--no-acl'],
+      { maxBuffer: 1024 * 1024 * 1024 },
+    );
+
+    if (!child.stdout) {
+      reject(new Error('pg_dump: pas de flux stdout'));
+      return;
     }
 
-    console.log('✅ Backup de la base de données terminé avec succès');
-    console.log(stdout);
-  } catch (error) {
-    console.error('❌ Erreur lors du backup de la base de données:', error);
-    throw error;
+    const gzip = createGzip();
+    const out = createWriteStream(outputFile);
+
+    let stderrOutput = '';
+    child.stderr?.on('data', (chunk) => {
+      stderrOutput += chunk.toString();
+    });
+
+    pipeline(child.stdout, gzip, out)
+      .then(() => resolve())
+      .catch(reject);
+
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code !== 0) {
+        reject(new Error(`pg_dump a échoué (code ${code}): ${stderrOutput.slice(0, 2000)}`));
+      }
+    });
+  });
+
+  const size = (await stat(outputFile)).size;
+  logger.info(
+    'DatabaseBackup',
+    `Backup terminé: ${path.basename(outputFile)} (${(size / 1024 / 1024).toFixed(2)} MB)`,
+  );
+
+  const removed = await pruneOldBackups();
+  if (removed > 0) {
+    logger.debug('DatabaseBackup', `${removed} ancien(s) backup(s) supprimé(s) (> ${RETENTION_DAYS}j)`);
   }
+
+  return outputFile;
 }
 
 /**
@@ -49,7 +122,7 @@ export async function performDatabaseBackup(): Promise<void> {
  */
 export function initializeDatabaseBackup(): void {
   if (!DATABASE_BACKUP_ENABLED) {
-    console.log('⚠️ Backup de la base de données désactivé');
+    logger.warn('DatabaseBackup', 'Backup de la base de données désactivé');
     return;
   }
 
@@ -57,14 +130,13 @@ export function initializeDatabaseBackup(): void {
     backupTask.stop();
   }
 
-  // Créer la tâche cron pour le backup quotidien
   backupTask = cron.schedule(
     `0 ${DATABASE_BACKUP_TIME.split(':')[0]} * * *`, // Tous les jours à l'heure spécifiée
     async () => {
       try {
         await performDatabaseBackup();
       } catch (error) {
-        console.error('Erreur lors du backup automatique de la base de données:', error);
+        logger.error('DatabaseBackup', 'Erreur lors du backup automatique de la base de données:', error);
       }
     },
     {
@@ -72,7 +144,10 @@ export function initializeDatabaseBackup(): void {
     },
   );
 
-  console.log(`✅ Backup automatique de la base de données initialisé à ${DATABASE_BACKUP_TIME} (${DATABASE_BACKUP_TIMEZONE})`);
+  logger.info(
+    'DatabaseBackup',
+    `Backup automatique de la base de données initialisé à ${DATABASE_BACKUP_TIME} (${DATABASE_BACKUP_TIMEZONE})`,
+  );
 }
 
 /**
@@ -82,7 +157,7 @@ export function stopDatabaseBackup(): void {
   if (backupTask) {
     backupTask.stop();
     backupTask = null;
-    console.log('🛑 Backup automatique de la base de données arrêté');
+    logger.info('DatabaseBackup', 'Backup automatique de la base de données arrêté');
   }
 }
 
@@ -90,7 +165,7 @@ export function stopDatabaseBackup(): void {
  * Effectue un backup manuel de la base de données
  */
 export async function manualDatabaseBackup(): Promise<string> {
-  console.log('🔄 Backup manuel de la base de données...');
-  await performDatabaseBackup();
-  return 'Backup de la base de données terminé avec succès';
+  logger.info('DatabaseBackup', 'Backup manuel de la base de données...');
+  const filePath = await performDatabaseBackup();
+  return `Backup de la base de données terminé avec succès: ${path.basename(filePath)}`;
 }
