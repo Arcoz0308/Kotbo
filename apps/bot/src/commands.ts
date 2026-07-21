@@ -49,6 +49,7 @@ import { shopCommand } from './commands/economy/shop.js';
 import { spawnItemCommand } from './commands/economy/spawnItem.js';
 import { useCommand } from './commands/economy/use.js';
 import { workCommand } from './commands/economy/work.js';
+import { xpCommand } from './commands/admin/xp.js';
 import { serverstatsCommand } from './commands/utility/serverstats.js';
 import { setupCommand } from './commands/admin/setup.js';
 import { statsCommand } from './commands/utility/stats.js';
@@ -183,6 +184,7 @@ export const commands: SlashCommandDefinition[] = [
   pulseCommand,
   evaluationsCommand,
   rappelCommand,
+  xpCommand,
 ];
 
 /**
