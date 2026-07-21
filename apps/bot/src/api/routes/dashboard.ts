@@ -41,6 +41,7 @@ import { handleMarketplaceRoutes } from './dashboard/marketplace.js';
 import { handleQuestRoutes } from './dashboard/quests.js';
 import { handleWidgetRoutes } from './dashboard/widget.js';
 import { handleMessageLogRoutes } from './dashboard/messageLogs.js';
+import { handleRaidProtectionRoutes } from './dashboard/raidProtection.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -162,6 +163,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleAdminLockRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleRaidProtectionRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
