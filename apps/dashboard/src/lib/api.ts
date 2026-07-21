@@ -3276,6 +3276,9 @@ export async function deleteScamImage(imageId: string, guildId = authStore.selec
     guildId,
     errorContext: 'API Error (Delete Scam Image):'
   });
+}
+
+// ─────────────────────────────────────────────────────────────
 // Clans
 // ─────────────────────────────────────────────────────────────
 
