@@ -607,11 +607,6 @@ export async function handlePublicRoutes(
     const auth = await verifyAuth(req);
     if (!auth) {
       json(res, 401, { error: 'Vous devez vous connecter avec Discord pour voir cette transcription.' });
-  // GET /api/public/guilds/:guildId/clans
-  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'clans' && !parts[5] && method === 'GET') {
-    const guildId = parts[3];
-    if (!/^\d{17,19}$/.test(guildId)) {
-      json(res, 400, { error: 'ID de guilde invalide' });
       return true;
     }
 
@@ -657,6 +652,19 @@ export async function handlePublicRoutes(
       const errMessage = err instanceof Error ? err.message : String(err);
       logger.error('PublicAPI', `Error issuing transcript access for ${transcriptId}: ${errMessage}`);
       json(res, 500, { error: 'Erreur interne du serveur' });
+    }
+    return true;
+  }
+
+  // GET /api/public/guilds/:guildId/clans
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'clans' && !parts[5] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+
+    try {
       const guildConfig = await prisma.guild.findUnique({
         where: { id: guildId },
         select: { clansEnabled: true, currentClanSeason: true },
