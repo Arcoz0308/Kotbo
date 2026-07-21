@@ -355,6 +355,13 @@ model Guild {
   widgetSubscriptions WidgetSubscription[]
   reminders           StaffReminder[]
 
+  // Protection anti-raid (captcha, raid mode, locks, reports, scam filter)
+  raidProtectionConfig RaidProtectionConfig?
+  captchaSessions      CaptchaSession[]
+  memberReports        MemberReport[]
+  scamImageHashes      ScamImageHash[]
+  inviteApprovalRequests InviteApprovalRequest[]
+
   @@map("guilds")
 }
 
