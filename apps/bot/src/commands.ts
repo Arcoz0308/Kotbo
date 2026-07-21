@@ -78,6 +78,9 @@ import { evaluationsCommand } from './commands/admin/evaluations.js';
 import { rappelCommand } from './commands/utility/rappel.js';
 import { messageTranscriptContextCommand, messageTranscriptFromContextCommand } from './commands/moderation/messageTranscript.js';
 import { messageHubContextCommand, userHubContextCommand } from './commands/context/hub.js';
+import { protectionCommand } from './commands/admin/protection.js';
+import { auditCommand } from './commands/admin/audit.js';
+import { reportCommand, reportMessageContextCommand } from './commands/moderation/report.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; description: string; toJSON: () => unknown };
@@ -185,6 +188,9 @@ export const commands: SlashCommandDefinition[] = [
   evaluationsCommand,
   rappelCommand,
   levelingCommand,
+  protectionCommand,
+  auditCommand,
+  reportCommand,
 ];
 
 /**
@@ -216,6 +222,8 @@ export const globalContextCommands: ContextCommandDefinition[] = [
 export const guildContextCommands: ContextCommandDefinition[] = [
   // User (1/5)
   signalContextCommand,
+  // Message (1/5)
+  reportMessageContextCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [
