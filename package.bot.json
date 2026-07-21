@@ -1,0 +1,19 @@
+{
+  "name": "kotbo",
+  "private": true,
+  "workspaces": [
+    "apps/bot",
+    "packages/*"
+  ],
+  "scripts": {
+    "db:generate": "bun run --filter @kotbo/database generate",
+    "db:migrate:deploy": "bun run --filter @kotbo/database migrate:deploy",
+    "db:migrate:repair-production": "bun run --filter @kotbo/database migrate:repair-production"
+  },
+  "dependencies": {
+    "@prisma/client-runtime-utils": "^7.8.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.14"
+  }
+}

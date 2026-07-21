@@ -94,6 +94,7 @@
   import ReactionRoles from "./pages/ReactionRoles.svelte";
   import AutoResponses from "./pages/Triggers.svelte";
   import AutoMod from "./pages/AutoMod.svelte";
+  import RaidProtection from "./pages/RaidProtection.svelte";
   import Suggestions from "./pages/Suggestions.svelte";
   import EmbedBuilder from "./pages/EmbedBuilder.svelte";
   import UserSettings from "./pages/UserSettings.svelte";
@@ -175,6 +176,7 @@
     if (path.startsWith("/triggers")) return "auto_responses";
     if (path.startsWith("/automod")) return "automod";
     if (path.startsWith("/admin-lock")) return "automod";
+    if (path.startsWith("/raid-protection")) return "automod";
     if (path.startsWith("/suggestions")) return "suggestions";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
@@ -894,6 +896,9 @@
             </Route>
             <Route path="/automod">
               <AutoMod />
+            </Route>
+            <Route path="/raid-protection">
+              <RaidProtection />
             </Route>
             <Route path="/suggestions">
               <Suggestions />

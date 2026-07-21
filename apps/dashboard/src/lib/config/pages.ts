@@ -31,6 +31,7 @@ export const moderationItems: PageConfig[] = [
   { name: "Sanctions",           icon: "alert-triangle",href: "/sanctions",          featureKey: "sanctions", beta: false, wip: false },
   { name: "Appels de ban",       icon: "gavel",         href: "/appeals",            featureKey: "sanctions", beta: true, wip: false },
   { name: "Modération auto",     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: true, wip: false },
+  { name: "Protection anti-raid", icon: "shield",       href: "/raid-protection",    featureKey: "automod", beta: true, wip: false },
   { name: "Admin Lock",          icon: "lock",          href: "/admin-lock",         featureKey: "automod", beta: true, wip: false },
   { name: "Pseudos",             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
   { name: "Sécurité & DC",       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },

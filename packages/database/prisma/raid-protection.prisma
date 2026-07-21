@@ -1,0 +1,173 @@
+// ── Protection anti-raid & sécurité (inspiré de RaidProtect) ──────────────────
+// Captcha, anti-raid, join/DM lock, reports communautaires, tag role, scam filter.
+
+model RaidProtectionConfig {
+  guildId String @id
+
+  // ── Captcha (vérification des nouveaux membres) ────────────────────────────
+  captchaEnabled          Boolean @default(false)
+  captchaChannelId        String? // Salon de vérification où le code doit être tapé
+  captchaUnverifiedRoleId String? // Rôle @Non-vérifié appliqué à l'arrivée
+  captchaTimeoutMinutes   Int     @default(10) // Délai avant expiration (kick)
+  captchaMaxAttempts      Int     @default(3)
+  captchaFailAction       String  @default("KICK") // KICK | BAN
+  captchaLogChannelId     String?
+
+  // ── Anti-raid (détection de vague de joins) ────────────────────────────────
+  antiRaidEnabled            Boolean   @default(false)
+  antiRaidJoinThreshold      Int       @default(10) // N arrivées…
+  antiRaidJoinWindowSec      Int       @default(60) // …en T secondes
+  antiRaidAction             String    @default("LOCK") // LOCK (joinlock) | CAPTCHA (captcha forcé) | KICK
+  antiRaidAlertChannelId     String?
+  antiRaidAutoDisableMinutes Int       @default(30) // Durée du raid mode avant désactivation auto
+  raidModeActive             Boolean   @default(false)
+  raidModeActivatedAt        DateTime?
+  raidModeManual             Boolean   @default(false) // true = activé à la main (pas d'auto-disable)
+
+  // ── Join Lock (blocage des arrivées) ───────────────────────────────────────
+  joinLockEnabled Boolean   @default(false)
+  joinLockUntil   DateTime? // null = permanent (renouvelé par cron)
+  joinLockKick    Boolean   @default(true) // Kick les membres qui rejoignent malgré tout
+  joinLockMessage String    @default("Le serveur est temporairement fermé aux nouvelles arrivées. Merci de réessayer plus tard.")
+
+  // ── DM Lock (blocage des MP entre membres, au-delà des 24h natives) ────────
+  dmLockEnabled Boolean   @default(false)
+  dmLockUntil   DateTime? // null = permanent (renouvelé par cron)
+
+  // ── Reports communautaires (vers un salon staff) ───────────────────────────
+  reportsEnabled     Boolean @default(false)
+  reportsChannelId   String?
+  reportsCooldownSec Int     @default(60) // Anti-abus : délai min entre deux reports d'un même membre
+  reportsAnonymous   Boolean @default(false) // Masquer l'auteur du report dans l'embed staff
+
+  // ── Tag Role (rôle auto pour les membres arborant le tag du serveur) ───────
+  tagRoleEnabled Boolean @default(false)
+  tagRoleId      String?
+
+  // ── Scam filter (liens d'arnaques connus : faux Nitro, phishing…) ──────────
+  scamFilterEnabled       Boolean  @default(false)
+  scamFilterAction        String   @default("DELETE_AND_TIMEOUT") // DELETE | DELETE_AND_WARN | DELETE_AND_TIMEOUT | DELETE_AND_BAN
+  scamFilterTimeoutMin    Int      @default(60)
+  scamFilterCustomDomains String[] @default([]) // Domaines supplémentaires bloqués
+  scamFilterWhitelist     String[] @default([]) // Domaines exemptés
+  scamFilterAlertChannelId String?
+  // Comparaison des images postées avec les hash d'images scam connues
+  // (alimentées automatiquement par le honeypot)
+  scamImageFilterEnabled  Boolean  @default(false)
+
+  // ── Invite Guard (contrôle des invitations) ────────────────────────────────
+  inviteGuardEnabled      Boolean  @default(false)
+  // Mode urgence : supprime TOUTES les invitations existantes + toute nouvelle invitation
+  inviteEmergencyEnabled  Boolean  @default(false)
+  // Supprime toute invitation non unitaire (maxUses != 1 : les 0/∞ sont refusées)
+  inviteRequireUnitary    Boolean  @default(false)
+  // Toute nouvelle invitation doit être validée par le staff (supprimée puis recréée si approuvée)
+  inviteValidationEnabled Boolean  @default(false)
+  // Anti-spam de création d'invitations : alerte staff au-delà du seuil
+  inviteSpamThreshold     Int      @default(5)
+  inviteSpamWindowSec     Int      @default(60)
+  inviteAlertChannelId    String?
+  // Rôles exemptés de toutes les règles d'invitation (le staff configuré l'est d'office)
+  inviteBypassRoleIds     String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("raid_protection_configs")
+}
+
+model CaptchaSession {
+  id      String @id @default(cuid())
+  guildId String
+  userId  String
+
+  code     String
+  attempts Int    @default(0)
+  status   String @default("PENDING") // PENDING | VERIFIED | FAILED | EXPIRED
+
+  messageId String? // Message du bot contenant l'image captcha (nettoyé après vérif)
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, userId, status])
+  @@index([status, expiresAt])
+  @@map("captcha_sessions")
+}
+
+// Hash d'images d'arnaques connues. Alimenté automatiquement quand un membre
+// piégé par le honeypot poste une image, ou manuellement par le staff.
+model ScamImageHash {
+  id      String  @id @default(cuid())
+  guildId String? // null = hash global (partagé entre tous les serveurs)
+
+  hash     String // SHA-256 des octets de l'image
+  filename String?
+  source   String @default("HONEYPOT") // HONEYPOT | MANUAL
+  addedBy  String? // userId du membre à l'origine (auteur du scam ou staff)
+
+  createdAt DateTime @default(now())
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, hash])
+  @@index([hash])
+  @@map("scam_image_hashes")
+}
+
+// Demande de validation d'invitation : l'invitation d'origine est supprimée,
+// et recréée seulement si le staff approuve.
+model InviteApprovalRequest {
+  id      String @id @default(cuid())
+  guildId String
+
+  creatorId String
+  channelId String
+  inviteCode String? // Code de l'invitation supprimée (trace)
+  maxUses    Int     @default(1)
+  maxAgeSec  Int     @default(86400)
+  temporary  Boolean @default(false)
+
+  status      String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  handledById String?
+  handledAt   DateTime?
+  // Code de l'invitation recréée après approbation
+  approvedInviteCode String?
+
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, status])
+  @@map("invite_approval_requests")
+}
+
+model MemberReport {
+  id      String @id @default(cuid())
+  guildId String
+
+  reporterId String
+  targetId   String
+  reason     String
+
+  // Contexte optionnel quand le report vise un message précis
+  channelId      String?
+  messageId      String?
+  messageContent String?
+
+  status      String    @default("PENDING") // PENDING | RESOLVED | DISMISSED
+  handledById String?
+  handledAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, status, createdAt])
+  @@index([guildId, targetId])
+  @@map("member_reports")
+}

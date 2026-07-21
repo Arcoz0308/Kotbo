@@ -373,6 +373,13 @@ model Guild {
   widgetSubscriptions WidgetSubscription[]
   reminders           StaffReminder[]
 
+  // Protection anti-raid (captcha, raid mode, locks, reports, scam filter)
+  raidProtectionConfig RaidProtectionConfig?
+  captchaSessions      CaptchaSession[]
+  memberReports        MemberReport[]
+  scamImageHashes      ScamImageHash[]
+  inviteApprovalRequests InviteApprovalRequest[]
+
   @@map("guilds")
 }
 
@@ -548,7 +555,8 @@ model WelcomeMenuPage {
   // Action déclenchée au clic : "EMBED" (défaut, affiche une page) | "ROLE" | "LINK"
   actionType String  @default("EMBED")
   roleId     String? // Pour actionType = "ROLE"
-  roleAction String  @default("ADD") // "ADD" | "REMOVE" | "TOGGLE"
+  roleAction String  @default("ADD") // "ADD" | "REMOVE" | "TOGGLE" | "EXCLUSIVE"
+  roleGroup  String? // Groupe mutuellement exclusif pour roleAction = "EXCLUSIVE"
   linkUrl    String? // Pour actionType = "LINK" (salon du serveur ou URL externe)
 
   // Utilisés uniquement pour actionType = "EMBED"
@@ -591,4 +599,3 @@ model TempVoiceChannel {
 
   @@map("temp_voice_channels")
 }
-

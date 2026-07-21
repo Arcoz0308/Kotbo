@@ -49,6 +49,7 @@ import { shopCommand } from './commands/economy/shop.js';
 import { spawnItemCommand } from './commands/economy/spawnItem.js';
 import { useCommand } from './commands/economy/use.js';
 import { workCommand } from './commands/economy/work.js';
+import { levelingCommand } from './commands/admin/leveling.js';
 import { serverstatsCommand } from './commands/utility/serverstats.js';
 import { setupCommand } from './commands/admin/setup.js';
 import { statsCommand } from './commands/utility/stats.js';
@@ -78,6 +79,9 @@ import { evaluationsCommand } from './commands/admin/evaluations.js';
 import { rappelCommand } from './commands/utility/rappel.js';
 import { messageTranscriptContextCommand, messageTranscriptFromContextCommand } from './commands/moderation/messageTranscript.js';
 import { messageHubContextCommand, userHubContextCommand } from './commands/context/hub.js';
+import { protectionCommand } from './commands/admin/protection.js';
+import { auditCommand } from './commands/admin/audit.js';
+import { reportCommand, reportMessageContextCommand } from './commands/moderation/report.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; description: string; toJSON: () => unknown };
@@ -185,6 +189,10 @@ export const commands: SlashCommandDefinition[] = [
   pulseCommand,
   evaluationsCommand,
   rappelCommand,
+  levelingCommand,
+  protectionCommand,
+  auditCommand,
+  reportCommand,
 ];
 
 /**
@@ -216,6 +224,8 @@ export const globalContextCommands: ContextCommandDefinition[] = [
 export const guildContextCommands: ContextCommandDefinition[] = [
   // User (1/5)
   signalContextCommand,
+  // Message (1/5)
+  reportMessageContextCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [

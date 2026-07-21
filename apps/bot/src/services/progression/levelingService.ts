@@ -235,6 +235,43 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
 }
 
 /**
+ * Fixe l'XP totale d'un utilisateur à une valeur donnée (au lieu de l'incrémenter)
+ * et gère le passage/la perte de niveau qui en découle.
+ */
+export async function setXp(guildId: string, userId: string, newXp: number, client: Client, channelId?: string) {
+  const clampedXp = Math.max(0, Math.floor(newXp));
+
+  const memberLevel = await prisma.memberLevel.upsert({
+    where: { guildId_userId: { guildId, userId } },
+    update: { xp: clampedXp },
+    create: {
+      guildId,
+      userId,
+      xp: clampedXp,
+      level: 0,
+    },
+  });
+
+  const previousLevel = memberLevel.level;
+  const newLevel = getLevelFromXp(clampedXp);
+
+  if (newLevel !== previousLevel) {
+    await prisma.memberLevel.update({
+      where: { guildId_userId: { guildId, userId } },
+      data: { level: newLevel },
+    });
+
+    if (newLevel > previousLevel) {
+      await processLevelUp(guildId, userId, newLevel, client, channelId);
+    } else {
+      await updateMemberLevelRoles(guildId, userId, newLevel, client).catch(() => null);
+    }
+  }
+
+  return { xp: clampedXp, level: newLevel };
+}
+
+/**
  * Gère les notifications de level up et l'attribution des rôles récompenses
  */
 async function processLevelUp(guildId: string, userId: string, newLevel: number, client: Client, fallbackChannelId?: string) {

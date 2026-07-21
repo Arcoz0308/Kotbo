@@ -535,6 +535,86 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
 
 
+  // ── Protection anti-raid (raid mode, reports staff) ──────────────────
+  if (customId.startsWith('rprot:')) {
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const [, action, entityId] = customId.split(':');
+
+    if (action === 'raidmode_off') {
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+      const { getRaidProtectionConfig, deactivateRaidMode } = await import('../services/moderation/raidProtectionService.js');
+      const config = await getRaidProtectionConfig(guildId!);
+      if (!config?.raidModeActive) {
+        await interaction.editReply({ content: 'ℹ️ Le mode raid est déjà inactif.' });
+        return;
+      }
+      await deactivateRaidMode(interaction.guild!, config);
+      await interaction.editReply({ content: '✅ Mode raid désactivé.' });
+      // Désactive le bouton sur le message d'alerte
+      await interaction.message.edit({ components: [] }).catch(() => null);
+      return;
+    }
+
+    if (action === 'invite_approve' || action === 'invite_reject') {
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+      const { approveInviteRequest, rejectInviteRequest } = await import('../services/moderation/inviteGuardService.js');
+      const approved = action === 'invite_approve';
+      const request = approved
+        ? await approveInviteRequest(client, entityId, user.id)
+        : await rejectInviteRequest(client, entityId, user.id);
+      if (!request) {
+        await interaction.editReply({ content: 'ℹ️ Cette demande a déjà été traitée.' });
+        return;
+      }
+      await interaction.editReply({
+        content: approved
+          ? `✅ Invitation approuvée${request.approvedInviteCode ? ` — nouveau lien envoyé à <@${request.creatorId}> (\`${request.approvedInviteCode}\`)` : ' (recréation échouée, créateur prévenu)'}.`
+          : '❌ Invitation rejetée, créateur prévenu.',
+      });
+      const original = interaction.message.embeds[0];
+      if (original) {
+        const { EmbedBuilder } = await import('discord.js');
+        const updated = EmbedBuilder.from(original)
+          .setColor(approved ? 0x57f287 : 0xed4245)
+          .addFields({ name: 'Décision', value: `${approved ? '✅ Approuvée' : '❌ Rejetée'} par <@${user.id}>`, inline: false });
+        await interaction.message.edit({ embeds: [updated], components: [] }).catch(() => null);
+      } else {
+        await interaction.message.edit({ components: [] }).catch(() => null);
+      }
+      return;
+    }
+
+    if (action === 'report_resolve' || action === 'report_dismiss') {
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+      const { handleReportDecision } = await import('../services/moderation/reportService.js');
+      const resolved = action === 'report_resolve';
+      const report = await handleReportDecision(entityId, user.id, resolved);
+      if (!report) {
+        await interaction.editReply({ content: 'ℹ️ Ce signalement a déjà été traité.' });
+        return;
+      }
+      await interaction.editReply({ content: resolved ? '✅ Signalement marqué comme traité.' : '🗑️ Signalement rejeté.' });
+      // Fige l'embed staff : plus de boutons + note de traitement
+      const original = interaction.message.embeds[0];
+      if (original) {
+        const { EmbedBuilder } = await import('discord.js');
+        const updated = EmbedBuilder.from(original)
+          .setColor(resolved ? 0x57f287 : 0x99aab5)
+          .addFields({ name: 'Traitement', value: `${resolved ? '✅ Traité' : '🗑️ Rejeté'} par <@${user.id}>`, inline: false });
+        await interaction.message.edit({ embeds: [updated], components: [] }).catch(() => null);
+      } else {
+        await interaction.message.edit({ components: [] }).catch(() => null);
+      }
+      return;
+    }
+    return;
+  }
+
   // ── Ban Hygiene (comptes supprimés) ──────────────────────────────────
   if (customId.startsWith('banhygiene:')) {
     const member = await resolveGuildMemberByUserId(interaction, user.id);
@@ -1213,6 +1293,44 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   if (customId.startsWith('ctxhub_modal:')) {
     const { handleHubModal } = await import('../services/core/contextMenuHubService.js');
     await handleHubModal(interaction);
+    return;
+  }
+
+  // ── Report modal (menu contextuel « Signaler ce message ») ───────────
+  if (customId.startsWith('report_modal:')) {
+    const [, targetId, channelId, messageId] = customId.split(':');
+    const reason = interaction.fields.getTextInputValue('reason');
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    // Récupère le contenu du message signalé (pour contexte staff)
+    let messageContent: string | undefined;
+    try {
+      const channel = await interaction.guild?.channels.fetch(channelId);
+      if (channel?.isTextBased()) {
+        const message = await channel.messages.fetch(messageId).catch(() => null);
+        messageContent = message?.content || undefined;
+      }
+    } catch { /* le contexte est optionnel */ }
+
+    const { createMemberReport } = await import('../services/moderation/reportService.js');
+    const { describeReportError } = await import('../commands/moderation/report.js');
+    const result = await createMemberReport({
+      client,
+      guild: interaction.guild!,
+      reporter: interaction.user,
+      targetId,
+      reason,
+      channelId,
+      messageId,
+      messageContent,
+    });
+
+    if (!result.ok) {
+      await interaction.editReply({ content: `❌ ${describeReportError(result)}` });
+    } else {
+      await interaction.editReply({ content: '✅ Signalement envoyé au staff. Merci de contribuer à la sécurité du serveur. 🙏' });
+    }
     return;
   }
 
