@@ -945,6 +945,22 @@ export async function handleMembersRoutes(
               joinedAt: true,
             },
           });
+          const inviterIds = inviterUsage
+            .map((entry) => entry.inviterId)
+            .filter((id): id is string => !!id);
+          const inviterProfiles = inviterIds.length > 0
+            ? await prisma.memberProfile.findMany({
+                where: { guildId, userId: { in: inviterIds } },
+                select: { userId: true, avatarUrl: true },
+              })
+            : [];
+          const inviterAvatarMap = new Map(
+            inviterProfiles.map((profile) => [profile.userId, profile.avatarUrl])
+          );
+          const enrichedInviterUsage = inviterUsage.map((entry) => ({
+            ...entry,
+            avatarUrl: entry.inviterId ? inviterAvatarMap.get(entry.inviterId) ?? null : null,
+          }));
           const totalJoined = await prisma.memberInvite.count({
             where: { guildId },
           });
@@ -956,7 +972,7 @@ export async function handleMembersRoutes(
             invitations,
             suspendedInviters,
             inviteUsage,
-            inviterUsage,
+            inviterUsage: enrichedInviterUsage,
             summary: { totalJoined, totalLeft },
           });
         } catch (err) {
