@@ -42,12 +42,12 @@ class AuthStore {
                 if (response.ok) {
                     const data = await response.json();
                     this.user = data.user;
-                    // Fetch user details and accessible guilds before marking the session as authenticated.
-                    // This avoids race conditions where mounted pages/effects try to request authenticated APIs.
-                    await Promise.all([this.fetchUser(), this.fetchGuilds()]);
                     if (this.user) {
+                        // Mark authenticated as soon as the session is confirmed valid, so UI
+                        // relying on isAuthenticated doesn't wait on the slower user/guilds calls.
                         this.token = 'cookie-session';
                     }
+                    await Promise.all([this.fetchUser(), this.fetchGuilds()]);
                 } else {
                     this.clearLocalSession();
                 }
