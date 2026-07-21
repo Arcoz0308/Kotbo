@@ -6,6 +6,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import { brandingStore } from '../lib/stores/branding.svelte';
   import PrivacyNotice from '../lib/components/PrivacyNotice.svelte';
+  import { m } from '../lib/i18n';
 
   let errorMessage = $state(null);
   const oauthLoginUrl = `${API_BASE_URL || ''}/api/auth/discord/login`;
@@ -18,8 +19,8 @@
       const contentType = response.headers.get('content-type') ?? '';
       if (!contentType.includes('application/json')) {
         errorMessage = API_BASE_URL
-          ? `Configuration API invalide: ${API_BASE_URL}/api/config ne renvoie pas du JSON.`
-          : 'Configuration API invalide: /api/config renvoie du HTML. Configurez VITE_API_URL vers votre backend.';
+          ? m.login_api_config_invalid_url({ url: API_BASE_URL })
+          : m.login_api_config_invalid();
         return;
       }
 
@@ -27,7 +28,7 @@
 
       if (!response.ok) {
         if (data?.missing?.length) {
-          errorMessage = `Configuration OAuth invalide côté serveur: ${data.missing.join(', ')}`;
+          errorMessage = m.login_oauth_invalid({ missing: data.missing.join(', ') });
         } else if (data?.error) {
           errorMessage = data.error;
         }
@@ -35,8 +36,8 @@
       }
     } catch {
       errorMessage = API_BASE_URL
-        ? `Impossible de joindre l'API de configuration: ${API_BASE_URL}/api/config`
-        : 'Impossible de joindre /api/config. Configurez VITE_API_URL vers le backend.';
+        ? m.login_api_unreachable_url({ url: API_BASE_URL })
+        : m.login_api_unreachable();
     }
   }
 
@@ -61,11 +62,11 @@
     const errorParam = urlParams.get('error');
     if (errorParam) {
       if (errorParam === 'auth_failed') {
-        errorMessage = "Échec de l'authentification avec Discord. Veuillez réessayer.";
+        errorMessage = m.login_auth_failed();
       } else if (errorParam === 'no_code') {
-        errorMessage = "Le code d'autorisation Discord est manquant.";
+        errorMessage = m.login_no_code();
       } else {
-        errorMessage = "Une erreur inattendue est survenue lors de la connexion.";
+        errorMessage = m.login_unexpected_error();
       }
 
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -87,7 +88,7 @@
 
       <div class="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        <span class="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">En ligne</span>
+        <span class="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">{m.login_online()}</span>
       </div>
     </nav>
   </header>
@@ -101,9 +102,9 @@
           <img src={brandingStore.logoUrl || '/favicon.svg'} alt="{brandingStore.brandName} Logo" class="w-16 h-16 mx-auto rounded-xl" />
         </div>
 
-        <h1 class="text-xl font-semibold text-on-surface mb-1">Connexion au Dashboard</h1>
+        <h1 class="text-xl font-semibold text-on-surface mb-1">{m.login_title()}</h1>
         <p class="text-sm text-on-surface-variant mb-6">
-          Connectez-vous avec Discord pour accéder à votre espace de gestion.
+          {m.login_subtitle()}
         </p>
 
         {#if errorMessage}
@@ -120,20 +121,20 @@
           class="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 bg-primary text-on-primary rounded-lg font-medium text-sm hover:opacity-90 transition-opacity"
         >
           <Papicon icon="discord" size={18} />
-          Se connecter avec Discord
+          {m.login_with_discord()}
         </button>
 
         <div class="mt-4 text-left">
-          <PrivacyNotice compact text="La connexion transmet à Kotbo votre identifiant, nom, avatar et liste de serveurs Discord afin de vérifier vos accès. " />
+          <PrivacyNotice compact text={m.login_privacy_notice()} />
         </div>
 
         <div class="mt-6 pt-5 border-t border-outline-variant grid grid-cols-3 gap-3">
           <div class="text-center">
-            <span class="text-[10px] text-on-surface-variant block">Protocole</span>
+            <span class="text-[10px] text-on-surface-variant block">{m.login_protocol()}</span>
             <span class="text-[11px] font-medium text-on-surface">OAuth 2.0</span>
           </div>
           <div class="text-center border-x border-outline-variant">
-            <span class="text-[10px] text-on-surface-variant block">Sécurité</span>
+            <span class="text-[10px] text-on-surface-variant block">{m.login_security()}</span>
             <span class="text-[11px] font-medium text-on-surface">AES-256</span>
           </div>
           <div class="text-center">

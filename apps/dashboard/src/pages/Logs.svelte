@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m, dateLocale } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -168,7 +169,7 @@
   let selectedCaseData = $state<any>(null);
   let selectedCaseLoading = $state(false);
   let selectedCaseError = $state('');
-  let memberActionReason = $state('Action lancée depuis le profil membre.');
+  let memberActionReason = $state(m.lg_member_action_reason());
   let memberActionDuration = $state('30m');
   let memberActionBusy = $state(false);
   let memberActionFeedback = $state('');
@@ -195,50 +196,50 @@
       label: 'Messages',
       icon: 'Chat',
       events: [
-        { type: 'message_delete', label: 'Message supprimé', desc: 'Lorsqu’un message est effacé d’un salon.' },
-        { type: 'message_edit', label: 'Message modifié', desc: 'Lorsqu’un utilisateur édite son message.' },
-        { type: 'message_bulk_delete', label: 'Suppression en masse', desc: 'Lorsqu’un modérateur purge plusieurs messages.' }
+        { type: 'message_delete', label: m.lg_ev_message_delete(), desc: m.lg_ev_message_delete_d() },
+        { type: 'message_edit', label: m.lg_ev_message_edit(), desc: m.lg_ev_message_edit_d() },
+        { type: 'message_bulk_delete', label: m.lg_ev_bulk_delete(), desc: m.lg_ev_bulk_delete_d() }
       ]
     },
     {
       id: 'members',
-      label: 'Membres',
+      label: m.lg_cat_members(),
       icon: 'Users',
       events: [
-        { type: 'member_join', label: 'Arrivée de membre', desc: 'Lorsqu’un utilisateur rejoint le serveur.' },
-        { type: 'member_leave', label: 'Départ de membre', desc: 'Lorsqu’un utilisateur quitte ou est expulsé.' },
-        { type: 'member_roles_update', label: 'Rôles modifiés', desc: 'Lorsqu’un membre reçoit ou perd des rôles.' },
-        { type: 'member_timeout', label: 'Timeout de membre', desc: 'Lorsqu’un membre reçoit/perd une exclusion.' }
+        { type: 'member_join', label: m.lg_ev_member_join(), desc: m.lg_ev_member_join_d() },
+        { type: 'member_leave', label: m.lg_ev_member_leave(), desc: m.lg_ev_member_leave_d() },
+        { type: 'member_roles_update', label: m.lg_ev_roles_update(), desc: m.lg_ev_roles_update_d() },
+        { type: 'member_timeout', label: m.lg_ev_member_timeout(), desc: m.lg_ev_member_timeout_d() }
       ]
     },
     {
       id: 'moderation',
-      label: 'Modération',
+      label: m.lg_cat_moderation(),
       icon: 'Shield',
       events: [
-        { type: 'moderation_kick', label: 'Expulsion (Kick)', desc: 'Lorsqu’un modérateur exclut un membre.' },
-        { type: 'moderation_ban', label: 'Bannissement', desc: 'Lorsqu’un membre est banni.' },
-        { type: 'moderation_unban', label: 'Débannissement', desc: 'Lorsqu’un membre est débanni.' },
-        { type: 'moderation_timeout', label: 'Timeout (Audit)', desc: 'Exclusion temporaire enregistrée dans l’audit log.' }
+        { type: 'moderation_kick', label: m.lg_ev_kick(), desc: m.lg_ev_kick_d() },
+        { type: 'moderation_ban', label: m.lg_ev_ban(), desc: m.lg_ev_ban_d() },
+        { type: 'moderation_unban', label: m.lg_ev_unban(), desc: m.lg_ev_unban_d() },
+        { type: 'moderation_timeout', label: 'Timeout (Audit)', desc: m.lg_ev_timeout_audit_d() }
       ]
     },
     {
       id: 'voice',
-      label: 'Vocaux',
+      label: m.lg_cat_voice(),
       icon: 'Microphone',
       events: [
-        { type: 'voice_join', label: 'Connexion vocale', desc: 'Connexion à un salon vocal.' },
-        { type: 'voice_leave', label: 'Déconnexion vocale', desc: 'Déconnexion d’un salon vocal.' },
-        { type: 'voice_move', label: 'Changement de salon', desc: 'Déplacement entre salons vocaux.' }
+        { type: 'voice_join', label: m.lg_ev_voice_join(), desc: m.lg_ev_voice_join_d() },
+        { type: 'voice_leave', label: m.lg_ev_voice_leave(), desc: m.lg_ev_voice_leave_d() },
+        { type: 'voice_move', label: m.lg_ev_voice_move(), desc: m.lg_ev_voice_move_d() }
       ]
     },
     {
       id: 'lifecycle',
-      label: 'Salons & Rôles',
+      label: m.lg_cat_lifecycle(),
       icon: 'Folder',
       events: [
-        { type: 'channel_lifecycle', label: 'Salons', desc: 'Création, modification ou suppression d’un salon.' },
-        { type: 'role_lifecycle', label: 'Rôles', desc: 'Création, modification ou suppression d’un rôle.' }
+        { type: 'channel_lifecycle', label: m.lg_ev_channel_lifecycle(), desc: m.lg_ev_channel_lifecycle_d() },
+        { type: 'role_lifecycle', label: m.lg_ev_role_lifecycle(), desc: m.lg_ev_role_lifecycle_d() }
       ]
     }
   ];
@@ -256,7 +257,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'Logs & Activités',
+          label: m.lg_page_title(),
           onSave: () => handleSaveEventConfigs(),
           onReset: () => {
             eventConfigs = JSON.parse(JSON.stringify(savedEventConfigs));
@@ -265,7 +266,7 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Logs & Activités') {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.lg_page_title()) {
           unsavedChanges.clear();
         }
       });
@@ -273,7 +274,7 @@
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Logs & Activités') {
+    if (unsavedChanges.pageLabel === m.lg_page_title()) {
       unsavedChanges.clear();
     }
   });
@@ -299,11 +300,11 @@
     let success = false;
     await saveAction.run(async () => {
       const ok = await updateLogEventConfigs(eventConfigs);
-      if (!ok) throw new Error('Erreur API');
+      if (!ok) throw new Error(m.sc_api_error());
       savedEventConfigs = JSON.parse(JSON.stringify(eventConfigs));
       success = true;
       return true;
-    }, { successMessage: 'Configurations des événements enregistrées avec succès.' });
+    }, { successMessage: m.lg_events_saved() });
     return success;
   }
 
@@ -312,10 +313,10 @@
     
     await saveAction.run(async () => {
       const ok = await updateFeatureConfiguration('logs', { [key]: value });
-      if (!ok) throw new Error('Erreur API');
+      if (!ok) throw new Error(m.sc_api_error());
       logsConfig[key] = value;
       return true;
-    }, { successMessage: 'Configuration mise à jour.' });
+    }, { successMessage: m.sc_config_updated() });
   }
 
   async function handleLogChannelChange() {
@@ -323,7 +324,7 @@
     
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings({ logChannelId: channelId });
-      if (!ok) throw new Error('Erreur API');
+      if (!ok) throw new Error(m.sc_api_error());
       
       // Also update the feature config channelId if logsConfig exists
       if (logsConfig) {
@@ -333,7 +334,7 @@
 
       await dashboardStore.refresh();
       return true;
-    }, { successMessage: 'Salon de logs mis à jour.' });
+    }, { successMessage: m.lg_log_channel_updated() });
   }
 
   // Filter to only Discord logs
@@ -362,7 +363,7 @@
     return value
       .replace(/<#(\d{15,25})>/g, (_, channelId: string) => {
         const channel = dashboardStore.state.discordChannels.find((entry) => entry.id === channelId);
-        const name = channel ? channel.name : 'salon-inconnu';
+        const name = channel ? channel.name : m.lg_unknown_channel_name();
         return `<a href="https://discord.com/channels/${authStore.selectedGuildId}/${channelId}" target="_blank" class="mention-link">#${name}</a>`;
       })
       .replace(/<@&(\d{15,25})>/g, (_, roleId: string) => {
@@ -426,7 +427,7 @@
         const cleanVal = replaceEntityMentions(hideUserIds(part));
         if (cleanVal) {
           if (cleanVal.length > 50) {
-            blocks.push({ key: 'Détails', value: cleanVal });
+            blocks.push({ key: m.lg_details(), value: cleanVal });
           } else {
             badges.push({ key: null, value: cleanVal });
           }
@@ -519,28 +520,28 @@
   }
 
   function formatChannelLabel(channelId: string | null | undefined) {
-    if (!channelId) return 'Non spécifié';
+    if (!channelId) return m.lg_not_specified();
     const channel = dashboardStore.state.discordChannels.find((item) => item.id === channelId);
-    if (!channel) return 'Canal inconnu';
+    if (!channel) return m.lg_unknown_channel();
     return channelDisplayName(channel);
   }
 
   function formatDateTime(value: string | null | undefined) {
-    if (!value) return 'Inconnu';
-    return new Date(value).toLocaleString('fr-FR');
+    if (!value) return m.pf_unknown();
+    return new Date(value).toLocaleString(dateLocale());
   }
 
   function formatDurationFromSeconds(seconds: number | null | undefined) {
-    if (!seconds || seconds <= 0) return '0 seconde';
+    if (!seconds || seconds <= 0) return m.lg_zero_second();
     const totalSeconds = Math.floor(seconds);
     const days = Math.floor(totalSeconds / 86400);
     const hours = Math.floor((totalSeconds % 86400) / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const parts: string[] = [];
-    if (days) parts.push(`${days} jour${days > 1 ? 's' : ''}`);
-    if (hours) parts.push(`${hours} heure${hours > 1 ? 's' : ''}`);
-    if (minutes) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
-    if (parts.length === 0) parts.push(`${totalSeconds} seconde${totalSeconds > 1 ? 's' : ''}`);
+    if (days) parts.push(m.lg_days_unit({ n: days }));
+    if (hours) parts.push(m.lg_hours_unit({ n: hours }));
+    if (minutes) parts.push(m.lg_minutes_unit({ n: minutes }));
+    if (parts.length === 0) parts.push(m.lg_seconds_unit({ n: totalSeconds }));
     return parts.join(' ');
   }
 
@@ -587,7 +588,7 @@
     try {
       selectedCaseData = await fetchMemberCase(userId);
     } catch (error) {
-      selectedCaseError = error instanceof Error ? error.message : 'Impossible de charger le profil membre.';
+      selectedCaseError = error instanceof Error ? error.message : m.sc_member_load_error();
       selectedCaseData = null;
     } finally {
       selectedCaseLoading = false;
@@ -598,11 +599,11 @@
     if (!selectedCaseUser?.id) return;
     const userId = selectedCaseUser.id;
 
-    const reason = memberActionReason.trim() || 'Action lancée depuis le profil membre.';
+    const reason = memberActionReason.trim() || m.lg_member_action_reason();
     const durationMs = action === 'TIMEOUT' ? parseDurationToMs(memberActionDuration) : null;
 
     if (action === 'TIMEOUT' && !durationMs) {
-      memberActionFeedback = 'La durée du timeout est invalide.';
+      memberActionFeedback = m.lg_invalid_timeout();
       memberActionIsError = true;
       return;
     }
@@ -613,11 +614,11 @@
 
     try {
       await runMemberCaseAction(userId, action, { reason, durationMs: durationMs ?? undefined });
-      memberActionFeedback = 'Action appliquée avec succès.';
+      memberActionFeedback = m.sc_action_applied();
       await loadMemberCase(userId);
     } catch (error) {
       memberActionIsError = true;
-      memberActionFeedback = error instanceof Error ? error.message : 'L’action de modération a échoué.';
+      memberActionFeedback = error instanceof Error ? error.message : m.sc_action_failed();
     } finally {
       memberActionBusy = false;
     }
@@ -631,7 +632,7 @@
     };
     selectedCaseData = null;
     selectedCaseError = '';
-    memberActionReason = `Action liée au log: ${entry.action}`;
+    memberActionReason = m.lg_action_from_log({ action: entry.action });
     memberActionDuration = '30m';
     memberActionFeedback = '';
     memberActionIsError = false;
@@ -709,16 +710,16 @@
   });
 
   const stats = $derived([
-    { label: 'Événements Discord', val: discordLogs.length, sub: 'Total', subClass: 'text-blue-500' },
-    { label: 'Modules', val: new Set(discordLogs.map(l => l.module)).size, sub: 'Sources', subClass: 'text-green-600' },
-    { label: 'Utilisateurs', val: new Set(discordLogs.map(l => l.user)).size, sub: 'Unique', subClass: 'text-purple-600' }
+    { label: m.lg_discord_events(), val: discordLogs.length, sub: m.lg_total(), subClass: 'text-blue-500' },
+    { label: m.nav_modules(), val: new Set(discordLogs.map(l => l.module)).size, sub: m.lg_sources(), subClass: 'text-green-600' },
+    { label: m.lg_users(), val: new Set(discordLogs.map(l => l.user)).size, sub: m.lg_unique(), subClass: 'text-purple-600' }
   ]);
 </script>
 
 
 <ModulePage 
-  title="Logs & Activités" 
-  description="Consultez le journal d'activité en temps réel ou configurez précisément les salons de logs du bot." 
+  title={m.lg_page_title()}
+  description={m.lg_page_desc()}
   icon="List"
   featureKey="logs"
 >
@@ -731,7 +732,7 @@
           onclick={() => gotoTab('/logs', 'logs', 'logs')}
           class="tab-button {activeTab === 'logs' ? 'active' : ''}"
         >
-          Journal
+          {m.lg_tab_journal()}
         </button>
         {#if canManageSettings}
           <button
@@ -764,12 +765,12 @@
           <Papicon icon="Settings" size={24} />
         </div>
         <div>
-          <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Salon par défaut</h3>
-          <p class="text-xs text-on-surface-variant/70 mt-1">Définissez le salon de logs général pour tous les événements sans salon spécifique.</p>
+          <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.lg_default_channel()}</h3>
+          <p class="text-xs text-on-surface-variant/70 mt-1">{m.lg_default_channel_desc()}</p>
         </div>
       </div>
       <div class="w-full md:w-72">
-        <SearchableSelect bind:value={selectedLogChannelId} on:change={() => handleLogChannelChange()} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+        <SearchableSelect bind:value={selectedLogChannelId} on:change={() => handleLogChannelChange()} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.lg_select_channel_ph()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
       </div>
     </div>
 
@@ -788,8 +789,8 @@
 
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-xs font-medium text-on-surface">Suivi d'activité</p>
-          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Tracking des actions</p>
+          <p class="text-xs font-medium text-on-surface">{m.lg_activity_tracking()}</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_tracking_desc()}</p>
         </div>
         <ToggleSwitch 
           checked={logsConfig?.userActivityTracking ?? true} 
@@ -800,8 +801,8 @@
 
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-xs font-medium text-on-surface">Notifs Salon</p>
-          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Alertes dans le salon logs</p>
+          <p class="text-xs font-medium text-on-surface">{m.lg_channel_notifs()}</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_channel_notifs_desc()}</p>
         </div>
         <ToggleSwitch 
           checked={logsConfig?.notifyViaDiscordChannel ?? true} 
@@ -813,7 +814,7 @@
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
           <p class="text-xs font-medium text-on-surface">Notifs MP</p>
-          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Alertes staff par MP</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_dm_notifs_desc()}</p>
         </div>
         <ToggleSwitch 
           checked={logsConfig?.notifyViaDM ?? false} 
@@ -837,8 +838,8 @@
   <div class="space-y-6">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <h4 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Configuration par événement</h4>
-        <p class="text-xs text-on-surface-variant/60 mt-1">Personnalisez précisément l'activation et le salon cible pour chaque événement, comme sur MEE6.</p>
+        <h4 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.lg_per_event_config()}</h4>
+        <p class="text-xs text-on-surface-variant/60 mt-1">{m.lg_per_event_desc()}</p>
       </div>
     </div>
 
@@ -857,7 +858,7 @@
             </div>
             <div>
               <h5 class="text-[13px] font-medium text-on-surface">{cat.label}</h5>
-              <p class="text-[10px] text-on-surface-variant/60">Gérer les alertes de cette catégorie</p>
+              <p class="text-[10px] text-on-surface-variant/60">{m.lg_manage_category_alerts()}</p>
             </div>
           </div>
 
@@ -882,13 +883,13 @@
 
                   {#if eventConfigs[confIdx].enabled}
                     <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
-                      <label for="select-{ev.type}" class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Salon de destination</label>
+                      <label for="select-{ev.type}" class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lg_dest_channel()}</label>
                       <select
                         id="select-{ev.type}"
                         bind:value={eventConfigs[confIdx].channelId}
                         class="w-full bg-surface-container-high/40 text-xs px-3 py-2 rounded-xl border border-outline-variant/10 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
                       >
-                        <option value={null}>Salon de logs par défaut</option>
+                        <option value={null}>{m.lg_default_log_channel()}</option>
                         {#each dashboardStore.state.discordChannels as c}
                           <option value={c.id}>#{c.name}</option>
                         {/each}
@@ -912,28 +913,28 @@
   <div class="bg-surface-container-low/20 p-6 rounded-xl border border-outline-variant/5 space-y-4">
     <div class="flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
       <div class="space-y-2 w-full lg:max-w-2xl">
-        <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">Recherche rapide</label>
+        <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">{m.lg_quick_search()}</label>
         <div class="relative">
           <Papicon icon="search" size={18} class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <FormInput
             id="search"
             type="text"
             bind:value={searchQuery}
-            placeholder="Rechercher par action, détails, module ou utilisateur..."
+            placeholder={m.lg_search_ph()}
             className="w-full pl-11 pr-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
           />
         </div>
       </div>
 
       <div class="flex items-center gap-3 self-end lg:self-center">
-        <span class="text-xs font-bold text-on-surface-variant bg-surface-container-high/40 px-3 py-1.5 rounded-full">{filteredLogs.length} / {discordLogs.length} événements</span>
+        <span class="text-xs font-bold text-on-surface-variant bg-surface-container-high/40 px-3 py-1.5 rounded-full">{m.lg_events_count({ a: filteredLogs.length, b: discordLogs.length })}</span>
         {#if hasActiveFiltersOrSort}
           <button
             type="button"
             onclick={resetFiltersAndSort}
             class="text-xs font-semibold text-primary hover:underline transition"
           >
-            Réinitialiser
+            {m.common_reset()}
           </button>
         {/if}
       </div>
@@ -955,7 +956,7 @@
             </th>
             <th class="px-6 py-5">
               <ColumnSortFilter
-                label="Acteur"
+                label={m.lg_col_actor()}
                 sortDirection={sortDirectionFor('user')}
                 onToggleSort={() => toggleSort('user')}
                 options={userFilterOptions}
@@ -966,7 +967,7 @@
             </th>
             <th class="px-6 py-5">
               <ColumnSortFilter
-                label="Salon"
+                label={m.lg_col_channel()}
                 options={channelFilterOptions}
                 selectedValues={filters.channels}
                 onToggleValue={(value) => toggleFilter('channels', value)}
@@ -975,7 +976,7 @@
             </th>
             <th class="px-6 py-5">
               <ColumnSortFilter
-                label="Catégorie"
+                label={m.lg_col_category()}
                 sortDirection={sortDirectionFor('module')}
                 onToggleSort={() => toggleSort('module')}
                 options={moduleFilterOptions}
@@ -994,7 +995,7 @@
                 searchable={true}
               />
             </th>
-            <th class="px-6 py-5 text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Description des Détails</th>
+            <th class="px-6 py-5 text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.lg_col_details()}</th>
             <th class="px-6 py-5">
               <div class="flex justify-center">
                 <ColumnSortFilter
@@ -1024,7 +1025,7 @@
                   type="button"
                   onclick={() => openCaseModal(entry)}
                   class="inline-flex max-w-40 truncate rounded-full border border-outline-variant/10 bg-surface-container-high/40 px-3 py-1 text-[11px] font-bold text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all"
-                  title="Ouvrir le casier"
+                  title={m.lg_open_case()}
                 >
                   {displayUser(entry)}
                 </button>
@@ -1080,8 +1081,8 @@
               <td colspan="7" class="px-6 py-20 text-center text-on-surface-variant opacity-60">
                 <div class="flex flex-col items-center justify-center">
                   <Papicon icon="Info" size={40} class="mb-3 text-on-surface-variant/40" />
-                  <p class="text-sm font-bold">Aucun événement trouvé</p>
-                  <p class="text-xs text-on-surface-variant/60 mt-1">Essayez de modifier vos filtres de recherche.</p>
+                  <p class="text-sm font-bold">{m.lg_no_events()}</p>
+                  <p class="text-xs text-on-surface-variant/60 mt-1">{m.lg_no_events_hint()}</p>
                 </div>
               </td>
             </tr>
@@ -1121,7 +1122,7 @@
     onAction={executeMemberAction}
     onClose={closeCaseModal}
     onSelectUser={(userId) => {
-      selectedCaseUser = { name: 'Chargement...', id: userId };
+      selectedCaseUser = { name: m.common_loading(), id: userId };
       void loadMemberCase(userId);
     }}
   />
