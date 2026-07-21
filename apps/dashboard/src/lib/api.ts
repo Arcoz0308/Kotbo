@@ -1554,6 +1554,15 @@ export async function toggleInvitationSuspension(code: string, suspended: boolea
   });
 }
 
+export async function updateInvitationSource(code: string, sourceLabel: string | null, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/invitations/${code}/source`, {
+    method: 'PUT',
+    payload: { sourceLabel },
+    guildId,
+    errorContext: 'Error updating invitation source'
+  });
+}
+
 export async function deleteInvitation(code: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/invitations/${code}`, {
     method: 'DELETE',

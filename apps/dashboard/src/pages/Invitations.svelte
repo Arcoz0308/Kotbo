@@ -12,6 +12,7 @@
   import { inviteDetailsModal } from '../lib/stores/inviteDetailsModal.svelte';
   import {
     fetchInvitations,
+    updateInvitationSource,
     toggleInvitationSuspension,
     deleteInvitation,
     purgeInvitationMembers,
@@ -23,7 +24,7 @@
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
 
   type InviteStatus = 'active' | 'suspended' | 'deleted' | 'expired';
-  type Tab = 'invites' | 'top' | 'suspensions';
+  type Tab = 'invites' | 'sources' | 'top' | 'suspensions';
 
   let invitations = $state<any[]>([]);
   let inviteUsage = $state<any[]>([]);
@@ -34,7 +35,7 @@
   let loading = $state(false);
   let error = $state('');
 
-  const inviteTabs = ['invites', 'top', 'suspensions'] as const;
+  const inviteTabs = ['invites', 'sources', 'top', 'suspensions'] as const;
   let activeTab = $state<Tab>('invites');
 
   $effect(() => {
@@ -52,14 +53,22 @@
   let suspendCascade = $state(false);
   let actionMenuOpen = $state<string | null>(null);
   let actionMenuPosition = $state({ x: 0, y: 0 });
+  let editingSourceCode = $state<string | null>(null);
+  let sourceDraft = $state('');
+  let savingSource = $state(false);
 
 
   const canModerate = $derived(
     !!dashboardStore.state.access?.canModerateContent
   );
+  const canManageInvites = $derived(
+    !!dashboardStore.state.access?.canModerateContent
+      || !!dashboardStore.state.access?.canManageSettings
+  );
 
   const tabs = $derived([
     { id: 'invites' as Tab, label: 'Invitations', icon: 'MailOpen', count: totalInvites },
+    { id: 'sources' as Tab, label: 'Provenances', icon: 'Tags', count: sourceStats.length },
     { id: 'top' as Tab, label: 'Top créateurs', icon: 'Crown', count: topInviters.length },
     { id: 'suspensions' as Tab, label: 'Suspensions', icon: 'UserX', count: suspendedInviters.length },
   ]);
@@ -103,6 +112,7 @@
     const base = invitesWithStats.filter((invite) => {
       const matchesQuery = !query
         || invite.code?.toLowerCase().includes(query)
+        || invite.sourceLabel?.toLowerCase().includes(query)
         || invite.inviterTag?.toLowerCase().includes(query)
         || invite.inviterId?.toLowerCase().includes(query);
 
@@ -136,6 +146,36 @@
       .slice(0, 6);
   });
 
+  const sourceStats = $derived.by(() => {
+    const sources = new Map<string, {
+      name: string;
+      invites: any[];
+      joinedCount: number;
+      leftCount: number;
+    }>();
+
+    for (const invite of invitesWithStats) {
+      const name = invite.sourceLabel?.trim();
+      if (!name) continue;
+      const key = name.toLocaleLowerCase('fr-FR');
+      const current = sources.get(key) ?? { name, invites: [], joinedCount: 0, leftCount: 0 };
+      current.invites.push(invite);
+      current.joinedCount += invite.joinedCount ?? 0;
+      current.leftCount += invite.leftCount ?? 0;
+      sources.set(key, current);
+    }
+
+    return [...sources.values()]
+      .map((source) => ({
+        ...source,
+        stayedCount: source.joinedCount - source.leftCount,
+        retention: source.joinedCount > 0
+          ? Math.round(((source.joinedCount - source.leftCount) / source.joinedCount) * 100)
+          : 0,
+      }))
+      .sort((a, b) => b.joinedCount - a.joinedCount || a.name.localeCompare(b.name, 'fr'));
+  });
+
   const totalInvites = $derived(invitations.length);
   const totalSuspended = $derived(invitations.filter((inv) => inv.isSuspended).length);
   const totalDeleted = $derived(invitations.filter((inv) => inv.isDeleted).length);
@@ -143,6 +183,12 @@
   const totalJoins = $derived(summary.totalJoined || 0);
   const totalLeft = $derived(summary.totalLeft || 0);
   const retentionRate = $derived(totalJoins > 0 ? Math.round(((totalJoins - totalLeft) / totalJoins) * 100) : 0);
+  const trackedInvites = $derived(invitesWithStats.filter((invite) => !!invite.sourceLabel?.trim()).length);
+  const untrackedInvites = $derived(totalInvites - trackedInvites);
+  const trackedJoins = $derived(sourceStats.reduce((total, source) => total + source.joinedCount, 0));
+  const sourceCoverage = $derived(totalJoins > 0 ? Math.round((trackedJoins / totalJoins) * 100) : 0);
+  const leadingSource = $derived(sourceStats[0] ?? null);
+  const editingInvite = $derived(invitesWithStats.find((invite) => invite.code === editingSourceCode) ?? null);
 
 
   onMount(async () => {
@@ -279,6 +325,41 @@
     }
   }
 
+  function beginSourceEdit(invite: any) {
+    if (!canManageInvites) return;
+    editingSourceCode = invite.code;
+    sourceDraft = invite.sourceLabel || '';
+    actionMenuOpen = null;
+  }
+
+  function cancelSourceEdit() {
+    editingSourceCode = null;
+    sourceDraft = '';
+  }
+
+  async function saveSource(invite: any) {
+    if (!canManageInvites || savingSource) return;
+    const nextSource = sourceDraft.trim();
+    if (nextSource.length > 60) {
+      toast.warning('Le nom de provenance est limité à 60 caractères.');
+      return;
+    }
+
+    savingSource = true;
+    try {
+      await updateInvitationSource(invite.code, nextSource || null);
+      invitations = invitations.map((item) => item.code === invite.code
+        ? { ...item, sourceLabel: nextSource || null }
+        : item);
+      toast.success(nextSource ? `Provenance « ${nextSource} » enregistrée.` : 'Provenance retirée.');
+      cancelSourceEdit();
+    } catch (err: any) {
+      toast.error(err?.message || 'Erreur lors de la modification de la provenance.');
+    } finally {
+      savingSource = false;
+    }
+  }
+
   function toggleActionMenu(inviteCode: string, event: MouseEvent) {
     event.stopPropagation();
     if (actionMenuOpen === inviteCode) {
@@ -308,6 +389,7 @@
 
     const header = [
       'code',
+      'provenance',
       'inviter',
       'createdAt',
       'uses',
@@ -322,6 +404,7 @@
       const status = getStatusLabel(getInviteStatus(invite));
       return [
         invite.code,
+        invite.sourceLabel || '',
         invite.inviterTag || invite.inviterId || 'Inconnu',
         invite.createdAt ? new Date(invite.createdAt).toISOString() : '',
         invite.uses ?? 0,
@@ -401,7 +484,7 @@
 
 <ModulePage
   title="Invitations"
-  description="Analysez les invitations, suspendez les codes et purgez en cascade les arrivées liées."
+  description="Nommez vos liens par provenance et mesurez les canaux qui recrutent le mieux."
   icon="MailOpen"
   featureKey="members"
 >
@@ -438,12 +521,12 @@
           <p class="text-2xl font-semibold text-primary">{totalInvites}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Suspendues</p>
-          <p class="text-2xl font-semibold text-amber-500">{totalSuspended}</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Provenances</p>
+          <p class="text-2xl font-semibold text-cyan-500">{sourceStats.length}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Expirées</p>
-          <p class="text-2xl font-semibold text-slate-500">{totalExpired}</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Joins attribués</p>
+          <p class="text-2xl font-semibold text-primary">{sourceCoverage}%</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
           <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Total joins</p>
@@ -536,6 +619,7 @@
               <thead>
                 <tr class="text-left text-xs font-medium text-on-surface-variant/50 border-b border-outline-variant/10">
                   <th class="pb-3 pr-4">Code</th>
+                  <th class="pb-3 pr-4">Provenance</th>
                   <th class="pb-3 pr-4">Créateur</th>
                   <th class="pb-3 pr-4">Statut</th>
                   <th class="pb-3 pr-4 text-right">Joins</th>
@@ -551,6 +635,40 @@
                   <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/20 transition-colors">
                     <td class="py-3 pr-4">
                       <code class="text-xs font-semibold text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-2 py-1 rounded-lg">{invite.code}</code>
+                    </td>
+                    <td class="py-3 pr-4 min-w-[180px]">
+                      {#if editingSourceCode === invite.code}
+                        <div class="flex items-center gap-1.5">
+                          <input
+                            bind:value={sourceDraft}
+                            maxlength="60"
+                            placeholder="TikTok, Instagram…"
+                            aria-label="Nom de la provenance"
+                            class="w-36 px-2.5 py-1.5 rounded-lg bg-surface-container-high/50 border border-primary/40 text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                            onkeydown={(event) => {
+                              if (event.key === 'Enter') void saveSource(invite);
+                              if (event.key === 'Escape') cancelSourceEdit();
+                            }}
+                          />
+                          <button type="button" title="Enregistrer" disabled={savingSource} class="source-icon-button text-emerald-500" onclick={() => saveSource(invite)}>
+                            <Papicon icon="Check" size={14} />
+                          </button>
+                          <button type="button" title="Annuler" class="source-icon-button text-on-surface-variant" onclick={cancelSourceEdit}>
+                            <Papicon icon="X" size={14} />
+                          </button>
+                        </div>
+                      {:else if invite.sourceLabel}
+                        <button type="button" class="source-chip" disabled={!canManageInvites} onclick={() => beginSourceEdit(invite)}>
+                          <span class="h-1.5 w-1.5 rounded-full bg-cyan-500"></span>
+                          {invite.sourceLabel}
+                        </button>
+                      {:else if canManageInvites}
+                        <button type="button" class="text-[11px] font-semibold text-on-surface-variant/50 hover:text-primary transition-colors inline-flex items-center gap-1" onclick={() => beginSourceEdit(invite)}>
+                          <Papicon icon="Plus" size={13} /> Nommer
+                        </button>
+                      {:else}
+                        <span class="text-xs text-on-surface-variant/30">Non attribuée</span>
+                      {/if}
                     </td>
                     <td class="py-3 pr-4">
                       <div class="flex flex-col">
@@ -608,6 +726,15 @@
                               <Papicon icon="Copy" size={14} />
                               Copier le lien
                             </button>
+                            {#if canManageInvites}
+                              <button
+                                class="w-full px-3 py-2 text-left text-xs font-bold hover:bg-surface-container-high/50 flex items-center gap-2 transition-colors"
+                                onclick={() => beginSourceEdit(invite)}
+                              >
+                                <Papicon icon="Tag" size={14} />
+                                {invite.sourceLabel ? 'Renommer la source' : 'Nommer la source'}
+                              </button>
+                            {/if}
                             {#if canModerate}
                               <div class="border-t border-outline-variant/10"></div>
                               <button
@@ -647,6 +774,134 @@
             {/if}
           {/if}
         </div>
+      </div>
+    {:else if activeTab === 'sources'}
+      <div class="space-y-5">
+        <section class="source-overview">
+          <div class="max-w-2xl">
+            <div class="flex items-center gap-2 text-cyan-500 mb-3">
+              <Papicon icon="Route" size={18} />
+              <span class="text-[11px] font-semibold uppercase tracking-[0.18em]">Attribution des arrivées</span>
+            </div>
+            <h3 class="text-xl font-semibold text-on-surface">Quel canal fait vraiment grandir le serveur&nbsp;?</h3>
+            <p class="mt-2 text-sm text-on-surface-variant/60 leading-relaxed">
+              Donnez le même nom à plusieurs liens pour les regrouper. « TikTok », « Instagram », une campagne ou un partenaire : tout est personnalisable.
+            </p>
+          </div>
+          <div class="source-overview-metric">
+            {#if leadingSource}
+              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50">Meilleure provenance</span>
+              <strong class="text-lg text-on-surface mt-1">{leadingSource.name}</strong>
+              <span class="text-xs text-emerald-500 mt-1">{leadingSource.joinedCount} arrivée{leadingSource.joinedCount > 1 ? 's' : ''}</span>
+            {:else}
+              <span class="text-sm text-on-surface-variant/60">Nommez un premier lien pour commencer.</span>
+            {/if}
+          </div>
+        </section>
+
+        {#if editingInvite}
+          <section class="source-editor" aria-label="Modifier une provenance">
+            <div class="min-w-0">
+              <p class="text-xs font-semibold text-on-surface">Nommer <code class="text-primary">discord.gg/{editingInvite.code}</code></p>
+              <p class="text-[11px] text-on-surface-variant/50 mt-1">Réutilisez exactement le même nom pour regrouper plusieurs invitations.</p>
+            </div>
+            <div class="flex items-center gap-2 w-full md:w-auto">
+              <input
+                bind:value={sourceDraft}
+                maxlength="60"
+                placeholder="Ex. TikTok, Instagram, Partenaire Alex…"
+                aria-label="Nom de la provenance"
+                class="flex-1 md:w-72 px-3 py-2.5 rounded-xl bg-surface border border-outline-variant/30 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                onkeydown={(event) => {
+                  if (event.key === 'Enter') void saveSource(editingInvite);
+                  if (event.key === 'Escape') cancelSourceEdit();
+                }}
+              />
+              <ActionButton label={savingSource ? 'Enregistrement…' : 'Enregistrer'} icon="Check" size="md" onClick={() => saveSource(editingInvite)} disabled={savingSource} />
+              <button type="button" class="source-icon-button" title="Annuler" onclick={cancelSourceEdit}><Papicon icon="X" size={16} /></button>
+            </div>
+          </section>
+        {/if}
+
+        <section class="premium-card rounded-xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4">
+            <div>
+              <h3 class="text-sm font-semibold text-on-surface">Performance par provenance</h3>
+              <p class="text-xs text-on-surface-variant/50 mt-1">{trackedInvites} lien{trackedInvites > 1 ? 's' : ''} nommé{trackedInvites > 1 ? 's' : ''} · {trackedJoins} arrivées attribuées</p>
+            </div>
+            <span class="text-xs font-semibold text-primary">{sourceCoverage}% des joins couverts</span>
+          </div>
+
+          {#if sourceStats.length > 0}
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[720px]">
+                <thead>
+                  <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/45 border-b border-outline-variant/10">
+                    <th class="px-5 py-3">Provenance</th>
+                    <th class="px-4 py-3">Liens</th>
+                    <th class="px-4 py-3 text-right">Arrivées</th>
+                    <th class="px-4 py-3 text-right">Restants</th>
+                    <th class="px-5 py-3 text-right">Rétention</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each sourceStats as source, index}
+                    <tr class="border-b border-outline-variant/8 last:border-0 hover:bg-surface-container-high/15 transition-colors">
+                      <td class="px-5 py-4">
+                        <div class="flex items-center gap-3">
+                          <span class="source-rank">{index + 1}</span>
+                          <div class="min-w-0">
+                            <p class="font-semibold text-sm text-on-surface truncate">{source.name}</p>
+                            <div class="mt-2 h-1 w-36 rounded-full bg-surface-container-high overflow-hidden">
+                              <div class="h-full rounded-full bg-cyan-500" style={`width: ${leadingSource && leadingSource.joinedCount > 0 ? Math.max(5, Math.round((source.joinedCount / leadingSource.joinedCount) * 100)) : 0}%`}></div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="px-4 py-4">
+                        <div class="flex flex-wrap gap-1.5">
+                          {#each source.invites as invite}
+                            <button type="button" class="invite-code-chip" disabled={!canManageInvites} onclick={() => beginSourceEdit(invite)} title={canManageInvites ? `Renommer ${invite.code}` : invite.code}>{invite.code}</button>
+                          {/each}
+                        </div>
+                      </td>
+                      <td class="px-4 py-4 text-right font-semibold text-emerald-500">{source.joinedCount}</td>
+                      <td class="px-4 py-4 text-right font-semibold text-on-surface">{source.stayedCount}</td>
+                      <td class="px-5 py-4 text-right">
+                        <span class="font-semibold {source.retention >= 70 ? 'text-emerald-500' : source.retention >= 40 ? 'text-amber-500' : 'text-red-500'}">{source.retention}%</span>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {:else}
+            <div class="px-6 py-12 text-center">
+              <Papicon icon="Tags" size={30} class="mx-auto text-on-surface-variant/25" />
+              <p class="mt-3 text-sm font-semibold text-on-surface">Aucune provenance nommée</p>
+              <p class="mt-1 text-xs text-on-surface-variant/50">Attribuez vos liens ci-dessous pour faire apparaître le classement.</p>
+            </div>
+          {/if}
+        </section>
+
+        {#if untrackedInvites > 0}
+          <section class="premium-card rounded-xl px-5 py-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 class="text-sm font-semibold text-on-surface">Liens sans provenance</h3>
+                <p class="text-xs text-on-surface-variant/50 mt-1">{untrackedInvites} invitation{untrackedInvites > 1 ? 's' : ''} à attribuer pour compléter vos statistiques.</p>
+              </div>
+              <div class="flex flex-wrap gap-2 md:justify-end">
+                {#each invitesWithStats.filter((invite) => !invite.sourceLabel?.trim()) as invite}
+                  <button type="button" class="untracked-invite" disabled={!canManageInvites} onclick={() => beginSourceEdit(invite)}>
+                    <code>{invite.code}</code>
+                    {#if canManageInvites}<Papicon icon="Plus" size={13} />{/if}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          </section>
+        {/if}
       </div>
     {:else if activeTab === 'top'}
       <div class="premium-card p-6 rounded-xl space-y-4">
@@ -822,6 +1077,132 @@
     background: rgba(var(--color-surface-container-low), 0.4);
     border: 1px solid rgba(var(--color-outline-variant), 0.1);
     transition: all 0.4s cubic-bezier(0.2, 1, 0.3, 1);
+  }
+
+  .source-overview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 1.5rem;
+    border-radius: 0.875rem;
+    background:
+      radial-gradient(circle at 88% 20%, rgba(6, 182, 212, 0.12), transparent 32%),
+      rgba(var(--color-surface-container-low), 0.48);
+    border: 1px solid rgba(var(--color-outline-variant), 0.12);
+  }
+
+  .source-overview-metric {
+    display: flex;
+    flex-direction: column;
+    min-width: 12rem;
+    padding-left: 1.5rem;
+    border-left: 1px solid rgba(var(--color-outline-variant), 0.18);
+  }
+
+  .source-editor {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-radius: 0.75rem;
+    background: rgba(var(--color-primary), 0.055);
+    border: 1px solid rgba(var(--color-primary), 0.22);
+  }
+
+  .source-chip,
+  .invite-code-chip,
+  .untracked-invite {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid rgba(var(--color-outline-variant), 0.16);
+    transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+  }
+
+  .source-chip {
+    max-width: 11rem;
+    padding: 0.32rem 0.58rem;
+    border-radius: 999px;
+    background: rgba(6, 182, 212, 0.08);
+    color: rgb(8, 145, 178);
+    font-size: 0.7rem;
+    font-weight: 650;
+  }
+
+  :global(.dark) .source-chip {
+    color: rgb(103, 232, 249);
+  }
+
+  .source-chip:not(:disabled):hover,
+  .invite-code-chip:not(:disabled):hover,
+  .untracked-invite:not(:disabled):hover {
+    border-color: rgba(var(--color-primary), 0.45);
+    background: rgba(var(--color-primary), 0.1);
+    color: rgb(var(--color-primary));
+  }
+
+  .source-icon-button {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    transition: background-color 150ms ease;
+  }
+
+  .source-icon-button:hover {
+    background: rgba(var(--color-surface-container-high), 0.65);
+  }
+
+  .source-rank {
+    display: inline-flex;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    background: rgba(6, 182, 212, 0.1);
+    color: rgb(8, 145, 178);
+    font-size: 0.7rem;
+    font-weight: 750;
+  }
+
+  .invite-code-chip {
+    padding: 0.28rem 0.5rem;
+    border-radius: 0.45rem;
+    background: rgba(var(--color-surface-container-high), 0.35);
+    color: rgb(var(--color-on-surface-variant));
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem;
+  }
+
+  .untracked-invite {
+    padding: 0.45rem 0.65rem;
+    border-radius: 0.55rem;
+    background: rgba(var(--color-surface-container-high), 0.3);
+    color: rgb(var(--color-on-surface-variant));
+    font-size: 0.7rem;
+  }
+
+  @media (max-width: 767px) {
+    .source-overview,
+    .source-editor {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .source-overview-metric {
+      min-width: 0;
+      padding-top: 1rem;
+      padding-left: 0;
+      border-top: 1px solid rgba(var(--color-outline-variant), 0.18);
+      border-left: 0;
+    }
   }
 
   :global(.custom-scrollbar) {
