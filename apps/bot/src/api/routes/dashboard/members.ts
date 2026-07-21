@@ -945,6 +945,26 @@ export async function handleMembersRoutes(
               joinedAt: true,
             },
           });
+          const inviterIds = inviterUsage
+            .map((entry) => entry.inviterId)
+            .filter((id): id is string => !!id);
+          const inviterProfiles = inviterIds.length > 0
+            ? await prisma.memberProfile.findMany({
+                where: { guildId, userId: { in: inviterIds } },
+                select: { userId: true, avatarUrl: true },
+              })
+            : [];
+          const inviterAvatarMap = new Map(
+            inviterProfiles.map((profile) => [profile.userId, profile.avatarUrl])
+          );
+          const enrichedInviterUsage = inviterUsage.map((entry) => ({
+            ...entry,
+            avatarUrl: entry.inviterId
+              ? inviterAvatarMap.get(entry.inviterId)
+                ?? client.users.cache.get(entry.inviterId)?.displayAvatarURL({ size: 128 })
+                ?? null
+              : null,
+          }));
           const totalJoined = await prisma.memberInvite.count({
             where: { guildId },
           });
@@ -956,7 +976,7 @@ export async function handleMembersRoutes(
             invitations,
             suspendedInviters,
             inviteUsage,
-            inviterUsage,
+            inviterUsage: enrichedInviterUsage,
             summary: { totalJoined, totalLeft },
           });
         } catch (err) {
@@ -1154,6 +1174,7 @@ export async function handleMembersRoutes(
 
     // Detail and other actions on single invite codes:
     // GET /api/dashboard/guilds/:guildId/invitations/:code
+    // PUT /api/dashboard/guilds/:guildId/invitations/:code/source
     // PUT /api/dashboard/guilds/:guildId/invitations/:code/suspend
     // DELETE /api/dashboard/guilds/:guildId/invitations/:code
     // POST /api/dashboard/guilds/:guildId/invitations/:code/purge
@@ -1247,6 +1268,52 @@ export async function handleMembersRoutes(
         } catch (err) {
           logger.error('InvitationsAPI', `Error fetching invite details for ${code}:`, err);
           json(res, 500, { error: "Erreur lors de la récupération des détails de l'invitation" });
+        }
+        return true;
+      }
+
+      // PUT /api/dashboard/guilds/:guildId/invitations/:code/source
+      if (method === 'PUT' && parts[6] === 'source' && !parts[7]) {
+        try {
+          const body = await readJsonBody<{ sourceLabel?: string | null }>(req);
+          if (!body || (body.sourceLabel !== null && typeof body.sourceLabel !== 'string')) {
+            json(res, 400, { error: 'Nom de provenance invalide' });
+            return true;
+          }
+
+          const sourceLabel = body.sourceLabel?.trim() || null;
+          if (sourceLabel && sourceLabel.length > 60) {
+            json(res, 400, { error: 'Le nom de provenance est limité à 60 caractères' });
+            return true;
+          }
+
+          const invite = await prisma.guildInvite.findUnique({ where: { code } });
+          if (!invite || invite.guildId !== guildId) {
+            json(res, 404, { error: 'Invitation introuvable' });
+            return true;
+          }
+
+          const updatedInvite = await prisma.guildInvite.update({
+            where: { code },
+            data: { sourceLabel },
+          });
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Provenance invitation',
+            context: getGuildName(client, guildId),
+            module: 'Invitations',
+            eventType: 'Settings',
+            details: sourceLabel
+              ? `L'invitation ${code} est maintenant attribuée à la provenance « ${sourceLabel} ».`
+              : `La provenance de l'invitation ${code} a été retirée.`,
+            channelId: null,
+          });
+
+          json(res, 200, { ok: true, invite: updatedInvite });
+        } catch (err) {
+          logger.error('InvitationsAPI', `Error updating invite source for ${code}:`, err);
+          json(res, 500, { error: "Erreur lors de la modification de la provenance" });
         }
         return true;
       }
