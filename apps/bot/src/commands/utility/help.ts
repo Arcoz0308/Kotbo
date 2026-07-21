@@ -1,7 +1,8 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { ApplicationCommandOptionType, ContainerBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionsBitField, ModalBuilder, TextInputBuilder, TextInputStyle, type AutocompleteInteraction, type ChatInputCommandInteraction, type ButtonInteraction, type AnySelectMenuInteraction, type ModalSubmitInteraction } from 'discord.js';
-import { COLORS_RAW, text } from '../../utils/embeds.js';
+import { ApplicationCommandOptionType, MessageFlags, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionsBitField, ModalBuilder, TextInputBuilder, TextInputStyle, type AutocompleteInteraction, type ChatInputCommandInteraction, type ButtonInteraction, type AnySelectMenuInteraction, type ModalSubmitInteraction } from 'discord.js';
+import { COLORS_RAW, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
+import { ContainerChild, separator, v2Message } from '@arcscord/components';
 
 interface CommandOption {
   name: string;
@@ -145,19 +146,15 @@ function formatCommandOptionsTree(command: CommandJson): string {
 }
 
 function buildHomeView(commands: SlashCommandDefinition[]) {
-  const container = new ContainerBuilder()
-    .setAccentColor(COLORS_RAW.primary)
-    .addTextDisplayComponents(text(`### ${E.info} Kotbo — Centre d'aide interactif`))
-    .addTextDisplayComponents(text(`Bienvenue dans le centre d'aide de **Kotbo** !\nSélectionnez une catégorie ci-dessous ou cliquez sur 🔍 pour rechercher.`))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+  const fields: ContainerChild[] = [
+    `Bienvenue dans le centre d'aide de **Kotbo** !\nSélectionnez une catégorie ci-dessous ou cliquez sur 🔍 pour rechercher.`,
+    separator({ divider: true, spacing: 'small' }),
+  ];
 
   for (const cat of CATEGORIES) {
     const catCmds = commands.filter(c => getCommandCategory(c.data.name) === cat.name);
-    container.addTextDisplayComponents(text(`${cat.emoji} **${cat.name}** (${catCmds.length})\n${cat.description}`));
+    fields.push(`${cat.emoji} **${cat.name}** (${catCmds.length})\n${cat.description}`);
   }
-
-  container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(`-# ${E.kotbo} ${commands.length} commandes disponibles`));
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
@@ -168,7 +165,16 @@ function buildHomeView(commands: SlashCommandDefinition[]) {
   const searchBtn = new ButtonBuilder().setCustomId('help_search').setLabel('Rechercher').setEmoji('🔍').setStyle(ButtonStyle.Success);
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(searchBtn);
 
-  return { components: [container, row1, row2], flags: MessageFlags.IsComponentsV2 };
+  return v2Message(
+    kotboContainer({
+      color: 'primary',
+      title: `${E.info} Kotbo — Centre d'aide interactif`,
+      fields,
+      footerOverwrite: `-# ${E.kotbo} ${commands.length} commandes disponibles`,
+    }),
+    row1,
+    row2,
+  );
 }
 
 function buildCategoryView(commands: SlashCommandDefinition[], categoryName: string) {
@@ -180,35 +186,38 @@ function buildCategoryView(commands: SlashCommandDefinition[], categoryName: str
     ? catCmds.map(c => `${E.arrow} \`/${c.data.name}\` — ${c.data.description}`).join('\n')
     : '*Aucune commande dans cette catégorie.*';
 
-  const container = new ContainerBuilder()
-    .setAccentColor(accentColor)
-    .addTextDisplayComponents(text(`### ${cat.emoji} ${cat.name}`))
-    .addTextDisplayComponents(text(`*${cat.description}*`))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(cmdList))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(`-# ${catCmds.length} commandes dans cette catégorie`));
-
   const selectCategory = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
     .setPlaceholder('📁 Choisir une autre catégorie...')
     .addOptions(CATEGORIES.map(c => ({ label: c.name, value: `cat:${c.name}`, emoji: '📁', default: c.name === cat.name })));
 
-  const components: unknown[] = [container, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory)];
+  const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory)];
 
   if (catCmds.length > 0) {
     const selectCommand = new StringSelectMenuBuilder()
       .setCustomId('help_command_select')
       .setPlaceholder('🔍 Choisir une commande à détailler...')
       .addOptions(catCmds.slice(0, 25).map(c => ({ label: `/${c.data.name}`, value: `cmd:${c.data.name}`, description: trunc(c.data.description || '', 100) })));
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCommand));
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCommand));
   }
 
   const homeBtn = new ButtonBuilder().setCustomId('help_home').setLabel('Accueil').setEmoji('🏠').setStyle(ButtonStyle.Primary);
   const searchBtn = new ButtonBuilder().setCustomId('help_search').setLabel('Rechercher').setEmoji('🔍').setStyle(ButtonStyle.Success);
-  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(homeBtn, searchBtn));
+  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(homeBtn, searchBtn));
 
-  return { components, flags: MessageFlags.IsComponentsV2 };
+  return v2Message(
+    kotboContainer({
+      color: accentColor,
+      title: `${cat.emoji} ${cat.name}`,
+      fields: [
+        `*${cat.description}*`,
+        separator({ divider: true, spacing: 'small' }),
+        cmdList,
+      ],
+      footerOverwrite: `-# ${catCmds.length} commandes dans cette catégorie`,
+    }),
+    ...rows,
+  );
 }
 
 function buildCommandView(commands: SlashCommandDefinition[], commandName: string) {
@@ -224,46 +233,49 @@ function buildCommandView(commands: SlashCommandDefinition[], commandName: strin
   const optionsTree = formatCommandOptionsTree(commandJson);
   const permissions = formatPermissions(commandJson.default_member_permissions);
 
-  const container = new ContainerBuilder()
-    .setAccentColor(accentColor)
-    .addTextDisplayComponents(text(`### ${cat.emoji} /${command.data.name}`))
-    .addTextDisplayComponents(text(command.data.description || 'Pas de description.'))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text([
-      `**${E.arrow} Catégorie** · ${category}`,
-      `**${E.lock} Permissions** · ${permissions}`,
-    ].join('\n')))
-    .addTextDisplayComponents(text(`**${E.info} Syntaxe**\n${syntax}`))
-    .addTextDisplayComponents(text(`**${E.settings} Options**\n${optionsTree}`))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(`-# Kotbo · Aide détaillée`));
-
   const catCmds = commands.filter(c => getCommandCategory(c.data.name) === category).sort((a, b) => a.data.name.localeCompare(b.data.name));
   const currentIndex = catCmds.findIndex(c => c.data.name === command.data.name);
   const prevCmd = catCmds[(currentIndex - 1 + catCmds.length) % catCmds.length];
   const nextCmd = catCmds[(currentIndex + 1) % catCmds.length];
 
-  const components: unknown[] = [container];
+  const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [];
 
   const selectCategory = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
     .setPlaceholder('📁 Choisir une autre catégorie...')
     .addOptions(CATEGORIES.map(c => ({ label: c.name, value: `cat:${c.name}`, emoji: '📁', default: c.name === category })));
-  components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory));
+  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory));
 
   const selectCommand = new StringSelectMenuBuilder()
     .setCustomId('help_command_select')
     .setPlaceholder('🔍 Choisir une autre commande...')
     .addOptions(catCmds.slice(0, 25).map(c => ({ label: `/${c.data.name}`, value: `cmd:${c.data.name}`, description: trunc(c.data.description || '', 100), default: c.data.name === command.data.name })));
-  components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCommand));
+  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCommand));
 
   const prevBtn = new ButtonBuilder().setCustomId(`help_prev:${category}:${prevCmd.data.name}`).setEmoji('◀️').setLabel(`/${prevCmd.data.name}`).setStyle(ButtonStyle.Secondary);
   const homeBtn = new ButtonBuilder().setCustomId('help_home').setLabel('Accueil').setEmoji('🏠').setStyle(ButtonStyle.Primary);
   const searchBtn = new ButtonBuilder().setCustomId('help_search').setLabel('Rechercher').setEmoji('🔍').setStyle(ButtonStyle.Success);
   const nextBtn = new ButtonBuilder().setCustomId(`help_next:${category}:${nextCmd.data.name}`).setEmoji('▶️').setLabel(`/${nextCmd.data.name}`).setStyle(ButtonStyle.Secondary);
-  components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, homeBtn, searchBtn, nextBtn));
+  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, homeBtn, searchBtn, nextBtn));
 
-  return { components, flags: MessageFlags.IsComponentsV2 };
+  return v2Message(
+    kotboContainer({
+      color: accentColor,
+      title: `${cat.emoji} /${command.data.name}`,
+      fields: [
+        command.data.description || 'Pas de description.',
+        separator({ divider: true, spacing: 'small' }),
+        [
+          `**${E.arrow} Catégorie** · ${category}`,
+          `**${E.lock} Permissions** · ${permissions}`,
+        ].join('\n'),
+        `**${E.info} Syntaxe**\n${syntax}`,
+        `**${E.settings} Options**\n${optionsTree}`,
+      ],
+      footerOverwrite: `-# Kotbo · Aide détaillée`,
+    }),
+    ...rows,
+  );
 }
 
 function buildHelpView(commands: SlashCommandDefinition[], state: string) {

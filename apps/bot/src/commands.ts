@@ -68,6 +68,7 @@ import { channelhealthCommand } from './commands/admin/channelhealth.js';
 import { repCommand } from './commands/community/rep.js';
 import { marketCommand } from './commands/economy/market.js';
 import { questsCommand } from './commands/community/quests.js';
+import { clanCommand } from './commands/community/clan.js';
 import { rpgProfileCommand, rpgDailyCommand, rpgTravelCommand, rpgShopCommand, rpgInventoryCommand, rpgGuildCommand, rpgPayCommand, rpgSellCommand, rpgDropCommand, rpgAdminCommand, rpgFightCommand, rpgBossCommand, rpgBestiaryCommand, fishCommand } from './commands/fun/rpgEconomy.js';
 import { topCommand } from './commands/profile/top.js';
 import { inventaireCommand } from './commands/economy/inventaire.js';
@@ -166,6 +167,7 @@ export const commands: SlashCommandDefinition[] = [
   repCommand,
   marketCommand,
   questsCommand,
+  clanCommand,
   rpgProfileCommand,
   rpgDailyCommand,
   rpgTravelCommand,

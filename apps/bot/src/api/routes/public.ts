@@ -607,6 +607,11 @@ export async function handlePublicRoutes(
     const auth = await verifyAuth(req);
     if (!auth) {
       json(res, 401, { error: 'Vous devez vous connecter avec Discord pour voir cette transcription.' });
+  // GET /api/public/guilds/:guildId/clans
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'clans' && !parts[5] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
       return true;
     }
 
@@ -652,6 +657,156 @@ export async function handlePublicRoutes(
       const errMessage = err instanceof Error ? err.message : String(err);
       logger.error('PublicAPI', `Error issuing transcript access for ${transcriptId}: ${errMessage}`);
       json(res, 500, { error: 'Erreur interne du serveur' });
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { clansEnabled: true, currentClanSeason: true },
+      });
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+
+      if (!guildConfig?.clansEnabled) {
+        json(res, 200, {
+          enabled: false,
+          guildName: discordGuild?.name || 'Kotbo Server',
+          guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+          clans: [],
+        });
+        return true;
+      }
+
+      const clans = await prisma.clan.findMany({
+        where: { guildId },
+        orderBy: { name: 'asc' },
+      });
+
+      // Charger toutes les contributions pour la saison en cours
+      const contributions = await prisma.clanMemberContribution.findMany({
+        where: {
+          guildId,
+          season: guildConfig.currentClanSeason,
+        },
+        orderBy: { xp: 'desc' },
+      });
+
+      // Charger les profils utilisateur impliqués pour récupérer noms et avatars
+      const userIds = [...new Set(contributions.map((c) => c.userId))];
+      const dbProfiles = await prisma.memberProfile.findMany({
+        where: {
+          guildId,
+          userId: { in: userIds },
+        },
+      });
+      const profileMap = new Map(dbProfiles.map((p) => [p.userId, p]));
+
+      // Associer les contributions avec les données utilisateur
+      const clansData = clans.map((clan) => {
+        const role = discordGuild?.roles.cache.get(clan.roleId);
+        const memberCount = role?.members.size ?? 0;
+
+        const clanContributions = contributions.filter((c) => c.clanId === clan.id);
+        const totalXp = clanContributions.reduce((sum, c) => sum + c.xp, 0);
+
+        // Top participants du clan
+        const topParticipants = clanContributions.slice(0, 10).map((c) => {
+          const profile = profileMap.get(c.userId);
+          const discordMember = discordGuild?.members.cache.get(c.userId);
+
+          const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
+          const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+
+          return {
+            userId: c.userId,
+            xp: c.xp,
+            displayName,
+            avatarUrl,
+          };
+        });
+
+        return {
+          id: clan.id,
+          name: clan.name,
+          description: clan.description,
+          roleId: clan.roleId,
+          roleColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
+          totalXp,
+          memberCount,
+          topParticipants,
+        };
+      });
+
+      // ─── Flux « derniers scores » : gains de points les plus récents ──────────
+      // Non-bloquant : un souci sur ce flux (ex. migration pas encore appliquée)
+      // ne doit jamais empêcher l'affichage du classement principal.
+      let recentScores: Array<Record<string, unknown>> = [];
+      try {
+        const recentEvents = await prisma.clanContributionEvent.findMany({
+          where: { guildId, season: guildConfig.currentClanSeason },
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+        });
+
+        const clanById = new Map(clans.map((c) => [c.id, c]));
+
+        // Compléter la table des profils avec les auteurs des événements récents
+        const eventUserIds = [...new Set(
+          recentEvents
+            .map((e) => e.userId)
+            .filter((id) => id && id !== 'system_manual_points' && !profileMap.has(id))
+        )];
+        if (eventUserIds.length > 0) {
+          const extraProfiles = await prisma.memberProfile.findMany({
+            where: { guildId, userId: { in: eventUserIds } },
+          });
+          for (const p of extraProfiles) profileMap.set(p.userId, p);
+        }
+
+        recentScores = recentEvents.map((e) => {
+          const clan = clanById.get(e.clanId);
+          const role = clan ? discordGuild?.roles.cache.get(clan.roleId) : null;
+          const isClanGlobal = e.userId === 'system_manual_points';
+
+          let displayName: string;
+          let avatarUrl: string | null = null;
+          if (isClanGlobal) {
+            // Gain attribué au clan entier : on affiche le nom du clan
+            displayName = clan?.name || 'Clan';
+          } else {
+            const profile = profileMap.get(e.userId);
+            const discordMember = discordGuild?.members.cache.get(e.userId);
+            displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${e.userId}`;
+            avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+          }
+
+          return {
+            id: e.id,
+            amount: e.amount,
+            source: e.source, // 'XP' | 'ADMIN'
+            isClan: isClanGlobal,
+            displayName,
+            avatarUrl,
+            clanName: clan?.name || null,
+            clanColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
+            createdAt: e.createdAt.toISOString(),
+          };
+        });
+      } catch (scoreErr: unknown) {
+        const m = scoreErr instanceof Error ? scoreErr.message : String(scoreErr);
+        logger.warn('PublicAPI', `Flux « derniers scores » indisponible pour ${guildId} (migration appliquée ?) : ${m}`);
+        recentScores = [];
+      }
+
+      json(res, 200, {
+        enabled: true,
+        currentClanSeason: guildConfig.currentClanSeason,
+        guildName: discordGuild?.name || 'Kotbo Server',
+        guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+        clans: clansData,
+        recentScores,
+      });
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error fetching public clans for guild ${guildId}: ${errMessage}`);
+      json(res, 500, { error: 'Erreur lors du chargement du classement de clans' });
     }
     return true;
   }

@@ -1,0 +1,585 @@
+$ bun run --filter @kotbo/bot test:unit
+@kotbo/bot test:unit: bun test v1.3.12 (700fc117)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/contracts.features.test.ts:
+@kotbo/bot test:unit: (pass) Contrats des features > Toutes les commandes exposent data + execute et ont un nom unique [7.14ms]
+@kotbo/bot test:unit: (pass) Contrats des features > Handlers, events, panels, services et utils exportent des symboles [5.28ms]
+@kotbo/bot test:unit: (pass) Contrats des features > Le registre des commandes importe toutes les commandes déclarées [3.50ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/clanService.test.ts:
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: # Unhandled error between tests
+@kotbo/bot test:unit: -------------------------------
+@kotbo/bot test:unit:  9 | loadEnv({ path: path.resolve(currentDir, '../../../../.env') });
+@kotbo/bot test:unit: 10 | loadEnv({ path: path.resolve(currentDir, '../../.env') });
+@kotbo/bot test:unit: 11 | 
+@kotbo/bot test:unit: 12 | const connectionString = process.env.DATABASE_URL;
+@kotbo/bot test:unit: 13 | if (!connectionString) {
+@kotbo/bot test:unit: 14 |   throw new Error('DATABASE_URL non défini. Vérifie ton fichier .env.');
+@kotbo/bot test:unit:                  ^
+@kotbo/bot test:unit: error: DATABASE_URL non défini. Vérifie ton fichier .env.
+@kotbo/bot test:unit:       at /home/intercalaire/github/Kotbo/apps/bot/src/utils/db.ts:14:13
+@kotbo/bot test:unit:       at loadAndEvaluateModule (2:1)
+@kotbo/bot test:unit: -------------------------------
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/keywordSessionStore.test.ts:
+@kotbo/bot test:unit: (pass) keywordSessionStore > genere une cle stable [6.71ms]
+@kotbo/bot test:unit: (pass) keywordSessionStore > cree, lit, avance et supprime une session [0.26ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/scheduleService.test.ts:
+@kotbo/bot test:unit: [INFO] [Scheduler] Initialisation du service de planification...
+@kotbo/bot test:unit: [INFO] [Scheduler] 2 tâche(s) planifiée(s) active(s) trouvée(s).
+@kotbo/bot test:unit: [INFO] [Scheduler] Tâche "Task 1" (task-1) planifiée avec le motif : "0 0 * * *"
+@kotbo/bot test:unit: [INFO] [Scheduler] Tâche "Task 2" (task-2) planifiée avec le motif : "0 * * * *"
+@kotbo/bot test:unit: (pass) schedule service > initializeScheduler should fetch active tasks [3.55ms]
+@kotbo/bot test:unit: [INFO] [Scheduler] Début d'exécution de la tâche "Reset General" (CHANNEL_RESET) pour le serveur "Test Guild"
+@kotbo/bot test:unit: [INFO] [Scheduler] Tâche "Reset General" exécutée avec succès
+@kotbo/bot test:unit: (pass) schedule service > executeSchedule resets channel when type is CHANNEL_RESET [0.96ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/codePolice.test.ts:
+@kotbo/bot test:unit: (pass) codePolice analysis > signale une boucle potentiellement infinie [4.56ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > signale une recursion sans cas de sortie visible [0.23ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > bloque un payload potentiellement malveillant [0.37ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > detecte aussi des snippets de code plus declaratifs [0.14ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > reconnait le python pour adapter le feedback [0.20ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > ignore les mentions Discord quand il n'y a pas de vrai signal de code [0.22ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > detecte une boucle for avec condition vide [0.19ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > reconnait plusieurs signaux dans le contenu [0.15ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > retourne generic si aucun langage spécifique n'est détecté [0.05ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > ne formate pas si le contenu est trop court [0.14ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > reconnaît un contenu déjà formaté [0.07ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > reconnaît les backticks inline comme formatage [0.13ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > ne considère pas du texte normal comme déjà formaté [0.06ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > génère un message corrigé pour code JavaScript [0.57ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > génère un message corrigé avec feedback de sécurité [0.14ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > génère un avertissement de sécurité pour code dangereux [0.33ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > tronque les messages trop longs dans le feedback [0.46ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > détecte une réaction (regex invalide) sans crash [0.15ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > détecte du contenu avec signaux spécifiques au langage [0.08ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > hasRawCodeIndicators retourne true avec signaux [0.07ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > hasRawCodeIndicators retourne false sur texte simple court [0.04ms]
+@kotbo/bot test:unit: (pass) codePolice analysis > hasRawCodeIndicators detects danger même avec mentions [0.29ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/embeds.test.ts:
+@kotbo/bot test:unit: (pass) embeds utils > retourne un theme par defaut si categorie inconnue [0.05ms]
+@kotbo/bot test:unit: (pass) embeds utils > construit un embed news coherent [2.24ms]
+@kotbo/bot test:unit: (pass) embeds utils > construit un embed youtube coherent [0.44ms]
+@kotbo/bot test:unit: (pass) embeds utils > helpers utilitaires [0.22ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/sessionStore.test.ts:
+@kotbo/bot test:unit: (pass) dashboard session store > stores encrypted Discord credentials and restores the session [1.44ms]
+@kotbo/bot test:unit: (pass) dashboard session store > deletes a session and rejects it afterwards [0.27ms]
+@kotbo/bot test:unit: (pass) dashboard session store > parses both production and development cookie names [0.15ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/transcriptService.test.ts:
+@kotbo/bot test:unit: (pass) Transcript markdown & entity parser > converts custom emojis properly [0.57ms]
+@kotbo/bot test:unit: (pass) Transcript markdown & entity parser > auto-links HTTP/HTTPS urls [0.12ms]
+@kotbo/bot test:unit: (pass) Transcript markdown & entity parser > leaves urls inside code blocks unlinked [0.20ms]
+@kotbo/bot test:unit: (pass) Transcript markdown & entity parser > parses basic markdown successfully [0.07ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/sanctionReportReminderPolicy.test.ts:
+@kotbo/bot test:unit: (pass) sanction report reminder policy > does nothing before J+3 [0.16ms]
+@kotbo/bot test:unit: (pass) sanction report reminder policy > reminds the moderator at J+3 [0.06ms]
+@kotbo/bot test:unit: (pass) sanction report reminder policy > does not remind again during the next 24 hours [0.04ms]
+@kotbo/bot test:unit: (pass) sanction report reminder policy > reminds again after 24 hours [0.03ms]
+@kotbo/bot test:unit: (pass) sanction report reminder policy > escalates once to managers at J+7 [0.08ms]
+@kotbo/bot test:unit: (pass) sanction report reminder policy > does nothing when a report exists [0.04ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/dashboardApi.test.ts:
+@kotbo/bot test:unit: [WARN] [DashboardAPI] JWT_SECRET variable is not set. Generating one ephemeral fallback secret for this process.
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1. Public Routes > GET /health returns service status [18.25ms]
+@kotbo/bot test:unit: 479 | 
+@kotbo/bot test:unit: 480 |       const handled = await handlePublicRoutes(req, res, parts, url, mockClient);
+@kotbo/bot test:unit: 481 |       expect(handled).toBeTrue();
+@kotbo/bot test:unit: 482 |       expect(res.statusCode).toBe(200);
+@kotbo/bot test:unit: 483 |       const data = JSON.parse(res.body);
+@kotbo/bot test:unit: 484 |       expect(data.discordClientId).toBe('test-client-id');
+@kotbo/bot test:unit:                                          ^
+@kotbo/bot test:unit: error: expect(received).toBe(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: "test-client-id"
+@kotbo/bot test:unit: Received: "client"
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/dashboardApi.test.ts:484:36)
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 1. Public Routes > GET /api/config returns client info [1.57ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1. Public Routes > GET root OAuth discovery refuses templated MCP endpoints [0.77ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1. Public Routes > GET standard MCP protected resource metadata returns guild-scoped issuer [0.65ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1. Public Routes > GET standard MCP authorization server metadata returns concrete endpoints [0.73ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1. Public Routes > GET root protected resource metadata supports resource query parameter [0.88ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1. Public Routes > GET root authorization server metadata supports resource query parameter [0.50ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1. Public Routes > GET root authorization server metadata supports signed direct MCP resource URLs [1.11ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > rejects encoded guildId template from OAuth discovery [2.07ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] authorize_get_page {"method":"GET","url":"/api/mcp/112233445566778899/oauth/authorize?client_id=test&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&code_challenge=abc","ua":"","guildId":"112233445566778899","clientId":"test","redirectUri":"https://claude.ai/api/mcp/auth_callback","resource":null}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > OAuth authorize page overrides global CSP so inline CSS can render [1.04ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_get_auth_challenge {"method":"GET","url":"/api/mcp/112233445566778899","ua":"","guildId":"112233445566778899"}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > GET MCP endpoint without token starts OAuth discovery instead of returning 405 [0.71ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_initialize_compat {"method":"POST","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":null,"protocolVersion":"2025-06-18","clientInfo":{"name":"ChatGPT","version":"test"}}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_response {"method":"initialize","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":null,"statusCode":200}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > POST initialize without token is allowed for MCP client discovery [28.07ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_accept_header_patched {"method":"initialize","url":"/api/mcp/112233445566778899","ua":"python-httpx/0.28.1","guildId":"112233445566778899","keyId":null,"previousAccept":"*/*","accept":"application/json, text/event-stream"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_content_type_header_patched {"method":"initialize","url":"/api/mcp/112233445566778899","ua":"python-httpx/0.28.1","guildId":"112233445566778899","keyId":null,"previousContentType":"{\"header\":\"text/plain\",\"rawHeader\":\"text/plain\"}","contentType":"application/json"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_initialize_compat {"method":"POST","url":"/api/mcp/112233445566778899","ua":"python-httpx/0.28.1","guildId":"112233445566778899","keyId":null,"protocolVersion":"2025-06-18","clientInfo":{"name":"Claude","version":"httpx"}}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_response {"method":"initialize","url":"/api/mcp/112233445566778899","ua":"python-httpx/0.28.1","guildId":"112233445566778899","keyId":null,"statusCode":200}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > POST initialize tolerates Claude httpx loose transport headers [14.13ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_content_type_header_patched {"method":"initialize","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":null,"previousContentType":"{\"header\":\"application/json\",\"rawHeader\":\"text/plain\"}","contentType":"application/json"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_initialize_compat {"method":"POST","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":null,"protocolVersion":"2025-06-18","clientInfo":{"name":"Claude","version":"raw-header-mismatch"}}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_response {"method":"initialize","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":null,"statusCode":200}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > POST initialize normalizes raw content-type even when parsed header looks valid [10.49ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_request {"method":"tools/list","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":null}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_response {"method":"tools/list","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":null,"statusCode":200}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > POST tools/list without token lists public tool descriptors instead of HTTP 401 [13.85ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_tools_call_claude_401 {"method":"POST","url":"/api/mcp/112233445566778899","ua":"Claude MCP Connector","guildId":"112233445566778899","tool":"test_tool"}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > POST tools/call without token returns HTTP OAuth challenge for Claude lazy auth [11.93ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] token_request {"method":"POST","url":"/api/mcp/112233445566778899/oauth/token","ua":"","guildId":"112233445566778899","grantType":"client_credentials","clientId":"mcp-key-id","hasCode":false,"hasVerifier":false,"redirectUri":null,"resource":null}
+@kotbo/bot test:unit: [INFO] [MCPAuth] token_client_credentials_success {"method":"POST","url":"/api/mcp/112233445566778899/oauth/token","ua":"","guildId":"112233445566778899","clientId":"mcp-key-id","keyId":"mcp-key-id"}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > OAuth token endpoint supports client_credentials with MCP key client ID and secret [1.15ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] authorize_post_code_issued {"method":"POST","url":"/api/mcp/112233445566778899/oauth/authorize?resource=https%3A%2F%2Fapi-kotbo.example%2Fapi%2Fmcp%2F112233445566778899","ua":"","guildId":"112233445566778899","clientId":"oauth-client-id","redirectUri":"https://claude.ai/api/mcp/auth_callback","resource":"https://api-kotbo.example/api/mcp/112233445566778899","keyId":"mcp-key-id","permissions":["READ_STATS"]}
+@kotbo/bot test:unit: [INFO] [MCPAuth] authorize_post_redirect {"method":"POST","url":"/api/mcp/112233445566778899/oauth/authorize?resource=https%3A%2F%2Fapi-kotbo.example%2Fapi%2Fmcp%2F112233445566778899","ua":"","guildId":"112233445566778899","redirectUri":"https://claude.ai/api/mcp/auth_callback","iss":"https://api-kotbo.example/api/mcp/112233445566778899","base":"https://api-kotbo.example/api/mcp/112233445566778899","resource":"https://api-kotbo.example/api/mcp/112233445566778899"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] token_request {"method":"POST","url":"/api/mcp/112233445566778899/oauth/token","ua":"","guildId":"112233445566778899","grantType":"authorization_code","clientId":"oauth-client-id","hasCode":true,"hasVerifier":true,"redirectUri":"https://claude.ai/api/mcp/auth_callback","resource":"https://api-kotbo.example/api/mcp/112233445566778899"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] token_authorization_code_success {"method":"POST","url":"/api/mcp/112233445566778899/oauth/token","ua":"","guildId":"112233445566778899","clientId":"oauth-client-id","keyId":"mcp-key-id","resource":"https://api-kotbo.example/api/mcp/112233445566778899"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_bearer_valid {"method":"tools/list","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":"mcp-key-id","tokenKind":"oauth_jwt","permissions":["READ_STATS"]}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_request {"method":"tools/list","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":"mcp-key-id"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_response {"method":"tools/list","url":"/api/mcp/112233445566778899","ua":"Bun/1.3.12","guildId":"112233445566778899","keyId":"mcp-key-id","statusCode":200}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > OAuth authorization_code returns JWT access token and refresh token accepted by MCP endpoint [16.30ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_direct_valid {"method":"initialize","url":"/api/mcp-direct/112233445566778899/[token]","ua":"Claude MCP Connector","guildId":"112233445566778899","keyId":"direct-key-id","permissions":["READ_STATS"]}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_accept_header_patched {"method":"initialize","url":"/api/mcp-direct/112233445566778899/[token]","ua":"Claude MCP Connector","guildId":"112233445566778899","keyId":"direct-key-id","previousAccept":"*/*","accept":"application/json, text/event-stream"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_initialize_compat {"method":"POST","url":"/api/mcp-direct/112233445566778899/[token]","ua":"Claude MCP Connector","guildId":"112233445566778899","keyId":"direct-key-id","protocolVersion":"2025-06-18","clientInfo":{"name":"Claude","version":"httpx"}}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_response {"method":"initialize","url":"/api/mcp-direct/112233445566778899/[token]","ua":"Claude MCP Connector","guildId":"112233445566778899","keyId":"direct-key-id","statusCode":200}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_direct_valid {"method":"tools/list","url":"/api/mcp-direct/112233445566778899/[token]","ua":"Claude MCP Connector","guildId":"112233445566778899","keyId":"direct-key-id","permissions":["READ_STATS"]}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_request {"method":"tools/list","url":"/api/mcp-direct/112233445566778899/[token]","ua":"Claude MCP Connector","guildId":"112233445566778899","keyId":"direct-key-id"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] mcp_jsonrpc_response {"method":"tools/list","url":"/api/mcp-direct/112233445566778899/[token]","ua":"Claude MCP Connector","guildId":"112233445566778899","keyId":"direct-key-id","statusCode":200}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > signed direct MCP URL authenticates without OAuth and hides token in logs [23.94ms]
+@kotbo/bot test:unit: [INFO] [MCPAuth] dcr_registered {"method":"POST","url":"/api/mcp-direct/112233445566778899/[token]/oauth/register","ua":"","guildId":"112233445566778899","clientId":"79d01521-80dd-4e80-b8bd-a20fc3867e3c","redirectUris":["https://claude.ai/api/mcp/auth_callback"],"clientName":"Claude"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] direct_authorize_code_issued {"method":"GET","url":"/api/mcp-direct/112233445566778899/[token]/oauth/authorize?response_type=code&client_id=79d01521-80dd-4e80-b8bd-a20fc3867e3c&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&code_challenge=FC5-su8JHawXD3IYznelSeci4DcVPCakdNkIeWg9p_A&code_challenge_method=S256&state=state&resource=https%3A%2F%2Fapi-kotbo.example%2Fapi%2Fmcp-direct%2F112233445566778899%2F[token]","ua":"","guildId":"112233445566778899","clientId":"79d01521-80dd-4e80-b8bd-a20fc3867e3c","redirectUri":"https://claude.ai/api/mcp/auth_callback","resource":"https://api-kotbo.example/api/mcp-direct/112233445566778899/[token]","keyId":"direct-key-id","permissions":["READ_STATS"]}
+@kotbo/bot test:unit: [INFO] [MCPAuth] token_request {"method":"POST","url":"/api/mcp-direct/112233445566778899/[token]/oauth/token","ua":"","guildId":"112233445566778899","grantType":"authorization_code","clientId":"79d01521-80dd-4e80-b8bd-a20fc3867e3c","hasCode":true,"hasVerifier":true,"redirectUri":"https://claude.ai/api/mcp/auth_callback","resource":"https://api-kotbo.example/api/mcp-direct/112233445566778899/[token]"}
+@kotbo/bot test:unit: [INFO] [MCPAuth] token_authorization_code_success {"method":"POST","url":"/api/mcp-direct/112233445566778899/[token]/oauth/token","ua":"","guildId":"112233445566778899","clientId":"79d01521-80dd-4e80-b8bd-a20fc3867e3c","keyId":"direct-key-id","resource":"https://api-kotbo.example/api/mcp-direct/112233445566778899/[token]"}
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 1b. MCP OAuth Routes > signed direct MCP URL supports automatic OAuth registration flow for Claude fallback [3.12ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 2. Auth Routes > active Discord login is handled by the Hono router [0.84ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 2. Auth Routes > legacy implicit token exchange is retired [0.30ms]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 3. Error Routes > POST /api/report-error returns 400 for invalid payload [1.51ms]
+@kotbo/bot test:unit: 1097 |       const parts = splitPath(req.url!);
+@kotbo/bot test:unit: 1098 |       const url = new URL(req.url!, 'http://localhost');
+@kotbo/bot test:unit: 1099 | 
+@kotbo/bot test:unit: 1100 |       const handled = await handleUserRoutes(req, res, parts, url, mockClient);
+@kotbo/bot test:unit: 1101 |       expect(handled).toBeTrue();
+@kotbo/bot test:unit: 1102 |       expect(res.statusCode).toBe(200);
+@kotbo/bot test:unit:                                     ^
+@kotbo/bot test:unit: error: expect(received).toBe(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: 200
+@kotbo/bot test:unit: Received: 401
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/dashboardApi.test.ts:1102:30)
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 4. User Routes > GET /api/user/me returns user info when authenticated [1.61ms]
+@kotbo/bot test:unit: 1120 |       // Mock resolvesAdminAccess to false
+@kotbo/bot test:unit: 1121 |       mockDb.globalAdmin.findUnique.mockResolvedValue(null);
+@kotbo/bot test:unit: 1122 | 
+@kotbo/bot test:unit: 1123 |       const handled = await handleAdminRoutes(req, res, parts, url, mockClient);
+@kotbo/bot test:unit: 1124 |       expect(handled).toBeTrue();
+@kotbo/bot test:unit: 1125 |       expect(res.statusCode).toBe(403);
+@kotbo/bot test:unit:                                     ^
+@kotbo/bot test:unit: error: expect(received).toBe(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: 403
+@kotbo/bot test:unit: Received: 401
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/dashboardApi.test.ts:1125:30)
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 5. Admin Routes > GET /api/admin/stats is blocked without admin access [13.39ms]
+@kotbo/bot test:unit: [INFO] [DashboardRouting] Incoming: POST /api/dashboard/guilds/1122334455667788/recruitment/candidatures | parts: ["api","dashboard","guilds","1122334455667788","recruitment","candidatures"]
+@kotbo/bot test:unit: [WARN] [RecruitmentAPI] Webhook auth failed for guild 1122334455667788: missing_credentials
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 6. Dashboard Router dispatcher > Bypasses auth for recruitment webhook [3.43ms]
+@kotbo/bot test:unit: [INFO] [DashboardRouting] Incoming: GET /api/dashboard/guilds/1122334455667788/state | parts: ["api","dashboard","guilds","1122334455667788","state"]
+@kotbo/bot test:unit: (pass) Modular Routers Unit Tests > 6. Dashboard Router dispatcher > Requires user authentication for general guild settings [0.77ms]
+@kotbo/bot test:unit: [INFO] [DashboardRouting] Incoming: GET /api/dashboard/guilds/1122334455667788/notifications/features | parts: ["api","dashboard","guilds","1122334455667788","notifications","features"]
+@kotbo/bot test:unit: 1172 |       const parts = splitPath(req.url!);
+@kotbo/bot test:unit: 1173 |       const url = new URL(req.url!, 'http://localhost');
+@kotbo/bot test:unit: 1174 | 
+@kotbo/bot test:unit: 1175 |       const handled = await handleDashboardRoutes(req, res, parts, url, mockClient);
+@kotbo/bot test:unit: 1176 |       expect(handled).toBeTrue();
+@kotbo/bot test:unit: 1177 |       expect(res.statusCode).toBe(200);
+@kotbo/bot test:unit:                                     ^
+@kotbo/bot test:unit: error: expect(received).toBe(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: 200
+@kotbo/bot test:unit: Received: 401
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/dashboardApi.test.ts:1177:30)
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 6. Dashboard Router dispatcher > GET /api/dashboard/guilds/:guildId/notifications/features returns 200 [0.56ms]
+@kotbo/bot test:unit: [INFO] [DashboardRouting] Incoming: POST /api/dashboard/guilds/1122334455667788/embed-builder | parts: ["api","dashboard","guilds","1122334455667788","embed-builder"]
+@kotbo/bot test:unit: 1211 |       const parts = splitPath(req.url!);
+@kotbo/bot test:unit: 1212 |       const url = new URL(req.url!, 'http://localhost');
+@kotbo/bot test:unit: 1213 | 
+@kotbo/bot test:unit: 1214 |       const handled = await handleDashboardRoutes(req, res, parts, url, mockClient);
+@kotbo/bot test:unit: 1215 |       expect(handled).toBeTrue();
+@kotbo/bot test:unit: 1216 |       expect(res.statusCode).toBe(200);
+@kotbo/bot test:unit:                                     ^
+@kotbo/bot test:unit: error: expect(received).toBe(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: 200
+@kotbo/bot test:unit: Received: 401
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/dashboardApi.test.ts:1216:30)
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 6. Dashboard Router dispatcher > POST /api/dashboard/guilds/:guildId/embed-builder parses content and V2 embed fields [0.90ms]
+@kotbo/bot test:unit: [INFO] [DashboardRouting] Incoming: POST /api/dashboard/guilds/1122334455667788/clans/points | parts: ["api","dashboard","guilds","1122334455667788","clans","points"]
+@kotbo/bot test:unit: 1253 |         findUnique: mock(() => Promise.resolve(null)),
+@kotbo/bot test:unit: 1254 |       };
+@kotbo/bot test:unit: 1255 | 
+@kotbo/bot test:unit: 1256 |       const handled = await handleDashboardRoutes(req, res, parts, url, mockClient);
+@kotbo/bot test:unit: 1257 |       expect(handled).toBeTrue();
+@kotbo/bot test:unit: 1258 |       expect(res.statusCode).toBe(200);
+@kotbo/bot test:unit:                                     ^
+@kotbo/bot test:unit: error: expect(received).toBe(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: 200
+@kotbo/bot test:unit: Received: 401
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/dashboardApi.test.ts:1258:30)
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 6. Dashboard Router dispatcher > POST /api/dashboard/guilds/:guildId/clans/points adds manual points [1.14ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/welcomeThreadService.test.ts:
+@kotbo/bot test:unit: (pass) clampStepDelay > borne les valeurs trop petites et trop grandes [3.64ms]
+@kotbo/bot test:unit: (pass) clampStepDelay > conserve les valeurs valides [0.12ms]
+@kotbo/bot test:unit: (pass) clampStepDelay > gère les valeurs non finies [0.08ms]
+@kotbo/bot test:unit: (pass) resolveAutoArchiveDuration > mappe les durées supportées [0.08ms]
+@kotbo/bot test:unit: (pass) resolveAutoArchiveDuration > retombe sur 24h pour les valeurs inconnues [0.03ms]
+@kotbo/bot test:unit: (pass) parseEmbedColor > accepte un hex valide [0.12ms]
+@kotbo/bot test:unit: (pass) parseEmbedColor > retombe sur le blurple pour les valeurs invalides [0.04ms]
+@kotbo/bot test:unit: (pass) buildWelcomeMenuComponents > retourne aucun composant sans pages [0.30ms]
+@kotbo/bot test:unit: (pass) buildWelcomeMenuComponents > mode boutons : 5 boutons max par ligne [1.28ms]
+@kotbo/bot test:unit: (pass) buildWelcomeMenuComponents > mode select : une seule ligne avec toutes les options [1.16ms]
+@kotbo/bot test:unit: (pass) buildWelcomeMenuComponents > tronque à 25 pages maximum [0.73ms]
+@kotbo/bot test:unit: (pass) buildMenuPageEmbed > construit un embed avec titre, description et couleur [0.25ms]
+@kotbo/bot test:unit: (pass) MAX_THREAD_STEPS > la limite de séquence est raisonnable [0.03ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/presenceDetectionService.test.ts:
+@kotbo/bot test:unit: (pass) presenceDetectionService > utilise le compte de presence approximate quand le cache dit 0 en ligne [0.44ms]
+@kotbo/bot test:unit: (pass) presenceDetectionService > ne fait pas de fetch si le cache a deja des membres en ligne [0.28ms]
+@kotbo/bot test:unit: (pass) presenceDetectionService > retourne le cache si le fetch de presence echoue [0.16ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/isKotboPublicOrigin.test.ts:
+@kotbo/bot test:unit: (pass) isKotboPublicOrigin > allows kotbo.fr and www [0.10ms]
+@kotbo/bot test:unit: (pass) isKotboPublicOrigin > allows dash.kotbo.fr dashboard [0.05ms]
+@kotbo/bot test:unit: (pass) isKotboPublicOrigin > allows other kotbo.fr subdomains [0.04ms]
+@kotbo/bot test:unit: (pass) isKotboPublicOrigin > allows localhost dev origins [0.03ms]
+@kotbo/bot test:unit: (pass) isKotboPublicOrigin > rejects unrelated origins [0.04ms]
+@kotbo/bot test:unit: (pass) isKotboPublicOrigin > rejects invalid URLs [0.08ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/widgetService.test.ts:
+@kotbo/bot test:unit: (pass) widgetService identities > uses a unique identity and includes the external username [14.88ms]
+@kotbo/bot test:unit: (pass) widgetService identities > falls back to identity 0 only for the legacy user [0.80ms]
+@kotbo/bot test:unit: (pass) widgetService identities > reports identity collisions instead of blaming OAuth authorization [0.46ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/bannedWordsService.test.ts:
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "cacao" avec la liste [caca] (caca est un sous-mot) [0.41ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "Xavier" avec la liste [xav] (xav est un sous-mot) [0.10ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "assassin" avec la liste [ass] (ass est un sous-mot) [0.02ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "classique" avec la liste [lass] (lass est un sous-mot) [0.24ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "cocasse" avec la liste [caca] (caca est un sous-mot) [0.02ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "patapon" avec la liste [pat] (pat est un sous-mot) [0.01ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "r2d2" avec la liste [r, d] (les chiffres ne sont pas des séparateurs)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "super2man" avec la liste [man] (les chiffres ne sont pas des séparateurs)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "bidon" avec la liste [bi] (mot banni court (< 4c) en bord de pseudo)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "" avec la liste [caca] (pseudo vide)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "   " avec la liste [caca] (pseudo composé uniquement d'espaces)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Faux positifs (ne doit PAS flagguer) > ignore "caca" avec la liste [,    ] (mots bannis vides)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "caca" avec la liste [caca] (mot exact) [0.12ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "caca lol" avec la liste [caca] (début de mot composé) [0.03ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "super caca" avec la liste [caca] (fin de mot composé) [0.06ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "le-caca-lol" avec la liste [caca] (séparateur tiret) [0.09ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "pseudo_caca" avec la liste [caca] (séparateur underscore)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "caca123" avec la liste [caca] (frontière de chiffre (non-lettre)) [0.10ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "CACA" avec la liste [caca] (insensible à la casse) [0.01ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "caca!lol" avec la liste [caca] (frontière de ponctuation)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "ass-boy" avec la liste [ass] (séparateur tiret)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Vrais positifs (DOIT flagguer) > flaggue "je suis caca" avec la liste [sale, caca, merde] (un mot de la liste correspond) [0.03ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Substring match mots longs (seuil ≥ 6c) > flaggue "connerieman" avec la liste [connerie] (connerie (8c ≥ 6) est un mot long) [0.11ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Substring match mots longs (seuil ≥ 6c) > flaggue "leputaindetruc" avec la liste [putain] (putain (6c ≥ 6) est un mot long) [0.04ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Substring match mots longs (seuil ≥ 6c) > ignore "sonofbitch0139" avec la liste [bitch] (bitch (5c < 6) est sous le seuil) [0.06ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Substring match mots longs (seuil ≥ 6c) > ignore "fichier" avec la liste [chier] (chier (5c < 6) est sous le seuil) [0.04ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Substring match mots longs (seuil ≥ 6c) > ignore "supermerdedu" avec la liste [merde] (merde (5c < 6) est sous le seuil) [0.03ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Substring match mots longs (seuil ≥ 6c) > ignore "cacao" avec la liste [caca] (caca (4c < 6) est sous le seuil) [0.02ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Substring match mots longs (seuil ≥ 6c) > ignore "cacahuète" avec la liste [caca] (caca (4c < 6) est sous le seuil)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Cas limites > flaggue "éléphant" avec la liste [éléphant] (caractères accentués) [0.03ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Cas limites > ignore "réélection" avec la liste [ré] (mot court avec accents) [0.03ms]
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Cas limites > ignore "caca" avec la liste [] (liste de mots vide)
+@kotbo/bot test:unit: (pass) containsBannedWord — Détection automatique > Cas limites > flaggue "caca" avec la liste [  caca  ] (mot banni avec espaces superflus)
+@kotbo/bot test:unit: (pass) isNicknameProblematic — Sécurités & Whitelist > ignore le pseudo de remplacement exact (SAFE_NICKNAME) [0.14ms]
+@kotbo/bot test:unit: (pass) isNicknameProblematic — Sécurités & Whitelist > ne bypass pas les variations contenant "automod" ou "pseudo non conforme" si elles contiennent des mots bannis [0.07ms]
+@kotbo/bot test:unit: (pass) isNicknameProblematic — Sécurités & Whitelist > ignore les pseudos de la whitelist du serveur [0.09ms]
+@kotbo/bot test:unit: (pass) isNicknameProblematic — Sécurités & Whitelist > ignore les membres exemptés (bypass) [0.04ms]
+@kotbo/bot test:unit: (pass) isNicknameProblematic — Sécurités & Whitelist > flaggue les pseudos réellement problématiques [0.04ms]
+@kotbo/bot test:unit: (pass) isNicknameProblematic — Sécurités & Whitelist > ne flaggue pas les pseudos propres [0.02ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/activationCodeService.test.ts:
+@kotbo/bot test:unit: 22 |     activatedGuilds.clear();
+@kotbo/bot test:unit: 23 |     for (const guild of guilds) {
+@kotbo/bot test:unit: 24 |       activatedGuilds.add(guild.id);
+@kotbo/bot test:unit: 25 |     }
+@kotbo/bot test:unit: 26 | 
+@kotbo/bot test:unit: 27 |     logger.success('Activation', `Chargement réussi : ${activatedGuilds.size} serveur(s) activé(s) mis en cache.`);
+@kotbo/bot test:unit:                 ^
+@kotbo/bot test:unit: TypeError: logger.success is not a function. (In 'logger.success("Activation", `Chargement r\xE9ussi : ${activatedGuilds.size} serveur(s) activ\xE9(s) mis en cache.`)', 'logger.success' is undefined)
+@kotbo/bot test:unit:       at loadActivatedGuilds (/home/intercalaire/github/Kotbo/apps/bot/src/utils/activation.ts:27:12)
+@kotbo/bot test:unit:       at async <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/activationCodeService.test.ts:67:11)
+@kotbo/bot test:unit: (fail) activation service > loadActivatedGuilds should populate the activatedGuilds Set from DB [0.71ms]
+@kotbo/bot test:unit: 78 |     mockDb.activationCode.update.mockResolvedValue({});
+@kotbo/bot test:unit: 79 |     mockDb.guild.upsert.mockResolvedValue({});
+@kotbo/bot test:unit: 80 | 
+@kotbo/bot test:unit: 81 |     await activateGuild('guild-123', 'KB-TEST-CODE');
+@kotbo/bot test:unit: 82 | 
+@kotbo/bot test:unit: 83 |     expect(mockDb.activationCode.update).toHaveBeenCalledWith({
+@kotbo/bot test:unit:                                               ^
+@kotbo/bot test:unit: error: expect(received).toHaveBeenCalledWith(...expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: [
+@kotbo/bot test:unit:   {
+@kotbo/bot test:unit:     where: {
+@kotbo/bot test:unit:       code: "KB-TEST-CODE",
+@kotbo/bot test:unit:     },
+@kotbo/bot test:unit:     data: {
+@kotbo/bot test:unit:       usedAt: Any<Date>,
+@kotbo/bot test:unit:       usedByGuildId: "guild-123",
+@kotbo/bot test:unit:       isActive: false,
+@kotbo/bot test:unit:     },
+@kotbo/bot test:unit:   }
+@kotbo/bot test:unit: ]
+@kotbo/bot test:unit: But it was not called.
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/activationCodeService.test.ts:83:42)
+@kotbo/bot test:unit: (fail) activation service > activateGuild should update DB activation code, upsert guild, and add to cache [0.41ms]
+@kotbo/bot test:unit: 116 | 
+@kotbo/bot test:unit: 117 |     activatedGuilds.add('guild-123');
+@kotbo/bot test:unit: 118 | 
+@kotbo/bot test:unit: 119 |     await deactivateGuild('guild-123');
+@kotbo/bot test:unit: 120 | 
+@kotbo/bot test:unit: 121 |     expect(mockDb.activationCode.update).toHaveBeenCalledWith({
+@kotbo/bot test:unit:                                                ^
+@kotbo/bot test:unit: error: expect(received).toHaveBeenCalledWith(...expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: [
+@kotbo/bot test:unit:   {
+@kotbo/bot test:unit:     where: {
+@kotbo/bot test:unit:       code: "KB-TEST-CODE",
+@kotbo/bot test:unit:     },
+@kotbo/bot test:unit:     data: {
+@kotbo/bot test:unit:       usedAt: null,
+@kotbo/bot test:unit:       usedByGuildId: null,
+@kotbo/bot test:unit:       isActive: true,
+@kotbo/bot test:unit:     },
+@kotbo/bot test:unit:   }
+@kotbo/bot test:unit: ]
+@kotbo/bot test:unit: But it was not called.
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/activationCodeService.test.ts:121:42)
+@kotbo/bot test:unit: (fail) activation service > deactivateGuild should set active to false in DB and delete from cache [0.21ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/logger.test.ts:
+@kotbo/bot test:unit: 35 |     delete process.env.LOG_LEVEL;
+@kotbo/bot test:unit: 36 |   });
+@kotbo/bot test:unit: 37 | 
+@kotbo/bot test:unit: 38 |   test("affiche des logs d'information", () => {
+@kotbo/bot test:unit: 39 |     logger.info('TestTag', 'message info');
+@kotbo/bot test:unit: 40 |     expect(logOutput.length).toBeGreaterThan(0);
+@kotbo/bot test:unit:                                   ^
+@kotbo/bot test:unit: error: expect(received).toBeGreaterThan(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: > 0
+@kotbo/bot test:unit: Received: 0
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:40:30)
+@kotbo/bot test:unit: (fail) logger > affiche des logs d'information [2.46ms]
+@kotbo/bot test:unit: 42 |     expect(logOutput[0]).toContain('message info');
+@kotbo/bot test:unit: 43 |     expect(logOutput[0]).toContain('INFO');
+@kotbo/bot test:unit: 44 |   });
+@kotbo/bot test:unit: 45 | 
+@kotbo/bot test:unit: 46 |   test('affiche des messages de succes', () => {
+@kotbo/bot test:unit: 47 |     logger.success('TestTag', 'operation complete');
+@kotbo/bot test:unit:                 ^
+@kotbo/bot test:unit: TypeError: logger.success is not a function. (In 'logger.success("TestTag", "operation complete")', 'logger.success' is undefined)
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:47:12)
+@kotbo/bot test:unit: (fail) logger > affiche des messages de succes [0.12ms]
+@kotbo/bot test:unit: 50 |     expect(logOutput[0]).toContain('TestTag');
+@kotbo/bot test:unit: 51 |   });
+@kotbo/bot test:unit: 52 | 
+@kotbo/bot test:unit: 53 |   test('affiche des avertissements', () => {
+@kotbo/bot test:unit: 54 |     logger.warn('TestTag', 'attention requise');
+@kotbo/bot test:unit: 55 |     expect(warnOutput.length).toBeGreaterThan(0);
+@kotbo/bot test:unit:                                    ^
+@kotbo/bot test:unit: error: expect(received).toBeGreaterThan(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: > 0
+@kotbo/bot test:unit: Received: 0
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:55:31)
+@kotbo/bot test:unit: (fail) logger > affiche des avertissements [0.11ms]
+@kotbo/bot test:unit: 57 |     expect(warnOutput[0]).toContain('TestTag');
+@kotbo/bot test:unit: 58 |   });
+@kotbo/bot test:unit: 59 | 
+@kotbo/bot test:unit: 60 |   test('affiche des erreurs', () => {
+@kotbo/bot test:unit: 61 |     logger.error('TestTag', 'erreur critique');
+@kotbo/bot test:unit: 62 |     expect(errorOutput.length).toBeGreaterThan(0);
+@kotbo/bot test:unit:                                     ^
+@kotbo/bot test:unit: error: expect(received).toBeGreaterThan(expected)
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: Expected: > 0
+@kotbo/bot test:unit: Received: 0
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:62:32)
+@kotbo/bot test:unit: (fail) logger > affiche des erreurs [0.14ms]
+@kotbo/bot test:unit: 64 |     expect(errorOutput[0]).toContain('TestTag');
+@kotbo/bot test:unit: 65 |   });
+@kotbo/bot test:unit: 66 | 
+@kotbo/bot test:unit: 67 |   test('affiche debug quand LOG_LEVEL=debug', () => {
+@kotbo/bot test:unit: 68 |     process.env.LOG_LEVEL = 'debug';
+@kotbo/bot test:unit: 69 |     logger.debug('TestTag', 'message debug');
+@kotbo/bot test:unit:                 ^
+@kotbo/bot test:unit: TypeError: logger.debug is not a function. (In 'logger.debug("TestTag", "message debug")', 'logger.debug' is undefined)
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:69:12)
+@kotbo/bot test:unit: (fail) logger > affiche debug quand LOG_LEVEL=debug [0.12ms]
+@kotbo/bot test:unit: 71 |     expect(logOutput[0]).toContain('DEBUG');
+@kotbo/bot test:unit: 72 |   });
+@kotbo/bot test:unit: 73 | 
+@kotbo/bot test:unit: 74 |   test("n'affiche pas debug quand LOG_LEVEL n'est pas debug", () => {
+@kotbo/bot test:unit: 75 |     process.env.LOG_LEVEL = 'info';
+@kotbo/bot test:unit: 76 |     logger.debug('TestTag', 'message debug');
+@kotbo/bot test:unit:                 ^
+@kotbo/bot test:unit: TypeError: logger.debug is not a function. (In 'logger.debug("TestTag", "message debug")', 'logger.debug' is undefined)
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:76:12)
+@kotbo/bot test:unit: (fail) logger > n'affiche pas debug quand LOG_LEVEL n'est pas debug [0.08ms]
+@kotbo/bot test:unit: 76 |     logger.debug('TestTag', 'message debug');
+@kotbo/bot test:unit: 77 |     expect(logOutput.length).toBe(0);
+@kotbo/bot test:unit: 78 |   });
+@kotbo/bot test:unit: 79 | 
+@kotbo/bot test:unit: 80 |   test("n'affiche pas debug sans LOG_LEVEL", () => {
+@kotbo/bot test:unit: 81 |     logger.debug('TestTag', 'message debug');
+@kotbo/bot test:unit:                 ^
+@kotbo/bot test:unit: TypeError: logger.debug is not a function. (In 'logger.debug("TestTag", "message debug")', 'logger.debug' is undefined)
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:81:12)
+@kotbo/bot test:unit: (fail) logger > n'affiche pas debug sans LOG_LEVEL [0.18ms]
+@kotbo/bot test:unit: 82 |     expect(logOutput.length).toBe(0);
+@kotbo/bot test:unit: 83 |   });
+@kotbo/bot test:unit: 84 | 
+@kotbo/bot test:unit: 85 |   test('formate les logs avec timestamp, couleurs et tag', () => {
+@kotbo/bot test:unit: 86 |     logger.info('Bot', 'Démarrage');
+@kotbo/bot test:unit: 87 |     expect(logOutput[0]).toContain('[');
+@kotbo/bot test:unit:                               ^
+@kotbo/bot test:unit: error: Received value must be an array type, or both received and expected values must be strings.
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:87:26)
+@kotbo/bot test:unit: (fail) logger > formate les logs avec timestamp, couleurs et tag [0.10ms]
+@kotbo/bot test:unit: 89 |     expect(logOutput[0]).toContain('Démarrage');
+@kotbo/bot test:unit: 90 |   });
+@kotbo/bot test:unit: 91 | 
+@kotbo/bot test:unit: 92 |   test('supporte plusieurs arguments', () => {
+@kotbo/bot test:unit: 93 |     logger.info('Tag', 'arg1', 'arg2', 'arg3');
+@kotbo/bot test:unit: 94 |     expect(logOutput[0]).toContain('arg1');
+@kotbo/bot test:unit:                               ^
+@kotbo/bot test:unit: error: Received value must be an array type, or both received and expected values must be strings.
+@kotbo/bot test:unit:       at <anonymous> (/home/intercalaire/github/Kotbo/apps/bot/src/tests/unit/logger.test.ts:94:26)
+@kotbo/bot test:unit: (fail) logger > supporte plusieurs arguments [0.09ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/newsRss.test.ts:
+@kotbo/bot test:unit: (pass) news RSS generator > génère un document XML RSS 2.0 valide à partir d'articles [0.41ms]
+@kotbo/bot test:unit: (pass) news RSS generator > génère un canal vide si aucun article n'est passé [0.20ms]
+@kotbo/bot test:unit: (pass) news RSS generator > génère le bon lien atom:link avec filtrage par catégorie et sous-catégorie [0.10ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/translationService.test.ts:
+@kotbo/bot test:unit: (pass) translationService > met en cache une traduction pour eviter les appels repetes [1.41ms]
+@kotbo/bot test:unit: (pass) translationService > retourne null en cas d erreur traducteur [0.40ms]
+@kotbo/bot test:unit: (pass) translationService > normalise la langue cible invalide vers fr [0.25ms]
+@kotbo/bot test:unit: (pass) translationService > clearCacheForTests vide bien le cache [0.58ms]
+@kotbo/bot test:unit: (pass) translationService > isTranslationAvailable retourne true [0.11ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/metadataParser.test.ts:
+@kotbo/bot test:unit: (pass) fetchArticleMetadata > extrait title, description, image et flux rss [1.09ms]
+@kotbo/bot test:unit: (pass) fetchArticleMetadata > retourne des valeurs nulles en cas d'erreur reseau [0.19ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/adminLockService.test.ts:
+@kotbo/bot test:unit: (pass) roleGrantsAdministrator > retourne true pour un bitfield contenant uniquement Administrator [0.39ms]
+@kotbo/bot test:unit: (pass) roleGrantsAdministrator > retourne true pour un bitfield combinant Administrator avec d'autres permissions [0.06ms]
+@kotbo/bot test:unit: (pass) roleGrantsAdministrator > retourne false pour un bitfield sans Administrator [0.06ms]
+@kotbo/bot test:unit: (pass) roleGrantsAdministrator > retourne false pour un bitfield vide [0.11ms]
+@kotbo/bot test:unit: (pass) isAdminLockBypassedCore > bypass le propriétaire du serveur inconditionnellement [0.09ms]
+@kotbo/bot test:unit: (pass) isAdminLockBypassedCore > bypass un membre possédant un rôle 'sécurité' [0.07ms]
+@kotbo/bot test:unit: (pass) isAdminLockBypassedCore > ne bypass pas un membre sans rôle 'sécurité' ni owner [0.04ms]
+@kotbo/bot test:unit: (pass) isAdminLockBypassedCore > ne bypass pas quand aucun rôle sécurité n'est configuré [0.04ms]
+@kotbo/bot test:unit: (pass) isAdminLockBypassedCore > un propriétaire configuré par erreur comme rôle sécurité ne casse pas le bypass des autres membres [0.04ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/dashboardCors.test.ts:
+@kotbo/bot test:unit: (pass) dashboardCors > reflects dash.kotbo.fr origin in Access-Control-Allow-Origin [3.59ms]
+@kotbo/bot test:unit: (pass) dashboardCors > reflects kotbo.fr landing origin [0.39ms]
+@kotbo/bot test:unit: (pass) dashboardCors > handles OPTIONS preflight for dash.kotbo.fr [0.59ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/ping.command.test.ts:
+@kotbo/bot test:unit: (pass) commande ping > repond puis edite la reponse avec un embed de latence [1.04ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/transcript.command.test.ts:
+@kotbo/bot test:unit: (pass) commande transcript duration parser > parse correctement les durées valides [0.32ms]
+@kotbo/bot test:unit: (pass) commande transcript duration parser > retourne null pour les durées invalides [0.04ms]
+@kotbo/bot test:unit: (pass) commande transcript datetime and duration parser > parse correctement les durées relatives [0.10ms]
+@kotbo/bot test:unit: (pass) commande transcript datetime and duration parser > parse correctement les timestamps unix en secondes et millisecondes [0.05ms]
+@kotbo/bot test:unit: (pass) commande transcript datetime and duration parser > parse correctement le format de date français DD/MM/YYYY-HH:MM [0.09ms]
+@kotbo/bot test:unit: (pass) commande transcript datetime and duration parser > parse correctement le format de date français simple DD/MM/YYYY [0.05ms]
+@kotbo/bot test:unit: (pass) commande transcript datetime and duration parser > parse correctement le format ISO ou standard JS date [0.04ms]
+@kotbo/bot test:unit: (pass) commande transcript datetime and duration parser > retourne null pour les entrées invalides [0.04ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/githubReleaseService.test.ts:
+@kotbo/bot test:unit: (pass) githubReleaseService > retourne une nouvelle release puis null au second passage identique [0.60ms]
+@kotbo/bot test:unit: (pass) githubReleaseService > retourne null si 404 [0.27ms]
+@kotbo/bot test:unit: (pass) githubReleaseService > formate le message release avec fallback description [0.08ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/burstTracker.test.ts:
+@kotbo/bot test:unit: (pass) recordAndCheckBurst > ne déclenche pas tant que la limite n'est pas dépassée [0.21ms]
+@kotbo/bot test:unit: (pass) recordAndCheckBurst > déclenche au-delà de la limite dans la fenêtre [0.10ms]
+@kotbo/bot test:unit: (pass) recordAndCheckBurst > ignore les occurrences hors de la fenêtre temporelle [0.08ms]
+@kotbo/bot test:unit: (pass) recordAndCheckBurst > déclenche si n'importe laquelle des fenêtres fournies est dépassée (limite lente) [0.06ms]
+@kotbo/bot test:unit: (pass) recordAndCheckBurst > resetBurst réinitialise le compteur pour une clé [0.06ms]
+@kotbo/bot test:unit: (pass) recordAndCheckBurst > des clés différentes ont des compteurs indépendants [0.08ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/language.test.ts:
+@kotbo/bot test:unit: (pass) language utils > retourne null quand le texte est trop court [0.76ms]
+@kotbo/bot test:unit: (pass) language utils > detecte une langue supportee sur un texte long [6.31ms]
+@kotbo/bot test:unit: (pass) language utils > mappe les noms de langue lisibles [0.07ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/staffServerService.test.ts:
+@kotbo/bot test:unit: (pass) StaffServerService unit tests > resolveStaffNotifyChannelId > should resolve correct channel ID when mapping exists and link is enabled [0.34ms]
+@kotbo/bot test:unit: (pass) StaffServerService unit tests > resolveStaffNotifyChannelId > should return null if link is disabled [0.05ms]
+@kotbo/bot test:unit: (pass) StaffServerService unit tests > resolveStaffNotifyChannelId > should return null if channel ID is not configured [0.14ms]
+@kotbo/bot test:unit: (pass) StaffServerService unit tests > computeStaffRoleTransition > gained-first: transitioning from no staff roles to having one [0.16ms]
+@kotbo/bot test:unit: (pass) StaffServerService unit tests > computeStaffRoleTransition > lost-all: transitioning from having staff roles to having none [0.04ms]
+@kotbo/bot test:unit: (pass) StaffServerService unit tests > computeStaffRoleTransition > none: no change in staff roles presence [0.04ms]
+@kotbo/bot test:unit: (pass) StaffServerService unit tests > getStaffServerNotifyChannel > resolves and returns TextChannel when configured [0.87ms]
+@kotbo/bot test:unit: (pass) StaffServerService unit tests > getStaffServerNotifyChannel > returns null if resolved channel has mismatched guild ID [0.18ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: src/tests/unit/patchV2.test.ts:
+@kotbo/bot test:unit: (pass) transformUpdatePayload > convertit content en TextDisplay pour un update sur message V2 [2.54ms]
+@kotbo/bot test:unit: (pass) transformUpdatePayload > préserve les composants existants en les plaçant après le texte [0.07ms]
+@kotbo/bot test:unit: (pass) transformUpdatePayload > convertit un update string sur message V2 [0.05ms]
+@kotbo/bot test:unit: (pass) transformUpdatePayload > ne modifie pas un update content sur message legacy [0.05ms]
+@kotbo/bot test:unit: (pass) transformUpdatePayload > convertit toujours les embeds via transformPayload, cible V2 ou non [0.87ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit: 19 tests failed:
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 1. Public Routes > GET /api/config returns client info [1.57ms]
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 4. User Routes > GET /api/user/me returns user info when authenticated [1.61ms]
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 5. Admin Routes > GET /api/admin/stats is blocked without admin access [13.39ms]
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 6. Dashboard Router dispatcher > GET /api/dashboard/guilds/:guildId/notifications/features returns 200 [0.56ms]
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 6. Dashboard Router dispatcher > POST /api/dashboard/guilds/:guildId/embed-builder parses content and V2 embed fields [0.90ms]
+@kotbo/bot test:unit: (fail) Modular Routers Unit Tests > 6. Dashboard Router dispatcher > POST /api/dashboard/guilds/:guildId/clans/points adds manual points [1.14ms]
+@kotbo/bot test:unit: (fail) activation service > loadActivatedGuilds should populate the activatedGuilds Set from DB [0.71ms]
+@kotbo/bot test:unit: (fail) activation service > activateGuild should update DB activation code, upsert guild, and add to cache [0.41ms]
+@kotbo/bot test:unit: (fail) activation service > deactivateGuild should set active to false in DB and delete from cache [0.21ms]
+@kotbo/bot test:unit: (fail) logger > affiche des logs d'information [2.46ms]
+@kotbo/bot test:unit: (fail) logger > affiche des messages de succes [0.12ms]
+@kotbo/bot test:unit: (fail) logger > affiche des avertissements [0.11ms]
+@kotbo/bot test:unit: (fail) logger > affiche des erreurs [0.14ms]
+@kotbo/bot test:unit: (fail) logger > affiche debug quand LOG_LEVEL=debug [0.12ms]
+@kotbo/bot test:unit: (fail) logger > n'affiche pas debug quand LOG_LEVEL n'est pas debug [0.08ms]
+@kotbo/bot test:unit: (fail) logger > n'affiche pas debug sans LOG_LEVEL [0.18ms]
+@kotbo/bot test:unit: (fail) logger > formate les logs avec timestamp, couleurs et tag [0.10ms]
+@kotbo/bot test:unit: (fail) logger > supporte plusieurs arguments [0.09ms]
+@kotbo/bot test:unit: 
+@kotbo/bot test:unit:  190 pass
+@kotbo/bot test:unit:  19 fail
+@kotbo/bot test:unit:  1 error
+@kotbo/bot test:unit:  976 expect() calls
+@kotbo/bot test:unit: Ran 209 tests across 29 files. [1.75s]
+@kotbo/bot test:unit: Exited with code 1
+error: script "test:bot" exited with code 1

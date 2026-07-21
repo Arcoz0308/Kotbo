@@ -1,15 +1,12 @@
 import {
   SlashCommandBuilder,
-  ContainerBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { COLORS_RAW, text, errorContainer } from '../../utils/embeds.js';
+import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E, rankEmoji, buildProgressBar } from '../../utils/emojis.js';
 import { getAllSeasons, getSeasonLeaderboard } from '../../services/progression/seasonService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
+import { ContainerChild, separator, v2Message } from '@arcscord/components';
 
 function formatDate(date: Date | string | null | undefined): string {
   if (!date) return '—';
@@ -45,48 +42,54 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const seasons = await getAllSeasons(guildId);
 
     if (seasons.length === 0) {
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.dark)
-        .addTextDisplayComponents(text(`### ${E.trophy} Saisons`))
-        .addTextDisplayComponents(text(`${E.info} Aucune saison configurée pour le moment.`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Saisons`));
-
-      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      await interaction.editReply(v2Message(
+        kotboContainer({
+          color: 'dark',
+          title: `${E.trophy} Saisons`,
+          fields: [
+            `${E.info} Aucune saison configurée pour le moment.`
+          ],
+          footerTitle: 'Saisons'
+        })
+      ));
       return;
     }
 
-    const lines = seasons.map((s: any) => {
+    const lines = seasons.map((s) => {
       const status = STATUS_MAP[s.status] ?? { icon: E.dot, label: s.status };
       const snapCount = s._count?.snapshots ?? 0;
       return `${status.icon} **Saison #${s.number}** · ${s.name}\n${E.dot} ${formatDate(s.startDate)} → ${formatDate(s.endDate)} · ${status.label}${snapCount > 0 ? ` · ${snapCount} participants` : ''}`;
     });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addTextDisplayComponents(text(`### ${E.trophy} Saisons`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(lines.join('\n\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · ${seasons.length} saison(s)`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'primary',
+        title: `${E.trophy} Saisons`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          lines.join('\n\n')
+        ],
+        footerTitle: `${seasons.length} saison${seasons.length > 1 ? 's' : ''}`
+      })
+    ));
   }
 
   if (subcommand === 'current') {
     await interaction.deferReply();
     const seasons = await getAllSeasons(guildId);
-    const active = seasons.find((s: any) => s.status === 'ACTIVE');
+    const active = seasons.find((s) => s.status === 'ACTIVE');
 
     if (!active) {
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.dark)
-        .addTextDisplayComponents(text(`### ${E.trophy} Saison en cours`))
-        .addTextDisplayComponents(text(`${E.info} Aucune saison active pour le moment.`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Saisons`));
-
-      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      await interaction.editReply(v2Message(
+        kotboContainer({
+          color: 'dark',
+          title: `${E.trophy} Saison en cours`,
+          fields: [
+            `${E.info} Aucune saison active pour le moment.`
+          ],
+          footerTitle: 'Saisons'
+        })
+      ));
       return;
     }
 
@@ -100,32 +103,37 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const lb = await getSeasonLeaderboard(guildId, active.id, 10);
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addTextDisplayComponents(text(`### ${E.trophy} Saison #${active.number} · ${active.name}`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text([
+    const fields: ContainerChild[] = [
+      separator({ divider: true, spacing: 'small' }),
+      [
         `${E.arrow} **Période** · ${formatDate(active.startDate)} → ${formatDate(active.endDate)}`,
         `${E.arrow} **Progression** · ${buildProgressBar(progressPct, 8)} \`${Math.round(progressPct)}%\``,
         `${E.arrow} **Temps restant** · ${daysLeft} jour(s)`,
-      ].join('\n')));
+      ].join('\n')
+    ]
 
+    // add leaderboard if exist
     if (lb.length > 0) {
-      const lbLines = lb.map((entry: any) => {
+      const lbLines = lb.map((entry) => {
         const medal = rankEmoji(entry.rank);
         return `${medal} <@${entry.userId}> — Lvl **${entry.level}** · **${entry.xp.toLocaleString('fr-FR')}** ${E.xp}`;
       });
 
-      container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-      container.addTextDisplayComponents(text(`**${E.level} Classement**`));
-      container.addTextDisplayComponents(text(lbLines.join('\n')));
+      fields.push(
+        separator({ divider: true, spacing: 'small' }),
+        `**${E.level} Classement**`,
+        lbLines.join('\n')
+      )
     }
 
-    container
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Saisons`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'primary',
+        title: `${E.trophy} Saison #${active.number} · ${active.name}`,
+        fields,
+        footerTitle: 'Saisons'
+      })
+    ));
   }
 
   if (subcommand === 'leaderboard') {
@@ -135,27 +143,28 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const lb = await getSeasonLeaderboard(guildId, seasonId, 20);
 
     if (lb.length === 0) {
-      await interaction.editReply({
-        components: [errorContainer('Aucun résultat', 'Aucun classement trouvé pour cette saison.')],
-        flags: MessageFlags.IsComponentsV2,
-      });
+      await interaction.editReply(v2Message(
+        errorContainer('Aucun résultat', 'Aucun classement trouvé pour cette saison.'),
+      ));
       return;
     }
 
-    const lines = lb.map((entry: any) => {
+    const lines = lb.map((entry) => {
       const medal = rankEmoji(entry.rank);
       return `${medal} <@${entry.userId}> — Lvl **${entry.level}** · **${entry.xp.toLocaleString('fr-FR')}** ${E.xp}`;
     });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addTextDisplayComponents(text(`### ${E.trophy} Classement Saison`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(lines.join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · ${lb.length} participant(s)`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'primary',
+        title: `${E.trophy} Classement Saison`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          lines.join('\n')
+        ],
+        footerTitle: `${lb.length} participant${lb.length > 1 ? 's' : ''}`
+      })
+    ));
   }
 }
 

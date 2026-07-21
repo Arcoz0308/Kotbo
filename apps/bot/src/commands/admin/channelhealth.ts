@@ -2,18 +2,16 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
   ChannelType,
-  ContainerBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { COLORS_RAW, text, successContainer } from '../../utils/embeds.js';
+import { successContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import {
   analyzeGuildChannelHealth,
   upsertChannelHealthConfig,
 } from '../../services/analytics/channelHealthService.js';
+import { separator, v2Message } from '@arcscord/components';
 
 const data = new SlashCommandBuilder()
   .setName('channelhealth')
@@ -105,16 +103,11 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const summary = await analyzeGuildChannelHealth(interaction.client, guildId);
 
     if (!summary || summary.channels.length === 0) {
-      await interaction.editReply({
-        components: [successContainer('Analyse', 'Aucune donnée disponible. Activez le moniteur et attendez quelques jours de collecte.')],
-        flags: MessageFlags.IsComponentsV2,
-      });
+      await interaction.editReply(v2Message(
+        successContainer('Analyse', 'Aucune donnée disponible. Activez le moniteur et attendez quelques jours de collecte.'),
+      ));
       return;
     }
-
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addTextDisplayComponents(text(`### ${E.stats} Santé des Salons`));
 
     const statusCounts = {
       HEALTHY: summary.healthy.length,
@@ -123,61 +116,64 @@ async function execute(interaction: ChatInputCommandInteraction) {
       DEAD: summary.dead.length,
     };
 
-    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-    container.addTextDisplayComponents(text(
+    const fields = [
+      separator({ divider: true, spacing: 'small' }),
       `**Résumé**\n` +
-      Object.entries(statusCounts)
-        .map(([status, count]) => `${STATUS_ICONS[status]} **${STATUS_LABELS[status]}**: ${count}`)
-        .join(' · '),
-    ));
+        Object.entries(statusCounts)
+          .map(([status, count]) => `${STATUS_ICONS[status]} **${STATUS_LABELS[status]}**: ${count}`)
+          .join(' · '),
+    ];
 
     if (summary.overloaded.length > 0) {
-      container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-      container.addTextDisplayComponents(text(
+      fields.push(
+        separator({ divider: true, spacing: 'small' }),
         `**${E.dnd} Salons surchargés**\n` +
-        summary.overloaded
-          .slice(0, 5)
-          .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(0)} msg/j, ${c.uniqueUsersAvg.toFixed(0)} users (${c.confidence}%)`)
-          .join('\n'),
-      ));
+          summary.overloaded
+            .slice(0, 5)
+            .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(0)} msg/j, ${c.uniqueUsersAvg.toFixed(0)} users (${c.confidence}%)`)
+            .join('\n'),
+      );
     }
 
     if (summary.dead.length > 0) {
-      container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-      container.addTextDisplayComponents(text(
+      fields.push(
+        separator({ divider: true, spacing: 'small' }),
         `**${E.offline} Salons morts**\n` +
-        summary.dead
-          .slice(0, 5)
-          .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(2)} msg/j`)
-          .join('\n'),
-      ));
+          summary.dead
+            .slice(0, 5)
+            .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(2)} msg/j`)
+            .join('\n'),
+      );
     }
 
     if (summary.underused.length > 0) {
-      container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-      container.addTextDisplayComponents(text(
+      fields.push(
+        separator({ divider: true, spacing: 'small' }),
         `**${E.idle} Salons sous-utilisés**\n` +
-        summary.underused
-          .slice(0, 5)
-          .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(1)} msg/j, ${c.uniqueUsersAvg.toFixed(0)} users`)
-          .join('\n'),
-      ));
+          summary.underused
+            .slice(0, 5)
+            .map(c => `${E.dot} <#${c.channelId}> — ${c.avgMsgPerDay.toFixed(1)} msg/j, ${c.uniqueUsersAvg.toFixed(0)} users`)
+            .join('\n'),
+      );
     }
 
     const topChannels = summary.channels.slice(0, 5);
-    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-    container.addTextDisplayComponents(text(
+    fields.push(
+      separator({ divider: true, spacing: 'small' }),
       `**${E.trophy} Top 5 salons actifs**\n` +
-      topChannels
-        .map((c, i) => `${E.dot} **${i + 1}.** <#${c.channelId}> — ${c.totalMessages} msg ${trendIcon(c.trend)}`)
-        .join('\n'),
+        topChannels
+          .map((c, i) => `${E.dot} **${i + 1}.** <#${c.channelId}> — ${c.totalMessages} msg ${trendIcon(c.trend)}`)
+          .join('\n'),
+    );
+
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'primary',
+        title: `${E.stats} Santé des Salons`,
+        fields,
+        footerTitle: `Analyse sur ${summary.periodDays}j — ${summary.channels.length} salon(s)`,
+      }),
     ));
-
-    container
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Analyse sur ${summary.periodDays}j — ${summary.channels.length} salon(s)`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
   } else if (subcommand === 'activer') {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const alertChannel = interaction.options.getChannel('salon-alertes');
@@ -191,17 +187,15 @@ async function execute(interaction: ChatInputCommandInteraction) {
       ? `Les rapports seront envoyés dans <#${alertChannel.id}>.`
       : 'Configurez un salon d\'alertes avec `/channelhealth config`.';
 
-    await interaction.editReply({
-      components: [successContainer('Moniteur activé', desc)],
-      flags: MessageFlags.IsComponentsV2,
-    });
+    await interaction.editReply(v2Message(
+      successContainer('Moniteur activé', desc),
+    ));
   } else if (subcommand === 'desactiver') {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await upsertChannelHealthConfig(guildId, { enabled: false });
-    await interaction.editReply({
-      components: [successContainer('Moniteur désactivé', 'Le moniteur de santé des salons a été désactivé.')],
-      flags: MessageFlags.IsComponentsV2,
-    });
+    await interaction.editReply(v2Message(
+      successContainer('Moniteur désactivé', 'Le moniteur de santé des salons a été désactivé.'),
+    ));
   } else if (subcommand === 'config') {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -215,10 +209,9 @@ async function execute(interaction: ChatInputCommandInteraction) {
     if (period) updateData.analysisPeriodDays = period;
 
     if (Object.keys(updateData).length === 0) {
-      await interaction.editReply({
-        components: [successContainer('Configuration', 'Aucune modification spécifiée. Utilisez les options de la commande.')],
-        flags: MessageFlags.IsComponentsV2,
-      });
+      await interaction.editReply(v2Message(
+        successContainer('Configuration', 'Aucune modification spécifiée. Utilisez les options de la commande.'),
+      ));
       return;
     }
 
@@ -229,15 +222,17 @@ async function execute(interaction: ChatInputCommandInteraction) {
     if (archiveMode) changes.push(`${E.arrow} **Mode archive** · ${archiveMode}`);
     if (period) changes.push(`${E.arrow} **Période** · ${period} jours`);
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.success)
-      .addTextDisplayComponents(text(`### ${E.settings} Configuration mise à jour`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(changes.join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Channel Health`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'success',
+        title: `${E.settings} Configuration mise à jour`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          changes.join('\n'),
+        ],
+        footerTitle: 'Channel Health',
+      }),
+    ));
   }
 }
 

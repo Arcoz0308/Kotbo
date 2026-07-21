@@ -42,6 +42,7 @@ import { handleQuestRoutes } from './dashboard/quests.js';
 import { handleWidgetRoutes } from './dashboard/widget.js';
 import { handleMessageLogRoutes } from './dashboard/messageLogs.js';
 import { handleRaidProtectionRoutes } from './dashboard/raidProtection.js';
+import { handleClansRoutes } from './dashboard/clans.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -262,6 +263,12 @@ export async function handleDashboardRoutes(
     if (await handleMessageLogRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
+    }
+    if (parts[4] === 'clans') {
+      if (await handleClansRoutes(req, res, parts, client, user, guildId, access)) {
+        if (method !== 'GET') await cache.invalidateGuild(guildId);
+        return true;
+      }
     }
   }
 
