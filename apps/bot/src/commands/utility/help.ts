@@ -170,15 +170,15 @@ function formatCommandOptionsTree(command: CommandJson, locale: Locale): string 
   return trunc(lines.join('\n'), 1800);
 }
 
-function buildHomeView(commands: SlashCommandDefinition[]) {
+function buildHomeView(commands: SlashCommandDefinition[], locale: Locale) {
   const fields: ContainerChild[] = [
-    `Bienvenue dans le centre d'aide de **Kotbo** !\nSélectionnez une catégorie ci-dessous ou cliquez sur 🔍 pour rechercher.`,
+    m.help_home_welcome({}, { locale }),
     separator({ divider: true, spacing: 'small' }),
   ];
 
-  for (const cat of CATEGORIES) {
-    const catCmds = commands.filter(c => getCommandCategory(c.data.name) === cat.name);
-    fields.push(`${cat.emoji} **${cat.name}** (${catCmds.length})\n${cat.description}`);
+  for (const id of CATEGORY_IDS) {
+    const catCmds = commands.filter(c => getCommandCategory(c.data.name) === id);
+    fields.push(`${CATEGORY_META[id].emoji} **${categoryLabel(id, locale)}** (${catCmds.length})\n${categoryDesc(id, locale)}`);
   }
 
   const selectMenu = new StringSelectMenuBuilder()
@@ -193,9 +193,9 @@ function buildHomeView(commands: SlashCommandDefinition[]) {
   return v2Message(
     kotboContainer({
       color: 'primary',
-      title: `${E.info} Kotbo — Centre d'aide interactif`,
+      title: `${E.info} ${m.help_home_title({}, { locale })}`,
       fields,
-      footerOverwrite: `-# ${E.kotbo} ${commands.length} commandes disponibles`,
+      footerOverwrite: `-# ${E.kotbo} ${m.help_commands_available({ count: commands.length }, { locale })}`,
     }),
     row1,
     row2,
@@ -210,15 +210,6 @@ function buildCategoryView(commands: SlashCommandDefinition[], categoryId: Categ
   const cmdList = catCmds.length > 0
     ? catCmds.map(c => `${E.arrow} \`/${c.data.name}\` — ${c.data.description}`).join('\n')
     : m.help_no_commands_in_category({}, { locale });
-
-  const container = new ContainerBuilder()
-    .setAccentColor(accentColor)
-    .addTextDisplayComponents(text(`### ${CATEGORY_META[id].emoji} ${categoryLabel(id, locale)}`))
-    .addTextDisplayComponents(text(`*${categoryDesc(id, locale)}*`))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(cmdList))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(`-# ${m.help_commands_in_category({ count: catCmds.length }, { locale })}`));
 
   const selectCategory = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
@@ -242,13 +233,13 @@ function buildCategoryView(commands: SlashCommandDefinition[], categoryId: Categ
   return v2Message(
     kotboContainer({
       color: accentColor,
-      title: `${cat.emoji} ${cat.name}`,
+      title: `${CATEGORY_META[id].emoji} ${categoryLabel(id, locale)}`,
       fields: [
-        `*${cat.description}*`,
+        `*${categoryDesc(id, locale)}*`,
         separator({ divider: true, spacing: 'small' }),
         cmdList,
       ],
-      footerOverwrite: `-# ${catCmds.length} commandes dans cette catégorie`,
+      footerOverwrite: `-# ${m.help_commands_in_category({ count: catCmds.length }, { locale })}`,
     }),
     ...rows,
   );
@@ -266,20 +257,6 @@ function buildCommandView(commands: SlashCommandDefinition[], commandName: strin
   const optionsTree = formatCommandOptionsTree(commandJson, locale);
   const permissions = formatPermissions(commandJson.default_member_permissions, locale);
 
-  const container = new ContainerBuilder()
-    .setAccentColor(accentColor)
-    .addTextDisplayComponents(text(`### ${CATEGORY_META[category].emoji} /${command.data.name}`))
-    .addTextDisplayComponents(text(command.data.description || m.help_no_description({}, { locale })))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text([
-      `**${E.arrow} ${m.help_label_category({}, { locale })}** · ${categoryLabel(category, locale)}`,
-      `**${E.lock} ${m.help_label_permissions({}, { locale })}** · ${permissions}`,
-    ].join('\n')))
-    .addTextDisplayComponents(text(`**${E.info} ${m.help_label_syntax({}, { locale })}**\n${syntax}`))
-    .addTextDisplayComponents(text(`**${E.settings} ${m.help_label_options({}, { locale })}**\n${optionsTree}`))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(m.help_footer_detail({}, { locale })));
-
   const catCmds = commands.filter(c => getCommandCategory(c.data.name) === category).sort((a, b) => a.data.name.localeCompare(b.data.name));
   const currentIndex = catCmds.findIndex(c => c.data.name === command.data.name);
   const prevCmd = catCmds[(currentIndex - 1 + catCmds.length) % catCmds.length];
@@ -289,8 +266,8 @@ function buildCommandView(commands: SlashCommandDefinition[], commandName: strin
 
   const selectCategory = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
-    .setPlaceholder('📁 Choisir une autre catégorie...')
-    .addOptions(CATEGORIES.map(c => ({ label: c.name, value: `cat:${c.name}`, emoji: '📁', default: c.name === category })));
+    .setPlaceholder(m.help_select_other_category_placeholder({}, { locale }))
+    .addOptions(CATEGORY_IDS.map(c => ({ label: categoryLabel(c, locale), value: `cat:${c}`, emoji: '📁', default: c === category })));
   rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory));
 
   const selectCommand = new StringSelectMenuBuilder()
@@ -308,18 +285,18 @@ function buildCommandView(commands: SlashCommandDefinition[], commandName: strin
   return v2Message(
     kotboContainer({
       color: accentColor,
-      title: `${cat.emoji} /${command.data.name}`,
+      title: `${CATEGORY_META[category].emoji} /${command.data.name}`,
       fields: [
-        command.data.description || 'Pas de description.',
+        command.data.description || m.help_no_description({}, { locale }),
         separator({ divider: true, spacing: 'small' }),
         [
-          `**${E.arrow} Catégorie** · ${category}`,
-          `**${E.lock} Permissions** · ${permissions}`,
+          `**${E.arrow} ${m.help_label_category({}, { locale })}** · ${categoryLabel(category, locale)}`,
+          `**${E.lock} ${m.help_label_permissions({}, { locale })}** · ${permissions}`,
         ].join('\n'),
-        `**${E.info} Syntaxe**\n${syntax}`,
-        `**${E.settings} Options**\n${optionsTree}`,
+        `**${E.info} ${m.help_label_syntax({}, { locale })}**\n${syntax}`,
+        `**${E.settings} ${m.help_label_options({}, { locale })}**\n${optionsTree}`,
       ],
-      footerOverwrite: `-# Kotbo · Aide détaillée`,
+      footerOverwrite: `-# ${m.help_footer_detail({}, { locale })}`,
     }),
     ...rows,
   );

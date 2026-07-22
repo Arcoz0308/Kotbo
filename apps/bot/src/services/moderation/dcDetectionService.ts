@@ -1,5 +1,6 @@
-import { type Guild, type GuildMember, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { type Guild, type GuildMember, type Interaction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import prisma from '../../utils/db.js';
+import { logger } from '../../utils/logger.js';
 
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import * as altAccountService from './altAccountService.js';
@@ -836,7 +837,7 @@ async function reportSuspectedDC(
 }
 
 // ─── Interactions boutons Discord ─────────────────────────────────────────────
-export async function handleDCInteraction(interaction: unknown): Promise<void> {
+export async function handleDCInteraction(interaction: Interaction): Promise<void> {
   if (!interaction.isButton()) return;
   if (!interaction.customId.startsWith('dc_')) return;
 

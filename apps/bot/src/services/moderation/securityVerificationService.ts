@@ -1,6 +1,7 @@
 import {
   type Client,
   type GuildMember,
+  type Interaction,
   type TextChannel,
   EmbedBuilder,
   ActionRowBuilder,
@@ -639,7 +640,7 @@ async function notifyStaffOfDuplicate(
   );
 }
 
-export async function handleVerificationStaffAction(interaction: unknown): Promise<void> {
+export async function handleVerificationStaffAction(interaction: Interaction): Promise<void> {
   if (!interaction.isButton()) return;
 
   const parts = interaction.customId.split(':');

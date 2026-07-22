@@ -1,5 +1,5 @@
 import { errorMessage } from '../../utils/errors.js';
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ColorResolvable } from 'discord.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
@@ -141,7 +141,7 @@ export async function createGiveaway(
 /**
  * Gère l'action de clic sur le bouton d'inscription d'un giveaway
  */
-export async function handleGiveawayJoin(interaction: unknown) {
+export async function handleGiveawayJoin(interaction: ButtonInteraction) {
   const giveawayId = interaction.customId.split(':')[1];
   const userId = interaction.user.id;
 
@@ -284,7 +284,7 @@ export async function endGiveaway(client: Client, giveawayId: string) {
       if (message) {
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
-          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${participants.length}`,
+          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
           '#FAA81A'
         );
 
@@ -328,7 +328,7 @@ export async function endGiveaway(client: Client, giveawayId: string) {
     if (message) {
       const endedEmbed = buildGiveawayEmbed(
         giveaway,
-        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${participants.length}`,
+        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
         '#ED4245'
       );
 

@@ -1,6 +1,8 @@
 import * as m from '../lib/paraglide/messages.js';
 
-export function getLocale(interaction: { locale?: string; guildLocale?: string }): 'fr' | 'en' {
+// `guildLocale` vaut `null` hors serveur cote discord.js (et `locale` est un
+// enum Locale, compatible string) : le type doit accepter les deux.
+export function getLocale(interaction: { locale?: string | null; guildLocale?: string | null }): 'fr' | 'en' {
   const code = interaction.locale ?? interaction.guildLocale ?? 'fr';
   return code.startsWith('fr') ? 'fr' : 'en';
 }

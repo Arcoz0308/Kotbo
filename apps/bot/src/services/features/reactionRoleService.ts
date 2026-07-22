@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, GuildMember, type ButtonInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
@@ -107,12 +107,15 @@ export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
 /**
  * Bascule (ajoute ou retire) un rôle à un membre suite à un clic sur bouton
  */
-export async function handleRoleToggleInteraction(interaction: unknown) {
+export async function handleRoleToggleInteraction(interaction: ButtonInteraction) {
   try {
     const roleId = interaction.customId.split(':')[1];
+    // `interaction.member` peut etre un GuildMember complet ou sa forme brute
+    // APIInteractionGuildMember (hors cache), qui n'expose pas de gestionnaire
+    // de roles : seul le premier permet d'ajouter ou retirer un role.
     const member = interaction.member;
 
-    if (!member) {
+    if (!(member instanceof GuildMember)) {
       return interaction.reply({
         content: '❌ Impossible de trouver votre profil sur ce serveur.',
         flags: [MessageFlags.Ephemeral],
