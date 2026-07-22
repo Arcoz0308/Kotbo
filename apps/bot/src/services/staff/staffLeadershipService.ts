@@ -43,7 +43,7 @@ export const getAbsences = async (guildId: string) => {
     const superior = absence.superiorUserId ? superiors.find(s => s.userId === absence.superiorUserId) : null;
 
     // Helper to resolve display name: Pseudo > Tag > Username > Discord ID
-    const resolveName = (m: unknown, defaultId: string) => {
+    const resolveName = (m: Record<string, unknown> | null | undefined, defaultId: string) => {
       if (!m) return defaultId;
       return m.displayName || m.userTag || m.username || m.userId || defaultId;
     };
@@ -82,15 +82,15 @@ const getAbsenceFeatureConfig = async (guildId: string) => {
 
 const sendAbsenceDiscordRelay = async (params: {
   guildId: string;
-  absence: unknown;
-  requester: unknown;
-  superior: unknown;
+  absence: Record<string, unknown>;
+  requester: Record<string, unknown>;
+  superior: Record<string, unknown>;
   featureConfig: {
     enabled: boolean;
     channelId: string | null;
     notificationRoleId: string | null;
     notifyViaDiscordChannel: boolean;
-    metadata?: unknown;
+    metadata?: Record<string, unknown>;
     notificationTargets?: Array<{
       targetType: string;
       targetId: string | null;
@@ -345,7 +345,7 @@ const formatAbsenceDuration = (startDate: Date, endDate?: Date) => {
   return `${days} j ${Number.isInteger(remainingHours) ? remainingHours.toFixed(0) : remainingHours.toFixed(1)} h`;
 };
 
-const getAbsenceDisplayName = (member: unknown, fallback: string) => {
+const getAbsenceDisplayName = (member: Record<string, unknown> | null | undefined, fallback: string) => {
   if (!member) return fallback;
   return member.displayName || member.userTag || member.username || member.userId || fallback;
 };
@@ -1433,8 +1433,8 @@ export const logStaffVoiceSession = async (
  * Récupère les données du calendrier pour le staff (absences + vocal)
  */
 export const getStaffCalendarData = async (guildId: string, start: Date, end: Date, staffUserIds?: string[]) => {
-  let absences: unknown[] = [];
-  let voiceSessions: unknown[] = [];
+  let absences: Record<string, unknown>[] = [];
+  let voiceSessions: Record<string, unknown>[] = [];
 
   try {
     absences = await prisma.staffAbsence.findMany({
@@ -1481,7 +1481,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
     logger.error('StaffLeadership', `Error fetching voice sessions: ${errorMessage(err)}`);
   }
 
-  let meetings: unknown[] = [];
+  let meetings: Record<string, unknown>[] = [];
   try {
     meetings = await prisma.staffMeeting.findMany({
       where: {
@@ -1510,7 +1510,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
     logger.error('StaffLeadership', `Error fetching meetings: ${(err as Error).message}`);
   }
 
-  let calls: unknown[] = [];
+  let calls: Record<string, unknown>[] = [];
   try {
     calls = await prisma.staffCall.findMany({
       where: {
@@ -1531,7 +1531,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
     logger.error('StaffLeadership', `Error fetching calls: ${(err as Error).message}`);
   }
 
-  let tasks: unknown[] = [];
+  let tasks: Record<string, unknown>[] = [];
   try {
     tasks = await prisma.staffTask.findMany({
       where: {
@@ -1684,7 +1684,7 @@ export const createCall = async (
         if (configChan) categoryId = configChan.parentId ?? undefined;
       }
 
-      const permissionOverwrites: unknown[] = [
+      const permissionOverwrites: Record<string, unknown>[] = [
         {
           id: discordGuild.id,
           deny: channelType === 'THREAD' ? [] : ['Connect', 'ViewChannel']

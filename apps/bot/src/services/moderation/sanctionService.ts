@@ -1,3 +1,4 @@
+import type { Sanction } from '@prisma/client';
 import { EmbedBuilder, Guild, GuildMember, type Client } from 'discord.js';
 import { Prisma, SanctionStatus, SanctionType } from '@prisma/client';
 import prisma from '../../utils/db.js';
@@ -394,7 +395,7 @@ async function emitSanctionReportReminder(params: {
   }
 }
 
-async function resolveStaffToNotify(guildId: string, sanction: unknown): Promise<Set<string>> {
+async function resolveStaffToNotify(guildId: string, sanction: Sanction): Promise<Set<string>> {
   const userIdsToNotify = new Set<string>();
 
   if (sanction.targetUserId) {
@@ -443,7 +444,7 @@ function sanctionTypeLabel(type: string): string {
   }[type] || 'Sanction';
 }
 
-async function notifyStaffOfSanction(guildId: string, sanction: unknown) {
+async function notifyStaffOfSanction(guildId: string, sanction: Sanction) {
   const userIdsToNotify = await resolveStaffToNotify(guildId, sanction);
   const typeLabel = sanctionTypeLabel(sanction.type as string);
 
@@ -488,7 +489,7 @@ export async function notifyStaffOfSyncedSanction(
   }
 }
 
-async function propagateSanction(client: Client, originalGuildId: string, sanction: unknown) {
+async function propagateSanction(client: Client, originalGuildId: string, sanction: Sanction) {
   const originalGuild = await prisma.guild.findUnique({
     where: { id: originalGuildId },
     select: { propagateSanctions: true }
