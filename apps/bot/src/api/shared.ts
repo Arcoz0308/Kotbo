@@ -1,10 +1,12 @@
 import { type IncomingMessage, ServerResponse } from 'node:http';
+import { gzipSync } from 'node:zlib';
 
 
 import { ChannelType, PermissionFlagsBits, type Client, TextChannel, Collection, GuildMember, Guild } from 'discord.js';
 import { SanctionType } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/db.js';
+import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { isStaffServerGuild } from '../services/staff/staffServerService.js';
 export { COLORS, successEmbed } from '../utils/embeds.js';
@@ -1219,7 +1221,43 @@ export const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
   canManageTutoring: true,
 };
 
+/**
+ * Duree de vie des droits d'acces en cache.
+ *
+ * Volontairement courte : un membre retrograde ou exclu conserve ses droits
+ * pendant au plus cette duree. En echange, on evite de refaire a chaque requete
+ * un `members.fetch()` Discord (aller-retour reseau) plus deux requetes SQL —
+ * ce que la liste des serveurs faisait pour CHAQUE guild de l'utilisateur.
+ */
+const DASHBOARD_ACCESS_TTL_SECONDS = 60;
+
 export const resolveDashboardAccess = async (
+  client: Client,
+  guildId: string,
+  userId: string,
+  knownPermissions?: bigint | null,
+): Promise<DashboardAccess> => {
+  // Le cache n'est utilise que sur le chemin nominal. Quand des permissions
+  // sont fournies par l'appelant, le resultat depend d'un parametre supplementaire :
+  // on recalcule plutot que de risquer de servir une reponse calculee avec
+  // d'autres permissions.
+  if (knownPermissions !== null && knownPermissions !== undefined) {
+    return computeDashboardAccess(client, guildId, userId, knownPermissions);
+  }
+
+  // Prefixe `guild:` afin que `cache.invalidateGuild(guildId)` purge aussi ces
+  // entrees.
+  const cacheKey = `guild:${guildId}:dashboard-access:${userId}`;
+
+  const cached = await cache.get<DashboardAccess>(cacheKey);
+  if (cached) return cached;
+
+  const access = await computeDashboardAccess(client, guildId, userId, knownPermissions);
+  await cache.set(cacheKey, access, DASHBOARD_ACCESS_TTL_SECONDS);
+  return access;
+};
+
+const computeDashboardAccess = async (
   client: Client,
   guildId: string,
   userId: string,
@@ -1275,11 +1313,20 @@ export const resolveDashboardAccess = async (
 export async function resolveAdminAccess(client: Client, userId: string): Promise<boolean> {
   if (userId === DISCORD_CLIENT_OWNER_ID) return true;
 
+  // Appele au moins une fois par resolution d'acces, donc une fois par guild
+  // lors du listage des serveurs. Meme TTL court que les droits de dashboard.
+  const cacheKey = `global:admin-access:${userId}`;
+
+  const cached = await cache.get<boolean>(cacheKey);
+  if (cached !== null) return cached;
+
   const admin = await prisma.globalAdmin.findUnique({
     where: { userId }
   });
-  
-  return !!admin;
+
+  const isAdmin = !!admin;
+  await cache.set(cacheKey, isAdmin, DASHBOARD_ACCESS_TTL_SECONDS);
+  return isAdmin;
 }
 
 export class HttpError extends Error {
@@ -1290,13 +1337,20 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * En dessous de ce seuil, gzip coute plus (CPU, en-tetes) qu'il ne rapporte.
+ */
+const RESPONSE_GZIP_MIN_BYTES = 1024;
+
 export class BunServerResponse extends ServerResponse {
   private chunks: Buffer[] = [];
   private resolvePromise: (res: Response) => void;
+  private acceptEncoding: string;
 
   constructor(req: IncomingMessage, resolvePromise: (res: Response) => void) {
     super(req);
     this.resolvePromise = resolvePromise;
+    this.acceptEncoding = String(req.headers['accept-encoding'] ?? '');
   }
 
   override write(chunk: unknown, cb?: (error: Error | null | undefined) => void): boolean;
@@ -1353,11 +1407,41 @@ export class BunServerResponse extends ServerResponse {
       }
     }
     
-    const response = new Response(body, {
+    // Compression des reponses JSON.
+    //
+    // L'API du bot est joignable directement (api.kotbo.fr) : contrairement au
+    // dashboard, aucun nginx ne se trouve devant pour compresser. Les payloads
+    // du dashboard, eux, se comptent en centaines de kilo-octets.
+    //
+    // Le corps est entierement bufferise a ce stade, donc rien n'est diffuse en
+    // flux ici. On se limite malgre tout au JSON : cela exclut par construction
+    // les reponses `text/event-stream` du serveur MCP, qu'il ne faudrait
+    // surtout pas bufferiser.
+    let responseBody = body;
+    const contentType = String(headers.get('content-type') ?? '');
+    if (
+      body.byteLength >= RESPONSE_GZIP_MIN_BYTES &&
+      contentType.includes('application/json') &&
+      !headers.has('content-encoding') &&
+      /\bgzip\b/.test(this.acceptEncoding)
+    ) {
+      try {
+        responseBody = Buffer.from(gzipSync(body));
+        headers.set('content-encoding', 'gzip');
+        headers.set('content-length', String(responseBody.byteLength));
+        headers.append('vary', 'Accept-Encoding');
+      } catch (err) {
+        // En cas d'echec, on sert la reponse non compressee plutot que rien.
+        logger.warn('DashboardAPI', `Compression gzip impossible: ${String(err)}`);
+        responseBody = body;
+      }
+    }
+
+    const response = new Response(responseBody, {
       status: this.statusCode,
       headers
     });
-    
+
     this.resolvePromise(response);
     
     const callback = typeof encodingOrCb === 'function' ? encodingOrCb : cb;

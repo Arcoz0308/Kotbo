@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
+import pLimit from 'p-limit';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { isGuildActivated, activateGuild } from '../../../utils/activation.js';
@@ -50,32 +51,38 @@ export async function handleGeneralRoutes(
         select: { id: true, updatedAt: true }
       });
 
-      const payload: Array<{
-        id: string;
-        name: string;
-        updatedAt: string;
-        accessLevel: 'admin' | 'moderator';
-        activated: boolean;
-      }> = [];
-
       const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
-      for (const guild of guilds) {
-        const activated = isGuildActivated(guild.id);
-        if (!activated && !isGlobalAdmin) continue;
+      const visibleGuilds = guilds
+        .map((guild) => ({ guild, activated: isGuildActivated(guild.id) }))
+        .filter(({ activated }) => activated || isGlobalAdmin);
 
-        const access = await resolveDashboardAccess(client, guild.id, user.userId);
-        if (!access.canViewDashboard) continue;
+      // Cette route est le chemin critique de l'ecran de connexion : elle
+      // s'executait en serie alors que `resolveDashboardAccess` fait un
+      // `members.fetch()` Discord par serveur. Sur un compte present dans
+      // plusieurs dizaines de serveurs, les allers-retours s'additionnaient.
+      //
+      // La concurrence est bornee pour ne pas envoyer d'un coup autant de
+      // requetes que de serveurs a l'API Discord.
+      const limit = pLimit(10);
+      const resolved = await Promise.all(
+        visibleGuilds.map(({ guild, activated }) =>
+          limit(async () => {
+            const access = await resolveDashboardAccess(client, guild.id, user.userId);
+            if (!access.canViewDashboard) return null;
 
-        payload.push({
-          id: guild.id,
-          name: getGuildName(client, guild.id),
-          updatedAt: guild.updatedAt.toISOString(),
-          accessLevel: access.level === 'admin' ? 'admin' : 'moderator',
-          activated: activated
-        });
-      }
+            return {
+              id: guild.id,
+              name: getGuildName(client, guild.id),
+              updatedAt: guild.updatedAt.toISOString(),
+              accessLevel: (access.level === 'admin' ? 'admin' : 'moderator') as 'admin' | 'moderator',
+              activated,
+            };
+          })
+        )
+      );
 
-      json(res, 200, { guilds: payload });
+      // `Promise.all` preserve l'ordre : le tri par `updatedAt` desc est conserve.
+      json(res, 200, { guilds: resolved.filter((entry) => entry !== null) });
     } catch (err) {
       logger.error('GeneralAPI', 'Error listing guilds:', err);
       json(res, 500, { error: 'Erreur lors de la récupération des serveurs' });
