@@ -539,7 +539,7 @@ async function processFollow(
   follow: YoutubeChannelFollow,
   key: string
 ): Promise<void> {
-  const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c: unknown) => c.featureKey === 'youtube');
+  const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c: Record<string, unknown>) => c.featureKey === 'youtube');
   if (ytFeatureConfig && !ytFeatureConfig.enabled) {
     return;
   }

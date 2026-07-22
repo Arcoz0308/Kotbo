@@ -705,7 +705,7 @@ export async function handleModulesRoutes(
           json(res, 400, { error: `Le tableau "${table.name}" doit avoir une liste de paliers.` });
           return true;
         }
-        const levels = table.tiers.map((t: unknown) => t.level);
+        const levels = table.tiers.map((t: Record<string, unknown>) => t.level);
         levels.sort((a: number, b: number) => a - b);
         for (let i = 0; i < levels.length; i++) {
           if (levels[i] !== i + 1) {
@@ -768,7 +768,7 @@ export async function handleModulesRoutes(
 
           if (table.tiers.length > 0) {
             await tx.sanctionTier.createMany({
-              data: table.tiers.map((tier: unknown) => ({
+              data: table.tiers.map((tier: Record<string, unknown>) => ({
                 tableId,
                 level: tier.level,
                 action: tier.action,
@@ -5959,7 +5959,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
                 embeds: discordEmbeds.length > 0 ? discordEmbeds.slice(0, 10) : undefined,
                 allowedMentions: { parse: [] },
               });
-            } catch (sendErr: unknown) {
+            } catch (sendErr: Record<string, unknown>) {
               logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${sendErr.message}`);
             }
           }
@@ -6125,7 +6125,7 @@ function msgEmbedsMap(embeds: unknown[], guild: unknown) {
     description: e.description,
     htmlDescription: e.description ? parseDiscordMarkdown(e.description, guild) : '',
     color: e.hexColor,
-    fields: e.fields ? e.fields.map((f: unknown) => ({
+    fields: e.fields ? e.fields.map((f: Record<string, unknown>) => ({
       name: f.name,
       value: f.value,
       htmlValue: f.value ? parseDiscordMarkdown(f.value, guild) : ''

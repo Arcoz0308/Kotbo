@@ -47,13 +47,13 @@ export async function publishNewsArticle(client: Client, guildId: string, articl
   const articleCategory = article.category || '';
   const articleSubcategory = article.subcategory || '';
 
-  let bestMatch = categoryConfigs.find((c: unknown) =>
+  let bestMatch = categoryConfigs.find((c: Record<string, unknown>) =>
     c.category.toLowerCase() === articleCategory.toLowerCase() &&
     c.subcategory.toLowerCase() === articleSubcategory.toLowerCase()
   );
 
   if (!bestMatch && articleSubcategory !== '') {
-    bestMatch = categoryConfigs.find((c: unknown) =>
+    bestMatch = categoryConfigs.find((c: Record<string, unknown>) =>
       c.category.toLowerCase() === articleCategory.toLowerCase() &&
       c.subcategory === ''
     );

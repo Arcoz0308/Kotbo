@@ -843,7 +843,7 @@ function buildMeetingRsvpRow(meetingId: string): ActionRowBuilder<ButtonBuilder>
   );
 }
 
-export const updateMeetingAnnouncement = async (client: unknown, meetingId: string) => {
+export const updateMeetingAnnouncement = async (client: Record<string, unknown>, meetingId: string) => {
   const meeting = await prisma.staffMeeting.findUnique({
     where: { id: meetingId },
     include: {

@@ -137,7 +137,7 @@ export async function getCandidatures(guildId: string) {
 
 export async function createCandidature(
   guildId: string,
-  data: unknown,
+  data: Record<string, unknown>,
   options?: { autoRejectEnabled?: boolean; client?: Client }
 ) {
   // Try to find identifiers in the data
@@ -843,7 +843,7 @@ async function getFormFieldLabelMap(candidature: { formId: string | null; custom
 export async function handleRecruitmentButton(
   client: Client,
   customId: string,
-  interaction: unknown,
+  interaction: Record<string, unknown>,
 ) {
   const parts = customId.split(':');
   const action = parts[1]; // claim, info, close, delete

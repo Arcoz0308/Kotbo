@@ -128,13 +128,13 @@ export async function checkTwitchFollows(client: Client) {
 
     // Check features configuration
     const activeFollows = follows.filter((follow) => {
-      const config = follow.guild.dashboardFeatureConfigs.find((c: unknown) => c.featureKey === 'twitch');
+      const config = follow.guild.dashboardFeatureConfigs.find((c: Record<string, unknown>) => c.featureKey === 'twitch');
       return !config || config.enabled; // skip if explicitly disabled
     });
 
     if (activeFollows.length === 0) return;
 
-    const usernames = activeFollows.map((f: unknown) => f.streamerName);
+    const usernames = activeFollows.map((f: Record<string, unknown>) => f.streamerName);
     const uniqueUsernames = Array.from(new Set(usernames));
 
     // Twitch Helix accepts max 100 user_login per request — batch if needed

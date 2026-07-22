@@ -469,14 +469,14 @@ export async function getEventStats(eventId: string) {
     });
     return {
       type: 'CTF',
-      challenges: ctfChallenges.map((c: unknown) => ({
+      challenges: ctfChallenges.map((c: Record<string, unknown>) => ({
         id: c.id,
         title: c.title,
         points: c.points,
         xpReward: c.xpReward,
         roleIdReward: c.roleIdReward,
         solveCount: c.solves.length,
-        solves: c.solves.map((s: unknown) => ({
+        solves: c.solves.map((s: Record<string, unknown>) => ({
           userId: s.participant.userId,
           username: s.participant.username || s.participant.userTag || s.participant.userId,
           solvedAt: s.solvedAt,
@@ -578,7 +578,7 @@ export async function finishEvent(client: Client, eventId: string) {
 
   const leaderboard = event.participants
     .slice(0, 10)
-    .map((p: unknown, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€" ${p.score} pts`)
+    .map((p: Record<string, unknown>, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€" ${p.score} pts`)
     .join('\n') || 'Aucun participant.';
 
   let description = `Bravo à tous les participants !
@@ -746,7 +746,7 @@ export async function buildEventResultsView(interaction: RepliableInteraction, e
     // On ne se fie pas uniquement à la relation WHERE côté Prisma car il arrive
     // que les données aient été enregistrées avec une relation incorrecte (bug question 39, etc.).
     const userResponse = Array.isArray(q.responses)
-      ? q.responses.find((r: unknown) => r.participant && r.participant.userId === userId)
+      ? q.responses.find((r: Record<string, unknown>) => r.participant && r.participant.userId === userId)
       : undefined;
     const options = q.options as string[];
     const correctLabel = options[q.correctOptionIndex];
@@ -1002,9 +1002,9 @@ export async function buildCtfParticipantProgress(interaction: RepliableInteract
     },
   });
 
-  const solvedChallengeIds = new Set((participant as unknown)?.ctfSolves.map((s: unknown) => s.challengeId) || []);
+  const solvedChallengeIds = new Set((participant as unknown)?.ctfSolves.map((s: Record<string, unknown>) => s.challengeId) || []);
 
-  const list = (event as unknown).ctfChallenges.map((c: unknown) => {
+  const list = (event as unknown).ctfChallenges.map((c: Record<string, unknown>) => {
     const isSolved = solvedChallengeIds.has(c.id);
     const statusIcon = isSolved ? '✅' : '❌';
     return `${statusIcon} **${c.title}** (${c.points} pts) ${c.xpReward > 0 ? `[+${c.xpReward} XP]` : ''}`;

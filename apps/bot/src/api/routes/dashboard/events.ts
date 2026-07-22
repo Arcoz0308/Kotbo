@@ -168,7 +168,7 @@ export async function handleEventsRoutes(
             triggerStatus: (body.triggerType !== (currentEvent as unknown)?.triggerType || body.triggerValue !== (currentEvent as unknown)?.triggerValue) ? 'PENDING' : undefined,
             questions: (body.questions && !isLive && (currentEvent as unknown)?.type === 'QUIZ') ? {
               deleteMany: {},
-              create: body.questions.map((q: unknown, i: number) => ({
+              create: body.questions.map((q: Record<string, unknown>, i: number) => ({
                 text: q.text,
                 options: q.options,
                 correctOptionIndex: q.correctOptionIndex,
@@ -178,7 +178,7 @@ export async function handleEventsRoutes(
             } : undefined,
             ctfChallenges: (body.ctfChallenges && !isLive && (currentEvent as unknown)?.type === 'CTF') ? {
               deleteMany: {},
-              create: body.ctfChallenges.map((c: unknown, i: number) => ({
+              create: body.ctfChallenges.map((c: Record<string, unknown>, i: number) => ({
                 title: c.title,
                 description: c.description || '',
                 flag: c.flag,

@@ -302,7 +302,7 @@ async function restoreChannel(
       }
     } else {
       // Créer un nouveau salon
-      const createData: unknown = {
+      const createData: Record<string, unknown> = {
         name: channelData.name,
         type: channelData.type,
         position: channelData.position,

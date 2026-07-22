@@ -23,7 +23,7 @@ export async function fetchAllMembers(guild: Guild): Promise<Collection<string, 
 
   for (;;) {
     try {
-      const options: unknown = { limit: 1000 };
+      const options: Record<string, unknown> = { limit: 1000 };
       if (lastId) {
         options.after = lastId;
       }

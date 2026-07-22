@@ -158,7 +158,7 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
       if ('bitrate' in channel) channelData.bitrate = channel.bitrate;
       if ('userLimit' in channel) channelData.userLimit = channel.userLimit;
       if ('permissionOverwrites' in channel) {
-        channelData.permissionOverwrites = channel.permissionOverwrites.cache.map((overwrite: unknown) => ({
+        channelData.permissionOverwrites = channel.permissionOverwrites.cache.map((overwrite: Record<string, unknown>) => ({
           id: overwrite.id,
           type: overwrite.type === 0 ? 'role' : 'member',
           allow: overwrite.allow.bitfield.toString(),
@@ -229,7 +229,7 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
         guild.stickers.fetch(),
         new Promise<unknown>((_, reject) => setTimeout(() => reject(new Error('Timeout fetching stickers')), 5000))
       ]);
-      backupData.stickers = stickers.map((sticker: unknown) => ({
+      backupData.stickers = stickers.map((sticker: Record<string, unknown>) => ({
         id: sticker.id,
         name: sticker.name,
         description: sticker.description,
@@ -270,9 +270,9 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
               content: msg.content,
               timestamp: msg.createdAt.toISOString(),
               editedTimestamp: msg.editedAt?.toISOString() || undefined,
-              attachments: msg.attachments.map((a: unknown) => a.url),
+              attachments: msg.attachments.map((a: Record<string, unknown>) => a.url),
               embeds: msg.embeds.map((e: unknown) => e.toJSON()),
-              reactions: msg.reactions.cache.map((r: unknown) => ({
+              reactions: msg.reactions.cache.map((r: Record<string, unknown>) => ({
                 emoji: r.emoji.id ? { id: r.emoji.id, name: r.emoji.name } : r.emoji.name,
                 count: r.count,
               })),

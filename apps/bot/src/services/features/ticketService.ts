@@ -101,7 +101,7 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
   }];
 }
 
-function resolveTicketPanelType(guildConfig: unknown, typeId?: string | null): TicketPanelTypeConfig {
+function resolveTicketPanelType(guildConfig: Record<string, unknown>, typeId?: string | null): TicketPanelTypeConfig {
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
     label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
     description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.",
@@ -149,7 +149,7 @@ function buildTicketStatusContainer(
 export async function renameTicketChannel(
   client: Client,
   ticket: { id: string; guildId: string; channelId: string | null; userId: string; username: string; reason: string; description: string },
-  guildConfig: unknown,
+  guildConfig: Record<string, unknown>,
   executor: { id: string; username: string },
   newName: string,
 ): Promise<string> {
@@ -1504,10 +1504,10 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
  */
 async function logTicketEvent(
   client: Client,
-  guildConfig: unknown,
+  guildConfig: Record<string, unknown>,
   action: 'OPENED' | 'CLAIMED' | 'CLOSED' | 'REOPENED' | 'DELETED' | 'RENAMED',
-  ticket: unknown,
-  executor: unknown,
+  ticket: Record<string, unknown>,
+  executor: Record<string, unknown>,
   transcriptLink?: string
 ): Promise<void> {
   if (!guildConfig.ticketLogChannelId) return;

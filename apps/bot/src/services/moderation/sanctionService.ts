@@ -51,7 +51,7 @@ function getDateKey(date = new Date()): string {
 
 async function incrementModerationStats(guildId: string, type: SanctionType): Promise<void> {
   const dateKey = getDateKey();
-  const updateData: unknown = { sanctionsCount: { increment: 1 } };
+  const updateData: Record<string, unknown> = { sanctionsCount: { increment: 1 } };
 
   if (type === SanctionType.WARN) updateData.warnsCount = { increment: 1 };
   else if (type === SanctionType.KICK) updateData.kicksCount = { increment: 1 };
@@ -466,7 +466,7 @@ async function notifyStaffOfSanction(guildId: string, sanction: unknown) {
  */
 export async function notifyStaffOfSyncedSanction(
   guildId: string,
-  originalSanction: unknown,
+  originalSanction: Record<string, unknown>,
   syncedTargetTags: string[],
 ) {
   if (syncedTargetTags.length === 0) return;

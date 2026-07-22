@@ -40,7 +40,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     await interaction.reply({ embeds: [initialEmbed] });
 
-    const filter = (m: unknown) => m.author.id === userId && !isNaN(parseInt(m.content, 10));
+    const filter = (m: Record<string, unknown>) => m.author.id === userId && !isNaN(parseInt(m.content, 10));
     const collector = interaction.channel?.createMessageCollector({
       filter,
       time: 60000 // 1 minute globale

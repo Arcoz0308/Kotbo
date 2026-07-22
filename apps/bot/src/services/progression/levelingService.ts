@@ -666,7 +666,7 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
 }
 
 // Helper pour dessiner des rectangles arrondis
-function roundRect(ctx: unknown, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient) {
+function roundRect(ctx: Record<string, unknown>, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);

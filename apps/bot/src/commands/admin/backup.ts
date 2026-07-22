@@ -441,7 +441,7 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
   }
 
   // Parser le JSON
-  let importData: unknown;
+  let importData: Record<string, unknown>;
   try {
     const jsonString = buffer.toString('utf-8');
     importData = JSON.parse(jsonString);

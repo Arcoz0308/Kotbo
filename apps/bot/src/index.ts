@@ -235,7 +235,7 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
       if (Array.isArray(interaction.member.roles)) {
         roleIds = interaction.member.roles;
       } else if (interaction.member.roles && 'cache' in interaction.member.roles) {
-        roleIds = interaction.member.roles.cache.map((role: unknown) => role.id);
+        roleIds = interaction.member.roles.cache.map((role: Record<string, unknown>) => role.id);
       }
     }
     if (roleIds.length === 0) {

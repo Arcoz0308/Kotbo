@@ -28,7 +28,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
 
   if (useHourly) {
     // Hourly resolution
-    const hourlyWhere: unknown = { guildId };
+    const hourlyWhere: Record<string, unknown> = { guildId };
     
     if (options.startDate && options.endDate) {
       const sDate = options.startDate.split('T')[0];

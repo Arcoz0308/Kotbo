@@ -562,7 +562,7 @@ async function notifyStaffOfDuplicate(
   guildId: string,
   userId1: string,
   userId2: string,
-  evidence: unknown,
+  evidence: Record<string, unknown>,
   logChannelId: string | null | undefined,
   autoLinked: boolean,
 ): Promise<void> {

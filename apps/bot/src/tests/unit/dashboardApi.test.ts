@@ -161,7 +161,7 @@ mock.module(mcpKeyServicePath, () => mockMcpKeyService);
 mock.module(mcpKeyServiceJsPath, () => mockMcpKeyService);
 
 const mockMcpTools = {
-  registerMcpTools: mock((server: unknown, _guildId: string, _permissions: string[], _client: Client, options?: { securitySchemes?: unknown }) => {
+  registerMcpTools: mock((server: Record<string, unknown>, _guildId: string, _permissions: string[], _client: Client, options?: { securitySchemes?: unknown }) => {
     const securitySchemes = options?.securitySchemes ?? [{ type: 'oauth2', scopes: ['mcp'] }];
     server.registerTool(
       'test_tool',
@@ -251,7 +251,7 @@ function createMockResponse(): MockResponse {
     return res;
   };
 
-  res.write = (chunk: unknown) => {
+  res.write = (chunk: Record<string, unknown>) => {
     _body += chunk.toString();
     return true;
   };

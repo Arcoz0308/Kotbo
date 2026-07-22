@@ -52,7 +52,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     // Filtrer les messages de moins de 14 jours (limite de l'API de bulkDelete de Discord)
     const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-    const deletableMessages = messagesToDelete.filter((m: unknown) => m.createdTimestamp > fourteenDaysAgo);
+    const deletableMessages = messagesToDelete.filter((m: Record<string, unknown>) => m.createdTimestamp > fourteenDaysAgo);
 
     if (deletableMessages.size === 0) {
       await interaction.editReply({
