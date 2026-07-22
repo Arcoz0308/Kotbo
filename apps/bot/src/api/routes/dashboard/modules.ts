@@ -696,36 +696,68 @@ export async function handleModulesRoutes(
         return true;
       }
 
+      // La validation ci-dessous produit une structure typee reutilisee plus bas :
+      // sans cela, les controles (`typeof table.name === 'string'`...) sont
+      // perdus des qu'on change de boucle, et chaque lecture redevient `unknown`.
+      type SanctionTierInput = {
+        level: number;
+        action: string;
+        durationSeconds: number | null;
+        customReason: string | null;
+      };
+      type SanctionTableInput = { id?: string; name: string; tiers: SanctionTierInput[] };
+
+      const validatedTables: SanctionTableInput[] = [];
+
       for (const table of tables) {
         if (typeof table.name !== 'string' || !table.name.trim()) {
           json(res, 400, { error: 'Chaque tableau doit avoir un nom valide.' });
           return true;
         }
+        const tableName = table.name;
         if (!Array.isArray(table.tiers)) {
-          json(res, 400, { error: `Le tableau "${table.name}" doit avoir une liste de paliers.` });
+          json(res, 400, { error: `Le tableau "${tableName}" doit avoir une liste de paliers.` });
           return true;
         }
-        const levels = table.tiers.map((t: Record<string, unknown>) => t.level);
-        levels.sort((a: number, b: number) => a - b);
+        const rawTiers = table.tiers as Record<string, unknown>[];
+        const levels = rawTiers.map((t) => Number(t.level));
+        levels.sort((a, b) => a - b);
         for (let i = 0; i < levels.length; i++) {
           if (levels[i] !== i + 1) {
-            json(res, 400, { error: `Les paliers du tableau "${table.name}" doivent être séquentiels et commencer par le niveau 1.` });
+            json(res, 400, { error: `Les paliers du tableau "${tableName}" doivent être séquentiels et commencer par le niveau 1.` });
             return true;
           }
         }
-        for (const tier of table.tiers) {
-          if (!['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN'].includes(tier.action)) {
-            json(res, 400, { error: `Action invalide "${tier.action}" dans le tableau "${table.name}".` });
+
+        const tiers: SanctionTierInput[] = [];
+        for (const tier of rawTiers) {
+          const action = String(tier.action);
+          if (!['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN'].includes(action)) {
+            json(res, 400, { error: `Action invalide "${action}" dans le tableau "${tableName}".` });
             return true;
           }
-          if (['TIMEOUT', 'TEMP_BAN'].includes(tier.action)) {
+          let durationSeconds: number | null = null;
+          if (['TIMEOUT', 'TEMP_BAN'].includes(action)) {
             const secs = Number(tier.durationSeconds);
             if (Number.isNaN(secs) || secs <= 0) {
-              json(res, 400, { error: `Le palier de niveau ${tier.level} (${tier.action}) du tableau "${table.name}" requiert une durée positive valide.` });
+              json(res, 400, { error: `Le palier de niveau ${tier.level} (${action}) du tableau "${tableName}" requiert une durée positive valide.` });
               return true;
             }
+            durationSeconds = secs;
           }
+          tiers.push({
+            level: Number(tier.level),
+            action,
+            durationSeconds,
+            customReason: typeof tier.customReason === 'string' ? tier.customReason : null,
+          });
         }
+
+        validatedTables.push({
+          id: typeof table.id === 'string' ? table.id : undefined,
+          name: tableName,
+          tiers,
+        });
       }
 
       await prisma.$transaction(async (tx) => {
@@ -734,7 +766,7 @@ export async function handleModulesRoutes(
           include: { tiers: true },
         });
 
-        const inputIds = new Set(tables.map((t) => t.id).filter(Boolean));
+        const inputIds = new Set(validatedTables.map((t) => t.id).filter(Boolean));
         const tablesToDelete = existingTables.filter((t) => !inputIds.has(t.id));
         if (tablesToDelete.length > 0) {
           await tx.sanctionTable.deleteMany({
@@ -742,11 +774,14 @@ export async function handleModulesRoutes(
           });
         }
 
-        for (const table of tables) {
-          let tableId = table.id;
-          const matched = existingTables.find((t) => t.id === tableId);
+        for (const table of validatedTables) {
+          const matched = table.id ? existingTables.find((t) => t.id === table.id) : undefined;
+          // Toujours defini a la sortie du if/else : soit le tableau existait,
+          // soit il vient d'etre cree.
+          let tableId: string;
 
           if (matched) {
+            tableId = matched.id;
             if (matched.name !== table.name) {
               await tx.sanctionTable.update({
                 where: { id: tableId },
@@ -768,11 +803,11 @@ export async function handleModulesRoutes(
 
           if (table.tiers.length > 0) {
             await tx.sanctionTier.createMany({
-              data: table.tiers.map((tier: Record<string, unknown>) => ({
+              data: table.tiers.map((tier) => ({
                 tableId,
                 level: tier.level,
                 action: tier.action,
-                durationSeconds: ['TIMEOUT', 'TEMP_BAN'].includes(tier.action) ? Number(tier.durationSeconds) : null,
+                durationSeconds: tier.durationSeconds,
                 customReason: tier.customReason?.trim() || null,
               })),
             });

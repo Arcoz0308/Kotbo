@@ -15,7 +15,7 @@ import {
   archiveChannel,
 } from '../../../services/analytics/channelHealthService.js';
 
-function parseBody(req: IncomingMessage): Promise<unknown> {
+function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
