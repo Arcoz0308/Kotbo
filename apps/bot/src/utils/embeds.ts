@@ -46,7 +46,9 @@ export const COLORS_RAW = {
 export function v2(...containers: ContainerBuilder[]) {
   return {
     components: containers,
-    flags: MessageFlags.IsComponentsV2,
+    // `as const` : sans lui le type infere est l'enum MessageFlags entier, que
+    // les options d'envoi de discord.js refusent.
+    flags: MessageFlags.IsComponentsV2 as const,
   };
 }
 

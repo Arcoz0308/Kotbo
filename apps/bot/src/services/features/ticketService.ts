@@ -1,3 +1,4 @@
+import type { ColorResolvable } from 'discord.js';
 import { type Client, type APIInteractionGuildMember, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, TextChannel, ChannelType, PermissionFlagsBits, PermissionsBitField, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, MessageFlags, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, type GuildMember, type ThreadChannel, Message, ComponentType } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -102,11 +103,14 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
 }
 
 function resolveTicketPanelType(guildConfig: Record<string, unknown>, typeId?: string | null): TicketPanelTypeConfig {
+  const asText = (value: unknown, fallback: string) => (typeof value === 'string' && value ? value : fallback);
+  const asId = (value: unknown) => (typeof value === 'string' ? value : null);
+
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
-    label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
-    description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.",
-    categoryId: guildConfig.ticketCategoryId ?? null,
-    staffRoleId: guildConfig.ticketStaffRoleId ?? null,
+    label: asText(guildConfig.ticketEmbedButtonText, 'Ouvrir un ticket'),
+    description: asText(guildConfig.ticketEmbedDesc, "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance."),
+    categoryId: asId(guildConfig.ticketCategoryId),
+    staffRoleId: asId(guildConfig.ticketStaffRoleId),
     emoji: '📩',
     buttonStyle: 'PRIMARY',
   });
@@ -177,7 +181,7 @@ export async function renameTicketChannel(
 /**
  * Checks if a member has permission to moderate/manage tickets.
  */
-export function canManageTicket(member: GuildMember | APIInteractionGuildMember | null | undefined, guildConfig: unknown, ticketStaffRoleId?: string | null): boolean {
+export function canManageTicket(member: GuildMember | APIInteractionGuildMember | null | undefined, guildConfig: Record<string, unknown>, ticketStaffRoleId?: string | null): boolean {
   if (!member) return false;
 
   const permissionBits = (member as GuildMember | APIInteractionGuildMember).permissions;
@@ -193,8 +197,10 @@ export function canManageTicket(member: GuildMember | APIInteractionGuildMember 
       ? (member as APIInteractionGuildMember).roles
       : [];
 
-  if (guildConfig.moderatorRoleId && roleIds.includes(guildConfig.moderatorRoleId)) return true;
-  const effectiveTicketStaffRoleId = ticketStaffRoleId || guildConfig.ticketStaffRoleId;
+  const moderatorRoleId = typeof guildConfig.moderatorRoleId === 'string' ? guildConfig.moderatorRoleId : null;
+  if (moderatorRoleId && roleIds.includes(moderatorRoleId)) return true;
+  const configuredStaffRoleId = typeof guildConfig.ticketStaffRoleId === 'string' ? guildConfig.ticketStaffRoleId : null;
+  const effectiveTicketStaffRoleId = ticketStaffRoleId || configuredStaffRoleId;
   if (effectiveTicketStaffRoleId && roleIds.includes(effectiveTicketStaffRoleId)) return true;
   return false;
 }
@@ -818,7 +824,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
         .setTitle('📄 Transcription de ticket')
         .setDescription(`Le ticket d'assistance **${ticket.reason}** du serveur **${guild.name}** a été supprimé.\n\nVoici le lien pour consulter la transcription complète :`)
         .addFields([{ name: "Lien d'accès", value: `🌐 [Consulter le transcript](${publicLink})` }])
-        .setColor(COLORS.primary as unknown)
+        .setColor(COLORS.primary as ColorResolvable)
         .setTimestamp();
         
       for (const dmUserId of usersToDm) {
@@ -1488,7 +1494,7 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
     const relayEmbed = new EmbedBuilder()
       .setAuthor({ name: `${message.author.username} · ${guildName}`, iconURL: message.author.displayAvatarURL() })
       .setDescription(message.content || '*Pièce jointe*')
-      .setColor(COLORS.primary as unknown)
+      .setColor(COLORS.primary as ColorResolvable)
       .setTimestamp()
       .setFooter({ text: `Ticket: ${ticket.reason}` });
 
@@ -1507,12 +1513,13 @@ async function logTicketEvent(
   guildConfig: Record<string, unknown>,
   action: 'OPENED' | 'CLAIMED' | 'CLOSED' | 'REOPENED' | 'DELETED' | 'RENAMED',
   ticket: Record<string, unknown>,
-  executor: Record<string, unknown>,
+  executor: { id: string; username?: string; tag?: string },
   transcriptLink?: string
 ): Promise<void> {
-  if (!guildConfig.ticketLogChannelId) return;
+  const logChannelId = typeof guildConfig.ticketLogChannelId === 'string' ? guildConfig.ticketLogChannelId : null;
+  if (!logChannelId) return;
 
-  const logChannel = client.channels.cache.get(guildConfig.ticketLogChannelId);
+  const logChannel = client.channels.cache.get(logChannelId);
   if (!logChannel || !(logChannel instanceof TextChannel)) return;
 
   const embed = new EmbedBuilder()
@@ -1524,12 +1531,12 @@ async function logTicketEvent(
       embed
         .setTitle('🎫 Nouveau Ticket Créé')
         .setDescription(`Le ticket <#${ticket.channelId}> a été ouvert.`)
-        .setColor(COLORS.success as unknown)
+        .setColor(COLORS.success as ColorResolvable)
         .addFields([
-          { name: 'Type', value: ticket.ticketTypeLabel || ticket.ticketTypeId || 'Ticket standard', inline: true },
+          { name: 'Type', value: String(ticket.ticketTypeLabel ?? ticket.ticketTypeId ?? 'Ticket standard'), inline: true },
           { name: 'Créateur', value: `<@${ticket.userId}> (${ticket.username})`, inline: true },
-          { name: 'Raison', value: ticket.reason, inline: true },
-          { name: 'Description', value: ticket.description }
+          { name: 'Raison', value: String(ticket.reason ?? '—'), inline: true },
+          { name: 'Description', value: String(ticket.description ?? '—') }
         ]);
       break;
 
@@ -1537,7 +1544,7 @@ async function logTicketEvent(
       embed
         .setTitle('🛠️ Ticket Pris en Charge')
         .setDescription(`Le ticket <#${ticket.channelId}> a été pris en charge par <@${executor.id}>.`)
-        .setColor(COLORS.warning as unknown)
+        .setColor(COLORS.warning as ColorResolvable)
         .addFields([
           { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
           { name: 'Staff', value: `<@${executor.id}>`, inline: true }
@@ -1548,7 +1555,7 @@ async function logTicketEvent(
       embed
         .setTitle('🔒 Ticket Fermé')
         .setDescription(`Le ticket <#${ticket.channelId}> a été fermé par <@${executor.id}>.`)
-        .setColor(COLORS.danger as unknown)
+        .setColor(COLORS.danger as ColorResolvable)
         .addFields([
           { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
           { name: 'Fermé par', value: `<@${executor.id}>`, inline: true }
@@ -1559,7 +1566,7 @@ async function logTicketEvent(
       embed
         .setTitle('🔓 Ticket Réouvert')
         .setDescription(`Le ticket <#${ticket.channelId}> a été réouvert par <@${executor.id}>.`)
-        .setColor(COLORS.primary as unknown)
+        .setColor(COLORS.primary as ColorResolvable)
         .addFields([
           { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
           { name: 'Réouvert par', value: `<@${executor.id}>`, inline: true }
@@ -1585,7 +1592,7 @@ async function logTicketEvent(
       embed
         .setTitle('✏️ Ticket Renommé')
         .setDescription(`Le ticket <#${ticket.channelId}> a été renommé en **#${transcriptLink || 'inconnu'}** par <@${executor.id}>.`)
-        .setColor(COLORS.primary as unknown)
+        .setColor(COLORS.primary as ColorResolvable)
         .addFields([
           { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
           { name: 'Renommé par', value: `<@${executor.id}>`, inline: true }
@@ -1713,7 +1720,7 @@ export async function closeTicket(
       const closeEmbed = new EmbedBuilder()
         .setTitle('🔒 Ticket Fermé')
         .setDescription(`Le ticket a été fermé par <@${closedByUserId}>.\n\nLes membres du personnel peuvent maintenant exporter la transcription ou supprimer définitivement le salon.`)
-        .setColor(COLORS.danger as unknown)
+        .setColor(COLORS.danger as ColorResolvable)
         .setTimestamp();
 
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
