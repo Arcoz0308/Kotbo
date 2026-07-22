@@ -247,10 +247,17 @@
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("open-keyboard-shortcuts", () => {
+    // Fonction nommee : `removeEventListener` compare les references, donc une
+    // fonction anonyme recreee au nettoyage ne retire jamais le listener.
+    const handleOpenKeyboardShortcuts = () => {
       showKeyboardShortcuts = true;
-    });
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener(
+      "open-keyboard-shortcuts",
+      handleOpenKeyboardShortcuts,
+    );
 
     // Global error handling — ignores network/abort errors from WS reconnections
     // and Vite dev-server internal errors to avoid infinite feedback loops
@@ -321,9 +328,10 @@
     return () => {
       clearTimeout(timer);
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("open-keyboard-shortcuts", () => {
-        showKeyboardShortcuts = true;
-      });
+      window.removeEventListener(
+        "open-keyboard-shortcuts",
+        handleOpenKeyboardShortcuts,
+      );
       window.removeEventListener("error", handleError);
       window.removeEventListener(
         "unhandledrejection",

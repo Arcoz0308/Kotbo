@@ -1,4 +1,5 @@
 import { DASHBOARD_WS_URL } from './api';
+import { prefetchRoute } from './lazyRoutes';
 import { authStore } from './stores/auth.svelte';
 import { dashboardStore } from './stores/dashboard.svelte';
 
@@ -65,6 +66,28 @@ class DashboardLifecycleManager {
 
     // Start connection
     this.connect();
+
+    void this.prefetchFrequentRoutes();
+  }
+
+  /**
+   * Precharge en temps mort les pages les plus consultees. Le navigateur est
+   * deja au repos a ce moment-la (la page d'accueil est rendue), donc ces
+   * chunks n'entrent en concurrence avec rien ; en contrepartie, le premier
+   * clic sur ces entrees de menu n'attend aucun telechargement.
+   *
+   * `prefetchRoute` est silencieux en cas d'echec : un prefetch rate ne doit
+   * jamais empecher la navigation reelle, qui refera la tentative.
+   */
+  private async prefetchFrequentRoutes() {
+    if (typeof window === 'undefined') return;
+
+    await waitForWindowLoad();
+    await waitForBrowserIdle();
+
+    for (const path of ['/analytics', '/members', '/sanctions', '/tickets']) {
+      prefetchRoute(path);
+    }
   }
 
   async connect() {
