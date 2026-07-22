@@ -112,6 +112,24 @@ model Guild {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  clansEnabled      Boolean @default(false)
+  clansUnique       Boolean @default(true)
+  clanAutoAssignOnJoin Boolean @default(false)
+  currentClanSeason Int     @default(1)
+  clanSeasonStartsAt DateTime?
+  clanSeasonEndsAt   DateTime?
+  clanXpFromLevelUp  Boolean @default(false)
+  clanXpPerLevelUp   Int     @default(50)
+  lastWinningClanId  String?
+  clanAnnouncementChannelId String?
+  clanRewardGiveaway Boolean @default(false)
+  clanRewardXpBoost  Boolean @default(false)
+  clanRewardXpBoostRate Float @default(1.2)
+  clanRewardLeaderRole Boolean @default(false)
+
+  clans                 Clan[]
+  clanMemberContributions ClanMemberContribution[]
+  clanContributionEvents ClanContributionEvent[]
   memberLevels MemberLevel[]
   levelRoleRewards LevelRoleReward[]
   levelConfig LevelConfig?
@@ -354,6 +372,13 @@ model Guild {
   // Widget (Social Layer SDK)
   widgetSubscriptions WidgetSubscription[]
   reminders           StaffReminder[]
+
+  // Protection anti-raid (captcha, raid mode, locks, reports, scam filter)
+  raidProtectionConfig RaidProtectionConfig?
+  captchaSessions      CaptchaSession[]
+  memberReports        MemberReport[]
+  scamImageHashes      ScamImageHash[]
+  inviteApprovalRequests InviteApprovalRequest[]
 
   @@map("guilds")
 }

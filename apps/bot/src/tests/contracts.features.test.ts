@@ -6,6 +6,16 @@ import {
   toProjectPath,
 } from './helpers/moduleContracts';
 
+/**
+ * Une commande peut exposer son `execute` de deux facons :
+ *  - en declarant la fonction sur place  -> `export async function execute(...)`
+ *  - en pointant une fonction importee   -> `execute: openUserHub`
+ *
+ * Les deux respectent le contrat. N'accepter que la premiere forme rejetait a
+ * tort commands/context/contextMenuHub.ts, qui delegue au service du hub.
+ */
+const EXECUTE_CONTRACT = /(?:(?:export\s+)?(?:async\s+)?function\s+\w*[Ee]xecute\w*\s*\()|(?:\bexecute\s*[:=])/;
+
 describe('Contrats des features', () => {
   test('Toutes les commandes exposent data + execute et ont un nom unique', () => {
     const commandFiles = listSourceFiles('commands');
@@ -18,7 +28,7 @@ describe('Contrats des features', () => {
       const relativePath = toProjectPath(file);
 
       expect(source).toMatch(/(?:export\s+)?const\s+\w*[Dd]ata\s*=/);
-      expect(source).toMatch(/(?:export\s+)?(?:async\s+)?function\s+\w*[Ee]xecute\w*\s*\(/);
+      expect(source, `Aucun execute expose dans ${relativePath}`).toMatch(EXECUTE_CONTRACT);
 
       const commandName = extractSlashCommandName(source);
       expect(commandName).not.toBeNull();

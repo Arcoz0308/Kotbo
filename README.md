@@ -116,7 +116,7 @@ Kotbo/
 │
 ├── DockerfileBot           # Image Docker pour le bot
 ├── DockerfileDash          # Image Docker pour le dashboard
-├── docker-compose.yml      # Orchestration locale (Bot, Dashboard, DB, Redis, LibreTranslate)
+├── docker-compose.yml      # Dépendances locales de dev (PostgreSQL, Redis, LibreTranslate)
 ├── package.json            # Configuration root du monorepo
 └── bun.lock                # Fichier lock de Bun
 ```
@@ -200,17 +200,19 @@ bun dev:dashboard
 
 ## 🐳 Déploiement Docker
 
-Un fichier `docker-compose.yml` est disponible à la racine pour simplifier le déploiement de l'écosystème complet.
+Un fichier `docker-compose.yml` est disponible à la racine pour fournir les **dépendances de développement local**. Il est **entièrement optionnel** : si tu as déjà PostgreSQL et Redis sur ta machine, garde-les et ignore cette section — il te suffit de faire pointer `DATABASE_URL` et `REDIS_URL` vers tes instances. Le bot et le dashboard, eux, se lancent toujours avec `bun dev:all`.
 
 ```bash
-# Démarrer les conteneurs en tâche de fond
-docker compose up -d --build
+docker compose up -d --wait   # ou bun services:up
 ```
 Cela démarrera :
-1. Le service **bot** (exécutant le bot Discord et le serveur API backend).
-2. Le service **dashboard** (distribuant l'interface d'administration).
-3. Une base **PostgreSQL** et un serveur **Redis**.
-4. Un conteneur local **LibreTranslate** pour la traduction autonome des news.
+1. Une base **PostgreSQL** sur le port `5433` (et non 5432, pour ne pas entrer en conflit avec une instance locale existante).
+2. Un serveur **Redis** sur le port `6379`.
+3. Un conteneur **LibreTranslate** sur le port `5001`, lui aussi optionnel : `docker compose --profile translation up -d`.
+
+Si tu utilises ce compose, pense à faire pointer `DATABASE_URL` sur le port `5433`.
+
+Les images du bot et du dashboard se construisent séparément, via `DockerfileBot` et `DockerfileDash`.
 
 ---
 

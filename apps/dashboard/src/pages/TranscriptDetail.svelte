@@ -21,13 +21,16 @@
     }
 
     try {
-      const guildId = authStore.selectedGuildId;
       const response = await fetch(
-        `${API_BASE_URL}/api/dashboard/guilds/${guildId}/tickets/transcripts/${transcriptId}/signed-url`,
+        `${API_BASE_URL}/api/public/transcripts/${transcriptId}/access`,
         { headers: { Authorization: `Bearer ${authStore.token}` }, credentials: 'include' },
       );
       if (response.status === 401) {
         needsLogin = true;
+      } else if (response.status === 403) {
+        error = "Vous n'avez pas accès à cette transcription.";
+      } else if (response.status === 404) {
+        error = 'Transcription introuvable.';
       } else if (response.ok) {
         const data = await response.json();
         iframeUrl = `${API_BASE_URL}${data.signedUrl}`;

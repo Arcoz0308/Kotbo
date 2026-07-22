@@ -23,6 +23,7 @@
   } from '../config/pages';
   import { resolveUserAvatarSrc } from '../discordMedia';
   import { unsavedChanges } from '../stores/unsavedChanges.svelte';
+  import { m } from '../i18n';
 
   type NavGroup = { key: string; label: string; items: PageConfig[] };
 
@@ -129,14 +130,14 @@
   });
 
   const navGroups = $derived.by((): NavGroup[] => {
-    const general    = { key: 'general',    label: 'Général',       items: visibleGeneral    };
-    const moderation = { key: 'moderation', label: 'Modération',     items: visibleModeration };
-    const leveling   = { key: 'leveling',   label: "Système d'XP",  items: visibleLeveling   };
-    const economy    = { key: 'economy',    label: 'Économie & RPG',items: visibleEconomy    };
-    const community  = { key: 'community',  label: 'Communauté',     items: visibleCommunity  };
-    const staff      = { key: 'staff',      label: 'Staff',          items: visibleStaff      };
-    const crossserver= { key: 'crossserver',label: 'Cross-Serveur',  items: visibleCrossServer };
-    const config      = { key: 'config',     label: 'Configuration',  items: visibleConfig     };
+    const general    = { key: 'general',    label: m.nav_group_general(),       items: visibleGeneral    };
+    const moderation = { key: 'moderation', label: m.nav_group_moderation(),     items: visibleModeration };
+    const leveling   = { key: 'leveling',   label: m.nav_group_xp(),  items: visibleLeveling   };
+    const economy    = { key: 'economy',    label: m.nav_group_economy(),items: visibleEconomy    };
+    const community  = { key: 'community',  label: m.nav_group_community(),     items: visibleCommunity  };
+    const staff      = { key: 'staff',      label: m.nav_group_staff(),          items: visibleStaff      };
+    const crossserver= { key: 'crossserver',label: m.nav_group_crossserver(),  items: visibleCrossServer };
+    const config      = { key: 'config',     label: m.nav_group_config(),  items: visibleConfig     };
 
     const ordered: NavGroup[] = isStaffServerGuild
       ? [general, staff, moderation, leveling, economy, community, crossserver, config]
@@ -378,7 +379,7 @@
       <div class="relative flex-1">
         <input
           type="search"
-          placeholder="Rechercher..."
+          placeholder={m.sidebar_search_placeholder()}
           bind:value={searchQuery}
           autocomplete="off"
           autocorrect="off"
@@ -584,10 +585,10 @@
         <div class="flex flex-col items-center py-8 text-center text-on-surface-variant/50 px-4">
           {#if showOnlyFavorites}
             <Papicon icon="star" size={20} class="mb-2 text-amber-400" />
-            <p class="text-xs">Aucun favori. Cliquez sur l'étoile d'un menu pour l'ajouter.</p>
+            <p class="text-xs">{m.sidebar_no_favorites()}</p>
           {:else}
             <Papicon icon="search" size={20} class="mb-2" />
-            <p class="text-xs">Aucun résultat pour "{searchQuery}"</p>
+            <p class="text-xs">{m.sidebar_no_results({ query: searchQuery })}</p>
           {/if}
         </div>
       {/if}
@@ -614,7 +615,7 @@
       >
         <Papicon icon="lock" size={isCollapsed ? 18 : 16} class="shrink-0" />
         {#if !isCollapsed}
-          <span class="text-[13px]">Administration</span>
+          <span class="text-[13px]">{m.nav_administration()}</span>
         {/if}
       </a>
     {/if}
@@ -639,7 +640,7 @@
           <span class="text-[12px] font-medium text-on-surface truncate leading-none">
             {authStore.user?.username ?? '…'}
           </span>
-          <span class="text-[10px] text-on-surface-variant mt-0.5">Mon profil</span>
+          <span class="text-[10px] text-on-surface-variant mt-0.5">{m.nav_my_profile()}</span>
         </div>
       {/if}
     </a>

@@ -102,6 +102,9 @@ export async function handleGeneralistModulesRoutes(
           ignoredRoles?: string[];
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           xpMultipliers?: any;
+          lengthBonusEnabled?: boolean;
+          lengthBonusThreshold?: number;
+          lengthBonusMaxMultiplier?: number;
         }>(req);
 
         if (!body) {
@@ -123,6 +126,13 @@ export async function handleGeneralistModulesRoutes(
             ignoredChannels: body.ignoredChannels,
             ignoredRoles: body.ignoredRoles,
             xpMultipliers: body.xpMultipliers,
+            lengthBonusEnabled: body.lengthBonusEnabled,
+            lengthBonusThreshold: body.lengthBonusThreshold !== undefined
+              ? Math.max(1, Math.floor(body.lengthBonusThreshold))
+              : undefined,
+            lengthBonusMaxMultiplier: body.lengthBonusMaxMultiplier !== undefined
+              ? Math.min(10, Math.max(1, body.lengthBonusMaxMultiplier))
+              : undefined,
           },
         });
 

@@ -1,9 +1,10 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, type ChatInputCommandInteraction, ContainerBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
-import { COLORS_RAW, text, v2, errorContainer } from '../../utils/embeds.js';
+import { COLORS_RAW, errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
+import { separator, v2Message } from '@arcscord/components';
 
 const DICE_EMOJIS = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
@@ -26,19 +27,19 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   try {
     const config = await getOrCreateEconomyConfig(guildId);
     if (!config.enabled) {
-      await interaction.reply({
-        ...v2(errorContainer('Module Désactivé', "Le système d'économie est désactivé sur ce serveur.")),
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
-      });
+      await interaction.reply(v2Message(
+        { flags: MessageFlags.Ephemeral },
+        errorContainer('Module Désactivé', "Le système d'économie est désactivé sur ce serveur."),
+      ));
       return;
     }
 
     const profile = await getOrCreateRpgProfile(guildId, userId);
     if (profile.balance < bet) {
-      await interaction.reply({
-        ...v2(errorContainer('Solde insuffisant', `Vous n'avez pas assez de pièces pour parier **${bet}** ${E.coins} (Solde actuel : **${profile.balance}** ${E.coins}).`)),
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
-      });
+      await interaction.reply(v2Message(
+        { flags: MessageFlags.Ephemeral },
+        errorContainer('Solde insuffisant', `Vous n'avez pas assez de pièces pour parier **${bet}** ${E.coins} (Solde actuel : **${profile.balance}** ${E.coins}).`),
+      ));
       return;
     }
 
@@ -88,26 +89,25 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     if (isWin) accentColor = COLORS_RAW.success;
     else if (isDraw) accentColor = COLORS_RAW.info;
 
-    const container = new ContainerBuilder()
-      .setAccentColor(accentColor)
-      .addTextDisplayComponents(text(`### ${E.coins} Lancer de Dés`))
-      .addTextDisplayComponents(text(
-        `Vous misez **${bet}** ${config.currencyEmoji}.\n\n` +
-        `**Résultat :** ${emoji1}  ${emoji2} *(somme: ${sum})*\n\n` +
-        `${resultMessage}`
-      ))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(
-        `${E.arrow} **Gain net :** **${netGain >= 0 ? '+' : ''}${netGain}** ${config.currencyEmoji}\n` +
-        `${E.arrow} **Nouveau solde :** **${newBalance}** ${config.currencyEmoji}`
-      ));
-
-    await interaction.reply(v2(container));
+    await interaction.reply(v2Message(
+      kotboContainer({
+        color: accentColor,
+        title: `${E.coins} Lancer de Dés`,
+        fields: [
+          `Vous misez **${bet}** ${config.currencyEmoji}.\n\n` +
+            `**Résultat :** ${emoji1}  ${emoji2} *(somme: ${sum})*\n\n` +
+            `${resultMessage}`,
+          separator({ divider: true, spacing: 'small' }),
+          `${E.arrow} **Gain net :** **${netGain >= 0 ? '+' : ''}${netGain}** ${config.currencyEmoji}\n` +
+            `${E.arrow} **Nouveau solde :** **${newBalance}** ${config.currencyEmoji}`,
+        ],
+      }),
+    ));
   } catch (err: unknown) {
-    await interaction.reply({
-      ...v2(errorContainer('Erreur', err.message || 'Impossible de jouer aux dés.')),
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
-    });
+    await interaction.reply(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      errorContainer('Erreur', err instanceof Error ? err.message : 'Impossible de jouer aux dés.'),
+    ));
   }
 }
 

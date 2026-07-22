@@ -1,9 +1,29 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
-const envPath = resolve(process.cwd(), '.env');
+/**
+ * Remonte l'arborescence jusqu'au premier .env trouve.
+ *
+ * Les scripts Prisma sont lances via `bun run --filter @kotbo/database`, donc
+ * avec packages/database pour cwd, alors que le .env vit a la racine du monorepo.
+ * Chercher uniquement dans cwd donnait un DATABASE_URL vide.
+ */
+function findEnvFile(): string | null {
+  let dir = process.cwd();
 
-if (!process.env.DATABASE_URL && existsSync(envPath)) {
+  for (;;) {
+    const candidate = resolve(dir, '.env');
+    if (existsSync(candidate)) return candidate;
+
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+const envPath = findEnvFile();
+
+if (!process.env.DATABASE_URL && envPath) {
   const envContent = readFileSync(envPath, 'utf8');
   for (const rawLine of envContent.split(/\r?\n/)) {
     const line = rawLine.trim();

@@ -62,6 +62,9 @@ export async function getOrCreateLevelConfig(guildId: string) {
         ignoredChannels: [],
         ignoredRoles: [],
         xpMultipliers: {},
+        lengthBonusEnabled: false,
+        lengthBonusThreshold: 200,
+        lengthBonusMaxMultiplier: 2.0,
       },
     });
   }
@@ -71,9 +74,27 @@ export async function getOrCreateLevelConfig(guildId: string) {
 }
 
 /**
+ * Calcule le facteur multiplicateur d'XP en fonction de la longueur du message.
+ * Progression linéaire de 1.0 (message vide/court) jusqu'à `maxMultiplier`
+ * atteint à `threshold` caractères, puis plafonné.
+ */
+export function computeLengthBonusFactor(
+  messageLength: number,
+  enabled: boolean,
+  threshold: number,
+  maxMultiplier: number,
+): number {
+  if (!enabled) return 1;
+  if (!threshold || threshold <= 0) return 1;
+  if (!maxMultiplier || maxMultiplier <= 1) return 1;
+  const ratio = Math.min(1, Math.max(0, messageLength / threshold));
+  return 1 + ratio * (maxMultiplier - 1);
+}
+
+/**
  * Ajoute de l'XP à un utilisateur (Textuel)
  */
-export async function handleTextXp(guildId: string, userId: string, client: Client, channelId: string) {
+export async function handleTextXp(guildId: string, userId: string, client: Client, channelId: string, messageLength = 0) {
   try {
     const config = await getOrCreateLevelConfig(guildId);
     if (!config.enabled) return;
@@ -118,10 +139,18 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
       }
     }
 
-    // Assigner l'XP en appliquant le multiplicateur
+    // Bonus selon la longueur du message (plus le message est long, plus le gain est élevé)
+    const lengthFactor = computeLengthBonusFactor(
+      messageLength,
+      Boolean(config.lengthBonusEnabled),
+      Number(config.lengthBonusThreshold ?? 0),
+      Number(config.lengthBonusMaxMultiplier ?? 1),
+    );
+
+    // Assigner l'XP en appliquant le multiplicateur de rôle puis le bonus de longueur
     const baseGain = Math.floor(Math.random() * (config.xpMax - config.xpMin + 1)) + config.xpMin;
-    const xpGain = Math.floor(baseGain * multiplier);
-    
+    const xpGain = Math.floor(baseGain * multiplier * lengthFactor);
+
     if (xpGain > 0) {
       await addXp(guildId, userId, xpGain, client, channelId);
     }
@@ -134,19 +163,54 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
  * Ajoute de l'XP brute à un utilisateur et gère le passage de niveau
  */
 export async function addXp(guildId: string, userId: string, amount: number, client: Client, channelId?: string) {
+  if (amount <= 0) return;
+
+  let finalAmount = amount;
+  try {
+    const guildSettings = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: {
+        clanRewardXpBoost: true,
+        clanRewardXpBoostRate: true,
+        lastWinningClanId: true,
+      },
+    });
+
+    if (guildSettings?.clanRewardXpBoost && guildSettings.lastWinningClanId) {
+      const winningClan = await prisma.clan.findUnique({
+        where: { id: guildSettings.lastWinningClanId },
+        select: { roleId: true },
+      });
+
+      if (winningClan) {
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (discordGuild) {
+          const member = discordGuild.members.cache.get(userId) || await discordGuild.members.fetch(userId).catch(() => null);
+          if (member && member.roles.cache.has(winningClan.roleId)) {
+            finalAmount = Math.round(amount * guildSettings.clanRewardXpBoostRate);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    logger.error('LevelingService', `Erreur lors de l'application du multiplicateur d'XP de clan pour ${userId}:`, err);
+  }
+
   const memberLevel = await prisma.memberLevel.upsert({
     where: { guildId_userId: { guildId, userId } },
     update: {
-      xp: { increment: amount },
+      xp: { increment: finalAmount },
       lastXpGain: new Date(),
     },
     create: {
       guildId,
       userId,
-      xp: amount,
+      xp: finalAmount,
       level: 0,
     },
   });
+
+
 
   const previousLevel = memberLevel.level;
   // Le niveau est toujours recalculé depuis l'XP totale : ça gère les montées
@@ -218,6 +282,61 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
 
     const member = await discordGuild.members.fetch(userId).catch(() => null);
     if (!member) return;
+
+    // 0. Attribution des points de clan pour la montée de niveau si activé
+    try {
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { clansEnabled: true, currentClanSeason: true, clanXpFromLevelUp: true, clanXpPerLevelUp: true }
+      });
+      if (guildConfig?.clansEnabled && guildConfig?.clanXpFromLevelUp && guildConfig?.clanXpPerLevelUp > 0) {
+        const clans = await prisma.clan.findMany({
+          where: { guildId },
+          select: { id: true, roleId: true }
+        });
+        if (clans.length > 0) {
+          const clanRoleIds = clans.map(c => c.roleId);
+          const memberClanRole = member.roles.cache.find(r => clanRoleIds.includes(r.id));
+          if (memberClanRole) {
+            const clan = clans.find(c => c.roleId === memberClanRole.id);
+            if (clan) {
+              const { getAllLinkedUserIds } = await import('../moderation/altAccountService.js');
+              const linkedIds = await getAllLinkedUserIds(guildId, userId).catch(() => [userId]);
+              const canonicalUserId = linkedIds.sort()[0];
+
+              await prisma.clanMemberContribution.upsert({
+                where: {
+                  guildId_clanId_userId_season: {
+                    guildId,
+                    clanId: clan.id,
+                    userId: canonicalUserId,
+                    season: guildConfig.currentClanSeason
+                  }
+                },
+                update: {
+                  xp: { increment: guildConfig.clanXpPerLevelUp }
+                },
+                create: {
+                  guildId,
+                  clanId: clan.id,
+                  userId: canonicalUserId,
+                  season: guildConfig.currentClanSeason,
+                  xp: guildConfig.clanXpPerLevelUp
+                }
+              });
+
+              // Journaliser le gain pour le flux public « derniers scores »
+              const { logClanContribution } = await import('../community/clanService.js');
+              await logClanContribution(guildId, clan.id, canonicalUserId, guildConfig.clanXpPerLevelUp, 'XP', guildConfig.currentClanSeason);
+
+              logger.info('LevelingService', `Points de clan (${guildConfig.clanXpPerLevelUp} XP) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
+            }
+          }
+        }
+      }
+    } catch (clanErr) {
+      logger.error('LevelingService', `Erreur lors de l'attribution des points de clan pour le level up de ${userId}:`, clanErr);
+    }
 
     // 1. Attribution des rôles de récompense
     const rewards = await prisma.levelRoleReward.findMany({

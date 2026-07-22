@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { type Client  } from 'discord.js';
 import * as sanctionService from './sanctionService.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
+import { syncMemberClanFromDcLink } from '../community/clanService.js';
 
 /**
  * Service pour la gestion des comptes liés (Main/Alt)
@@ -105,11 +106,12 @@ export async function linkAccounts(params: {
     }
   });
 
-  // Notifier les deux utilisateurs (uniquement si validé)
+  // Notifier les deux utilisateurs (uniquement si validé) et synchroniser leurs clans
   if (status === LinkedAccountStatus.VALIDATED) {
     await Promise.all([
       createNotification(guildId, idA, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idB}>.`, 'SUCCESS', '/profile'),
-      createNotification(guildId, idB, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idA}>.`, 'SUCCESS', '/profile')
+      createNotification(guildId, idB, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idA}>.`, 'SUCCESS', '/profile'),
+      syncMemberClanFromDcLink(guildId, idA, idB)
     ].map(p => p.catch(() => null)));
   }
 
@@ -164,35 +166,38 @@ export async function synchronizeSanction(params: {
 
   logger.info('AltAccount', `Synchronisation de la sanction ${type} pour ${originalUserId} sur ses alts: ${otherIds.join(', ')}`);
 
+  const syncedTargetTags: string[] = [];
+
   for (const altId of otherIds) {
     try {
       const altMember = await guild.members.fetch(altId).catch(() => null);
-      
+
       const target = { id: altId, tag: altMember?.user.tag || `Utilisateur inconnu (${altId})` };
       const syncReason = `[Synchronisation DC] ${reason}`;
 
       switch (type) {
         case SanctionType.WARN:
-          await sanctionService.registerWarnSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks });
+          await sanctionService.registerWarnSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks, isSync: true });
           break;
-        
+
         case SanctionType.KICK:
           if (altMember) {
             await altMember.kick(syncReason).catch(() => null);
           }
-          await sanctionService.registerKickSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks });
+          await sanctionService.registerKickSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks, isSync: true });
           break;
 
         case SanctionType.TIMEOUT:
           if (altMember && durationMs) {
-            await sanctionService.registerTimeoutSanction({ 
-              guildId, 
-              target, 
-              moderator, 
-              reason: syncReason, 
-              durationMs, 
+            await sanctionService.registerTimeoutSanction({
+              guildId,
+              target,
+              moderator,
+              reason: syncReason,
+              durationMs,
               member: altMember,
-              evidenceLinks
+              evidenceLinks,
+              isSync: true
             });
           }
           break;
@@ -200,26 +205,44 @@ export async function synchronizeSanction(params: {
         case SanctionType.BAN:
         case SanctionType.TEMP_BAN:
           await guild.members.ban(altId, { reason: syncReason }).catch(() => null);
-          await sanctionService.registerBanSanction({ 
-            guildId, 
-            target, 
-            moderator, 
-            reason: syncReason, 
+          await sanctionService.registerBanSanction({
+            guildId,
+            target,
+            moderator,
+            reason: syncReason,
             temporaryDurationMs: durationMs,
-            evidenceLinks
+            evidenceLinks,
+            isSync: true
           });
           break;
 
         case SanctionType.SOFTBAN:
           await guild.members.ban(altId, { deleteMessageSeconds: 7 * 24 * 3600, reason: syncReason }).catch(() => null);
           await guild.members.unban(altId, `Unban synchronisation softban`).catch(() => null);
-          await sanctionService.registerSoftbanSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks });
+          await sanctionService.registerSoftbanSanction({ guildId, target, moderator, reason: syncReason, evidenceLinks, isSync: true });
           break;
       }
+
+      syncedTargetTags.push(target.tag);
     } catch (error) {
       logger.error('AltAccount', `Erreur lors de la synchronisation de la sanction pour l'alt ${altId}:`, error);
     }
   }
+
+  // Une seule notification staff consolidée pour toute la synchronisation, plutôt qu'une par compte lié.
+  const originalTarget = await guild.members.fetch(originalUserId).catch(() => null);
+  await sanctionService.notifyStaffOfSyncedSanction(
+    guildId,
+    {
+      type,
+      targetUserId: originalUserId,
+      targetTag: originalTarget?.user.tag || `Utilisateur inconnu (${originalUserId})`,
+      moderatorTag: moderator.tag,
+      moderatorUserId: moderator.id,
+      reason,
+    },
+    syncedTargetTags,
+  ).catch(() => null);
 }
 
 /**

@@ -1,16 +1,11 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
-  ContainerBuilder,
-  SectionBuilder,
-  ThumbnailBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { COLORS_RAW, text, errorContainer } from '../../utils/embeds.js';
+import { COLORS_RAW, errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E, buildProgressBar } from '../../utils/emojis.js';
 import {
   generateStaffEvaluation,
@@ -18,6 +13,7 @@ import {
   getEvaluationsDashboardData,
 } from '../../services/staff/staffEvaluationService.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
+import { ContainerChild, separator, v2Message } from '@arcscord/components';
 
 function formatDate(date: Date | string | null | undefined): string {
   if (!date) return '—';
@@ -72,70 +68,72 @@ async function execute(interaction: ChatInputCommandInteraction) {
       || interaction.guild?.ownerId === interaction.user.id;
 
     if (!staffMember && !hasAdminPerm) {
-      await interaction.editReply({
-        components: [errorContainer('Accès refusé', 'Cette commande est réservée au staff.')],
-        flags: MessageFlags.IsComponentsV2,
-      });
+      await interaction.editReply(v2Message(
+        errorContainer('Accès refusé', 'Cette commande est réservée au staff.'),
+      ));
       return;
     }
 
     const evaluations = await getStaffEvaluations(guildId, targetUser.id);
 
     if (evaluations.length === 0) {
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.dark)
-        .addTextDisplayComponents(text(`### ${E.stats} Évaluations · @${targetUser.username}`))
-        .addTextDisplayComponents(text(`${E.info} Aucune évaluation disponible.`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Évaluations`));
-
-      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      await interaction.editReply(v2Message(
+        kotboContainer({
+          color: 'dark',
+          title: `${E.stats} Évaluations · @${targetUser.username}`,
+          fields: [`${E.info} Aucune évaluation disponible.`],
+          footerTitle: 'Évaluations',
+        }),
+      ));
       return;
     }
 
     const latest = evaluations[0];
 
-    const container = new ContainerBuilder()
-      .setAccentColor(scoreColor(latest.overallScore))
-      .addSectionComponents(
-        new SectionBuilder()
-          .addTextDisplayComponents(text(`### ${E.stats} Évaluation · @${targetUser.username}`))
-          .setThumbnailAccessory(new ThumbnailBuilder({ media: { url: targetUser.displayAvatarURL() } }))
-      )
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text([
+    const fields: ContainerChild[] = [
+      separator({ divider: true, spacing: 'small' }),
+      [
         `**Score global** · **${latest.overallScore}**/100 ${trendIcon(latest.trend, latest.trendDelta)}`,
         '',
         `${E.dot} **Activité** · ${buildProgressBar(latest.activityScore, 8)} \`${latest.activityScore}/100\``,
         `${E.dot} **Modération** · ${buildProgressBar(latest.moderationScore, 8)} \`${latest.moderationScore}/100\``,
         `${E.dot} **Présence** · ${buildProgressBar(latest.presenceScore, 8)} \`${latest.presenceScore}/100\``,
-      ].join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text([
+      ].join('\n'),
+      separator({ divider: true, spacing: 'small' }),
+      [
         `**${E.messages} Détails** · ${formatDate(latest.periodStart)} → ${formatDate(latest.periodEnd)}`,
         `${E.dot} Messages: **${latest.totalMessages.toLocaleString('fr-FR')}** · Vocal: **${latest.totalVoiceMinutes.toLocaleString('fr-FR')} min**`,
         `${E.dot} Sanctions traitées: **${latest.sanctionsHandled}** · Tickets résolus: **${latest.ticketsResolved}**`,
         `${E.dot} Réunions: **${latest.meetingsAttended}**/${latest.meetingsTotal} · Absences: **${latest.absenceDays}j**`,
-      ].join('\n')));
+      ].join('\n'),
+    ];
 
     if (latest.managerNote) {
-      container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-      container.addTextDisplayComponents(text(`**${E.info} Note du responsable**\n${latest.managerNote}`));
+      fields.push(
+        separator({ divider: true, spacing: 'small' }),
+        `**${E.info} Note du responsable**\n${latest.managerNote}`,
+      );
     }
 
     if (evaluations.length > 1) {
       const history = evaluations.slice(1, 4).map((ev) =>
         `${E.dot} ${formatDate(ev.periodEnd)} · **${ev.overallScore}**/100 ${trendIcon(ev.trend, ev.trendDelta)}`
       );
-      container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-      container.addTextDisplayComponents(text(`**${E.calendar} Historique**\n${history.join('\n')}`));
+      fields.push(
+        separator({ divider: true, spacing: 'small' }),
+        `**${E.calendar} Historique**\n${history.join('\n')}`,
+      );
     }
 
-    container
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · ${evaluations.length} évaluation(s)`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: scoreColor(latest.overallScore),
+        title: `${E.stats} Évaluation · @${targetUser.username}`,
+        titleThumbnail: { url: targetUser.displayAvatarURL() },
+        fields,
+        footerTitle: `${evaluations.length} évaluation(s)`,
+      }),
+    ));
   }
 
   if (subcommand === 'generate') {
@@ -150,30 +148,31 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const isStaffAdmin = staffMember && ['ADMIN', 'OWNER'].includes(staffMember.grade);
 
     if (!isStaffAdmin && !hasAdminPerm) {
-      await interaction.editReply({
-        components: [errorContainer('Accès refusé', 'Seuls les admins peuvent générer des évaluations.')],
-        flags: MessageFlags.IsComponentsV2,
-      });
+      await interaction.editReply(v2Message(
+        errorContainer('Accès refusé', 'Seuls les admins peuvent générer des évaluations.'),
+      ));
       return;
     }
 
     const evaluation = await generateStaffEvaluation(guildId, targetUser.id, periodDays);
 
-    const container = new ContainerBuilder()
-      .setAccentColor(scoreColor(evaluation.overallScore))
-      .addTextDisplayComponents(text(`### ${E.success} Évaluation générée`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text([
-        `${E.arrow} **Membre** · @${targetUser.username}`,
-        `${E.arrow} **Période** · ${periodDays} jours`,
-        `${E.arrow} **Score** · **${evaluation.overallScore}**/100 ${trendIcon(evaluation.trend, evaluation.trendDelta)}`,
-        '',
-        `${E.dot} Activité: **${evaluation.activityScore}** · Modération: **${evaluation.moderationScore}** · Présence: **${evaluation.presenceScore}**`,
-      ].join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Évaluations`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: scoreColor(evaluation.overallScore),
+        title: `${E.success} Évaluation générée`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          [
+            `${E.arrow} **Membre** · @${targetUser.username}`,
+            `${E.arrow} **Période** · ${periodDays} jours`,
+            `${E.arrow} **Score** · **${evaluation.overallScore}**/100 ${trendIcon(evaluation.trend, evaluation.trendDelta)}`,
+            '',
+            `${E.dot} Activité: **${evaluation.activityScore}** · Modération: **${evaluation.moderationScore}** · Présence: **${evaluation.presenceScore}**`,
+          ].join('\n'),
+        ],
+        footerTitle: 'Évaluations',
+      }),
+    ));
   }
 
   if (subcommand === 'overview') {
@@ -185,24 +184,23 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const isStaffAdmin = staffMember && ['ADMIN', 'OWNER'].includes(staffMember.grade);
 
     if (!isStaffAdmin && !hasAdminPerm) {
-      await interaction.editReply({
-        components: [errorContainer('Accès refusé', 'Seuls les admins peuvent voir la vue d\'ensemble.')],
-        flags: MessageFlags.IsComponentsV2,
-      });
+      await interaction.editReply(v2Message(
+        errorContainer('Accès refusé', 'Seuls les admins peuvent voir la vue d\'ensemble.'),
+      ));
       return;
     }
 
     const data = await getEvaluationsDashboardData(guildId);
 
     if (data.latestByStaff.length === 0) {
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.dark)
-        .addTextDisplayComponents(text(`### ${E.stats} Vue d'ensemble`))
-        .addTextDisplayComponents(text(`${E.info} Aucune évaluation disponible. Utilisez \`/evaluations generate\`.`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Évaluations`));
-
-      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      await interaction.editReply(v2Message(
+        kotboContainer({
+          color: 'dark',
+          title: `${E.stats} Vue d'ensemble`,
+          fields: [`${E.info} Aucune évaluation disponible. Utilisez \`/evaluations generate\`.`],
+          footerTitle: 'Évaluations',
+        }),
+      ));
       return;
     }
 
@@ -216,16 +214,18 @@ async function execute(interaction: ChatInputCommandInteraction) {
         return `**${i + 1}.** ${bar} \`${ev.overallScore}\` · ${name} ${trendIcon(ev.trend, ev.trendDelta)}`;
       });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(scoreColor(data.averageScore))
-      .addTextDisplayComponents(text(`### ${E.stats} Vue d'ensemble des évaluations`))
-      .addTextDisplayComponents(text(`${E.arrow} **Score moyen** · **${data.averageScore}**/100`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(lines.join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · ${data.latestByStaff.length} membre(s) évalué(s)`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: scoreColor(data.averageScore),
+        title: `${E.stats} Vue d'ensemble des évaluations`,
+        fields: [
+          `${E.arrow} **Score moyen** · **${data.averageScore}**/100`,
+          separator({ divider: true, spacing: 'small' }),
+          lines.join('\n'),
+        ],
+        footerTitle: `${data.latestByStaff.length} membre(s) évalué(s)`,
+      }),
+    ));
   }
 }
 

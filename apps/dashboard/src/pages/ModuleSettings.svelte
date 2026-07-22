@@ -38,12 +38,13 @@
   } from '../lib/dailyAlgoIde';
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import { m } from '../lib/i18n';
 
   let { moduleId } = $props();
 
   const module = $derived((dashboardStore.state.modules as Array<{ id: string; name: string; description: string; status: string }>).find((m) => m.id === moduleId) || { 
-    name: 'Chargement...', 
-    description: 'Veuillez patienter...', 
+    name: m.ms_module_loading_name(), 
+    description: m.ms_module_loading_desc(), 
     status: 'inactive' 
   });
   const moduleMeta = $derived(getModuleMeta(moduleId));
@@ -132,10 +133,10 @@
   }
 
   function formatDate(value: string | number | Date | null | undefined): string {
-    if (value === null || value === undefined || value === '') return 'Date inconnue';
+    if (value === null || value === undefined || value === '') return m.ms_date_unknown();
 
     const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Date inconnue';
+    if (Number.isNaN(date.getTime())) return m.ms_date_unknown();
 
     return new Intl.DateTimeFormat('fr-FR', {
       dateStyle: 'medium',
@@ -151,7 +152,7 @@
     };
   }
 
-  function createUnitTestDraft(argCount: number, name = 'Cas 1'): DailyAlgoUnitTestDraft {
+  function createUnitTestDraft(argCount: number, name = m.ms_da_case_n({ n: 1 })): DailyAlgoUnitTestDraft {
     return {
       id: createDraftId('test'),
       name,
@@ -207,9 +208,9 @@
     }
   }
 
-  async function copyToClipboard(text: string, successMessage = 'Copié dans le presse-papiers.') {
+  async function copyToClipboard(text: string, successMessage = m.ms_da_copied_clipboard()) {
     if (!text.trim()) {
-      apiKeyAction.setError('Aucune valeur à copier.');
+      apiKeyAction.setError(m.ms_da_nothing_to_copy());
       return;
     }
     try {
@@ -217,7 +218,7 @@
       apiKeyAction.setMessage(successMessage);
     } catch (error) {
       console.error(error);
-      apiKeyAction.setError('Impossible de copier automatiquement. Copiez manuellement.');
+      apiKeyAction.setError(m.ms_da_copy_manual_fallback());
     }
   }
 
@@ -313,7 +314,7 @@
       dailyAlgoProblems = await fetchDailyAlgoProblems();
     } catch (err) {
       console.error(err);
-      formAction.setError('Erreur lors du chargement des algorithmes.');
+      formAction.setError(m.ms_da_err_load_problems());
     } finally {
       isFetchingAlgo = false;
     }
@@ -325,7 +326,7 @@
       dailyAlgoToday = await fetchTodayDailyAlgoSubmissions();
     } catch (err) {
       console.error(err);
-      formAction.setError('Erreur lors du chargement des soumissions du jour.');
+      formAction.setError(m.ms_da_err_load_today_submissions());
     } finally {
       isFetchingAlgoSubmissions = false;
     }
@@ -349,7 +350,7 @@
       dailyAlgoHistory = payload?.history ?? [];
     } catch (err) {
       console.error(err);
-      formAction.setError('Erreur lors du chargement de l\'historique Daily Algo.');
+      formAction.setError(m.ms_da_err_load_history());
     } finally {
       isFetchingAlgoHistory = false;
     }
@@ -370,7 +371,7 @@
       dailyAlgoSchedule = Array.isArray(payload?.runs) ? payload.runs : [];
     } catch (err) {
       console.error(err);
-      formAction.setError('Erreur lors du chargement du planning Daily Algo.');
+      formAction.setError(m.ms_da_err_load_schedule());
     } finally {
       isEnsuringAlgoSchedule = false;
       isFetchingAlgoSchedule = false;
@@ -384,7 +385,7 @@
       myApiKeys = Array.isArray(payload?.keys) ? payload.keys : [];
     } catch (err) {
       console.error(err);
-      apiKeyAction.setError('Erreur lors du chargement de votre clé API.');
+      apiKeyAction.setError(m.ms_da_err_load_api_key());
     } finally {
       isFetchingApiKeys = false;
     }
@@ -392,7 +393,7 @@
 
   async function createOrResetMyApiKey() {
     if (!canManageSettings) {
-      apiKeyAction.setError('Seuls les administrateurs peuvent gérer cette clé API.');
+      apiKeyAction.setError(m.ms_da_admin_only_api_key());
       return;
     }
 
@@ -405,15 +406,15 @@
         return Boolean(fullKey);
       },
       {
-        successMessage: 'Clé API créée/réinitialisée. Copiez-la maintenant (elle ne sera plus visible ensuite).',
-        failureMessage: 'Impossible de créer/réinitialiser la clé API.',
+        successMessage: m.ms_da_api_key_created(),
+        failureMessage: m.ms_da_api_key_create_failed(),
       }
     );
   }
 
   async function deleteCurrentApiKey(keyId: string) {
     if (!canManageSettings) {
-      apiKeyAction.setError('Seuls les administrateurs peuvent gérer cette clé API.');
+      apiKeyAction.setError(m.ms_da_admin_only_api_key());
       return;
     }
 
@@ -426,8 +427,8 @@
         return true;
       },
       {
-        successMessage: 'Clé API désactivée.',
-        failureMessage: 'Impossible de désactiver la clé API.',
+        successMessage: m.ms_da_api_key_disabled(),
+        failureMessage: m.ms_da_api_key_disable_failed(),
       }
     );
   }
@@ -448,7 +449,7 @@
 
   function openDailyAlgoProblemModal() {
     if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent ajouter un exercice.');
+      formAction.setError(m.ms_da_admin_only_add_exercise());
       return;
     }
 
@@ -459,7 +460,7 @@
 
   function openDailyAlgoProblemEditModal(problem: any) {
     if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent modifier un exercice.');
+      formAction.setError(m.ms_da_admin_only_edit_exercise());
       return;
     }
 
@@ -483,11 +484,11 @@
           if (!entry || typeof entry !== 'object') return null;
           const candidate = entry as { name?: unknown; args?: unknown[]; expected?: unknown };
           const args = Array.isArray(candidate.args) ? candidate.args : [];
-          const name = typeof candidate.name === 'string' ? candidate.name.trim() : `Cas ${index + 1}`;
+          const name = typeof candidate.name === 'string' ? candidate.name.trim() : m.ms_da_case_n({ n: index + 1 });
 
           return {
             id: createDraftId('test'),
-            name: name || `Cas ${index + 1}`,
+            name: name || m.ms_da_case_n({ n: index + 1 }),
             argValues: Array.from({ length: argsCount }, (_, argIndex) => serializeDraftValue(args[argIndex])),
             expectedValue: serializeDraftValue(candidate.expected),
           } as DailyAlgoUnitTestDraft;
@@ -631,17 +632,17 @@
 
   async function submitDailyAlgoProblem() {
     if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent ajouter un algo.');
+      formAction.setError(m.ms_da_admin_only_add_algo());
       return;
     }
 
     if (!algoDraft.title.trim() || !algoDraft.description.trim()) {
-      formAction.setError('Titre et description sont obligatoires.');
+      formAction.setError(m.ms_da_title_desc_required());
       return;
     }
 
     if (!algoDraft.functionName.trim()) {
-      formAction.setError('Le nom de la fonction est obligatoire.');
+      formAction.setError(m.ms_da_function_name_required());
       return;
     }
 
@@ -656,12 +657,12 @@
       (arg, index) => functionArgs.findIndex((candidate) => candidate.name.toLowerCase() === arg.name.toLowerCase()) !== index,
     );
     if (duplicatedArg) {
-      formAction.setError(`Nom d'argument dupliqué: ${duplicatedArg.name}`);
+      formAction.setError(m.ms_da_duplicate_arg_name({ name: duplicatedArg.name }));
       return;
     }
 
     if (algoDraft.unitTests.length === 0) {
-      formAction.setError('Ajoute au moins un test unitaire.');
+      formAction.setError(m.ms_da_min_one_test());
       return;
     }
 
@@ -669,7 +670,7 @@
     for (let testIndex = 0; testIndex < algoDraft.unitTests.length; testIndex += 1) {
       const draftTest = algoDraft.unitTests[testIndex];
       if (draftTest.argValues.length !== functionArgs.length) {
-        formAction.setError(`Le test ${testIndex + 1} n'a pas le bon nombre d'arguments.`);
+        formAction.setError(m.ms_da_test_arg_count_mismatch({ n: testIndex + 1 }));
         return;
       }
 
@@ -677,7 +678,7 @@
       for (let argIndex = 0; argIndex < draftTest.argValues.length; argIndex += 1) {
         const parsed = parseDraftJsonValue(draftTest.argValues[argIndex] ?? '');
         if (!parsed.ok) {
-          formAction.setError(`Argument ${argIndex + 1} du test ${testIndex + 1}: ${parsed.error}`);
+          formAction.setError(m.ms_da_test_arg_parse_error({ arg: argIndex + 1, n: testIndex + 1, error: parsed.error }));
           return;
         }
         args.push(parsed.value);
@@ -685,12 +686,12 @@
 
       const parsedExpected = parseDraftJsonValue(draftTest.expectedValue ?? '');
       if (!parsedExpected.ok) {
-        formAction.setError(`Valeur attendue du test ${testIndex + 1}: ${parsedExpected.error}`);
+        formAction.setError(m.ms_da_test_expected_parse_error({ n: testIndex + 1, error: parsedExpected.error }));
         return;
       }
 
       unitTests.push({
-        name: draftTest.name.trim() || `Test ${testIndex + 1}`,
+        name: draftTest.name.trim() || m.ms_da_test_n({ n: testIndex + 1 }),
         args,
         expected: parsedExpected.value,
       });
@@ -727,11 +728,11 @@
       },
       {
         successMessage: isEdition
-          ? 'Exercice mis à jour (message Discord du jour rafraîchi si concerné).'
-          : 'Exercice algorithmique ajouté avec succès.',
+          ? m.ms_da_updated_edit()
+          : m.ms_da_added_success(),
         failureMessage: isEdition
-          ? 'Erreur lors de la mise à jour de l’exercice.'
-          : 'Erreur lors de l’ajout de l’exercice.'
+          ? m.ms_da_update_failed()
+          : m.ms_da_add_failed()
       }
     );
   }
@@ -828,7 +829,7 @@
 
   async function rejectSubmission(submissionId: string) {
     if (!canModerateDailyAlgo) {
-      formAction.setError('Vous n\'avez pas les droits pour modérer les soumissions Daily Algo.');
+      formAction.setError(m.ms_da_no_moderate_rights());
       return;
     }
 
@@ -841,7 +842,7 @@
         return true;
       },
       {
-        successMessage: 'Soumission rejetée.',
+        successMessage: m.ms_da_submission_rejected(),
         failureMessage: 'Impossible de rejeter cette soumission.'
       }
     );
@@ -849,7 +850,7 @@
 
   async function approveSubmission(submissionId: string) {
     if (!canModerateDailyAlgo) {
-      formAction.setError('Vous n\'avez pas les droits pour modérer les soumissions Daily Algo.');
+      formAction.setError(m.ms_da_no_moderate_rights());
       return;
     }
 
@@ -858,7 +859,7 @@
     const hasLowScore = [draft.correctness, draft.comments, draft.compactness, draft.optimization, draft.readability].some((score) => score < 5);
 
     if (hasLowScore && !feedback) {
-      formAction.setError('Une explication est obligatoire si une note est inférieure à 5/5.');
+      formAction.setError(m.ms_da_explanation_required_low_score());
       return;
     }
 
@@ -885,7 +886,7 @@
         return true;
       },
       {
-        successMessage: isEdition ? 'Notes et commentaire mis à jour.' : 'Soumission validée et notée.',
+        successMessage: isEdition ? m.ms_da_scores_updated() : m.ms_da_submission_validated(),
         failureMessage: 'Impossible de valider cette soumission.'
       }
     );
@@ -893,7 +894,7 @@
 
   async function setProblemAsToday(problemId: string) {
     if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent changer l’exercice du jour.');
+      formAction.setError(m.ms_da_admin_only_change_today());
       return;
     }
 
@@ -914,8 +915,8 @@
           return true;
         },
         {
-          successMessage: 'Exercice du jour mis à jour.',
-          failureMessage: 'Impossible de changer l’exercice du jour.',
+          successMessage: m.ms_da_today_updated(),
+          failureMessage: m.ms_da_today_update_failed(),
         },
       );
     } finally {
@@ -925,11 +926,11 @@
 
   async function deleteDailyAlgoProblemFromLibrary(problem: any) {
     if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent supprimer un exercice.');
+      formAction.setError(m.ms_da_admin_only_delete_exercise());
       return;
     }
 
-    if (!(await confirmDialog.danger(`Supprimer « ${problem.title} » ?`, 'Cet exercice sera retiré définitivement de la bibliothèque.'))) return;
+    if (!(await confirmDialog.danger(m.ms_da_confirm_delete_title({ title: problem.title }), m.ms_da_confirm_delete_body()))) return;
 
     deletingDailyAlgoProblemId = problem.id;
     try {
@@ -952,8 +953,8 @@
           return true;
         },
         {
-          successMessage: 'Exercice supprimé.',
-          failureMessage: 'Impossible de supprimer cet exercice.',
+          successMessage: m.ms_da_deleted(),
+          failureMessage: m.ms_da_delete_failed(),
         },
       );
     } finally {
@@ -964,18 +965,18 @@
   function submissionStatusMeta(status: string) {
     if (status === 'APPROVED') {
       return {
-        label: 'Validée',
+        label: m.ms_da_status_validated(),
         classes: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
       };
     }
     if (status === 'REJECTED') {
       return {
-        label: 'Rejetée',
+        label: m.ms_da_status_rejected(),
         classes: 'bg-red-500/10 text-red-700 border-red-500/20',
       };
     }
     return {
-      label: 'En attente',
+      label: m.ms_da_status_pending(),
       classes: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
     };
   }
@@ -1057,7 +1058,7 @@
   });
 
   function historyDateLabel(dateKey?: string | null) {
-    if (!dateKey) return 'Date inconnue';
+    if (!dateKey) return m.ms_date_unknown();
     const [year, month, day] = dateKey.split('-').map((value) => Number(value));
     if (!year || !month || !day) return dateKey;
     return new Date(year, month - 1, day).toLocaleDateString('fr-FR', {
@@ -1069,9 +1070,9 @@
   }
 
   function difficultyLabel(value: string) {
-    if (value === 'facile') return 'Facile';
-    if (value === 'moyen') return 'Moyen';
-    if (value === 'difficile') return 'Difficile';
+    if (value === 'facile') return m.ms_da_difficulty_easy();
+    if (value === 'moyen') return m.ms_da_difficulty_medium();
+    if (value === 'difficile') return m.ms_da_difficulty_hard();
     return value;
   }
 
@@ -1097,13 +1098,13 @@
   }
 
   function dailyAlgoChallengeTypeLabel(type: DailyAlgoChallengeTypeKey): string {
-    if (type === 'debug') return 'Débogage';
-    if (type === 'time-complexity') return 'Complexité temps';
-    if (type === 'space-complexity') return 'Complexité mémoire';
-    if (type === 'code-golf') return 'Code golf';
-    if (type === 'language-imposed') return 'Langage imposé';
-    if (type === 'absurd-constraints') return 'Contraintes';
-    return 'Classique';
+    if (type === 'debug') return m.ms_da_type_debug();
+    if (type === 'time-complexity') return m.ms_da_type_time_complexity();
+    if (type === 'space-complexity') return m.ms_da_type_space_complexity();
+    if (type === 'code-golf') return m.ms_da_type_code_golf();
+    if (type === 'language-imposed') return m.ms_da_type_language_imposed();
+    if (type === 'absurd-constraints') return m.ms_da_type_constraints();
+    return m.ms_da_type_classic();
   }
 
   function dailyAlgoProblemFunctionSignature(problem: { functionName?: unknown; functionArgs?: unknown } | null | undefined) {
@@ -1167,15 +1168,15 @@
   const currentApiKey = $derived(myApiKeys.length > 0 ? myApiKeys[0] : null);
   const apiDocPayloadExample = $derived('{"title":"Somme","description":"Retourner a+b","difficulty":"facile","language":"fr","functionName":"solve","functionArgs":[{"name":"a","type":"number"},{"name":"b","type":"number"}],"unitTests":[{"name":"Cas 1","args":[1,2],"expected":3}],"allowedLanguages":["javascript","python"],"solution":""}');
   const apiDocGetCurl = $derived.by(() => {
-    if (!dailyAlgoPublicApiProblemsUrl) return 'Sélectionnez une guilde pour générer les commandes.';
+    if (!dailyAlgoPublicApiProblemsUrl) return m.ms_da_select_guild_for_commands();
     return `curl -H "X-API-Key: kb_..." "${dailyAlgoPublicApiProblemsUrl}"`;
   });
   const apiDocPostCurl = $derived.by(() => {
-    if (!dailyAlgoPublicApiProblemsUrl) return 'Sélectionnez une guilde pour générer les commandes.';
+    if (!dailyAlgoPublicApiProblemsUrl) return m.ms_da_select_guild_for_commands();
     return `curl -X POST "${dailyAlgoPublicApiProblemsUrl}" \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: kb_..." \\\n  -d '${apiDocPayloadExample}'`;
   });
   const apiDocPatchCurl = $derived.by(() => {
-    if (!dailyAlgoPublicApiProblemsUrl) return 'Sélectionnez une guilde pour générer les commandes.';
+    if (!dailyAlgoPublicApiProblemsUrl) return m.ms_da_select_guild_for_commands();
     return `curl -X PATCH "${dailyAlgoPublicApiProblemsUrl}/PROBLEM_ID" \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: kb_..." \\\n  -d '${apiDocPayloadExample}'`;
   });
 
@@ -1308,7 +1309,7 @@
     formAction.clearFeedback();
 
     if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent modifier ce module.');
+      formAction.setError(m.ms_admin_only_edit_module());
       return false;
     }
 
@@ -1323,8 +1324,8 @@
         return true;
       },
       {
-        successMessage: 'Configuration du module enregistrée avec succès.',
-        failureMessage: 'Impossible de sauvegarder la configuration du module.'
+        successMessage: m.ms_config_saved_success(),
+        failureMessage: m.ms_config_save_failed()
       }
     );
     return success;
@@ -1336,7 +1337,7 @@
 <div class="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
   
   <div class="flex items-center gap-3 px-2">
-    <a href="/modules" class="text-[10px] font-semibold text-on-surface-variant/40 hover:text-primary uppercase tracking-wider transition-colors">Catalogue</a>
+    <a href="/modules" class="text-[10px] font-semibold text-on-surface-variant/40 hover:text-primary uppercase tracking-wider transition-colors">{m.ms_breadcrumb_catalog()}</a>
     <Papicon icon="chevron_right" size={14} class="text-slate-400 opacity-30" />
     <span class="text-[10px] font-semibold text-primary uppercase tracking-wider">{module.name}</span>
   </div>
@@ -1352,7 +1353,7 @@
         <div class="flex items-center gap-2 mt-1 px-2.5 py-0.5 bg-emerald-500/5 rounded-full border border-emerald-500/10 w-fit">
           <span class="w-1.5 h-1.5 rounded-full {module.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}"></span>
           <span class="text-[11px] font-semibold {module.status === 'active' ? 'text-emerald-600' : 'text-slate-500'} uppercase tracking-widest whitespace-nowrap">
-            {module.status === 'active' ? 'Actif' : 'Inactif'}
+            {module.status === 'active' ? m.common_active() : m.common_inactive()}
           </span>
         </div>
       </div>
@@ -1362,7 +1363,7 @@
       <RefreshButton
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
-        label="Rafraîchir"
+        label={m.common_refresh()}
         className="px-6 py-3.5 text-[13px] font-medium rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant/60 hover:text-on-surface shadow-none"
         iconClass="text-base"
       />
@@ -1374,7 +1375,7 @@
 
   {#if moduleId !== 'dailyalgo'}
     <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700">
-      Accès modérateur: cette page est en lecture seule.
+      {m.ms_moderator_readonly_notice()}
     </div>
   {/if}
 
@@ -1386,11 +1387,11 @@
         <section class="space-y-8">
           <h3 class="text-xl font-semibold tracking-tight flex items-center gap-4">
             <div class="w-1.5 h-8 bg-primary rounded-full"></div>
-            Configuration Générale
+            {m.ms_general_config()}
           </h3>
           <div class="premium-card p-10 rounded-xl space-y-10 group">
             <div class="space-y-4">
-              <label class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider ml-2 block" for="name">Description du module</label>
+              <label class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider ml-2 block" for="name">{m.ms_module_description_label()}</label>
               <p class="px-6 py-4 bg-surface-container-low border border-outline-variant/5 rounded-lg text-sm italic opacity-70">
                 {module.description}
               </p>
@@ -1403,17 +1404,17 @@
             <div>
               <h3 class="text-xl font-semibold tracking-tight flex items-center gap-4">
                 <div class="w-1.5 h-8 bg-emerald-500 rounded-full"></div>
-                Daily Algo Control Room
+                {m.ms_da_control_room_title()}
               </h3>
               <p class="mt-2 text-xs text-on-surface-variant">
-                Vue centrée sur le quotidien: exo du jour, modération des soumissions, calendrier confirmé et banque d'exercices.
+                {m.ms_da_control_room_subtitle()}
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <RefreshButton
                 onClick={() => Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoProblems(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()])}
                 loading={isFetchingAlgoSubmissions || isFetchingAlgo || isFetchingAlgoHistory || isFetchingAlgoSchedule || isEnsuringAlgoSchedule || isFetchingApiKeys}
-                label="Tout rafraîchir"
+                label={m.ms_refresh_all()}
                 className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
                 iconClass="text-sm"
               />
@@ -1423,7 +1424,7 @@
                 class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-outline-variant/30 bg-surface-container-low text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
               >
                 <Papicon icon="key" size={14} />
-                API Externe
+                {m.ms_da_external_api()}
               </button>
               {#if canManageSettings}
                 <button
@@ -1431,7 +1432,7 @@
                   onclick={openDailyAlgoProblemModal}
                   class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-wide shadow-sm hover:bg-emerald-700"
                 >
-                  Ajouter un exercice
+                  {m.ms_da_add_exercise()}
                 </button>
               {/if}
             </div>
@@ -1440,19 +1441,19 @@
           <div class="premium-card rounded-xl p-6 md:p-7 bg-linear-to-br from-emerald-500/10 via-surface to-sky-500/10 border border-emerald-500/15">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div class="rounded-lg bg-slate-500/10 border border-slate-500/20 p-4">
-                <p class="text-[11px] uppercase tracking-wider font-semibold text-slate-700/80">Soumissions</p>
+                <p class="text-[11px] uppercase tracking-wider font-semibold text-slate-700/80">{m.ms_da_stat_submissions()}</p>
                 <p class="text-2xl font-semibold text-slate-700 mt-1">{todaySubmissionStats.total}</p>
               </div>
               <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4">
-                <p class="text-[11px] uppercase tracking-wider font-semibold text-amber-700/80">En attente</p>
+                <p class="text-[11px] uppercase tracking-wider font-semibold text-amber-700/80">{m.ms_da_status_pending()}</p>
                 <p class="text-2xl font-semibold text-amber-700 mt-1">{todaySubmissionStats.pending}</p>
               </div>
               <div class="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4">
-                <p class="text-[11px] uppercase tracking-wider font-semibold text-emerald-700/80">Validées</p>
+                <p class="text-[11px] uppercase tracking-wider font-semibold text-emerald-700/80">{m.ms_da_status_validated()}</p>
                 <p class="text-2xl font-semibold text-emerald-700 mt-1">{todaySubmissionStats.approved}</p>
               </div>
               <div class="rounded-lg bg-sky-500/10 border border-sky-500/20 p-4">
-                <p class="text-[11px] uppercase tracking-wider font-semibold text-sky-700/80">Dates sûres</p>
+                <p class="text-[11px] uppercase tracking-wider font-semibold text-sky-700/80">{m.ms_da_stat_safe_dates()}</p>
                 <p class="text-2xl font-semibold text-sky-700 mt-1">{dailyAlgoFutureRunsCount}</p>
               </div>
             </div>
@@ -1460,11 +1461,11 @@
 
           <div class="premium-card p-8 rounded-xl space-y-6">
             <div class="flex items-center justify-between gap-4">
-              <h4 class="text-lg font-semibold text-on-surface">1) Défi du jour & validation des soumissions</h4>
+              <h4 class="text-lg font-semibold text-on-surface">{m.ms_da_section1_title()}</h4>
               <RefreshButton
                 onClick={loadTodayDailyAlgoSubmissions}
                 loading={isFetchingAlgoSubmissions}
-                label="Rafraîchir"
+                label={m.common_refresh()}
                 className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
                 iconClass="text-sm"
               />
@@ -1488,12 +1489,12 @@
               </div>
             {:else if !dailyAlgoToday?.run}
               <div class="p-8 rounded-lg border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
-                Aucun Daily Algo n'a encore été lancé aujourd'hui.
+                {m.ms_da_none_launched_today()}
               </div>
             {:else}
               <div class="rounded-lg bg-surface-container-low border border-outline-variant/15 p-4">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Défi en cours</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.ms_da_current_challenge()}</p>
                   <span class="px-2 py-1 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                     {dailyAlgoChallengeTypeLabel(dailyAlgoDetectChallengeTypeKey(dailyAlgoToday.run.problem.title, dailyAlgoToday.run.problem.description))}
                   </span>
@@ -1504,12 +1505,12 @@
 
               <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low p-4">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mr-2">Filtrer par statut</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mr-2">{m.ms_da_filter_by_status()}</span>
                   {#each [
                     { value: 'ALL', label: 'Tous' },
                     { value: 'PENDING', label: 'En attente' },
-                    { value: 'APPROVED', label: 'Validées' },
-                    { value: 'REJECTED', label: 'Rejetées' },
+                    { value: 'APPROVED', label: m.ms_da_status_validated() },
+                    { value: 'REJECTED', label: m.ms_da_status_rejected() },
                   ] as option}
                     <button
                       type="button"
@@ -1526,27 +1527,27 @@
 
               {#if (dailyAlgoToday.submissions ?? []).length === 0}
                 <div class="p-8 rounded-lg border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
-                  Aucune soumission enregistrée pour le moment.
+                  {m.ms_da_none_submitted_yet()}
                 </div>
               {:else if filteredTodaySubmissions.length === 0}
                 <div class="p-8 rounded-lg border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
-                  Aucune soumission ne correspond à ce filtre.
+                  {m.ms_da_none_matches_filter()}
                 </div>
               {:else}
                 <div class="space-y-3">
                   <p class="text-xs font-bold text-on-surface-variant">
-                    {sortedFilteredTodaySubmissions.length} / {dailyAlgoToday.submissions.length} soumission(s) affichée(s)
+                    {m.ms_da_submissions_shown_count({ shown: sortedFilteredTodaySubmissions.length, total: dailyAlgoToday.submissions.length })}
                   </p>
                   <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low overflow-x-auto">
                     <table class="data-table">
                       <thead>
                         <tr>
-                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Membre</th>
-                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Statut</th>
-                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Soumission</th>
-                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Note / Total</th>
-                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Modération</th>
-                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Actions</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_member()}</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_status()}</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_submission()}</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_score_total()}</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_moderation()}</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_actions()}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1562,7 +1563,7 @@
                               </span>
                               {#if submission.speedRank}
                                 <p class="mt-1 text-[10px] text-on-surface-variant">
-                                  Rang #{submission.speedRank}
+                                  {m.ms_da_rank_n({ n: submission.speedRank })}
                                   {#if (submission.speedBonusPoints ?? 0) > 0}
                                     (+{submission.speedBonusPoints})
                                   {/if}
@@ -1577,18 +1578,18 @@
                                   onclick={() => openSubmissionInIntegratedIde(submission)}
                                   class="text-xs font-medium text-emerald-700 hover:text-emerald-600"
                                 >
-                                  IDE intégré
+                                  {m.ms_da_integrated_ide()}
                                 </button>
                               </div>
                             </td>
                             <td>
                               {#if submission.status === 'APPROVED'}
                                 <p class="text-xs font-semibold text-emerald-700">{submission.scoreFinal ?? 0}/5</p>
-                                <p class="text-[10px] text-emerald-700/80">Total {submission.totalPoints ?? submission.scoreFinal ?? 0} pts</p>
+                                <p class="text-[10px] text-emerald-700/80">{m.ms_da_total_pts({ n: submission.totalPoints ?? submission.scoreFinal ?? 0 })}</p>
                               {:else if submission.status === 'REJECTED'}
-                                <p class="text-xs font-semibold text-red-700">Rejetée</p>
+                                <p class="text-xs font-semibold text-red-700">{m.ms_da_status_rejected()}</p>
                               {:else}
-                                <p class="text-xs font-semibold text-amber-700">En attente de note</p>
+                                <p class="text-xs font-semibold text-amber-700">{m.ms_da_pending_score()}</p>
                               {/if}
                               {#if submission.reviewFeedback}
                                 <p class="mt-1 text-[10px] text-on-surface-variant line-clamp-2">{submission.reviewFeedback}</p>
@@ -1597,9 +1598,9 @@
                             <td>
                               {#if submission.validatedByName}
                                 <p class="text-xs font-bold text-on-surface">{submission.validatedByName}</p>
-                                <p class="text-[10px] text-on-surface-variant">{submission.validatedAt ? formatDate(submission.validatedAt) : 'Date inconnue'}</p>
+                                <p class="text-[10px] text-on-surface-variant">{submission.validatedAt ? formatDate(submission.validatedAt) : m.ms_date_unknown()}</p>
                               {:else}
-                                <p class="text-[10px] font-bold text-on-surface-variant">Pas encore modérée</p>
+                                <p class="text-[10px] font-bold text-on-surface-variant">{m.ms_da_not_moderated_yet()}</p>
                               {/if}
                             </td>
                             <td>
@@ -1610,7 +1611,7 @@
                                     onclick={() => openSubmissionInIntegratedIde(submission)}
                                     class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium"
                                   >
-                                    {submission.status === 'PENDING' ? 'Noter dans IDE' : submission.status === 'APPROVED' ? 'Modifier dans IDE' : 'Réévaluer dans IDE'}
+                                    {submission.status === 'PENDING' ? m.ms_da_action_score_ide() : submission.status === 'APPROVED' ? m.ms_da_action_edit_ide() : m.ms_da_action_reeval_ide()}
                                   </button>
                                   {#if submission.status === 'PENDING'}
                                     <button
@@ -1644,13 +1645,13 @@
                     <Papicon icon="Globe" size={24} />
                   </div>
                   <div>
-                    <h4 class="text-lg font-semibold text-on-surface">Leaderboard Global</h4>
-                    <p class="text-xs text-on-surface-variant">Top scores agrégés sur tous les serveurs Kotbo</p>
+                    <h4 class="text-lg font-semibold text-on-surface">{m.ms_da_global_leaderboard()}</h4>
+                    <p class="text-xs text-on-surface-variant">{m.ms_da_global_leaderboard_subtitle()}</p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
                   <Papicon icon="Server" size={14} class="text-sky-600" />
-                  <span class="text-xs font-medium text-sky-700">{globalLeaderboard.guildsCount} serveurs synchronisés</span>
+                  <span class="text-xs font-medium text-sky-700">{m.ms_da_guilds_synced({ n: globalLeaderboard.guildsCount })}</span>
                 </div>
               </div>
 
@@ -1658,11 +1659,11 @@
                 <table class="w-full text-left">
                   <thead class="bg-sky-500/5 text-sky-800 text-xs font-medium">
                     <tr>
-                      <th class="px-6 py-4">Rang</th>
-                      <th class="px-6 py-4">Utilisateur</th>
-                      <th class="px-6 py-4">Serveur</th>
-                      <th class="px-6 py-4 text-center">Moyenne</th>
-                      <th class="px-6 py-4 text-right">Points</th>
+                      <th class="px-6 py-4">{m.ms_da_col_rank()}</th>
+                      <th class="px-6 py-4">{m.ms_da_col_user()}</th>
+                      <th class="px-6 py-4">{m.ms_da_col_server()}</th>
+                      <th class="px-6 py-4 text-center">{m.ms_da_col_average()}</th>
+                      <th class="px-6 py-4 text-right">{m.ms_da_col_points()}</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-sky-500/5">
@@ -1697,13 +1698,13 @@
           {/if}
 
           <div class="premium-card p-8 rounded-xl space-y-6">
-            <h4 class="text-lg font-semibold text-on-surface">2) + 3) Calendrier réel & banque d'exercices fusionnés</h4>
+            <h4 class="text-lg font-semibold text-on-surface">{m.ms_da_section23_title()}</h4>
 
             <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4">
               <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Mini calendrier confirmé (dates réelles)</p>
-                  <span class="text-[10px] font-bold text-on-surface-variant">{dailyAlgoUpcomingRuns.length} date(s) affichée(s)</span>
+                  <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.ms_da_mini_calendar_title()}</p>
+                  <span class="text-[10px] font-bold text-on-surface-variant">{m.ms_da_dates_shown_count({ n: dailyAlgoUpcomingRuns.length })}</span>
                 </div>
                 {#if isFetchingAlgoSchedule || isEnsuringAlgoSchedule}
                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1724,7 +1725,7 @@
                   </div>
                 {:else if dailyAlgoUpcomingRuns.length === 0}
                   <div class="rounded-xl border border-outline-variant/20 bg-surface px-3 py-3 text-xs text-on-surface-variant">
-                    Aucune date future n'est programmée pour l'instant. Utilise “Mettre aujourd'hui” pour fixer l'exercice du jour.
+                    {m.ms_da_no_future_date()}
                   </div>
                 {:else}
                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1737,10 +1738,10 @@
                           <span class="px-2 py-0.5 rounded-md border text-[10px] font-semibold uppercase tracking-[0.08em] {run.status === 'today'
  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700'
                             : 'border-sky-500/25 bg-sky-500/10 text-sky-700'}">
-                            {run.status === 'today' ? "Aujourd'hui" : 'Programmé'}
+                            {run.status === 'today' ? m.ms_da_today() : m.ms_da_scheduled()}
                           </span>
                         </div>
-                        <p class="text-sm font-semibold text-on-surface line-clamp-1">{run.problem?.title ?? 'Exercice inconnu'}</p>
+                        <p class="text-sm font-semibold text-on-surface line-clamp-1">{run.problem?.title ?? m.ms_da_unknown_exercise()}</p>
                         <div class="flex flex-wrap items-center gap-1.5">
                           <span class="px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                             {difficultyLabel(run.problem?.difficulty ?? 'moyen')}
@@ -1759,7 +1760,7 @@
               </div>
 
               <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-3">
-                <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Historique récent</p>
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.ms_da_recent_history()}</p>
                 {#if isFetchingAlgoHistory}
                   <div class="space-y-2 max-h-72 overflow-auto pr-1">
                     {#each Array(5) as _}
@@ -1771,14 +1772,14 @@
                     {/each}
                   </div>
                 {:else if dailyAlgoHistory.length === 0}
-                  <p class="text-xs text-on-surface-variant">Aucun run historique pour le moment.</p>
+                  <p class="text-xs text-on-surface-variant">{m.ms_da_no_history_yet()}</p>
                 {:else}
                   <div class="space-y-2 max-h-72 overflow-auto pr-1">
                     {#each dailyAlgoHistory.slice(0, 8) as run}
                       <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2">
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{historyDateLabel(run.dateKey)}</p>
                         <p class="text-xs font-bold text-on-surface line-clamp-1 mt-0.5">{run.problem.title}</p>
-                        <p class="text-[10px] text-on-surface-variant mt-1">Total: {run.stats.total} · Validées: {run.stats.approved} · Rejetées: {run.stats.rejected}</p>
+                        <p class="text-[10px] text-on-surface-variant mt-1">{m.ms_da_history_stats_line({ total: run.stats.total, approved: run.stats.approved, rejected: run.stats.rejected })}</p>
                       </div>
                     {/each}
                   </div>
@@ -1792,7 +1793,7 @@
                   {#each [
                     { value: 'ALL', label: 'Tous' },
                     { value: 'AVAILABLE', label: 'Disponibles' },
-                    { value: 'USED', label: 'Déjà joués' },
+                    { value: 'USED', label: m.ms_da_filter_used() },
                   ] as mode}
                     <button
                       type="button"
@@ -1808,7 +1809,7 @@
                 <input
                   type="search"
                   bind:value={dailyAlgoLibrarySearch}
-                  placeholder="Rechercher un exo, une signature, un langage..."
+                  placeholder={m.ms_da_search_placeholder()}
                   class="w-full lg:max-w-lg rounded-xl border border-outline-variant/30 bg-surface px-4 py-2 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
                 />
               </div>
@@ -1826,13 +1827,13 @@
                   <table class="data-table">
                     <thead>
                       <tr>
-                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Date réelle</th>
-                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Exercice</th>
-                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Difficulté</th>
-                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Type</th>
-                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Langages</th>
-                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Tests</th>
-                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Actions</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_real_date()}</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_exercise()}</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_difficulty()}</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_type()}</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_languages()}</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_tests()}</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{m.ms_da_col_actions()}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1841,19 +1842,19 @@
                           <td>
                             {#if dailyAlgoPlannedDateForProblem(problem.id)}
                               {#if (dailyAlgoPlannedDateForProblem(problem.id) || '') === todayDateKey}
-                                <span class="inline-flex px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">Aujourd'hui</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">{m.ms_da_today()}</span>
                               {:else if (dailyAlgoPlannedDateForProblem(problem.id) || '') > todayDateKey}
-                                <span class="inline-flex px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-sky-700">Programmé</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-sky-700">{m.ms_da_scheduled()}</span>
                               {:else}
-                                <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-700">Joué</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-700">{m.ms_da_played()}</span>
                               {/if}
                               <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{historyDateLabel(dailyAlgoPlannedDateForProblem(problem.id) || '')}</p>
                             {:else if problem.usedAt}
-                              <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-700">Joué</span>
+                              <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-700">{m.ms_da_played()}</span>
                               <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{formatDate(problem.usedAt)}</p>
                             {:else}
-                              <span class="inline-flex px-2 py-0.5 rounded-md border border-amber-500/25 bg-amber-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">Backlog</span>
-                              <p class="mt-1 text-[11px] font-bold text-on-surface-variant">En attente</p>
+                              <span class="inline-flex px-2 py-0.5 rounded-md border border-amber-500/25 bg-amber-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">{m.ms_da_backlog()}</span>
+                              <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{m.ms_da_status_pending()}</p>
                             {/if}
                           </td>
                           <td>
@@ -1906,7 +1907,7 @@
  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
                                     : 'border-sky-500/30 bg-sky-500/10 text-sky-700 hover:bg-sky-500/20'}"
                                 >
-                                  {todayRunProblemId === problem.id ? "Exo du jour" : 'Mettre aujourd’hui'}
+                                  {todayRunProblemId === problem.id ? m.ms_da_today_exercise() : m.ms_da_set_as_today()}
                                 </button>
                                 <button
                                   type="button"
@@ -1934,13 +1935,13 @@
         <section class="space-y-8">
             <h3 class="text-xl font-semibold tracking-tight flex items-center gap-4">
               <div class="w-1.5 h-8 bg-primary rounded-full"></div>
-              Paramètres du module
+              {m.ms_module_settings_title()}
             </h3>
             <div class="premium-card p-10 rounded-xl space-y-8">
               <div class="flex items-center justify-between gap-6 p-6 rounded-lg bg-surface-container-low border border-outline-variant/20">
                 <div>
-                  <p class="text-sm font-semibold text-on-surface">Activation du module</p>
-                  <p class="text-xs text-on-surface-variant/70 mt-1">Définissez l'état opérationnel de ce module et appliquez via "Enregistrer".</p>
+                  <p class="text-sm font-semibold text-on-surface">{m.ms_module_activation()}</p>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">{m.ms_module_activation_desc()}</p>
                 </div>
                 <ToggleSwitch
                   checked={desiredModuleStatus === 'active'}
@@ -1955,13 +1956,13 @@
                   disabled={!canManageSettings}
                   class="px-5 py-4 rounded-lg border border-outline-variant/30 bg-surface-container-low text-sm font-semibold uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
                 >
-                  Ouvrir les paramètres globaux
+                  {m.ms_open_global_settings()}
                 </button>
                 <button
                   onclick={() => router.goto('/activity')}
                   class="px-5 py-4 rounded-lg border border-outline-variant/30 bg-surface-container-low text-sm font-semibold uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
                 >
-                  Consulter les actions récentes
+                  {m.ms_view_recent_activity()}
                 </button>
               </div>
             </div>
@@ -1980,17 +1981,17 @@
     <div class="dailyalgo-api-popover" onclick={(event) => event.stopPropagation()}>
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Daily Algo</p>
-          <h3 id="dailyalgo-api-title" class="mt-1 text-lg font-semibold text-on-surface">Configuration API externe</h3>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">{m.ms_da_label()}</p>
+          <h3 id="dailyalgo-api-title" class="mt-1 text-lg font-semibold text-on-surface">{m.ms_da_external_api_config()}</h3>
           <p class="mt-1 text-xs text-on-surface-variant">
-            Clé personnelle, URL publique et commandes cURL de la guilde active.
+            {m.ms_da_api_key_subtitle()}
           </p>
         </div>
         <button
           type="button"
           onclick={closeDailyAlgoApiModal}
           class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface"
-          aria-label="Fermer la configuration API"
+          aria-label={m.ms_da_close_api_config()}
         >
           <Papicon icon="close" size={16} />
         </button>
@@ -1999,18 +2000,18 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Gestion de clé</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">{m.ms_da_key_management()}</p>
             <RefreshButton
               onClick={loadMyApiKeys}
               loading={isFetchingApiKeys}
-              label="Rafraîchir"
+              label={m.common_refresh()}
               className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide rounded-lg bg-surface border border-outline-variant/20 text-on-surface-variant"
               iconClass="text-sm"
             />
           </div>
 
           <label for="dailyalgo-api-key-name" class="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant/70">
-            Nom de la clé
+            {m.ms_da_key_name()}
           </label>
           <input
             id="dailyalgo-api-key-name"
@@ -2027,7 +2028,7 @@
               onclick={createOrResetMyApiKey}
               disabled={!canManageSettings || apiKeyAction.state.loading}
             >
-              {currentApiKey ? 'Reset clé API' : 'Créer clé API'}
+              {currentApiKey ? m.ms_da_reset_api_key() : m.ms_da_create_api_key()}
             </button>
 
             {#if currentApiKey}
@@ -2037,7 +2038,7 @@
                 onclick={() => deleteCurrentApiKey(currentApiKey.id)}
                 disabled={!canManageSettings || apiKeyAction.state.loading}
               >
-                Désactiver
+                {m.ms_da_disable()}
               </button>
             {/if}
           </div>
@@ -2045,23 +2046,23 @@
           <InlineFeedback message={apiKeyAction.state.message} error={apiKeyAction.state.error} />
 
           <div class="space-y-2 rounded-xl border border-outline-variant/20 bg-surface px-4 py-3">
-            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Clé active</p>
-            <p class="text-sm font-mono text-on-surface">{currentApiKey?.displayKey ?? 'Aucune clé active'}</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">{m.ms_da_active_key()}</p>
+            <p class="text-sm font-mono text-on-surface">{currentApiKey?.displayKey ?? m.ms_da_no_active_key()}</p>
             {#if currentApiKey?.lastUsedAt}
-              <p class="text-[11px] text-on-surface-variant">Dernière utilisation: {formatDate(currentApiKey.lastUsedAt)}</p>
+              <p class="text-[11px] text-on-surface-variant">{m.ms_da_last_used({ date: formatDate(currentApiKey.lastUsedAt) })}</p>
             {/if}
           </div>
 
           {#if latestIssuedApiKey}
             <div class="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-              <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-emerald-700">Nouvelle clé (visible une seule fois)</p>
+              <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-emerald-700">{m.ms_da_new_key_visible_once()}</p>
               <p class="text-sm font-mono text-emerald-800 break-all">{latestIssuedApiKey}</p>
               <button
                 type="button"
                 class="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-white text-emerald-700 text-[10px] font-semibold uppercase tracking-wide hover:bg-emerald-50"
-                onclick={() => copyToClipboard(latestIssuedApiKey, 'Clé API copiée.')}
+                onclick={() => copyToClipboard(latestIssuedApiKey, m.ms_da_api_key_copied())}
               >
-                Copier la clé
+                {m.ms_da_copy_key()}
               </button>
             </div>
           {/if}
@@ -2069,19 +2070,19 @@
 
         <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
           <div>
-            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Mini doc API (guilde actuelle)</p>
-            <p class="mt-1 text-xs text-on-surface-variant break-all">Guild ID: {selectedGuildId || 'Aucune guilde sélectionnée'}</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">{m.ms_da_mini_doc_title()}</p>
+            <p class="mt-1 text-xs text-on-surface-variant break-all">Guild ID: {selectedGuildId || m.ms_da_no_guild_selected()}</p>
           </div>
 
           <div class="space-y-2">
-            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Base URL</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">{m.ms_da_base_url()}</p>
             <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-xs font-mono break-all">
-              {dailyAlgoPublicApiProblemsUrl || 'Sélectionnez une guilde pour voir l’URL.'}
+              {dailyAlgoPublicApiProblemsUrl || m.ms_da_select_guild_for_url()}
             </div>
           </div>
 
           <div class="space-y-2">
-            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Exemples cURL</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">{m.ms_da_curl_examples()}</p>
             <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocGetCurl}</pre>
             <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPostCurl}</pre>
             <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPatchCurl}</pre>
@@ -2108,7 +2109,7 @@
           type="button"
           onclick={closeIntegratedIde}
           class="dailyalgo-ide-close"
-          aria-label="Fermer l'IDE intégré"
+          aria-label={m.ms_da_close_integrated_ide()}
         >
           <Papicon icon="close" size={16} />
         </button>
@@ -2125,7 +2126,7 @@
             <span class="dot">•</span>
             <span>Total: {focusedSubmission.totalPoints ?? '—'} pts</span>
             <span class="dot">•</span>
-            <span>Soumis: {formatDate(focusedSubmission.submittedAt)}</span>
+            <span>{m.ms_da_submitted_at({ date: formatDate(focusedSubmission.submittedAt) })}</span>
           </div>
           <div class="dailyalgo-ide-host">
             <DailyAlgoMiniIDE
@@ -2144,7 +2145,7 @@
         </section>
 
         <aside class="dailyalgo-ide-score-panel">
-          <h4 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Review Panel</h4>
+          <h4 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">{m.ms_da_review_panel()}</h4>
 
           {#if canModerateDailyAlgo && (focusedSubmission.status === 'PENDING' || focusedSubmission.status === 'APPROVED' || focusedSubmission.status === 'REJECTED')}
             <div class="grid grid-cols-2 gap-3">
@@ -2175,7 +2176,7 @@
                 />
               </label>
               <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`modal-score-compactness-${focusedSubmission.id}`}>
-                Compacité
+                {m.ms_da_score_compactness()}
                 <input
                   id={`modal-score-compactness-${focusedSubmission.id}`}
                   type="number"
@@ -2201,7 +2202,7 @@
                 />
               </label>
               <label class="text-[11px] font-bold text-on-surface-variant space-y-1 col-span-2" for={`modal-score-readability-${focusedSubmission.id}`}>
-                Lisibilité
+                {m.ms_da_score_readability()}
                 <input
                   id={`modal-score-readability-${focusedSubmission.id}`}
                   type="number"
@@ -2217,7 +2218,7 @@
 
             <div class="space-y-2">
               <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`modal-score-feedback-${focusedSubmission.id}`}>
-                Explication / axes d'amélioration
+                {m.ms_da_feedback_label()}
                 <textarea
                   id={`modal-score-feedback-${focusedSubmission.id}`}
                   rows="5"
@@ -2225,16 +2226,16 @@
                   value={scoreDraftBySubmissionId[focusedSubmission.id]?.feedback ?? ''}
                   oninput={(event) => updateSubmissionFeedback(focusedSubmission.id, (event.currentTarget as HTMLTextAreaElement).value)}
                   class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
-                  placeholder="Obligatoire si une note est inférieure à 5/5."
+                  placeholder={m.ms_da_feedback_placeholder()}
                 ></textarea>
               </label>
               {#if [scoreDraftBySubmissionId[focusedSubmission.id]?.correctness ?? 5, scoreDraftBySubmissionId[focusedSubmission.id]?.comments ?? 5, scoreDraftBySubmissionId[focusedSubmission.id]?.compactness ?? 5, scoreDraftBySubmissionId[focusedSubmission.id]?.optimization ?? 5, scoreDraftBySubmissionId[focusedSubmission.id]?.readability ?? 5].some((score) => score < 5)}
-                <p class="text-[10px] font-bold text-amber-700">Une explication est requise car au moins un critère est en dessous de 5/5.</p>
+                <p class="text-[10px] font-bold text-amber-700">{m.ms_da_feedback_required_notice()}</p>
               {/if}
             </div>
 
             <div class="dailyalgo-ide-score-actions">
-              <p class="text-xs font-semibold text-emerald-700">Moyenne: {reviewAverage(focusedSubmission.id)}/5</p>
+              <p class="text-xs font-semibold text-emerald-700">{m.ms_da_average_score({ n: reviewAverage(focusedSubmission.id) })}</p>
               <div class="flex items-center gap-2">
                 {#if focusedSubmission.status === 'PENDING'}
                   <button
@@ -2250,13 +2251,13 @@
                   onclick={() => approveSubmission(focusedSubmission.id)}
                   class="px-4 py-2 rounded-lg bg-emerald-700 text-white text-[10px] font-semibold uppercase tracking-wide hover:bg-emerald-800"
                 >
-                  {focusedSubmission.status === 'PENDING' ? 'Confirmer la validation' : focusedSubmission.status === 'APPROVED' ? 'Enregistrer les modifications' : 'Valider la réévaluation'}
+                  {focusedSubmission.status === 'PENDING' ? m.ms_da_confirm_validation() : focusedSubmission.status === 'APPROVED' ? m.ms_da_save_changes() : m.ms_da_validate_reeval()}
                 </button>
               </div>
             </div>
           {:else}
             <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 text-xs text-on-surface-variant">
-              Cette soumission est en lecture seule pour ton rôle.
+              {m.ms_da_readonly_for_role()}
             </div>
           {/if}
         </aside>
@@ -2276,21 +2277,21 @@
     <div class="modal-panel modal-panel-lg space-y-5" onclick={(e) => e.stopPropagation()}>
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Daily Algo</p>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">{m.ms_da_label()}</p>
           <h3 id="dailyalgo-create-title" class="mt-1 text-xl font-semibold text-on-surface">
-            {editingDailyAlgoProblemId ? 'Modifier l\'exercice' : 'Ajouter un nouvel exercice'}
+            {editingDailyAlgoProblemId ? m.ms_da_edit_exercise_title() : m.ms_da_add_new_exercise_title()}
           </h3>
           <p class="mt-1 text-sm text-on-surface-variant">
             {editingDailyAlgoProblemId
-              ? 'Mets à jour la signature de fonction, les langages autorisés et les tests unitaires.'
-              : 'Complète les champs puis valide pour ajouter l\'exercice dans la banque.'}
+              ? m.ms_da_edit_exercise_subtitle()
+              : m.ms_da_add_exercise_subtitle()}
           </p>
         </div>
         <button
           type="button"
           onclick={closeDailyAlgoProblemModal}
           class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface"
-          aria-label="Fermer"
+          aria-label={m.common_close()}
         >
           <Papicon icon="close" size={16} />
         </button>
@@ -2298,28 +2299,28 @@
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="space-y-2">
-          <label for="modal-dailyalgo-title" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Titre</label>
+          <label for="modal-dailyalgo-title" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">{m.ms_da_field_title()}</label>
           <FormInput
             id="modal-dailyalgo-title"
             bind:value={algoDraft.title}
             className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500/40"
-            placeholder="Titre de l'exercice"
+            placeholder={m.ms_da_title_placeholder()}
           />
         </div>
         <div class="space-y-2">
-          <label for="modal-dailyalgo-difficulty" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Difficulté</label>
+          <label for="modal-dailyalgo-difficulty" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">{m.ms_da_col_difficulty()}</label>
           <select
             id="modal-dailyalgo-difficulty"
             bind:value={algoDraft.difficulty}
             class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500/40 text-on-surface appearance-none"
           >
-            <option value="facile">Facile</option>
-            <option value="moyen">Moyen</option>
-            <option value="difficile">Difficile</option>
+            <option value="facile">{m.ms_da_difficulty_easy()}</option>
+            <option value="moyen">{m.ms_da_difficulty_medium()}</option>
+            <option value="difficile">{m.ms_da_difficulty_hard()}</option>
           </select>
         </div>
         <div class="space-y-2 md:col-span-2">
-          <label for="modal-dailyalgo-function-name" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Nom de fonction attendu</label>
+          <label for="modal-dailyalgo-function-name" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">{m.ms_da_function_name_label()}</label>
           <FormInput
             id="modal-dailyalgo-function-name"
             bind:value={algoDraft.functionName}
@@ -2328,12 +2329,12 @@
           />
         </div>
         <div class="space-y-2 md:col-span-2">
-          <p class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Langages autorisés (optionnel)</p>
+          <p class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">{m.ms_da_allowed_languages_label()}</p>
           <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
             <div class="flex flex-wrap gap-2">
               {#if algoDraft.allowedLanguages.length === 0}
                 <span class="px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                  Langage libre
+                  {m.ms_da_free_language()}
                 </span>
               {:else}
                 {#each algoDraft.allowedLanguages as lang}
@@ -2343,7 +2344,7 @@
                       type="button"
                       onclick={() => removeDraftAllowedLanguage(lang)}
                       class="w-4 h-4 rounded-full bg-surface-container-high text-on-surface-variant hover:text-on-surface leading-none"
-                      aria-label={`Retirer ${lang}`}
+                      aria-label={m.ms_da_remove_lang({ lang })}
                     >
                       ×
                     </button>
@@ -2358,21 +2359,21 @@
                 bind:value={algoDraft.languageInput}
                 onkeydown={handleLanguageInputKeydown}
                 class="flex-1 px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface text-sm text-on-surface outline-none focus:border-emerald-500/40"
-                placeholder="Ajouter un langage (ex: rust, kotlin, c#)"
+                placeholder={m.ms_da_add_language_placeholder()}
               />
               <button
                 type="button"
                 onclick={addDraftAllowedLanguage}
                 class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-wide hover:bg-emerald-700"
               >
-                Ajouter
+                {m.common_add()}
               </button>
               <button
                 type="button"
                 onclick={enableFreeLanguageMode}
                 class="px-4 py-2 rounded-xl border border-outline-variant/30 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface hover:bg-surface"
               >
-                Mode libre
+                {m.ms_da_free_mode()}
               </button>
             </div>
 
@@ -2389,33 +2390,33 @@
             </div>
 
             <p class="text-[11px] text-on-surface-variant">
-              Laisse vide pour autoriser tous les langages. Tu peux aussi ajouter des langages non disponibles dans l'IDE intégré.
+              {m.ms_da_languages_hint()}
             </p>
           </div>
         </div>
         <div class="space-y-2 md:col-span-2">
-          <label for="modal-dailyalgo-description" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Description (Markdown autorisé)</label>
+          <label for="modal-dailyalgo-description" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">{m.ms_da_description_markdown_label()}</label>
           <textarea
             id="modal-dailyalgo-description"
             bind:value={algoDraft.description}
             class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-mono outline-none focus:border-emerald-500/40 min-h-30"
-            placeholder="Description du problème..."
+            placeholder={m.ms_da_description_placeholder()}
           ></textarea>
         </div>
         <div class="space-y-2 md:col-span-2">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Arguments de la fonction</p>
+            <p class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">{m.ms_da_function_args_label()}</p>
             <button
               type="button"
               onclick={addFunctionArg}
               class="px-3 py-1.5 rounded-lg bg-surface border border-outline-variant/25 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface"
             >
-              + Ajouter un argument
+              {m.ms_da_add_argument()}
             </button>
           </div>
           <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
             {#if algoDraft.functionArgs.length === 0}
-              <p class="text-xs text-on-surface-variant">Aucun argument: la fonction est attendue sans paramètre.</p>
+              <p class="text-xs text-on-surface-variant">{m.ms_da_no_argument_hint()}</p>
             {:else}
               {#each algoDraft.functionArgs as arg, argIndex}
                 <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 items-center">
@@ -2438,7 +2439,7 @@
                     onclick={() => removeFunctionArg(argIndex)}
                     class="px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-[10px] font-semibold uppercase tracking-wide text-red-700 hover:bg-red-500/20"
                   >
-                    Supprimer
+                    {m.common_delete()}
                   </button>
                 </div>
               {/each}
@@ -2453,12 +2454,12 @@
               onclick={addUnitTest}
               class="px-3 py-1.5 rounded-lg bg-surface border border-outline-variant/25 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface"
             >
-              + Ajouter un test
+              {m.ms_da_add_test()}
             </button>
           </div>
           <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
             {#if algoDraft.unitTests.length === 0}
-              <p class="text-xs text-on-surface-variant">Aucun test défini.</p>
+              <p class="text-xs text-on-surface-variant">{m.ms_da_no_test_defined()}</p>
             {:else}
               {#each algoDraft.unitTests as test, testIndex}
                 <div class="rounded-xl border border-outline-variant/20 bg-surface p-3 space-y-3">
@@ -2475,12 +2476,12 @@
                       onclick={() => removeUnitTest(testIndex)}
                       class="px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-[10px] font-semibold uppercase tracking-wide text-red-700 hover:bg-red-500/20"
                     >
-                      Supprimer
+                      {m.common_delete()}
                     </button>
                   </div>
 
                   {#if algoDraft.functionArgs.length === 0}
-                    <p class="text-[11px] text-on-surface-variant">La fonction n'a pas d'argument: ce test sera exécuté avec <span class="font-mono">()</span>.</p>
+                    <p class="text-[11px] text-on-surface-variant">{m.ms_da_no_argument_run_hint()}</p>
                   {:else}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {#each algoDraft.functionArgs as arg, argIndex}
@@ -2499,7 +2500,7 @@
                   {/if}
 
                   <label class="space-y-1">
-                    <span class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Valeur attendue</span>
+                    <span class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">{m.ms_da_expected_value()}</span>
                     <input
                       type="text"
                       value={test.expectedValue}
@@ -2512,7 +2513,7 @@
               {/each}
             {/if}
           </div>
-          <p class="text-[11px] text-on-surface-variant">Valeurs JSON recommandées. Si non JSON, la valeur sera traitée comme texte brut.</p>
+          <p class="text-[11px] text-on-surface-variant">{m.ms_da_json_values_hint()}</p>
         </div>
       </div>
 
@@ -2532,7 +2533,7 @@
           onclick={closeDailyAlgoProblemModal}
           class="px-4 py-2 rounded-xl border border-outline-variant/30 text-xs font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
         >
-          Annuler
+          {m.common_cancel()}
         </button>
         <button
           type="button"
@@ -2541,8 +2542,8 @@
           class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold uppercase tracking-wide shadow-sm hover:bg-emerald-700"
         >
           {formAction.state.loading
-            ? (editingDailyAlgoProblemId ? 'Enregistrement...' : 'Ajout...')
-            : (editingDailyAlgoProblemId ? 'Enregistrer les modifications' : 'Ajouter l\'exercice')}
+            ? (editingDailyAlgoProblemId ? m.ms_da_saving() : m.ms_da_adding())
+            : (editingDailyAlgoProblemId ? m.ms_da_save_changes() : m.ms_da_add_exercise_short())}
         </button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
@@ -172,7 +173,7 @@
   });
 
   useUnsavedChanges({
-    label: 'Absences (Configuration)',
+    label: m.bsn_absences_configuration(),
     getConfig: () => currentConfig,
     getSaved: () => savedConfig,
     onSave: () => saveConfig(),
@@ -210,8 +211,8 @@
         return ok;
       },
       {
-        successMessage: 'Configuration des notifications d\'absence mise à jour.',
-        failureMessage: 'Erreur lors de la mise à jour de la configuration.'
+        successMessage: m.bsn_updated_absence_notification_c(),
+        failureMessage: m.bsn_error_updating_configuration()
       }
     );
     return success;
@@ -310,12 +311,12 @@
 
   async function handleSaveAbsence(data: any) {
     if (!myStaffRecord) {
-      throw new Error("Vous n'êtes pas enregistré comme membre du staff.");
+      throw new Error(m.bsn_you_are_not_registered_as_a_st());
     }
 
     try {
-      if (data.type === 'RÉUNION') {
-        if (!isAdmin) throw new Error("Seuls les admins peuvent créer des réunions.");
+      if (data.type === m.bsn_meeting()) {
+        if (!isAdmin) throw new Error(m.bsn_only_admins_can_create_meeting());
         const start = data.startDate.toISOString();
         const end = data.endDate ? data.endDate.toISOString() : undefined;
         await createMeeting(data.reason, '', start, end);
@@ -376,8 +377,8 @@
 </script>
 
 <ModulePage 
-  title="Absences & Planning" 
-  description="Gérez vos congés et visualisez l'activité de l'équipe." 
+  title={m.bsn_absences_planning()} 
+  description={m.bsn_manage_your_leave_and_view_tea()} 
   icon="calendar"
   featureKey="absences"
 >
@@ -387,7 +388,7 @@
       onClick={() => modalOpen = true} 
       variant="primary" 
       icon="plus" 
-      label="Déclarer une Absence" 
+      label={m.bsn_report_an_absence()} 
       disabled={absenceConfig?.status === 'inactive'}
     />
   {/snippet}
@@ -410,7 +411,7 @@
               <Papicon icon="notifications_active" size={20} class="text-primary" />
               Notifications & Webhooks Discord
             </h3>
-            <p class="text-xs text-on-surface-variant/60 mt-1">Configurez les alertes automatiques envoyées lors de la déclaration d'une absence.</p>
+            <p class="text-xs text-on-surface-variant/60 mt-1">{m.bsn_configure_automatic_alerts_sen()}</p>
           </div>
 
           <div class="space-y-4">
@@ -418,8 +419,8 @@
               <div class="flex items-center gap-3">
                 <Papicon icon="mail" size={14} class="text-primary" />
                 <div>
-                  <p class="text-xs font-bold">Activer le relai Discord</p>
-                  <p class="text-[10px] text-on-surface-variant/40">Envoi d'un message dans le salon configuré</p>
+                  <p class="text-xs font-bold">{m.bsn_enable_discord_relay()}</p>
+                  <p class="text-[10px] text-on-surface-variant/40">{m.bsn_sending_a_message_in_the_confi()}</p>
                 </div>
               </div>
               <ToggleSwitch checked={notifyViaDiscordChannel} onToggle={(v: any) => notifyViaDiscordChannel = v} />
@@ -427,18 +428,18 @@
 
             {#if notifyViaDiscordChannel}
               <div class="space-y-1.5">
-                <label for="notify-channel" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
-                <SearchableSelect id="notify-channel" bind:value={channelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full" />
+                <label for="notify-channel" class="text-[10px] font-bold text-on-surface-variant/60">{m.bsn_alerts_lounge()}</label>
+                <SearchableSelect id="notify-channel" bind:value={channelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.bsn_select_a_salon()} className="w-full" />
               </div>
 
               <div class="space-y-1.5">
-                <label for="notify-role" class="text-[10px] font-bold text-on-surface-variant/60">Rôle à mentionner</label>
+                <label for="notify-role" class="text-[10px] font-bold text-on-surface-variant/60">{m.bsn_role_to_mention()}</label>
                 <SearchableSelect id="notify-role" bind:value={notificationRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucune mention" className="w-full" />
               </div>
             {/if}
 
             <div class="space-y-1.5">
-              <label for="webhook-url" class="text-[10px] font-bold text-on-surface-variant/60">URL du Webhook Discord (Optionnel)</label>
+              <label for="webhook-url" class="text-[10px] font-bold text-on-surface-variant/60">{m.bsn_discord_webhook_url_optional()}</label>
               <input 
                 id="webhook-url" 
                 type="url" 
@@ -505,7 +506,7 @@
         <aside class="w-full lg:w-72 flex flex-col gap-6">
           <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4">
             <div class="flex items-center justify-between mb-2">
-              <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface-variant">Équipe</h3>
+              <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface-variant">{m.bsn_team()}</h3>
               <button 
                 onclick={toggleEveryone}
                 class="text-[10px] font-semibold uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}"
@@ -551,7 +552,7 @@
               >
                 <div class="flex items-center gap-3">
                   <div class="w-3 h-3 rounded bg-amber-500 border border-amber-600/30"></div>
-                  <span class="text-[10px] font-bold text-on-surface">Absences</span>
+                  <span class="text-[10px] font-bold text-on-surface">{m.bsn_absences()}</span>
                 </div>
                 <Papicon icon={visibleTypes.includes('absence') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
               </button>
@@ -573,7 +574,7 @@
               >
                 <div class="flex items-center gap-3">
                   <div class="w-3 h-3 rounded bg-emerald-500 border border-emerald-600/30"></div>
-                  <span class="text-[10px] font-bold text-on-surface">Réunions</span>
+                  <span class="text-[10px] font-bold text-on-surface">{m.bsn_meetings()}</span>
                 </div>
                 <Papicon icon={visibleTypes.includes('meeting') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
               </button>
@@ -626,7 +627,7 @@
                   decisionModalOpen = true;
                   detailModalOpen = false;
                 }} 
-                label="Prendre une décision" 
+                label={m.bsn_make_a_decision()} 
                 icon="check-circle"
               />
             {/if}
@@ -644,7 +645,7 @@
                     }
                   }
                 }} 
-                label="Supprimer" 
+                label={m.bsn_delete()} 
                 icon="trash-2"
               />
             {/if}
@@ -678,7 +679,7 @@
               <h3 class="text-xl font-semibold text-on-surface">
                 {decisionStatus === 'APPROVED' ? 'Approuver' : 'Refuser'} l'absence
               </h3>
-              <p class="text-on-surface-variant text-xs mt-1">Gérez la demande de <strong>{selectedAbsenceForDecision?.staffMember?.displayName || selectedAbsenceForDecision?.staffMember?.username}</strong>.</p>
+              <p class="text-on-surface-variant text-xs mt-1">{m.bsn_manage_demand_for()} <strong>{selectedAbsenceForDecision?.staffMember?.displayName || selectedAbsenceForDecision?.staffMember?.username}</strong>.</p>
             </div>
           </div>
         </div>
@@ -705,7 +706,7 @@
           </div>
 
           <textarea 
-            placeholder="Note optionnelle..." 
+            placeholder={m.bsn_optional_note()} 
             bind:value={decisionNote}
             class="w-full bg-surface-container px-4 py-3 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-sm"
             rows="3"

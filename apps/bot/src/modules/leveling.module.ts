@@ -18,7 +18,8 @@ export function registerLevelingBusSubscribers(client: Client): void {
   kotboEventBus.subscribe('message:new', async (payload) => {
     if (payload.isBot || payload.isCommand) return;
 
-    await handleTextXp(payload.guildId, payload.authorId, client, payload.channelId);
+    const messageLength = (payload.content ?? '').trim().length;
+    await handleTextXp(payload.guildId, payload.authorId, client, payload.channelId, messageLength);
     await handleUserActivity(payload.guildId, payload.authorId, 'text').catch(() => null);
   }, MODULE_NAME);
 

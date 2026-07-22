@@ -12,6 +12,7 @@ import {
 import { generateTranscript } from '../services/features/transcriptService.js';
 import { getDashboardUrl } from '../api/shared.js';
 import { mirrorModlogToStaffServer } from '../services/staff/staffServerService.js';
+import { recordScamImagesFromMessage } from '../services/moderation/scamFilterService.js';
 
 export function registerHoneypotListener(client: Client): void {
   client.on(Events.MessageCreate, async (message: Message) => {
@@ -47,6 +48,15 @@ export function registerHoneypotListener(client: Client): void {
         transcriptLink = `${dashboardUrl.replace(/\/$/, '')}/transcripts/${transcriptData.id}`;
       } catch (err) {
         logger.error('Honeypot', `Impossible de générer le transcript pour la détection honeypot dans la guilde ${guild.id}:`, err);
+      }
+
+      // Enregistre les hash des images postées dans la base d'images scam
+      // (le filtre anti-scam pourra ensuite les bloquer partout) — AVANT la
+      // suppression du message, tant que les URLs CDN sont encore valides.
+      if (message.attachments.size > 0) {
+        await recordScamImagesFromMessage(message, 'HONEYPOT').catch((err) =>
+          logger.error('Honeypot', `Enregistrement des images scam impossible (${guild.id}):`, err)
+        );
       }
 
       // Delete the message immediately to prevent spam spread
