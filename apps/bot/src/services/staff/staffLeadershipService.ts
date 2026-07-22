@@ -1,5 +1,6 @@
 import { errorMessage, errorStack } from '../../utils/errors.js';
 import { 
+  type OverwriteResolvable,
   Client, 
   ChannelType, 
   GuildScheduledEventPrivacyLevel, 
@@ -82,15 +83,24 @@ const getAbsenceFeatureConfig = async (guildId: string) => {
 
 const sendAbsenceDiscordRelay = async (params: {
   guildId: string;
-  absence: Record<string, unknown>;
-  requester: Record<string, unknown>;
-  superior: Record<string, unknown>;
+  absence: {
+    id: string;
+    staffUserId: string;
+    superiorUserId?: string | null;
+    type?: string | null;
+    reason?: string | null;
+    message?: string | null;
+    startDate: Date;
+    endDate?: Date | null;
+  };
+  requester: Record<string, unknown> | null;
+  superior: Record<string, unknown> | null;
   featureConfig: {
     enabled: boolean;
     channelId: string | null;
     notificationRoleId: string | null;
     notifyViaDiscordChannel: boolean;
-    metadata?: Record<string, unknown>;
+    metadata?: unknown;
     notificationTargets?: Array<{
       targetType: string;
       targetId: string | null;
@@ -114,7 +124,8 @@ const sendAbsenceDiscordRelay = async (params: {
     }
   }
 
-  const webhookUrl = params.featureConfig.metadata && (params.featureConfig.metadata as unknown).webhookUrl;
+  const metadata = params.featureConfig.metadata as { webhookUrl?: string } | null | undefined;
+  const webhookUrl = metadata?.webhookUrl;
 
   if (targetChannelIds.size === 0 && !webhookUrl) return;
 
@@ -139,7 +150,7 @@ const sendAbsenceDiscordRelay = async (params: {
       {
         name: 'Période',
         value: isFinite
-          ? `${formatAbsenceDate(params.absence.startDate)}\n→ ${formatAbsenceDate(params.absence.endDate)}`
+          ? `${formatAbsenceDate(params.absence.startDate)}\n→ ${formatAbsenceDate(params.absence.endDate!)}`
           : `${formatAbsenceDate(params.absence.startDate)}\n→ Indéterminée`,
         inline: false,
       },
@@ -345,9 +356,13 @@ const formatAbsenceDuration = (startDate: Date, endDate?: Date) => {
   return `${days} j ${Number.isInteger(remainingHours) ? remainingHours.toFixed(0) : remainingHours.toFixed(1)} h`;
 };
 
-const getAbsenceDisplayName = (member: Record<string, unknown> | null | undefined, fallback: string) => {
+const getAbsenceDisplayName = (member: Record<string, unknown> | null | undefined, fallback: string): string => {
   if (!member) return fallback;
-  return member.displayName || member.userTag || member.username || member.userId || fallback;
+  for (const key of ['displayName', 'userTag', 'username', 'userId']) {
+    const value = member[key];
+    if (typeof value === 'string' && value) return value;
+  }
+  return fallback;
 };
 
 
@@ -843,7 +858,7 @@ function buildMeetingRsvpRow(meetingId: string): ActionRowBuilder<ButtonBuilder>
   );
 }
 
-export const updateMeetingAnnouncement = async (client: Record<string, unknown>, meetingId: string) => {
+export const updateMeetingAnnouncement = async (client: Client, meetingId: string) => {
   const meeting = await prisma.staffMeeting.findUnique({
     where: { id: meetingId },
     include: {
@@ -865,7 +880,7 @@ export const updateMeetingAnnouncement = async (client: Record<string, unknown>,
   if (!guildConfig?.meetingAnnouncementChannelId) return;
 
   const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
-  if (!channel) return;
+  if (!channel || !channel.isTextBased()) return;
 
   const message = await channel.messages.fetch(meeting.discordMessageId).catch(() => null);
   if (!message) return;
@@ -1684,7 +1699,7 @@ export const createCall = async (
         if (configChan) categoryId = configChan.parentId ?? undefined;
       }
 
-      const permissionOverwrites: Record<string, unknown>[] = [
+      const permissionOverwrites: OverwriteResolvable[] = [
         {
           id: discordGuild.id,
           deny: channelType === 'THREAD' ? [] : ['Connect', 'ViewChannel']
