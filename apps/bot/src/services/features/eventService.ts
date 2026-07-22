@@ -456,7 +456,7 @@ export async function getEventStats(eventId: string) {
   if (!event) return null;
 
   if (event.type === 'CTF') {
-    const ctfChallenges = await (prisma as unknown).eventCtfChallenge.findMany({
+    const ctfChallenges = await prisma.eventCtfChallenge.findMany({
       where: { eventId },
       include: {
         solves: {
@@ -876,7 +876,7 @@ export async function handleCtfFlagSubmission(interaction: RepliableInteraction,
     },
   });
 
-  const existingSolve = await (prisma as unknown).eventCtfSolve.findUnique({
+  const existingSolve = await prisma.eventCtfSolve.findUnique({
     where: {
       challengeId_participantId: {
         challengeId: challenge.id,
@@ -889,11 +889,11 @@ export async function handleCtfFlagSubmission(interaction: RepliableInteraction,
     return interaction.reply({ content: 'âš ï¸� Vous avez déjà résolu ce challenge !', ephemeral: true });
   }
 
-  const previousSolvesCount = await (prisma as unknown).eventCtfSolve.count({
+  const previousSolvesCount = await prisma.eventCtfSolve.count({
     where: { challengeId: challenge.id }
   });
 
-  await (prisma as unknown).eventCtfSolve.create({
+  await prisma.eventCtfSolve.create({
     data: {
       challengeId: challenge.id,
       participantId: participant.id,

@@ -3803,8 +3803,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
   if (moduleKey === 'social-follows') {
     if (parts.length === 5 && method === 'GET') {
       try {
-        const youtube = await (prisma as unknown).youtubeChannelFollow.findMany({ where: { guildId } });
-        const twitch = await (prisma as unknown).twitchChannelFollow.findMany({ where: { guildId } });
+        const youtube = await prisma.youtubeChannelFollow.findMany({ where: { guildId } });
+        const twitch = await prisma.twitchChannelFollow.findMany({ where: { guildId } });
         json(res, 200, { youtube, twitch });
       } catch (err: unknown) {
         logger.error('SocialFollowsAPI', `Error fetching social follows: ${errorMessage(err)}`);
@@ -3828,7 +3828,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
 
         const { channelId, channelName } = resolved;
-        const follow = await (prisma as unknown).youtubeChannelFollow.upsert({
+        const follow = await prisma.youtubeChannelFollow.upsert({
           where: { guildId_channelId: { guildId, channelId } },
           create: {
             guildId,
@@ -3867,9 +3867,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
     if (parts.length === 7 && parts[5] === 'youtube' && method === 'DELETE') {
       try {
         const followId = parts[6];
-        const follow = await (prisma as unknown).youtubeChannelFollow.findUnique({ where: { id: followId } });
+        const follow = await prisma.youtubeChannelFollow.findUnique({ where: { id: followId } });
         if (follow) {
-          await (prisma as unknown).youtubeChannelFollow.delete({ where: { id: followId } });
+          await prisma.youtubeChannelFollow.delete({ where: { id: followId } });
           await pushAudit(guildId, {
             user: auditUser,
             action: 'YouTube Unfollow',
@@ -3898,7 +3898,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const streamerName = body.streamerName.toLowerCase().trim();
         const streamerId = await getTwitchUserId(streamerName);
 
-        const follow = await (prisma as unknown).twitchChannelFollow.upsert({
+        const follow = await prisma.twitchChannelFollow.upsert({
           where: { guildId_streamerName: { guildId, streamerName } },
           create: {
             guildId,
@@ -3935,9 +3935,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
     if (parts.length === 7 && parts[5] === 'twitch' && method === 'DELETE') {
       try {
         const followId = parts[6];
-        const follow = await (prisma as unknown).twitchChannelFollow.findUnique({ where: { id: followId } });
+        const follow = await prisma.twitchChannelFollow.findUnique({ where: { id: followId } });
         if (follow) {
-          await (prisma as unknown).twitchChannelFollow.delete({ where: { id: followId } });
+          await prisma.twitchChannelFollow.delete({ where: { id: followId } });
           await pushAudit(guildId, {
             user: auditUser,
             action: 'Twitch Unfollow',

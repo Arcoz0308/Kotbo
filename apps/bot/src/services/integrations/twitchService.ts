@@ -112,7 +112,7 @@ export async function checkTwitchFollows(client: Client) {
   }
 
   try {
-    const follows = await (prisma as unknown).twitchChannelFollow.findMany({
+    const follows = await prisma.twitchChannelFollow.findMany({
       include: {
         guild: {
           include: {
@@ -127,7 +127,7 @@ export async function checkTwitchFollows(client: Client) {
     if (follows.length === 0) return;
 
     // Check features configuration
-    const activeFollows = follows.filter((follow: unknown) => {
+    const activeFollows = follows.filter((follow) => {
       const config = follow.guild.dashboardFeatureConfigs.find((c: unknown) => c.featureKey === 'twitch');
       return !config || config.enabled; // skip if explicitly disabled
     });
@@ -199,7 +199,7 @@ export async function checkTwitchFollows(client: Client) {
           }
 
           // Update DB follow state
-          await (prisma as unknown).twitchChannelFollow.update({
+          await prisma.twitchChannelFollow.update({
             where: { id: follow.id },
             data: {
               isLive: true,
@@ -228,7 +228,7 @@ export async function checkTwitchFollows(client: Client) {
           }
 
           // Update DB state
-          await (prisma as unknown).twitchChannelFollow.update({
+          await prisma.twitchChannelFollow.update({
             where: { id: follow.id },
             data: { isLive: false },
           });

@@ -403,7 +403,7 @@ async function resolveStaffToNotify(guildId: string, sanction: unknown): Promise
     });
 
     if (targetStaff) {
-      const grades = await (prisma as unknown).staffMemberHierarchyGrade.findMany({
+      const grades = await prisma.staffMemberHierarchyGrade.findMany({
         where: { staffMemberId: targetStaff.id },
         include: {
           hierarchy: true

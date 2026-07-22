@@ -216,14 +216,14 @@ export async function handleEventsRoutes(
         }
 
         if (isLive && body.ctfChallenges && (currentEvent as unknown)?.type === 'CTF') {
-          const existingChallenges = await (prisma as unknown).eventCtfChallenge.findMany({
+          const existingChallenges = await prisma.eventCtfChallenge.findMany({
             where: { eventId },
             orderBy: { sortOrder: 'asc' }
           });
 
           for (let i = 0; i < Math.min(existingChallenges.length, body.ctfChallenges.length); i++) {
             const c = body.ctfChallenges[i];
-            await (prisma as unknown).eventCtfChallenge.update({
+            await prisma.eventCtfChallenge.update({
               where: { id: existingChallenges[i].id },
               data: {
                 title: c.title,

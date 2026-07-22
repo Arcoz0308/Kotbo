@@ -294,7 +294,7 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
 
   // Sauvegarder dans la base de données
   try {
-    const backup = await (prisma as unknown).serverBackup.create({
+    const backup = await prisma.serverBackup.create({
       data: {
         guildId: guild.id,
         name: options.name,

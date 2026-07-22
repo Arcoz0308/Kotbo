@@ -549,7 +549,7 @@ export const issueStaffWarning = async (
       userIdsToNotify.add(issuedByUserId);
     }
 
-    const grades = await (prisma as unknown).staffMemberHierarchyGrade.findMany({
+    const grades = await prisma.staffMemberHierarchyGrade.findMany({
       where: { staffMemberId: member.id },
       include: {
         hierarchy: true

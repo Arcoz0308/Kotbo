@@ -2,6 +2,7 @@ import { type Client } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { buildYouTubeEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
+import type { YoutubeChannelFollow } from '@prisma/client';
 
 // ==================== TYPES ====================
 
@@ -491,7 +492,7 @@ async function sendNotification(
 }
 
 async function updateFollowRecord(followId: string, updates: Record<string, string>): Promise<void> {
-  await (prisma as unknown).youtubeChannelFollow.update({
+  await prisma.youtubeChannelFollow.update({
     where: { id: followId },
     data: updates,
   }).catch((e: Error) => logger.error('YouTubeService', 'Failed to update follow record:', e));
@@ -509,7 +510,7 @@ export async function checkYoutubeFollows(client: Client) {
   }
 
   try {
-    const follows = await (prisma as unknown).youtubeChannelFollow.findMany({
+    const follows = await prisma.youtubeChannelFollow.findMany({
       include: {
         guild: {
           include: {
@@ -521,7 +522,7 @@ export async function checkYoutubeFollows(client: Client) {
       },
     });
 
-    const processingPromises = follows.map((follow: unknown) => 
+    const processingPromises = follows.map((follow) => 
       rateLimiter.execute(() => processFollow(client, follow, key))
     );
 
@@ -535,7 +536,7 @@ export async function checkYoutubeFollows(client: Client) {
 
 async function processFollow(
   client: Client,
-  follow: unknown,
+  follow: YoutubeChannelFollow,
   key: string
 ): Promise<void> {
   const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c: unknown) => c.featureKey === 'youtube');
@@ -555,7 +556,7 @@ async function processFollow(
 
 async function checkAndNotifyLive(
   client: Client,
-  follow: unknown,
+  follow: YoutubeChannelFollow,
   channelId: string,
   _discordGuild: unknown
 ): Promise<void> {
@@ -596,7 +597,7 @@ async function checkAndNotifyLive(
 
 async function checkAndNotifyVideos(
   client: Client,
-  follow: unknown,
+  follow: YoutubeChannelFollow,
   channelId: string,
   key: string,
   _discordGuild: unknown
