@@ -1,6 +1,6 @@
 import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type Message, EmbedBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
@@ -40,11 +40,14 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     await interaction.reply({ embeds: [initialEmbed] });
 
-    const filter = (m: Record<string, unknown>) => m.author.id === userId && !isNaN(parseInt(m.content, 10));
-    const collector = interaction.channel?.createMessageCollector({
+    const filter = (m: Message) => m.author.id === userId && !isNaN(parseInt(m.content, 10));
+    const channel = interaction.channel;
+    const collector = channel && 'createMessageCollector' in channel
+      ? channel.createMessageCollector({
       filter,
-      time: 60000 // 1 minute globale
-    });
+          time: 60000 // 1 minute globale
+        })
+      : null;
 
     if (!collector) {
       await interaction.followUp({ content: "Impossible de lancer le jeu de capture de messages.", flags: [MessageFlags.Ephemeral] });
