@@ -741,7 +741,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId.startsWith('meeting_rsvp:')) {
     const parts = customId.split(':');
     const meetingId = parts[1];
-    const status = parts[2]; // PRESENT, EXCUSED, ABSENT
+    const status = parts[2] as 'PRESENT' | 'ABSENT' | 'EXCUSED'; // issu du customId
 
     if (!status || !meetingId) return;
 
@@ -789,7 +789,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         ABSENT: 'Absent ❌' 
       };
 
-      await checkInMeeting(client, meetingId, staffMember.id, status as unknown);
+      await checkInMeeting(client, meetingId, staffMember.id, status);
       
       let response = `✅ Votre statut pour cette réunion est désormais : **${labels[status] || status}**.`;
       if (status === 'ABSENT') {
@@ -942,7 +942,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         .setTimestamp();
 
       const distribution = stats.distribution || {};
-      const total = Object.values(distribution).reduce((s: number, v: unknown) => s + (v || 0), 0);
+      const total = Object.values(distribution).reduce((s: number, v) => s + (Number(v) || 0), 0);
 
       (Object.keys(distribution) || []).forEach((k) => {
         const idx = parseInt(k, 10);

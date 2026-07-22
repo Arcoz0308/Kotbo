@@ -1,3 +1,4 @@
+import type { Prisma, NotificationTargetType } from '@prisma/client';
 import prisma from '../../utils/db.js';
 
 export const defaultFeatures = [
@@ -339,7 +340,7 @@ export async function updateFeatureConfig(
     },
     data: {
       ...data,
-      metadata: data.metadata ? (data.metadata as unknown) : undefined,
+      metadata: data.metadata ? (data.metadata as Prisma.InputJsonValue) : undefined,
     },
     include: {
       roleAccess: true,
@@ -409,7 +410,7 @@ export async function updateNotificationTargets(
       data: {
         guildId,
         featureConfigId,
-        targetType: target.targetType as unknown,
+        targetType: target.targetType as NotificationTargetType,
         targetId: target.targetId || null,
         enabled: target.enabled ?? true,
       },

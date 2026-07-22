@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
@@ -80,7 +81,7 @@ export async function setModuleActivation(
     },
     update: {
       enabled,
-      config: config || undefined,
+      config: (config ?? undefined) as Prisma.InputJsonValue | undefined,
       activatedAt: enabled ? (await prisma.moduleActivationStat.findUnique({
         where: { guildId_moduleName: { guildId, moduleName } },
         select: { activatedAt: true },
@@ -92,7 +93,7 @@ export async function setModuleActivation(
       guildId,
       moduleName,
       enabled,
-      config,
+      config: (config ?? undefined) as Prisma.InputJsonValue | undefined,
       activatedAt: enabled ? now : null,
       deactivatedAt: enabled ? null : now,
     },

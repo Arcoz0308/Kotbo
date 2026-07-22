@@ -480,7 +480,7 @@ async function sendLogEmbed(
   
   // 1. Fetch event config from cache/database
   const cacheKey = `guild:${guild.id}:log_event_config:${eventType}`;
-  let config = await cache.get<GuildLogEventConfig>(cacheKey);
+  let config = await cache.get<GuildLogEventConfig | { disabledDummy: true }>(cacheKey);
   if (!config) {
     config = await prisma.guildLogEventConfig.findUnique({
       where: {
@@ -494,12 +494,12 @@ async function sendLogEmbed(
   }
 
   // If configuration exists and is disabled, we do not log it
-  if (config && (config.disabledDummy || !config.enabled)) {
+  if (config && ('disabledDummy' in config || !config.enabled)) {
     return;
   }
 
   // 2. Resolve destination channel: specific channelId from event config, falling back to main log channel
-  let channelId = config && !config.disabledDummy ? config.channelId : null;
+  let channelId = config && !('disabledDummy' in config) ? config.channelId : null;
   if (!channelId) {
     channelId = await getGuildLogChannelId(guild.id);
   }

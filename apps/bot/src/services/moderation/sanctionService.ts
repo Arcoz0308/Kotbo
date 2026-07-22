@@ -291,9 +291,9 @@ async function emitSanctionReportReminder(params: {
     // Prefill draft report with matched rules and empty evidence links
     const sanction = await prisma.sanction.findUnique({
       where: { id: params.sanctionId },
-      include: { sanctionTable: true } as unknown
+      include: { sanctionTable: true }
     });
-    const tableName = (sanction as unknown)?.sanctionTable?.name;
+    const tableName = sanction?.sanctionTable?.name;
 
     const regulationRules = await prisma.guildRegulationArticle.findMany({
       where: { guildId: params.guildId }
@@ -467,13 +467,13 @@ async function notifyStaffOfSanction(guildId: string, sanction: Sanction) {
  */
 export async function notifyStaffOfSyncedSanction(
   guildId: string,
-  originalSanction: Record<string, unknown>,
+  originalSanction: Sanction,
   syncedTargetTags: string[],
 ) {
   if (syncedTargetTags.length === 0) return;
 
   const userIdsToNotify = await resolveStaffToNotify(guildId, originalSanction);
-  const typeLabel = sanctionTypeLabel(originalSanction.type as string);
+  const typeLabel = sanctionTypeLabel(originalSanction.type);
   const othersList = syncedTargetTags.join(', ');
 
   for (const userId of userIdsToNotify) {

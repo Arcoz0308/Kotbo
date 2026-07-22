@@ -271,8 +271,8 @@ export async function handleFormModalSubmit(
 
   // Collecter les réponses du modal
   const formData: Record<string, string> = {};
-  for (const [fieldId, component] of interaction.fields.fields) {
-    formData[fieldId] = component.value;
+  for (const fieldId of interaction.fields.fields.keys()) {
+    formData[fieldId] = interaction.fields.getTextInputValue(fieldId);
   }
 
   // Enregistrer la soumission du formulaire
@@ -297,7 +297,7 @@ export async function handleFormModalSubmit(
         userId,
         username: interaction.user.username,
         userTag: interaction.user.tag,
-        formData: formId !== 'none' ? (formData as unknown as Prisma.InputJsonValue) : null,
+        formData: formId !== 'none' ? (formData as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
     });
   }
