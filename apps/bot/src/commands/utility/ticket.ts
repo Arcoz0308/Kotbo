@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { ActionRowBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, MessageFlags, TextChannel, Role, User, type GuildMember, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -343,7 +344,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       }, 3000);
     } catch (error: unknown) {
       await interaction.editReply({
-        content: `❌ Impossible de supprimer le ticket : ${error?.message || 'erreur inconnue'}`,
+        content: `❌ Impossible de supprimer le ticket : ${errorMessage(error) || 'erreur inconnue'}`,
       });
     }
     return;
@@ -488,7 +489,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
   } catch (error: unknown) {
     await interaction.editReply({
-      content: `❌ Impossible de renommer le ticket : ${error?.message || 'erreur inconnue'}`,
+      content: `❌ Impossible de renommer le ticket : ${errorMessage(error) || 'erreur inconnue'}`,
     });
   }
 }

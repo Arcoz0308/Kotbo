@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 /**
  * wordStatsBackfillService.ts
  *
@@ -81,7 +82,7 @@ export async function startWordStatsBackfill(guildId: string, force = false): Pr
     logger.error('WordStatsBackfill', `Échec de l'indexation pour ${guildId}:`, err);
     await setStatus(guildId, {
       status: 'FAILED',
-      error: String(err?.message ?? err).slice(0, 500),
+      error: String(errorMessage(err) ?? err).slice(0, 500),
       completedAt: new Date().toISOString(),
     });
   });

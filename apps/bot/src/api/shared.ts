@@ -1450,7 +1450,11 @@ export class BunServerResponse extends ServerResponse {
   }
 }
 
-export const readJsonBody = async <T>(req: IncomingMessage): Promise<T | null> => {
+// Type par defaut volontaire : sans lui, les appels `readJsonBody(req)` sans
+// argument de type renvoyaient `unknown`, et toute lecture de champ devenait
+// impossible. Les appelants concernes valident deja chaque champ un a un, donc
+// un dictionnaire non type decrit exactement le contrat.
+export const readJsonBody = async <T = Record<string, unknown>>(req: IncomingMessage): Promise<T | null> => {
   const contentType = req.headers['content-type'];
 
   if (!contentType || !contentType.includes('application/json')) {

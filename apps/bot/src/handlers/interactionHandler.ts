@@ -1,3 +1,4 @@
+import { errorMessage } from '../utils/errors.js';
 import { type Interaction, type Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalSubmitInteraction, MessageFlags, type AnySelectMenuInteraction, PermissionFlagsBits, type GuildMember, TextInputBuilder, TextInputStyle, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
@@ -1372,7 +1373,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       });
     } catch (err: unknown) {
       await interaction.reply({
-        content: `❌ Impossible de publier la suggestion : ${err?.message || 'erreur inconnue'}`,
+        content: `❌ Impossible de publier la suggestion : ${errorMessage(err) || 'erreur inconnue'}`,
         flags: [MessageFlags.Ephemeral],
       });
     }

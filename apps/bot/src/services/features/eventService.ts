@@ -1123,7 +1123,15 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
   if (!event) throw new Error('Evenement introuvable');
   if (event.type !== 'CUSTOM') throw new Error("Cet evenement n'est pas de type CUSTOM");
 
-  const config = (event.config as unknown) || {};
+  // `Event.config` est une colonne JSON : Prisma la type en JsonValue. On decrit
+  // ici les seuls champs lus par cette fonction plutot que de neutraliser le
+  // typage avec un cast.
+  const config = (event.config ?? {}) as {
+    createDiscordEvent?: boolean;
+    sendEmbed?: boolean;
+    location?: string;
+    endTime?: string | null;
+  };
   const createDiscordEvent = config.createDiscordEvent !== false;
   const sendEmbed = config.sendEmbed !== false;
   const location = config.location || 'Discord';

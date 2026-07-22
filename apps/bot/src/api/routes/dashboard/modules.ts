@@ -2560,7 +2560,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 201, { ok: true, id: created.id });
       } catch (err: unknown) {
-        if (err?.code === 'P2002') {
+        if (errorCode(err) === 'P2002') {
           json(res, 409, { error: 'Ce mot existe déjà sur ce serveur' });
         } else {
           logger.error('BannedWordsAPI', 'POST banned-words error:', err);

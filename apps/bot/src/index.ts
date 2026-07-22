@@ -1,3 +1,4 @@
+import { readStatsConfig } from './services/analytics/statsConfig.js';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -379,7 +380,7 @@ client.once(Events.ClientReady, async (c) => {
     });
 
     for (const g of activatedGuilds) {
-      let config = (g.statsConfig as unknown) || {};
+      let config = readStatsConfig(g.statsConfig);
       
       // If the scraping was stuck in IN_PROGRESS (e.g. bot crashed/restarted), reset it so it can be resumed
       if (config.historicalScrapeStatus === 'IN_PROGRESS') {

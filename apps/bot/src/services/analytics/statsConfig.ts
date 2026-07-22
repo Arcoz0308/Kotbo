@@ -65,6 +65,16 @@ export type StatsConfig = {
   activityTemplate?: string | null;
 
   customStats?: CustomStatEntry[];
+
+  // Etat de la recuperation historique des messages (messageScraperService).
+  // Stocke dans la meme colonne JSON pour ne pas multiplier les migrations.
+  historicalScrapeStatus?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  historicalScrapeError?: string | null;
+  historicalScrapeProgress?: number | null;
+  historicalScrapedAt?: string | null;
+  historicalScrapedChannels?: string[];
+  historicalScrapedMessages?: number;
+  scrapingBoundaryDate?: string | null;
 };
 
 /**
