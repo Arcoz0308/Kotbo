@@ -285,7 +285,7 @@ export async function getModuleUsageStats(options: {
   startDate?: string;
   endDate?: string;
   periodDays?: number;
-}): Promise<unknown[]> {
+}) {
   const { guildId, moduleName, startDate, endDate, periodDays = 30 } = options;
 
   let dateKeyFilter: Record<string, unknown> = {};
@@ -334,7 +334,7 @@ export async function getModulePerformanceStats(options: {
   startDate?: string;
   endDate?: string;
   periodDays?: number;
-}): Promise<unknown[]> {
+}) {
   const { guildId, moduleName, startDate, endDate, periodDays = 30 } = options;
 
   let dateKeyFilter: Record<string, unknown> = {};
