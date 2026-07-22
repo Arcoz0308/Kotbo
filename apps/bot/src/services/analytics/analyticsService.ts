@@ -104,7 +104,7 @@ async function flushGuildDailyStats(): Promise<void> {
     const [guildId, dateKey] = key.split(':');
     if (!guildId || !dateKey) return null;
 
-    const updateData: unknown = {};
+    const updateData: Record<string, unknown> = {};
     const createData: unknown = { guildId, dateKey };
 
     for (const [col, val] of Object.entries(data)) {
@@ -139,7 +139,7 @@ async function flushGuildHourlyStats(): Promise<void> {
     if (!guildId || !dateKey || !hourStr) return null;
     const hour = parseInt(hourStr, 10);
 
-    const updateData: unknown = {};
+    const updateData: Record<string, unknown> = {};
     const createData: unknown = { guildId, dateKey, hour };
 
     for (const [col, val] of Object.entries(data)) {
@@ -231,7 +231,7 @@ async function flushMemberDailyStats(): Promise<void> {
       const [guildId, userId, dateKey] = key.split(':');
       if (!guildId || !userId || !dateKey) return null;
 
-      const updateData: unknown = {};
+      const updateData: Record<string, unknown> = {};
       const createData: unknown = { guildId, userId, dateKey };
 
       for (const [col, val] of Object.entries(data)) {

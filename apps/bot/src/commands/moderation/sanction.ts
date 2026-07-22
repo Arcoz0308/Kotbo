@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { ContextCommandDefinition, SlashCommandDefinition } from '../../commands.js';
 import {
   ActionRowBuilder,
@@ -729,7 +730,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
           targetLabel: targetUser.tag,
         });
       } catch (err: unknown) {
-        const embed = errorEmbed('Erreur de sanction progressive', err.message || "Impossible d'appliquer la sanction progressive.");
+        const embed = errorEmbed('Erreur de sanction progressive', errorMessage(err) || "Impossible d'appliquer la sanction progressive.");
         await interaction.editReply({ embeds: [embed] });
       }
       return;

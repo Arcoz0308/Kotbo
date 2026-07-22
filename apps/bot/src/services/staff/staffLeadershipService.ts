@@ -1,3 +1,4 @@
+import { errorMessage, errorStack } from '../../utils/errors.js';
 import { 
   Client, 
   ChannelType, 
@@ -616,7 +617,7 @@ export const updateMeeting = async (
         }
       }
     } catch (err: unknown) {
-      logger.error('StaffLeadership', `Failed to update Discord event ${meeting.discordEventId}: ${err.message}`, err.stack);
+      logger.error('StaffLeadership', `Failed to update Discord event ${meeting.discordEventId}: ${errorMessage(err)}`, errorStack(err));
     }
   }
 
@@ -1457,7 +1458,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       include: { staffMember: true }
     });
   } catch (err: unknown) {
-    logger.error('StaffLeadership', `Error fetching absences: ${err.message}`);
+    logger.error('StaffLeadership', `Error fetching absences: ${errorMessage(err)}`);
   }
 
   try {
@@ -1477,7 +1478,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       include: { staffMember: true }
     });
   } catch (err: unknown) {
-    logger.error('StaffLeadership', `Error fetching voice sessions: ${err.message}`);
+    logger.error('StaffLeadership', `Error fetching voice sessions: ${errorMessage(err)}`);
   }
 
   let meetings: unknown[] = [];
@@ -1555,7 +1556,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       }
     });
   } catch (err: unknown) {
-    logger.error('StaffLeadership', `Error fetching tasks: ${err.message}`);
+    logger.error('StaffLeadership', `Error fetching tasks: ${errorMessage(err)}`);
   }
 
   return { absences, voiceSessions, meetings, calls, tasks };

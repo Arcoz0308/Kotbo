@@ -1,3 +1,4 @@
+import { errorMessage } from './utils/errors.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -78,7 +79,7 @@ async function startCustomBot(guildId: string, config: {
     logger.error('CustomBot', `[${guildId}] Impossible de se connecter:`, err);
     await prisma.customBotConfig.update({
       where: { guildId },
-      data: { isRunning: false, lastError: err.message || 'Login failed' },
+      data: { isRunning: false, lastError: errorMessage(err) || 'Login failed' },
     }).catch(() => {});
   }
 }

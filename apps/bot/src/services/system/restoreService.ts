@@ -284,7 +284,7 @@ async function restoreChannel(
 
       // Mettre à jour le salon existant
       if ('edit' in existingChannel) {
-        const updateData: unknown = {};
+        const updateData: Record<string, unknown> = {};
         if (channelData.topic) updateData.topic = channelData.topic;
         if (channelData.nsfw !== undefined) updateData.nsfw = channelData.nsfw;
         if (channelData.rateLimitPerUser) updateData.rateLimitPerUser = channelData.rateLimitPerUser;

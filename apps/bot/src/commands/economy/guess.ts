@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -122,7 +123,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible de démarrer le jeu.')],
+      embeds: [errorEmbed('Erreur', errorMessage(err) || 'Impossible de démarrer le jeu.')],
       flags: [MessageFlags.Ephemeral]
     });
   }

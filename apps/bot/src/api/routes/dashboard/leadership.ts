@@ -1,3 +1,4 @@
+import { errorMessage, errorStack } from '../../../utils/errors.js';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
 import prisma from '../../../utils/db.js';
@@ -680,7 +681,7 @@ export async function handleGuildLeadershipRoutes(
         } else {
           logger.error('StaffAPI', 'Error creating meeting:', err);
         }
-        json(res, isValidationError ? 400 : 500, { error: err.message || 'Erreur lors de la création de la réunion' });
+        json(res, isValidationError ? 400 : 500, { error: errorMessage(err) || 'Erreur lors de la création de la réunion' });
       }
       return true;
     }
@@ -697,7 +698,7 @@ export async function handleGuildLeadershipRoutes(
           status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED';
         }>(req);
 
-        const data: unknown = {};
+        const data: Record<string, unknown> = {};
         if (body?.title) data.title = body.title;
         if (body?.description !== undefined) data.description = body.description;
         if (body?.scheduledAt) data.scheduledAt = new Date(body.scheduledAt);
@@ -718,8 +719,8 @@ export async function handleGuildLeadershipRoutes(
 
         json(res, 200, { meeting });
       } catch (err: unknown) {
-        logger.error('StaffAPI', `Error updating meeting ${meetingId}: ${err.message}`, err.stack);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la réunion', details: err.message });
+        logger.error('StaffAPI', `Error updating meeting ${meetingId}: ${errorMessage(err)}`, errorStack(err));
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la réunion', details: errorMessage(err) });
       }
       return true;
     }
@@ -808,7 +809,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { task });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error creating task:', err);
-        json(res, 500, { error: err.message || 'Erreur lors de la création de la tâche' });
+        json(res, 500, { error: errorMessage(err) || 'Erreur lors de la création de la tâche' });
       }
       return true;
     }
@@ -826,7 +827,7 @@ export async function handleGuildLeadershipRoutes(
           assigneeId?: string;
         }>(req);
 
-        const updateData: unknown = {};
+        const updateData: Record<string, unknown> = {};
         if (body?.title) updateData.title = body.title;
         if (body?.description !== undefined) updateData.description = body.description;
         if (body?.status) updateData.status = body.status;
@@ -849,7 +850,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { task });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error updating task:', err);
-        json(res, 500, { error: err.message || 'Erreur lors de la mise à jour de la tâche' });
+        json(res, 500, { error: errorMessage(err) || 'Erreur lors de la mise à jour de la tâche' });
       }
       return true;
     }
@@ -956,7 +957,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { call });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error creating call:', err);
-        json(res, 500, { error: err.message || "Erreur lors de la planification de l'appel" });
+        json(res, 500, { error: errorMessage(err) || "Erreur lors de la planification de l'appel" });
       }
       return true;
     }
@@ -974,7 +975,7 @@ export async function handleGuildLeadershipRoutes(
           invitees?: string[];
         }>(req);
 
-        const updateData: unknown = {};
+        const updateData: Record<string, unknown> = {};
         if (body?.title) updateData.title = body.title;
         if (body?.description !== undefined) updateData.description = body.description;
         if (body?.scheduledAt) updateData.scheduledAt = new Date(body.scheduledAt);
@@ -997,7 +998,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { call });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error updating call:', err);
-        json(res, 500, { error: err.message || "Erreur lors de la mise à jour de l'appel" });
+        json(res, 500, { error: errorMessage(err) || "Erreur lors de la mise à jour de l'appel" });
       }
       return true;
     }
@@ -1996,7 +1997,7 @@ export async function handleGuildLeadershipRoutes(
             demoteRemoveAllRoles?: boolean;
           }>(req);
 
-          const data: unknown = {};
+          const data: Record<string, unknown> = {};
           if (Object.prototype.hasOwnProperty.call(body ?? {}, 'baseStaffRoleId')) {
             data.baseStaffRoleId = extractDiscordSnowflake(body?.baseStaffRoleId ?? null);
           }
@@ -2235,7 +2236,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, result);
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error importing role members:', err);
-        json(res, 500, { error: err.message || "Erreur lors de l'import" });
+        json(res, 500, { error: errorMessage(err) || "Erreur lors de l'import" });
       }
       return true;
     }
@@ -2253,9 +2254,9 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { ok: true, grade: result });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error adding member to hierarchy:', err);
-        json(res, /détecter automatiquement/i.test(err.message)
+        json(res, /détecter automatiquement/i.test(errorMessage(err))
           ? 400
-          : 500, { error: err.message || "Erreur lors de l'ajout" });
+          : 500, { error: errorMessage(err) || "Erreur lors de l'ajout" });
       }
       return true;
     }
@@ -2269,7 +2270,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { ok: true });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error removing member from hierarchy:', err);
-        json(res, 500, { error: err.message || 'Erreur lors du retrait' });
+        json(res, 500, { error: errorMessage(err) || 'Erreur lors du retrait' });
       }
       return true;
     }
@@ -3117,7 +3118,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { period });
       } catch (err: unknown) {
         logger.error('TutoringAPI', 'Error creating period:', err);
-        json(res, 500, { error: err.message || 'Erreur création tutorat' });
+        json(res, 500, { error: errorMessage(err) || 'Erreur création tutorat' });
       }
       return true;
     }

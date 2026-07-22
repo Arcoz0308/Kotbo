@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type AutocompleteInteraction, MessageFlags } from 'discord.js';
 import { getOrCreateRpgProfile, giveInventoryItem } from '../../services/features/economyService.js';
@@ -100,7 +101,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Don échoué', err.message || "Impossible d'offrir l'objet.")],
+      embeds: [errorEmbed('Don échoué', errorMessage(err) || "Impossible d'offrir l'objet.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

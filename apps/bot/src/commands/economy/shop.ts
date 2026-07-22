@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -89,7 +90,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.reply({ embeds: [embed] });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || "Impossible d'ouvrir la boutique.")],
+      embeds: [errorEmbed('Erreur', errorMessage(err) || "Impossible d'ouvrir la boutique.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

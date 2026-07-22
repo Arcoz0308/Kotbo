@@ -108,7 +108,7 @@ export async function incrementModuleUsage(options: UsageIncrementOptions): Prom
   const { guildId, moduleName, actionType = 'command', actionName, userId } = options;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-  const updateData: unknown = {};
+  const updateData: Record<string, unknown> = {};
 
   if (actionType === 'command') {
     updateData.commandExecutions = { increment: 1 };
@@ -288,7 +288,7 @@ export async function getModuleUsageStats(options: {
 }): Promise<unknown[]> {
   const { guildId, moduleName, startDate, endDate, periodDays = 30 } = options;
 
-  let dateKeyFilter: unknown = {};
+  let dateKeyFilter: Record<string, unknown> = {};
   if (startDate && endDate) {
     dateKeyFilter = { gte: startDate, lte: endDate };
   } else if (periodDays) {
@@ -298,7 +298,7 @@ export async function getModuleUsageStats(options: {
     dateKeyFilter = { gte: startDateKey };
   }
 
-  const where: unknown = {};
+  const where: Record<string, unknown> = {};
   if (Object.keys(dateKeyFilter).length > 0) {
     where.dateKey = dateKeyFilter;
   }
@@ -337,7 +337,7 @@ export async function getModulePerformanceStats(options: {
 }): Promise<unknown[]> {
   const { guildId, moduleName, startDate, endDate, periodDays = 30 } = options;
 
-  let dateKeyFilter: unknown = {};
+  let dateKeyFilter: Record<string, unknown> = {};
   if (startDate && endDate) {
     dateKeyFilter = { gte: startDate, lte: endDate };
   } else if (periodDays) {
@@ -347,7 +347,7 @@ export async function getModulePerformanceStats(options: {
     dateKeyFilter = { gte: startDateKey };
   }
 
-  const where: unknown = {};
+  const where: Record<string, unknown> = {};
   if (Object.keys(dateKeyFilter).length > 0) {
     where.dateKey = dateKeyFilter;
   }

@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { adminRemoveCoins, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
@@ -49,7 +50,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible de retirer les pièces.')],
+      embeds: [errorEmbed('Erreur', errorMessage(err) || 'Impossible de retirer les pièces.')],
       flags: [MessageFlags.Ephemeral]
     });
   }

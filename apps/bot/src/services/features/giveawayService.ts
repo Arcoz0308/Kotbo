@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ColorResolvable } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -228,7 +229,7 @@ export async function handleGiveawayJoin(interaction: unknown) {
       flags: [MessageFlags.Ephemeral],
     });
   } catch (err: unknown) {
-    if (err.message === 'ENDED_OR_NOT_FOUND') {
+    if (errorMessage(err) === 'ENDED_OR_NOT_FOUND') {
       return interaction.reply({
         content: '❌ Ce giveaway est terminé !',
         flags: [MessageFlags.Ephemeral],

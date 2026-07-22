@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { transferCoins, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
@@ -58,7 +59,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Transaction échouée', err.message || "Impossible d'envoyer les pièces.")],
+      embeds: [errorEmbed('Transaction échouée', errorMessage(err) || "Impossible d'envoyer les pièces.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

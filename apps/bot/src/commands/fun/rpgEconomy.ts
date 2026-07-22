@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import {
   SlashCommandBuilder,
@@ -276,7 +277,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
         collector.stop();
       } catch (err: unknown) {
         await interaction.editReply({
-          embeds: [errorEmbed(m.rpg_travel_resolution_error_title({}, { locale }), err.message || m.rpg_travel_generic_error({}, { locale }))],
+          embeds: [errorEmbed(m.rpg_travel_resolution_error_title({}, { locale }), errorMessage(err) || m.rpg_travel_generic_error({}, { locale }))],
           components: []
         });
         collector.stop();
@@ -334,7 +335,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
       collector.stop();
     } catch (err: unknown) {
       await interaction.editReply({
-        embeds: [errorEmbed(m.rpg_travel_energy_insufficient_title({}, { locale }), err.message || m.rpg_travel_cannot_travel({}, { locale }))],
+        embeds: [errorEmbed(m.rpg_travel_energy_insufficient_title({}, { locale }), errorMessage(err) || m.rpg_travel_cannot_travel({}, { locale }))],
         components: []
       });
       collector.stop();
@@ -453,7 +454,7 @@ async function rpgShopExecute(interaction: ChatInputCommandInteraction) {
       collector.stop();
     } catch (err: unknown) {
       await interaction.editReply({
-        embeds: [errorEmbed(m.rpg_shop_buy_failed_title({}, { locale }), err.message || m.rpg_shop_buy_failed_desc({}, { locale }))],
+        embeds: [errorEmbed(m.rpg_shop_buy_failed_title({}, { locale }), errorMessage(err) || m.rpg_shop_buy_failed_desc({}, { locale }))],
         components: []
       });
       collector.stop();
@@ -557,7 +558,7 @@ async function rpgInventoryExecute(interaction: ChatInputCommandInteraction) {
       collector.stop();
     } catch (err: unknown) {
       await interaction.editReply({
-        embeds: [errorEmbed(m.rpg_action_failed_title({}, { locale }), err.message || m.rpg_action_failed_desc({}, { locale }))],
+        embeds: [errorEmbed(m.rpg_action_failed_title({}, { locale }), errorMessage(err) || m.rpg_action_failed_desc({}, { locale }))],
         components: []
       });
       collector.stop();
@@ -691,7 +692,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
       });
     } catch (err: unknown) {
       await interaction.reply({
-        embeds: [errorEmbed(m.rpg_guild_create_failed_title({}, { locale }), err.message || m.rpg_guild_create_failed_desc({}, { locale }))],
+        embeds: [errorEmbed(m.rpg_guild_create_failed_title({}, { locale }), errorMessage(err) || m.rpg_guild_create_failed_desc({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -721,7 +722,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
       });
     } catch (err: unknown) {
       await interaction.reply({
-        embeds: [errorEmbed(m.rpg_action_failed_title({}, { locale }), err.message || m.rpg_guild_action_failed_desc_join({}, { locale }))],
+        embeds: [errorEmbed(m.rpg_action_failed_title({}, { locale }), errorMessage(err) || m.rpg_guild_action_failed_desc_join({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -743,7 +744,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
       }
     } catch (err: unknown) {
       await interaction.reply({
-        embeds: [errorEmbed(m.rpg_generic_error_title({}, { locale }), err.message || m.rpg_guild_leave_error_desc({}, { locale }))],
+        embeds: [errorEmbed(m.rpg_generic_error_title({}, { locale }), errorMessage(err) || m.rpg_guild_leave_error_desc({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -763,7 +764,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
       await interaction.reply({ embeds: [resEmbed] });
     } catch (err: unknown) {
       await interaction.reply({
-        embeds: [errorEmbed(m.rpg_guild_deposit_failed_title({}, { locale }), err.message || m.rpg_guild_deposit_failed_desc({}, { locale }))],
+        embeds: [errorEmbed(m.rpg_guild_deposit_failed_title({}, { locale }), errorMessage(err) || m.rpg_guild_deposit_failed_desc({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
     }

@@ -1,3 +1,4 @@
+import { errorMessage, errorStack } from '../../../utils/errors.js';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { cache } from '../../../utils/cache.js';
 import {
@@ -1487,7 +1488,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
       try {
         const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[]; onJoin?: boolean; onUpdate?: boolean; checkInvisible?: boolean; checkGlobal?: boolean; checkCustom?: boolean; discordAutoModSync?: boolean }>(req);
         
-        const updateData: unknown = {};
+        const updateData: Record<string, unknown> = {};
         if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
           updateData.autoNicknameModerationEnabled = !!body.enabled;
         }
@@ -1673,7 +1674,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           return true;
         }
 
-        const data: unknown = {};
+        const data: Record<string, unknown> = {};
         if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
           data.autoThreadEnabled = !!body.enabled;
         }
@@ -2047,7 +2048,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           return true;
         }
 
-        const data: unknown = {};
+        const data: Record<string, unknown> = {};
         if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
           data.autoThreadEnabled = !!body.autoThreadEnabled;
         }
@@ -2937,7 +2938,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         },
       });
 
-      const data: unknown = {};
+      const data: Record<string, unknown> = {};
       let applyLockChanged = false;
       if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
         data.statusCheckChannelId = extractDiscordSnowflake(body.discordChannel);
@@ -3078,7 +3079,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
       }
 
       const syncFeature = async (featureKey: string, featureName: string, enabled?: boolean, channelId?: string | null, secondaryChannelId?: string | null) => {
-        const updateData: unknown = {};
+        const updateData: Record<string, unknown> = {};
         if (enabled !== undefined) updateData.enabled = enabled;
         if (channelId !== undefined) updateData.channelId = channelId;
         if (secondaryChannelId !== undefined) updateData.secondaryChannelId = secondaryChannelId;
@@ -3459,7 +3460,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         });
         json(res, 200, articles);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error listing news for guild ${guildId}: ${err.message}`);
+        logger.error('NewsAPI', `Error listing news for guild ${guildId}: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération des actualités' });
       }
       return true;
@@ -3526,7 +3527,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 201, article);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error creating news for guild ${guildId}: ${err.message}`);
+        logger.error('NewsAPI', `Error creating news for guild ${guildId}: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de la création de l'actualité" });
       }
       return true;
@@ -3596,7 +3597,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, updated);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error updating news article ${articleId}: ${err.message}`);
+        logger.error('NewsAPI', `Error updating news article ${articleId}: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de la modification de l'actualité" });
       }
       return true;
@@ -3631,7 +3632,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error deleting news article ${articleId}: ${err.message}`);
+        logger.error('NewsAPI', `Error deleting news article ${articleId}: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de la suppression de l'actualité" });
       }
       return true;
@@ -3646,7 +3647,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         });
         json(res, 200, configs);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error listing news category configs for guild ${guildId}: ${err.message}`);
+        logger.error('NewsAPI', `Error listing news category configs for guild ${guildId}: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération de la configuration des catégories' });
       }
       return true;
@@ -3712,7 +3713,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, config);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error saving news category config for guild ${guildId}: ${err.message}`);
+        logger.error('NewsAPI', `Error saving news category config for guild ${guildId}: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de l'enregistrement de la configuration de catégorie" });
       }
       return true;
@@ -3747,7 +3748,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error deleting news category config ${configId}: ${err.message}`);
+        logger.error('NewsAPI', `Error deleting news category config ${configId}: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la suppression de la configuration de catégorie' });
       }
       return true;
@@ -3806,7 +3807,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const twitch = await (prisma as unknown).twitchChannelFollow.findMany({ where: { guildId } });
         json(res, 200, { youtube, twitch });
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error fetching social follows: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error fetching social follows: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération des réseaux sociaux suivis' });
       }
       return true;
@@ -3857,7 +3858,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, follow);
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error adding youtube follow: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error adding youtube follow: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de l'ajout du suivi YouTube" });
       }
       return true;
@@ -3881,7 +3882,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error deleting youtube follow: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error deleting youtube follow: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la suppression du suivi YouTube' });
       }
       return true;
@@ -3925,7 +3926,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, follow);
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error adding twitch follow: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error adding twitch follow: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de l'ajout du suivi Twitch" });
       }
       return true;
@@ -3949,7 +3950,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error deleting twitch follow: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error deleting twitch follow: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la suppression du suivi Twitch' });
       }
       return true;
@@ -5276,7 +5277,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const signedUrl = `/api/public/transcripts/${transcriptId}?expires=${expires}&sig=${signature}`;
         json(res, 200, { signedUrl });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error generating signed transcript URL: ${err.message}`);
+        logger.error('TicketsAPI', `Error generating signed transcript URL: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la génération du lien signé' });
       }
       return true;
@@ -5380,7 +5381,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true, config: updated });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error updating ticket config: ${err.message}`);
+        logger.error('TicketsAPI', `Error updating ticket config: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
       }
       return true;
@@ -5398,8 +5399,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         await sendTicketSetupEmbed(client, guildId);
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error sending ticket setup embed: ${err.message}`);
-        json(res, 500, { error: err.message || "Erreur lors de l'envoi de l'embed" });
+        logger.error('TicketsAPI', `Error sending ticket setup embed: ${errorMessage(err)}`);
+        json(res, 500, { error: errorMessage(err) || "Erreur lors de l'envoi de l'embed" });
       }
       return true;
     }
@@ -5464,7 +5465,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         });
         json(res, 200, { tickets: enrichedTickets, config: guildConfig || {} });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error listing tickets: ${err.message}`);
+        logger.error('TicketsAPI', `Error listing tickets: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération des tickets' });
       }
       return true;
@@ -5524,8 +5525,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { ticket: { ...ticket, channelName, userAvatar, claimedByAvatar }, messages });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error reading ticket details: ${err.stack}`);
-        json(res, 500, { error: `Erreur lors de la récupération du ticket: ${err.stack}` });
+        logger.error('TicketsAPI', `Error reading ticket details: ${errorStack(err)}`);
+        json(res, 500, { error: `Erreur lors de la récupération du ticket: ${errorStack(err)}` });
       }
       return true;
     }
@@ -5570,7 +5571,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           }
         });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error sending message to ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error sending message to ticket: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de l'envoi du message" });
       }
       return true;
@@ -5682,7 +5683,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, updated);
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error claiming ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error claiming ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la prise en charge du ticket' });
       }
       return true;
@@ -5703,7 +5704,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, updated);
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error closing ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error closing ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur' });
       }
       return true;
@@ -5749,7 +5750,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, updated);
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error reopening ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error reopening ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur' });
       }
       return true;
@@ -5789,7 +5790,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true, channelName: finalName });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error renaming ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error renaming ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors du renommage du ticket' });
       }
       return true;
@@ -6014,8 +6015,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true, channelId: ticketChannel.id });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error restoring ticket: ${err.stack}`);
-        json(res, 500, { error: `Erreur lors de la restauration: ${err.message}` });
+        logger.error('TicketsAPI', `Error restoring ticket: ${errorStack(err)}`);
+        json(res, 500, { error: `Erreur lors de la restauration: ${errorMessage(err)}` });
       }
       return true;
     }
@@ -6107,7 +6108,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           json(res, 200, { success: true });
         }
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error deleting ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error deleting ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la suppression' });
       }
       return true;
