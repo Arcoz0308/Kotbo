@@ -8,6 +8,8 @@ build/
 .DS_Store
 .vscode/
 **/context.txt
+test_output.txt
+*_output.txt
 
 .claude/
 CLAUDE.md

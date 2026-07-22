@@ -21,6 +21,8 @@ const mockDb = {
     update: mock(() => Promise.resolve({})),
     delete: mock(() => Promise.resolve({})),
   },
+  // Exécute la callback avec le mock lui-même en guise de client transactionnel
+  $transaction: mock((fn: (tx: typeof mockDb) => unknown) => Promise.resolve(fn(mockDb))),
 };
 
 const dbPath = path.resolve(import.meta.dir, '../../utils/db.ts');
@@ -169,10 +171,10 @@ describe('clan service DC sync tests', () => {
     expect(mockDiscordMember2.roles.remove).toHaveBeenCalledWith('role-clan-2', expect.any(String));
     expect(mockDiscordMember2.roles.add).toHaveBeenCalledWith('role-clan-1', expect.any(String));
 
-    // Contributions should be fused
+    // Contributions should be fused (increment atomique : 100 + 50 = 150)
     expect(mockDb.clanMemberContribution.update).toHaveBeenCalledWith({
       where: { id: 'contrib-main' },
-      data: { xp: 150 },
+      data: { xp: { increment: 50 } },
     });
     expect(mockDb.clanMemberContribution.delete).toHaveBeenCalledWith({
       where: { id: 'contrib-alt' },
