@@ -21,7 +21,7 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
 import CommandUsage from '../lib/components/analytics/CommandUsage.svelte';
 import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelte';
 import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGraph.svelte';
-import * as XLSX from 'xlsx';
+import { downloadXlsx } from '../lib/xlsxExport';
 import { toast } from '../lib/stores/toast.svelte';
 import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
 
@@ -265,26 +265,19 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
     toast.success('Export CSV des graphiques généré.');
   }
 
-  function sanitizeSheetName(name: string): string {
-    return name.replace(/[\\/*?:\[\]]/g, '_').slice(0, 31) || 'sheet';
-  }
-
-  function exportAllToXLSX() {
+  async function exportAllToXLSX() {
     const sheets = collectExportSheets();
     if (sheets.length === 0) {
       toast.error('Aucune donnée de graphique à exporter.');
       return;
     }
 
-    const workbook = XLSX.utils.book_new();
-    for (const sheet of sheets) {
-      if (!sheet.rows.length) continue;
-      const worksheet = XLSX.utils.json_to_sheet(sheet.rows);
-      XLSX.utils.book_append_sheet(workbook, worksheet, sanitizeSheetName(sheet.name));
-    }
-
     const datePart = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbook, `analytics_kotbo_all_${datePart}.xlsx`);
+    const exported = await downloadXlsx(`analytics_kotbo_all_${datePart}.xlsx`, sheets);
+    if (!exported) {
+      toast.error('Aucune donnée de graphique à exporter.');
+      return;
+    }
     toast.success('Export XLSX des graphiques généré.');
   }
 

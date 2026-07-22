@@ -46,7 +46,7 @@
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption, type Sanction } from '../lib/sanctions/filterSort';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
-  import * as XLSX from 'xlsx';
+  import { downloadSingleSheetXlsx } from '../lib/xlsxExport';
 
   const sanctionTabs = ['sanctions', 'settings'] as const;
   let activeTab = $state('sanctions');
@@ -361,7 +361,7 @@
     return m.home_short_days({ n: days });
   }
 
-  function exportTableToXlsx(table: any) {
+  async function exportTableToXlsx(table: any) {
     if (!table) return;
     const data = table.tiers.map((tier: any) => ({
       [m.sc_xlsx_table()]: table.name,
@@ -370,10 +370,11 @@
       [m.sc_xlsx_duration()]: tier.durationSeconds || 'N/A',
       [m.sc_xlsx_custom_reason()]: tier.customReason || ''
     }));
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, `${m.sc_xlsx_table()} ${table.name}`);
-    XLSX.writeFile(workbook, `kotbo_tableau_${table.name.toLowerCase()}.xlsx`);
+    await downloadSingleSheetXlsx(
+      `kotbo_tableau_${table.name.toLowerCase()}.xlsx`,
+      `${m.sc_xlsx_table()} ${table.name}`,
+      data,
+    );
   }
 
   function exportTableToCsv(table: any) {
