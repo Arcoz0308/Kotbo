@@ -642,7 +642,7 @@ export async function handleClansRoutes(
         amount: number;
       }>(req);
 
-      if (typeof body.amount !== 'number') {
+      if (typeof body?.amount !== 'number') {
         json(res, 400, { error: 'Le paramètre amount (nombre) est requis.' });
         return true;
       }

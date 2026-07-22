@@ -1,6 +1,7 @@
+import type { Prisma } from '@prisma/client';
 import { errorMessage, errorStack } from '../../../utils/errors.js';
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
+import { type OverwriteResolvable, Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
@@ -399,7 +400,7 @@ export async function handleGuildLeadershipRoutes(
             channelId: body?.channelId ?? undefined,
             notificationRoleId: body?.notificationRoleId ?? undefined,
             notifyViaDiscordChannel: body?.notifyViaDiscordChannel ?? undefined,
-            metadata: updatedMetadata,
+            metadata: updatedMetadata as Prisma.InputJsonValue,
           },
           create: {
             guildId,
@@ -408,7 +409,7 @@ export async function handleGuildLeadershipRoutes(
             channelId: body?.channelId ?? null,
             notificationRoleId: body?.notificationRoleId ?? null,
             notifyViaDiscordChannel: body?.notifyViaDiscordChannel ?? true,
-            metadata: updatedMetadata,
+            metadata: updatedMetadata as Prisma.InputJsonValue,
           }
         });
 
@@ -448,6 +449,7 @@ export async function handleGuildLeadershipRoutes(
           superiorUserId: string;
           message?: string;
           confirmIndefinite?: boolean;
+          notifyOnMention?: boolean;
         }>(req);
 
         const staffUserId = body?.staffUserId?.trim() || user.userId;
@@ -509,7 +511,7 @@ export async function handleGuildLeadershipRoutes(
           type,
           message: body.message,
           superiorUserId,
-          notifyOnMention: body.notifyOnMention ?? false,
+          notifyOnMention: body?.notifyOnMention === true,
         });
 
         await pushAudit(guildId, {
@@ -1396,7 +1398,7 @@ export async function handleGuildLeadershipRoutes(
         const member = await addStaffMember(
           guildId,
           body.userId,
-          body.grade as unknown,
+          String(body.grade),
           body.userTag,
           body.username,
           body.displayName,
@@ -1466,7 +1468,7 @@ export async function handleGuildLeadershipRoutes(
         }>(req);
 
         if (body?.grade) {
-          await updateStaffGrade(guildId, staffUserId, body.grade as unknown);
+          await updateStaffGrade(guildId, staffUserId, String(body.grade));
 
           await pushAudit(guildId, {
             user: user.username ?? `User${user.userId}`,
@@ -2689,7 +2691,7 @@ export async function handleGuildLeadershipRoutes(
         const staffName = resignation.staffMember.displayName ?? resignation.staffMember.username ?? resignation.staffMember.userId;
         const channelName = `demission-${staffName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30)}`;
 
-        const permissionOverwrites: unknown[] = [
+        const permissionOverwrites: OverwriteResolvable[] = [
           {
             id: discordGuild.id,
             deny: [PermissionFlagsBits.ViewChannel]
@@ -2984,7 +2986,7 @@ export async function handleGuildLeadershipRoutes(
 
       try {
         const body = await readJsonBody<Record<string, unknown>>(req);
-        const config = await tutoringService.updateTutoringConfig(guildId, body);
+        const config = await tutoringService.updateTutoringConfig(guildId, (body ?? {}) as Parameters<typeof tutoringService.updateTutoringConfig>[1]);
 
         await pushAudit(guildId, {
           user: user.username ?? `User${user.userId}`,
@@ -2992,7 +2994,7 @@ export async function handleGuildLeadershipRoutes(
           context: getGuildName(client, guildId),
           module: 'Tutoring',
           eventType: 'Manuel',
-          details: `Intervalle: ${body.reportIntervalDays}j, Rappels: ${body.reminderDaysBefore}j, Min Test: ${body.minTestDays}j`,
+          details: `Intervalle: ${body?.reportIntervalDays}j, Rappels: ${body?.reminderDaysBefore}j, Min Test: ${body?.minTestDays}j`,
           channelId: null
         });
 
@@ -3036,6 +3038,7 @@ export async function handleGuildLeadershipRoutes(
           hierarchyId?: string | null;
           grade?: string | null;
         }>(req);
+        if (!body) { json(res, 400, { error: 'Corps de requête invalide.' }); return true; }
         const item = await tutoringService.upsertTutoringItem(guildId, body);
 
         await pushAudit(guildId, {
