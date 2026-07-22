@@ -1,5 +1,6 @@
 import { Client, GuildMember } from 'discord.js';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
+import type { LevelConfig } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -33,7 +34,7 @@ export function getLevelFromXp(xp: number): number {
 
 export async function getOrCreateLevelConfig(guildId: string) {
   const cacheKey = `guild:${guildId}:level_config`;
-  let config = await cache.get<unknown>(cacheKey);
+  let config = await cache.get<LevelConfig>(cacheKey);
 
   if (config) return config;
 
