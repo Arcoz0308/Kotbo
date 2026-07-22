@@ -1,4 +1,5 @@
 import {
+  type RepliableInteraction,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -677,7 +678,7 @@ ${leaderboard}`;
   return { status: 'completed' };
 }
 
-export async function buildEventResultsView(interaction: unknown, eventId: string, page: number = 0) {
+export async function buildEventResultsView(interaction: RepliableInteraction, eventId: string, page: number = 0) {
   const userId = interaction.user.id;
   const guildId = interaction.guildId;
 
@@ -818,7 +819,7 @@ export async function deleteEvent(client: Client, eventId: string) {
   });
 }
 
-export async function handleCtfFlagSubmission(interaction: unknown, eventId: string, flag: string) {
+export async function handleCtfFlagSubmission(interaction: RepliableInteraction, eventId: string, flag: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: { ctfChallenges: true }
@@ -828,7 +829,7 @@ export async function handleCtfFlagSubmission(interaction: unknown, eventId: str
     return interaction.reply({ content: "â�Œ Ce CTF n'est pas actif.", ephemeral: true });
   }
 
-  const challenge = (event as unknown).ctfChallenges.find((c: unknown) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());
+  const challenge = event.ctfChallenges.find((c) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());
   if (!challenge) {
     return interaction.reply({ content: 'â�Œ Flag incorrect. Essayez encore !', ephemeral: true });
   }
@@ -952,7 +953,7 @@ export async function handleCtfFlagSubmission(interaction: unknown, eventId: str
 }
 
 
-export async function buildCtfLeaderboard(interaction: unknown, eventId: string) {
+export async function buildCtfLeaderboard(interaction: RepliableInteraction, eventId: string) {
   const participants = await prisma.eventParticipant.findMany({
     where: { eventId },
     orderBy: [
@@ -978,7 +979,7 @@ export async function buildCtfLeaderboard(interaction: unknown, eventId: string)
   return interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-export async function buildCtfParticipantProgress(interaction: unknown, eventId: string) {
+export async function buildCtfParticipantProgress(interaction: RepliableInteraction, eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: {
