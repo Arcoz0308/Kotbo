@@ -70,7 +70,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       await currentGuildChannel.delete(`Salon nettoyé par ${interaction.user.tag} (commande /channel clear)`);
 
       // 4. Envoyer un message dans le nouveau salon pour informer
-      await cloned.send({
+      if (cloned.isTextBased() && cloned.isSendable()) await cloned.send({
         embeds: [
           successEmbed(
             'Salon nettoyé',

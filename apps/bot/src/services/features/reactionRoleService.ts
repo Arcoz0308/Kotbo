@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, GuildMember, type ButtonInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -19,7 +20,7 @@ export async function createReactionRoleMenu(
       guildId,
       channelId,
       title,
-      options: options as unknown,
+      options: options as Prisma.InputJsonValue,
     },
   });
 

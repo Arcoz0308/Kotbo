@@ -221,8 +221,9 @@ async function autocomplete(interaction: AutocompleteInteraction) {
   const { guildId, user } = interaction;
   if (!guildId) return;
 
-  const focusedOption = interaction.focusValue.trim();
-  const focusedName = interaction.options.getFocused(true).name;
+  const focused = interaction.options.getFocused(true);
+  const focusedOption = String(focused.value).trim();
+  const focusedName = focused.name;
 
   if (focusedName === 'planning') {
     try {

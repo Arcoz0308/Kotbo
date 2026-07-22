@@ -395,7 +395,12 @@ async function emitSanctionReportReminder(params: {
   }
 }
 
-async function resolveStaffToNotify(guildId: string, sanction: Sanction): Promise<Set<string>> {
+type SanctionNotificationInput = Pick<
+  Sanction,
+  'type' | 'targetUserId' | 'targetTag' | 'moderatorTag' | 'moderatorUserId' | 'reason'
+> & Partial<Pick<Sanction, 'guildId' | 'durationSeconds' | 'expiresAt'>>;
+
+async function resolveStaffToNotify(guildId: string, sanction: SanctionNotificationInput): Promise<Set<string>> {
   const userIdsToNotify = new Set<string>();
 
   if (sanction.targetUserId) {
@@ -444,9 +449,9 @@ function sanctionTypeLabel(type: string): string {
   }[type] || 'Sanction';
 }
 
-async function notifyStaffOfSanction(guildId: string, sanction: Sanction) {
+async function notifyStaffOfSanction(guildId: string, sanction: SanctionNotificationInput) {
   const userIdsToNotify = await resolveStaffToNotify(guildId, sanction);
-  const typeLabel = sanctionTypeLabel(sanction.type as string);
+  const typeLabel = sanctionTypeLabel(sanction.type);
 
   for (const userId of userIdsToNotify) {
     await createNotification(
@@ -467,7 +472,7 @@ async function notifyStaffOfSanction(guildId: string, sanction: Sanction) {
  */
 export async function notifyStaffOfSyncedSanction(
   guildId: string,
-  originalSanction: Sanction,
+  originalSanction: SanctionNotificationInput,
   syncedTargetTags: string[],
 ) {
   if (syncedTargetTags.length === 0) return;
@@ -489,7 +494,7 @@ export async function notifyStaffOfSyncedSanction(
   }
 }
 
-async function propagateSanction(client: Client, originalGuildId: string, sanction: Sanction) {
+async function propagateSanction(client: Client, originalGuildId: string, sanction: SanctionNotificationInput) {
   const originalGuild = await prisma.guild.findUnique({
     where: { id: originalGuildId },
     select: { propagateSanctions: true }

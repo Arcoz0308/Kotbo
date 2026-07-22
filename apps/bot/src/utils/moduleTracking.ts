@@ -29,7 +29,7 @@ export async function wrapModuleTracking<T extends unknown[]>(
     return result;
   } catch (error: unknown) {
     success = false;
-    errorType = error?.name || error?.constructor?.name || 'UnknownError';
+    errorType = (error instanceof Error ? error.name : undefined) ?? 'UnknownError';
     throw error;
   } finally {
     const executionTimeMs = Date.now() - startTime;

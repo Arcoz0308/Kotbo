@@ -20,7 +20,7 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { Prisma } from '@prisma/client';
+import { Prisma , BanAppealStatus } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 
 const DASHBOARD_URL = (process.env.DASHBOARD_URL || 'http://localhost:5173').replace(/\/+$/, '');
@@ -573,7 +573,7 @@ export async function submitAppealInfoResponse(client: Client, guildId: string, 
 // LECTURE (dashboard)
 // ============================================================================
 
-export async function getAppeals(guildId: string, status?: string) {
+export async function getAppeals(guildId: string, status?: BanAppealStatus) {
   return prisma.banAppeal.findMany({
     where: { guildId, ...(status ? { status } : {}) },
     orderBy: { createdAt: 'desc' },

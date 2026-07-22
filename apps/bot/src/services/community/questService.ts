@@ -112,7 +112,7 @@ export async function claimQuestReward(guildId: string, userId: string, questId:
   if (quest.rewardXp > 0) {
     updates.push(
       prisma.memberLevel.updateMany({
-        where: { guildId_userId: { guildId, userId } },
+        where: { guildId, userId },
         data: { xp: { increment: quest.rewardXp } },
       })
     );

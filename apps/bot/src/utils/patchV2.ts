@@ -415,7 +415,7 @@ function wrapListener(listener: (...args: any[]) => void) {
           guildId = arg.guildId;
           try {
             const client = getClient();
-            guildName = client.guilds.cache.get(guildId)?.name;
+            guildName = client.guilds.cache.get(arg.guildId)?.name ?? undefined;
           } catch {
             // Client not ready yet
           }

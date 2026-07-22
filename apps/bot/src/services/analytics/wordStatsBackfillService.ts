@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { errorMessage } from '../../utils/errors.js';
 /**
  * wordStatsBackfillService.ts
@@ -34,7 +35,7 @@ export interface WordStatsBackfillStatus {
 
 async function setStatus(guildId: string, status: WordStatsBackfillStatus): Promise<void> {
   await prisma.guild
-    .update({ where: { id: guildId }, data: { wordStatsBackfillStatus: status } })
+    .update({ where: { id: guildId }, data: { wordStatsBackfillStatus: status as unknown as Prisma.InputJsonValue } })
     .catch((err) => logger.warn('WordStatsBackfill', `Statut non enregistré pour ${guildId}:`, err));
 }
 

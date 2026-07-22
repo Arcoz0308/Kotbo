@@ -1,3 +1,4 @@
+import type { BanAppealStatus } from '@prisma/client';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
@@ -60,7 +61,7 @@ export async function handleBanAppealRoutes(
   // GET /appeals - Liste (filtre ?status=)
   if (parts.length === 5 && method === 'GET') {
     try {
-      const status = _url.searchParams.get('status') || undefined;
+      const status = (_url.searchParams.get('status') as BanAppealStatus | null) ?? undefined;
       const appeals = await getAppeals(guildId, status);
       json(res, 200, { appeals });
     } catch (err) {

@@ -1008,7 +1008,7 @@ export const createAPIKey = async (
 export const getAPIKeys = async (guildId: string, createdByUserId?: string) => {
   let resolvedCreatorId: string | null = null;
   if (createdByUserId) {
-    resolvedCreatorId = await resolveStaffMemberId(guildId, createdByUserId);
+    resolvedCreatorId = (await resolveStaffMemberId(guildId, createdByUserId)) ?? null;
     if (!resolvedCreatorId) {
       return [];
     }
