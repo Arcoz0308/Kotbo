@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { APIMessageTopLevelComponent, NewsChannel } from 'discord.js';
 import { z } from 'zod';
 import { Client, TextChannel, ForumChannel, ThreadChannel, ChannelType, EmbedBuilder, ContainerBuilder, TextDisplayBuilder, MessageFlags, ComponentType, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, type Message, type Guild, type APIEmbed, type GuildForumTagData } from 'discord.js';
 import type { McpKeyPermission, SanctionType, SanctionStatus } from '@prisma/client';
@@ -207,7 +208,7 @@ async function resolveMember(guildId: string, raw: string): Promise<MemberResolu
 }
 
 type ChannelResolution =
-  | { ok: true; channel: TextChannel }
+  | { ok: true; channel: TextChannel | NewsChannel }
   | { ok: false; response: ReturnType<typeof err> };
 
 // Accepte un ID de salon, une mention <#id>, ou un nom de salon (avec ou sans #)
@@ -223,7 +224,7 @@ function resolveChannel(guildId: string, client: Client, raw: string): ChannelRe
     const ch = guild.channels.cache.get(directId);
     if (!ch) return { ok: false, response: err('Salon introuvable') };
     if (!ch.isTextBased()) return { ok: false, response: err("Ce salon n'est pas un salon textuel") };
-    return { ok: true, channel: ch as TextChannel };
+    return { ok: true, channel: ch as TextChannel | NewsChannel };
   }
 
   const name = input.replace(/^#/, '').toLowerCase();
@@ -246,7 +247,7 @@ function resolveChannel(guildId: string, client: Client, raw: string): ChannelRe
     };
   }
 
-  return { ok: true, channel: matches.first() as TextChannel };
+  return { ok: true, channel: matches.first() as TextChannel | NewsChannel };
 }
 
 type ForumResolution =
@@ -423,7 +424,7 @@ type StaffMemberResolution =
 
 async function resolveStaffMemberRecord(guildId: string, client: Client, raw: string): Promise<StaffMemberResolution> {
   const resolved = await resolveMember(guildId, raw);
-  if (!resolved.ok) return resolved.response;
+  if (!resolved.ok) return resolved;
 
   const staffMember = await prisma.staffMember.findUnique({
     where: { guildId_userId: { guildId, userId: resolved.userId } },
@@ -700,13 +701,13 @@ export function registerMcpTools(
             tags: resolved.forum.availableTags,
           },
           posts: [...posts.values()]
-            .sort((a, b) => b.createdTimestamp - a.createdTimestamp)
+            .sort((a, b) => (b.createdTimestamp ?? 0) - (a.createdTimestamp ?? 0))
             .slice(0, limit)
             .map((post) => ({
               id: post.id,
               name: post.name,
               ownerId: post.ownerId,
-              createdAt: post.createdAt.toISOString(),
+              createdAt: post.createdAt?.toISOString() ?? null,
               archived: post.archived,
               locked: post.locked,
               messageCount: post.messageCount,
@@ -1310,9 +1311,13 @@ export function registerMcpTools(
       },
       guard('READ_STAFF', async ({ assignee }) => {
         try {
-          const assigneeId = assignee ? (await resolveMember(guildId, assignee)).ok ? (await resolveMember(guildId, assignee)).userId : null : undefined;
+          let assigneeId: string | null | undefined;
+          if (assignee) {
+            const resolvedAssignee = await resolveMember(guildId, assignee);
+            assigneeId = resolvedAssignee.ok ? resolvedAssignee.userId : null;
+          }
           if (assignee && !assigneeId) return err('Membre introuvable');
-          return ok(await getTasks(guildId, assigneeId));
+          return ok(await getTasks(guildId, assigneeId ?? undefined));
         } catch (e) {
           return err(`Erreur : ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -1972,7 +1977,7 @@ export function registerMcpTools(
           const sanction = await prisma.sanction.findFirst({ where: { id: sanction_id, guildId } });
           if (!sanction) return err('Sanction introuvable');
 
-          const totalMessages = selections.reduce((sum, s) => sum + s.message_ids.length, 0);
+          const totalMessages = selections.reduce((sum: number, s: { message_ids: string[] }) => sum + s.message_ids.length, 0);
           if (totalMessages > MAX_EVIDENCE_MESSAGES) {
             return err(`Maximum ${MAX_EVIDENCE_MESSAGES} messages par import`);
           }
@@ -1990,7 +1995,7 @@ export function registerMcpTools(
 
             try {
               const fetched = await Promise.all(
-                selection.message_ids.map((id) => resolved.channel.messages.fetch(id).catch(() => null)),
+                selection.message_ids.map((id: string) => resolved.channel.messages.fetch(id).catch(() => null)),
               );
               const validMessages = fetched.filter(
                 (msg): msg is Message<true> => msg !== null && msg.author.id === sanction.targetUserId,
@@ -2265,7 +2270,7 @@ export function registerMcpTools(
             },
           });
         } else {
-          let components;
+          let components: APIMessageTopLevelComponent[];
           if (currentFormat === 'v2') {
             // Sur un message v2, content pilote les Text Displays de premier
             // niveau et embed pilote les Containers. Les autres composants
@@ -2284,8 +2289,8 @@ export function registerMcpTools(
             const nextContent = content !== undefined ? content : message.content;
             const nextEmbed = embed !== undefined ? embed : existingEmbed;
             components = [
-              ...(nextContent ? [new TextDisplayBuilder().setContent(nextContent)] : []),
-              ...(nextEmbed ? [embedToV2('thumbnail_url' in nextEmbed ? buildApiEmbed(nextEmbed) : nextEmbed)] : []),
+              ...(nextContent ? [new TextDisplayBuilder().setContent(nextContent).toJSON()] : []),
+              ...(nextEmbed ? [embedToV2('thumbnail_url' in nextEmbed ? buildApiEmbed(nextEmbed) : nextEmbed).toJSON()] : []),
             ];
           }
           if (components.length === 0) return err('Un message Components v2 doit conserver au moins un composant.');
@@ -2299,7 +2304,7 @@ export function registerMcpTools(
           });
         }
 
-        const updated = await resolved.channel.messages.fetch(message.id, { force: true }).catch(() => message);
+        const updated = await resolved.channel.messages.fetch({ message: message.id, force: true }).catch(() => message);
         await audit(
           key_name,
           'Message édité MCP',
@@ -2699,7 +2704,7 @@ export function registerMcpTools(
         const channel = client.guilds.cache.get(guildId)?.channels.cache.get(ticket.channelId);
         if (!channel || !channel.isTextBased()) return err('Salon du ticket introuvable');
 
-        const sent = await (channel as TextChannel).send({ content }).catch(() => null);
+        const sent = await (channel as TextChannel | NewsChannel).send({ content }).catch(() => null);
         if (!sent) return err("Impossible d'envoyer le message dans le ticket");
 
         await audit(key_name, 'Réponse ticket MCP', `Ticket: ${ticket.id}`, content.slice(0, 200));
@@ -2731,7 +2736,7 @@ export function registerMcpTools(
         if (ticket.channelId && reason) {
           const channel = client.guilds.cache.get(guildId)?.channels.cache.get(ticket.channelId);
           if (channel?.isTextBased()) {
-            await (channel as TextChannel)
+            await (channel as TextChannel | NewsChannel)
               .send({ content: `🤖 Raison de fermeture (IA) : ${reason}` })
               .catch(() => null);
           }
@@ -3734,12 +3739,12 @@ export function registerMcpTools(
           period: { from: sinceKey, days: period_days },
           daily: stats.map((s) => ({
             date: s.dateKey,
-            messages: s.messageCount,
+            messages: s.messagesCount,
             voiceMinutes: s.voiceMinutes,
           })),
           totals: stats.reduce(
             (acc: { messages: number; voiceMinutes: number }, s) => ({
-              messages: acc.messages + s.messageCount,
+              messages: acc.messages + s.messagesCount,
               voiceMinutes: acc.voiceMinutes + s.voiceMinutes,
             }),
             { messages: 0, voiceMinutes: 0 }
@@ -3832,7 +3837,7 @@ export function registerMcpTools(
           const channel = client.guilds.cache.get(guildId)?.channels.cache.get(suggestion.channelId);
           if (channel?.isTextBased()) {
             const statusEmoji = status === 'APPROVED' ? '✅' : status === 'REJECTED' ? '❌' : '🚀';
-            await (channel as TextChannel)
+            await (channel as TextChannel | NewsChannel)
               .send({ content: `${statusEmoji} **Réponse à la suggestion de ${suggestion.username} :**\n${response}` })
               .catch(() => null);
           }
@@ -4655,7 +4660,7 @@ export function registerMcpTools(
       },
       guard('WRITE_MEMBERS', async ({ meeting_id, title, description, scheduled_at, ended_at, status }) => {
         try {
-          const data: { title?: string; description?: string | null; scheduledAt?: Date; endedAt?: Date; status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' } = {};
+          const data: { title?: string; description?: string; scheduledAt?: Date; endedAt?: Date; status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' } = {};
           if (title !== undefined) data.title = title;
           if (description !== undefined) data.description = description;
           if (scheduled_at !== undefined) data.scheduledAt = new Date(scheduled_at);
@@ -4760,7 +4765,7 @@ export function registerMcpTools(
             creator.staffMember.id,
             title.trim(),
             description?.trim() || '',
-            options.map((option) => option.trim()).filter(Boolean),
+            options.map((option: string) => option.trim()).filter(Boolean),
             is_anonymous ?? true,
             closes_at ? new Date(closes_at) : undefined
           );
@@ -6759,7 +6764,7 @@ export function registerMcpTools(
 
           // Synchroniser les rôles Discord correspondants
           const { syncStaffDiscordRoles } = await import('../../services/staff/staffManagementService.js');
-          await syncStaffDiscordRoles(guildId, resolved.userId, client).catch(() => null);
+          await syncStaffDiscordRoles(guildId, resolved.userId, grade).catch(() => null);
 
           await audit(key_name, 'Promotion Staff MCP', resolved.label, `Grade appliqué: ${grade}`);
           return ok({ ok: true, userId: resolved.userId, grade, staffId: staffRecord?.id ?? null });
@@ -6784,11 +6789,9 @@ export function registerMcpTools(
         if (!resolved.ok) return resolved.response;
 
         try {
+          // removeStaffMember retire deja les roles Discord du staff (role de
+          // base, role de test et roles de grade) : rien a synchroniser ensuite.
           await removeStaffMember(guildId, resolved.userId);
-
-          // Synchroniser/retirer les rôles de modération
-          const { syncStaffDiscordRoles } = await import('../../services/staff/staffManagementService.js');
-          await syncStaffDiscordRoles(guildId, resolved.userId, client).catch(() => null);
 
           await audit(key_name, 'Destitution Staff MCP', resolved.label, 'Membre retiré du staff');
           return ok({ ok: true, userId: resolved.userId });
@@ -7502,7 +7505,8 @@ export function registerMcpTools(
             color: color !== undefined ? color : undefined,
             hoist: hoist !== undefined ? hoist : undefined,
             mentionable: mentionable !== undefined ? mentionable : undefined,
-          }, reason || 'Modifié via MCP');
+            reason: reason || 'Modifié via MCP',
+          });
 
           await audit(key_name, 'Mise à jour rôle MCP', discordRole.name, `ID: ${discordRole.id}`);
           return ok({ ok: true, roleId: discordRole.id, name: updated.name });
@@ -7696,7 +7700,7 @@ export function registerMcpTools(
               name: w.name,
               channelId: w.channelId,
               creatorId: w.owner?.id ?? null,
-              creatorTag: w.owner?.tag ?? null,
+              creatorTag: w.owner && 'tag' in w.owner ? w.owner.tag : (w.owner?.username ?? null),
               url: w.url,
               avatar: w.avatarURL(),
             }))
@@ -7897,12 +7901,12 @@ export function registerMcpTools(
 
           let bits = discordRole.permissions.bitfield;
           for (const p of allow) {
-            const bit = (PermissionFlagsBits as any)[p];
+            const bit = (PermissionFlagsBits as Record<string, bigint>)[p];
             if (bit === undefined) return err(`Permission inconnue : « ${p} »`);
             bits |= bit;
           }
           for (const p of deny) {
-            const bit = (PermissionFlagsBits as any)[p];
+            const bit = (PermissionFlagsBits as Record<string, bigint>)[p];
             if (bit === undefined) return err(`Permission inconnue : « ${p} »`);
             bits &= ~bit;
           }
@@ -8117,6 +8121,7 @@ export function registerMcpTools(
             : guild.channels.cache.find((c) => c.name.toLowerCase() === channel.replace(/^#/, '').toLowerCase());
 
           if (!ch) return err(`Salon « ${channel} » introuvable`);
+          if (!('createInvite' in ch)) return err(`Le salon « ${channel} » n'accepte pas d'invitation.`);
 
           const invite = await ch.createInvite({
             maxUses: max_uses,
@@ -8749,7 +8754,7 @@ export function registerMcpTools(
         if (!guild) return err('Serveur Discord introuvable');
 
         // Récupérer le salon de logs
-        let targetChannel: TextChannel | null = null;
+        let targetChannel: TextChannel | NewsChannel | null = null;
         if (channel) {
           const resolved = resolveChannel(guildId, client, channel);
           if (resolved.ok) targetChannel = resolved.channel;
