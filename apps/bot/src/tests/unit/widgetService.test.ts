@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
+import { completeModuleMock } from '../helpers/moduleMock.js';
 
 const userId = '123456789012345678';
 const guildId = '987654321098765432';
@@ -36,7 +37,7 @@ const guild = {
 };
 
 const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
-  ['../../utils/db', () => ({ default: mockDb, prisma: mockDb })],
+  ['../../utils/db', () => ({ default: mockDb, prisma: mockDb, prismaRead: mockDb })],
   ['../../utils/logger', () => ({
     logger: {
       info: mock(() => undefined),
@@ -47,16 +48,23 @@ const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
   ['../../utils/client', () => ({
     getClient: () => ({ guilds: { cache: new Map([[guildId, guild]]) } }),
   })],
-  ['../../services/staff/staffManagementService', () => ({
-    getStaffMember: mock(() => Promise.resolve({
-      id: 'staff-id',
-      grade: 'ADMIN',
-      joinedStaffAt: new Date('2026-01-01T00:00:00Z'),
-    })),
-  })],
-  ['../../services/progression/levelingService', () => ({
-    getLevelFromXp: () => 3,
-  })],
+  // Mocks COMPLETS : `mock.module` est global au process. Un mock partiel
+  // supprimerait les autres exports (verifyAPIKey, getXpForLevel...) pour tous
+  // les fichiers de test charges ensuite.
+  ['../../services/staff/staffManagementService', () => completeModuleMock(
+    path.resolve(import.meta.dir, '../../services/staff/staffManagementService.ts'),
+    {
+      getStaffMember: mock(() => Promise.resolve({
+        id: 'staff-id',
+        grade: 'ADMIN',
+        joinedStaffAt: new Date('2026-01-01T00:00:00Z'),
+      })),
+    },
+  )],
+  ['../../services/progression/levelingService', () => completeModuleMock(
+    path.resolve(import.meta.dir, '../../services/progression/levelingService.ts'),
+    { getLevelFromXp: () => 3 },
+  )],
 ];
 
 for (const [relativePath, factory] of moduleMocks) {
@@ -66,8 +74,16 @@ for (const [relativePath, factory] of moduleMocks) {
   mock.module(jsPath, factory);
 }
 
+// `globalThis.fetch` est partage par tout le process de test. Sans restauration,
+// les fichiers executes ensuite (dashboardApi.test.ts notamment, qui interroge
+// un vrai serveur HTTP) recevaient la reponse 204 bouchonnee de ce fichier.
+const realFetch = globalThis.fetch;
 const fetchMock = mock(async () => new Response(null, { status: 204 }));
 globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+afterAll(() => {
+  globalThis.fetch = realFetch;
+});
 
 const { pushWidgetForUser, clearWidgetForUser } = await import('../../services/integrations/widgetService.js');
 

@@ -3,6 +3,8 @@ import path from 'node:path';
 import nodeCrypto from 'node:crypto';
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { Socket, type AddressInfo } from 'node:net';
+import { completeModuleMock } from '../helpers/moduleMock.js';
+import { resetCurrentInstance } from '../../utils/instanceContext.js';
 import jwt from 'jsonwebtoken';
 import { type Client } from 'discord.js';
 
@@ -79,11 +81,13 @@ const dbJsPath = path.resolve(import.meta.dir, '../../utils/db.js');
 mock.module(dbPath, () => ({
   default: mockDb,
   prisma: mockDb,
+  prismaRead: mockDb,
 }));
 
 mock.module(dbJsPath, () => ({
   default: mockDb,
   prisma: mockDb,
+  prismaRead: mockDb,
 }));
 
 // Setup Guild Activation Mock
@@ -97,6 +101,49 @@ const activationJsPath = path.resolve(import.meta.dir, '../../utils/activation.j
 
 mock.module(activationPath, () => mockActivation);
 mock.module(activationJsPath, () => mockActivation);
+
+// Authentification du dashboard.
+//
+// `verifyAuth` n'accepte plus l'en-tete `Authorization: Bearer <jwt>` : ce
+// chemin est desormais conditionne a la variable AUTH_LEGACY_BEARER_UNTIL et
+// destine a disparaitre. L'authentification reelle passe par une session
+// serveur referencee par un cookie. On mocke donc le magasin de sessions
+// plutot que de tester un mecanisme obsolete.
+const TEST_SESSION_ID = 'test-session-id';
+const TEST_SESSION = {
+  userId: '123456789012345678',
+  username: 'TestUser',
+  avatar: null,
+  discordAccessToken: 'discord-access-token',
+  discordRefreshToken: 'discord-refresh-token',
+  expiresAt: Date.now() + 3_600_000,
+};
+
+const sessionStorePath = path.resolve(import.meta.dir, '../../api/auth/sessionStore.ts');
+const sessionStoreJsPath = path.resolve(import.meta.dir, '../../api/auth/sessionStore.js');
+const mockSessionStore = () => completeModuleMock(sessionStorePath, {
+  getDashboardSession: mock(async (sessionId: string | null) =>
+    sessionId === TEST_SESSION_ID ? TEST_SESSION : null),
+  sessionIdFromRequest: (req: { headers: Record<string, unknown> }) => {
+    const raw = req.headers?.cookie;
+    const cookie = Array.isArray(raw) ? raw[0] : raw;
+    const match = typeof cookie === 'string' ? cookie.match(/(?:^|;\s*)kotbo_session=([^;]+)/) : null;
+    return match ? match[1] : null;
+  },
+  sessionIdFromCookieHeader: (cookie?: string) => {
+    const match = typeof cookie === 'string' ? cookie.match(/(?:^|;\s*)kotbo_session=([^;]+)/) : null;
+    return match ? match[1] : null;
+  },
+});
+
+mock.module(sessionStorePath, mockSessionStore);
+mock.module(sessionStoreJsPath, mockSessionStore);
+
+/** En-tetes d'une requete authentifiee, au format attendu aujourd'hui. */
+const authenticatedHeaders = (extra: Record<string, string> = {}) => ({
+  cookie: `kotbo_session=${TEST_SESSION_ID}`,
+  ...extra,
+});
 
 const mockMcpKeyService = {
   verifyMcpKey: mock(() => Promise.resolve(null)),
@@ -441,6 +488,12 @@ describe('Modular Routers Unit Tests', () => {
     mockActivation.isGuildActivated.mockClear();
     mockActivation.activateGuild.mockClear();
     mockActivation.deactivateGuild.mockClear();
+
+    // Ce fichier s'appuie sur les valeurs de repli lues dans l'environnement
+    // (DISCORD_CLIENT_ID, JWT_SECRET...). `setCurrentInstance` etant un etat
+    // global au process, un autre fichier de test peut l'avoir renseigne : on
+    // repart d'un contexte vierge pour ne pas dependre de l'ordre d'execution.
+    resetCurrentInstance();
 
     testUserToken = jwt.sign(
       { userId: '123456789012345678', username: 'TestUser' },
@@ -1088,7 +1141,7 @@ describe('Modular Routers Unit Tests', () => {
       const req = createMockRequest({
         method: 'GET',
         url: '/api/user/me',
-        headers: { authorization: `Bearer ${testUserToken}` },
+        headers: authenticatedHeaders(),
       });
       const res = createMockResponse();
       const parts = splitPath(req.url!);
@@ -1108,7 +1161,7 @@ describe('Modular Routers Unit Tests', () => {
       const req = createMockRequest({
         method: 'GET',
         url: '/api/admin/stats',
-        headers: { authorization: `Bearer ${testUserToken}` },
+        headers: authenticatedHeaders(),
       });
       const res = createMockResponse();
       const parts = splitPath(req.url!);
@@ -1163,7 +1216,7 @@ describe('Modular Routers Unit Tests', () => {
       const req = createMockRequest({
         method: 'GET',
         url: '/api/dashboard/guilds/1122334455667788/notifications/features',
-        headers: { authorization: `Bearer ${testUserToken}` },
+        headers: authenticatedHeaders(),
       });
       const res = createMockResponse();
       const parts = splitPath(req.url!);
@@ -1197,10 +1250,7 @@ describe('Modular Routers Unit Tests', () => {
       const req = createMockRequest({
         method: 'POST',
         url: '/api/dashboard/guilds/1122334455667788/embed-builder',
-        headers: {
-          authorization: `Bearer ${testUserToken}`,
-          'content-type': 'application/json',
-        },
+        headers: authenticatedHeaders({ 'content-type': 'application/json' }),
         body: JSON.stringify(payload),
       });
 

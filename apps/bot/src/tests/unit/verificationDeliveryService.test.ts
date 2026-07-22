@@ -18,7 +18,7 @@ const prismaMock = {
 const createNotificationMock = mock(async () => null);
 
 const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
-  ['../../utils/db', () => ({ default: prismaMock, prisma: prismaMock })],
+  ['../../utils/db', () => ({ default: prismaMock, prisma: prismaMock, prismaRead: prismaMock })],
   ['../../utils/logger', () => ({
     logger: {
       info: mock(() => undefined),

@@ -5,10 +5,16 @@
  */
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
+import { completeModuleMock } from '../helpers/moduleMock.js';
 
 const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
-  ['../../utils/db', () => ({ default: {}, prisma: {} })],
-  ['../../infra/redis', () => ({ getRedis: () => null })], // pas de Redis : L1 mémoire uniquement
+  ['../../utils/db', () => ({ default: {}, prisma: {}, prismaRead: {} })],
+  // Mock COMPLET : `mock.module` est global au process, un mock partiel ferait
+  // disparaitre initRedis & co. pour les fichiers de test charges ensuite.
+  ['../../infra/redis', () => completeModuleMock(
+    path.resolve(import.meta.dir, '../../infra/redis.ts'),
+    { getRedis: () => null }, // pas de Redis : L1 mémoire uniquement
+  )],
   ['../../utils/logger', () => ({
     logger: {
       info: mock(() => undefined), warn: mock(() => undefined),

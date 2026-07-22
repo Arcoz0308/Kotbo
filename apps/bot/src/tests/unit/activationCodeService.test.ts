@@ -26,12 +26,14 @@ const dbJsPath = path.resolve(__dirname, '../../utils/db.js');
 
 mock.module(dbPath, () => ({
   default: mockDb,
-  prisma: mockDb
+  prisma: mockDb,
+  prismaRead: mockDb,
 }));
 
 mock.module(dbJsPath, () => ({
   default: mockDb,
-  prisma: mockDb
+  prisma: mockDb,
+  prismaRead: mockDb,
 }));
 
 import {
