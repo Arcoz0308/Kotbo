@@ -44,7 +44,7 @@ describe('invalidateGuild couvre le cache des analytics avancées', () => {
     // Reproduit le bug : les stats de mots étaient servies avec enabled:false
     // pendant 5 min après activation, car la clé échappait à l'invalidation.
     await cache.set(advancedKey(guildId, 'words'), { enabled: false, topWords: [] }, 300);
-    expect(await cache.get(advancedKey(guildId, 'words'))).toEqual({ enabled: false, topWords: [] });
+    expect(await cache.get<unknown>(advancedKey(guildId, 'words'))).toEqual({ enabled: false, topWords: [] });
 
     await cache.invalidateGuild(guildId);
 
@@ -69,7 +69,7 @@ describe('invalidateGuild couvre le cache des analytics avancées', () => {
 
     await cache.invalidateGuild(guildId);
 
-    expect(await cache.get(advancedKey(otherGuild, 'words'))).toEqual({ enabled: true });
+    expect(await cache.get<unknown>(advancedKey(otherGuild, 'words'))).toEqual({ enabled: true });
     await cache.invalidateGuild(otherGuild);
   });
 

@@ -93,7 +93,7 @@ describe('StaffServerService unit tests', () => {
         { mainDiscordRoleId: 'role-main-admin', staffDiscordRoleId: 'role-staff-admin' },
         { mainDiscordRoleId: 'role-main-mod', staffDiscordRoleId: 'role-staff-mod' },
       ],
-    } as unknown as StaffServerLink;
+    } as unknown as Parameters<typeof computeStaffRoleTransition>[0];
 
     test('gained-first: transitioning from no staff roles to having one', () => {
       const res = computeStaffRoleTransition(mockLink, ['role-user'], ['role-user', 'role-main-mod'], true);

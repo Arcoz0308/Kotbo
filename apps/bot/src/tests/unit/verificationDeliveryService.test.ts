@@ -10,8 +10,8 @@ const TICKET_CATEGORY_ID = '333333333333333333';
 
 const prismaMock = {
   guild: { findUnique: mock(async () => ({}) as Record<string, unknown>) },
-  securityVerification: { update: mock(async () => ({})) },
-  ticket: { create: mock(async () => ({ id: 'ticket-1' })) },
+  securityVerification: { update: mock(async (_args?: unknown) => ({})) },
+  ticket: { create: mock(async (_args?: unknown) => ({ id: 'ticket-1' })) },
   staffMember: { findMany: mock(async () => [] as Array<{ userId: string }>) },
 };
 
