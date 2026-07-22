@@ -1,5 +1,6 @@
+import type { Prisma } from '@prisma/client';
 import type { CandidatureStatus } from '@prisma/client';
-import { ChannelType, PermissionFlagsBits, type Client, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { type ButtonInteraction, type OverwriteResolvable, ChannelType, PermissionFlagsBits, type Client, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { createNotification } from './staffLeadershipService.js';
 import { logger } from '../../utils/logger.js';
@@ -170,7 +171,9 @@ export async function createCandidature(
 
   // If data is from Google Forms, it might be nested
   // Google Apps Script usually sends: { timestamp: "...", data: { "Field 1": ["Value"], ... } }
-  const rawData = data.data || data;
+  const nested = data.data;
+  const rawData: Record<string, unknown> =
+    nested && typeof nested === 'object' && !Array.isArray(nested) ? (nested as Record<string, unknown>) : data;
 
   // Check auto-rejection (can be disabled from dashboard config)
   const autoRejectEnabled = options?.autoRejectEnabled !== false;
@@ -184,7 +187,7 @@ export async function createCandidature(
       discordId,
       username: username || (discordId ? `User_${discordId}` : 'Candidat Anonyme'),
       email,
-      data: rawData,
+      data: rawData as Prisma.InputJsonValue,
       status: autoRejectCheck.rejected ? 'AUTO_REJECTED' : 'PENDING',
       autoRejected: autoRejectCheck.rejected,
       autoRejectReason: autoRejectCheck.rejected ? autoRejectCheck.reason : null,
@@ -232,7 +235,7 @@ export async function createCandidature(
 async function notifyStaffServerNewCandidature(
   client: Client,
   guildId: string,
-  candidature: { id: string; username: string; discordId: string | null; createdAt: Date },
+  candidature: { id: string; username: string | null; discordId: string | null; createdAt: Date },
 ): Promise<void> {
   const { getStaffServerNotifyChannel } = await import('./staffServerService.js');
   const channel = await getStaffServerNotifyChannel(client, guildId, 'recruitment');
@@ -245,7 +248,7 @@ async function notifyStaffServerNewCandidature(
     .setTitle('📥 Nouvelle candidature')
     .setColor(COLORS.info)
     .addFields(
-      { name: 'Candidat', value: candidature.username, inline: true },
+      { name: 'Candidat', value: candidature.username ?? 'Inconnu', inline: true },
       { name: 'Discord', value: candidature.discordId ? `<@${candidature.discordId}> (${candidature.discordId})` : 'Non fourni', inline: true },
       { name: 'Reçue le', value: `<t:${Math.floor(candidature.createdAt.getTime() / 1000)}:f>`, inline: true },
       { name: 'Dossier', value: `[Consulter sur le dashboard](${dashboardUrl.replace(/\/$/, '')}/recruitment)`, inline: false },
@@ -319,7 +322,7 @@ export async function approveCandidature(
   // Create the ticket channel
   const categoryId = (onStaffServer ? staffLink?.staffRecruitmentCategoryId : guild?.recruitmentCategoryId) || undefined;
 
-  const permissionOverwrites: unknown[] = [
+  const permissionOverwrites: OverwriteResolvable[] = [
     {
       id: targetGuild.id, // @everyone
       deny: [PermissionFlagsBits.ViewChannel],
@@ -843,7 +846,7 @@ async function getFormFieldLabelMap(candidature: { formId: string | null; custom
 export async function handleRecruitmentButton(
   client: Client,
   customId: string,
-  interaction: Record<string, unknown>,
+  interaction: ButtonInteraction,
 ) {
   const parts = customId.split(':');
   const action = parts[1]; // claim, info, close, delete
@@ -889,7 +892,8 @@ export async function handleRecruitmentButton(
 
   else if (action === 'close') {
     const channel = interaction.channel;
-    if (channel && candidature.discordId) {
+    // Les salons de MP et les fils n'ont pas de surcharges de permissions.
+    if (channel && 'permissionOverwrites' in channel && candidature.discordId) {
       // Remove candidate's view access
       await channel.permissionOverwrites.edit(candidature.discordId, {
         ViewChannel: false,
