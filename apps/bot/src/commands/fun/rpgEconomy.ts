@@ -106,7 +106,7 @@ async function rpgProfileExecute(interaction: ChatInputCommandInteraction) {
     .setTitle(m.rpg_profile_title({ name: targetUser.displayName }, { locale }))
     .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
     .setColor(COLORS.primary)
-    .setDescription(profile.isTraveling ? m.rpg_profile_traveling({ dest: profile.travelDestination }, { locale }) : m.rpg_profile_resting({}, { locale }))
+    .setDescription(profile.isTraveling ? m.rpg_profile_traveling({ dest: (profile.travelDestination ?? '') }, { locale }) : m.rpg_profile_resting({}, { locale }))
     .addFields(
       { name: m.rpg_profile_field_wallet({ emoji: config.currencyEmoji }, { locale }), value: `**${profile.balance}** ${config.currencyName}`, inline: true },
       { name: m.rpg_profile_field_level({}, { locale }), value: m.rpg_profile_level_value({ level: profile.level }, { locale }), inline: true },
@@ -152,7 +152,7 @@ async function rpgDailyExecute(interaction: ChatInputCommandInteraction) {
 
   if (!result.success) {
     await interaction.reply({
-      embeds: [errorEmbed(m.rpg_daily_unavailable_title({}, { locale }), m.rpg_daily_unavailable_desc({ hours: result.remainingHours, minutes: result.remainingMinutes }, { locale }))],
+      embeds: [errorEmbed(m.rpg_daily_unavailable_title({}, { locale }), m.rpg_daily_unavailable_desc({ hours: (result.remainingHours ?? 0), minutes: (result.remainingMinutes ?? 0) }, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -160,7 +160,7 @@ async function rpgDailyExecute(interaction: ChatInputCommandInteraction) {
 
   const embed = new EmbedBuilder()
     .setTitle(m.rpg_daily_title({}, { locale }))
-    .setDescription(m.rpg_daily_desc({ reward: result.reward, emoji: config.currencyEmoji, currency: config.currencyName }, { locale }))
+    .setDescription(m.rpg_daily_desc({ reward: (result.reward ?? 0), emoji: config.currencyEmoji, currency: config.currencyName }, { locale }))
     .addFields({ name: m.rpg_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` })
     .setColor(COLORS.success)
     .setTimestamp();
@@ -200,7 +200,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
     if (!status.complete) {
       await interaction.reply({
-        embeds: [errorEmbed(m.rpg_travel_in_progress_title({}, { locale }), m.rpg_travel_in_progress_desc({ dest: profile.travelDestination, minutes: status.remainingMinutes }, { locale }))],
+        embeds: [errorEmbed(m.rpg_travel_in_progress_title({}, { locale }), m.rpg_travel_in_progress_desc({ dest: (profile.travelDestination ?? ''), minutes: (status.remainingMinutes ?? 0) }, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -739,7 +739,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
         });
       } else {
         await interaction.reply({
-          embeds: [successEmbed(m.rpg_guild_left_title({}, { locale }), m.rpg_guild_left_desc({ name: result.guildName }, { locale }))]
+          embeds: [successEmbed(m.rpg_guild_left_title({}, { locale }), m.rpg_guild_left_desc({ name: (result.guildName ?? '') }, { locale }))]
         });
       }
     } catch (err: unknown) {
@@ -1640,7 +1640,7 @@ async function fishExecute(interaction: ChatInputCommandInteraction) {
     if (!result.success) {
       if (result.cooldown) {
         await interaction.reply({
-          embeds: [errorEmbed(m.rpg_fish_cooldown_title({}, { locale }), m.rpg_fish_cooldown_desc({ min: result.remainingMin, sec: result.remainingSec }, { locale }))],
+          embeds: [errorEmbed(m.rpg_fish_cooldown_title({}, { locale }), m.rpg_fish_cooldown_desc({ min: (result.remainingMin ?? 0), sec: (result.remainingSec ?? 0) }, { locale }))],
           flags: [MessageFlags.Ephemeral]
         });
         return;
