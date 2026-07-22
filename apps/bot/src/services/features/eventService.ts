@@ -1,6 +1,7 @@
 import {
   type RepliableInteraction,
   ActionRowBuilder,
+  GuildMember,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
@@ -52,8 +53,8 @@ export async function getEvent(eventId: string) {
       participants: {
         orderBy: [
           { score: 'desc' },
-          { lastSolveAt: 'asc' }
-        ] as unknown,
+          { lastSolveAt: 'asc' },
+        ],
         include: {
           profile: true,
         },
@@ -62,7 +63,7 @@ export async function getEvent(eventId: string) {
         orderBy: { createdAt: 'asc' },
       },
       customForm: true,
-    } as unknown,
+    },
   });
 }
 
@@ -72,7 +73,7 @@ export async function createEvent(guildId: string, data: { title: string; descri
       guildId,
       title: data.title,
       description: data.description,
-      type: data.type as unknown,
+      type: data.type,
       channelId: data.channelId,
     },
   });
@@ -213,7 +214,7 @@ export async function nextQuestion(client: Client, eventId: string) {
   if (nextQuestion.imageUrl) embed.setImage(nextQuestion.imageUrl);
 
   const options = nextQuestion.options as string[];
-  const components: unknown[] = [];
+  const components: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [];
 
   if (options.length <= 5) {
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -306,7 +307,7 @@ export async function prevQuestion(client: Client, eventId: string) {
   if (prevQuestion.imageUrl) embed.setImage(prevQuestion.imageUrl);
 
   const options = prevQuestion.options as string[];
-  const components: unknown[] = [];
+  const components: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [];
 
   if (options.length <= 5) {
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -363,13 +364,13 @@ export async function handleQuizInteraction(
       userId: interaction.user.id,
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
+      displayName: (interaction.member instanceof GuildMember ? interaction.member.displayName : null) ?? interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
     update: {
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
+      displayName: (interaction.member instanceof GuildMember ? interaction.member.displayName : null) ?? interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
   });
@@ -469,14 +470,14 @@ export async function getEventStats(eventId: string) {
     });
     return {
       type: 'CTF',
-      challenges: ctfChallenges.map((c: Record<string, unknown>) => ({
+      challenges: ctfChallenges.map((c) => ({
         id: c.id,
         title: c.title,
         points: c.points,
         xpReward: c.xpReward,
         roleIdReward: c.roleIdReward,
         solveCount: c.solves.length,
-        solves: c.solves.map((s: Record<string, unknown>) => ({
+        solves: c.solves.map((s) => ({
           userId: s.participant.userId,
           username: s.participant.username || s.participant.userTag || s.participant.userId,
           solvedAt: s.solvedAt,
@@ -545,7 +546,7 @@ export async function getEventStats(eventId: string) {
     questionText: currentQuestion.text,
     distribution,
     options: currentQuestion.options as string[],
-    latestResponses: Array.from(latestResponses.values()).map(({ _sortOrder, ...rest }) => rest),
+    latestResponses: Array.from(latestResponses.values()).map(({ sortOrder: _sortOrder, ...rest }) => rest),
     responses: currentQuestion.responses.map(r => ({
       userId: r.participant.userId,
       userTag: r.participant.userTag,
@@ -746,7 +747,7 @@ export async function buildEventResultsView(interaction: RepliableInteraction, e
     // On ne se fie pas uniquement à la relation WHERE côté Prisma car il arrive
     // que les données aient été enregistrées avec une relation incorrecte (bug question 39, etc.).
     const userResponse = Array.isArray(q.responses)
-      ? q.responses.find((r: Record<string, unknown>) => r.participant && r.participant.userId === userId)
+      ? q.responses.find((r) => r.participant && r.participant.userId === userId)
       : undefined;
     const options = q.options as string[];
     const correctLabel = options[q.correctOptionIndex];
@@ -845,13 +846,13 @@ export async function handleCtfFlagSubmission(interaction: RepliableInteraction,
       userId: interaction.user.id,
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
+      displayName: (interaction.member instanceof GuildMember ? interaction.member.displayName : null) ?? interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
     update: {
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
+      displayName: (interaction.member instanceof GuildMember ? interaction.member.displayName : null) ?? interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
   });
@@ -913,10 +914,10 @@ export async function handleCtfFlagSubmission(interaction: RepliableInteraction,
   let roleFeedback = '';
   if (challenge.roleIdReward) {
     const member = interaction.member;
-    if (member && 'roles' in member) {
+    if (member instanceof GuildMember) {
       const role = interaction.guild?.roles.cache.get(challenge.roleIdReward);
       if (role) {
-        await (member.roles as unknown).add(role).catch((err: unknown) => {
+        await member.roles.add(role).catch((err: unknown) => {
           logger.error('CtfService', 'Failed to add reward role:', err);
         });
         roleFeedback = ` et le rôle **${role.name}** vous a été attribué`;
@@ -1002,15 +1003,15 @@ export async function buildCtfParticipantProgress(interaction: RepliableInteract
     },
   });
 
-  const solvedChallengeIds = new Set((participant as unknown)?.ctfSolves.map((s: Record<string, unknown>) => s.challengeId) || []);
+  const solvedChallengeIds = new Set(participant?.ctfSolves.map((s) => s.challengeId) ?? []);
 
-  const list = event.ctfChallenges.map((c: Record<string, unknown>) => {
+  const list = event.ctfChallenges.map((c) => {
     const isSolved = solvedChallengeIds.has(c.id);
     const statusIcon = isSolved ? '✅' : '❌';
     return `${statusIcon} **${c.title}** (${c.points} pts) ${c.xpReward > 0 ? `[+${c.xpReward} XP]` : ''}`;
   }).join('\n') || 'Aucun challenge dans ce CTF.';
 
-  const totalPoints = event.ctfChallenges.reduce((acc: number, c: unknown) => acc + c.points, 0);
+  const totalPoints = event.ctfChallenges.reduce((acc, c) => acc + c.points, 0);
   const userPoints = participant?.score || 0;
 
   const embed = new EmbedBuilder()
@@ -1244,7 +1245,6 @@ export async function handleCustomEventRegisterButton(interaction: ButtonInterac
     return interaction.reply({ content: '❌ Les inscriptions sont fermees pour cet evenement.', ephemeral: true });
   }
 
-  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
   if (event.formId && event.customForm) {
     const { buildFormModal } = await import('./customFormService.js');
     // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
