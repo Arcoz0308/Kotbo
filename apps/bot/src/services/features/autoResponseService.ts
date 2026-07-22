@@ -105,18 +105,18 @@ async function dispatchTriggerResponse(
   const payload = buildSendPayload(resolvedText);
   const destination = item.responseDestination || 'DM';
 
-  if (destination === 'CHANNEL' && options.contextChannel) {
+  if (destination === 'CHANNEL' && options.contextChannel?.isSendable()) {
     const channel = options.contextChannel;
     if (options.replyToMessage) {
-      await options.replyToMessage.reply(payload).catch(() => channel.send(payload).catch(() => null));
+      await options.replyToMessage.reply(payload).catch(async () => { await channel.send(payload).catch(() => null); });
     } else {
       await channel.send(payload).catch(() => null);
     }
   } else if (destination === 'SPECIFIC_CHANNEL' && item.responseChannelId) {
     const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
     const channel = guild?.channels.cache.get(item.responseChannelId);
-    if (channel?.isTextBased()) {
-      await (channel as TextBasedChannel).send(payload).catch(() => null);
+    if (channel?.isTextBased() && channel.isSendable()) {
+      await channel.send(payload).catch(() => null);
     } else {
       const user = await client.users.fetch(targetUserId).catch(() => null);
       await user?.send(payload).catch(() => null);
@@ -128,7 +128,7 @@ async function dispatchTriggerResponse(
 
   if (item.relayToStaffServer) {
     const relayChannel = await resolveStaffRelayChannel(client, guildId).catch(() => null);
-    await relayChannel?.send(payload).catch(() => null);
+    if (relayChannel?.isSendable()) await relayChannel.send(payload).catch(() => null);
   }
 }
 
@@ -288,7 +288,7 @@ export async function handleAutoResponse(message: Message) {
             // Gain d'XP
             if (actions.addXp && typeof actions.addXp === 'number') {
               const { addXp } = await import('../../services/progression/levelingService.js');
-              await addXp(message.guildId, message.author.id, actions.addXp).catch(() => null);
+              await addXp(message.guildId, message.author.id, actions.addXp, message.client, message.channelId).catch(() => null);
             }
 
             // CRUD Salons

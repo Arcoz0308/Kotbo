@@ -3114,7 +3114,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       id: channel.id,
       name: channel.name,
       mention: `<#${channel.id}>`,
-      position: channel.rawPosition ?? 0,
+      position: 'rawPosition' in channel ? channel.rawPosition : 0,
       type: channelTypeLabel(channel.type),
     }))
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
@@ -3433,7 +3433,7 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;');
 }
 
-export function parseDiscordMarkdown(text: string, guild?: unknown): string {
+export function parseDiscordMarkdown(text: string, guild?: Guild | null): string {
   if (!text) return '';
   let escaped = escapeHtml(text);
 
