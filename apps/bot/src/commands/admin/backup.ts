@@ -4,6 +4,8 @@ import { errorContainer, infoContainer, kotboContainer, successContainer } from 
 import { E } from '../../utils/emojis.js';
 import { createBackup } from '../../services/system/backupService.js';
 import { restoreBackup, RestoreOptions } from '../../services/system/restoreService.js';
+import type { BackupData } from '../../services/system/backupService.js';
+import type { Prisma } from '@prisma/client';
 import { extractTrackingInfo, resolveModuleFromCommand } from '../../utils/moduleTracking.js';
 import { separator, v2Message } from '@arcscord/components';
 
@@ -285,7 +287,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction, guildId: 
       ),
     ));
 
-    await restoreBackup(guild, backup.data as unknown, restoreOptions, interaction);
+    await restoreBackup(guild, backup.data as unknown as BackupData, restoreOptions, interaction);
 
     await interaction.followUp(v2Message(
       { flags: MessageFlags.Ephemeral },
@@ -440,8 +442,36 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
     return;
   }
 
+  // Structure du fichier d'export, ecrite plus haut par la commande d'export.
+  // Tous les champs sont optionnels a la lecture : le fichier vient de
+  // l'utilisateur et peut avoir ete tronque ou modifie.
+  type ImportedBackup = {
+    name?: string;
+    description?: string | null;
+    serverName?: string;
+    serverIcon?: string | null;
+    data?: unknown;
+    options?: {
+      includeMessages?: boolean;
+      includeMembers?: boolean;
+      includeRoles?: boolean;
+      includeChannels?: boolean;
+      includeEmojis?: boolean;
+      includeStickers?: boolean;
+    };
+    stats?: {
+      rolesCount?: number;
+      channelsCount?: number;
+      membersCount?: number;
+      messagesCount?: number;
+      emojisCount?: number;
+      stickersCount?: number;
+      sizeBytes?: number;
+    };
+  };
+
   // Parser le JSON
-  let importData: Record<string, unknown>;
+  let importData: { version?: string; backup?: ImportedBackup };
   try {
     const jsonString = buffer.toString('utf-8');
     importData = JSON.parse(jsonString);
@@ -484,7 +514,7 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
         guildId,
         name: backupName,
         description: backupData.description,
-        data: backupData.data,
+        data: (backupData.data ?? {}) as Prisma.InputJsonValue,
         includeMessages: backupData.options?.includeMessages ?? false,
         includeMembers: backupData.options?.includeMembers ?? true,
         includeRoles: backupData.options?.includeRoles ?? true,
