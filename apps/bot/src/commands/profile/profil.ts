@@ -1,20 +1,11 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import {
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  SectionBuilder,
-  ThumbnailBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
-  SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-} from 'discord.js';
+import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { getStaffMember, getStaffMemberStats } from '../../services/staff/staffManagementService.js';
 import { getStaffProfileSnapshot } from '../../services/progression/profileService.js';
-import { COLORS_RAW, text, truncate } from '../../utils/embeds.js';
+import { kotboContainer, truncate } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { logger } from '../../utils/logger.js';
+import { ContainerChild, separator, v2Message } from '@arcscord/components';
 
 const data = new SlashCommandBuilder()
   .setName('profil')
@@ -91,100 +82,102 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const recentNotes = snapshot?.notesAbout?.slice(0, 5) ?? [];
     const recentActivity = snapshot?.activities?.slice(0, 5) ?? [];
 
-    const accentColor = snapshot?.activeBlacklist ? COLORS_RAW.danger : COLORS_RAW.primary;
+    const accentColor = snapshot?.activeBlacklist ? 'danger' : 'primary';
     const displayName = targetStaff.displayName ?? targetStaff.username ?? user.username;
 
-    const container = new ContainerBuilder()
-      .setAccentColor(accentColor)
-      .addSectionComponents(
-        new SectionBuilder()
-          .addTextDisplayComponents(text(`### ${E.profile} Profil Staff · ${displayName}`))
-          .setThumbnailAccessory(new ThumbnailBuilder({ media: { url: snapshot?.publicProfile?.avatarUrl ?? user.displayAvatarURL() } }))
-      )
-      .addTextDisplayComponents(text(`<@${user.id}>`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text([
+    const fields: ContainerChild[] = [
+      `<@${user.id}>`,
+      separator({ divider: true, spacing: 'small' }),
+      [
         `${E.arrow} **Grade** · ${formatGrade(targetStaff.grade)}`,
         `${E.arrow} **Depuis ce grade** · ${formatDuration(currentRoleTime)}`,
         `${E.arrow} **Staff depuis** · ${formatDate(targetStaff.joinedStaffAt)}`,
-      ].join('\n')))
-      .addTextDisplayComponents(text([
+      ].join('\n'),
+      [
         `**${E.stats} Activité**`,
         `${E.dot} Messages: **${detailStats.stats.totalMessages.toLocaleString('fr-FR')}**`,
         `${E.dot} Vocal: **${detailStats.stats.totalVoiceMinutes.toLocaleString('fr-FR')} min**`,
         `${E.dot} Warns actifs: **${detailStats.stats.activeWarnings}**`,
         `${E.dot} Sanctions suivies: **${snapshot?.stats.sanctionsIssued ?? detailStats.stats.activeWarnings}**`,
-      ].join('\n')));
+      ].join('\n'),
+    ];
 
     if (snapshot?.publicProfile) {
-      container.addTextDisplayComponents(text([
-        `**${E.info} Contact**`,
-        `${E.dot} Pseudo: **${snapshot.publicProfile.displayName ?? snapshot.publicProfile.globalName ?? snapshot.publicProfile.username ?? user.username}**`,
-        `${E.dot} Tag: **${snapshot.publicProfile.userTag ?? '—'}**`,
-        `${E.dot} Compte: **${formatDate(snapshot.publicProfile.accountCreatedAt)}**`,
-        `${E.dot} Arrivé serveur: **${formatDate(snapshot.publicProfile.guildJoinedAt)}**`,
-      ].join('\n')));
-
-      container.addTextDisplayComponents(text([
-        `**${E.shield} Signaux staff**`,
-        `${E.dot} Notes écrites: **${snapshot.notesWritten.length}** · Reçues: **${snapshot.notesAbout.length}**`,
-        `${E.dot} Périodes de test: **${snapshot.testingPeriods.length}** · Clés API: **${snapshot.apiKeys.length}**`,
-      ].join('\n')));
+      fields.push(
+        [
+          `**${E.info} Contact**`,
+          `${E.dot} Pseudo: **${snapshot.publicProfile.displayName ?? snapshot.publicProfile.globalName ?? snapshot.publicProfile.username ?? user.username}**`,
+          `${E.dot} Tag: **${snapshot.publicProfile.userTag ?? '—'}**`,
+          `${E.dot} Compte: **${formatDate(snapshot.publicProfile.accountCreatedAt)}**`,
+          `${E.dot} Arrivé serveur: **${formatDate(snapshot.publicProfile.guildJoinedAt)}**`,
+        ].join('\n'),
+        [
+          `**${E.shield} Signaux staff**`,
+          `${E.dot} Notes écrites: **${snapshot.notesWritten.length}** · Reçues: **${snapshot.notesAbout.length}**`,
+          `${E.dot} Périodes de test: **${snapshot.testingPeriods.length}** · Clés API: **${snapshot.apiKeys.length}**`,
+        ].join('\n'),
+      );
     }
 
     if (snapshot?.activeBlacklist) {
-      container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
-      container.addTextDisplayComponents(text([
-        `**${E.ban} Blacklist active**`,
-        `${E.dot} Raison: **${snapshot.activeBlacklist.reason}**`,
-        `${E.dot} Début: **${formatDate(snapshot.activeBlacklist.startDate)}** · Fin: **${formatDate(snapshot.activeBlacklist.endDate)}**`,
-      ].join('\n')));
+      fields.push(
+        separator({ divider: true, spacing: 'small' }),
+        [
+          `**${E.ban} Blacklist active**`,
+          `${E.dot} Raison: **${snapshot.activeBlacklist.reason}**`,
+          `${E.dot} Début: **${formatDate(snapshot.activeBlacklist.startDate)}** · Fin: **${formatDate(snapshot.activeBlacklist.endDate)}**`,
+        ].join('\n'),
+      );
     }
 
     if (activeTesting) {
-      container.addTextDisplayComponents(text([
+      fields.push([
         `**${E.fire} Période de test**`,
         `${E.dot} Statut: ${formatTestingPeriodStatus(activeTesting.status)}`,
         `${E.dot} Mentor: ${activeTesting.mentor ? `<@${activeTesting.mentor.userId}>` : '—'}`,
         `${E.dot} Début: **${formatDate(activeTesting.startDate)}** · Cible: **${activeTesting.targetGrade ?? '—'}**`,
         `${E.dot} Rapports: **${activeTesting.reports?.length ?? 0}**`,
-      ].join('\n')));
+      ].join('\n'));
     }
 
     if (latestGradeChange) {
-      container.addTextDisplayComponents(text([
+      fields.push([
         `**${E.level} Dernier changement de grade**`,
         `${E.dot} ${formatDate(latestGradeChange.dateIso)} — ${latestGradeChange.action}`,
         truncate(latestGradeChange.details, 400),
-      ].join('\n')));
+      ].join('\n'));
     }
 
     if (recentWarnings.length > 0) {
-      container.addTextDisplayComponents(text([
+      fields.push([
         `**${E.warning} Warns récents**`,
         ...recentWarnings.map(w => `${E.dot} ${formatDate(w.createdAt)} — ${truncate(w.reason, 60)}`),
-      ].join('\n')));
+      ].join('\n'));
     }
 
     if (recentNotes.length > 0) {
-      container.addTextDisplayComponents(text([
+      fields.push([
         `**${E.messages} Dernières notes**`,
         ...recentNotes.map(n => `${E.dot} ${formatDate(n.createdAt)} — ${truncate(n.content, 60)}`),
-      ].join('\n')));
+      ].join('\n'));
     }
 
     if (recentActivity.length > 0) {
-      container.addTextDisplayComponents(text([
+      fields.push([
         `**${E.calendar} Activité récente**`,
         ...recentActivity.map(a => `${E.dot} ${formatDate(a.activityDate)} — ${a.messageCount} msg / ${a.voiceMinutes} min`),
-      ].join('\n')));
+      ].join('\n'));
     }
 
-    container
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Profil staff`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: accentColor,
+        title: `${E.profile} Profil Staff · ${displayName}`,
+        titleThumbnail: { url: snapshot?.publicProfile?.avatarUrl ?? user.displayAvatarURL() },
+        fields,
+        footerTitle: 'Profil staff',
+      }),
+    ));
   } catch (error) {
     logger.error('Profil', `Erreur lors de la récupération du profil: ${String(error)}`);
     await interaction.editReply({ content: `${E.error} Une erreur est survenue lors de la récupération du profil.` });

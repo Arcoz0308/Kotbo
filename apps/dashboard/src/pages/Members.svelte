@@ -435,7 +435,7 @@
         <p class="mt-2 text-sm text-on-surface-variant/50 max-w-xs">
           Nous n'avons trouvé aucun membre correspondant à vos critères de recherche.
         </p>
-        <button onclick={resetSearch} class="mt-6 text-xs font-semibold uppercase tracking-widest text-primary hover:underline">
+        <button onclick={resetSearch} class="mt-6 text-[13px] font-medium text-primary hover:underline">
           Réinitialiser tout
         </button>
       </div>

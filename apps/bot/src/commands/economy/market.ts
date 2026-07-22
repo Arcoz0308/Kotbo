@@ -1,12 +1,9 @@
 import {
   SlashCommandBuilder,
-  ContainerBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { COLORS_RAW, text, successContainer, errorContainer } from '../../utils/embeds.js';
+import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import {
   createListing,
@@ -17,6 +14,7 @@ import {
   getMyListings,
 } from '../../services/economy/marketplaceService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
+import { separator, v2Message } from '@arcscord/components';
 
 const data = new SlashCommandBuilder()
   .setName('market')
@@ -68,23 +66,25 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const result = await createListing(guildId, userId, { itemId, quantity, price, type, durationHours: duration });
 
     if (!result.success) {
-      await interaction.editReply({ components: [errorContainer('Vente impossible', result.error)] });
+      await interaction.editReply(v2Message(
+        errorContainer('Vente impossible', result.error),
+      ));
       return;
     }
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.success)
-      .addTextDisplayComponents(text(`### ${E.success} Objet en vente !`))
-      .addTextDisplayComponents(text(
-        `Votre annonce pour **${itemId}** (x${quantity}) a été publiée.\n` +
-        `${E.dot} Mode : ${type === 'FIXED_PRICE' ? 'Prix fixe' : 'Enchère'}\n` +
-        `${E.dot} Prix de départ : **${price}** ${E.coins}\n` +
-        `${E.dot} Durée : ${duration} heures (ID : \`${result.listing.id.slice(-6)}\`)`
-      ))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-    await interaction.editReply({ components: [container] });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'success',
+        title: `${E.success} Objet en vente !`,
+        fields: [
+          `Votre annonce pour **${itemId}** (x${quantity}) a été publiée.\n` +
+            `${E.dot} Mode : ${type === 'FIXED_PRICE' ? 'Prix fixe' : 'Enchère'}\n` +
+            `${E.dot} Prix de départ : **${price}** ${E.coins}\n` +
+            `${E.dot} Durée : ${duration} heures (ID : \`${result.listing.id.slice(-6)}\`)`,
+        ],
+        footerTitle: 'Marché',
+      }),
+    ));
   }
 
   if (subcommand === 'buy') {
@@ -94,20 +94,22 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const result = await buyListing(guildId, userId, listingId);
 
     if (!result.success) {
-      await interaction.editReply({ components: [errorContainer('Achat impossible', result.error)] });
+      await interaction.editReply(v2Message(
+        errorContainer('Achat impossible', result.error),
+      ));
       return;
     }
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.success)
-      .addTextDisplayComponents(text(`### ${E.success} Achat réussi !`))
-      .addTextDisplayComponents(text(
-        `Vous avez acheté **${result.listing.itemId}** (x${result.listing.quantity}) pour **${result.listing.price}** ${E.coins} à <@${result.listing.sellerId}>.`
-      ))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-    await interaction.editReply({ components: [container] });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'success',
+        title: `${E.success} Achat réussi !`,
+        fields: [
+          `Vous avez acheté **${result.listing.itemId}** (x${result.listing.quantity}) pour **${result.listing.price}** ${E.coins} à <@${result.listing.sellerId}>.`,
+        ],
+        footerTitle: 'Marché',
+      }),
+    ));
   }
 
   if (subcommand === 'bid') {
@@ -118,20 +120,22 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const result = await placeBid(guildId, userId, listingId, amount);
 
     if (!result.success) {
-      await interaction.editReply({ components: [errorContainer('Enchère impossible', result.error)] });
+      await interaction.editReply(v2Message(
+        errorContainer('Enchère impossible', result.error),
+      ));
       return;
     }
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.success)
-      .addTextDisplayComponents(text(`### ${E.success} Enchère placée !`))
-      .addTextDisplayComponents(text(
-        `Vous avez enchéri **${amount}** ${E.coins} sur l'annonce de **${result.listing.itemId}**.`
-      ))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-    await interaction.editReply({ components: [container] });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'success',
+        title: `${E.success} Enchère placée !`,
+        fields: [
+          `Vous avez enchéri **${amount}** ${E.coins} sur l'annonce de **${result.listing.itemId}**.`,
+        ],
+        footerTitle: 'Marché',
+      }),
+    ));
   }
 
   if (subcommand === 'cancel') {
@@ -141,20 +145,22 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const result = await cancelListing(guildId, userId, listingId);
 
     if (!result.success) {
-      await interaction.editReply({ components: [errorContainer('Annulation impossible', result.error)] });
+      await interaction.editReply(v2Message(
+        errorContainer('Annulation impossible', result.error),
+      ));
       return;
     }
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.success)
-      .addTextDisplayComponents(text(`### ${E.success} Annonce annulée`))
-      .addTextDisplayComponents(text(
-        `L'annonce pour **${result.listing.itemId}** a bien été annulée et l'objet a été retourné dans votre inventaire.`
-      ))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-    await interaction.editReply({ components: [container] });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'success',
+        title: `${E.success} Annonce annulée`,
+        fields: [
+          `L'annonce pour **${result.listing.itemId}** a bien été annulée et l'objet a été retourné dans votre inventaire.`,
+        ],
+        footerTitle: 'Marché',
+      }),
+    ));
   }
 
   if (subcommand === 'list') {
@@ -162,14 +168,14 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const listings = await getActiveListings(guildId);
 
     if (listings.length === 0) {
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.dark)
-        .addTextDisplayComponents(text(`### ${E.trophy} Hôtel des ventes`))
-        .addTextDisplayComponents(text(`${E.info} Aucune annonce active pour le moment.`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      await interaction.editReply(v2Message(
+        kotboContainer({
+          color: 'dark',
+          title: `${E.trophy} Hôtel des ventes`,
+          fields: [`${E.info} Aucune annonce active pour le moment.`],
+          footerTitle: 'Marché',
+        }),
+      ));
       return;
     }
 
@@ -179,15 +185,17 @@ async function execute(interaction: ChatInputCommandInteraction) {
       return `${typeLabel} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — Vendeur: <@${l.sellerId}> — **${l.price}** ${E.coins} (fin le ${endsAt})`;
     });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addTextDisplayComponents(text(`### ${E.trophy} Hôtel des ventes`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(lines.join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'primary',
+        title: `${E.trophy} Hôtel des ventes`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          lines.join('\n'),
+        ],
+        footerTitle: 'Marché',
+      }),
+    ));
   }
 
   if (subcommand === 'my') {
@@ -195,14 +203,14 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const listings = await getMyListings(guildId, userId);
 
     if (listings.length === 0) {
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.dark)
-        .addTextDisplayComponents(text(`### ${E.profile} Mes annonces`))
-        .addTextDisplayComponents(text(`${E.info} Vous n'avez aucune annonce en cours.`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      await interaction.editReply(v2Message(
+        kotboContainer({
+          color: 'dark',
+          title: `${E.profile} Mes annonces`,
+          fields: [`${E.info} Vous n'avez aucune annonce en cours.`],
+          footerTitle: 'Marché',
+        }),
+      ));
       return;
     }
 
@@ -218,15 +226,17 @@ async function execute(interaction: ChatInputCommandInteraction) {
       return `${icon} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${l.price} ${E.coins}`;
     });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addTextDisplayComponents(text(`### ${E.profile} Mes annonces`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(lines.join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Marché`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'primary',
+        title: `${E.profile} Mes annonces`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          lines.join('\n'),
+        ],
+        footerTitle: 'Marché',
+      }),
+    ));
   }
 }
 

@@ -202,7 +202,7 @@
     <form onsubmit={handleSubmit} class="p-6 space-y-5 relative z-10">
       <!-- Type Selection -->
       <div class="space-y-2">
-        <label for="feedback-type" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Type de retour</label>
+        <label for="feedback-type" class="text-[13px] font-medium text-on-surface-variant/70">Type de retour</label>
         <FormSelect id="feedback-type" bind:value={type} className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-hidden focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all duration-300">
           <option value="retour">📬 Retour d'expérience</option>
           <option value="bloquage">🛑 Bloquage / Bug</option>
@@ -217,7 +217,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Nom du projet -->
           <div class="space-y-1.5">
-            <label for="p-name" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Nom du Projet / Serveur *</label>
+            <label for="p-name" class="text-[13px] font-medium text-on-surface-variant/70">Nom du Projet / Serveur *</label>
             <FormInput
               id="p-name"
               bind:value={projectName}
@@ -229,7 +229,7 @@
 
           <!-- Lien du projet -->
           <div class="space-y-1.5">
-            <label for="p-url" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Lien du projet (URL)</label>
+            <label for="p-url" class="text-[13px] font-medium text-on-surface-variant/70">Lien du projet (URL)</label>
             <FormInput
               id="p-url"
               bind:value={projectUrl}
@@ -241,7 +241,7 @@
 
           <!-- Nombre de membres -->
           <div class="space-y-1.5">
-            <label for="p-members" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Nombre de membres / Audience</label>
+            <label for="p-members" class="text-[13px] font-medium text-on-surface-variant/70">Nombre de membres / Audience</label>
             <FormInput
               id="p-members"
               bind:value={memberCount}
@@ -253,7 +253,7 @@
 
           <!-- Disponibilités -->
           <div class="space-y-1.5">
-            <label for="p-avail" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Disponibilités</label>
+            <label for="p-avail" class="text-[13px] font-medium text-on-surface-variant/70">Disponibilités</label>
             <FormInput
               id="p-avail"
               bind:value={availability}
@@ -266,7 +266,7 @@
 
         <!-- Autre contact -->
         <div class="space-y-1.5">
-          <label for="p-contact" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Autre moyen de contact (ex: Discord, Mail, Telegram...)</label>
+          <label for="p-contact" class="text-[13px] font-medium text-on-surface-variant/70">Autre moyen de contact (ex: Discord, Mail, Telegram...)</label>
           <FormInput
             id="p-contact"
             bind:value={contact}
@@ -279,7 +279,7 @@
         <!-- Description -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label for="p-desc" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Description du projet *</label>
+            <label for="p-desc" class="text-[13px] font-medium text-on-surface-variant/70">Description du projet *</label>
             <span class="text-[10px] font-bold {description.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
               {description.length} / 2000
             </span>
@@ -297,7 +297,7 @@
         <!-- Motivation -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label for="p-motiv" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Motivations *</label>
+            <label for="p-motiv" class="text-[13px] font-medium text-on-surface-variant/70">Motivations *</label>
             <span class="text-[10px] font-bold {motivation.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
               {motivation.length} / 2000
             </span>
@@ -315,7 +315,7 @@
         <!-- Expérience -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label for="p-exp" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Expériences passées (le cas échéant)</label>
+            <label for="p-exp" class="text-[13px] font-medium text-on-surface-variant/70">Expériences passées (le cas échéant)</label>
             <span class="text-[10px] font-bold {experience.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
               {experience.length} / 2000
             </span>
@@ -333,7 +333,7 @@
         <!-- Description Textarea (original) -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <label for="feedback-message" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Message / Description</label>
+            <label for="feedback-message" class="text-[13px] font-medium text-on-surface-variant/70">Message / Description</label>
             <span class="text-[10px] font-bold {message.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
               {message.length} / 2000
             </span>

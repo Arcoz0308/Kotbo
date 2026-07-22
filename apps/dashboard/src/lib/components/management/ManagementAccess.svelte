@@ -1,62 +1,68 @@
 <script module>
+  import { m } from '../../i18n';
+
   // ─── Category mapping ───
   export const categoryMap: Record<string, string> = {
-    dashboard: 'Tableau de bord',
-    analytics: 'Tableau de bord',
-    inbox: 'Tableau de bord',
-    profile: 'Tableau de bord',
-    content: 'Modération',
-    daily_algo: 'Modération',
-    members: 'Modération',
-    sanctions: 'Modération',
-    double_accounts: 'Modération',
-    logs: 'Modération',
-    activity: 'Modération',
-    recruitment: 'Gestion Staff',
-    staff_directory: 'Gestion Staff',
-    staff_management: 'Gestion Staff',
-    staff_roles: 'Gestion Staff',
-    tutoring: 'Gestion Staff',
-    meetings: 'Gestion Staff',
-    absences: 'Gestion Staff',
-    polls: 'Gestion Staff',
-    discipline: 'Gestion Staff',
-    regulation: 'Gestion',
-    modules: 'Configuration',
-    centralized_config: 'Configuration',
-    commands: 'Configuration',
-    settings: 'Configuration',
-    youtube: 'Intégrations',
-    digest: 'Intégrations',
+    dashboard: 'dashboard',
+    analytics: 'dashboard',
+    inbox: 'dashboard',
+    profile: 'dashboard',
+    content: 'moderation',
+    daily_algo: 'moderation',
+    members: 'moderation',
+    sanctions: 'moderation',
+    double_accounts: 'moderation',
+    logs: 'moderation',
+    activity: 'moderation',
+    recruitment: 'staff',
+    staff_directory: 'staff',
+    staff_management: 'staff',
+    staff_roles: 'staff',
+    tutoring: 'staff',
+    meetings: 'staff',
+    absences: 'staff',
+    polls: 'staff',
+    discipline: 'staff',
+    regulation: 'management',
+    modules: 'configuration',
+    centralized_config: 'configuration',
+    commands: 'configuration',
+    settings: 'configuration',
+    youtube: 'integrations',
+    digest: 'integrations',
   };
 
+  export function categoryLabel(id: string): string {
+    return (m as any)[`mgmt_cat_${id}`]?.() ?? m.mgmt_cat_other();
+  }
+
   export const categoryIcons: Record<string, string> = {
-    'Tableau de bord': 'Grid',
-    'Modération': 'AlertTriangle',
-    'Gestion Staff': 'User',
-    'Gestion': 'Paper',
-    'Configuration': 'Gears',
-    'Intégrations': 'Link',
+    dashboard: 'Grid',
+    moderation: 'AlertTriangle',
+    staff: 'User',
+    management: 'Paper',
+    configuration: 'Gears',
+    integrations: 'Link',
   };
 
   export const categoryColors: Record<string, { text: string; bg: string; border: string }> = {
-    'Tableau de bord': { text: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/20' },
-    'Modération': { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-    'Gestion Staff': { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-    'Gestion': { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    'Configuration': { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
-    'Intégrations': { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
+    dashboard: { text: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/20' },
+    moderation: { text: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+    staff: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
+    management: { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+    configuration: { text: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+    integrations: { text: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
   };
 
-  export const categoryOrder = ['Tableau de bord', 'Modération', 'Gestion Staff', 'Gestion', 'Configuration', 'Intégrations'];
+  export const categoryOrder = ['dashboard', 'moderation', 'staff', 'management', 'configuration', 'integrations'];
 </script>
 
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
 
-  let { 
-    features = $bindable([]), 
-    availableRoles = [], 
+  let {
+    features = $bindable([]),
+    availableRoles = [],
     onUpdateAccess = (_key: string, _access: any[]) => {},
     onApplyPreset = (_preset: string) => {}
   } = $props();
@@ -67,7 +73,7 @@
     const catMap = new Map<string, Array<{ feature: any; idx: number }>>();
 
     features.forEach((feature, idx) => {
-      const cat = categoryMap[feature.featureKey] || 'Autre';
+      const cat = categoryMap[feature.featureKey] || 'other';
       if (!catMap.has(cat)) catMap.set(cat, []);
       catMap.get(cat)!.push({ feature, idx });
     });
@@ -102,12 +108,12 @@
     return [];
   });
 
-  const permissions = [
-    { key: 'canView', label: 'Voir', icon: 'Eye' },
-    { key: 'canModerate', label: 'Modérer', icon: 'Gavel' },
-    { key: 'canConfigure', label: 'Configurer', icon: 'Settings' },
-    { key: 'canDelete', label: 'Supprimer', icon: 'Trash' },
-  ];
+  const permissions = $derived([
+    { key: 'canView', label: m.ma_perm_view(), icon: 'Eye' },
+    { key: 'canModerate', label: m.ma_perm_moderate(), icon: 'Gavel' },
+    { key: 'canConfigure', label: m.ma_perm_configure(), icon: 'Settings' },
+    { key: 'canDelete', label: m.ma_perm_delete(), icon: 'Trash' },
+  ]);
 
   function getRoleAccess(feature: any, roleId: string): any {
     if (!feature.roleAccessByRole) return {};
@@ -135,19 +141,19 @@
   <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
     <div class="flex flex-col md:flex-row justify-between gap-6">
       <div>
-        <h3 class="text-2xl font-semibold">Matrice des Accès</h3>
+        <h3 class="text-2xl font-semibold">{m.ma_title()}</h3>
         <p class="text-xs text-on-surface-variant/50 mt-1">
-          Définissez les permissions par rôle Discord pour chaque page et fonctionnalité du dashboard.
+          {m.ma_desc()}
           {#if availableRoles.length > 0}
-            <span class="text-primary font-bold">{availableRoles.length} rôles Discord chargés.</span>
+            <span class="text-primary font-bold">{m.ma_roles_loaded({ count: availableRoles.length })}</span>
           {/if}
         </p>
       </div>
 
       <div class="flex items-center gap-3">
-        <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Réinitialiser via Preset :</span>
+        <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.ma_reset_preset_label()}</span>
         {#each ['general', 'gaming', 'dev'] as p}
-          <button 
+          <button
             onclick={() => onApplyPreset(p)}
             class="px-3 py-1.5 rounded-lg border border-outline-variant/10 hover:bg-surface-container-high transition-colors text-[11px] font-semibold uppercase tracking-widest"
           >
@@ -157,12 +163,12 @@
       </div>
     </div>
 
-    <!-- Légende rôles -->
+    <!-- Role legend -->
     <div class="flex flex-wrap gap-3">
       {#each roleEntries as role}
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl {role.bg}">
           <span class="w-2 h-2 rounded-full {role.dotColor}"></span>
-          <span class="text-[10px] font-semibold uppercase tracking-widest {role.color}">{role.name}</span>
+          <span class="text-xs font-medium {role.color}">{role.name}</span>
         </div>
       {/each}
       <div class="flex items-center gap-3 ml-auto text-[10px] text-on-surface-variant/40">
@@ -186,11 +192,11 @@
             class="w-full flex items-center gap-3 px-5 py-3 rounded-lg {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
           >
             <Papicon icon={catIcon} size={18} class={catColor.text} />
-            <span class="text-[11px] font-semibold uppercase tracking-widest {catColor.text}">{group.category}</span>
-            <span class="text-[10px] text-on-surface-variant/40 ml-1">{group.items.length} module{group.items.length > 1 ? 's' : ''}</span>
+            <span class="text-[11px] font-semibold uppercase tracking-widest {catColor.text}">{categoryLabel(group.category)}</span>
+            <span class="text-[10px] text-on-surface-variant/40 ml-1">{group.items.length} {m.ma_word_module()}{group.items.length > 1 ? 's' : ''}</span>
             <div class="ml-auto flex items-center gap-2">
               <!-- Quick summary: nb of features with full permissions -->
-              <span class="text-[11px] text-on-surface-variant/30">{group.items.filter(i => i.feature.enabled).length} actif{group.items.filter(i => i.feature.enabled).length > 1 ? 's' : ''}</span>
+              <span class="text-[11px] text-on-surface-variant/30">{group.items.filter(i => i.feature.enabled).length} {m.ma_word_active()}{group.items.filter(i => i.feature.enabled).length > 1 ? 's' : ''}</span>
               <div class="transform transition-transform {isCatExpanded ? 'rotate-180' : ''}">
                 <Papicon icon="CaretDown" size={14} class="text-on-surface-variant/40" />
               </div>
@@ -235,9 +241,9 @@
                     <div class="px-5 pb-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                       <div class="overflow-hidden rounded-xl border border-outline-variant/5">
                         <table class="w-full text-left border-collapse">
-                          <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+                          <thead class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
                             <tr>
-                              <th class="px-4 py-3">Rôle</th>
+                              <th class="px-4 py-3">{m.ma_col_role()}</th>
                               {#each permissions as perm}
                                 <th class="px-4 py-3 text-center">
                                   <div class="flex items-center justify-center gap-1"><Papicon icon={perm.icon} size={12} /> {perm.label}</div>
@@ -274,9 +280,9 @@
                       <div class="flex justify-end">
                         <button
                           onclick={() => onUpdateAccess(feature.featureKey, feature.roleAccessByRole || [])}
-                          class="px-5 py-2 bg-on-surface text-surface text-[11px] font-semibold uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
+                          class="px-5 py-2 bg-on-surface text-surface text-[11px] font-semibold uppercase tracking-widest rounded-xl transition-transform"
                         >
-                          Sauvegarder
+                          {m.common_save()}
                         </button>
                       </div>
                     </div>

@@ -5,6 +5,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import { m } from '../lib/i18n';
 
   import type { AccentColor, DateFormat, Language, SidebarBehavior } from '../lib/stores/userPreferences.svelte';
 
@@ -55,7 +56,7 @@
     link.download = 'kotbo-user-preferences.json';
     link.click();
     URL.revokeObjectURL(url);
-    toast.success('Export des préférences lancé.');
+    toast.success(m.us_export_started());
   }
 
   function openImportDialog() {
@@ -81,10 +82,10 @@
         }
       }
 
-      toast.success('Préférences importées avec succès.');
+      toast.success(m.us_import_success());
       showSavedFeedback();
     } catch {
-      toast.error('Le fichier JSON est invalide.');
+      toast.error(m.us_import_invalid());
     } finally {
       input.value = '';
     }
@@ -92,7 +93,7 @@
 
   async function testNotifications() {
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      toast.warning('Les notifications navigateur ne sont pas disponibles ici.');
+      toast.warning(m.us_notif_unavailable());
       return;
     }
 
@@ -101,12 +102,12 @@
       : await Notification.requestPermission();
 
     if (permission !== 'granted') {
-      toast.error('Les notifications navigateur ont été refusées.');
+      toast.error(m.us_notif_denied());
       return;
     }
 
     new Notification('Kotbo', {
-      body: 'Aperçu de vos notifications utilisateur.',
+      body: m.us_notif_preview_body(),
     });
 
     if (userPrefs.prefs.soundNotifications) {
@@ -131,44 +132,44 @@
       }
     }
 
-    toast.success('Aperçu de notification envoyé.');
+    toast.success(m.us_notif_preview_sent());
   }
 
   const activeThemeLabel = $derived(
     THEME_PRESETS.find(p => p.id === userPrefs.prefs.theme)?.label ?? 'Custom'
   );
   const activeSummary = $derived([
-    { label: 'Thème', value: activeThemeLabel },
-    { label: 'Accent', value: userPrefs.prefs.accentColor },
-    { label: 'Langue', value: userPrefs.prefs.language === 'fr' ? 'Français' : 'English' },
-    { label: 'Dates', value: userPrefs.prefs.dateFormat },
-    { label: 'Sidebar', value: userPrefs.prefs.sidebarBehavior },
+    { label: m.us_summary_theme(), value: activeThemeLabel },
+    { label: m.us_summary_accent(), value: userPrefs.prefs.accentColor },
+    { label: m.settings_language(), value: userPrefs.prefs.language === 'fr' ? m.settings_language_fr() : m.settings_language_en() },
+    { label: m.us_summary_dates(), value: userPrefs.prefs.dateFormat },
+    { label: m.us_summary_sidebar(), value: userPrefs.prefs.sidebarBehavior },
   ]);
 
   const accentColors: { id: AccentColorId; label: string; hex: string }[] = [
-    { id: 'violet', label: 'Violet', hex: ACCENT_COLORS.violet.hex },
-    { id: 'blue',   label: 'Bleu',   hex: ACCENT_COLORS.blue.hex },
-    { id: 'green',  label: 'Vert',   hex: ACCENT_COLORS.green.hex },
-    { id: 'rose',   label: 'Rose',   hex: ACCENT_COLORS.rose.hex },
-    { id: 'orange', label: 'Orange', hex: ACCENT_COLORS.orange.hex },
-    { id: 'cyan',   label: 'Cyan',   hex: ACCENT_COLORS.cyan.hex },
+    { id: 'violet', label: m.us_color_violet(), hex: ACCENT_COLORS.violet.hex },
+    { id: 'blue',   label: m.us_color_blue(),   hex: ACCENT_COLORS.blue.hex },
+    { id: 'green',  label: m.us_color_green(),  hex: ACCENT_COLORS.green.hex },
+    { id: 'rose',   label: m.us_color_rose(),   hex: ACCENT_COLORS.rose.hex },
+    { id: 'orange', label: m.us_color_orange(), hex: ACCENT_COLORS.orange.hex },
+    { id: 'cyan',   label: m.us_color_cyan(),   hex: ACCENT_COLORS.cyan.hex },
   ];
 
   const languages: { id: Language; label: string; flag: string }[] = [
-    { id: 'fr', label: 'Français', flag: '🇫🇷' },
-    { id: 'en', label: 'English',  flag: '🇬🇧' },
+    { id: 'fr', label: m.settings_language_fr(), flag: '🇫🇷' },
+    { id: 'en', label: m.settings_language_en(),  flag: '🇬🇧' },
   ];
 
   const dateFormats: { id: DateFormat; label: string; example: string }[] = [
-    { id: 'relative', label: 'Relative', example: 'il y a 3 jours' },
-    { id: 'absolute', label: 'Absolue',  example: '28 mai 2026' },
-    { id: 'both',     label: 'Les deux', example: 'il y a 3 jours (28 mai 2026)' },
+    { id: 'relative', label: m.us_datefmt_relative(), example: m.us_datefmt_relative_ex() },
+    { id: 'absolute', label: m.us_datefmt_absolute(), example: m.us_datefmt_absolute_ex() },
+    { id: 'both',     label: m.us_datefmt_both(), example: m.us_datefmt_both_ex() },
   ];
 
   const sidebarBehaviors: { id: SidebarBehavior; label: string; desc: string }[] = [
-    { id: 'auto',         label: 'Automatique',     desc: 'Se replie sur les petits écrans' },
-    { id: 'always-open',  label: 'Toujours ouvert', desc: 'La sidebar reste toujours étendue' },
-    { id: 'always-closed',label: 'Toujours replié', desc: 'La sidebar reste toujours réduite' },
+    { id: 'auto',         label: m.us_sidebar_auto(), desc: m.us_sidebar_auto_desc() },
+    { id: 'always-open',  label: m.us_sidebar_open(), desc: m.us_sidebar_open_desc() },
+    { id: 'always-closed',label: m.us_sidebar_closed(), desc: m.us_sidebar_closed_desc() },
   ];
 </script>
 
@@ -183,9 +184,9 @@
         </div>
       </div>
       <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Préférences Utilisateur</h1>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">{m.us_title()}</h1>
         <p class="text-sm text-on-surface-variant/70 font-medium">
-          Personnalisez votre expérience sur le dashboard
+          {m.us_subtitle()}
           {#if authStore.user?.username}
             · <span class="text-primary font-bold">{authStore.user.username}</span>
           {/if}
@@ -198,10 +199,10 @@
       <div class="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 {savedFeedback ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : 'bg-surface-container-high/30 border border-outline-variant/20 text-on-surface-variant/50'}">
         {#if savedFeedback}
           <Papicon icon="check" size={16} />
-          Sauvegardé automatiquement
+          {m.us_saved_auto()}
         {:else}
           <Papicon icon="Gears" size={16} />
-          Sauvegarde automatique
+          {m.us_autosave()}
         {/if}
       </div>
     </div>
@@ -210,25 +211,25 @@
   <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-5">
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div>
-        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Aperçu rapide</p>
-        <h2 class="text-lg font-semibold mt-1">Vos réglages actifs</h2>
+        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_quick_overview()}</p>
+        <h2 class="text-lg font-semibold mt-1">{m.us_active_settings()}</h2>
       </div>
       <div class="flex flex-wrap gap-2">
         <button onclick={openImportDialog} class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors">
-          Importer
+          {m.common_import()}
         </button>
         <button onclick={exportPreferences} class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors">
-          Exporter
+          {m.common_export()}
         </button>
         <button onclick={testNotifications} class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors">
-          Tester les notifications
+          {m.us_test_notifications()}
         </button>
         <button
           onclick={() => window.dispatchEvent(new CustomEvent('open-keyboard-shortcuts'))}
           class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors flex items-center gap-2"
         >
           <Papicon icon="Keyboard" size={14} />
-          Raccourcis clavier
+          {m.us_keyboard_shortcuts()}
         </button>
       </div>
     </div>
@@ -259,18 +260,18 @@
         <div class="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
           <Papicon icon="Palette" size={16} class="text-primary" />
         </div>
-        Apparence
+        {m.us_appearance()}
       </h2>
 
       <!-- Theme Presets -->
       <div class="space-y-3">
-        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Thème</p>
+        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_theme()}</p>
         <div class="grid grid-cols-3 gap-2.5">
           {#each THEME_PRESETS as preset}
             <button
               onclick={() => handleToggle('theme', preset.id)}
               class="group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200 text-xs font-bold
-                {userPrefs.prefs.theme === preset.id
+ {userPrefs.prefs.theme === preset.id
                   ? 'border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20'
                   : 'border-outline-variant/20 bg-surface-container-high/20 text-on-surface-variant hover:border-primary/30 hover:bg-primary/5'}"
             >
@@ -286,7 +287,7 @@
           <button
             onclick={() => { handleToggle('theme', 'custom'); showCustomEditor = true; }}
             class="group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200 text-xs font-bold
-              {userPrefs.prefs.theme === 'custom'
+ {userPrefs.prefs.theme === 'custom'
                 ? 'border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20'
                 : 'border-outline-variant/20 bg-surface-container-high/20 text-on-surface-variant hover:border-primary/30 hover:bg-primary/5'}"
           >
@@ -302,7 +303,7 @@
       {#if userPrefs.prefs.theme === 'custom' || showCustomEditor}
         <div class="space-y-4 p-4 rounded-lg border border-primary/20 bg-primary/5 animate-in fade-in duration-200">
           <div class="flex items-center justify-between">
-            <p class="text-xs font-bold text-primary">Thème personnalisé</p>
+            <p class="text-xs font-bold text-primary">{m.us_custom_theme()}</p>
             <button
               onclick={() => showCustomEditor = false}
               class="text-on-surface-variant/40 hover:text-on-surface transition-colors"
@@ -312,25 +313,25 @@
           </div>
 
           <div class="flex items-center gap-3 p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
-            <span class="text-xs font-bold w-16 shrink-0">Mode</span>
+            <span class="text-xs font-bold w-16 shrink-0">{m.us_mode()}</span>
             <div class="flex gap-2 flex-1">
               <button
                 onclick={() => { customColors.mode = 'dark'; applyCustomTheme(); }}
                 class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all {customColors.mode === 'dark' ? 'bg-primary text-on-primary' : 'bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high'}"
-              >Sombre</button>
+              >{m.us_dark()}</button>
               <button
                 onclick={() => { customColors.mode = 'light'; applyCustomTheme(); }}
                 class="flex-1 py-1.5 rounded-md text-xs font-bold transition-all {customColors.mode === 'light' ? 'bg-primary text-on-primary' : 'bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high'}"
-              >Clair</button>
+              >{m.us_light()}</button>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             {#each [
-              { key: 'background', label: 'Fond' },
-              { key: 'surface', label: 'Surface' },
-              { key: 'text', label: 'Texte' },
-              { key: 'surfaceContainer', label: 'Panneau' },
+              { key: 'background', label: m.us_color_background() },
+              { key: 'surface', label: m.us_color_surface() },
+              { key: 'text', label: m.us_color_text() },
+              { key: 'surfaceContainer', label: m.us_color_panel() },
             ] as field}
               <label class="flex items-center gap-2.5 p-2.5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 cursor-pointer">
                 <input
@@ -343,7 +344,7 @@
               </label>
             {/each}
           </div>
-          <p class="text-[10px] text-on-surface-variant/40">La couleur d'accentuation est contrôlée séparément ci-dessous.</p>
+          <p class="text-[10px] text-on-surface-variant/40">{m.us_accent_note()}</p>
 
           <!-- Preview -->
           <div class="rounded-lg overflow-hidden border border-outline-variant/20">
@@ -363,16 +364,16 @@
 
           <button
             onclick={applyCustomTheme}
-            class="w-full py-2.5 rounded-lg bg-primary text-on-primary text-xs font-bold uppercase tracking-widest hover:brightness-110 transition-all"
+            class="w-full py-2.5 rounded-lg bg-primary text-on-primary text-[13px] font-medium hover:brightness-110 transition-all"
           >
-            Appliquer
+            {m.us_apply()}
           </button>
         </div>
       {/if}
 
       <!-- Accent Color -->
       <div class="space-y-3">
-        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Couleur d'accentuation</p>
+        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_accent_color()}</p>
         <div class="flex flex-wrap gap-3">
           {#each accentColors as color}
             <button
@@ -394,8 +395,8 @@
       <!-- Compact Mode -->
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors">
         <div>
-          <p class="text-sm font-bold">Mode compact</p>
-          <p class="text-[10px] text-on-surface-variant/50">Réduit les marges et espacements</p>
+          <p class="text-sm font-bold">{m.us_compact_mode()}</p>
+          <p class="text-[10px] text-on-surface-variant/50">{m.us_compact_mode_desc()}</p>
         </div>
         <ToggleSwitch
           checked={userPrefs.prefs.compactMode}
@@ -406,8 +407,8 @@
       <!-- Animations -->
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors">
         <div>
-          <p class="text-sm font-bold">Animations de l'interface</p>
-          <p class="text-[10px] text-on-surface-variant/50">Transitions et micro-animations</p>
+          <p class="text-sm font-bold">{m.us_animations()}</p>
+          <p class="text-[10px] text-on-surface-variant/50">{m.us_animations_desc()}</p>
         </div>
         <ToggleSwitch
           checked={userPrefs.prefs.animationsEnabled}
@@ -423,26 +424,23 @@
           <div class="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center">
             <Papicon icon="Globe" size={16} class="text-secondary" />
           </div>
-          Langue &amp; Région
+          {m.us_language_region()}
         </h2>
 
         <!-- Language -->
         <div class="space-y-3">
-          <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Langue de l'interface</p>
+          <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_interface_language()}</p>
           <div class="grid grid-cols-2 gap-3">
             {#each languages as lang}
               <button
                 onclick={() => handleToggle('language', lang.id)}
                 class="flex items-center gap-3 p-4 rounded-lg border-2 transition-all duration-200 font-bold text-sm
-                  {userPrefs.prefs.language === lang.id
+ {userPrefs.prefs.language === lang.id
                     ? 'border-secondary bg-secondary/10 text-secondary'
                     : 'border-outline-variant/20 bg-surface-container-high/20 text-on-surface-variant hover:border-secondary/40'}"
               >
                 <span class="text-xl">{lang.flag}</span>
                 {lang.label}
-                {#if lang.id === 'en'}
-                  <span class="ml-auto text-[11px] text-on-surface-variant/40 italic font-medium">bientôt</span>
-                {/if}
               </button>
             {/each}
           </div>
@@ -450,18 +448,18 @@
 
         <!-- Date format -->
         <div class="space-y-3">
-          <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Format des dates</p>
+          <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_date_format()}</p>
           <div class="space-y-2">
             {#each dateFormats as fmt}
               <button
                 onclick={() => handleToggle('dateFormat', fmt.id)}
                 class="w-full flex items-center gap-4 p-3.5 rounded-xl border transition-all duration-200 text-left
-                  {userPrefs.prefs.dateFormat === fmt.id
+ {userPrefs.prefs.dateFormat === fmt.id
                     ? 'border-secondary/40 bg-secondary/8 text-on-surface'
                     : 'border-outline-variant/10 bg-surface-container-high/10 text-on-surface-variant hover:border-secondary/20'}"
               >
                 <div class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center
-                  {userPrefs.prefs.dateFormat === fmt.id ? 'border-secondary' : 'border-outline-variant/40'}">
+ {userPrefs.prefs.dateFormat === fmt.id ? 'border-secondary' : 'border-outline-variant/40'}">
                   {#if userPrefs.prefs.dateFormat === fmt.id}
                     <div class="w-2 h-2 rounded-full bg-secondary"></div>
                   {/if}
@@ -483,23 +481,23 @@
         <div class="w-8 h-8 rounded-xl bg-tertiary/10 flex items-center justify-center">
           <Papicon icon="Menu" size={16} class="text-tertiary" />
         </div>
-        Navigation
+        {m.us_navigation()}
       </h2>
 
       <!-- Sidebar behavior -->
       <div class="space-y-3">
-        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Comportement de la sidebar</p>
+        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.us_sidebar_behavior()}</p>
         <div class="space-y-2">
           {#each sidebarBehaviors as behavior}
             <button
               onclick={() => handleToggle('sidebarBehavior', behavior.id)}
               class="w-full flex items-center gap-4 p-3.5 rounded-xl border transition-all duration-200 text-left
-                {userPrefs.prefs.sidebarBehavior === behavior.id
+ {userPrefs.prefs.sidebarBehavior === behavior.id
                   ? 'border-tertiary/40 bg-tertiary/8 text-on-surface'
                   : 'border-outline-variant/10 bg-surface-container-high/10 text-on-surface-variant hover:border-tertiary/20'}"
             >
               <div class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center
-                {userPrefs.prefs.sidebarBehavior === behavior.id ? 'border-tertiary' : 'border-outline-variant/40'}">
+ {userPrefs.prefs.sidebarBehavior === behavior.id ? 'border-tertiary' : 'border-outline-variant/40'}">
                 {#if userPrefs.prefs.sidebarBehavior === behavior.id}
                   <div class="w-2 h-2 rounded-full bg-tertiary"></div>
                 {/if}
@@ -520,14 +518,14 @@
         <div class="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center">
           <Papicon icon="Bell" size={16} class="text-rose-500" />
         </div>
-        Notifications &amp; Confidentialité
+        {m.us_notif_privacy()}
       </h2>
 
       <div class="space-y-3">
         {#each [
-          { key: 'soundNotifications', label: 'Sons de notification', desc: 'Jouer un son lors des notifications', color: 'rose' },
-          { key: 'desktopNotifications', label: 'Notifications Bureau', desc: 'Notifications système du navigateur', color: 'rose' },
-          { key: 'showOnlineStatus', label: 'Afficher mon statut en ligne', desc: 'Visible par les autres membres du staff', color: 'rose' },
+          { key: 'soundNotifications', label: m.us_sound_notif(), desc: m.us_sound_notif_desc(), color: 'rose' },
+          { key: 'desktopNotifications', label: m.us_desktop_notif(), desc: m.us_desktop_notif_desc(), color: 'rose' },
+          { key: 'showOnlineStatus', label: m.us_online_status(), desc: m.us_online_status_desc(), color: 'rose' },
         ] as item}
           <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors">
             <div>
@@ -544,16 +542,16 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
         <a href="https://kotbo.fr/terms" target="_blank" rel="noopener noreferrer" class="p-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 hover:bg-surface-container-high/40 transition-colors">
-          <p class="text-sm font-bold">Politique de confidentialité</p>
-          <p class="text-[10px] text-on-surface-variant/50 mt-1">Traitements, destinataires et droits RGPD</p>
+          <p class="text-sm font-bold">{m.us_privacy_policy()}</p>
+          <p class="text-[10px] text-on-surface-variant/50 mt-1">{m.us_privacy_policy_desc()}</p>
         </a>
         <a href="https://kotbo.fr/cookies" target="_blank" rel="noopener noreferrer" class="p-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 hover:bg-surface-container-high/40 transition-colors">
-          <p class="text-sm font-bold">Cookies et stockage local</p>
-          <p class="text-[10px] text-on-surface-variant/50 mt-1">Détail des stockages fonctionnels</p>
+          <p class="text-sm font-bold">{m.us_cookies()}</p>
+          <p class="text-[10px] text-on-surface-variant/50 mt-1">{m.us_cookies_desc()}</p>
         </a>
         <a href="mailto:privacy@kotbo.fr?subject=Demande%20RGPD%20Kotbo" class="sm:col-span-2 p-4 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors">
-          <p class="text-sm font-bold text-primary">Exercer mes droits</p>
-          <p class="text-[10px] text-on-surface-variant/60 mt-1">Accès, rectification, opposition, limitation ou effacement — réponse sous un mois</p>
+          <p class="text-sm font-bold text-primary">{m.us_gdpr_rights()}</p>
+          <p class="text-[10px] text-on-surface-variant/60 mt-1">{m.us_gdpr_rights_desc()}</p>
         </a>
       </div>
     </section>
@@ -563,16 +561,16 @@
   <section class="bg-rose-500/5 border border-rose-500/20 p-8 rounded-xl space-y-4">
     <h2 class="text-xl font-semibold text-rose-500 flex items-center gap-3">
       <Papicon icon="AlertTriangle" size={20} />
-      Zone de réinitialisation
+      {m.us_reset_zone()}
     </h2>
     <p class="text-sm text-on-surface-variant/70">
-      Réinitialise toutes vos préférences utilisateur aux valeurs par défaut. Cette action ne supprime pas vos données.
+      {m.us_reset_desc()}
     </p>
     <button
-      onclick={() => { userPrefs.reset(); themeStore.dark = userPrefs.prefs.theme === 'dark'; showSavedFeedback(); toast.success('Préférences réinitialisées.'); }}
+      onclick={() => { userPrefs.reset(); themeStore.dark = userPrefs.prefs.theme === 'dark'; showSavedFeedback(); toast.success(m.us_reset_done()); }}
       class="px-6 py-2.5 rounded-xl border-2 border-rose-500/40 text-rose-500 font-bold text-sm hover:bg-rose-500/10 transition-all duration-200 hover:border-rose-500/60"
     >
-      Réinitialiser les préférences
+      {m.us_reset_button()}
     </button>
   </section>
 </div>

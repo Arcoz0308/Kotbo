@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { fetchSeasonsData, createSeason, startSeason, endSeason } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import EmptyState from '../lib/components/EmptyState.svelte';
 
   let loading = $state(true);
   let data: any = $state(null);
@@ -80,23 +82,21 @@
   onMount(load);
 </script>
 
-<!-- ======================== HEADER ======================== -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-  <div>
-    <h1 class="text-lg font-semibold flex items-center gap-2.5">
-      <Papicon icon="flag" size={24} />
-      Saisons de Leveling
-    </h1>
-    <p class="text-xs text-on-surface-variant/60 mt-1">Classements competitifs avec recompenses de fin de saison</p>
-  </div>
-  <button
-    class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-    onclick={() => showCreate = !showCreate}
-  >
-    <Papicon icon="plus" size={16} />
-    Nouvelle saison
-  </button>
-</div>
+<ModulePage
+  title="Saisons de Leveling"
+  description="Classements compétitifs avec récompenses de fin de saison."
+  icon="flag"
+  featureKey="leveling"
+>
+  {#snippet actions()}
+    <button
+      class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
+      onclick={() => showCreate = !showCreate}
+    >
+      <Papicon icon="plus" size={16} />
+      Nouvelle saison
+    </button>
+  {/snippet}
 
 <!-- ======================== CREATE FORM ======================== -->
 {#if showCreate}
@@ -104,7 +104,7 @@
     <h3 class="text-base font-semibold flex items-center gap-2.5">Creer une saison</h3>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div class="space-y-1">
-        <label for="season-name" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Nom</label>
+        <label for="season-name" class="field-label">Nom</label>
         <input
           id="season-name"
           type="text"
@@ -114,7 +114,7 @@
         />
       </div>
       <div class="space-y-1">
-        <label for="season-start-date" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date de debut</label>
+        <label for="season-start-date" class="field-label">Date de debut</label>
         <input
           id="season-start-date"
           type="date"
@@ -123,7 +123,7 @@
         />
       </div>
       <div class="space-y-1">
-        <label for="season-end-date" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date de fin</label>
+        <label for="season-end-date" class="field-label">Date de fin</label>
         <input
           id="season-end-date"
           type="date"
@@ -138,7 +138,7 @@
         onclick={() => showCreate = false}
       >Annuler</button>
       <button
-        class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={handleCreate}
       >Creer</button>
     </div>
@@ -161,7 +161,7 @@
         <div>
           <div class="flex items-center gap-3 mb-1">
             <h2 class="text-xl font-bold text-on-surface">{data.activeSeason.name}</h2>
-            <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider rounded-full">En cours</span>
+            <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-xs font-medium rounded-full">En cours</span>
           </div>
           <p class="flex items-center gap-1.5 text-xs text-on-surface-variant/60">
             <Papicon icon="calendar" size={14} />
@@ -224,7 +224,7 @@
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 hover:border-primary/30 transition-colors">
             <div class="flex items-center gap-3 mb-2">
               <h4 class="text-sm font-semibold text-on-surface">#{season.number} &mdash; {season.name}</h4>
-              <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full {badge.cls}">{badge.label}</span>
+              <span class="px-2.5 py-0.5 text-xs font-medium rounded-full {badge.cls}">{badge.label}</span>
             </div>
             <div class="flex flex-wrap gap-4 text-xs text-on-surface-variant/60">
               <span class="flex items-center gap-1">
@@ -239,7 +239,7 @@
             {#if season.status === 'UPCOMING'}
               <div class="mt-3">
                 <button
-                  class="px-4 py-2 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5"
+                  class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5"
                   onclick={() => handleStart(season.id)}
                 >
                   <Papicon icon="zap" size={13} />
@@ -253,9 +253,7 @@
     </div>
   {:else}
     <!-- Empty state -->
-    <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
-      <Papicon icon="flag" size={48} />
-      <p class="text-sm">Aucune saison creee. Cliquez sur "Nouvelle saison" pour commencer.</p>
-    </div>
+    <EmptyState icon="flag" title="Aucune saison créée" description="Cliquez sur « Nouvelle saison » pour commencer." />
   {/if}
 {/if}
+</ModulePage>

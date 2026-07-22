@@ -56,7 +56,7 @@
           <Papicon icon="TrendingUp" size={20} />
         </div>
         <div>
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Croissance & Rétention</span>
+          <span class="text-xs font-medium text-primary">Croissance & Rétention</span>
           <h1 class="text-lg font-semibold text-on-surface tracking-tight">Analyse de Communauté</h1>
           <p class="text-sm text-on-surface-variant/70">Suivi de la croissance, rétention et engagement</p>
         </div>
@@ -70,9 +70,7 @@
     {#each ['growth', 'heatmap', 'weekly'] as tab}
       <button
         onclick={() => activeTab = tab}
-        class="px-4 py-2 rounded-xl font-bold text-xs transition-all {activeTab === tab 
-          ? 'bg-primary text-primary-on' 
-          : 'bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high'}"
+        class="tab-button {activeTab === tab ? 'active' : ''}"
       >
         {#if tab === 'growth'}
           <Papicon icon="TrendingUp" size={14} class="inline mr-2" />
@@ -97,7 +95,7 @@
           loadData();
         }}
         class="px-4 py-2 rounded-lg text-sm font-bold transition-all {period === p
-          ? 'bg-secondary text-secondary-on'
+ ? 'bg-secondary text-secondary-on'
           : 'bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high'}"
       >
         {p} jours
@@ -115,7 +113,7 @@
         <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
       </div>
-      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Chargement des données...</p>
+      <p class="text-[13px] font-medium text-on-surface-variant/60">Chargement des données...</p>
       <LoadingHint context="analytics" />
     </div>
   {:else if growthData && heatmapData && weeklyData}

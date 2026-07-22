@@ -1,18 +1,14 @@
 import {
   SlashCommandBuilder,
-  ContainerBuilder,
-  SectionBuilder,
-  ThumbnailBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { COLORS_RAW, text, errorContainer } from '../../utils/embeds.js';
+import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E, rankEmoji } from '../../utils/emojis.js';
-import { giveRep, getReputation, getReputationLeaderboard } from '../../services/community/reputationService.js';
+import { giveRep, getReputation, getReputationLeaderboard, REP_DAILY_VOTE_LIMIT } from '../../services/community/reputationService.js';
 import { incrementQuestProgress } from '../../services/community/questService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
+import { separator, v2Message } from '@arcscord/components'
 
 const data = new SlashCommandBuilder()
   .setName('rep')
@@ -48,42 +44,40 @@ async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    incrementQuestProgress(guildId, interaction.user.id, 'GIVE_REP').catch(() => {});
+    incrementQuestProgress(guildId, interaction.user.id, 'GIVE_REP').catch(() => { });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.success)
-      .addTextDisplayComponents(text(`### ${E.star} +Rep !`))
-      .addTextDisplayComponents(text(
-        `@${interaction.user.username} a donné un **+rep** à @${target.username}` +
-        (reason ? `\n${E.dot} *${reason}*` : '')
-      ))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · @${target.username} a maintenant ${result.newTotal} rep`));
-
-    await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.reply(v2Message(
+      kotboContainer({
+        color: 'success',
+        title: `${E.star} +Rep !`,
+        fields: [
+          `<@${interaction.user.id}> a donné un **+rep** à <@${target.id}>` + (reason ? `\n${E.dot} *${reason}*` : ''),
+        ],
+        footerTitle: `<@${target.id}> a maintenant ${result.newTotal} rep`
+      })
+    ));
   }
 
   if (subcommand === 'check') {
     const target = interaction.options.getUser('membre') ?? interaction.user;
     const profile = await getReputation(guildId, target.id);
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addSectionComponents(
-        new SectionBuilder()
-          .addTextDisplayComponents(text(`### ${E.star} Réputation · @${target.username}`))
-          .setThumbnailAccessory(new ThumbnailBuilder({ media: { url: target.displayAvatarURL() } }))
-      )
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text([
-        `${E.arrow} **Total** · **${profile.totalRep}** rep`,
-        `${E.arrow} **Rang** · #${profile.rank}`,
-        `${E.arrow} **Votes restants** · ${3 - profile.votesGivenToday}/3`,
-      ].join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Réputation`));
-
-    await interaction.reply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.reply(v2Message(
+      kotboContainer({
+        color: 'primary',
+        title: `${E.star} Réputation · <@${target.id}>`,
+        titleThumbnail: { url: target.displayAvatarURL() },
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          [
+            `${E.arrow} **Total** · **${profile.totalRep}** rep`,
+            `${E.arrow} **Rang** · #${profile.rank}`,
+            `${E.arrow} **Votes restants** · ${REP_DAILY_VOTE_LIMIT - profile.votesGivenToday}/${REP_DAILY_VOTE_LIMIT}`,
+          ].join('\n'),
+        ],
+        footerTitle: 'Réputation'
+      })
+    ));
   }
 
   if (subcommand === 'top') {
@@ -91,31 +85,35 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const lb = await getReputationLeaderboard(guildId, 10);
 
     if (lb.entries.length === 0) {
-      const container = new ContainerBuilder()
-        .setAccentColor(COLORS_RAW.dark)
-        .addTextDisplayComponents(text(`### ${E.trophy} Classement Réputation`))
-        .addTextDisplayComponents(text(`${E.info} Aucune réputation enregistrée pour le moment.`))
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · Réputation`));
-
-      await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+      await interaction.editReply(v2Message(
+        kotboContainer({
+          color: 'dark',
+          title: `${E.trophy} Classement Réputation`,
+          fields: [
+            `${E.info} Aucune réputation enregistrée pour le moment.`,
+          ],
+          footerTitle: 'Réputation'
+        })
+      ));
       return;
     }
 
     const lines = lb.entries.map((e) => {
       const medal = rankEmoji(e.rank);
-      return `${medal} @${e.userId} — **${e.totalRep}** rep`;
+      return `${medal} <@${e.userId}> — **${e.totalRep}** rep`;
     });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addTextDisplayComponents(text(`### ${E.trophy} Classement Réputation`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(lines.join('\n')))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.kotbo} Kotbo · ${lb.totalVoters} votants au total`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'primary',
+        title: `${E.trophy} Classement Réputation`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          lines.join('\n'),
+        ],
+        footerTitle: `${lb.totalVoters} votants au total`
+      })
+    ));
   }
 }
 

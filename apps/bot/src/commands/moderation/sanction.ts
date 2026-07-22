@@ -22,6 +22,7 @@ import prisma from '../../utils/db.js';
 import { errorEmbed, infoEmbed, successEmbed } from '../../utils/embeds.js';
 import {
   countWarns,
+  getWarnScore,
   formatDurationFr,
   getSanctionTypeBreakdown,
   listSanctionsByMember,
@@ -53,7 +54,18 @@ const data = new SlashCommandBuilder()
       .setName('warn')
       .setDescription('Ajoute un avertissement à un membre')
       .addUserOption((option) => option.setName('membre').setDescription('Membre à avertir').setRequired(true))
-      .addStringOption((option) => option.setName('raison').setDescription('Raison du warn').setRequired(true)),
+      .addStringOption((option) => option.setName('raison').setDescription('Raison du warn').setRequired(true))
+      .addIntegerOption((option) =>
+        option
+          .setName('gravite')
+          .setDescription('Gravité du warn (compte dans le score si la pondération est activée)')
+          .setRequired(false)
+          .addChoices(
+            { name: 'Léger (1 point)', value: 1 },
+            { name: 'Normal (2 points)', value: 2 },
+            { name: 'Grave (3 points)', value: 3 },
+          ),
+      ),
   )
   .addSubcommand((sub) =>
     sub
@@ -438,16 +450,27 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
 
     if (subcommand === 'warn') {
       const reason = interaction.options.getString('raison', true).trim();
+      const weight = interaction.options.getInteger('gravite') ?? 1;
 
-      const sanction = await registerWarnSanction({ guildId: interaction.guildId, target, moderator, reason, client: interaction.client });
+      const sanction = await registerWarnSanction({ guildId: interaction.guildId, target, moderator, reason, weight, client: interaction.client });
       const linkedUserIds = await altAccountService.getAllLinkedUserIds(interaction.guildId, targetUser.id);
       const warnCount = await countWarns(interaction.guildId, targetUser.id, linkedUserIds);
+      const warnScore = await getWarnScore(interaction.guildId, targetUser.id, linkedUserIds);
+
+      const gravityLabel = weight === 3 ? 'Grave' : weight === 2 ? 'Normal' : 'Léger';
+      const scoreFields = warnScore !== warnCount
+        ? [
+            { name: 'Nombre total de warns', value: `${warnCount}`, inline: true },
+            { name: 'Score pondéré', value: `${warnScore} pts`, inline: true },
+            { name: 'Gravité', value: gravityLabel, inline: true },
+          ]
+        : [{ name: 'Nombre total de warns', value: `${warnCount}`, inline: true }];
 
       await interaction.reply({
         embeds: [
           successEmbed('Warn enregistré', `${targetUser} a reçu un avertissement.`).addFields(
             { name: 'Raison', value: reason },
-            { name: 'Nombre total de warns', value: `${warnCount}`, inline: true },
+            ...scoreFields,
           ),
         ],
         components: [buildMemberCaseActionRow(targetUser.id)],

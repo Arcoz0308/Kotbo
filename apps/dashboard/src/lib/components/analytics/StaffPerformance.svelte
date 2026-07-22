@@ -1,13 +1,14 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { m } from '../../i18n';
 
   let { data = [], onOpenMember = (_id: string, _name: string) => {} } = $props();
 
   const metrics = [
-    { key: 'sanctionsCount', label: 'Sanctions', icon: 'Gavel', color: 'text-amber-500' },
-    { key: 'reportsCount', label: 'Signalements', icon: 'Megaphone', color: 'text-rose-500' },
-    { key: 'warns', label: 'Avertissements', icon: 'Warning', color: 'text-orange-400' },
-    { key: 'bans', label: 'Bans', icon: 'Banning', color: 'text-red-500' },
+    { key: 'sanctionsCount', label: m.sp_metric_sanctions(), icon: 'Gavel', color: 'text-amber-500' },
+    { key: 'reportsCount', label: m.sp_metric_reports(), icon: 'Megaphone', color: 'text-rose-500' },
+    { key: 'warns', label: m.sp_metric_warns(), icon: 'Warning', color: 'text-orange-400' },
+    { key: 'bans', label: m.sp_metric_bans(), icon: 'Banning', color: 'text-red-500' },
   ];
 </script>
 
@@ -17,33 +18,33 @@
       <div>
         <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="TrendUp" size={20} class="text-primary" />
-          Performance Individuelle du Staff
+          {m.sp_title()}
         </h3>
-        <p class="text-[10px] text-on-surface-variant/50 mt-1 uppercase tracking-widest font-bold">Actions de modération sur la période</p>
+        <p class="text-[10px] text-on-surface-variant/50 mt-1 uppercase tracking-widest font-bold">{m.sp_subtitle()}</p>
       </div>
     </div>
 
     <div class="overflow-x-auto no-scrollbar rounded-lg border border-outline-variant/5">
       <table class="w-full text-left border-collapse">
-        <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
+        <thead class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
           <tr>
-            <th class="px-6 py-4">Membre Staff</th>
-            {#each metrics as m}
+            <th class="px-6 py-4">{m.sp_col_staff_member()}</th>
+            {#each metrics as metric}
               <th class="px-6 py-4 text-center">
                 <div class="flex items-center justify-center gap-1.5">
-                  <Papicon icon={m.icon} size={12} class={m.color} />
-                  {m.label}
+                  <Papicon icon={metric.icon} size={12} class={metric.color} />
+                  {metric.label}
                 </div>
               </th>
             {/each}
-            <th class="px-6 py-4 text-center">Score / Taux</th>
+            <th class="px-6 py-4 text-center">{m.sp_col_score()}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-outline-variant/5">
           {#each data as staff}
             <tr class="hover:bg-surface-container-high/10 transition-colors group">
               <td class="px-6 py-4">
-                <button 
+                <button
                   onclick={() => onOpenMember(staff.userId, staff.displayName || staff.username)}
                   class="flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
@@ -59,9 +60,9 @@
                   </div>
                 </button>
               </td>
-              {#each metrics as m}
+              {#each metrics as metric}
                 <td class="px-6 py-4 text-center font-bold text-sm">
-                  {staff[m.key] || 0}
+                  {staff[metric.key] || 0}
                 </td>
               {/each}
               <td class="px-6 py-4 text-center">
@@ -70,7 +71,7 @@
                   <div class="w-16 h-1 bg-surface-container-high rounded-full overflow-hidden">
                     <div class="h-full bg-primary rounded-full" style="width: {staff.reportRate}%"></div>
                   </div>
-                  <span class="text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-tighter">Précision Signalements</span>
+                  <span class="text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-tighter">{m.sp_accuracy_label()}</span>
                 </div>
               </td>
             </tr>
@@ -79,7 +80,7 @@
               <td colspan="6" class="px-6 py-12 text-center text-on-surface-variant/30">
                 <div class="flex flex-col items-center gap-3">
                   <Papicon icon="UserFocus" size={48} />
-                  <p class="text-sm font-bold">Aucune action de modération relevée</p>
+                  <p class="text-sm font-bold">{m.sp_empty()}</p>
                 </div>
               </td>
             </tr>

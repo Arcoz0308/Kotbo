@@ -7,6 +7,10 @@ enum DigestFrequency {
 model Guild {
   id String @id
   propagateSanctions Boolean @default(false)
+  // Vue "casier cross-serveur" : partage/consultation de l'historique des sanctions
+  // entre serveurs d'une même instance white-label. Réciproque : un serveur désactivé
+  // ne partage plus ses sanctions ET ne voit plus celles des autres.
+  crossServerSanctionsEnabled Boolean @default(true)
 
   // White-label instance (null = instance principale/default)
   instanceId String?
@@ -301,6 +305,9 @@ model Guild {
   verificationChannelId     String?
   verificationRoleId        String?
   verificationLogChannelId  String?
+  // Salon parent des threads privés créés quand le MP de vérification échoue.
+  // Repli sur verificationChannelId, puis sur un ticket si aucun des deux n'est configuré.
+  verificationFallbackChannelId String?
   verificationEmbedTitle    String   @default("Vérification de sécurité")
   verificationEmbedDesc     String   @default("Cliquez sur le bouton ci-dessous pour vérifier votre identité et sécuriser votre compte.")
   verificationEmbedColor    String   @default("#5865F2")
@@ -312,8 +319,23 @@ model Guild {
   verificationWarnThreshold Int?               // null = désactivé. Nombre de warns déclenchant la vérif auto
   verificationWarnAutoMode  String             @default("FULL_AUTO") // FULL_AUTO | NOTIFY_STAFF
   verificationWarnReason    String             @default("Seuil d'avertissements atteint — vérification de sécurité requise.")
+
+  // Warns pondérés : chaque warn porte un poids (1/2/3) et perd sa valeur avec le temps.
+  // Quand actif, les seuils (vérif auto, escalade) utilisent le score pondéré au lieu du compte brut.
+  warnWeightingEnabled Boolean @default(false)
+  warnDecayDays        Int?    // null = pas de décroissance. Un warn ne compte plus après N jours.
+
+  // Statistiques de mots fréquents (agrégats anonymes par jour, sans contenu brut)
+  wordStatsEnabled Boolean @default(false)
+  // Suivi de l'indexation initiale depuis les messages déjà journalisés
+  wordStatsBackfillStatus Json?
+
+  // Hygiène des bans : détection des comptes bannis supprimés par Discord
+  banHygieneEnabled Boolean @default(true)
   securityVerifications SecurityVerification[]
   autoLeaderboards AutoLeaderboard[]
+  wordStats GuildWordStat[]
+  banHygieneRecords BanHygieneRecord[]
 
   // Détection de double compte — intelligence avancée
   dcVoiceSessions    DcVoiceSession[]
@@ -352,6 +374,13 @@ model Guild {
   // Widget (Social Layer SDK)
   widgetSubscriptions WidgetSubscription[]
   reminders           StaffReminder[]
+
+  // Protection anti-raid (captcha, raid mode, locks, reports, scam filter)
+  raidProtectionConfig RaidProtectionConfig?
+  captchaSessions      CaptchaSession[]
+  memberReports        MemberReport[]
+  scamImageHashes      ScamImageHash[]
+  inviteApprovalRequests InviteApprovalRequest[]
 
   @@map("guilds")
 }
@@ -400,6 +429,8 @@ model MemberProfile {
   guildLeftAt DateTime?
   firstSeenAt DateTime @default(now())
   lastSeenAt DateTime @default(now())
+  // Fin de l'écran d'accueil Discord (membership screening) : pending → validé
+  onboardingCompletedAt DateTime?
 
   lastMessageAt DateTime?
   lastMessageChannelId String?
@@ -526,7 +557,8 @@ model WelcomeMenuPage {
   // Action déclenchée au clic : "EMBED" (défaut, affiche une page) | "ROLE" | "LINK"
   actionType String  @default("EMBED")
   roleId     String? // Pour actionType = "ROLE"
-  roleAction String  @default("ADD") // "ADD" | "REMOVE" | "TOGGLE"
+  roleAction String  @default("ADD") // "ADD" | "REMOVE" | "TOGGLE" | "EXCLUSIVE"
+  roleGroup  String? // Groupe mutuellement exclusif pour roleAction = "EXCLUSIVE"
   linkUrl    String? // Pour actionType = "LINK" (salon du serveur ou URL externe)
 
   // Utilisés uniquement pour actionType = "EMBED"
@@ -569,4 +601,3 @@ model TempVoiceChannel {
 
   @@map("temp_voice_channels")
 }
-

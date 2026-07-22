@@ -11,12 +11,7 @@ import {
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
-import type { 
-  StaffAbsence, StaffMeeting, StaffMeetingPresence, 
-  StaffManagerNote, StaffPoll, StaffPollOption, StaffPollVote,
-  StaffProcedure, StaffProcedureRead,
-  StaffTask, StaffCall, StaffCallInvitee
-} from '@prisma/client';
+
 import { getClient } from '../../utils/client.js';
 
 type AbsenceMutableStatus = 'PENDING' | 'ACKNOWLEDGED' | 'APPROVED' | 'REJECTED' | 'CANCELED' | 'ENDED';
@@ -508,6 +503,7 @@ export const createMeeting = async (
         scheduledAt,
         endedAt: endedAt || new Date(scheduledAt.getTime() + 60 * 60 * 1000),
         discordEventId: scheduledEvent.id,
+        voiceChannelId: voiceChannel.id,
         status: 'SCHEDULED'
       }
     });
@@ -524,23 +520,7 @@ export const createMeeting = async (
       .setColor('#5865F2')
       .setTimestamp(scheduledAt);
 
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`meeting_rsvp:${meeting.id}:PRESENT`)
-        .setLabel('Présent')
-        .setStyle(ButtonStyle.Success)
-        .setEmoji('✅'),
-      new ButtonBuilder()
-        .setCustomId(`meeting_rsvp:${meeting.id}:EXCUSED`)
-        .setLabel("S'excuser")
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('⏳'),
-      new ButtonBuilder()
-        .setCustomId(`meeting_rsvp:${meeting.id}:ABSENT`)
-        .setLabel('Absent')
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji('❌')
-    );
+    const row = buildMeetingRsvpRow(meeting.id);
 
     const announcementMessage = await (announcementChannel as unknown).send({
       content: '📢 **Nouvelle réunion staff planifiée !** @everyone',
@@ -640,31 +620,13 @@ export const updateMeeting = async (
     }
   }
 
-  // Optionnel : Mettre à jour l'embed de l'annonce si le message existe encore
+  // Optionnel : Mettre à jour l'embed de l'annonce si le message existe encore.
+  // On réutilise updateMeetingAnnouncement, qui reconstruit intégralement l'embed
+  // depuis la BDD (titre, date, lieu, présences) — nécessaire car le message est
+  // en Components V2 et n'expose plus son embed d'origine.
   if (meeting.discordMessageId && (data.title || data.description || data.scheduledAt)) {
     try {
-      const guildConfig = await prisma.guild.findUnique({
-        where: { id: guildId },
-        select: { meetingAnnouncementChannelId: true }
-      });
-
-      if (guildConfig?.meetingAnnouncementChannelId) {
-        const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
-        if (channel?.isTextBased()) {
-          const msg = await (channel as unknown).messages.fetch(meeting.discordMessageId).catch(() => null);
-          if (msg) {
-            const embed = EmbedBuilder.from(msg.embeds[0])
-              .setTitle(`📅 Réunion : ${meeting.title}`)
-              .setDescription(meeting.description || 'Aucune description fournie.')
-              .setFields(
-                { name: 'Date & Heure', value: `<t:${Math.floor(meeting.scheduledAt.getTime() / 1000)}:F> (<t:${Math.floor(meeting.scheduledAt.getTime() / 1000)}:R>)`, inline: false },
-                { name: 'Lieu', value: msg.embeds[0].fields.find((f: unknown) => f.name === 'Lieu')?.value || 'Inconnu', inline: true },
-                { name: 'Organisateur', value: msg.embeds[0].fields.find((f: unknown) => f.name === 'Organisateur')?.value || 'Inconnu', inline: true }
-              );
-            await msg.edit({ embeds: [embed] });
-          }
-        }
-      }
+      await updateMeetingAnnouncement(client, id);
     } catch (err) {
       logger.warn('StaffLeadership', `Impossible de mettre à jour l'annonce Discord ${meeting.discordMessageId}: ${err}`);
     }
@@ -805,6 +767,81 @@ export const checkInMeeting = async (
   return result;
 };
 
+/**
+ * Reconstruit l'embed d'annonce d'une réunion à partir des données en BDD.
+ * Les messages sont envoyés en Components V2 (voir utils/patchV2.ts) :
+ * `message.embeds` est vide, on ne peut donc pas relire l'embed sur le message.
+ */
+function buildMeetingAnnouncementEmbed(meeting: {
+  title: string;
+  description: string | null;
+  scheduledAt: Date;
+  createdByUserId: string;
+  voiceChannelId: string | null;
+  presences?: { status: string; note: string | null; staffMember: { userId: string } }[];
+}): EmbedBuilder {
+  const scheduledSec = Math.floor(meeting.scheduledAt.getTime() / 1000);
+  const embed = new EmbedBuilder()
+    .setTitle(`📅 Réunion : ${meeting.title}`)
+    .setDescription(meeting.description || 'Aucune description fournie.')
+    .setColor('#5865F2')
+    .setTimestamp(meeting.scheduledAt);
+
+  embed.addFields(
+    { name: 'Date & Heure', value: `<t:${scheduledSec}:F> (<t:${scheduledSec}:R>)`, inline: false },
+    { name: 'Lieu', value: meeting.voiceChannelId ? `<#${meeting.voiceChannelId}>` : 'Non défini', inline: true },
+    { name: 'Organisateur', value: `<@${meeting.createdByUserId}>`, inline: true }
+  );
+
+  if (meeting.presences) {
+    const presentCount = meeting.presences.filter(p => p.status === 'PRESENT').length;
+    const excusedCount = meeting.presences.filter(p => p.status === 'EXCUSED').length;
+    const absentCount = meeting.presences.filter(p => p.status === 'ABSENT').length;
+
+    embed.addFields({
+      name: '📊 État des présences',
+      value: `✅ **Présents:** ${presentCount}\n⏳ **Excusés:** ${excusedCount}\n❌ **Absents:** ${absentCount}`,
+      inline: false
+    });
+
+    const excuses = meeting.presences
+      .filter(p => p.status === 'EXCUSED' && p.note)
+      .map(p => `- <@${p.staffMember.userId}> : *${p.note}*`)
+      .join('\n');
+
+    if (excuses) {
+      embed.addFields({ name: '📝 Justifications', value: excuses, inline: false });
+    }
+  }
+
+  return embed;
+}
+
+/**
+ * Ligne des boutons de présence (RSVP) de l'annonce de réunion.
+ * En Components V2, les boutons vivent dans `components` : toute édition de
+ * l'annonce doit les repasser sinon ils disparaissent.
+ */
+function buildMeetingRsvpRow(meetingId: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`meeting_rsvp:${meetingId}:PRESENT`)
+      .setLabel('Présent')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅'),
+    new ButtonBuilder()
+      .setCustomId(`meeting_rsvp:${meetingId}:EXCUSED`)
+      .setLabel("S'excuser")
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('⏳'),
+    new ButtonBuilder()
+      .setCustomId(`meeting_rsvp:${meetingId}:ABSENT`)
+      .setLabel('Absent')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('❌')
+  );
+}
+
 export const updateMeetingAnnouncement = async (client: unknown, meetingId: string) => {
   const meeting = await prisma.staffMeeting.findUnique({
     where: { id: meetingId },
@@ -832,53 +869,10 @@ export const updateMeetingAnnouncement = async (client: unknown, meetingId: stri
   const message = await channel.messages.fetch(meeting.discordMessageId).catch(() => null);
   if (!message) return;
 
-  const presentCount = meeting.presences.filter(p => p.status === 'PRESENT').length;
-  const excusedCount = meeting.presences.filter(p => p.status === 'EXCUSED').length;
-  const absentCount = meeting.presences.filter(p => p.status === 'ABSENT').length;
-
-  const embed = EmbedBuilder.from(message.embeds[0]);
-  
-  // Mettre à jour ou ajouter le champ de présence
-  const presenceField = {
-    name: '📊 État des présences',
-    value: `✅ **Présents:** ${presentCount}\n⏳ **Excusés:** ${excusedCount}\n❌ **Absents:** ${absentCount}`,
-    inline: false
-  };
-
-  const fields = [...message.embeds[0].fields];
-  const presenceIdx = fields.findIndex(f => f.name === '📊 État des présences');
-  if (presenceIdx !== -1) {
-    fields[presenceIdx] = presenceField;
-  } else {
-    fields.push(presenceField);
-  }
-
-  // Ajouter les raisons d'excuses si présentes
-  const excuses = meeting.presences
-    .filter(p => p.status === 'EXCUSED' && p.note)
-    .map(p => `- <@${p.staffMember.userId}> : *${p.note}*`)
-    .join('\n');
-
-  const excuseField = {
-    name: '📝 Justifications',
-    value: excuses || 'Aucune excuse fournie.',
-    inline: false
-  };
-
-  const excuseIdx = fields.findIndex(f => f.name === '📝 Justifications');
-  if (excuseIdx !== -1) {
-    if (excuses) {
-      fields[excuseIdx] = excuseField;
-    } else {
-      fields.splice(excuseIdx, 1);
-    }
-  } else if (excuses) {
-    fields.push(excuseField);
-  }
-
-  embed.setFields(fields);
-
-  await message.edit({ embeds: [embed] });
+  const embed = buildMeetingAnnouncementEmbed(meeting);
+  // On repasse les boutons RSVP : en Components V2 une édition sans `components`
+  // efface les boutons de présence.
+  await message.edit({ embeds: [embed], components: [buildMeetingRsvpRow(meeting.id)] });
 };
 
 export const syncMeetingPresencesWithAbsences = async (client: Client, meetingId: string) => {

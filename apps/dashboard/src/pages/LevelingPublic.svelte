@@ -103,7 +103,7 @@
         {/if}
 
         <div class="relative">
-          <h1 class="text-lg font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+          <h1 class="text-lg font-semibold tracking-tight text-slate-800 dark:text-slate-100">
             {guildName}
           </h1>
           <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
@@ -140,7 +140,7 @@
           <Papicon icon="AlertTriangle" size={20} />
         </div>
         <div class="space-y-1.5">
-          <p class="text-slate-800 dark:text-slate-100 font-extrabold text-lg">Une erreur est survenue</p>
+          <p class="text-slate-800 dark:text-slate-100 font-semibold text-lg">Une erreur est survenue</p>
           <p class="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto">{errorMsg}</p>
         </div>
       </div>
@@ -186,7 +186,7 @@
       <!-- ─── Section Top 3 Épuré ─── -->
       {#if !searchQuery && levels.length > 0}
         <div class="space-y-4">
-          <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-550 flex items-center gap-2 ml-1">
+          <h3 class="text-[13px] font-medium text-slate-400 dark:text-slate-550 flex items-center gap-2 ml-1">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
             <span>Le Trio de Tête</span>
           </h3>
@@ -288,7 +288,7 @@
       <section class="bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg p-6 sm:p-8 space-y-6 shadow-sm">
         
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-          <h3 class="text-base font-extrabold text-slate-800 dark:text-slate-100">
+          <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">
             Membres du Serveur
           </h3>
 
@@ -337,7 +337,7 @@
 
                 <tr
                   class="group hover:bg-slate-50/50 dark:hover:bg-[#142036]/30 transition-colors duration-150 cursor-pointer
-                    {highlightedUserId === userLvl.userId ? 'bg-indigo-50/30 dark:bg-indigo-950/10' : ''}"
+ {highlightedUserId === userLvl.userId ? 'bg-indigo-50/30 dark:bg-indigo-950/10' : ''}"
                   onclick={() => highlightedUserId = highlightedUserId === userLvl.userId ? null : userLvl.userId}
                 >
                   <!-- Rang -->
@@ -386,7 +386,7 @@
                       <div class="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <div
                           class="h-full rounded-full transition-all duration-700
-                            {color === 'amber' ? 'bg-amber-450 dark:bg-amber-400' :
+ {color === 'amber' ? 'bg-amber-450 dark:bg-amber-400' :
                              color === 'silver' ? 'bg-slate-400 dark:bg-slate-500' :
                              color === 'bronze' ? 'bg-amber-600 dark:bg-amber-500' :
                              'bg-indigo-500 dark:bg-indigo-400'}"

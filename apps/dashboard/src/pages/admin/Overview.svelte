@@ -68,7 +68,7 @@
         <p class="text-sm text-on-surface-variant/50 font-medium">Statistiques globales et santé du système Kotbo</p>
       </div>
       {#if stats}
-        <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-black">
+        <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold">
           <Papicon icon="Zap" size={14} />
           {stats.onlineShardCount}/{stats.shardCount} shards · {stats.averageShardPing}ms
         </div>
@@ -93,7 +93,7 @@
           <Papicon icon="AlertTriangle" size={28} />
         </div>
         <div>
-          <p class="font-black text-on-surface text-lg">Erreur de chargement</p>
+          <p class="font-bold text-on-surface text-lg">Erreur de chargement</p>
           <p class="text-sm text-on-surface-variant/60 mt-1">{error}</p>
         </div>
       </div>
@@ -113,7 +113,7 @@
                 <Papicon icon={card.icon} size={18} />
               </div>
             </div>
-            <p class="text-2xl font-black text-on-surface font-mono">{card.value}</p>
+            <p class="text-2xl font-bold text-on-surface font-mono">{card.value}</p>
             <p class="text-xs font-bold text-on-surface-variant/50 mt-1">{card.label}</p>
             <p class="text-[10px] text-on-surface-variant/30 font-medium mt-0.5">{card.change}</p>
           </div>
@@ -130,7 +130,7 @@
               <Papicon icon="activity" size={16} />
             </div>
             <div>
-              <p class="font-black text-on-surface text-sm">Santé Système</p>
+              <p class="font-bold text-on-surface text-sm">Santé Système</p>
               <p class="text-[10px] text-on-surface-variant/40 font-medium uppercase tracking-wider">Métriques en temps réel</p>
             </div>
           </div>
@@ -138,20 +138,20 @@
           <!-- Metrics grid -->
           <div class="grid grid-cols-2 gap-3">
             <div class="bg-on-surface/4 rounded-xl p-3.5 space-y-1">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Uptime</p>
-              <p class="text-sm font-black font-mono text-indigo-400">{formatUptime(stats.uptime)}</p>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Uptime</p>
+              <p class="text-sm font-bold font-mono text-indigo-400">{formatUptime(stats.uptime)}</p>
             </div>
             <div class="bg-on-surface/4 rounded-xl p-3.5 space-y-1">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">RAM (RSS)</p>
-              <p class="text-sm font-black font-mono text-blue-400">{formatBytes(stats.memoryUsage.rss)}</p>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">RAM (RSS)</p>
+              <p class="text-sm font-bold font-mono text-blue-400">{formatBytes(stats.memoryUsage.rss)}</p>
             </div>
             <div class="bg-on-surface/4 rounded-xl p-3.5 space-y-1">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Ping moy.</p>
-              <p class="text-sm font-black font-mono text-emerald-400">{stats.averageShardPing}ms</p>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">Ping moy.</p>
+              <p class="text-sm font-bold font-mono text-emerald-400">{stats.averageShardPing}ms</p>
             </div>
             <div class="bg-on-surface/4 rounded-xl p-3.5 space-y-1">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">External</p>
-              <p class="text-sm font-black font-mono text-purple-400">{formatBytes(stats.memoryUsage.external)}</p>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40">External</p>
+              <p class="text-sm font-bold font-mono text-purple-400">{formatBytes(stats.memoryUsage.external)}</p>
             </div>
           </div>
 
@@ -159,7 +159,7 @@
           <div class="space-y-2">
             <div class="flex items-center justify-between text-xs">
               <span class="font-bold text-on-surface-variant/50">Heap Utilisé</span>
-              <span class="font-black font-mono text-on-surface-variant">
+              <span class="font-bold font-mono text-on-surface-variant">
                 {formatBytes(stats.memoryUsage.heapUsed)} / {formatBytes(stats.memoryUsage.heapTotal)}
                 <span class="text-on-surface-variant/40 ml-1">({heapPercent}%)</span>
               </span>
@@ -167,7 +167,7 @@
             <div class="h-2 bg-on-surface/5 rounded-full overflow-hidden border border-on-surface/5">
               <div
                 class="h-full rounded-full transition-all duration-1000 ease-out
-                  {heapPercent > 80 ? 'bg-red-500 shadow-red-500/30' : heapPercent > 60 ? 'bg-amber-500 shadow-amber-500/30' : 'bg-linear-to-r from-indigo-500 to-purple-500 shadow-indigo-500/20'}
+ {heapPercent > 80 ? 'bg-red-500 shadow-red-500/30' : heapPercent > 60 ? 'bg-amber-500 shadow-amber-500/30' : 'bg-linear-to-r from-indigo-500 to-purple-500 shadow-indigo-500/20'}
                   shadow-lg"
                 style="width: {heapPercent}%"
               ></div>
@@ -182,7 +182,7 @@
               <Papicon icon="Megaphone" size={16} />
             </div>
             <div>
-              <p class="font-black text-on-surface text-sm">Broadcast</p>
+              <p class="font-bold text-on-surface text-sm">Broadcast</p>
               <p class="text-[10px] text-on-surface-variant/40 font-medium">Diffusion sur {stats.guildCount} serveurs</p>
             </div>
           </div>

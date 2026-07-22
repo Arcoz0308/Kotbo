@@ -130,7 +130,7 @@ async function resolveSatisfactionPeople(
   return people;
 }
 
-export async function sendSatisfactionSurvey(client: Client, guildId: string, ticketId: string, userId: string, staffId?: string): Promise<void> {
+export async function sendSatisfactionSurvey(client: Client, guildId: string, ticketId: string, userId: string, _staffId?: string): Promise<void> {
   try {
     const user = await client.users.fetch(userId).catch(() => null);
     if (!user) return;

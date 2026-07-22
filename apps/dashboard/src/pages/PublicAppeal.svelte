@@ -240,7 +240,7 @@
             Personne ne peut faire appel à ta place.
           </p>
           <button onclick={loginWithDiscord}
-            class="pf-submit px-6 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all hover:scale-105"
+            class="pf-submit px-6 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all "
             style="background:#5865F2">
             Se connecter avec Discord
           </button>
@@ -505,7 +505,7 @@
 
         <div class="flex justify-end pb-8">
           <button onclick={submit} disabled={submitting}
-            class="pf-submit px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:scale-100"
+            class="pf-submit px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all active:scale-[0.98] disabled:opacity-60 disabled:scale-100"
             style="background:var(--form-color)">
             {submitting ? 'Envoi…' : 'Envoyer ma demande ✓'}
           </button>

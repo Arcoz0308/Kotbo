@@ -11,6 +11,7 @@ import {
   Collection,
   Events,
   ActivityType,
+  ApplicationCommandType,
   MessageFlags,
   DiscordAPIError,
   type ChatInputCommandInteraction,
@@ -42,6 +43,7 @@ import { registerNicknameModerationListener } from './events/nicknameModeration.
 import { registerTempVoiceListener } from './events/tempVoice.js';
 import { registerHoneypotListener } from './events/honeypot.js';
 import { registerMessageLoggingListener } from './events/messageLogging.js';
+import { registerAnalyticsTrackers } from './events/analyticsTrackers.js';
 import { registerStatsChannelListener } from './events/stats.js';
 import { registerFunEventsListener } from './events/funEvents.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
@@ -60,6 +62,7 @@ import { registerChannelLinkListener } from './events/channelLinkEvents.js';
 import { registerStaffServerListener } from './events/staffServerEvents.js';
 import { registerAbsenceMentionListener } from './events/absenceMentionEvents.js';
 import { registerPartnershipListener } from './services/features/partnershipService.js';
+import { registerRaidProtectionListener } from './events/raidProtection.js';
 import { registerClanListener } from './events/clanEvents.js';
 import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
@@ -119,6 +122,7 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildInvites,
   ],
   partials: [Partials.Message, Partials.Reaction],
 });
@@ -205,9 +209,14 @@ slashCommandDefinitions.forEach((cmd) => {
   slashCommands.set(cmd.data.name, cmd);
 });
 
+// Discord autorise un menu User et un menu Message à porter le même nom : les
+// deux types doivent donc être indexés séparément, sinon l'un écrase l'autre.
 const userContextCommands = new Collection<string, ContextCommandDefinition>();
+const messageContextCommands = new Collection<string, ContextCommandDefinition>();
 contextCommandDefinitions.forEach((cmd) => {
-  userContextCommands.set(cmd.data.name, cmd);
+  const { type } = cmd.data.toJSON() as { type?: number };
+  if (type === ApplicationCommandType.Message) messageContextCommands.set(cmd.data.name, cmd);
+  else userContextCommands.set(cmd.data.name, cmd);
 });
 
 async function enforceCommandAccess(interaction: ChatInputCommandInteraction): Promise<boolean> {
@@ -323,7 +332,7 @@ client.once(Events.ClientReady, async (c) => {
   registerTicketsBusSubscribers(client);
 
   // ── Direct listeners (not yet migrated to the bus) ────────
-  client.setMaxListeners(25);
+  client.setMaxListeners(30);
   registerCodePoliceListener(client);
   registerAdvancedLogsListener(client);
   registerCloseSourceWarningListener(client);
@@ -331,6 +340,7 @@ client.once(Events.ClientReady, async (c) => {
   registerTempVoiceListener(client);
   registerHoneypotListener(client);
   registerMessageLoggingListener(client);
+  registerAnalyticsTrackers(client);
   registerStatsChannelListener(client);
   registerFunEventsListener(client);
   registerDailyAlgoHandlers(client);
@@ -342,6 +352,7 @@ client.once(Events.ClientReady, async (c) => {
   registerStaffServerListener(client);
   registerAbsenceMentionListener(client);
   registerPartnershipListener(client);
+  registerRaidProtectionListener(client);
   registerClanListener(client);
 
   // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
@@ -597,7 +608,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     else if (interaction.isMessageContextMenuCommand()) {
-      const cmd = userContextCommands.get(interaction.commandName);
+      const cmd = messageContextCommands.get(interaction.commandName);
       if (cmd) {
         if (interaction.guildId) {
           queueAuditLog({

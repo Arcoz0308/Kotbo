@@ -77,6 +77,7 @@ model StaffMeeting {
 
   discordMessageId String?
   discordEventId   String?
+  voiceChannelId   String?  // Salon vocal « Lieu » de la réunion (pour reconstruire l'annonce)
 
   // Champs pour les notifications de réunion
   notificationSentAt DateTime?      // Quand la notification de début a été envoyée

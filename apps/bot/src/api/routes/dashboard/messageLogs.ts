@@ -83,11 +83,13 @@ export async function handleMessageLogRoutes(
   }
 
   // GET /message-logs/channels → distinct channels for the filter dropdown
+  // ?authorId= narrows the list to the channels a single member actually posted in.
   if (parts.length === 6 && parts[5] === 'channels' && method === 'GET') {
     try {
+      const authorId = url.searchParams.get('authorId')?.trim() || '';
       const rows = await prisma.messageLog.groupBy({
         by: ['channelId', 'channelName'],
-        where: { guildId },
+        where: authorId ? { guildId, authorId } : { guildId },
         _count: { _all: true },
         orderBy: { _count: { channelId: 'desc' } },
         take: 200,

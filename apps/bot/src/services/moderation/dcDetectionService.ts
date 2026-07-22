@@ -571,6 +571,42 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
   await reportSuspectedDC(member, evidence, scoreResult.distinctFamilies, scoreResult.corroborationMultiplier, member.guild.memberCount);
   await notifyManagersOfSuspectedDC(guildId, member);
 
+  // Mise en quarantaine automatique si score >= 75 et rôle de vérification configuré
+  if (totalScore >= 75) {
+    const config = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { verificationRoleId: true, logChannelId: true }
+    });
+    if (config?.verificationRoleId) {
+      try {
+        const role = await member.guild.roles.fetch(config.verificationRoleId).catch(() => null);
+        if (role) {
+          await member.roles.set([config.verificationRoleId], 'Kotbo Quarantine: Auto-quarantined suspect DC (score >= 75)');
+          logger.warn('DCDetection', `Membre ${member.user.tag} (${member.id}) mis en quarantaine automatique (score: ${totalScore})`);
+          
+          if (config.logChannelId) {
+            const logChannel = await member.guild.channels.fetch(config.logChannelId).catch(() => null);
+            if (logChannel && 'send' in logChannel) {
+              const quarantineEmbed = new EmbedBuilder()
+                .setTitle('🔒 Quarantaine Automatique : Double Compte')
+                .setColor('#ED4245')
+                .setDescription(
+                  `L'utilisateur ${member} (${member.user.tag}) a été mis en quarantaine automatiquement.\n\n` +
+                  `**Score de suspicion :** \`${totalScore}/100\`\n` +
+                  `**Raison :** Dépassement du seuil de suspicion (seuil de quarantaine: 75/100).\n` +
+                  `Ses rôles ont été réinitialisés et le rôle de quarantaine/vérification <@&${config.verificationRoleId}> lui a été attribué.`
+                )
+                .setTimestamp();
+              await logChannel.send({ embeds: [quarantineEmbed] }).catch(() => null);
+            }
+          }
+        }
+      } catch (err) {
+        logger.error('DCDetection', `Impossible d'appliquer le rôle de quarantaine à ${member.user.tag}:`, err);
+      }
+    }
+  }
+
   return evidence;
 }
 

@@ -1,19 +1,11 @@
-import {
-  PermissionFlagsBits,
-  SlashCommandBuilder,
-  ComponentType,
-  type ChatInputCommandInteraction,
-  ContainerBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
-} from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { COLORS_RAW, text, successContainer, errorContainer, infoContainer, v2 } from '../../utils/embeds.js';
+import { errorContainer, infoContainer, kotboContainer, successContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { createBackup } from '../../services/system/backupService.js';
 import { restoreBackup, RestoreOptions } from '../../services/system/restoreService.js';
 import { extractTrackingInfo, resolveModuleFromCommand } from '../../utils/moduleTracking.js';
+import { separator, v2Message } from '@arcscord/components';
 
 const MAX_BACKUPS_PER_GUILD = 3;
 
@@ -124,10 +116,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
   } catch (error) {
     console.error('Error in backup command:', error);
-    await interaction.reply({
-      ...v2(errorContainer('Erreur', "Une erreur est survenue lors de l'exécution de la commande.")),
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-    });
+    await interaction.reply(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      errorContainer('Erreur', "Une erreur est survenue lors de l'exécution de la commande."),
+    ));
   }
 }
 
@@ -155,9 +147,9 @@ async function handleCreate(
   });
 
   if (existingBackups >= MAX_BACKUPS_PER_GUILD) {
-    await interaction.editReply(
-      v2(errorContainer('Limite atteinte', `Vous avez atteint la limite de ${MAX_BACKUPS_PER_GUILD} sauvegardes. Supprimez une sauvegarde existante avant d'en créer une nouvelle.`)),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Limite atteinte', `Vous avez atteint la limite de ${MAX_BACKUPS_PER_GUILD} sauvegardes. Supprimez une sauvegarde existante avant d'en créer une nouvelle.`),
+    ));
     return;
   }
 
@@ -183,22 +175,26 @@ async function handleCreate(
     createdByTag: interaction.user.discriminator ?? '0000',
   });
 
-  const container = successContainer(
-    'Sauvegarde créée',
-    `Sauvegarde **${backupName}** créée avec succès!`,
-  );
-  container
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(`### ${E.stats} Statistiques`))
-    .addTextDisplayComponents(text(`${E.arrow} Rôles: ${backup.rolesCount}`))
-    .addTextDisplayComponents(text(`${E.arrow} Salons: ${backup.channelsCount}`))
-    .addTextDisplayComponents(text(`${E.arrow} Membres: ${backup.membersCount}`))
-    .addTextDisplayComponents(text(`${E.arrow} Messages: ${backup.messagesCount}`))
-    .addTextDisplayComponents(text(`${E.arrow} Emojis: ${backup.emojisCount}`))
-    .addTextDisplayComponents(text(`${E.arrow} Stickers: ${backup.stickersCount}`))
-    .addTextDisplayComponents(text(`${E.arrow} Taille: ${(backup.sizeBytes / 1024).toFixed(2)} KB`));
-
-  await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+  await interaction.editReply(v2Message(
+    kotboContainer({
+      color: 'success',
+      title: `${E.success} Sauvegarde créée`,
+      fields: [
+        `Sauvegarde **${backupName}** créée avec succès!`,
+        separator({ divider: true, spacing: 'small' }),
+        `### ${E.stats} Statistiques`,
+        [
+          `${E.arrow} Rôles: ${backup.rolesCount}`,
+          `${E.arrow} Salons: ${backup.channelsCount}`,
+          `${E.arrow} Membres: ${backup.membersCount}`,
+          `${E.arrow} Messages: ${backup.messagesCount}`,
+          `${E.arrow} Emojis: ${backup.emojisCount}`,
+          `${E.arrow} Stickers: ${backup.stickersCount}`,
+          `${E.arrow} Taille: ${(backup.sizeBytes / 1024).toFixed(2)} KB`,
+        ].join('\n'),
+      ],
+    }),
+  ));
 }
 
 async function handleList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
@@ -210,32 +206,31 @@ async function handleList(interaction: ChatInputCommandInteraction, guildId: str
   });
 
   if (backups.length === 0) {
-    await interaction.editReply(
-      v2(infoContainer('Aucune sauvegarde', 'Aucune sauvegarde trouvée. Utilisez `/backup create` pour créer une sauvegarde.')),
-    );
+    await interaction.editReply(v2Message(
+      infoContainer('Aucune sauvegarde', 'Aucune sauvegarde trouvée. Utilisez `/backup create` pour créer une sauvegarde.'),
+    ));
     return;
   }
 
-  const container = new ContainerBuilder()
-    .setAccentColor(COLORS_RAW.primary)
-    .addTextDisplayComponents(text(`### ${E.shield} Sauvegardes du serveur`))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+  const lines = backups.map((backup, index) =>
+    `**${index + 1}. ${backup.name}**\n` +
+    `${E.calendar} ${backup.createdAt.toLocaleDateString('fr-FR')} ${backup.createdAt.toLocaleTimeString('fr-FR')}\n` +
+    `${E.profile} Par ${backup.createdByUsername}\n` +
+    `${E.stats} ${backup.rolesCount} rôles, ${backup.channelsCount} salons, ${backup.membersCount} membres\n` +
+    `${E.dot} \`${backup.id}\``
+  );
 
-  for (const [index, backup] of (backups as unknown[]).entries()) {
-    container.addTextDisplayComponents(text(
-      `**${index + 1}. ${backup.name}**\n` +
-      `${E.calendar} ${backup.createdAt.toLocaleDateString('fr-FR')} ${backup.createdAt.toLocaleTimeString('fr-FR')}\n` +
-      `${E.profile} Par ${backup.createdByUsername}\n` +
-      `${E.stats} ${backup.rolesCount} rôles, ${backup.channelsCount} salons, ${backup.membersCount} membres\n` +
-      `${E.dot} \`${backup.id}\``
-    ));
-  }
-
-  container
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(`-# ${backups.length}/${MAX_BACKUPS_PER_GUILD} sauvegardes utilisées`));
-
-  await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+  await interaction.editReply(v2Message(
+    kotboContainer({
+      color: 'primary',
+      title: `${E.shield} Sauvegardes du serveur`,
+      fields: [
+        separator({ divider: true, spacing: 'small' }),
+        ...lines,
+      ],
+      footerTitle: `${backups.length}/${MAX_BACKUPS_PER_GUILD} sauvegardes utilisées`,
+    }),
+  ));
 }
 
 async function handleRestore(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
@@ -249,24 +244,24 @@ async function handleRestore(interaction: ChatInputCommandInteraction, guildId: 
   });
 
   if (!backup) {
-    await interaction.editReply(
-      v2(errorContainer('Introuvable', 'Sauvegarde non trouvée.')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Introuvable', 'Sauvegarde non trouvée.'),
+    ));
     return;
   }
 
   if (backup.guildId !== guildId) {
-    await interaction.editReply(
-      v2(errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur.")),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur."),
+    ));
     return;
   }
 
   const guild = interaction.guild;
   if (!guild) {
-    await interaction.editReply(
-      v2(errorContainer('Erreur', 'Serveur non trouvé.')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Erreur', 'Serveur non trouvé.'),
+    ));
     return;
   }
 
@@ -283,23 +278,25 @@ async function handleRestore(interaction: ChatInputCommandInteraction, guildId: 
   };
 
   try {
-    await interaction.editReply(
-      v2(infoContainer(
+    await interaction.editReply(v2Message(
+      infoContainer(
         'Restauration en cours',
         `Restauration de la sauvegarde **${backup.name}** en cours...\n\nMode: ${fullRestore ? 'Complet' : 'Sélectif'}\n\nCette opération peut prendre plusieurs minutes.`,
-      )),
-    );
+      ),
+    ));
 
     await restoreBackup(guild, backup.data as unknown, restoreOptions, interaction);
 
-    await interaction.followUp(
-      v2(successContainer('Restauration terminée', `Restauration terminée avec succès!\n\nSauvegarde: **${backup.name}**`)),
-    );
+    await interaction.followUp(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      successContainer('Restauration terminée', `Restauration terminée avec succès!\n\nSauvegarde: **${backup.name}**`),
+    ));
   } catch (error) {
     console.error('Erreur lors de la restauration:', error);
-    await interaction.followUp(
-      v2(errorContainer('Erreur de restauration', `Erreur lors de la restauration: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)),
-    );
+    await interaction.followUp(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      errorContainer('Erreur de restauration', `Erreur lors de la restauration: ${error instanceof Error ? error.message : 'Erreur inconnue'}`),
+    ));
   }
 }
 
@@ -313,16 +310,16 @@ async function handleDelete(interaction: ChatInputCommandInteraction, guildId: s
   });
 
   if (!backup) {
-    await interaction.editReply(
-      v2(errorContainer('Introuvable', 'Sauvegarde non trouvée.')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Introuvable', 'Sauvegarde non trouvée.'),
+    ));
     return;
   }
 
   if (backup.guildId !== guildId) {
-    await interaction.editReply(
-      v2(errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur.")),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur."),
+    ));
     return;
   }
 
@@ -330,9 +327,9 @@ async function handleDelete(interaction: ChatInputCommandInteraction, guildId: s
     where: { id: backupId },
   });
 
-  await interaction.editReply(
-    v2(successContainer('Sauvegarde supprimée', `Sauvegarde **${backup.name}** supprimée avec succès.`)),
-  );
+  await interaction.editReply(v2Message(
+    successContainer('Sauvegarde supprimée', `Sauvegarde **${backup.name}** supprimée avec succès.`),
+  ));
 }
 
 async function handleExport(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
@@ -345,16 +342,16 @@ async function handleExport(interaction: ChatInputCommandInteraction, guildId: s
   });
 
   if (!backup) {
-    await interaction.editReply(
-      v2(errorContainer('Introuvable', 'Sauvegarde non trouvée.')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Introuvable', 'Sauvegarde non trouvée.'),
+    ));
     return;
   }
 
   if (backup.guildId !== guildId) {
-    await interaction.editReply(
-      v2(errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur.")),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur."),
+    ));
     return;
   }
 
@@ -398,22 +395,24 @@ async function handleExport(interaction: ChatInputCommandInteraction, guildId: s
 
   // Vérifier la taille (limite Discord: 25MB)
   if (buffer.length > 25 * 1024 * 1024) {
-    await interaction.editReply(
-      v2(errorContainer('Fichier trop volumineux', 'La sauvegarde est trop volumineuse pour être exportée (limite Discord: 25MB).')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Fichier trop volumineux', 'La sauvegarde est trop volumineuse pour être exportée (limite Discord: 25MB).'),
+    ));
     return;
   }
 
   // Envoyer le fichier
-  await interaction.editReply({
-    ...v2(infoContainer('Export', `Export de la sauvegarde **${backup.name}**`)),
-    files: [
-      {
-        attachment: buffer,
-        name: `${backup.name.replace(/[^a-zA-Z0-9]/g, '_')}_backup.json`,
-      },
-    ],
-  });
+  await interaction.editReply(v2Message(
+    {
+      files: [
+        {
+          attachment: buffer,
+          name: `${backup.name.replace(/[^a-zA-Z0-9]/g, '_')}_backup.json`,
+        },
+      ],
+    },
+    infoContainer('Export', `Export de la sauvegarde **${backup.name}**`),
+  ));
 }
 
 async function handleImport(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
@@ -423,9 +422,9 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
   const customName = interaction.options.getString('nom');
 
   if (!attachment.name.endsWith('.json')) {
-    await interaction.editReply(
-      v2(errorContainer('Format invalide', 'Le fichier doit être au format JSON.')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Format invalide', 'Le fichier doit être au format JSON.'),
+    ));
     return;
   }
 
@@ -435,9 +434,9 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
     const response = await fetch(attachment.url);
     buffer = Buffer.from(await response.arrayBuffer());
   } catch (error) {
-    await interaction.editReply(
-      v2(errorContainer('Erreur', 'Erreur lors du téléchargement du fichier.')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Erreur', 'Erreur lors du téléchargement du fichier.'),
+    ));
     return;
   }
 
@@ -447,17 +446,17 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
     const jsonString = buffer.toString('utf-8');
     importData = JSON.parse(jsonString);
   } catch (error) {
-    await interaction.editReply(
-      v2(errorContainer('JSON invalide', 'Le fichier JSON est invalide.')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('JSON invalide', 'Le fichier JSON est invalide.'),
+    ));
     return;
   }
 
   // Valider la structure
   if (!importData.version || !importData.backup) {
-    await interaction.editReply(
-      v2(errorContainer('Structure invalide', 'Le fichier de sauvegarde a une structure invalide.')),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Structure invalide', 'Le fichier de sauvegarde a une structure invalide.'),
+    ));
     return;
   }
 
@@ -469,9 +468,9 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
   });
 
   if (existingBackups >= MAX_BACKUPS_PER_GUILD) {
-    await interaction.editReply(
-      v2(errorContainer('Limite atteinte', `Vous avez atteint la limite de ${MAX_BACKUPS_PER_GUILD} sauvegardes. Supprimez une sauvegarde existante avant d'en importer une nouvelle.`)),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Limite atteinte', `Vous avez atteint la limite de ${MAX_BACKUPS_PER_GUILD} sauvegardes. Supprimez une sauvegarde existante avant d'en importer une nouvelle.`),
+    ));
     return;
   }
 
@@ -508,27 +507,31 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
       },
     });
 
-    const container = successContainer(
-      'Sauvegarde importée',
-      `Sauvegarde importée avec succès!`,
-    );
-    container
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`**Nom:** ${backupName}`))
-      .addTextDisplayComponents(text(`**Original:** ${backupData.name}`))
-      .addTextDisplayComponents(text(`**Serveur original:** ${backupData.serverName}`))
-      .addTextDisplayComponents(text(`### ${E.stats} Statistiques`))
-      .addTextDisplayComponents(text(`${E.arrow} Rôles: ${backupData.stats?.rolesCount || 0}`))
-      .addTextDisplayComponents(text(`${E.arrow} Salons: ${backupData.stats?.channelsCount || 0}`))
-      .addTextDisplayComponents(text(`${E.arrow} Membres: ${backupData.stats?.membersCount || 0}`))
-      .addTextDisplayComponents(text(`${E.arrow} Emojis: ${backupData.stats?.emojisCount || 0}`))
-      .addTextDisplayComponents(text(`${E.arrow} Stickers: ${backupData.stats?.stickersCount || 0}`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'success',
+        title: `${E.success} Sauvegarde importée`,
+        fields: [
+          `Sauvegarde importée avec succès!`,
+          separator({ divider: true, spacing: 'small' }),
+          `**Nom:** ${backupName}`,
+          `**Original:** ${backupData.name}`,
+          `**Serveur original:** ${backupData.serverName}`,
+          `### ${E.stats} Statistiques`,
+          [
+            `${E.arrow} Rôles: ${backupData.stats?.rolesCount || 0}`,
+            `${E.arrow} Salons: ${backupData.stats?.channelsCount || 0}`,
+            `${E.arrow} Membres: ${backupData.stats?.membersCount || 0}`,
+            `${E.arrow} Emojis: ${backupData.stats?.emojisCount || 0}`,
+            `${E.arrow} Stickers: ${backupData.stats?.stickersCount || 0}`,
+          ].join('\n'),
+        ],
+      }),
+    ));
   } catch (error) {
     console.error("Erreur lors de l'import:", error);
-    await interaction.editReply(
-      v2(errorContainer('Erreur d\'import', `Erreur lors de l'import: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)),
-    );
+    await interaction.editReply(v2Message(
+      errorContainer('Erreur d\'import', `Erreur lors de l'import: ${error instanceof Error ? error.message : 'Erreur inconnue'}`),
+    ));
   }
 }

@@ -4,6 +4,8 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
   // ── Types ──────────────────────────────────────────────────────────────────
@@ -128,7 +130,7 @@
       toast.error('Une raison est requise pour un refus');
       return;
     }
-    if (decision === 'DENIED_PERMANENT' && !confirm('Refus définitif : ce membre ne pourra plus jamais faire appel. Confirmer ?')) return;
+    if (decision === 'DENIED_PERMANENT' && !(await confirmDialog.ask({ title: 'Refus définitif ?', description: 'Ce membre ne pourra plus jamais faire appel de son bannissement.', confirmLabel: 'Refuser définitivement', variant: 'danger' }))) return;
     actionInProgress = true;
     try {
       const res = await fetch(`${base()}/${detail.appeal.id}/decide`, {
@@ -226,27 +228,22 @@
   });
 </script>
 
-<div class="p-6 max-w-6xl mx-auto space-y-6">
-
-  <!-- Header -->
-  <div class="flex flex-wrap items-center justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-bold text-on-surface flex items-center gap-3">
-        <Papicon icon="gavel" size={26} /> Appels de bannissement
-      </h1>
-      <p class="text-sm text-on-surface-variant/60 mt-1">
-        Les membres bannis peuvent demander leur débannissement via un formulaire public.
-      </p>
-    </div>
+<ModulePage
+  title="Appels de bannissement"
+  description="Les membres bannis peuvent demander leur débannissement via un formulaire public."
+  icon="gavel"
+  featureKey="sanctions"
+>
+  {#snippet actions()}
     <button onclick={copyPublicUrl}
       class="px-4 py-2 rounded-xl bg-surface-container text-xs font-bold flex items-center gap-2 hover:bg-surface-container-high transition-colors"
       title={publicUrl}>
       <Papicon icon="link" size={14} /> Copier le lien public
     </button>
-  </div>
+  {/snippet}
 
   <!-- Tabs -->
-  <div class="flex gap-1 border-b border-outline-variant/20">
+  <div class="tab-group w-fit" role="tablist">
     {#each [
       { id: 'queue', label: `File d'attente (${queue.length})` },
       { id: 'history', label: 'Historique' },
@@ -254,8 +251,8 @@
       { id: 'blacklist', label: `Blacklist (${blacklist.length})` },
     ] as t}
       <button onclick={() => { tab = t.id as typeof tab; detail = null; }}
-        class="px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px
-          {tab === t.id ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}">
+        role="tab" aria-selected={tab === t.id}
+        class="tab-button {tab === t.id ? 'active' : ''}">
         {t.label}
       </button>
     {/each}
@@ -310,7 +307,7 @@
                 {:else}
                   <!-- Réponses du formulaire -->
                   <div>
-                    <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50 mb-2">Réponses</p>
+                    <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">Réponses</p>
                     <div class="space-y-2">
                       {#each Object.entries(detail.appeal.data || {}) as [key, value]}
                         <div class="rounded-lg bg-surface border border-outline-variant/15 p-3">
@@ -369,7 +366,7 @@
                   <!-- Contexte -->
                   <div class="grid md:grid-cols-2 gap-4">
                     <div>
-                      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50 mb-2">
+                      <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
                         Historique de sanctions ({detail.sanctions.length})
                       </p>
                       {#if detail.sanctions.length === 0}
@@ -387,7 +384,7 @@
                       {/if}
                     </div>
                     <div>
-                      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50 mb-2">
+                      <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
                         Appels précédents ({detail.previousAppeals.length})
                       </p>
                       {#if detail.previousAppeals.length === 0}
@@ -658,4 +655,4 @@
       </div>
     {/if}
   {/if}
-</div>
+</ModulePage>

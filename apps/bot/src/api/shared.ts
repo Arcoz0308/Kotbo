@@ -1,21 +1,7 @@
 import { type IncomingMessage, ServerResponse } from 'node:http';
 
 
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChannelType,
-  EmbedBuilder,
-  GuildScheduledEventEntityType,
-  GuildScheduledEventPrivacyLevel,
-  PermissionFlagsBits,
-  type Client,
-  TextChannel,
-  Collection,
-  GuildMember,
-  Guild,
-} from 'discord.js';
+import { ChannelType, PermissionFlagsBits, type Client, TextChannel, Collection, GuildMember, Guild } from 'discord.js';
 import { SanctionType } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/db.js';
@@ -39,93 +25,17 @@ import {
 } from '../utils/commandAccess.js';
 import { commands } from '../commands.js';
 
-import {
-  hashAPIKey,
-  generateAPIKey,
-  getStaffMember,
-  addStaffMember,
-  toggleTutorStatus,
-  updateStaffGrade,
-  removeStaffMember,
-  getStaffMemberStats,
-  issueStaffWarning,
-  blacklistStaff,
-  getActiveBlacklist,
-  createTestingPeriod,
-  addMentorReport,
-  endTestingPeriod,
-  getStaffRoles,
-  createStaffRole,
-  reorderStaffRoles,
-  deleteStaffRole,
-  updateStaffRole,
-  createAPIKey,
-  getAPIKeys,
-  deleteAPIKey,
-  verifyAPIKey,
-  recordStaffActivity,
-  getStaffHierarchies,
-  createStaffHierarchy,
-  updateStaffHierarchy,
-  deleteStaffHierarchy,
-  getHierarchySchema,
-  addMemberToHierarchy,
-  removeMemberFromHierarchy,
-  syncStaffHierarchyMemberships,
-  importRoleMembers,
-} from '../services/staff/staffManagementService.js';
+import { hashAPIKey, getStaffMember, verifyAPIKey } from '../services/staff/staffManagementService.js';
 export {
   getPublicProfileSnapshot,
   getStaffProfileSnapshot,
 } from '../services/progression/profileService.js';
-import {
-  getPolls,
-  createPoll,
-  castPollVote,
-  getAbsences,
-  createAbsence,
-  deleteAbsence,
-  getMeetings,
-  updateAbsenceStatus,
-  getManagerNotes,
-  createManagerNote,
-  deleteManagerNote,
-  getStaffAlertsAndProgression,
-  createMeeting,
-  updateMeeting,
-  deleteMeeting,
-  syncMeetingPresencesWithAbsences,
-  getNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-  createNotification,
-  getStaffCalendarData,
-} from '../services/staff/staffLeadershipService.js';
+
 import * as tutoringService from '../services/core/tutoringService.js';
-import {
-  getEvents,
-  getEvent,
-  createEvent,
-  publishEvent,
-  nextQuestion,
-  getEventStats,
-  prevQuestion,
-  finishEvent,
-  deleteEvent
-} from '../services/features/eventService.js';
-import {
-  getCandidatures,
-  createCandidature,
-  getEligibleTutors,
-  updateCandidatureStatus,
-  deleteCandidature as deleteRecruitmentCandidature,
-  approveCandidature,
-  rejectCandidature,
-  completeOral,
-  assignTutor,
-  getCandidatureHistory,
-} from '../services/staff/recruitmentService.js';
+
+import { getCandidatureHistory } from '../services/staff/recruitmentService.js';
 import * as altAccountService from '../services/moderation/altAccountService.js';
+import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from '../services/moderation/crossServerSanctionService.js';
 
 import crypto from 'node:crypto';
 import { fetchAllMembers } from '../utils/discord.js';
@@ -647,6 +557,7 @@ export type MemberCaseResponse = {
   isSuspectedDC: boolean;
   sanctionReports: SanctionReportItem[];
   interactionGraph: MemberCaseInteractionGraph;
+  crossServerSanctions: CrossServerSanctionSummary;
 };
 
 export type CommandRestrictionState = CommandRestrictionRule;
@@ -725,6 +636,7 @@ export type DashboardState = {
   baseStaffRoleId: string;
   testStaffRoleId: string;
   propagateSanctions: boolean;
+  crossServerSanctionsEnabled: boolean;
   translationEnabled: boolean;
   codePoliceEnabled: boolean;
   dailyAlgoEnabled: boolean;
@@ -1923,6 +1835,10 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       .getAllLinkedUserIds(guildId, actualUserId)
       .catch(() => [actualUserId]);
 
+    // Résumé des sanctions sur les autres serveurs de l'instance (lancé en parallèle du reste).
+    const crossServerPromise = getCrossServerSanctionSummary(client, guildId, linkedUserIds)
+      .catch(() => ({ enabled: false, serverCount: 0, total: 0, breakdown: { WARN: 0, KICK: 0, TIMEOUT: 0, TEMP_BAN: 0, BAN: 0, SOFTBAN: 0 }, recent: [] } as CrossServerSanctionSummary));
+
     const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports, dbInvite] = await Promise.all([
       Promise.race([
         client.users.fetch(actualUserId).catch(() => null),
@@ -1979,6 +1895,8 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
     ) {
       return null;
     }
+
+  const crossServerSanctions = await crossServerPromise;
 
   const isOnServer = !!member;
   const displayLabel = resolveMemberDisplayLabel(actualUserId, user, profile);
@@ -2339,6 +2257,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       connections: inviteConnections?.connections || [],
       connectionsNote: inviteConnections?.note || "",
       isSuspectedDC: profile?.isSuspectedDC ?? false,
+      crossServerSanctions,
       interactionGraph: { nodes, edges },
       candidatures: (candidatureHistory || []).map((c) => ({
         id: c.id,
@@ -3172,6 +3091,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     baseStaffRoleId: guild.baseStaffRoleId ?? '',
     testStaffRoleId: guild.testStaffRoleId ?? '',
     propagateSanctions: guild.propagateSanctions,
+    crossServerSanctionsEnabled: guild.crossServerSanctionsEnabled,
     sanctionReportEnabled: guild.sanctionReportEnabled,
     translationEnabled: guild.translationEnabled,
     codePoliceEnabled: guild.codePoliceEnabled,

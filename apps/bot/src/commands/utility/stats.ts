@@ -1,18 +1,10 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import {
-  ContainerBuilder,
-  MediaGalleryBuilder,
-  MediaGalleryItemBuilder,
-  TextDisplayBuilder,
-  MessageFlags,
-  SlashCommandBuilder,
-  AttachmentBuilder,
-  type ChatInputCommandInteraction,
-} from 'discord.js';
+import { MessageFlags, SlashCommandBuilder, AttachmentBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { generateMemberStatsImage } from '../../services/core/imageService.js';
-import { COLORS_RAW, text } from '../../utils/embeds.js';
+import { kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
+import { mediaGallery, v2Message } from '@arcscord/components';
 
 const data = new SlashCommandBuilder()
   .setName('stats')
@@ -71,19 +63,17 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats.png' });
 
-  const container = new ContainerBuilder()
-    .setAccentColor(COLORS_RAW.primary)
-    .addMediaGalleryComponents(
-      new MediaGalleryBuilder().addItems(
-        new MediaGalleryItemBuilder({ media: { url: 'attachment://stats.png' } }),
-      ),
-    )
-    .addTextDisplayComponents(text(`-# Kotbo Analytics · Requis par ${interaction.user.username}`));
-
   await interaction.editReply({
-    components: [container],
+    ...v2Message(
+      kotboContainer({
+        color: 'primary',
+        fields: [
+          mediaGallery({ items: [{ media: { url: 'attachment://stats.png' } }] }),
+          `-# Kotbo Analytics · Requis par ${interaction.user.username}`,
+        ],
+      }),
+    ),
     files: [attachment],
-    flags: MessageFlags.IsComponentsV2,
   });
 }
 

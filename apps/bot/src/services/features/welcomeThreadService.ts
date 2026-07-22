@@ -29,6 +29,7 @@ const WEBHOOK_NAME = 'Kotbo Accueil';
 
 // Cache mémoire du webhook par salon : évite un appel API fetchWebhooks() à chaque arrivée de membre
 const webhookCache = new Map<string, Webhook>();
+const exclusiveRoleLocks = new Map<string, Promise<void>>();
 
 /** Intervalle de rafraîchissement de l'indicateur "est en train d'écrire" (Discord l'affiche ~10s) */
 const TYPING_REFRESH_MS = 8_000;
@@ -314,6 +315,45 @@ export function buildMenuPageEmbed(page: WelcomeMenuPage, ctx?: PlaceholderConte
   return embed;
 }
 
+function normalizeRoleGroup(value: string | null | undefined): string {
+  return value?.trim().replace(/\s+/g, ' ').toLocaleLowerCase('fr-FR') || '';
+}
+
+export function resolveExclusiveRoleIds(
+  page: Pick<WelcomeMenuPage, 'roleId' | 'roleGroup'>,
+  pages: Array<Pick<WelcomeMenuPage, 'actionType' | 'roleAction' | 'roleId' | 'roleGroup'>>,
+): string[] {
+  const targetRoleId = page.roleId;
+  const groupKey = normalizeRoleGroup(page.roleGroup);
+  if (!targetRoleId || !groupKey) return [];
+
+  return [...new Set(pages
+    .filter((candidate) =>
+      candidate.actionType === 'ROLE'
+      && candidate.roleAction === 'EXCLUSIVE'
+      && normalizeRoleGroup(candidate.roleGroup) === groupKey
+      && candidate.roleId
+      && candidate.roleId !== targetRoleId
+    )
+    .map((candidate) => candidate.roleId as string))];
+}
+
+async function withExclusiveRoleLock<T>(key: string, task: () => Promise<T>): Promise<T> {
+  const previous = exclusiveRoleLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const queued = previous.then(() => gate);
+  exclusiveRoleLocks.set(key, queued);
+
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (exclusiveRoleLocks.get(key) === queued) exclusiveRoleLocks.delete(key);
+  }
+}
+
 /**
  * Ajoute, retire ou bascule le rôle configuré sur une page "Rôle" du menu d'accueil
  */
@@ -353,6 +393,70 @@ async function handleMenuRoleAction(
   const hasRole = member.roles.cache.has(roleId);
 
   try {
+    if (page.roleAction === 'EXCLUSIVE') {
+      const groupKey = normalizeRoleGroup(page.roleGroup);
+      if (!groupKey) {
+        await interaction.reply({ content: "❌ Ce choix exclusif n'a pas de groupe configuré.", flags: [MessageFlags.Ephemeral] });
+        return;
+      }
+
+      await withExclusiveRoleLock(`${guild.id}:${member.id}:${groupKey}`, async () => {
+        const exclusivePages = await prisma.welcomeMenuPage.findMany({
+          where: { guildId: guild.id, actionType: 'ROLE', roleAction: 'EXCLUSIVE' },
+          select: { actionType: true, roleAction: true, roleId: true, roleGroup: true },
+        });
+        const conflictingRoleIds = resolveExclusiveRoleIds(page, exclusivePages);
+        if (conflictingRoleIds.length === 0) {
+          await interaction.reply({ content: '❌ Ce groupe exclusif doit contenir au moins deux rôles.', flags: [MessageFlags.Ephemeral] });
+          return;
+        }
+
+        const targetAlreadyPresent = member.roles.cache.has(roleId);
+        const heldConflictingRoleIds = conflictingRoleIds.filter((id) => member.roles.cache.has(id));
+        const unmanageableRole = heldConflictingRoleIds
+          .map((id) => guild.roles.cache.get(id))
+          .find((candidate) => candidate && (candidate.managed || candidate.position >= botMember.roles.highest.position));
+
+        if (unmanageableRole) {
+          await interaction.reply({
+            content: `❌ Le bot ne peut pas retirer le rôle concurrent <@&${unmanageableRole.id}>. Placez le rôle de Kotbo au-dessus des rôles du groupe.`,
+            flags: [MessageFlags.Ephemeral],
+          });
+          return;
+        }
+
+        if (targetAlreadyPresent && heldConflictingRoleIds.length === 0) {
+          await interaction.reply({ content: `ℹ️ Vous avez déjà choisi le rôle <@&${roleId}>.`, flags: [MessageFlags.Ephemeral] });
+          return;
+        }
+
+        let targetAdded = false;
+        try {
+          if (!targetAlreadyPresent) {
+            await member.roles.add(roleId, `Choix exclusif « ${page.roleGroup} »`);
+            targetAdded = true;
+          }
+          if (heldConflictingRoleIds.length > 0) {
+            await member.roles.remove(heldConflictingRoleIds, `Remplacement dans le groupe exclusif « ${page.roleGroup} »`);
+          }
+        } catch (err) {
+          if (targetAdded) {
+            await member.roles.remove(roleId, 'Annulation après échec du choix exclusif').catch(() => null);
+          }
+          throw err;
+        }
+
+        const removedText = heldConflictingRoleIds.length > 0
+          ? ` Le${heldConflictingRoleIds.length > 1 ? 's' : ''} rôle${heldConflictingRoleIds.length > 1 ? 's' : ''} ${heldConflictingRoleIds.map((id) => `<@&${id}>`).join(', ')} ${heldConflictingRoleIds.length > 1 ? 'ont' : 'a'} été retiré${heldConflictingRoleIds.length > 1 ? 's' : ''}.`
+          : '';
+        await interaction.reply({
+          content: `✅ Votre choix est maintenant <@&${roleId}>.${removedText}`,
+          flags: [MessageFlags.Ephemeral],
+        });
+      });
+      return;
+    }
+
     if (page.roleAction === 'REMOVE') {
       if (!hasRole) {
         await interaction.reply({ content: `ℹ️ Vous n'avez pas le rôle <@&${roleId}>.`, flags: [MessageFlags.Ephemeral] });

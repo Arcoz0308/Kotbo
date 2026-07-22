@@ -2,51 +2,52 @@
   import { router } from 'tinro';
   import Papicon from './Papicon.svelte';
   import { allPages } from '../config/pages';
+  import { m } from '../i18n';
 
   const crumbs = $derived.by(() => {
     const path = $router.path;
     if (path === '/' || path === '/login' || !path) return [];
 
-    const list = [{ name: 'Accueil', href: '/' }];
+    const list = [{ name: m.bc_home(), href: '/' }];
 
     const segments = path.split('/').filter(Boolean);
 
     if (segments[0] === 'events') {
-      list.push({ name: 'Événements', href: '/events' });
+      list.push({ name: m.bc_events(), href: '/events' });
       if (segments[1] === 'edit' && segments[2]) {
-        list.push({ name: 'Modifier', href: path });
+        list.push({ name: m.bc_edit(), href: path });
       } else if (segments[1] === 'control' && segments[2]) {
-        list.push({ name: 'Superviser', href: path });
+        list.push({ name: m.bc_supervise(), href: path });
       }
     } else if (segments[0] === 'invitations' && segments[1]) {
-      list.push({ name: 'Invitations', href: '/invitations' });
-      list.push({ name: `Détail (${segments[1]})`, href: path });
+      list.push({ name: m.bc_invitations(), href: '/invitations' });
+      list.push({ name: m.bc_detail({ id: segments[1] }), href: path });
     } else if (segments[0] === 'profile' && segments[1]) {
-      list.push({ name: 'Membres', href: '/members' });
-      list.push({ name: 'Profil', href: path });
+      list.push({ name: m.bc_members(), href: '/members' });
+      list.push({ name: m.bc_profile(), href: path });
     } else if (segments[0] === 'module-settings' && segments[1]) {
-      list.push({ name: 'Modules', href: '/modules' });
+      list.push({ name: m.bc_modules(), href: '/modules' });
       const moduleNames: Record<string, string> = {
-        regulation: 'Règlement',
-        sanctions: 'Sanctions',
-        logs: 'Logs',
-        recruitment: 'Recrutement',
-        tickets: 'Tickets',
-        meetings: 'Réunions',
-        dailyalgo: 'Daily Algo'
+        regulation: m.bc_module_regulation(),
+        sanctions: m.bc_module_sanctions(),
+        logs: m.bc_module_logs(),
+        recruitment: m.bc_module_recruitment(),
+        tickets: m.bc_module_tickets(),
+        meetings: m.bc_module_meetings(),
+        dailyalgo: m.bc_module_dailyalgo()
       };
       list.push({ name: moduleNames[segments[1]] || segments[1], href: path });
     } else if (segments[0] === 'admin') {
-      list.push({ name: 'Administration', href: '/admin' });
+      list.push({ name: m.bc_admin(), href: '/admin' });
       if (segments[1]) {
         const adminNames: Record<string, string> = {
-          servers: 'Serveurs',
-          shards: 'Shards',
-          security: 'Sécurité',
-          content: 'Mots globaux',
-          config: 'Configuration',
-          activation: 'Licences',
-          modules: 'Supervision'
+          servers: m.bc_admin_servers(),
+          shards: m.bc_admin_shards(),
+          security: m.bc_admin_security(),
+          content: m.bc_admin_content(),
+          config: m.bc_admin_config(),
+          activation: m.bc_admin_activation(),
+          modules: m.bc_admin_modules()
         };
         list.push({ name: adminNames[segments[1]] || segments[1], href: path });
       }

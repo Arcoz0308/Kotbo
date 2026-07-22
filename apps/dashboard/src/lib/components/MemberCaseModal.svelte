@@ -4,11 +4,12 @@
   import { dashboardStore } from '../stores/dashboard.svelte.ts';
   import { authStore } from '../stores/auth.svelte.ts';
   import { toast } from '../stores/toast.svelte';
+  import { confirmDialog } from '../stores/confirmDialog.svelte';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
   import { router } from 'tinro';
   import { inviteDetailsModal } from '../stores/inviteDetailsModal.svelte';
-  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction } from '../api';
+  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote, runMemberCaseAction, searchMessages, fetchMessageLogChannels } from '../api';
   import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
@@ -145,6 +146,21 @@
       status: string;
     }>;
     isSuspectedDC: boolean;
+    crossServerSanctions?: {
+      enabled: boolean;
+      serverCount: number;
+      total: number;
+      breakdown: Record<string, number>;
+      recent: Array<{
+        type: string;
+        status: string;
+        durationSeconds: number | null;
+        reason: string;
+        createdAt: string;
+        guildId: string;
+        guildName: string;
+      }>;
+    };
     interactionGraph: {
       nodes: Array<{ id: string; label: string; type: 'user' | 'target'; avatar?: string | null }>;
       edges: Array<{ from: string; to: string; type: 'mention' | 'reply' | 'reaction'; count: number }>;
@@ -186,6 +202,173 @@
   let activeTab = $state<MemberCaseTab>('resume');
   let analyticsData = $state<MemberAnalyticsResponse | null>(null);
   let analyticsLoading = $state(false);
+
+  // --- NOUVEAUX ÉTATS POUR L'ONGLET MESSAGES ---
+  let messageQuery = $state('');
+  let messageChannelId = $state('');
+  let messageIncludeDeleted = $state(true);
+  let messageLimit = $state(20);
+  let messageOffset = $state(0);
+  let messageFrom = $state('');
+  let messageTo = $state('');
+
+  let messagesList = $state<any[]>([]);
+  let messagesTotalCount = $state(0);
+  let messagesLoading = $state(false);
+  let messagesChannels = $state<any[]>([]);
+
+  // --- CALCUL DES STATISTIQUES RICHES DÉRIVÉES ---
+  const moderationRiskScore = $derived.by(() => {
+    let score = 0;
+    if (!caseData) return 0;
+    if (caseData.isSuspectedDC || caseData.profile?.isSuspectedDC) score += 30;
+    const activeSanctions = caseData.sanctions?.filter(s => s.status === 'ACTIVE') || [];
+    const pastSanctions = caseData.sanctions?.filter(s => s.status !== 'ACTIVE') || [];
+    score += activeSanctions.length * 25;
+    score += pastSanctions.length * 10;
+    if (caseData.linkedAccounts && caseData.linkedAccounts.length > 0) {
+      score += caseData.linkedAccounts.length * 15;
+    }
+    return Math.min(100, score);
+  });
+
+  const memberSeniority = $derived.by(() => {
+    if (!caseData?.profile?.guildJoinedAt) return 'Nouveau venu';
+    const joined = new Date(caseData.profile.guildJoinedAt).getTime();
+    const ageDays = (Date.now() - joined) / (1000 * 60 * 60 * 24);
+    if (ageDays > 365) return 'Vétéran (1 an+)';
+    if (ageDays > 180) return 'Ancien (6 mois+)';
+    if (ageDays > 30) return 'Régulier (1 mois+)';
+    if (ageDays > 7) return 'Récents (1 semaine+)';
+    return 'Nouveau venu';
+  });
+
+  const topChannels = $derived.by(() => {
+    if (!caseData?.messagesByChannel) return [];
+    return [...caseData.messagesByChannel]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+  });
+
+  // --- FONCTIONS DE CHARGEMENT ET D'ACTION ---
+  async function loadMemberMessages() {
+    if (!userId) return;
+    messagesLoading = true;
+    try {
+      const data = await searchMessages({
+        authorId: userId,
+        q: messageQuery.trim() || undefined,
+        channelId: messageChannelId || undefined,
+        includeDeleted: messageIncludeDeleted,
+        from: messageFrom || undefined,
+        to: messageTo || undefined,
+        limit: messageLimit,
+        offset: messageOffset,
+        order: 'desc'
+      });
+      messagesList = data.messages || [];
+      messagesTotalCount = data.total || 0;
+    } catch (e) {
+      console.error('Failed to load member messages:', e);
+    } finally {
+      messagesLoading = false;
+    }
+  }
+
+  async function loadMemberMessageChannels() {
+    if (!userId) return;
+    try {
+      messagesChannels = await fetchMessageLogChannels(undefined, userId);
+    } catch (e) {
+      console.error('Failed to load member message channels:', e);
+    }
+  }
+
+  function parseDurationToMs(durationStr: string): number {
+    const match = durationStr.match(/^(\d+)([smhd])$/i);
+    if (!match) return 30 * 60 * 1000;
+    const value = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+    switch (unit) {
+      case 's': return value * 1000;
+      case 'm': return value * 60 * 1000;
+      case 'h': return value * 60 * 60 * 1000;
+      case 'd': return value * 24 * 60 * 60 * 1000;
+      default: return value * 60 * 1000;
+    }
+  }
+
+  async function executeModerationAction(action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') {
+    if (!userId) return;
+    
+    const reasonText = actionReason.trim() || 'Action lancée depuis le profil membre.';
+    let confirmTitle = '';
+    let confirmDesc = '';
+    let confirmLabel = '';
+    let variant: 'danger' | 'warning' = 'warning';
+    
+    if (action === 'WARN') {
+      confirmTitle = `Avertir ${userName} ?`;
+      confirmDesc = `Un avertissement formel sera enregistré. Raison : "${reasonText}"`;
+      confirmLabel = 'Avertir';
+    } else if (action === 'TIMEOUT') {
+      confirmTitle = `Exclure temporairement ${userName} ?`;
+      confirmDesc = `Le membre sera mis en sourdine (Timeout) pendant ${actionDuration}. Raison : "${reasonText}"`;
+      confirmLabel = 'Exclure';
+    } else if (action === 'KICK') {
+      confirmTitle = `Expulser ${userName} ?`;
+      confirmDesc = `Le membre sera exclu du serveur Discord. Raison : "${reasonText}"`;
+      confirmLabel = 'Expulser';
+      variant = 'danger';
+    } else if (action === 'BAN') {
+      confirmTitle = `Bannir ${userName} ?`;
+      confirmDesc = `Le membre sera banni définitivement du serveur Discord. Un message d'avis d'appel lui sera envoyé au préalable. Raison : "${reasonText}"`;
+      confirmLabel = 'Bannir';
+      variant = 'danger';
+    }
+    
+    const confirmed = await confirmDialog.ask({
+      title: confirmTitle,
+      description: confirmDesc,
+      confirmLabel,
+      variant
+    });
+    
+    if (!confirmed) return;
+    
+    actionBusy = true;
+    actionFeedback = '';
+    actionIsError = false;
+    
+    try {
+      const payload: { reason: string; durationMs?: number | null } = {
+        reason: reasonText
+      };
+      
+      if (action === 'TIMEOUT') {
+        payload.durationMs = parseDurationToMs(actionDuration);
+      }
+      
+      const res = await runMemberCaseAction(userId, action, payload);
+      if (res?.ok) {
+        toast.success(`L'action ${action} a été exécutée.`);
+        actionReason = '';
+        // Recharger le dossier membre
+        const updatedCase = await fetchMemberCase(userId);
+        if (updatedCase) {
+          caseData = updatedCase;
+        }
+      } else {
+        throw new Error(res?.error || "Erreur lors de l'exécution de l'action");
+      }
+    } catch (err: any) {
+      actionIsError = true;
+      actionFeedback = err?.message || "Une erreur est survenue lors de l'exécution.";
+      toast.error(actionFeedback);
+    } finally {
+      actionBusy = false;
+    }
+  }
   let viewingReportSanctionId = $state<string | null>(null);
   let isEditingReport = $state(false);
   let updateReportBusy = $state(false);
@@ -202,7 +385,7 @@
 
   async function handleRequestVerification() {
     if (!userId) return;
-    if (!confirm("Voulez-vous vraiment forcer la vérification de sécurité pour cet utilisateur ? Il sera mis en Timeout temporairement et recevra les instructions par MP (DM).")) return;
+    if (!(await confirmDialog.ask({ title: 'Forcer la vérification de sécurité ?', description: "L'utilisateur sera mis en timeout temporairement et recevra les instructions par message privé.", confirmLabel: 'Forcer la vérification', variant: 'warning' }))) return;
     requestVerificationBusy = true;
     try {
       const res = await runMemberCaseAction(userId, 'REQUEST_VERIFICATION', {
@@ -223,17 +406,6 @@
   let linkBusy = $state(false);
   let linkFeedback = $state('');
   let linkIsError = $state(false);
-
-  $effect(() => {
-    if (open) {
-      document.body.classList.add('overflow-hidden');
-    } else {
-      document.body.classList.remove('overflow-hidden');
-    }
-    return () => {
-      document.body.classList.remove('overflow-hidden');
-    };
-  });
 
   async function handleLinkAccount() {
     if (!targetAccountId.trim()) {
@@ -274,7 +446,7 @@
   let unlinkingAccountId = $state<string | null>(null);
 
   async function handleUnlinkAccount(targetId: string) {
-    if (!confirm('Êtes-vous sûr de vouloir séparer ces comptes ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Séparer ces comptes ?', confirmLabel: 'Séparer', variant: 'warning' }))) return;
     unlinkingAccountId = targetId;
 
     try {
@@ -386,6 +558,26 @@
       ? [...caseData?.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : []
   );
+
+  const crossServer = $derived(caseData?.crossServerSanctions ?? null);
+  const crossServerBreakdown = $derived(
+    crossServer
+      ? Object.entries(crossServer.breakdown).filter(([, count]) => (count as number) > 0)
+      : []
+  );
+
+  // Icône Papicon + classes de couleur (statiques pour Tailwind) par type de sanction.
+  function getSanctionTypeStyle(type: string): { icon: string; tile: string; dot: string } {
+    switch (type.toUpperCase()) {
+      case 'WARN': return { icon: 'alert-triangle', tile: 'bg-amber-500/10 text-amber-500', dot: 'bg-amber-500' };
+      case 'TIMEOUT': return { icon: 'clock', tile: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500' };
+      case 'KICK': return { icon: 'log-out', tile: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500' };
+      case 'TEMP_BAN': return { icon: 'ban', tile: 'bg-rose-500/10 text-rose-500', dot: 'bg-rose-500' };
+      case 'BAN': return { icon: 'gavel', tile: 'bg-rose-600/10 text-rose-600', dot: 'bg-rose-600' };
+      case 'SOFTBAN': return { icon: 'eraser', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
+      default: return { icon: 'shield', tile: 'bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' };
+    }
+  }
 
   const reportRuleOptions = $derived(buildReportRuleOptions(dashboardStore.state.regulationRules || []));
   const selectedSanctionForReport = $derived(sanctions.find(s => s.id === viewingReportSanctionId) || null);
@@ -566,7 +758,35 @@
   $effect(() => {
     if (open) {
       activeTab = 'resume';
+      messageQuery = '';
+      messageChannelId = '';
+      messageIncludeDeleted = true;
+      messageOffset = 0;
+      messageFrom = '';
+      messageTo = '';
+      messagesList = [];
+      messagesTotalCount = 0;
       void loadMemberAnalytics();
+    }
+  });
+
+  $effect(() => {
+    if (open && activeTab === 'messages' && userId) {
+      void loadMemberMessageChannels();
+    }
+  });
+
+  $effect(() => {
+    if (open && activeTab === 'messages' && userId) {
+      // dependances reactives pour forcer la mise a jour
+      const _q = messageQuery;
+      const _c = messageChannelId;
+      const _d = messageIncludeDeleted;
+      const _f = messageFrom;
+      const _t = messageTo;
+      const _o = messageOffset;
+      const _l = messageLimit;
+      void loadMemberMessages();
     }
   });
 </script>
@@ -574,13 +794,13 @@
 <Modal
   open={open}
   onClose={onClose}
-  size="xl"
+  size="screen"
   showCloseButton={false}
 >
-  <div class="modal-panel modal-panel-xl space-y-0 p-0 font-body" role="dialog" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+  <div class="font-body" role="dialog" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 
     <!-- ── Hero Section ──────────────────────────────────────── -->
-    <div class="relative overflow-hidden rounded-t-3xl -mt-6 -mx-6" style="min-height: 180px;">
+    <div class="relative overflow-hidden" style="min-height: 180px;">
       {#if caseData?.profile?.bannerUrl}
         <div class="absolute inset-0" style="background-image: linear-gradient(to bottom, transparent 30%, var(--surface-container-lowest) 100%), url('{caseData.profile.bannerUrl}'); background-size: cover; background-position: center;"></div>
       {:else}
@@ -607,15 +827,6 @@
         </svg>
       {/if}
       <div class="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-(--surface-container-lowest)"></div>
-
-      <!-- Close button -->
-      <button
-        type="button"
-        onclick={onClose}
-        class="absolute top-4 right-4 z-50 flex h-8 w-8 items-center justify-center rounded-md bg-black/20 text-white/80 transition-colors hover:bg-black/40 hover:text-white"
-      >
-        <Papicon icon="x" size={18} />
-      </button>
 
       <!-- Avatar + Identity block -->
       <div class="relative z-10 flex items-end gap-5 px-8 pb-5 pt-20">
@@ -697,8 +908,8 @@
     </div>
 
     <!-- ── Tab Navigation ────────────────────────────────────── -->
-    <div class="px-6 pt-4 pb-2">
-      <div class="tab-group overflow-x-auto">
+    <div class="sticky top-0 z-30 flex items-center gap-3 border-b border-outline-variant/10 bg-surface-container-lowest/95 px-6 pt-4 pb-2 backdrop-blur-sm">
+      <div class="tab-group min-w-0 flex-1 overflow-x-auto">
         {#each tabs as tab}
           <button
             type="button"
@@ -718,6 +929,15 @@
             </button>
           {/each}
         </div>
+
+        <button
+          type="button"
+          onclick={onClose}
+          aria-label="Fermer le dossier"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-on-surface/5 text-on-surface-variant transition-colors hover:bg-on-surface/10 hover:text-on-surface"
+        >
+          <Papicon icon="x" size={16} />
+        </button>
       </div>
 
       <!-- ── Content Area ──────────────────────────────────────── -->
@@ -759,11 +979,13 @@
             </p>
           </div>
         {:else}
-          <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <!-- Colonne Principale (Gauche, 3/4) -->
+            <div class="lg:col-span-3 space-y-8">
             
             {#if caseData?.isSuspectedDC}
               <div class="rounded-xl bg-rose-500/10 border-2 border-rose-500/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
-                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 text-rose-500 shadow-lg shadow-rose-500/20">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 text-rose-500 shadow-sm">
                   <Papicon icon="alert-octagon" size={24} />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -798,17 +1020,17 @@
 
                    <div class="grid grid-cols-2 gap-8">
                      <div class="space-y-1">
-                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Âge du compte</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">Âge du compte</p>
                        <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.accountCreatedAt)}</p>
                        <p class="text-[10px] font-bold text-on-surface-variant/60">Créé le {formatDateShort(caseData?.profile?.accountCreatedAt)}</p>
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Présence Serveur</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">Présence Serveur</p>
                        <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.guildJoinedAt)}</p>
                        <p class="text-[10px] font-bold text-on-surface-variant/60">Arrivé le {formatDateShort(caseData?.profile?.guildJoinedAt)}</p>
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Invité par</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">Invité par</p>
                         {#if caseData?.invite?.inviterTag}
                           {#if caseData?.invite?.inviterId}
                             <button
@@ -851,7 +1073,7 @@
                         {/if}
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Code d'invitation</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">Code d'invitation</p>
                        {#if caseData?.invite?.code}
                          <button
                            type="button"
@@ -883,7 +1105,7 @@
                    <div class="space-y-4">
                      <div class="flex items-end justify-between">
                         <span class="text-4xl font-semibold text-on-surface">{sanctions.length}</span>
-                        <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 pb-1">Total</span>
+                        <span class="text-xs font-medium text-on-surface-variant/40 pb-1">Total</span>
                      </div>
                      <div class="h-2 w-full rounded-full bg-on-surface/5 overflow-hidden">
                         <div class="h-full bg-rose-500 transition-all duration-1000" style="width: {sanctions.length > 0 ? (sanctions.filter(s => s.status === 'ACTIVE').length / sanctions.length) * 100 : 0}%"></div>
@@ -938,12 +1160,12 @@
                        <div class="flex gap-2">
                          <div class="flex flex-col items-end">
                            <p class="text-2xl font-semibold text-primary">{analyticsData.totalMessages.toLocaleString('fr-FR')}</p>
-                           <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/40">Messages totaux</p>
+                           <p class="text-xs font-medium text-on-surface-variant/40">Messages totaux</p>
                          </div>
                          <div class="h-8 w-px bg-outline-variant/20 mx-4"></div>
                          <div class="flex flex-col items-end">
                            <p class="text-2xl font-semibold text-secondary">{Math.round(analyticsData.totalVoiceMinutes)}m</p>
-                           <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/40">Temps vocal</p>
+                           <p class="text-xs font-medium text-on-surface-variant/40">Temps vocal</p>
                          </div>
                        </div>
                     </div>
@@ -991,7 +1213,7 @@
                 {:else if analyticsLoading}
                   <div class="md:col-span-3 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm animate-pulse flex flex-col justify-center items-center">
                     <Papicon icon="loader" size={32} class="animate-spin text-primary/20 mb-4" />
-                    <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/20">Calcul des stats...</p>
+                    <p class="text-[13px] font-medium text-on-surface-variant/20">Calcul des stats...</p>
                   </div>
                 {:else}
                   <div class="md:col-span-3 rounded-xl bg-surface-container-low/10 p-10 border border-dashed border-outline-variant/20 flex flex-col justify-center items-center text-center">
@@ -1146,27 +1368,27 @@
                    </div>
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">ID Discord</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">ID Discord</dt>
                        <dd class="text-sm font-semibold text-on-surface select-all">{caseData?.profile?.userId ?? userId}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Nom d'utilisateur</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Nom d'utilisateur</dt>
                        <dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Nom Global</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Nom Global</dt>
                        <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Surnom Serveur</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Surnom Serveur</dt>
                        <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Pronoms</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Pronoms</dt>
                        <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd>
                      </div>
                      <div class="flex items-center justify-between">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Langue (Locale)</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Langue (Locale)</dt>
                        <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd>
                      </div>
                    </dl>
@@ -1176,7 +1398,7 @@
                   <!-- Staff Role Section -->
                   <div class="rounded-xl bg-amber-500/5 dark:bg-amber-500/10 p-8 border border-amber-500/20 dark:border-amber-400/20 shadow-sm hover:bg-amber-500/10 dark:hover:bg-amber-500/15 transition-all duration-500 group">
                      <div class="flex items-center gap-3 mb-8">
-                       <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-lg shadow-amber-500/20">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-sm">
                          <Papicon icon="star" size={24} />
                        </div>
                        <div>
@@ -1186,11 +1408,11 @@
                      </div>
                      <dl class="space-y-5">
                        <div class="flex items-center justify-between border-b border-amber-500/15 pb-2">
-                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Grade Actuel</dt>
+                         <dt class="text-xs font-medium text-on-surface-variant/40">Grade Actuel</dt>
                          <dd class="text-sm font-semibold text-amber-600 dark:text-amber-400">{caseData?.profile?.staffGrade}</dd>
                        </div>
                        <div class="flex items-center justify-between">
-                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</dt>
+                         <dt class="text-xs font-medium text-on-surface-variant/40">Statut Tuteur</dt>
                          <dd class="text-sm font-semibold text-on-surface">
                            {caseData?.profile?.isTutor ? 'Oui (Actif)' : 'Non'}
                          </dd>
@@ -1212,25 +1434,25 @@
                    </div>
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Création Compte</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Création Compte</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.accountCreatedAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Arrivée Serveur</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Arrivée Serveur</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd>
                      </div>
                      {#if caseData?.profile?.guildLeftAt}
                        <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-rose-500/60">Dernier Départ</dt>
+                         <dt class="text-xs font-medium text-rose-500/60">Dernier Départ</dt>
                          <dd class="text-sm font-semibold text-rose-500">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd>
                        </div>
                      {/if}
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Première Vue</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Première Vue</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between">
-                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Dernière Vue</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">Dernière Vue</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.lastSeenAt)}</dd>
                      </div>
                    </dl>
@@ -1249,7 +1471,7 @@
                    </div>
                    <div class="flex flex-wrap gap-3">
                      {#each caseData?.roles as role}
-                       <span class="px-5 py-2.5 rounded-lg bg-surface-container-high text-xs font-semibold text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest flex items-center gap-2">
+                       <span class="px-5 py-2.5 rounded-lg bg-surface-container-high text-xs font-semibold text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:bg-surface-container-highest flex items-center gap-2">
                          {#if role.color && role.color !== '#000000'}
                            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {role.color}"></span>
                          {/if}
@@ -1318,14 +1540,14 @@
                         <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
                         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
                       </div>
-                      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Analyse du comportement...</p>
+                      <p class="text-[13px] font-medium text-on-surface-variant/60">Analyse du comportement...</p>
                     </div>
                   {:else if analyticsData && analyticsData.dailyTrend && analyticsData.dailyTrend.length > 0}
                     <div class="grid gap-6 lg:grid-cols-2">
                        <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
                             <div>
-                              <p class="text-[10px] font-semibold uppercase tracking-widest text-primary mb-1">Activité</p>
+                              <p class="text-xs font-medium text-primary mb-1">Activité</p>
                               <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Volume Messages</h4>
                             </div>
                             <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">30 derniers jours</span>
@@ -1355,7 +1577,7 @@
                        <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
                             <div>
-                              <p class="text-[10px] font-semibold uppercase tracking-widest text-secondary mb-1">Engagement</p>
+                              <p class="text-xs font-medium text-secondary mb-1">Engagement</p>
                               <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Activité Vocal</h4>
                             </div>
                             <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Minutes / jour</span>
@@ -1398,50 +1620,192 @@
 
               {:else if activeTab === 'messages'}
                 <div class="space-y-6">
-                  {#each caseData?.messagesByChannel as channel}
-                    <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                      <div class="flex items-center gap-3 mb-6 border-b border-outline-variant/10 pb-4">
-                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <Papicon icon="tag" size={16} />
-                        </div>
-                        <a 
-                          href="https://discord.com/channels/{authStore.selectedGuildId}/{channel.channelId}" 
-                          target="_blank"
-                          class="text-sm font-semibold text-on-surface hover:text-primary transition-colors flex items-center gap-1.5"
-                        >
-                          {channel.channelName}
-                          <Papicon icon="external-link" size={12} class="opacity-30" />
-                        </a>
-                        <span class="ml-auto text-[10px] font-semibold bg-primary/5 text-primary px-3 py-1 rounded-full uppercase tracking-widest">{channel.count} msg</span>
-                      </div>
-                      <div class="space-y-3">
-                        {#each channel.recentMessages as msg}
-                          <div class="rounded-lg bg-surface-container-high/30 p-4 border border-outline-variant/5">
-                            <div class="flex items-center justify-between mb-2">
-                               <span class="text-[10px] font-bold text-on-surface-variant/40">{formatDateTime(msg.dateIso)}</span>
-                               {#if msg.discordUrl}
-                                 <a href={msg.discordUrl} target="_blank" class="text-[11px] font-semibold text-primary hover:underline uppercase tracking-widest flex items-center gap-1">
-                                   Voir sur Discord
-                                   <Papicon icon="arrow-up-right" size={10} />
-                                 </a>
-                               {/if}
-                            </div>
-                            <p class="text-sm text-on-surface leading-relaxed">{@html msg.content || 'Contenu vide'}</p>
-                          </div>
-                        {/each}
-                      </div>
+                  <!-- Barre de Filtres Ergonomique -->
+                  <div class="flex flex-col gap-4 rounded-xl bg-surface-container-low/50 p-4 border border-outline-variant/10 md:flex-row md:items-center">
+                    <div class="relative flex-1">
+                      <span class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-on-surface-variant/40">
+                        <Papicon icon="search" size={16} />
+                      </span>
+                      <input
+                        type="search"
+                        bind:value={messageQuery}
+                        oninput={() => { messageOffset = 0; }}
+                        placeholder="Rechercher dans les messages..."
+                        class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-10 pr-10 text-xs text-on-surface placeholder:text-on-surface-variant/30 outline-hidden transition-all focus:border-primary/30 focus:bg-surface-container-high"
+                      />
                     </div>
-                  {/each}
-                  {#if caseData?.messagesByChannel.length === 0}
-                    <div class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low/30 rounded-xl border-2 border-dashed border-outline-variant/20">
-                      <div class="flex h-20 w-20 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-8">
-                        <Papicon icon="message-square" size={40} />
+
+                    <div class="flex flex-wrap items-center gap-3">
+                      <!-- Select Salon -->
+                      <div class="relative">
+                        <select
+                          bind:value={messageChannelId}
+                          onchange={() => { messageOffset = 0; }}
+                          class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface-variant focus:border-primary/30 focus:outline-hidden"
+                        >
+                          <option value="">Tous les salons</option>
+                          {#each messagesChannels as channel}
+                            <option value={channel.channelId}>#{channel.channelName} ({channel.count})</option>
+                          {/each}
+                        </select>
+                        <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+                          <Papicon icon="chevron-down" size={12} />
+                        </span>
                       </div>
-                      <h3 class="text-2xl font-semibold text-on-surface-variant font-headline">Silence radio</h3>
-                      <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm mx-auto px-6">
-                        Aucun message récent n'a été indexé pour ce membre dans les salons surveillés.
+
+                      <!-- Dates -->
+                      <div class="flex items-center gap-1.5 text-xs text-on-surface-variant/60">
+                        <span>Du</span>
+                        <input
+                          type="date"
+                          bind:value={messageFrom}
+                          onchange={() => { messageOffset = 0; }}
+                          class="rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-2 py-1.5 text-xs font-bold text-on-surface outline-hidden focus:border-primary/30"
+                        />
+                        <span>au</span>
+                        <input
+                          type="date"
+                          bind:value={messageTo}
+                          onchange={() => { messageOffset = 0; }}
+                          class="rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-2 py-1.5 text-xs font-bold text-on-surface outline-hidden focus:border-primary/30"
+                        />
+                      </div>
+
+                      <!-- Deleted toggle -->
+                      <label class="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-on-surface-variant/70">
+                        <input
+                          type="checkbox"
+                          bind:checked={messageIncludeDeleted}
+                          onchange={() => { messageOffset = 0; }}
+                          class="rounded border-outline-variant/30 text-primary focus:ring-primary/20 h-4 w-4 bg-surface-container-high/40"
+                        />
+                        <span>Afficher supprimés</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Fil de messages -->
+                  {#if messagesLoading}
+                    <div class="space-y-4 animate-pulse">
+                      {#each Array(4) as _}
+                        <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
+                          <div class="flex justify-between items-center mb-3">
+                            <div class="h-3.5 w-1/4 rounded bg-on-surface/5"></div>
+                            <div class="h-3 w-20 rounded bg-on-surface/5"></div>
+                          </div>
+                          <div class="space-y-2">
+                            <div class="h-3 w-full rounded bg-on-surface/5"></div>
+                            <div class="h-3 w-5/6 rounded bg-on-surface/5"></div>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  {:else if messagesList.length === 0}
+                    <div class="flex flex-col items-center justify-center py-20 text-center bg-surface-container-low/30 rounded-xl border-2 border-dashed border-outline-variant/20">
+                      <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-6">
+                        <Papicon icon="message-square" size={32} />
+                      </div>
+                      <h3 class="text-lg font-semibold text-on-surface font-headline">Aucun message trouvé</h3>
+                      <p class="mt-2 text-xs text-on-surface-variant/60 max-w-sm mx-auto px-6">
+                        Aucun message enregistré pour ce membre ne correspond à vos filtres.
                       </p>
                     </div>
+                  {:else}
+                    <div class="space-y-4">
+                      {#each messagesList as msg (msg.id)}
+                        <div class="group rounded-xl border p-5 transition-all duration-300 {msg.deletedAt ? 'border-red-500/10 bg-red-500/5' : 'border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low hover:border-outline-variant/25'}">
+                          <div class="flex flex-wrap items-center justify-between gap-3 mb-3 pb-2.5 border-b border-outline-variant/5">
+                            <div class="flex items-center gap-2.5">
+                              <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-lg">
+                                <Papicon icon="tag" size={12} />
+                                #{msg.channelName}
+                              </span>
+                              <span class="text-[10px] font-bold text-on-surface-variant/40">{formatDateTime(msg.createdAt)}</span>
+                              
+                              {#if msg.editedAt}
+                                <span class="badge bg-amber-500/10 text-amber-500 text-[9px]" title="Modifié le {formatDateTime(msg.editedAt)}">Modifié</span>
+                              {/if}
+                              {#if msg.deletedAt}
+                                <span class="badge bg-red-500/15 text-red-500 text-[9px] border border-red-500/30" title="Supprimé le {formatDateTime(msg.deletedAt)}">Supprimé</span>
+                              {/if}
+                            </div>
+                            
+                            {#if !msg.deletedAt}
+                              <a
+                                href="https://discord.com/channels/{authStore.selectedGuildId}/{msg.channelId}/{msg.messageId}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center gap-1 text-[10px] font-bold text-on-surface-variant/40 hover:text-primary uppercase tracking-wider transition-colors"
+                              >
+                                Jump
+                                <Papicon icon="arrow-up-right" size={10} />
+                              </a>
+                            {/if}
+                          </div>
+
+                          <p class="text-sm text-on-surface leading-relaxed whitespace-pre-wrap select-text">
+                            {msg.content || (msg.hasAttachment ? 'Message vide (contient uniquement des pièces jointes)' : 'Contenu vide')}
+                          </p>
+
+                          <!-- Rendu riche des pièces jointes -->
+                          {#if msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0}
+                            <div class="mt-4 flex flex-wrap gap-2.5">
+                              {#each msg.attachments as att}
+                                {#if att.contentType?.startsWith('image/')}
+                                  <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="block max-w-[240px] max-h-[160px] overflow-hidden rounded-lg border border-outline-variant/15 hover:opacity-90 transition-opacity"
+                                  >
+                                    <img src={att.url} alt={att.name} class="w-full h-full object-cover" />
+                                  </a>
+                                {:else}
+                                  <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-surface-container-high/50 border border-outline-variant/10 px-3.5 py-2 text-xs font-bold text-primary hover:bg-surface-container-high transition-colors"
+                                  >
+                                    <Papicon icon="file" size={14} />
+                                    <span class="truncate max-w-[160px]" title={att.name}>{att.name}</span>
+                                  </a>
+                                {/if}
+                              {/each}
+                            </div>
+                          {/if}
+                        </div>
+                      {/each}
+                    </div>
+
+                    <!-- Pagination -->
+                    {#if messagesTotalCount > messageLimit}
+                      <div class="flex items-center justify-between border-t border-outline-variant/10 pt-6">
+                        <span class="text-xs font-bold text-on-surface-variant/40">
+                          {messageOffset + 1} - {Math.min(messageOffset + messageLimit, messagesTotalCount)} sur {messagesTotalCount} messages
+                        </span>
+
+                        <div class="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onclick={() => { messageOffset = Math.max(0, messageOffset - messageLimit); }}
+                            disabled={messageOffset === 0}
+                            class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high text-on-surface-variant hover:bg-surface-container-high-hover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Papicon icon="chevron-left" size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onclick={() => { messageOffset = messageOffset + messageLimit; }}
+                            disabled={messageOffset + messageLimit >= messagesTotalCount}
+                            class="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high text-on-surface-variant hover:bg-surface-container-high-hover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Papicon icon="chevron-right" size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    {/if}
                   {/if}
                 </div>
 
@@ -1454,7 +1818,7 @@
                         <div class="flex items-start justify-between gap-4 mb-2">
                           <div>
                             <p class="text-sm font-semibold text-on-surface tracking-tight">{log.action}</p>
-                            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mt-1">{log.module} · {log.source}</p>
+                            <p class="text-xs font-medium text-on-surface-variant/40 mt-1">{log.module} · {log.source}</p>
                           </div>
                           <span class="text-[10px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{formatDateTime(log.dateIso)}</span>
                         </div>
@@ -1473,15 +1837,85 @@
                 </div>
 
               {:else if activeTab === 'sanctions'}
+                {#if crossServer?.enabled && crossServer.total > 0}
+                  <div class="mb-6 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 overflow-hidden shadow-sm">
+                    <!-- En-tête -->
+                    <div class="flex items-center gap-4 px-6 py-5 border-b border-outline-variant/10">
+                      <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                        <Papicon icon="globe" size={22} />
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Casier inter-serveurs</p>
+                        <p class="text-sm font-semibold text-on-surface">
+                          {crossServer.total} sanction{crossServer.total > 1 ? 's' : ''}
+                          <span class="text-on-surface-variant/50 font-medium">sur {crossServer.serverCount} autre{crossServer.serverCount > 1 ? 's' : ''} serveur{crossServer.serverCount > 1 ? 's' : ''}</span>
+                        </p>
+                      </div>
+                      <div class="hidden md:flex flex-wrap items-center justify-end gap-1.5">
+                        {#each crossServerBreakdown as [type, count]}
+                          {@const style = getSanctionTypeStyle(type)}
+                          <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high px-2.5 py-1 text-[11px] font-semibold text-on-surface-variant">
+                            <span class="h-1.5 w-1.5 rounded-full {style.dot}"></span>
+                            {formatTypeLabel(type)}
+                            <span class="text-on-surface-variant/50">{count}</span>
+                          </span>
+                        {/each}
+                      </div>
+                    </div>
+
+                    <!-- Liste -->
+                    <ul class="divide-y divide-outline-variant/10">
+                      {#each crossServer.recent as entry}
+                        {@const style = getSanctionTypeStyle(entry.type)}
+                        <li class="flex items-center gap-4 px-6 py-3.5 hover:bg-surface-container-high/20 transition-colors">
+                          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {style.tile}">
+                            <Papicon icon={style.icon} size={16} />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm font-semibold text-on-surface">{formatTypeLabel(entry.type)}</span>
+                              {#if entry.durationSeconds}
+                                <span class="text-[11px] font-medium text-on-surface-variant/50">· {formatDurationFromSeconds(entry.durationSeconds)}</span>
+                              {/if}
+                            </div>
+                            {#if entry.reason?.trim()}
+                              <p class="mt-0.5 text-xs text-on-surface-variant/80 truncate" title={entry.reason}>{entry.reason}</p>
+                            {/if}
+                            <p class="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-on-surface-variant/50 truncate" title={entry.guildName}>
+                              <Papicon icon="map-pin" size={11} class="shrink-0 opacity-50" />
+                              <span class="truncate">{entry.guildName}</span>
+                            </p>
+                          </div>
+                          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-widest shrink-0 {entry.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            <span class="h-1.5 w-1.5 rounded-full {entry.status === 'ACTIVE' ? 'bg-rose-500' : 'bg-emerald-500'}"></span>
+                            {getSanctionStatusLabel(entry.status)}
+                          </span>
+                          <span class="text-[11px] font-medium text-on-surface-variant/40 w-24 text-right shrink-0 hidden sm:block">{formatRelative(entry.createdAt)}</span>
+                        </li>
+                      {/each}
+                    </ul>
+
+                    <!-- Pied -->
+                    <div class="flex items-center justify-between gap-3 px-6 py-3 border-t border-outline-variant/10 bg-surface-container-low/30">
+                      <p class="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/40">
+                        <Papicon icon="lock" size={12} class="shrink-0" />
+                        Même instance · modérateur non partagé
+                      </p>
+                      {#if crossServer.total > crossServer.recent.length}
+                        <span class="text-[11px] font-semibold text-on-surface-variant/50 shrink-0">+{crossServer.total - crossServer.recent.length} autre{crossServer.total - crossServer.recent.length > 1 ? 's' : ''}</span>
+                      {/if}
+                    </div>
+                  </div>
+                {/if}
                 <div class="rounded-xl bg-surface-container-low/50 overflow-hidden border border-outline-variant/10 shadow-sm">
                   <table class="w-full text-left border-collapse">
                     <thead>
                       <tr class="bg-surface-container-high/30">
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Date</th>
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Action</th>
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut</th>
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Raison</th>
-                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Rapport</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Date</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Action</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Statut</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Raison</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Rapport</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/10">
@@ -1494,7 +1928,7 @@
                             <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">par @{sanction.moderatorTag}</p>
                           </td>
                           <td class="px-6 py-4">
-                            <span class="px-3 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-widest {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            <span class="px-3 py-1 rounded-lg text-xs font-medium {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
                               {getSanctionStatusLabel(sanction.status)}
                             </span>
                           </td>
@@ -1634,8 +2068,8 @@
                     <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 space-y-6">
                       <div class="flex items-start justify-between">
                          <div>
-                            <span class="text-[10px] font-semibold uppercase tracking-widest text-primary mb-2 block">{formatDateShort(cand.createdAt)}</span>
-                            <span class="px-4 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-widest {cand.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
+                            <span class="text-xs font-medium text-primary mb-2 block">{formatDateShort(cand.createdAt)}</span>
+                            <span class="px-4 py-1.5 rounded-xl text-[13px] font-medium {cand.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
                               {cand.status}
                             </span>
                          </div>
@@ -1785,7 +2219,7 @@
                       <button
                         onclick={handleSaveNote}
                         disabled={noteBusy}
-                        class="flex items-center gap-2 px-8 py-3 rounded-lg bg-primary text-on-primary text-sm font-semibold uppercase tracking-widest transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+                        class="flex items-center gap-2 px-8 py-3 rounded-lg bg-primary text-on-primary text-sm font-semibold uppercase tracking-widest transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                       >
                         {#if noteBusy}
                           <div class="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent"></div>
@@ -1799,6 +2233,163 @@
                   </div>
                 </div>
               {/if}
+            </div> <!-- Fin Colonne Principale -->
+
+            <!-- Colonne Latérale (Statistiques & Actions de modération) -->
+            <aside class="lg:col-span-1 space-y-6 lg:sticky lg:top-16">
+              
+              <!-- 1. Carte Score de Risque & Ancienneté -->
+              <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-5">
+                <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
+                  <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">Score de risque</span>
+                  <span class="text-xs font-semibold text-primary">{memberSeniority}</span>
+                </div>
+
+                <!-- Jauge de risque -->
+                <div class="flex items-center gap-4">
+                  <div class="relative flex items-center justify-center shrink-0">
+                    <svg class="h-16 w-16 transform -rotate-90">
+                      <circle cx="32" cy="32" r="28" class="stroke-on-surface/5 fill-transparent" stroke-width="6" />
+                      <circle cx="32" cy="32" r="28" 
+                        class="transition-all duration-1000 ease-out {moderationRiskScore < 30 ? 'stroke-emerald-500' : moderationRiskScore < 70 ? 'stroke-amber-500' : 'stroke-red-500'} fill-transparent" 
+                        stroke-width="6" 
+                        stroke-dasharray="{2 * Math.PI * 28}" 
+                        stroke-dashoffset="{(1 - moderationRiskScore / 100) * (2 * Math.PI * 28)}" 
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                    <span class="absolute text-sm font-bold text-on-surface">{moderationRiskScore}%</span>
+                  </div>
+
+                  <div class="min-w-0">
+                    <h5 class="text-xs font-bold text-on-surface truncate">
+                      {#if moderationRiskScore < 30}
+                        Risque faible
+                      {:else if moderationRiskScore < 70}
+                        Risque élevé
+                      {:else}
+                        Risque critique
+                      {/if}
+                    </h5>
+                    <p class="text-[10px] text-on-surface-variant/60 mt-0.5 leading-relaxed">
+                      Basé sur les sanctions actives/passées et suspicions de DC.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. Carte Top Salons d'Activité -->
+              {#if topChannels.length > 0}
+                <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-4">
+                  <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">Top salons</span>
+                  
+                  <div class="space-y-3.5">
+                    {#each topChannels as chan}
+                      {@const totalMsg = caseData?.profile?.messageCount || 1}
+                      {@const pct = Math.round((chan.count / totalMsg) * 100)}
+                      <div class="space-y-1.5">
+                        <div class="flex items-center justify-between text-xs">
+                          <span class="font-semibold text-on-surface truncate max-w-[120px]">#{chan.channelName}</span>
+                          <span class="font-bold text-on-surface-variant/60">{chan.count} msg ({pct}%)</span>
+                        </div>
+                        <div class="h-1.5 w-full rounded-full bg-on-surface/5 overflow-hidden">
+                          <div class="h-full bg-primary/70 transition-all duration-500" style="width: {pct}%"></div>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+
+              <!-- 3. Actions de modération -->
+              <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-5">
+                <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">Actions de modération</span>
+
+                <!-- Raison -->
+                <div class="space-y-1.5">
+                  <label for="mod-reason" class="text-[11px] font-bold text-on-surface-variant/50 uppercase tracking-wider">Raison de la sanction</label>
+                  <textarea
+                    id="mod-reason"
+                    bind:value={actionReason}
+                    rows="3"
+                    placeholder="Entrez un motif obligatoire..."
+                    class="w-full rounded-lg bg-surface-container-high/40 px-3 py-2 text-xs font-semibold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
+                  ></textarea>
+                </div>
+
+                <!-- Durée (pour Timeout) -->
+                <div class="space-y-1.5">
+                  <label for="mod-duration" class="text-[11px] font-bold text-on-surface-variant/50 uppercase tracking-wider">Durée (Timeout uniquement)</label>
+                  <div class="relative">
+                    <select
+                      id="mod-duration"
+                      bind:value={actionDuration}
+                      class="w-full appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface focus:border-primary/30 focus:outline-hidden"
+                    >
+                      <option value="30m">30 Minutes</option>
+                      <option value="1h">1 Heure</option>
+                      <option value="1d">1 Jour</option>
+                      <option value="7d">7 Jours</option>
+                      <option value="28d">28 Jours (Max)</option>
+                    </select>
+                    <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+                      <Papicon icon="chevron-down" size={12} />
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Grille d'actions boutons -->
+                <div class="grid grid-cols-2 gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onclick={() => executeModerationAction('WARN')}
+                    disabled={actionBusy}
+                    class="flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none px-3 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer"
+                  >
+                    <Papicon icon="alert-triangle" size={14} />
+                    Avertir
+                  </button>
+
+                  <button
+                    type="button"
+                    onclick={() => executeModerationAction('TIMEOUT')}
+                    disabled={actionBusy}
+                    class="flex items-center justify-center gap-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none px-3 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer"
+                  >
+                    <Papicon icon="clock" size={14} />
+                    Timeout
+                  </button>
+
+                  <button
+                    type="button"
+                    onclick={() => executeModerationAction('KICK')}
+                    disabled={actionBusy}
+                    class="flex items-center justify-center gap-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none px-3 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer col-span-1"
+                  >
+                    <Papicon icon="log-out" size={14} />
+                    Expulser
+                  </button>
+
+                  <button
+                    type="button"
+                    onclick={() => executeModerationAction('BAN')}
+                    disabled={actionBusy}
+                    class="flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 disabled:pointer-events-none px-3 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer col-span-1"
+                  >
+                    <Papicon icon="gavel" size={14} />
+                    Bannir
+                  </button>
+                </div>
+
+                <!-- Feedback / Status box -->
+                {#if actionFeedback}
+                  <div class="rounded-lg border p-3 text-xs font-medium {actionIsError ? 'border-red-500/20 bg-red-500/5 text-red-500' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500'} flex items-center gap-2">
+                    <Papicon icon={actionIsError ? 'alert-circle' : 'check-circle'} size={14} />
+                    <span>{actionFeedback}</span>
+                  </div>
+                {/if}
+              </div>
+            </aside>
           </div>
         {/if}
       </div>
@@ -1837,7 +2428,7 @@
                <div class="space-y-6 animate-in fade-in duration-300">
                  <div class="grid grid-cols-2 gap-4">
                    <div class="space-y-1.5">
-                     <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                     <p class="text-xs font-medium text-on-surface-variant/40 px-1">Date de l'incident</p>
                      <input 
                        type="datetime-local" 
                        bind:value={editReportData.incidentAt} 
@@ -1845,7 +2436,7 @@
                      />
                    </div>
                    <div class="space-y-1.5">
-                     <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</p>
+                     <p class="text-xs font-medium text-on-surface-variant/40 px-1">Durée appliquée</p>
                      <input 
                        type="text" 
                        bind:value={editReportData.sanctionDurationLabel} 
@@ -1856,7 +2447,7 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Règles enfreintes</p>
                    <ReportRuleSelector
                      options={reportRuleOptions}
                      selectedIds={editReportData.selectedRuleIds}
@@ -1872,7 +2463,7 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Raison détaillée</p>
                    <textarea 
                      bind:value={editReportData.detailedReason} 
                      rows="4"
@@ -1882,12 +2473,12 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves (URLs)</p>
                    <EvidenceInputList bind:links={editReportData.evidenceLinks} sanctionId={viewingReportSanctionId} />
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Notes complémentaires</p>
                    <textarea 
                      bind:value={editReportData.additionalNotes} 
                      rows="2"
@@ -1899,14 +2490,14 @@
                  <div class="flex gap-3 pt-4">
                    <button
                      onclick={() => isEditingReport = false}
-                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-xs font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-[13px] font-medium text-on-surface-variant transition-all hover:bg-on-surface/10"
                    >
                      Annuler
                    </button>
                    <button
                      onclick={handleUpdateReport}
                      disabled={updateReportBusy}
-                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-xs font-semibold uppercase tracking-widest transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
+                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-[13px] font-medium transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
                    >
                      {updateReportBusy ? 'Enregistrement...' : 'Enregistrer'}
                    </button>
@@ -1917,22 +2508,22 @@
               <div class="space-y-6">
                 <div class="grid grid-cols-2 gap-4">
                   <div class="space-y-1">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Incident</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Incident</p>
                     <p class="text-sm font-bold text-on-surface">{formatDateTime(selectedReport.incidentAt)}</p>
                   </div>
                   <div class="space-y-1">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Durée</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Durée</p>
                     <p class="text-sm font-bold text-on-surface">{selectedReport.sanctionDurationLabel || 'N/A'}</p>
                   </div>
                 </div>
 
                 <div class="space-y-2">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Règles enfreintes</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Règles enfreintes</p>
                   <SelectedRuleChips selectedRules={selectedReportRules} />
                 </div>
 
                 <div class="space-y-2">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Raison détaillée</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">Raison détaillée</p>
                   <div class="rounded-lg bg-surface-container-high/30 p-4 text-sm text-on-surface-variant leading-relaxed italic">
                     "{selectedReport.detailedReason}"
                   </div>
@@ -1940,7 +2531,7 @@
 
                 {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
                   <div class="space-y-2">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Preuves</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Preuves</p>
                     <div class="flex flex-wrap gap-2">
                       {#each selectedReport.evidenceLinks as link}
                         <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-on-surface/5 px-4 py-2 text-xs font-bold text-primary transition-all hover:bg-primary/10">
@@ -1954,7 +2545,7 @@
 
                 {#if selectedReport.additionalNotes}
                   <div class="space-y-2">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Notes complémentaires</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Notes complémentaires</p>
                     <p class="text-xs text-on-surface-variant/70 leading-relaxed">{selectedReport.additionalNotes}</p>
                   </div>
                 {/if}

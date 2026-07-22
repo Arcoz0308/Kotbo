@@ -12,6 +12,7 @@
   import BarChart from '../lib/components/BarChart.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { m, dateLocale } from '../lib/i18n';
 
   interface LayoutItem {
     id: string;
@@ -34,29 +35,29 @@
   ];
 
   const MODULE_CATALOG = [
-    { id: 'liveStats', title: 'Stats en Direct', desc: 'Aperçu en temps réel des membres, vocaux, connectés et de la croissance.', icon: 'users' },
-    { id: 'analytics', title: 'Graphique d\'Activité', desc: 'Visualisez l\'évolution des messages, salons vocaux, sanctions, etc. sur 7 jours.', icon: 'trending-up' },
-    { id: 'system', title: 'État du Système', desc: 'Santé de l\'instance et nombre de modules du bot actuellement actifs.', icon: 'cpu' },
-    { id: 'channels', title: 'Salons Actifs', desc: 'Classement des salons les plus actifs selon le volume de messages.', icon: 'hash' },
-    { id: 'moderation', title: 'Modération', desc: 'Nombre de sanctions émises (avertissements, exclusions, bannissements).', icon: 'shield' },
-    { id: 'members', title: 'Membres Actifs', desc: 'Classement des membres envoyant le plus de messages.', icon: 'award' },
-    { id: 'notifications', title: 'Boîte de Réception', desc: 'Notifications internes importantes et alertes système.', icon: 'inbox' },
-    { id: 'staff', title: 'Gestion Staff', desc: 'Planification des absences à venir et prochaines réunions de l\'équipe.', icon: 'users' },
-    { id: 'audit', title: 'Activité Récente', desc: 'Historique des actions de modération et d\'administration en direct.', icon: 'activity' },
-    { id: 'actions', title: 'Raccourcis Actions', desc: 'Boutons de création rapide d\'absence, réunion, modules, staff...', icon: 'plus-circle' },
-    { id: 'notes', title: 'Notes de l\'Équipe', desc: 'Un bloc-notes partagé localement pour garder des rappels ou tâches.', icon: 'edit' },
-    { id: 'serverInfo', title: 'Infos Serveur', desc: 'Informations détaillées sur le serveur Discord (membres, boosts, proprio).', icon: 'server' },
-    { id: 'botHosting', title: 'Hébergement Bot', desc: 'Consommation CPU/RAM du bot, ping réseau et durée d\'activité.', icon: 'cpu' },
-    { id: 'news', title: 'Dernières Nouvelles', desc: 'Journal des mises à jour Kotbo et conseils pour optimiser votre serveur.', icon: 'book' },
-    { id: 'quickGuide', title: 'Guide de Démarrage', desc: 'Checklist des actions recommandées pour configurer votre serveur.', icon: 'info' },
-    { id: 'clockWeather', title: 'Statut Local', desc: 'Affiche l\'heure locale en temps réel et la météo du siège de Kotbo.', icon: 'clock' },
-    { id: 'economy', title: 'Économie', desc: 'Aperçu de l\'économie du serveur : monnaie en circulation, transactions récentes.', icon: 'dollar-sign' },
-    { id: 'leveling', title: 'Niveaux', desc: 'Top membres par XP, niveau moyen et progression globale du serveur.', icon: 'bar-chart-2' },
-    { id: 'tickets', title: 'Tickets', desc: 'Tickets ouverts, en cours et récemment fermés avec temps de réponse moyen.', icon: 'message-square' },
-    { id: 'invites', title: 'Invitations', desc: 'Statistiques d\'invitations : top inviteurs, invitations actives et taux de rétention.', icon: 'user-plus' },
-    { id: 'events', title: 'Événements', desc: 'Prochains événements du serveur et participation prévue.', icon: 'calendar' },
-    { id: 'polls', title: 'Sondages', desc: 'Sondages actifs et résultats récents de l\'équipe staff.', icon: 'bar-chart' },
-    { id: 'staffServer', title: 'Serveur Staff', desc: 'État du lien serveur staff : synchronisation, rôles mappés et accès rapide.', icon: 'shield' },
+    { id: 'liveStats', title: m.home_mod_livestats_title(), desc: m.home_mod_livestats_desc(), icon: 'users' },
+    { id: 'analytics', title: m.home_mod_analytics_title(), desc: m.home_mod_analytics_desc(), icon: 'trending-up' },
+    { id: 'system', title: m.home_mod_system_title(), desc: m.home_mod_system_desc(), icon: 'cpu' },
+    { id: 'channels', title: m.home_mod_channels_title(), desc: m.home_mod_channels_desc(), icon: 'hash' },
+    { id: 'moderation', title: m.home_mod_moderation_title(), desc: m.home_mod_moderation_desc(), icon: 'shield' },
+    { id: 'members', title: m.home_mod_members_title(), desc: m.home_mod_members_desc(), icon: 'award' },
+    { id: 'notifications', title: m.home_mod_notifications_title(), desc: m.home_mod_notifications_desc(), icon: 'inbox' },
+    { id: 'staff', title: m.home_mod_staff_title(), desc: m.home_mod_staff_desc(), icon: 'users' },
+    { id: 'audit', title: m.home_mod_audit_title(), desc: m.home_mod_audit_desc(), icon: 'activity' },
+    { id: 'actions', title: m.home_mod_actions_title(), desc: m.home_mod_actions_desc(), icon: 'plus-circle' },
+    { id: 'notes', title: m.home_mod_notes_title(), desc: m.home_mod_notes_desc(), icon: 'edit' },
+    { id: 'serverInfo', title: m.home_mod_serverinfo_title(), desc: m.home_mod_serverinfo_desc(), icon: 'server' },
+    { id: 'botHosting', title: m.home_mod_bothosting_title(), desc: m.home_mod_bothosting_desc(), icon: 'cpu' },
+    { id: 'news', title: m.home_mod_news_title(), desc: m.home_mod_news_desc(), icon: 'book' },
+    { id: 'quickGuide', title: m.home_mod_quickguide_title(), desc: m.home_mod_quickguide_desc(), icon: 'info' },
+    { id: 'clockWeather', title: m.home_mod_clockweather_title(), desc: m.home_mod_clockweather_desc(), icon: 'clock' },
+    { id: 'economy', title: m.home_mod_economy_title(), desc: m.home_mod_economy_desc(), icon: 'dollar-sign' },
+    { id: 'leveling', title: m.home_mod_leveling_title(), desc: m.home_mod_leveling_desc(), icon: 'bar-chart-2' },
+    { id: 'tickets', title: m.home_mod_tickets_title(), desc: m.home_mod_tickets_desc(), icon: 'message-square' },
+    { id: 'invites', title: m.home_mod_invites_title(), desc: m.home_mod_invites_desc(), icon: 'user-plus' },
+    { id: 'events', title: m.home_mod_events_title(), desc: m.home_mod_events_desc(), icon: 'calendar' },
+    { id: 'polls', title: m.home_mod_polls_title(), desc: m.home_mod_polls_desc(), icon: 'bar-chart' },
+    { id: 'staffServer', title: m.home_mod_staffserver_title(), desc: m.home_mod_staffserver_desc(), icon: 'shield' },
   ];
 
   let isEditing = $state(false);
@@ -144,7 +145,7 @@
     localStorage.setItem(key, JSON.stringify(userLayout));
     
     isEditing = false;
-    toast.success("Mise en page enregistrée !");
+    toast.success(m.home_layout_saved());
   }
 
   async function resetLayout() {
@@ -173,7 +174,7 @@
     const key = getStorageKey();
     localStorage.removeItem(key);
     
-    toast.success("Mise en page réinitialisée par défaut.");
+    toast.success(m.home_layout_reset());
   }
 
   function toggleSize(id: string) {
@@ -204,7 +205,7 @@
       }
       return item;
     });
-    toast.success("Module ajouté à l'interface.");
+    toast.success(m.home_module_added());
   }
 
   function moveModule(index: number, direction: number) {
@@ -323,7 +324,7 @@
   }
 
   async function saveAsPreset() {
-    if (!presetName.trim()) { toast.error("Nom requis."); return; }
+    if (!presetName.trim()) { toast.error(m.home_name_required()); return; }
     try {
       const { createLayoutPreset } = await import('../lib/api');
       const visible = userLayout.filter(i => i.visible);
@@ -332,10 +333,10 @@
         presets = [preset, ...presets];
         presetName = '';
         presetDescription = '';
-        toast.success("Preset sauvegardé !");
+        toast.success(m.home_preset_saved());
       }
     } catch (e) {
-      toast.error("Erreur lors de la sauvegarde du preset.");
+      toast.error(m.home_preset_save_error());
     }
   }
 
@@ -351,10 +352,10 @@
           .map(m => ({ id: m.id, colSpan: 1, rowSpan: 1, visible: false }));
         userLayout = [...parsed, ...missingModules];
         showPresetsModal = false;
-        toast.success("Preset appliqué !");
+        toast.success(m.home_preset_applied());
       }
     } catch (e) {
-      toast.error("Erreur lors de l'application du preset.");
+      toast.error(m.home_preset_apply_error());
     }
   }
 
@@ -364,7 +365,7 @@
       const ok = await deleteLayoutPreset(presetId);
       if (ok) presets = presets.filter(p => p.id !== presetId);
     } catch (e) {
-      toast.error("Erreur lors de la suppression.");
+      toast.error(m.home_delete_error());
     }
   }
 
@@ -373,12 +374,12 @@
       const { shareLayoutPreset } = await import('../lib/api');
       const result = await shareLayoutPreset(presetId);
       if (result?.shareToken) {
-        const url = `${window.location.origin}/overview?importPreset=${result.shareToken}`;
+        const url = `${window.location.origin}/?importPreset=${result.shareToken}`;
         await navigator.clipboard.writeText(url);
-        toast.success("Lien copié dans le presse-papier !");
+        toast.success(m.home_link_copied());
       }
     } catch (e) {
-      toast.error("Erreur lors du partage.");
+      toast.error(m.home_share_error());
     }
   }
 
@@ -391,29 +392,29 @@
     a.download = `preset-${preset.name.replace(/\s+/g, '-').toLowerCase()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Preset exporté !");
+    toast.success(m.home_preset_exported());
   }
 
   async function importPresetFromJson() {
     if (!presetImportJson.trim()) return;
     try {
       const parsed = JSON.parse(presetImportJson);
-      if (!parsed.name || !parsed.layout) { toast.error("Format invalide."); return; }
+      if (!parsed.name || !parsed.layout) { toast.error(m.home_invalid_format()); return; }
       const { importLayoutPreset } = await import('../lib/api');
-      const preset = await importLayoutPreset({ name: parsed.name, description: parsed.description || 'Importé', layout: parsed.layout });
+      const preset = await importLayoutPreset({ name: parsed.name, description: parsed.description || m.home_imported_label(), layout: parsed.layout });
       if (preset) {
         presets = [preset, ...presets];
         presetImportJson = '';
-        toast.success("Preset importé !");
+        toast.success(m.home_preset_imported());
       }
     } catch (e) {
-      toast.error("JSON invalide ou erreur d'import.");
+      toast.error(m.home_json_import_error());
     }
   }
 
   function exportCurrentLayout() {
     const visible = userLayout.filter(i => i.visible);
-    const data = JSON.stringify({ name: 'Mon layout', description: 'Export courant', layout: visible }, null, 2);
+    const data = JSON.stringify({ name: m.home_my_layout(), description: m.home_current_export(), layout: visible }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -421,7 +422,7 @@
     a.download = 'layout-courant.json';
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Layout exporté !");
+    toast.success(m.home_layout_exported());
   }
 
   // Staff notes logic
@@ -443,14 +444,14 @@
   function formatRelativeDate(isoDate: string): string {
     const diff = Date.now() - new Date(isoDate).getTime();
     const minutes = Math.floor(diff / 60000);
-    if (minutes < 1) return "À l'instant";
-    if (minutes < 60) return `il y a ${minutes}min`;
+    if (minutes < 1) return m.home_rel_now();
+    if (minutes < 60) return m.home_rel_min({ n: minutes });
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `il y a ${hours}h`;
+    if (hours < 24) return m.home_rel_hours({ n: hours });
     const days = Math.floor(hours / 24);
-    if (days === 1) return 'Hier';
-    if (days < 30) return `il y a ${days}j`;
-    return new Date(isoDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    if (days === 1) return m.home_rel_yesterday();
+    if (days < 30) return m.home_rel_days({ n: days });
+    return new Date(isoDate).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' });
   }
 
   // Clock & Weather logic
@@ -459,15 +460,15 @@
 
   function updateDateTime() {
     const now = new Date();
-    currentTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    currentDate = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    currentTime = now.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    currentDate = now.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
   // Widget "Serveur Staff" — état du lien de la paire
   const SYNC_MODE_LABELS: Record<string, string> = {
-    MAIN_TO_STAFF: 'Principal → Staff',
-    STAFF_TO_MAIN: 'Staff → Principal',
-    BIDIRECTIONAL: 'Bidirectionnel',
+    MAIN_TO_STAFF: m.home_sync_main_to_staff(),
+    STAFF_TO_MAIN: m.home_sync_staff_to_main(),
+    BIDIRECTIONAL: m.home_sync_bidirectional(),
   };
   let staffServerLinks = $state<any[]>([]);
 
@@ -510,7 +511,7 @@
       const { fetchSharedLayoutPreset, importLayoutPreset } = await import('../lib/api');
       const shared = await fetchSharedLayoutPreset(token);
       if (shared?.layout) {
-        const preset = await importLayoutPreset({ name: shared.name, description: shared.description || 'Importé via lien', layout: shared.layout as any[] });
+        const preset = await importLayoutPreset({ name: shared.name, description: shared.description || m.home_imported_via_link(), layout: shared.layout as any[] });
         if (preset) {
           const parsed = ensureRowSpan(shared.layout as LayoutItem[]);
           const existingIds = new Set(parsed.map(item => item.id));
@@ -518,7 +519,7 @@
             .filter(m => !existingIds.has(m.id))
             .map(m => ({ id: m.id, colSpan: 1, rowSpan: 1, visible: false }));
           userLayout = [...parsed, ...missingModules];
-          toast.success(`Preset "${shared.name}" importé et appliqué !`);
+          toast.success(m.home_preset_imported_applied({ name: shared.name }));
         }
       }
     } catch (e) {
@@ -604,20 +605,20 @@
   const nextMeeting = $derived(staffStore.upcomingMeetings[0]);
 
   const dynamicGreeting = $derived.by(() => {
-    const user = authStore.user?.username || 'Gérant';
+    const name = authStore.user?.username || m.home_manager();
     const hour = new Date().getHours();
-    if (hour >= 18) return `Bonsoir, ${user}`;
-    if (hour >= 12) return `Bon après-midi, ${user}`;
-    return `Bonjour, ${user}`;
+    if (hour >= 18) return m.home_greeting_evening({ name });
+    if (hour >= 12) return m.home_greeting_afternoon({ name });
+    return m.home_greeting_morning({ name });
   });
 
   const dynamicSubtitle = $derived.by(() => {
-    const guildName = dashboardStore.state.guildName || 'votre serveur';
+    const guildName = dashboardStore.state.guildName || m.home_your_server();
     const parts: string[] = [];
-    if (errorModulesCount > 0) parts.push(`${errorModulesCount} module(s) en erreur`);
-    if (notificationsStore.unreadCount > 0) parts.push(`${notificationsStore.unreadCount} notification(s)`);
-    if (parts.length > 0) return `${parts.join(' · ')} sur ${guildName}.`;
-    return `Tout fonctionne correctement sur ${guildName}.`;
+    if (errorModulesCount > 0) parts.push(m.home_modules_error_count({ n: errorModulesCount }));
+    if (notificationsStore.unreadCount > 0) parts.push(m.home_notifications_count({ n: notificationsStore.unreadCount }));
+    if (parts.length > 0) return m.home_subtitle_issues({ parts: parts.join(' · '), guild: guildName });
+    return m.home_all_good({ guild: guildName });
   });
 
   // Chart data from analytics
@@ -641,15 +642,15 @@
     const trend = analyticsData?.dailyTrend || [];
     switch (selectedStat) {
       case 'voice':
-        return { title: 'Temps Vocal', subtitle: 'Minutes vocales', color: 'var(--color-secondary)', values: trend.map(d => d.voiceMinutes || 0), unit: ' min' };
+        return { title: m.home_stat_voice_title(), subtitle: m.home_stat_voice_sub(), color: 'var(--color-secondary)', values: trend.map(d => d.voiceMinutes || 0), unit: ' min' };
       case 'joins':
-        return { title: 'Arrivées', subtitle: 'Nouveaux membres', color: 'var(--color-primary)', values: trend.map(d => d.membersJoined || 0), unit: '' };
+        return { title: m.home_stat_joins_title(), subtitle: m.home_stat_joins_sub(), color: 'var(--color-primary)', values: trend.map(d => d.membersJoined || 0), unit: '' };
       case 'leaves':
-        return { title: 'Départs', subtitle: 'Membres partis', color: 'rgb(239, 68, 68)', values: trend.map(d => d.membersLeft || 0), unit: '' };
+        return { title: m.home_stat_leaves_title(), subtitle: m.home_stat_leaves_sub(), color: 'rgb(239, 68, 68)', values: trend.map(d => d.membersLeft || 0), unit: '' };
       case 'sanctions':
-        return { title: 'Sanctions', subtitle: 'Modérations', color: 'rgb(245, 158, 11)', values: trend.map(d => d.sanctions || 0), unit: '' };
+        return { title: m.nav_sanctions(), subtitle: m.home_stat_sanctions_sub(), color: 'rgb(245, 158, 11)', values: trend.map(d => d.sanctions || 0), unit: '' };
       default:
-        return { title: 'Messages', subtitle: 'Messages envoyés', color: 'var(--color-tertiary)', values: trend.map(d => d.messages || 0), unit: '' };
+        return { title: 'Messages', subtitle: m.home_stat_messages_sub(), color: 'var(--color-tertiary)', values: trend.map(d => d.messages || 0), unit: '' };
     }
   });
 
@@ -663,7 +664,7 @@
   function formatDateLabel(dateKey: string): string {
     try {
       const d = new Date(dateKey + 'T12:00:00Z');
-      return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+      return d.toLocaleDateString(dateLocale(), { weekday: 'short', day: 'numeric' });
     } catch {
       return `J-${dateKey}`;
     }
@@ -687,9 +688,9 @@
   // Health status
   const healthStatus = $derived(dashboardStore.state.analytics.healthStatus ?? 100);
   const healthLabel = $derived(
-    healthStatus >= 90 ? 'Optimal' :
-    healthStatus >= 70 ? 'Bon' :
-    healthStatus >= 50 ? 'Dégradé' : 'Critique'
+    healthStatus >= 90 ? m.home_health_optimal() :
+    healthStatus >= 70 ? m.home_health_good() :
+    healthStatus >= 50 ? m.home_health_degraded() : m.home_health_critical()
   );
   const healthColor = $derived(
     healthStatus >= 90 ? 'text-emerald-400' :
@@ -717,12 +718,12 @@
   function relativeTime(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "à l'instant";
+    if (mins < 1) return m.home_rel_now_lower();
     if (mins < 60) return `${mins}m`;
     const hours = Math.floor(mins / 60);
     if (hours < 24) return `${hours}h`;
     const days = Math.floor(hours / 24);
-    return `${days}j`;
+    return m.home_short_days({ n: days });
   }
 </script>
 
@@ -736,7 +737,7 @@
     </div>
     <RefreshButton
       onClick={handleRefresh}
-      ariaLabel="Rafraîchir"
+      ariaLabel={m.home_refresh_aria()}
       className="rounded-lg! px-3.5! py-2! bg-primary text-white text-sm"
     />
   </div>
@@ -752,15 +753,15 @@
           </svg>
         </div>
         <div>
-          <p class="text-sm font-medium">L'API est en cours de redémarrage</p>
-          <p class="text-xs opacity-70">Reconnexion automatique en cours, veuillez patienter...</p>
+          <p class="text-sm font-medium">{m.home_api_restarting()}</p>
+          <p class="text-xs opacity-70">{m.home_api_reconnect()}</p>
         </div>
       </div>
       <button
         onclick={() => dashboardStore.refresh()}
         class="px-3 py-1.5 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 rounded-md transition-colors cursor-pointer shrink-0"
       >
-        Réessayer
+        {m.home_retry()}
       </button>
     </div>
   {/if}
@@ -773,7 +774,7 @@
           <Papicon icon="alert-octagon" size={16} />
         </div>
         <div>
-          <p class="text-sm font-medium">Maintenance requise</p>
+          <p class="text-sm font-medium">{m.home_maintenance_required()}</p>
           <p class="text-xs opacity-70">{errorModules.map(m => m.name).join(', ')}</p>
         </div>
       </div>
@@ -781,7 +782,7 @@
         onclick={() => router.goto('/module-catalog')}
         class="px-3 py-1.5 text-xs font-medium bg-red-500/20 hover:bg-red-500/30 rounded-md transition-colors"
       >
-        Réparer
+        {m.home_repair()}
       </button>
     </div>
   {/if}
@@ -791,9 +792,9 @@
     <div class="flex justify-center my-3 shrink-0">
       <button
         onclick={() => showAddModuleModal = true}
-        class="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-full hover:bg-primary/95 transition-all hover:scale-105 active:scale-95 shadow-lg font-medium text-xs border border-primary/20 cursor-pointer"
+        class="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-full hover:bg-primary/95 transition-all active:scale-[0.98] shadow-lg font-medium text-xs border border-primary/20 cursor-pointer"
       >
-        <Papicon icon="add" size={14} /> Ajouter un module
+        <Papicon icon="add" size={14} /> {m.home_add_module()}
       </button>
     </div>
   {/if}
@@ -832,7 +833,7 @@
             <button
               onclick={() => moveModule(index, -1)}
               disabled={index === 0}
-              title="Déplacer vers le haut/gauche"
+              title={m.home_move_up()}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             >
               <Papicon icon="arrow-up" size={12} />
@@ -840,28 +841,28 @@
             <button
               onclick={() => moveModule(index, 1)}
               disabled={index === userLayout.length - 1}
-              title="Déplacer vers le bas/droite"
+              title={m.home_move_down()}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             >
               <Papicon icon="arrow-down" size={12} />
             </button>
             <button
               onclick={() => toggleSize(item.id)}
-              title="Largeur : {item.colSpan} col"
+              title={m.home_width_cols({ n: item.colSpan })}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
             >
               {item.colSpan}c
             </button>
             <button
               onclick={() => toggleRowSize(item.id)}
-              title="Hauteur : {item.rowSpan || 1} ligne(s)"
+              title={m.home_height_rows({ n: item.rowSpan || 1 })}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
             >
               {item.rowSpan || 1}r
             </button>
             <button
               onclick={() => hideModule(item.id)}
-              title="Masquer le module"
+              title={m.home_hide_module()}
               class="p-1 rounded text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
             >
               <Papicon icon="trash" size={12} />
@@ -872,10 +873,10 @@
           <div
             role="button"
             tabindex="-1"
-            aria-label="Glisser pour redimensionner la largeur"
+            aria-label={m.home_resize_width()}
             onmousedown={(e) => handleResizeStart(e, item.id, 'col')}
             class="absolute top-0 right-0 w-2 h-full cursor-col-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-r-lg"
-            title="Glisser pour redimensionner la largeur"
+            title={m.home_resize_width()}
           >
             <div class="absolute top-1/2 right-0.5 -translate-y-1/2 w-0.5 h-8 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
           </div>
@@ -884,10 +885,10 @@
           <div
             role="button"
             tabindex="-1"
-            aria-label="Glisser pour redimensionner la hauteur"
+            aria-label={m.home_resize_height()}
             onmousedown={(e) => handleResizeStart(e, item.id, 'row')}
             class="absolute bottom-0 left-0 w-full h-2 cursor-row-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-b-lg"
-            title="Glisser pour redimensionner la hauteur"
+            title={m.home_resize_height()}
           >
             <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
           </div>
@@ -896,7 +897,7 @@
         {#if item.id === 'liveStats'}
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 h-full">
             <MetricCard
-              label="Membres"
+              label={m.home_members_label()}
               value={liveStats ? formatNumber(liveStats.humansCount) : '—'}
               note={liveStats ? `${liveStats.botsCount} bot${liveStats.botsCount > 1 ? 's' : ''}` : ''}
               icon="users"
@@ -904,25 +905,25 @@
               loading={analyticsLoading}
             />
             <MetricCard
-              label="En ligne"
+              label={m.home_online_label()}
               value={liveStats ? formatNumber(liveStats.onlineMembers + liveStats.idleMembers + liveStats.dndMembers) : '—'}
-              note={liveStats ? `${liveStats.onlineMembers} actifs` : ''}
+              note={liveStats ? m.home_actives_note({ n: liveStats.onlineMembers }) : ''}
               icon="wifi"
               toneClass="bg-emerald-500/10 text-emerald-400"
               loading={analyticsLoading}
             />
             <MetricCard
-              label="En vocal"
+              label={m.home_in_voice()}
               value={liveStats ? String(liveStats.voiceConnected) : '—'}
-              note="connectés maintenant"
+              note={m.home_connected_now()}
               icon="headphones"
               toneClass="bg-secondary/10 text-secondary"
               loading={analyticsLoading}
             />
             <MetricCard
-              label="Croissance 7j"
+              label={m.home_growth_7d()}
               value={totals ? `${totals.netGrowth >= 0 ? '+' : ''}${totals.netGrowth}` : '—'}
-              note={totals ? `${totals.joins} arrivées · ${totals.leaves} départs` : ''}
+              note={totals ? m.home_joins_leaves_note({ joins: totals.joins, leaves: totals.leaves }) : ''}
               icon="trending-up"
               toneClass={totals && totals.netGrowth >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}
               loading={analyticsLoading}
@@ -945,10 +946,10 @@
                         class="bg-surface-container text-[11px] text-on-surface-variant border border-outline-variant rounded-md px-1.5 py-0.5 outline-none cursor-pointer"
                       >
                         <option value="messages">Messages</option>
-                        <option value="voice">Vocal</option>
-                        <option value="joins">Arrivées</option>
-                        <option value="leaves">Départs</option>
-                        <option value="sanctions">Sanctions</option>
+                        <option value="voice">{m.home_opt_voice()}</option>
+                        <option value="joins">{m.home_stat_joins_title()}</option>
+                        <option value="leaves">{m.home_stat_leaves_title()}</option>
+                        <option value="sanctions">{m.nav_sanctions()}</option>
                       </select>
                     </div>
                     <p class="text-[11px] text-on-surface-variant">{statConfig.subtitle}</p>
@@ -959,7 +960,7 @@
                     <div class="h-7 w-16 animate-pulse bg-surface-container-high rounded"></div>
                   {:else}
                     <span class="text-xl font-semibold text-on-surface">{formatNumber(statTotal)}{statConfig.unit}</span>
-                    <p class="text-[11px] text-emerald-400">7 derniers jours</p>
+                    <p class="text-[11px] text-emerald-400">{m.home_last_7_days()}</p>
                   {/if}
                 </div>
               </div>
@@ -968,7 +969,7 @@
                   <LineChart data={activityData} height={(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128} labelKey="name" valueKey="value" color={statConfig.color} />
                 {:else}
                   <div class="h-full flex items-center justify-center text-on-surface-variant/40 text-xs">
-                    {analyticsLoading ? 'Chargement...' : 'Aucune donnée'}
+                    {analyticsLoading ? m.common_loading() : m.home_no_data()}
                   </div>
                 {/if}
               </div>
@@ -981,9 +982,9 @@
                 <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
                   <Papicon icon="cpu" size={16} />
                 </div>
-                <h3 class="font-medium text-on-surface">Système</h3>
+                <h3 class="font-medium text-on-surface">{m.home_system()}</h3>
               </div>
-              <button onclick={() => router.goto('/module-catalog')} class="text-xs text-primary hover:underline cursor-pointer">Modules</button>
+              <button onclick={() => router.goto('/module-catalog')} class="text-xs text-primary hover:underline cursor-pointer">{m.nav_modules()}</button>
             </div>
 
             <div class="flex {item.colSpan >= 2 ? 'flex-row gap-6' : 'flex-col gap-4'} grow {item.colSpan < 2 ? 'justify-center' : 'items-center'}">
@@ -998,26 +999,26 @@
                 </div>
                 <div>
                   <p class="text-sm font-medium {healthColor}">{healthLabel}</p>
-                  <p class="text-xs text-on-surface-variant mt-0.5">{activeModulesCount}/{totalModulesCount} modules actifs</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">{m.home_modules_active({ active: activeModulesCount, total: totalModulesCount })}</p>
                   {#if errorModulesCount > 0}
-                    <p class="text-xs text-red-400 mt-0.5">{errorModulesCount} en erreur</p>
+                    <p class="text-xs text-red-400 mt-0.5">{m.home_n_errors({ n: errorModulesCount })}</p>
                   {/if}
                 </div>
               </div>
 
               {#if item.colSpan >= 2 || (item.rowSpan || 1) >= 2}
                 <div class="flex-1 space-y-1.5 {item.colSpan >= 2 ? 'border-l border-outline-variant pl-6' : 'border-t border-outline-variant pt-3'}">
-                  <span class="text-[10px] text-on-surface-variant">Modules actifs</span>
+                  <span class="text-[10px] text-on-surface-variant">{m.home_active_modules()}</span>
                   {#each dashboardStore.state.modules.filter(m => m.status === 'active').slice(0, (item.rowSpan || 1) >= 2 ? 8 : 5) as mod}
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-on-surface truncate">{mod.name}</span>
-                      <span class="text-[10px] text-emerald-400 shrink-0">actif</span>
+                      <span class="text-[10px] text-emerald-400 shrink-0">{m.home_active_lower()}</span>
                     </div>
                   {/each}
                   {#each dashboardStore.state.modules.filter(m => m.status === 'error') as mod}
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-on-surface truncate">{mod.name}</span>
-                      <span class="text-[10px] text-red-400 shrink-0">erreur</span>
+                      <span class="text-[10px] text-red-400 shrink-0">{m.home_error_lower()}</span>
                     </div>
                   {/each}
                 </div>
@@ -1043,7 +1044,7 @@
                 <div class="w-7 h-7 rounded-lg bg-tertiary/10 flex items-center justify-center text-tertiary">
                   <Papicon icon="hash" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Salons actifs</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_active_channels()}</h3>
               </div>
               <span class="text-[10px] text-on-surface-variant">7 jours</span>
             </div>
@@ -1069,7 +1070,7 @@
                   </div>
                 {/each}
               {:else}
-                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant/40 {channelsCols > 1 ? 'col-span-2' : ''}">Aucune donnée</div>
+                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant/40 {channelsCols > 1 ? 'col-span-2' : ''}">{m.home_no_data()}</div>
               {/if}
             </div>
           </div>
@@ -1080,9 +1081,9 @@
                 <div class="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
                   <Papicon icon="shield" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Modération</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_moderation_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/analytics')} class="text-[10px] text-primary hover:underline cursor-pointer">Détails</button>
+              <button onclick={() => router.goto('/analytics')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_details()}</button>
             </div>
             <div class="space-y-2.5 grow flex flex-col justify-center">
               {#if analyticsLoading}
@@ -1109,21 +1110,21 @@
                   </div>
                 </div>
                 {#if moderation.activeSanctions > 0}
-                  <p class="text-[11px] text-amber-400 mt-1">{moderation.activeSanctions} sanction(s) active(s)</p>
+                  <p class="text-[11px] text-amber-400 mt-1">{m.home_active_sanctions({ n: moderation.activeSanctions })}</p>
                 {/if}
                 {#if (item.rowSpan || 1) >= 2 && moderation.recentSanctions?.length > 0}
                   <div class="border-t border-outline-variant pt-2 mt-1 space-y-1.5">
-                    <span class="text-[10px] text-on-surface-variant">Sanctions récentes</span>
+                    <span class="text-[10px] text-on-surface-variant">{m.home_recent_sanctions()}</span>
                     {#each moderation.recentSanctions.slice(0, (item.rowSpan || 1) >= 3 ? 6 : 3) as sanction}
                       <div class="flex items-center justify-between text-xs">
-                        <span class="text-on-surface truncate">{sanction.targetName || 'Membre'}</span>
+                        <span class="text-on-surface truncate">{sanction.targetName || m.home_member()}</span>
                         <span class="text-[10px] text-on-surface-variant shrink-0">{sanction.type}</span>
                       </div>
                     {/each}
                   </div>
                 {/if}
               {:else}
-                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant/40">Aucune donnée</div>
+                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant/40">{m.home_no_data()}</div>
               {/if}
             </div>
           </div>
@@ -1136,7 +1137,7 @@
                 <div class="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                   <Papicon icon="award" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Top Membres</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_top_members()}</h3>
               </div>
               <span class="text-[10px] text-on-surface-variant">7 jours</span>
             </div>
@@ -1163,7 +1164,7 @@
                   </div>
                 {/each}
               {:else}
-                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant/40 {membersCols > 1 ? 'col-span-2' : ''}">Aucune donnée</div>
+                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant/40 {membersCols > 1 ? 'col-span-2' : ''}">{m.home_no_data()}</div>
               {/if}
             </div>
           </div>
@@ -1178,7 +1179,7 @@
                 </div>
                 <div>
                   <h3 class="text-sm font-medium text-on-surface">Notifications</h3>
-                  <span class="text-[10px] text-on-surface-variant">{notificationsStore.unreadCount} non lue(s)</span>
+                  <span class="text-[10px] text-on-surface-variant">{m.home_unread_count({ n: notificationsStore.unreadCount })}</span>
                 </div>
               </div>
               <a href="/inbox" class="w-6 h-6 rounded-md bg-surface-container flex items-center justify-center hover:bg-surface-container-high transition-colors text-on-surface-variant">
@@ -1207,7 +1208,7 @@
               {:else}
                 <div class="flex flex-col items-center justify-center py-6 text-center text-on-surface-variant/40 {notifCols > 1 ? 'col-span-2' : ''}">
                   <Papicon icon="check-circle" size={18} class="mb-1 text-emerald-500/50" />
-                  <p class="text-[11px]">Tout est à jour</p>
+                  <p class="text-[11px]">{m.home_all_up_to_date()}</p>
                 </div>
               {/if}
             </div>
@@ -1225,7 +1226,7 @@
               </div>
               <div class="flex gap-1.5">
                 <span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-500/10 text-amber-400">{pendingAbsences.length} abs.</span>
-                <span class="px-1.5 py-0.5 text-[10px] rounded bg-surface-container text-on-surface-variant">{staffStore.upcomingMeetings.length} réu.</span>
+                <span class="px-1.5 py-0.5 text-[10px] rounded bg-surface-container text-on-surface-variant">{m.home_meetings_badge({ n: staffStore.upcomingMeetings.length })}</span>
               </div>
             </div>
 
@@ -1233,14 +1234,14 @@
               <div class="{item.colSpan >= 2 ? 'flex-1' : ''} space-y-2.5">
                 {#each pendingAbsences.slice(0, staffAbsCount) as absence, i}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                    <span class="text-[10px] text-primary block mb-1">{i === 0 ? 'Prochaine absence' : 'Absence'}</span>
-                    <p class="text-xs font-medium truncate">{absence.staffDisplayName || 'Membre Staff'}</p>
+                    <span class="text-[10px] text-primary block mb-1">{i === 0 ? m.home_next_absence() : m.home_absence()}</span>
+                    <p class="text-xs font-medium truncate">{absence.staffDisplayName || m.home_staff_member()}</p>
                     <p class="text-[10px] text-on-surface-variant mt-0.5 truncate">{absence.reason || 'N/A'}</p>
                   </div>
                 {:else}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                    <span class="text-[10px] text-primary block mb-1">Prochaine absence</span>
-                    <p class="text-[11px] text-on-surface-variant/50">Aucune</p>
+                    <span class="text-[10px] text-primary block mb-1">{m.home_next_absence()}</span>
+                    <p class="text-[11px] text-on-surface-variant/50">{m.home_none_f()}</p>
                   </div>
                 {/each}
               </div>
@@ -1248,23 +1249,23 @@
               <div class="{item.colSpan >= 2 ? 'flex-1' : ''} space-y-2.5 {item.colSpan < 2 ? 'mt-2.5' : ''}">
                 {#each staffStore.upcomingMeetings.slice(0, staffMeetCount) as meeting, i}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                    <span class="text-[10px] text-secondary block mb-1">{i === 0 ? 'Prochaine réunion' : 'Réunion'}</span>
+                    <span class="text-[10px] text-secondary block mb-1">{i === 0 ? m.home_next_meeting() : m.home_meeting()}</span>
                     <p class="text-xs font-medium truncate">{meeting.title}</p>
                     <p class="text-[10px] text-on-surface-variant mt-0.5 text-on-surface">
-                      {new Date(meeting.scheduledAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} à {new Date(meeting.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      {m.home_date_at_time({ date: new Date(meeting.scheduledAt).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' }), time: new Date(meeting.scheduledAt).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' }) })}
                     </p>
                   </div>
                 {:else}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
-                    <span class="text-[10px] text-secondary block mb-1">Prochaine réunion</span>
-                    <p class="text-[11px] text-on-surface-variant/50">Aucune</p>
+                    <span class="text-[10px] text-secondary block mb-1">{m.home_next_meeting()}</span>
+                    <p class="text-[11px] text-on-surface-variant/50">{m.home_none_f()}</p>
                   </div>
                 {/each}
               </div>
             </div>
 
             <a href="/staff-management" class="mt-3 flex items-center justify-center gap-1.5 w-full py-2 rounded-lg bg-surface-container text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors border border-outline-variant">
-              Gérer l'équipe <Papicon icon="arrow-right" size={12} />
+              {m.home_manage_team()} <Papicon icon="arrow-right" size={12} />
             </a>
           </div>
         {:else if item.id === 'audit'}
@@ -1275,9 +1276,9 @@
                 <div class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
                   <Papicon icon="activity" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Activité récente</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_recent_activity()}</h3>
               </div>
-              <a href="/activity" class="text-[10px] text-primary hover:underline">Tout voir</a>
+              <a href="/activity" class="text-[10px] text-primary hover:underline">{m.home_see_all()}</a>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               {#each dashboardStore.state.auditTrail.slice(0, auditCount) as entry}
@@ -1292,24 +1293,24 @@
                     </div>
                     <p class="text-[11px] text-on-surface {item.colSpan >= 2 ? '' : 'truncate'}">{@html entry.action}</p>
                     {#if item.colSpan >= 2 && entry.user}
-                      <p class="text-[10px] text-on-surface-variant">par {entry.user}</p>
+                      <p class="text-[10px] text-on-surface-variant">{m.home_by_user({ user: entry.user })}</p>
                     {/if}
                   </div>
                 </div>
               {:else}
-                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant/40">Aucune activité</div>
+                <div class="flex items-center justify-center h-full text-xs text-on-surface-variant/40">{m.home_no_activity()}</div>
               {/each}
             </div>
           </div>
         {:else if item.id === 'actions'}
           <div class="flex flex-col h-full justify-center">
             <div class="flex flex-wrap gap-2 items-center">
-              <span class="text-[10px] text-on-surface-variant mr-1">Raccourcis :</span>
+              <span class="text-[10px] text-on-surface-variant mr-1">{m.home_shortcuts()}</span>
               <button onclick={() => router.goto('/planning')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
-                <Papicon icon="calendar-plus" size={12} class="text-primary" /> Absence
+                <Papicon icon="calendar-plus" size={12} class="text-primary" /> {m.home_absence()}
               </button>
               <button onclick={() => router.goto('/planning')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
-                <Papicon icon="video" size={12} class="text-secondary" /> Réunion
+                <Papicon icon="video" size={12} class="text-secondary" /> {m.home_meeting()}
               </button>
               <button onclick={() => router.goto('/module-catalog')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
                 <Papicon icon="plus-circle" size={12} class="text-tertiary" /> Module
@@ -1328,12 +1329,12 @@
               <div class="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                 <Papicon icon="edit" size={14} />
               </div>
-              <h3 class="text-sm font-medium text-on-surface">Notes de l'équipe</h3>
+              <h3 class="text-sm font-medium text-on-surface">{m.home_team_notes()}</h3>
             </div>
             <textarea
               value={staffNotes}
               oninput={saveStaffNotes}
-              placeholder="Saisissez des notes ici... Elles sont sauvegardées localement."
+              placeholder={m.home_notes_placeholder()}
               class="w-full grow p-2.5 text-xs bg-surface-container border border-outline-variant rounded-lg outline-none resize-none focus:border-primary/50 text-on-surface min-h-[100px]"
             ></textarea>
           </div>
@@ -1344,27 +1345,27 @@
                 <div class="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
                   <Papicon icon="server" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Infos Serveur</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_serverinfo_title()}</h3>
               </div>
             </div>
             <div class="space-y-2 text-xs grow flex flex-col justify-center">
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
-                <span class="text-on-surface-variant">Nom</span>
+                <span class="text-on-surface-variant">{m.home_name_label()}</span>
                 <span class="font-medium text-on-surface truncate max-w-[150px]">{dashboardStore.state.guildName || 'Kotbo'}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
-                <span class="text-on-surface-variant">Membres</span>
+                <span class="text-on-surface-variant">{m.home_members_label()}</span>
                 <span class="font-medium text-on-surface">{liveStats ? formatNumber(liveStats.humansCount + liveStats.botsCount) : '—'}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">Boosts</span>
                 <span class="font-medium text-purple-400 flex items-center gap-1">
-                  <Papicon icon="star" size={10} /> Niveau 2
+                  <Papicon icon="star" size={10} /> {m.home_boost_level({ n: 2 })}
                 </span>
               </div>
               <div class="flex justify-between py-1">
-                <span class="text-on-surface-variant">Propriétaire</span>
-                <span class="font-medium text-on-surface font-semibold text-on-surface">Gérant</span>
+                <span class="text-on-surface-variant">{m.home_owner()}</span>
+                <span class="font-medium text-on-surface font-semibold text-on-surface">{m.home_manager()}</span>
               </div>
             </div>
           </div>
@@ -1375,16 +1376,16 @@
                 <div class="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
                   <Papicon icon="cpu" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Hébergement Bot</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_bothosting_title()}</h3>
               </div>
               <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-500/20 text-emerald-400 font-medium">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> En ligne
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> {m.home_online_label()}
               </span>
             </div>
             <div class="space-y-3 grow flex flex-col justify-center">
               <div>
                 <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
-                  <span>Processeur (CPU)</span>
+                  <span>{m.home_cpu()}</span>
                   <span class="font-medium text-on-surface">12%</span>
                 </div>
                 <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
@@ -1393,7 +1394,7 @@
               </div>
               <div>
                 <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
-                  <span>Mémoire (RAM)</span>
+                  <span>{m.home_ram()}</span>
                   <span class="font-medium text-on-surface">256 Mo / 1024 Mo</span>
                 </div>
                 <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
@@ -1401,7 +1402,7 @@
                 </div>
               </div>
               <div class="flex justify-between text-xs pt-1">
-                <span class="text-on-surface-variant">Latence API</span>
+                <span class="text-on-surface-variant">{m.home_api_latency()}</span>
                 <span class="font-medium text-emerald-400">18 ms</span>
               </div>
             </div>
@@ -1414,23 +1415,23 @@
                 <div class="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
                   <Papicon icon="book" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Nouveautés Kotbo</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_kotbo_news()}</h3>
               </div>
             </div>
             <div class="space-y-2 grow text-xs flex flex-col overflow-y-auto" style="scrollbar-width: thin;">
               {#if changelogLoading}
                 <div class="flex items-center justify-center grow">
-                  <span class="text-on-surface-variant text-[11px]">Chargement...</span>
+                  <span class="text-on-surface-variant text-[11px]">{m.common_loading()}</span>
                 </div>
               {:else if changelogCommits.length === 0}
                 <div class="flex items-center justify-center grow">
-                  <span class="text-on-surface-variant text-[11px]">Aucune mise à jour disponible</span>
+                  <span class="text-on-surface-variant text-[11px]">{m.home_no_updates()}</span>
                 </div>
               {:else}
                 {#each changelogCommits.slice(0, maxNewsItems) as commit}
                   {@const typeColors: Record<string, string> = { feat: 'text-emerald-400', fix: 'text-amber-400', refactor: 'text-blue-400', perf: 'text-cyan-400', test: 'text-violet-400' }}
                   {@const typeBgColors: Record<string, string> = { feat: 'bg-emerald-500/15', fix: 'bg-amber-500/15', refactor: 'bg-blue-500/15', perf: 'bg-cyan-500/15', test: 'bg-violet-500/15' }}
-                  {@const typeLabels: Record<string, string> = { feat: 'Nouveauté', fix: 'Correction', refactor: 'Refacto', perf: 'Perf', test: 'Test' }}
+                  {@const typeLabels: Record<string, string> = { feat: m.home_type_feat(), fix: m.home_type_fix(), refactor: m.home_type_refactor(), perf: 'Perf', test: 'Test' }}
                   {@const typeColor = typeColors[commit.type] || 'text-purple-400'}
                   {@const typeBg = typeBgColors[commit.type] || 'bg-purple-500/15'}
                   {@const typeLabel = typeLabels[commit.type] || commit.type}
@@ -1457,24 +1458,24 @@
               <div class="w-7 h-7 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500">
                 <Papicon icon="info" size={14} />
               </div>
-              <h3 class="text-sm font-medium text-on-surface">Guide Rapide</h3>
+              <h3 class="text-sm font-medium text-on-surface">{m.home_quick_guide()}</h3>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
                 <input type="checkbox" checked disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span class="line-through text-on-surface-variant">Inviter le bot sur Discord</span>
+                <span class="line-through text-on-surface-variant">{m.home_guide_invite()}</span>
               </label>
               <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
                 <input type="checkbox" checked disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span class="line-through text-on-surface-variant">Configurer salons de logs</span>
+                <span class="line-through text-on-surface-variant">{m.home_guide_logs()}</span>
               </label>
               <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
                 <input type="checkbox" disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span>Activer système de Tickets</span>
+                <span>{m.home_guide_tickets()}</span>
               </label>
               <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
                 <input type="checkbox" disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span>Définir rôles staff</span>
+                <span>{m.home_guide_roles()}</span>
               </label>
             </div>
           </div>
@@ -1484,7 +1485,7 @@
               <div class="w-7 h-7 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400">
                 <Papicon icon="clock" size={14} />
               </div>
-              <h3 class="text-sm font-medium text-on-surface">Statut Local</h3>
+              <h3 class="text-sm font-medium text-on-surface">{m.home_mod_clockweather_title()}</h3>
             </div>
             <div class="flex items-center justify-between grow">
               <div>
@@ -1496,7 +1497,7 @@
                   <Papicon icon="sun" size={16} />
                   <span class="text-sm font-semibold">22°C</span>
                 </div>
-                <p class="text-[10px] text-on-surface-variant">Beau temps</p>
+                <p class="text-[10px] text-on-surface-variant">{m.home_nice_weather()}</p>
               </div>
             </div>
           </div>
@@ -1507,22 +1508,22 @@
                 <div class="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
                   <Papicon icon="dollar-sign" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Économie</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_economy_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/economy')} class="text-[10px] text-primary hover:underline cursor-pointer">Gérer</button>
+              <button onclick={() => router.goto('/economy')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_manage()}</button>
             </div>
             <div class="space-y-2.5 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">En circulation</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_in_circulation()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">Transactions 7j</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_transactions_7d()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">Connectez le module Économie pour voir les données.</p>
+              <p class="text-[10px] text-on-surface-variant text-center">{m.home_economy_hint()}</p>
             </div>
           </div>
         {:else if item.id === 'leveling'}
@@ -1532,22 +1533,22 @@
                 <div class="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
                   <Papicon icon="bar-chart-2" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Niveaux</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_leveling_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/leveling')} class="text-[10px] text-primary hover:underline cursor-pointer">Classement</button>
+              <button onclick={() => router.goto('/leveling')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_leaderboard()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">Niveau moyen</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_avg_level()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">XP gagné 7j</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_xp_gained_7d()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">Activez le Leveling pour suivre la progression.</p>
+              <p class="text-[10px] text-on-surface-variant text-center">{m.home_leveling_hint()}</p>
             </div>
           </div>
         {:else if item.id === 'tickets'}
@@ -1559,21 +1560,21 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">Tickets</h3>
               </div>
-              <button onclick={() => router.goto('/tickets')} class="text-[10px] text-primary hover:underline cursor-pointer">Voir tout</button>
+              <button onclick={() => router.goto('/tickets')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-3 gap-2">
                 <div class="px-2 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10 text-center">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">Ouverts</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_open_tickets()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10 text-center">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">En cours</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_in_progress()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-center">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">Fermés 7j</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_closed_7d()}</p>
                 </div>
               </div>
             </div>
@@ -1585,22 +1586,22 @@
                 <div class="w-7 h-7 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-400">
                   <Papicon icon="user-plus" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Invitations</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_invites_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/invitations')} class="text-[10px] text-primary hover:underline cursor-pointer">Détails</button>
+              <button onclick={() => router.goto('/invitations')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_details()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-teal-500/5 border border-teal-500/10">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">Invitations actives</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_active_invites()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                   <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">Rétention</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_retention()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">Statistiques d'invitations en temps réel.</p>
+              <p class="text-[10px] text-on-surface-variant text-center">{m.home_invites_hint()}</p>
             </div>
           </div>
         {:else if item.id === 'events'}
@@ -1610,15 +1611,15 @@
                 <div class="w-7 h-7 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400">
                   <Papicon icon="calendar" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Événements</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_events_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/events')} class="text-[10px] text-primary hover:underline cursor-pointer">Voir tout</button>
+              <button onclick={() => router.goto('/events')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
                 <Papicon icon="calendar" size={18} class="mb-1 text-rose-500/50" />
-                <p class="text-[11px]">Aucun événement à venir</p>
-                <p class="text-[10px] mt-0.5">Créez un événement pour le voir ici.</p>
+                <p class="text-[11px]">{m.home_no_upcoming_events()}</p>
+                <p class="text-[10px] mt-0.5">{m.home_create_event_hint()}</p>
               </div>
             </div>
           </div>
@@ -1629,14 +1630,14 @@
                 <div class="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-400">
                   <Papicon icon="bar-chart" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Sondages</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_polls_title()}</h3>
               </div>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
                 <Papicon icon="bar-chart" size={18} class="mb-1 text-violet-500/50" />
-                <p class="text-[11px]">Aucun sondage actif</p>
-                <p class="text-[10px] mt-0.5">Les sondages staff apparaîtront ici.</p>
+                <p class="text-[11px]">{m.home_no_active_polls()}</p>
+                <p class="text-[10px] mt-0.5">{m.home_polls_hint()}</p>
               </div>
             </div>
           </div>
@@ -1647,9 +1648,9 @@
                 <div class="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
                   <Papicon icon="shield" size={14} />
                 </div>
-                <h3 class="text-sm font-medium text-on-surface">Serveur Staff</h3>
+                <h3 class="text-sm font-medium text-on-surface">{m.home_mod_staffserver_title()}</h3>
               </div>
-              <button onclick={() => router.goto('/staff-server')} class="text-[10px] text-primary hover:underline cursor-pointer">Gérer</button>
+              <button onclick={() => router.goto('/staff-server')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_manage()}</button>
             </div>
             {#if staffServerLinks.length > 0}
               {@const link = staffServerLinks[0]}
@@ -1658,29 +1659,29 @@
                   <span class="w-2 h-2 rounded-full {link.enabled ? 'bg-emerald-400' : 'bg-red-400'}"></span>
                   <p class="text-sm font-medium text-on-surface truncate">{link.otherGuildName}</p>
                   <span class="text-[9px] font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
-                    {link.isMain ? 'Staff' : 'Principal'}
+                    {link.isMain ? 'Staff' : m.home_main_label()}
                   </span>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                   <div class="px-3 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
                     <p class="text-xs font-semibold text-on-surface">{SYNC_MODE_LABELS[link.syncMode] ?? link.syncMode}</p>
-                    <p class="text-[10px] text-on-surface-variant">Mode de sync</p>
+                    <p class="text-[10px] text-on-surface-variant">{m.home_sync_mode()}</p>
                   </div>
                   <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                     <p class="text-lg font-semibold text-on-surface">{link.roleMappings?.length ?? 0}</p>
-                    <p class="text-[10px] text-on-surface-variant">Rôles mappés</p>
+                    <p class="text-[10px] text-on-surface-variant">{m.home_mapped_roles()}</p>
                   </div>
                 </div>
                 <p class="text-[10px] text-on-surface-variant text-center">
-                  {link.enabled ? 'Lien actif — synchronisation en cours.' : 'Lien désactivé.'}
+                  {link.enabled ? m.home_link_active() : m.home_link_disabled()}
                 </p>
               </div>
             {:else}
               <div class="space-y-2 grow flex flex-col justify-center">
                 <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
                   <Papicon icon="shield" size={18} class="mb-1 text-blue-500/50" />
-                  <p class="text-[11px]">Aucun serveur staff lié</p>
-                  <p class="text-[10px] mt-0.5">Liez un serveur staff pour synchroniser votre équipe.</p>
+                  <p class="text-[11px]">{m.home_no_staff_server()}</p>
+                  <p class="text-[10px] mt-0.5">{m.home_link_staff_hint()}</p>
                 </div>
               </div>
             {/if}
@@ -1695,31 +1696,31 @@
     {#if !isEditing}
       <button
         onclick={() => isEditing = true}
-        class="w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg hover:bg-primary/95 transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
-        title="Modifier la disposition"
+        class="w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg hover:bg-primary/95 transition-all active:scale-[0.98] group relative cursor-pointer"
+        title={m.home_edit_layout()}
       >
         <Papicon icon="edit" size={24} />
         <span class="absolute bottom-16 bg-surface-container border border-outline-variant px-2.5 py-1 rounded-md text-xs text-on-surface shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-          Modifier la disposition
+          {m.home_edit_layout()}
         </span>
       </button>
     {:else}
       <!-- Reset -->
       <button
         onclick={() => showResetConfirm = true}
-        class="w-11 h-11 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center shadow-lg hover:bg-red-500 hover:text-white transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
-        title="Réinitialiser"
+        class="w-11 h-11 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center shadow-lg hover:bg-red-500 hover:text-white transition-all active:scale-[0.98] group relative cursor-pointer"
+        title={m.common_reset()}
       >
         <Papicon icon="rotate-ccw" size={18} />
         <span class="absolute bottom-14 bg-surface-container border border-outline-variant px-2.5 py-1 rounded-md text-xs text-on-surface shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-          Réinitialiser
+          {m.common_reset()}
         </span>
       </button>
 
       <!-- Presets -->
       <button
         onclick={() => { showPresetsModal = true; loadPresets(); }}
-        class="w-11 h-11 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant flex items-center justify-center shadow-lg hover:bg-surface-container-high hover:text-on-surface transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
+        class="w-11 h-11 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant flex items-center justify-center shadow-lg hover:bg-surface-container-high hover:text-on-surface transition-all active:scale-[0.98] group relative cursor-pointer"
         title="Presets"
       >
         <Papicon icon="layers" size={18} />
@@ -1731,24 +1732,24 @@
       <!-- Export -->
       <button
         onclick={exportCurrentLayout}
-        class="w-11 h-11 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant flex items-center justify-center shadow-lg hover:bg-surface-container-high hover:text-on-surface transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
-        title="Exporter"
+        class="w-11 h-11 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant flex items-center justify-center shadow-lg hover:bg-surface-container-high hover:text-on-surface transition-all active:scale-[0.98] group relative cursor-pointer"
+        title={m.common_export()}
       >
         <Papicon icon="download" size={18} />
         <span class="absolute bottom-14 bg-surface-container border border-outline-variant px-2.5 py-1 rounded-md text-xs text-on-surface shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-          Exporter
+          {m.common_export()}
         </span>
       </button>
 
       <!-- Validate -->
       <button
         onclick={saveLayout}
-        class="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg hover:bg-emerald-600 transition-all hover:scale-105 active:scale-95 group relative cursor-pointer"
-        title="Valider les modifications"
+        class="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg hover:bg-emerald-600 transition-all active:scale-[0.98] group relative cursor-pointer"
+        title={m.home_validate_changes()}
       >
         <Papicon icon="check" size={24} />
         <span class="absolute bottom-16 bg-surface-container border border-outline-variant px-2.5 py-1 rounded-md text-xs text-on-surface shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-          Enregistrer
+          {m.common_save()}
         </span>
       </button>
     {/if}
@@ -1756,11 +1757,11 @@
 
   <!-- Add Module Modal -->
   {#if showAddModuleModal}
-    <div class="modal-backdrop" onclick={() => showAddModuleModal = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showAddModuleModal = false; }}>
+    <div class="modal-backdrop" onclick={() => showAddModuleModal = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) showAddModuleModal = false; }}>
       <div class="modal-panel modal-panel-lg" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
           <h2 class="text-base font-semibold text-on-surface flex items-center gap-2">
-            <Papicon icon="plus-circle" size={18} class="text-primary" /> Bibliothèque des modules
+            <Papicon icon="plus-circle" size={18} class="text-primary" /> {m.home_module_library()}
           </h2>
           <button
             onclick={() => showAddModuleModal = false}
@@ -1771,7 +1772,7 @@
         </div>
 
         <p class="text-xs text-on-surface-variant mb-4">
-          Choisissez un module à ajouter à votre page d'accueil Bento. Vous pourrez ensuite le déplacer ou le redimensionner.
+          {m.home_library_hint()}
         </p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -1791,14 +1792,14 @@
               <div class="flex justify-end pt-1">
                 {#if isVisible}
                   <span class="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium bg-emerald-500/10 px-2 py-1 rounded">
-                    <Papicon icon="check" size={10} /> Déjà visible
+                    <Papicon icon="check" size={10} /> {m.home_already_visible()}
                   </span>
                 {:else}
                   <button
                     onclick={() => { addModule(mod.id); showAddModuleModal = false; }}
                     class="px-2.5 py-1 bg-primary text-white text-[10px] font-medium rounded hover:bg-primary-container hover:text-on-primary-container transition-colors cursor-pointer"
                   >
-                    Ajouter
+                    {m.common_add()}
                   </button>
                 {/if}
               </div>
@@ -1811,29 +1812,29 @@
 
   <!-- Reset Confirmation Modal -->
   {#if showResetConfirm}
-    <div class="modal-backdrop" onclick={() => showResetConfirm = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showResetConfirm = false; }}>
+    <div class="modal-backdrop" onclick={() => showResetConfirm = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) showResetConfirm = false; }}>
       <div class="modal-panel max-w-sm" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="flex items-center gap-3 text-amber-400 mb-3">
           <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
             <Papicon icon="warning" size={20} />
           </div>
-          <h3 class="font-semibold text-sm text-on-surface">Réinitialiser la disposition ?</h3>
+          <h3 class="font-semibold text-sm text-on-surface">{m.home_reset_layout_q()}</h3>
         </div>
         <p class="text-xs text-on-surface-variant leading-normal mb-5">
-          Êtes-vous sûr de vouloir réinitialiser la disposition de votre page d'accueil ? Vos modules personnalisés, ordres et tailles seront effacés.
+          {m.home_reset_layout_warn()}
         </p>
         <div class="flex justify-end gap-2.5">
           <button
             onclick={() => showResetConfirm = false}
             class="px-3.5 py-2 text-xs font-medium bg-surface-container hover:bg-surface-container-high rounded-lg text-on-surface transition-colors cursor-pointer"
           >
-            Annuler
+            {m.common_cancel()}
           </button>
           <button
             onclick={resetLayout}
             class="px-3.5 py-2 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors cursor-pointer"
           >
-            Confirmer
+            {m.common_confirm()}
           </button>
         </div>
       </div>
@@ -1842,11 +1843,11 @@
 
   <!-- Presets Modal -->
   {#if showPresetsModal}
-    <div class="modal-backdrop" onclick={() => showPresetsModal = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showPresetsModal = false; }}>
+    <div class="modal-backdrop" onclick={() => showPresetsModal = false} role="button" tabindex="-1" onkeydown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) showPresetsModal = false; }}>
       <div class="modal-panel modal-panel-lg" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="flex items-center justify-between border-b border-outline-variant pb-3 mb-4">
           <h2 class="text-base font-semibold text-on-surface flex items-center gap-2">
-            <Papicon icon="layers" size={18} class="text-primary" /> Presets de disposition
+            <Papicon icon="layers" size={18} class="text-primary" /> {m.home_layout_presets()}
           </h2>
           <button
             onclick={() => showPresetsModal = false}
@@ -1859,26 +1860,26 @@
         <!-- Save current layout as preset -->
         <div class="p-4 rounded-xl border border-outline-variant bg-surface-container-lowest mb-4">
           <h3 class="text-xs font-medium text-on-surface mb-3 flex items-center gap-2">
-            <Papicon icon="save" size={14} class="text-primary" /> Sauvegarder le layout actuel
+            <Papicon icon="save" size={14} class="text-primary" /> {m.home_save_current_layout()}
           </h3>
           <div class="flex gap-2">
             <input
               type="text"
               bind:value={presetName}
-              placeholder="Nom du preset"
+              placeholder={m.home_preset_name_ph()}
               class="grow px-3 py-2 text-xs bg-surface-container border border-outline-variant rounded-lg outline-none focus:border-primary/50 text-on-surface"
             />
             <input
               type="text"
               bind:value={presetDescription}
-              placeholder="Description (optionnel)"
+              placeholder={m.home_preset_desc_ph()}
               class="grow px-3 py-2 text-xs bg-surface-container border border-outline-variant rounded-lg outline-none focus:border-primary/50 text-on-surface"
             />
             <button
               onclick={saveAsPreset}
               class="px-4 py-2 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
             >
-              Sauvegarder
+              {m.common_save()}
             </button>
           </div>
         </div>
@@ -1886,26 +1887,26 @@
         <!-- Import section -->
         <div class="p-4 rounded-xl border border-outline-variant bg-surface-container-lowest mb-4">
           <h3 class="text-xs font-medium text-on-surface mb-3 flex items-center gap-2">
-            <Papicon icon="upload" size={14} class="text-secondary" /> Importer un preset (JSON)
+            <Papicon icon="upload" size={14} class="text-secondary" /> {m.home_import_preset_json()}
           </h3>
           <div class="flex gap-2">
             <textarea
               bind:value={presetImportJson}
-              placeholder={'Collez le JSON ici... {"name": "...", "layout": [...]}'}
+              placeholder={m.home_paste_json_ph() + ' {"name": "...", "layout": [...]}'}
               class="grow px-3 py-2 text-xs bg-surface-container border border-outline-variant rounded-lg outline-none focus:border-primary/50 text-on-surface min-h-[60px] resize-none"
             ></textarea>
             <button
               onclick={importPresetFromJson}
               class="px-4 py-2 bg-secondary text-white text-xs font-medium rounded-lg hover:bg-secondary/90 transition-colors cursor-pointer shrink-0 self-end"
             >
-              Importer
+              {m.common_import()}
             </button>
           </div>
         </div>
 
         <!-- Saved presets list -->
         <h3 class="text-xs font-medium text-on-surface mb-3 flex items-center gap-2">
-          <Papicon icon="list" size={14} class="text-on-surface-variant" /> Mes presets
+          <Papicon icon="list" size={14} class="text-on-surface-variant" /> {m.home_my_presets()}
         </h3>
         <div class="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
           {#if loadingPresets}
@@ -1921,34 +1922,34 @@
                     <p class="text-[10px] text-on-surface-variant truncate mt-0.5">{preset.description}</p>
                   {/if}
                   <p class="text-[9px] text-on-surface-variant/60 mt-0.5">
-                    {Array.isArray(preset.layout) ? preset.layout.length : '?'} modules · {new Date(preset.createdAt).toLocaleDateString('fr-FR')}
+                    {Array.isArray(preset.layout) ? preset.layout.length : '?'} modules · {new Date(preset.createdAt).toLocaleDateString(dateLocale())}
                   </p>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">
                   <button
                     onclick={() => applyPreset(preset.id)}
-                    title="Appliquer"
+                    title={m.us_apply()}
                     class="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
                   >
                     <Papicon icon="check" size={12} />
                   </button>
                   <button
                     onclick={() => sharePreset(preset.id)}
-                    title="Partager (copier le lien)"
+                    title={m.home_share_link()}
                     class="p-1.5 rounded-md bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer"
                   >
                     <Papicon icon="share-2" size={12} />
                   </button>
                   <button
                     onclick={() => exportPreset(preset)}
-                    title="Exporter en JSON"
+                    title={m.home_export_json()}
                     class="p-1.5 rounded-md bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer"
                   >
                     <Papicon icon="download" size={12} />
                   </button>
                   <button
                     onclick={() => removePreset(preset.id)}
-                    title="Supprimer"
+                    title={m.common_delete()}
                     class="p-1.5 rounded-md text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                   >
                     <Papicon icon="trash" size={12} />
@@ -1959,8 +1960,8 @@
           {:else}
             <div class="flex flex-col items-center justify-center py-8 text-on-surface-variant/40">
               <Papicon icon="layers" size={24} class="mb-2" />
-              <p class="text-xs">Aucun preset sauvegardé</p>
-              <p class="text-[10px] mt-0.5">Sauvegardez votre disposition actuelle pour la retrouver plus tard.</p>
+              <p class="text-xs">{m.home_no_presets()}</p>
+              <p class="text-[10px] mt-0.5">{m.home_no_presets_hint()}</p>
             </div>
           {/if}
         </div>

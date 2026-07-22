@@ -1,3 +1,5 @@
+import { m } from '../i18n';
+
 export interface PageConfig {
   name: string;
   icon?: string;
@@ -20,91 +22,91 @@ export function isPageWip(page: PageConfig): boolean {
 }
 
 export const generalItems: PageConfig[] = [
-  { name: "Vue d'ensemble", icon: "grid",      href: "/",          featureKey: "dashboard", beta: false, wip: false },
-  { name: "Pulse & IA",     icon: "activity",  href: "/pulse",     featureKey: "dashboard", beta: true, wip: false },
-  { name: "Inbox",          icon: "inbox",     href: "/inbox",     featureKey: "inbox", beta: false, wip: false },
-  { name: "Analytics",      icon: "pie-chart", href: "/analytics", featureKey: "analytics", beta: false, wip: false },
+  { name: m.nav_home(),           icon: "home",      href: "/",          featureKey: "dashboard", beta: false, wip: false },
+  { name: m.nav_pulse(),        icon: "activity",  href: "/pulse",     featureKey: "dashboard", beta: true, wip: false },
+  { name: m.nav_inbox(),             icon: "inbox",     href: "/inbox",     featureKey: "inbox", beta: false, wip: false },
+  { name: m.nav_analytics(),         icon: "pie-chart", href: "/analytics", featureKey: "analytics", beta: false, wip: false },
 ];
 
 export const moderationItems: PageConfig[] = [
-  { name: "Membres",             icon: "users",         href: "/members",            featureKey: "members", beta: false, wip: false },
-  { name: "Sanctions",           icon: "alert-triangle",href: "/sanctions",          featureKey: "sanctions", beta: false, wip: false },
-  { name: "Appels de ban",       icon: "gavel",         href: "/appeals",            featureKey: "sanctions", beta: true, wip: false },
-  { name: "Modération auto",     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: true, wip: false },
-  { name: "Admin Lock",          icon: "lock",          href: "/admin-lock",         featureKey: "automod", beta: true, wip: false },
-  { name: "Pseudos",             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
-  { name: "Sécurité & DC",       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
-  { name: "Invitations",         icon: "link",          href: "/invitations",        featureKey: "members", beta: false, wip: false },
-  { name: "Logs Discord",        icon: "file-text",     href: "/logs",              featureKey: "logs", beta: false, wip: false },
-  { name: "Recherche messages",  icon: "search",        href: "/message-search",    featureKey: "logs", beta: true, wip: false },
-  { name: "Transcriptions",      icon: "file",          href: "/transcripts-list",  featureKey: "tickets", beta: false, wip: false },
-  { name: "Journal d'activité",  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
-  { name: "Événements",          icon: "zap",           href: "/events",            featureKey: "events", beta: false, wip: false },
-  { name: "Formulaires",         icon: "clipboard",     href: "/forms",             featureKey: "events", beta: false, wip: false },
-  { name: "Daily Algo",          icon: "code",          href: "/dailyalgo",         featureKey: "daily_algo", beta: false, wip: false },
+  { name: m.nav_members(),             icon: "users",         href: "/members",            featureKey: "members", beta: false, wip: false },
+  { name: m.nav_sanctions(),           icon: "alert-triangle",href: "/sanctions",          featureKey: "sanctions", beta: false, wip: false },
+  { name: m.nav_ban_appeals(),       icon: "gavel",         href: "/appeals",            featureKey: "sanctions", beta: true, wip: false },
+  { name: m.nav_automod(),     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: true, wip: false },
+  { name: m.nav_admin_lock(),          icon: "lock",          href: "/admin-lock",         featureKey: "automod", beta: true, wip: false },
+  { name: m.nav_nicknames(),             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
+  { name: m.nav_security_dc(),       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
+  { name: m.nav_invitations(),         icon: "link",          href: "/invitations",        featureKey: "members", beta: false, wip: false },
+  { name: m.nav_discord_logs(),        icon: "file-text",     href: "/logs",              featureKey: "logs", beta: false, wip: false },
+  { name: m.nav_message_search(),  icon: "search",        href: "/message-search",    featureKey: "logs", beta: true, wip: false },
+  { name: m.nav_transcripts(),      icon: "file",          href: "/transcripts-list",  featureKey: "tickets", beta: false, wip: false },
+  { name: m.nav_activity_log(),  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
+  { name: m.nav_events(),          icon: "zap",           href: "/events",            featureKey: "events", beta: false, wip: false },
+  { name: m.nav_forms(),         icon: "clipboard",     href: "/forms",             featureKey: "events", beta: false, wip: false },
+  { name: m.nav_daily_algo(),          icon: "code",          href: "/dailyalgo",         featureKey: "daily_algo", beta: false, wip: false },
 ];
 
 export const levelingItems: PageConfig[] = [
-  { name: "Leveling & XP",       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
-  { name: "Saisons",             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: true, wip: false },
-  { name: "Réputation",          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: true, wip: false },
-  { name: "Clans",               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },
+  { name: m.nav_leveling(),       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
+  { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: true, wip: false },
+  { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: true, wip: false },
+  { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },
 ];
 
 export const economyItems: PageConfig[] = [
-  { name: "Économie & RPG",      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: true, wip: false },
-  { name: "Marché",              icon: "shopping-bag",  href: "/marketplace",      featureKey: "economy",  beta: true, wip: false },
-  { name: "Quêtes",              icon: "compass",       href: "/quests",           featureKey: "economy",  beta: true, wip: false },
+  { name: m.nav_economy(),      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: true, wip: false },
+  { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "economy",  beta: true, wip: false },
+  { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "economy",  beta: true, wip: false },
 ];
 
 export const communityItems: PageConfig[] = [
-  { name: "Giveaways",           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
-  { name: "Annonces & Auto-Rôle", icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: false, wip: false },
-  { name: "Reaction Roles",      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: true, wip: false },
-  { name: "Déclencheurs",        icon: "message-square",href: "/triggers",         featureKey: "triggers", beta: false, wip: false },
-  { name: "Suggestions",         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },
-  { name: "Embeds",              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: true, wip: false },
-  { name: "Règlement",           icon: "book",          href: "/regulation",       featureKey: "regulation", beta: false, wip: false },
-  { name: "Actualités & RSS",    icon: "rss",           href: "/news",             featureKey: "news", beta: false, wip: false },
-  { name: "Salons Fun",          icon: "smile",         href: "/fun",              featureKey: "fun",  beta: true, wip: false },
-  { name: "Réseaux sociaux",     icon: "share-2",       href: "/social-networks",  featureKey: "social_networks", beta: true, wip: false },
+  { name: m.nav_giveaways(),           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
+  { name: m.nav_announcements(), icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: false, wip: false },
+  { name: m.nav_reaction_roles(),      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: true, wip: false },
+  { name: m.nav_triggers(),        icon: "message-square",href: "/triggers",         featureKey: "triggers", beta: false, wip: false },
+  { name: m.nav_suggestions(),         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },
+  { name: m.nav_embeds(),              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: true, wip: false },
+  { name: m.nav_regulation(),           icon: "book",          href: "/regulation",       featureKey: "regulation", beta: false, wip: false },
+  { name: m.nav_news(),    icon: "rss",           href: "/news",             featureKey: "news", beta: false, wip: false },
+  { name: m.nav_fun_channels(),          icon: "smile",         href: "/fun",              featureKey: "fun",  beta: true, wip: false },
+  { name: m.nav_social_networks(),     icon: "share-2",       href: "/social-networks",  featureKey: "social_networks", beta: true, wip: false },
 ];
 
 export const staffItems: PageConfig[] = [
-  { name: "Annuaire",            icon: "users",         href: "/staff-management/members", featureKey: "staff_directory", beta: false, wip: false },
-  { name: "Hiérarchie & Rôles",  icon: "shield",        href: "/staff-management/roles",   featureKey: "staff_roles", beta: false, wip: false },
-  { name: "Recrutement",         icon: "user-plus",     href: "/recruitment",      featureKey: "recruitment", beta: false, wip: false },
-  { name: "Tickets & Satisfaction", icon: "message-square",href: "/tickets",          featureKey: "tickets", beta: false, wip: false },
-  { name: "Évaluations Staff",   icon: "award",         href: "/evaluations",      featureKey: "staff_directory", beta: true, wip: false },
-  { name: "Tutorat",             icon: "book-open",     href: "/tutoring",         featureKey: "tutoring", beta: false, wip: false },
-  { name: "Réunions",            icon: "users",         href: "/meetings",         featureKey: "meetings", beta: false, wip: false },
-  { name: "Planning",            icon: "calendar",      href: "/planning",         featureKey: "absences", beta: false, wip: false },
-  { name: "Sondages",            icon: "bar-chart",     href: "/staff-management/polls",    featureKey: "polls", beta: false, wip: false },
-  { name: "Discipline",          icon: "alert-circle",  href: "/staff-management/warnings", featureKey: "discipline", beta: false, wip: false },
-  { name: "Widget Profil",       icon: "layout",        href: "/widget",                    featureKey: "dashboard", beta: true, wip: false },
+  { name: m.nav_staff_directory(),            icon: "users",         href: "/staff-management/members", featureKey: "staff_directory", beta: false, wip: false },
+  { name: m.nav_staff_hierarchy(),  icon: "shield",        href: "/staff-management/roles",   featureKey: "staff_roles", beta: false, wip: false },
+  { name: m.nav_recruitment(),         icon: "user-plus",     href: "/recruitment",      featureKey: "recruitment", beta: false, wip: false },
+  { name: m.nav_tickets(), icon: "message-square",href: "/tickets",          featureKey: "tickets", beta: false, wip: false },
+  { name: m.nav_staff_evaluations(),   icon: "award",         href: "/evaluations",      featureKey: "staff_directory", beta: true, wip: false },
+  { name: m.nav_tutoring(),             icon: "book-open",     href: "/tutoring",         featureKey: "tutoring", beta: false, wip: false },
+  { name: m.nav_meetings(),            icon: "users",         href: "/meetings",         featureKey: "meetings", beta: false, wip: false },
+  { name: m.nav_planning(),            icon: "calendar",      href: "/planning",         featureKey: "absences", beta: false, wip: false },
+  { name: m.nav_polls(),            icon: "bar-chart",     href: "/staff-management/polls",    featureKey: "polls", beta: false, wip: false },
+  { name: m.nav_discipline(),          icon: "alert-circle",  href: "/staff-management/warnings", featureKey: "discipline", beta: false, wip: false },
+  { name: m.nav_profile_widget(),       icon: "layout",        href: "/widget",                    featureKey: "dashboard", beta: true, wip: false },
 ];
 
 export const crossServerItems: PageConfig[] = [
-  { name: "Liens de salons",        icon: "link",          href: "/channel-links",      featureKey: "channel_links", beta: true, wip: false },
-  { name: "Serveurs Staff",         icon: "shield",        href: "/staff-server",       featureKey: "staff_server", beta: true, wip: false },
+  { name: m.nav_channel_links(),        icon: "link",          href: "/channel-links",      featureKey: "channel_links", beta: true, wip: false },
+  { name: m.nav_staff_servers(),         icon: "shield",        href: "/staff-server",       featureKey: "staff_server", beta: true, wip: false },
 ];
 
 export const configItems: PageConfig[] = [
-  { name: "Modules",             icon: "package",       href: "/modules",              featureKey: "modules", beta: false, wip: false },
-  { name: "Santé Salons",        icon: "activity",      href: "/channel-health",       featureKey: "channel_health", beta: true, wip: false },
-  { name: "Salons",              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: false, wip: false },
-  { name: "Commandes",           icon: "terminal",      href: "/command-access",       featureKey: "commands", beta: false, wip: false },
-  { name: "Paramètres",          icon: "settings",      href: "/settings",             featureKey: "settings", beta: false, wip: false },
-  { name: "Sauvegardes",         icon: "archive",        href: "/backups",              featureKey: "settings", beta: false, wip: false },
-  { name: "Planifications",      icon: "calendar",      href: "/schedules",            featureKey: "settings", beta: true, wip: false },
-  { name: "API MCP",             icon: "cpu",           href: "/mcp-settings",         featureKey: "settings", beta: true, wip: false },
-  { name: "Custom Bot",          icon: "bot",           href: "/custom-bot",           featureKey: "settings", beta: false, wip: true, wipMessage: "Cette fonctionnalité est disponible sur demande. Contactez l'administrateur de Kotbo en message privé sur Discord pour l'activer (service payant)." },
+  { name: m.nav_modules(),             icon: "package",       href: "/modules",              featureKey: "modules", beta: false, wip: false },
+  { name: m.nav_channel_health(),        icon: "activity",      href: "/channel-health",       featureKey: "channel_health", beta: true, wip: false },
+  { name: m.nav_channels(),              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: false, wip: false },
+  { name: m.nav_commands(),           icon: "terminal",      href: "/command-access",       featureKey: "commands", beta: false, wip: false },
+  { name: m.nav_settings(),          icon: "settings",      href: "/settings",             featureKey: "settings", beta: false, wip: false },
+  { name: m.nav_backups(),         icon: "archive",        href: "/backups",              featureKey: "settings", beta: false, wip: false },
+  { name: m.nav_schedules(),      icon: "calendar",      href: "/schedules",            featureKey: "settings", beta: true, wip: false },
+  { name: m.nav_mcp_api(),             icon: "cpu",           href: "/mcp-settings",         featureKey: "settings", beta: true, wip: false },
+  { name: m.nav_custom_bot(),          icon: "bot",           href: "/custom-bot",           featureKey: "settings", beta: false, wip: true, wipMessage: m.nav_custom_bot_wip() },
 ];
 
 export const otherPages: PageConfig[] = [
-  { name: "Administration",      icon: "lock",          href: "/admin",                beta: false, wip: false },
-  { name: "Mon Profil",          icon: "user",          href: "/profile",              beta: false, wip: false },
-  { name: "Paramètres Utilisateur", icon: "settings",   href: "/userSettings",         beta: false, wip: false },
+  { name: m.nav_administration(),      icon: "lock",          href: "/admin",                beta: false, wip: false },
+  { name: m.nav_my_profile(),          icon: "user",          href: "/profile",              beta: false, wip: false },
+  { name: m.nav_user_settings(), icon: "settings",   href: "/userSettings",         beta: false, wip: false },
 ];
 
 export const allPages: PageConfig[] = [

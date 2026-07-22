@@ -21,12 +21,7 @@ import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache } from '../utils/cache.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
-import {
-  syncGuildInvites,
-  markInviteAsDeleted,
-  recordInvitedMemberLeave,
-  syncAllGuildsInvites,
-} from '../services/analytics/inviteService.js';
+import { syncGuildInvites, markInviteAsDeleted, recordInvitedMemberLeave } from '../services/analytics/inviteService.js';
 import {
   buildMemberCaseActionRow,
   touchMemberJoin,

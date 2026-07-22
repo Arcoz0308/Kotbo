@@ -10,6 +10,7 @@
       description?: string | null;
       color?: string | null;
       icon?: string | null;
+      sortOrder?: number | null;
       parentHierarchyId?: string | null;
       responsable?: { userId: string; name?: string | null } | null;
       roles: Array<{ id: string; name: string; level: number; isResponsable: boolean; color?: string | null }>;
@@ -45,7 +46,11 @@
     }
 
     const sortNodes = (nodes: HierarchyTreeNode[]) => {
-      nodes.sort((left, right) => (left.sortOrder - right.sortOrder) || left.name.localeCompare(right.name));
+      nodes.sort((left, right) => {
+        const leftOrder = left.sortOrder ?? 0;
+        const rightOrder = right.sortOrder ?? 0;
+        return (leftOrder - rightOrder) || left.name.localeCompare(right.name);
+      });
       nodes.forEach((node) => {
         node.children = sortNodes(node.children);
       });
@@ -58,7 +63,7 @@
   const hierarchyTree = $derived(buildHierarchyTree());
 </script>
 
-<div class="org-chart-container py-12 px-6 overflow-x-auto select-none">
+<div class="org-chart-container py-16 px-8 overflow-x-auto select-none">
   {#if !schema || !schema.hierarchies || schema.hierarchies.length === 0}
     <div class="flex flex-col items-center justify-center py-20 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-xl bg-surface-container-low/20">
       <div class="w-20 h-20 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner opacity-50">
@@ -68,30 +73,34 @@
       <p class="mt-2 text-xs opacity-50">Créez des hiérarchies et assignez des rôles pour générer l'organigramme.</p>
     </div>
   {:else}
-    <div class="tree">
+    <div class="tree-canvas flex flex-col items-center min-w-max">
       <!-- Chief Staff Node -->
       {#if schema.chiefStaff && (schema.chiefStaff.name || schema.chiefStaff.userId)}
-        <div class="chief-staff-node mb-10 flex flex-col items-center">
-          <div class="relative group p-6 rounded-xl bg-linear-to-br from-amber-500/20 to-yellow-600/10 border-2 border-amber-500/40 shadow-sm shadow-amber-500/5 max-w-sm text-center">
-            <div class="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/30">
+        <div class="chief-staff-node mb-8 flex flex-col items-center">
+          <div class="chief-staff-card group relative p-6 pt-8 rounded-2xl bg-linear-to-br from-amber-500/10 to-yellow-600/5 border border-amber-500/30 backdrop-blur-md max-w-sm text-center">
+            <div class="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-linear-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shadow-lg border border-amber-300/30 group-hover:scale-110 transition-transform duration-300">
               <span class="text-xl font-bold">👑</span>
             </div>
-            <div class="mt-4">
-              <h4 class="text-xs font-semibold uppercase tracking-widest text-amber-400">Resp Staff Global</h4>
-              <p class="text-lg font-semibold text-on-surface mt-1">{schema.chiefStaff.name || 'Nom Inconnu'}</p>
+            <div class="mt-2">
+              <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider">
+                Resp Staff Global
+              </span>
+              <p class="text-lg font-bold text-on-surface mt-2 tracking-tight">{schema.chiefStaff.name || 'Nom Inconnu'}</p>
               {#if schema.chiefStaff.userId}
-                <span class="text-[11px] font-mono text-on-surface-variant/60 block mt-1">ID: {schema.chiefStaff.userId}</span>
+                <span class="text-[10px] font-mono text-on-surface-variant/40 bg-surface-container-high/40 px-2 py-0.5 rounded-md mt-1.5 inline-block">
+                  ID: {schema.chiefStaff.userId}
+                </span>
               {/if}
             </div>
           </div>
-          <div class="vertical-line bg-amber-500/30"></div>
+          <div class="vertical-connector bg-linear-to-b from-amber-500/40 to-outline-variant"></div>
         </div>
       {/if}
 
       <!-- Hierarchies Tree -->
-      <div class="hierarchies-tree flex flex-col items-center gap-12 relative">
+      <div class="hierarchies-tree flex items-start gap-12 relative">
         {#each hierarchyTree as hierarchy (hierarchy.id)}
-          <div class="w-full flex justify-center">
+          <div class="flex-1 flex justify-center">
             <HierarchyNode node={hierarchy} isRoot={true} />
           </div>
         {/each}
@@ -102,19 +111,49 @@
 
 <style>
   .org-chart-container {
-    background: radial-gradient(circle at top left, var(--color-surface-container-low) 0%, transparent 70%);
+    background-image: radial-gradient(var(--outline-variant) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-color: var(--surface-container-lowest);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--outline-variant);
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.01);
+  }
+
+  .org-chart-container::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .org-chart-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .org-chart-container::-webkit-scrollbar-thumb {
+    background: var(--outline-variant);
+    border-radius: 9999px;
+  }
+  .org-chart-container::-webkit-scrollbar-thumb:hover {
+    background: var(--outline);
   }
 
   .chief-staff-node {
     position: relative;
   }
 
-  .vertical-line {
+  .chief-staff-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 32px -6px rgba(245, 158, 11, 0.12), inset 0 0 12px rgba(245, 158, 11, 0.02);
+  }
+  .chief-staff-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px -6px rgba(245, 158, 11, 0.22), inset 0 0 16px rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.5);
+  }
+
+  .vertical-connector {
     width: 2px;
-    height: 40px;
+    height: 48px;
   }
 
   .hierarchies-tree {
-    padding-top: 1rem;
+    padding-top: 0.5rem;
   }
 </style>

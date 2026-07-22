@@ -13,6 +13,7 @@ import {
   archiveChannel,
 } from '../lib/api';
 import { toast } from '../lib/stores/toast.svelte';
+import ModulePage from '../lib/components/ModulePage.svelte';
 
 let loading = $state(true);
 let error = $state('');
@@ -130,37 +131,33 @@ async function handleArchive(channelId: string) {
 onMount(load);
 </script>
 
-<!-- ======================== HEADER ======================== -->
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-  <div>
-    <h1 class="text-lg font-semibold flex items-center gap-2.5">
-      <Papicon icon="activity" size={24} />
-      Santé des Salons
-      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary">BETA</span>
-    </h1>
-  </div>
-  <div class="flex items-center gap-3">
+<ModulePage
+  title="Santé des Salons"
+  description="Analyse automatique de l'activité et alertes sur vos salons."
+  icon="activity"
+  featureKey="channel_health"
+>
+  {#snippet actions()}
     <button
       class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2"
       onclick={runAnalysis}
       disabled={analysisLoading}
     >
       <Papicon icon="refresh-cw" size={16} />
-      {analysisLoading ? 'Analyse...' : 'Lancer une analyse'}
+      {analysisLoading ? 'Analyse…' : 'Lancer une analyse'}
     </button>
-  </div>
-</div>
+  {/snippet}
 
 <!-- ======================== TABS ======================== -->
-<div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-xl border border-outline-variant/10 w-fit mb-6">
+<div class="tab-group w-fit mb-6">
   <button
-    class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {activeTab === 'overview' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+    class="tab-button {activeTab === 'overview' ? 'active' : ''}"
     onclick={() => gotoTab('/channel-health', 'overview', 'overview')}
   >
     <Papicon icon="pie-chart" size={15} /> Vue d'ensemble
   </button>
   <button
-    class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {activeTab === 'alerts' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+    class="tab-button {activeTab === 'alerts' ? 'active' : ''}"
     onclick={() => gotoTab('/channel-health', 'alerts', 'overview')}
   >
     <Papicon icon="bell" size={15} /> Alertes
@@ -169,7 +166,7 @@ onMount(load);
     {/if}
   </button>
   <button
-    class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
+    class="tab-button {activeTab === 'config' ? 'active' : ''}"
     onclick={() => gotoTab('/channel-health', 'config', 'overview')}
   >
     <Papicon icon="settings" size={15} /> Configuration
@@ -186,7 +183,7 @@ onMount(load);
   <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
     <Papicon icon="alert-circle" size={32} />
     <p class="text-sm">{error}</p>
-    <button class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2" onclick={load}>Réessayer</button>
+    <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={load}>Réessayer</button>
   </div>
 {:else}
 
@@ -199,7 +196,7 @@ onMount(load);
         <h3 class="text-base font-semibold text-on-surface">Moniteur de santé désactivé</h3>
         <p class="text-sm text-on-surface-variant/60 max-w-md">Activez le moniteur pour analyser automatiquement l'activité de vos salons et recevoir des recommandations.</p>
         <button
-          class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+          class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
           onclick={() => { gotoTab('/channel-health', 'config', 'overview'); if (configDraft) configDraft.enabled = true; }}
         >
           Activer le moniteur
@@ -216,7 +213,7 @@ onMount(load);
             </div>
             <div>
               <span class="text-2xl font-bold text-on-surface block">{count}</span>
-              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">{info.label}</span>
+              <span class="text-xs font-medium text-on-surface-variant/60">{info.label}</span>
             </div>
           </div>
         {/each}
@@ -232,14 +229,14 @@ onMount(load);
           <table class="w-full">
             <thead>
               <tr class="border-b border-outline-variant/10">
-                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Salon</th>
-                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Statut</th>
-                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Msg/jour</th>
-                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Users</th>
-                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Total msgs</th>
-                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Tendance</th>
-                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Confiance</th>
-                <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Actions</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Salon</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Statut</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Msg/jour</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Users</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Total msgs</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Tendance</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Confiance</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -248,7 +245,7 @@ onMount(load);
                 <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
                   <td class="px-3 py-2.5 text-sm font-semibold">#{ch.channelName}</td>
                   <td class="px-3 py-2.5 text-sm">
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style="background: color-mix(in srgb, {info.color} 15%, transparent); color: {info.color}">{info.label}</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {info.color} 15%, transparent); color: {info.color}">{info.label}</span>
                   </td>
                   <td class="px-3 py-2.5 text-sm">{ch.avgMsgPerDay.toFixed(1)}</td>
                   <td class="px-3 py-2.5 text-sm">{ch.uniqueUsersAvg.toFixed(0)}</td>
@@ -301,18 +298,18 @@ onMount(load);
           {#each data.pendingAlerts as alert}
             <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 space-y-3 border-l-[3px]" style="border-left-color: #fee75c">
               <div class="flex justify-between items-center">
-                <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400">{alertTypeLabels[alert.type] ?? alert.type}</span>
-                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary">{alert.confidence}%</span>
+                <span class="text-xs font-medium text-amber-400">{alertTypeLabels[alert.type] ?? alert.type}</span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">{alert.confidence}%</span>
               </div>
               <h4 class="text-sm font-semibold text-on-surface">#{alert.channelName ?? alert.channelId}</h4>
               <p class="text-xs text-on-surface-variant/60">{alert.reason}</p>
-              <div class="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">
+              <div class="flex gap-4 text-xs font-medium text-on-surface-variant/60">
                 <span>{alert.avgMsgPerDay?.toFixed(1)} msg/jour</span>
                 <span>{alert.uniqueUsersAvg?.toFixed(0)} users</span>
                 <span>{alert.analysisPeriod}j d'analyse</span>
               </div>
               <div class="flex gap-2 pt-1">
-                <button class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'APPLIED')}>
+                <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'APPLIED')}>
                   Appliquer
                 </button>
                 <button class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'DISMISSED')}>
@@ -334,11 +331,11 @@ onMount(load);
             <table class="w-full">
               <thead>
                 <tr class="border-b border-outline-variant/10">
-                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Date</th>
-                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Salon</th>
-                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Type</th>
-                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Statut</th>
-                  <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Confiance</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Date</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Salon</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Type</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Statut</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Confiance</th>
                 </tr>
               </thead>
               <tbody>
@@ -349,7 +346,7 @@ onMount(load);
                     <td class="px-3 py-2.5 text-sm">#{alert.channelName ?? alert.channelId}</td>
                     <td class="px-3 py-2.5 text-sm">{alertTypeLabels[alert.type] ?? alert.type}</td>
                     <td class="px-3 py-2.5 text-sm">
-                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style="background: color-mix(in srgb, {statusInfo.color} 15%, transparent); color: {statusInfo.color}">{statusInfo.label}</span>
+                      <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {statusInfo.color} 15%, transparent); color: {statusInfo.color}">{statusInfo.label}</span>
                     </td>
                     <td class="px-3 py-2.5 text-sm">{alert.confidence}%</td>
                   </tr>
@@ -378,12 +375,12 @@ onMount(load);
         </label>
 
         <div class="space-y-1.5">
-          <label for="analysis-period" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Période d'analyse (jours)</label>
+          <label for="analysis-period" class="field-label">Période d'analyse (jours)</label>
           <input id="analysis-period" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.analysisPeriodDays} min={7} max={90} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="split-mode" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Mode surcharge (split)</label>
+          <label for="split-mode" class="field-label">Mode surcharge (split)</label>
           <select id="split-mode" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.splitMode}>
             <option value="NOTIFY">Notification seulement</option>
             <option value="AUTO">Automatique</option>
@@ -391,7 +388,7 @@ onMount(load);
         </div>
 
         <div class="space-y-1.5">
-          <label for="archive-mode" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Mode inactivité (archivage)</label>
+          <label for="archive-mode" class="field-label">Mode inactivité (archivage)</label>
           <select id="archive-mode" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.archiveMode}>
             <option value="NOTIFY">Notification seulement</option>
             <option value="AUTO">Automatique</option>
@@ -407,12 +404,12 @@ onMount(load);
         </h4>
 
         <div class="space-y-1.5">
-          <label for="overload-msg-hour" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Messages/heure (moyenne)</label>
+          <label for="overload-msg-hour" class="field-label">Messages/heure (moyenne)</label>
           <input id="overload-msg-hour" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.overloadMsgPerHour} min={10} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="overload-unique-users" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Utilisateurs uniques (moyenne)</label>
+          <label for="overload-unique-users" class="field-label">Utilisateurs uniques (moyenne)</label>
           <input id="overload-unique-users" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.overloadUniqueUsers} min={5} />
         </div>
 
@@ -425,17 +422,17 @@ onMount(load);
         </h4>
 
         <div class="space-y-1.5">
-          <label for="underused-msg-day" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Messages/jour (max pour sous-utilisé)</label>
+          <label for="underused-msg-day" class="field-label">Messages/jour (max pour sous-utilisé)</label>
           <input id="underused-msg-day" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.underusedMsgPerDay} min={1} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="underused-unique-users" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Utilisateurs uniques (max)</label>
+          <label for="underused-unique-users" class="field-label">Utilisateurs uniques (max)</label>
           <input id="underused-unique-users" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.underusedUniqueUsers} min={1} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="dead-msg-week" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Messages/semaine (max pour mort)</label>
+          <label for="dead-msg-week" class="field-label">Messages/semaine (max pour mort)</label>
           <input id="dead-msg-week" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.deadMsgPerWeek} min={0} />
         </div>
 
@@ -453,7 +450,7 @@ onMount(load);
         </label>
 
         <div class="space-y-1.5">
-          <label for="weekly-digest-day" class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Jour du rapport</label>
+          <label for="weekly-digest-day" class="field-label">Jour du rapport</label>
           <select id="weekly-digest-day" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.weeklyDigestDay}>
             <option value={0}>Dimanche</option>
             <option value={1}>Lundi</option>
@@ -467,7 +464,7 @@ onMount(load);
       </div>
 
       <div class="flex justify-end pt-2">
-        <button class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2" onclick={saveConfig} disabled={savingConfig}>
+        <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={saveConfig} disabled={savingConfig}>
           {savingConfig ? 'Sauvegarde...' : 'Sauvegarder'}
         </button>
       </div>
@@ -480,7 +477,7 @@ onMount(load);
       </h3>
       <p class="text-sm text-on-surface-variant/60">Le moniteur n'est pas encore configuré pour ce serveur.</p>
       <button
-        class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={() => { configDraft = { enabled: true, analysisPeriodDays: 14, splitMode: 'NOTIFY', archiveMode: 'NOTIFY', overloadMsgPerHour: 120, overloadUniqueUsers: 80, underusedMsgPerDay: 5, underusedUniqueUsers: 3, deadMsgPerWeek: 2, weeklyDigestEnabled: true, weeklyDigestDay: 1 }; }}
       >
         Initialiser la configuration
@@ -489,3 +486,4 @@ onMount(load);
   {/if}
 
 {/if}
+</ModulePage>

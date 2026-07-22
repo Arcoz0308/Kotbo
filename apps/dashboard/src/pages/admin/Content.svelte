@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { toast } from '../../lib/stores/toast.svelte';
+  import { confirmDialog } from '../../lib/stores/confirmDialog.svelte';
   import {
     fetchGlobalBannedWords,
     saveGlobalBannedWords,
@@ -298,7 +299,7 @@
   }
 
   async function handleDeleteGlobalWord(entry: BannedWordEntry) {
-    if (!confirm(`Supprimer le mot global "${entry.word}" ?`)) return;
+    if (!(await confirmDialog.danger(`Supprimer le mot global « ${entry.word} » ?`))) return;
     try {
       const timer = globalWordSaveTimers.get(entry.id);
       if (timer) clearTimeout(timer);
@@ -311,7 +312,7 @@
   }
 
   async function handleCleanupGlobalWords() {
-    if (!confirm('Nettoyer automatiquement tous les mots globaux et supprimer les doublons ?')) return;
+    if (!(await confirmDialog.ask({ title: 'Nettoyer les mots globaux ?', description: 'Les doublons seront supprimés automatiquement.', confirmLabel: 'Nettoyer', variant: 'warning' }))) return;
 
     globalCleanupLoading = true;
     globalImportError = '';
@@ -510,7 +511,7 @@
           {:else}
             <div class="overflow-hidden rounded-xl border border-outline-variant/10">
               <table class="w-full text-sm">
-                <thead class="bg-on-surface/3 text-left text-[10px] uppercase tracking-widest text-on-surface-variant/30 border-b border-outline-variant/10">
+                <thead class="bg-on-surface/3 text-left text-[13px] text-on-surface-variant/30 border-b border-outline-variant/10">
                   <tr>
                     <th class="px-4 py-3">Mot</th>
                     <th class="px-4 py-3">Catégorie</th>

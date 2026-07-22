@@ -65,6 +65,7 @@ async function dashboardMutation(path: string, options: {
   payload?: any;
   guildId?: string;
   errorContext?: string;
+  silent?: boolean;
 } = {}): Promise<boolean> {
   const selectedGuildId = getGuildId(options.guildId);
   if (!selectedGuildId) return false;
@@ -81,7 +82,7 @@ async function dashboardMutation(path: string, options: {
     });
 
     if (response.ok) {
-      if (method !== 'GET') {
+      if (method !== 'GET' && !options.silent) {
         toast.success('Opération réussie');
       }
     } else {
@@ -941,6 +942,17 @@ export async function fetchHourlyHeatmap(options: { days?: number, startDate?: s
   });
 }
 
+export type AdvancedAnalyticsSection =
+  | 'retention' | 'activity' | 'churn' | 'channels' | 'social' | 'words' | 'moderation';
+
+export async function fetchAdvancedAnalytics(section: AdvancedAnalyticsSection, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/analytics/advanced?section=${section}`, {
+    method: 'GET',
+    guildId,
+    errorContext: `API Error (Advanced Analytics ${section}):`
+  });
+}
+
 export async function fetchWeeklyComparison(options: { offset?: number, mode?: 'week' | 'month' } = {}, guildId = authStore.selectedGuildId) {
   const params = new URLSearchParams();
   if (options.offset) params.append('offset', options.offset.toString());
@@ -1087,7 +1099,8 @@ export async function dismissDetection(userId: string, guildId = authStore.selec
   return dashboardMutation(`/detections/${userId}/dismiss`, {
     method: 'POST',
     guildId,
-    errorContext: 'API Error (Dismiss Detection):'
+    errorContext: 'API Error (Dismiss Detection):',
+    silent: true
   });
 }
 
@@ -1095,7 +1108,8 @@ export async function restoreDetection(userId: string, guildId = authStore.selec
   return dashboardMutation(`/detections/${userId}/restore`, {
     method: 'POST',
     guildId,
-    errorContext: 'API Error (Restore Detection):'
+    errorContext: 'API Error (Restore Detection):',
+    silent: true
   });
 }
 
@@ -1540,6 +1554,15 @@ export async function toggleInvitationSuspension(code: string, suspended: boolea
   });
 }
 
+export async function updateInvitationSource(code: string, sourceLabel: string | null, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/invitations/${code}/source`, {
+    method: 'PUT',
+    payload: { sourceLabel },
+    guildId,
+    errorContext: 'Error updating invitation source'
+  });
+}
+
 export async function deleteInvitation(code: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/invitations/${code}`, {
     method: 'DELETE',
@@ -1769,6 +1792,7 @@ export async function updateChannelsManagementConfig(
     verificationMode?: string;
     verificationAction?: string;
     verificationChannelId?: string | null;
+    verificationFallbackChannelId?: string | null;
     verificationRoleId?: string | null;
     verificationLogChannelId?: string | null;
     verificationEmbedTitle?: string;
@@ -1778,6 +1802,13 @@ export async function updateChannelsManagementConfig(
     verificationSaveIp?: boolean;
     verificationLevelCommand?: string;
     verificationLevelJoin?: string;
+    verificationWarnThreshold?: number | null;
+    verificationWarnAutoMode?: string;
+    verificationWarnReason?: string;
+    warnWeightingEnabled?: boolean;
+    warnDecayDays?: number | null;
+    wordStatsEnabled?: boolean;
+    banHygieneEnabled?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {
@@ -2232,7 +2263,7 @@ export async function updateWelcomeThreadSteps(steps: Array<{ content: string; n
   return dashboardRequest('/welcome-thread/steps', { method: 'PUT', payload: { steps }, guildId, errorContext: 'API Error (Update Welcome Thread Steps):' });
 }
 
-export async function updateWelcomeThreadPages(pages: Array<{ label: string; emoji?: string | null; summary?: string | null; actionType?: string; roleId?: string | null; roleAction?: string; linkUrl?: string | null; embedTitle?: string; embedDescription?: string; embedColor?: string; embedImageUrl?: string | null; embedThumbnailUrl?: string | null }>, guildId = authStore.selectedGuildId) {
+export async function updateWelcomeThreadPages(pages: Array<{ label: string; emoji?: string | null; summary?: string | null; actionType?: string; roleId?: string | null; roleAction?: string; roleGroup?: string | null; linkUrl?: string | null; embedTitle?: string; embedDescription?: string; embedColor?: string; embedImageUrl?: string | null; embedThumbnailUrl?: string | null }>, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/welcome-thread/pages', { method: 'PUT', payload: { pages }, guildId, errorContext: 'API Error (Update Welcome Thread Pages):' });
 }
 
@@ -3042,6 +3073,8 @@ export interface MessageLogEntry {
   attachments: { name: string; url: string; contentType: string | null }[] | null;
   embedCount: number;
   hasAttachment: boolean;
+  mentionedUserIds: string[];
+  repliedToAuthorId: string | null;
   createdAt: string;
   editedAt: string | null;
   deletedAt: string | null;
@@ -3095,8 +3128,10 @@ export async function searchMessages(
 
 export async function fetchMessageLogChannels(
   guildId = authStore.selectedGuildId,
+  authorId?: string,
 ): Promise<{ channelId: string; channelName: string; count: number }[]> {
-  const data = await dashboardRequest('/message-logs/channels', {
+  const qs = authorId ? `?authorId=${encodeURIComponent(authorId)}` : '';
+  const data = await dashboardRequest(`/message-logs/channels${qs}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Message Channels):',
@@ -3133,6 +3168,113 @@ export async function updateMessageLogConfig(
     payload,
     guildId,
     errorContext: 'API Error (Message Config):',
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Raid Protection (captcha, anti-raid, locks, reports, invites, scam)
+// ─────────────────────────────────────────────────────────────
+
+export async function fetchRaidProtection(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Raid Protection):'
+  });
+}
+
+export async function updateRaidProtection(payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Raid Protection):'
+  });
+}
+
+export async function setRaidMode(active: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection/raidmode', {
+    method: 'POST',
+    payload: { active },
+    guildId,
+    errorContext: 'API Error (Raid Mode):'
+  });
+}
+
+export async function setJoinLock(active: boolean, hours?: number, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection/joinlock', {
+    method: 'POST',
+    payload: { active, hours },
+    guildId,
+    errorContext: 'API Error (Join Lock):'
+  });
+}
+
+export async function setDmLock(active: boolean, hours?: number, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection/dmlock', {
+    method: 'POST',
+    payload: { active, hours },
+    guildId,
+    errorContext: 'API Error (DM Lock):'
+  });
+}
+
+export async function setInviteEmergency(active: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/raid-protection/invite-emergency', {
+    method: 'POST',
+    payload: { active },
+    guildId,
+    errorContext: 'API Error (Invite Emergency):'
+  });
+}
+
+export async function fetchMemberReports(status?: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/raid-protection/reports${status ? `?status=${status}` : ''}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Member Reports):'
+  });
+}
+
+export async function decideMemberReport(reportId: string, resolved: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/raid-protection/reports/${reportId}/decision`, {
+    method: 'POST',
+    payload: { resolved },
+    guildId,
+    errorContext: 'API Error (Report Decision):'
+  });
+}
+
+export async function fetchInviteRequests(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection/invite-requests', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Invite Requests):'
+  });
+}
+
+export async function decideInviteRequest(requestId: string, approved: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/raid-protection/invite-requests/${requestId}/decision`, {
+    method: 'POST',
+    payload: { approved },
+    guildId,
+    errorContext: 'API Error (Invite Decision):'
+  });
+}
+
+export async function fetchScamImages(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/raid-protection/scam-images', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Scam Images):'
+  });
+}
+
+export async function deleteScamImage(imageId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/raid-protection/scam-images/${imageId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Scam Image):'
   });
 }
 

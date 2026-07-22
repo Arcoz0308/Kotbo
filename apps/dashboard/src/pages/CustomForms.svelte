@@ -10,6 +10,7 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
 
   let forms = $state<any[]>([]);
   let hierarchies = $state<any[]>([]);
@@ -87,7 +88,7 @@
   }
 
   async function deleteForm(formId: string) {
-    if (!confirm('Voulez-vous vraiment supprimer ce formulaire ? Cette action est irréversible.')) return;
+    if (!(await confirmDialog.danger('Supprimer ce formulaire ?', 'Cette action est irréversible.'))) return;
 
     await deleteAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
@@ -210,7 +211,7 @@
       <RefreshButton onClick={fetchForms} loading={loading} label="Actualiser" />
       <button 
         onclick={() => showCreateModal = true}
-        class="px-5 py-2.5 bg-primary text-white rounded-xl font-semibold text-[10px] uppercase tracking-widest  hover:scale-105 transition-transform flex items-center gap-2"
+        class="px-4 py-2 bg-primary text-white rounded-xl font-medium text-[13px] transition-transform flex items-center gap-2"
       >
         <Papicon icon="add" size={16} />
         Nouveau Formulaire
@@ -353,7 +354,7 @@
             <div class="flex gap-2 w-full pt-4 border-t border-outline-variant/10">
               <button
                 onclick={() => router.goto(`/forms/builder/${form.id}`)}
-                class="flex-1 px-3 py-2.5 rounded-xl bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider hover:bg-primary/20 transition-all flex items-center justify-center gap-1.5"
+                class="flex-1 px-3 py-2.5 rounded-xl bg-primary/10 text-primary text-[13px] font-medium hover:bg-primary/20 transition-all flex items-center justify-center gap-1.5"
                 title="Modifier le formulaire"
               >
                 <Papicon icon="edit" size={13} />
@@ -361,7 +362,7 @@
               </button>
               <button
                 onclick={() => router.goto(`/forms/${form.id}/responses`)}
-                class="flex-1 px-3 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-xs font-semibold uppercase tracking-wider hover:bg-surface-container-high transition-all flex items-center justify-center gap-1.5"
+                class="flex-1 px-3 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-[13px] font-medium hover:bg-surface-container-high transition-all flex items-center justify-center gap-1.5"
                 title="Voir les réponses"
               >
                 <Papicon icon="assignment" size={13} />
@@ -369,7 +370,7 @@
               </button>
               <button
                 onclick={() => deleteForm(form.id)}
-                class="px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-500 text-xs font-semibold uppercase tracking-wider hover:bg-rose-500/20 transition-all"
+                class="px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-500 text-[13px] font-medium hover:bg-rose-500/20 transition-all"
                 title="Supprimer"
               >
                 <Papicon icon="delete" size={14} />
@@ -399,7 +400,7 @@
       
       <div class="p-8 space-y-6">
         <div>
-          <label for="form-name" class="block text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-2 font-sans">Nom du formulaire</label>
+          <label for="form-name" class="block text-[13px] font-medium text-on-surface-variant/60 mb-2 font-sans">Nom du formulaire</label>
           <FormInput 
             id="form-name"
             type="text" 
@@ -409,7 +410,7 @@
           />
         </div>
         <div>
-          <label for="form-description" class="block text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-2 font-sans">Description (optionnelle)</label>
+          <label for="form-description" class="block text-[13px] font-medium text-on-surface-variant/60 mb-2 font-sans">Description (optionnelle)</label>
           <textarea 
             id="form-description"
             bind:value={newFormDescription}
@@ -424,7 +425,7 @@
         <button 
           onclick={createForm}
           disabled={createAction.state.loading || !newFormName.trim()}
-          class="flex-1 py-3.5 rounded-xl font-semibold bg-primary text-on-primary hover: active:scale-[0.98] transition-all  disabled:opacity-50 disabled:scale-100 font-sans"
+          class="flex-1 py-3.5 rounded-xl font-semibold bg-primary text-on-primary hover: active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 font-sans"
         >
           {createAction.state.loading ? 'Création...' : 'Créer & Continuer'}
         </button>

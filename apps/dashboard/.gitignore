@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Paraglide-JS (généré au build par le plugin Vite)
+src/lib/paraglide/

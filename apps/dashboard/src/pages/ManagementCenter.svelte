@@ -3,6 +3,7 @@
   import { fly, fade } from 'svelte/transition';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
@@ -187,7 +188,7 @@
   }
 
   async function handleApplyPreset(presetKey: string) {
-    if (!confirm(`Voulez-vous réinitialiser les accès avec le preset "${presetKey}" ? Cela écrasera les réglages actuels.`)) return;
+    if (!(await confirmDialog.ask({ title: `Appliquer le preset « ${presetKey} » ?`, description: 'Les réglages d\'accès actuels seront écrasés.', confirmLabel: 'Appliquer', variant: 'warning' }))) return;
     
     await saveAction.run(
       async () => {
@@ -224,13 +225,13 @@
       {#each categories as cat}
         <button
           class="flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 group whitespace-nowrap
-            {activeCategory === cat.id 
+ {activeCategory === cat.id 
               ? 'bg-primary text-on-primary shadow-md shadow-primary/20 scale-105' 
               : 'hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface'}"
           onclick={() => activeCategory = cat.id}
         >
           <Papicon icon={cat.icon} size={16} />
-          <span class="font-semibold text-[10px] uppercase tracking-widest">{cat.label}</span>
+          <span class="font-medium text-[13px]">{cat.label}</span>
         </button>
       {/each}
     </nav>

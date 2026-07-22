@@ -76,6 +76,8 @@ async function logMessage(message: Message): Promise<void> {
         attachments: attachments.length > 0 ? attachments : undefined,
         embedCount: message.embeds?.length ?? 0,
         hasAttachment: attachments.length > 0,
+        mentionedUserIds: message.mentions?.users ? [...message.mentions.users.keys()] : [],
+        repliedToAuthorId: message.mentions?.repliedUser?.id ?? null,
         createdAt: message.createdAt,
       }],
       skipDuplicates: true,

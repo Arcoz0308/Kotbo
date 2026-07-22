@@ -10,6 +10,7 @@
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { sendOrUpdateEmbed } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
   const actionState = createAsyncActionState();
@@ -211,19 +212,12 @@
   }
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
-    <div class="flex items-center gap-4">
-      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-        <Papicon icon="FilePlus" size={20} />
-      </div>
-      <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Créateur d'Embeds</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Concevez et modifiez des messages d'embed complexes et personnalisés sur vos salons.</p>
-      </div>
-    </div>
-  </header>
-
+<ModulePage
+  title="Créateur d'Embeds"
+  description="Concevez et modifiez des messages d'embed complexes et personnalisés sur vos salons."
+  icon="file-plus"
+  featureKey="embed_builder"
+>
   <InlineFeedback state={actionState} />
   <InlineFeedback state={templateAction} />
 
@@ -570,7 +564,7 @@
             <button 
               onclick={handleSend}
               disabled={actionState.state.loading || !targetChannelId}
-              class="px-8 py-3.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-105 transition-all disabled:opacity-50"
+              class="px-8 py-3.5 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
             >
               {targetMessageId.trim() ? "Modifier l'embed" : "Publier l'embed"}
             </button>
@@ -695,4 +689,4 @@
       </section>
     </div>
   {/if}
-</div>
+</ModulePage>

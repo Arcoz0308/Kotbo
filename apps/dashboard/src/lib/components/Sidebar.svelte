@@ -23,6 +23,7 @@
   } from '../config/pages';
   import { resolveUserAvatarSrc } from '../discordMedia';
   import { unsavedChanges } from '../stores/unsavedChanges.svelte';
+  import { m } from '../i18n';
 
   type NavGroup = { key: string; label: string; items: PageConfig[] };
 
@@ -120,7 +121,7 @@
     return staffItems
       .filter(({ href }) => {
         if (href === '/tutoring') return isTutor || isApprentice || isModerator;
-        if (['/planning', '/absences', '/meetings', '/tickets', '/recruitment'].includes(href)) {
+        if (['/planning', '/absences', '/meetings', '/tickets', '/recruitment', '/evaluations'].includes(href)) {
           return isStaff || isModerator;
         }
         return false;
@@ -129,14 +130,14 @@
   });
 
   const navGroups = $derived.by((): NavGroup[] => {
-    const general    = { key: 'general',    label: 'Général',       items: visibleGeneral    };
-    const moderation = { key: 'moderation', label: 'Modération',     items: visibleModeration };
-    const leveling   = { key: 'leveling',   label: "Système d'XP & Clans", items: visibleLeveling   };
-    const economy    = { key: 'economy',    label: 'Économie & RPG',items: visibleEconomy    };
-    const community  = { key: 'community',  label: 'Communauté',     items: visibleCommunity  };
-    const staff      = { key: 'staff',      label: 'Staff',          items: visibleStaff      };
-    const crossserver= { key: 'crossserver',label: 'Cross-Serveur',  items: visibleCrossServer };
-    const config      = { key: 'config',     label: 'Configuration',  items: visibleConfig     };
+    const general    = { key: 'general',    label: m.nav_group_general(),       items: visibleGeneral    };
+    const moderation = { key: 'moderation', label: m.nav_group_moderation(),     items: visibleModeration };
+    const leveling   = { key: 'leveling',   label: m.nav_group_xp(),  items: visibleLeveling   };
+    const economy    = { key: 'economy',    label: m.nav_group_economy(),items: visibleEconomy    };
+    const community  = { key: 'community',  label: m.nav_group_community(),     items: visibleCommunity  };
+    const staff      = { key: 'staff',      label: m.nav_group_staff(),          items: visibleStaff      };
+    const crossserver= { key: 'crossserver',label: m.nav_group_crossserver(),  items: visibleCrossServer };
+    const config      = { key: 'config',     label: m.nav_group_config(),  items: visibleConfig     };
 
     const ordered: NavGroup[] = isStaffServerGuild
       ? [general, staff, moderation, leveling, economy, community, crossserver, config]
@@ -160,10 +161,16 @@
 
   let groupStates = $state<Record<string, boolean>>(loadGroupStates());
 
+  // Progressive disclosure : les groupes secondaires démarrent repliés.
+  // Le choix explicite de l'utilisateur (groupStates) reste prioritaire,
+  // et le groupe contenant la page active s'ouvre toujours.
+  const DEFAULT_COLLAPSED = new Set(['leveling', 'economy', 'community', 'crossserver']);
+
   const isGroupCollapsed = (key: string): boolean => {
     if (navGroups.find((g) => g.key === key)?.items.some((i) => isActiveNavItem(i.href))) {
       return false;
     }
+    if (groupStates[key] === undefined) return DEFAULT_COLLAPSED.has(key);
     return groupStates[key] === true;
   };
 
@@ -308,7 +315,7 @@
   ontouchstart={onTouchStart}
   ontouchend={onTouchEnd}
   class="
-    fixed left-0 top-0 h-dvh flex flex-col z-50
+ fixed left-0 top-0 h-dvh flex flex-col z-50
     bg-surface-container-lowest
     border-r border-outline-variant
     will-change-transform transition-[transform,width] duration-200 ease-in-out
@@ -324,7 +331,7 @@
     type="button"
     onclick={() => sidebarStore.toggle()}
     class="
-      absolute -right-3 top-14 z-10
+ absolute -right-3 top-14 z-10
       w-6 h-6 rounded-full border border-outline-variant
       bg-surface-container-lowest shadow-sm
       hidden lg:flex items-center justify-center
@@ -372,13 +379,13 @@
       <div class="relative flex-1">
         <input
           type="search"
-          placeholder="Rechercher..."
+          placeholder={m.sidebar_search_placeholder()}
           bind:value={searchQuery}
           autocomplete="off"
           autocorrect="off"
           spellcheck={false}
           class="
-            w-full pl-8 pr-8 py-1.5 text-xs rounded-md
+ w-full pl-8 pr-8 py-1.5 text-xs rounded-md
             bg-surface-container border border-outline-variant
             text-on-surface placeholder:text-on-surface-variant/50
             focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20
@@ -411,7 +418,7 @@
         aria-pressed={showOnlyFavorites}
         title={showOnlyFavorites ? 'Afficher tout' : 'Favoris'}
         class="
-          flex items-center justify-center w-7 h-7 rounded-md border
+ flex items-center justify-center w-7 h-7 rounded-md border
           transition-colors duration-150 shrink-0
           {showOnlyFavorites
             ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400'
@@ -440,7 +447,7 @@
             aria-label={itemLabel(item)}
             aria-current={isActiveNavItem(item.href) ? 'page' : undefined}
             class="
-              relative flex items-center justify-center w-full py-2 rounded-md
+ relative flex items-center justify-center w-full py-2 rounded-md
               transition-colors duration-150 group
               {isActiveNavItem(item.href)
                 ? 'text-primary bg-primary/8'
@@ -483,7 +490,7 @@
           aria-expanded={!isGroupCollapsed(group.key)}
           aria-controls="nav-group-{group.key}"
           class="
-            w-full flex items-center gap-2 px-2 py-1.5 mb-0.5 rounded-md
+ w-full flex items-center gap-2 px-2 py-1.5 mb-0.5 rounded-md
             transition-colors hover:bg-surface-container
             group/label sticky top-0 z-10
             bg-surface-container-lowest
@@ -505,7 +512,7 @@
             {#each group.items as item (item.href)}
               <div
                 class="
-                  relative flex items-center rounded-md
+ relative flex items-center rounded-md
                   transition-colors duration-150 group
                   {isActiveNavItem(item.href)
                     ? 'text-primary bg-primary/6 font-medium'
@@ -556,7 +563,7 @@
                     aria-label={favorites.includes(item.href) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                     aria-pressed={favorites.includes(item.href)}
                     class="
-                      flex items-center justify-center w-6 h-6 rounded
+ flex items-center justify-center w-6 h-6 rounded
                       transition-all duration-150
                       text-on-surface-variant/30 hover:text-amber-500
                       {favorites.includes(item.href)
@@ -578,10 +585,10 @@
         <div class="flex flex-col items-center py-8 text-center text-on-surface-variant/50 px-4">
           {#if showOnlyFavorites}
             <Papicon icon="star" size={20} class="mb-2 text-amber-400" />
-            <p class="text-xs">Aucun favori. Cliquez sur l'étoile d'un menu pour l'ajouter.</p>
+            <p class="text-xs">{m.sidebar_no_favorites()}</p>
           {:else}
             <Papicon icon="search" size={20} class="mb-2" />
-            <p class="text-xs">Aucun résultat pour "{searchQuery}"</p>
+            <p class="text-xs">{m.sidebar_no_results({ query: searchQuery })}</p>
           {/if}
         </div>
       {/if}
@@ -598,7 +605,7 @@
         aria-label={isCollapsed ? 'Administration' : undefined}
         aria-current={isActiveNavItem('/admin') ? 'page' : undefined}
         class="
-          relative flex items-center rounded-md
+ relative flex items-center rounded-md
           transition-colors duration-150 group
           {isCollapsed ? 'lg:justify-center py-2' : 'gap-2.5 px-3 py-2'}
           {isActiveNavItem('/admin')
@@ -608,7 +615,7 @@
       >
         <Papicon icon="lock" size={isCollapsed ? 18 : 16} class="shrink-0" />
         {#if !isCollapsed}
-          <span class="text-[13px]">Administration</span>
+          <span class="text-[13px]">{m.nav_administration()}</span>
         {/if}
       </a>
     {/if}
@@ -633,7 +640,7 @@
           <span class="text-[12px] font-medium text-on-surface truncate leading-none">
             {authStore.user?.username ?? '…'}
           </span>
-          <span class="text-[10px] text-on-surface-variant mt-0.5">Mon profil</span>
+          <span class="text-[10px] text-on-surface-variant mt-0.5">{m.nav_my_profile()}</span>
         </div>
       {/if}
     </a>

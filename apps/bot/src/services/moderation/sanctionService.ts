@@ -394,9 +394,8 @@ async function emitSanctionReportReminder(params: {
   }
 }
 
-async function notifyStaffOfSanction(guildId: string, sanction: unknown) {
+async function resolveStaffToNotify(guildId: string, sanction: unknown): Promise<Set<string>> {
   const userIdsToNotify = new Set<string>();
-
 
   if (sanction.targetUserId) {
     const targetStaff = await prisma.staffMember.findUnique({
@@ -430,13 +429,23 @@ async function notifyStaffOfSanction(guildId: string, sanction: unknown) {
     userIdsToNotify.delete(sanction.moderatorUserId);
   }
 
-  const typeLabel = {
+  return userIdsToNotify;
+}
+
+function sanctionTypeLabel(type: string): string {
+  return {
     WARN: 'Avertissement',
     KICK: 'Exclusion',
     TIMEOUT: 'Timeout',
     TEMP_BAN: 'Bannissement temporaire',
-    BAN: 'Bannissement définitif'
-  }[sanction.type as string] || 'Sanction';
+    BAN: 'Bannissement définitif',
+    SOFTBAN: 'Softban',
+  }[type] || 'Sanction';
+}
+
+async function notifyStaffOfSanction(guildId: string, sanction: unknown) {
+  const userIdsToNotify = await resolveStaffToNotify(guildId, sanction);
+  const typeLabel = sanctionTypeLabel(sanction.type as string);
 
   for (const userId of userIdsToNotify) {
     await createNotification(
@@ -447,6 +456,34 @@ async function notifyStaffOfSanction(guildId: string, sanction: unknown) {
       sanction.type === 'BAN' || sanction.type === 'TEMP_BAN' ? 'ERROR' : 'WARNING',
       `/members/${sanction.targetUserId}`,
       true // On envoie un MP car ce sont uniquement les personnes directement concernées
+    ).catch(() => null);
+  }
+}
+
+/**
+ * Notifie le staff une seule fois pour une sanction propagée sur plusieurs comptes liés (DC),
+ * au lieu d'une notification par compte synchronisé (cf. altAccountService.synchronizeSanction).
+ */
+export async function notifyStaffOfSyncedSanction(
+  guildId: string,
+  originalSanction: unknown,
+  syncedTargetTags: string[],
+) {
+  if (syncedTargetTags.length === 0) return;
+
+  const userIdsToNotify = await resolveStaffToNotify(guildId, originalSanction);
+  const typeLabel = sanctionTypeLabel(originalSanction.type as string);
+  const othersList = syncedTargetTags.join(', ');
+
+  for (const userId of userIdsToNotify) {
+    await createNotification(
+      guildId,
+      userId,
+      `${typeLabel} : ${originalSanction.targetTag} (+ comptes liés)`,
+      `${originalSanction.moderatorTag} a appliqué un ${typeLabel.toLowerCase()} à ${originalSanction.targetTag} pour : ${originalSanction.reason}. Synchronisé sur ${syncedTargetTags.length} compte(s) lié(s) : ${othersList}.`,
+      originalSanction.type === 'BAN' || originalSanction.type === 'TEMP_BAN' ? 'ERROR' : 'WARNING',
+      `/members/${originalSanction.targetUserId}`,
+      true
     ).catch(() => null);
   }
 }
@@ -510,6 +547,8 @@ export async function registerWarnSanction(params: {
   client?: Client;
   isSync?: boolean;
   evidenceLinks?: string[];
+  /** Poids du warn (1 = léger, 2 = normal, 3 = grave). Utilisé par le score pondéré. */
+  weight?: number;
 }) {
   const existing = await findRecentSanction({
     guildId: params.guildId,
@@ -530,6 +569,7 @@ export async function registerWarnSanction(params: {
       moderatorUserId: params.moderator.id,
       moderatorTag: params.moderator.tag,
       reason: params.reason,
+      weight: Math.min(3, Math.max(1, params.weight ?? 1)),
       resolvedAt: new Date(),
       resolutionNote: 'Avertissement enregistré.'
     }
@@ -566,7 +606,9 @@ export async function registerWarnSanction(params: {
     evidenceLinks: params.evidenceLinks,
   }).catch(() => null);
 
-  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  if (!params.isSync) {
+    void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  }
 
   // Notifier l'utilisateur concerné (si profil existant)
   await createNotification(
@@ -676,7 +718,9 @@ export async function registerKickSanction(params: {
     evidenceLinks: params.evidenceLinks,
   });
 
-  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  if (!params.isSync) {
+    void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  }
 
   if (params.client && !params.isSync) {
     void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
@@ -767,7 +811,9 @@ export async function registerBanSanction(params: {
     evidenceLinks: params.evidenceLinks,
   });
 
-  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  if (!params.isSync) {
+    void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  }
 
   if (params.client && !params.isSync) {
     void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
@@ -850,7 +896,9 @@ export async function registerSoftbanSanction(params: {
     evidenceLinks: params.evidenceLinks,
   });
 
-  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  if (!params.isSync) {
+    void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  }
 
   if (params.client && !params.isSync) {
     void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
@@ -942,7 +990,9 @@ export async function registerTimeoutSanction(params: {
     evidenceLinks: params.evidenceLinks,
   });
 
-  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  if (!params.isSync) {
+    void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+  }
 
   if (params.client && !params.isSync) {
     void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
@@ -1235,6 +1285,47 @@ export async function countWarns(guildId: string, targetUserId: string, targetUs
       type: SanctionType.WARN
     }
   });
+}
+
+/**
+ * Score de warns d'un membre, pondération incluse si activée sur la guilde.
+ *
+ * - warnWeightingEnabled désactivé → compte brut (comportement historique).
+ * - Activé → somme des poids (1/2/3) des warns encore « vivants » :
+ *   si warnDecayDays est défini, seuls les warns plus récents que N jours comptent.
+ *
+ * Les seuils existants (vérif auto, escalade) comparent ce score au même
+ * nombre configuré : un seuil de 3 = 3 warns légers ou 1 warn grave.
+ */
+export async function getWarnScore(
+  guildId: string,
+  targetUserId: string,
+  targetUserIds?: string[],
+): Promise<number> {
+  const guildConfig = await prisma.guild.findUnique({
+    where: { id: guildId },
+    select: { warnWeightingEnabled: true, warnDecayDays: true },
+  });
+
+  if (!guildConfig?.warnWeightingEnabled) {
+    return countWarns(guildId, targetUserId, targetUserIds);
+  }
+
+  const decayCutoff = guildConfig.warnDecayDays
+    ? new Date(Date.now() - guildConfig.warnDecayDays * 24 * 60 * 60 * 1000)
+    : null;
+
+  const result = await prisma.sanction.aggregate({
+    where: {
+      guildId,
+      ...buildTargetUserWhere(targetUserId, targetUserIds),
+      type: SanctionType.WARN,
+      ...(decayCutoff ? { createdAt: { gte: decayCutoff } } : {}),
+    },
+    _sum: { weight: true },
+  });
+
+  return result._sum.weight ?? 0;
 }
 
 export interface ListedSanction {

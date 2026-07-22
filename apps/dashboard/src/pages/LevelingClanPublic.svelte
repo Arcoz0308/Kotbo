@@ -3,6 +3,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicClans } from '../lib/api';
+  import { m, dateLocale } from '../lib/i18n';
 
   interface Props {
     serverId: string;
@@ -70,7 +71,7 @@
       }
     } catch (err: any) {
       console.error(err);
-      errorMsg = err.message || 'Erreur lors du chargement des données des clans.';
+      errorMsg = err.message || m.clan_public_error_loading();
     } finally {
       loading = false;
     }
@@ -92,23 +93,23 @@
     return xp.toLocaleString();
   }
 
-  // Temps relatif en français (ex: « il y a 2 heures »)
+  // Temps relatif localisé (ex: « il y a 2 heures » / "2 hours ago")
   function formatRelativeTime(iso: string): string {
     const then = new Date(iso).getTime();
     if (Number.isNaN(then)) return '';
     const diffMs = Date.now() - then;
     const sec = Math.max(0, Math.floor(diffMs / 1000));
-    if (sec < 60) return "à l'instant";
+    if (sec < 60) return m.clan_public_just_now();
     const min = Math.floor(sec / 60);
-    if (min < 60) return `il y a ${min} minute${min > 1 ? 's' : ''}`;
+    if (min < 60) return m.clan_public_minutes_ago({ n: min });
     const hours = Math.floor(min / 60);
-    if (hours < 24) return `il y a ${hours} heure${hours > 1 ? 's' : ''}`;
+    if (hours < 24) return m.clan_public_hours_ago({ n: hours });
     const days = Math.floor(hours / 24);
-    if (days < 30) return `il y a ${days} jour${days > 1 ? 's' : ''}`;
+    if (days < 30) return m.clan_public_days_ago({ n: days });
     const months = Math.floor(days / 30);
-    if (months < 12) return `il y a ${months} mois`;
+    if (months < 12) return m.clan_public_months_ago({ n: months });
     const years = Math.floor(days / 365);
-    return `il y a ${years} an${years > 1 ? 's' : ''}`;
+    return m.clan_public_years_ago({ n: years });
   }
 
   function getRankBadgeColor(rank: number) {
@@ -120,8 +121,8 @@
 </script>
 
 <svelte:head>
-  <title>Classement des Clans — {guildName}</title>
-  <meta name="description" content="Classement compétitif et scores des clans de {guildName} sur Discord." />
+  <title>{m.clan_public_page_title({ guildName })}</title>
+  <meta name="description" content={m.clan_public_meta_desc({ guildName })} />
 </svelte:head>
 
 <div class="min-h-screen whiteboard-container relative overflow-x-hidden selection:bg-yellow-100 dark:selection:bg-slate-850 py-12 px-4 sm:px-6 z-10">
@@ -149,7 +150,7 @@
           </h1>
           <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
             <span class="text-amber-500"><Papicon icon="Shield" size={14} /></span>
-            <span>Guerre des Clans — Saison {currentClanSeason}</span>
+            <span>{m.clan_public_header_subtitle({ n: currentClanSeason })}</span>
           </div>
         </div>
       </div>
@@ -158,7 +159,7 @@
       <div class="flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-        <span class="ml-2.5 uppercase tracking-wider text-[10px]">Temps Réel</span>
+        <span class="ml-2.5 uppercase tracking-wider text-[10px]">{m.clan_public_live_badge()}</span>
       </div>
     </header>
 
@@ -175,7 +176,7 @@
           <Papicon icon="AlertTriangle" size={20} />
         </div>
         <div class="space-y-1.5">
-          <p class="text-slate-800 dark:text-slate-100 font-extrabold text-lg">Une erreur est survenue</p>
+          <p class="text-slate-800 dark:text-slate-100 font-extrabold text-lg">{m.clan_public_error_title()}</p>
           <p class="text-slate-505 dark:text-slate-400 text-sm max-w-md mx-auto">{errorMsg}</p>
         </div>
       </div>
@@ -186,9 +187,9 @@
           <Papicon icon="Lock" size={24} />
         </div>
         <div class="space-y-1.5 max-w-sm">
-          <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">Classement Inactif</h2>
+          <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">{m.clan_public_disabled_title()}</h2>
           <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
-            Le module de Clans n'est pas activé sur ce serveur ou aucun clan n'a été configuré par l'administration.
+            {m.clan_public_disabled_desc()}
           </p>
         </div>
       </div>
@@ -201,7 +202,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="Rechercher un participant par pseudo..."
+          placeholder={m.clan_public_search_placeholder()}
           class="w-full pl-11 pr-4 py-3 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 shadow-sm transition-all"
         />
       </div>
@@ -225,7 +226,7 @@
                 </h2>
                 
                 <span class="px-3 py-1 bg-slate-50 dark:bg-[#0c1322] border border-slate-200/50 dark:border-slate-800 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  {clan.memberCount} membres
+                  {m.clan_public_member_count({ n: clan.memberCount })}
                 </span>
               </div>
 
@@ -237,9 +238,9 @@
 
               <!-- Score Card -->
               <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">XP de Saison</span>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_season_xp_label()}</span>
                 <span class="text-lg font-black text-amber-500 tracking-tight">
-                  {clan.totalXp.toLocaleString('fr-FR')} XP
+                  {clan.totalXp.toLocaleString(dateLocale())} XP
                 </span>
               </div>
             </div>
@@ -248,7 +249,7 @@
             <div class="p-4">
               {#if pList.length === 0}
                 <div class="py-12 text-center text-xs text-slate-400 dark:text-slate-500 italic">
-                  Aucun membre trouvé ou aucun point marqué.
+                  {m.clan_public_no_members_found()}
                 </div>
               {:else}
                 <div class="space-y-1.5">
@@ -276,7 +277,7 @@
                       </div>
 
                       <span class="text-xs font-extrabold text-amber-500 tracking-tight shrink-0 pl-2">
-                        {p.xp.toLocaleString('fr-FR')} XP
+                        {p.xp.toLocaleString(dateLocale())} XP
                       </span>
                     </div>
                   {/each}
@@ -296,24 +297,24 @@
         <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
             <span class="text-emerald-500"><Papicon icon="Activity" size={16} /></span>
-            Derniers Scores
+            {m.clan_public_recent_scores_title()}
           </h2>
-          <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Les gains de points les plus récents, en temps réel.</p>
+          <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_recent_scores_desc()}</p>
         </div>
 
         {#if recentScores.length === 0}
           <div class="py-14 text-center text-xs text-slate-400 dark:text-slate-500 italic">
-            Aucun gain de points enregistré pour le moment.
+            {m.clan_public_no_recent_scores()}
           </div>
         {:else}
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                  <th class="px-6 py-3">Date</th>
-                  <th class="px-6 py-3">Utilisateur</th>
-                  <th class="px-6 py-3">Source</th>
-                  <th class="px-6 py-3 text-right">Score</th>
+                  <th class="px-6 py-3">{m.clan_public_col_date()}</th>
+                  <th class="px-6 py-3">{m.clan_public_col_user()}</th>
+                  <th class="px-6 py-3">{m.clan_public_col_source()}</th>
+                  <th class="px-6 py-3 text-right">{m.clan_public_col_score()}</th>
                 </tr>
               </thead>
               <tbody>
@@ -325,7 +326,7 @@
                         {#if s.isClan}
                           <span class="inline-block w-3 h-3 rounded-full shrink-0" style="background-color: {s.clanColor || '#e2e8f0'};"></span>
                           <span class="font-bold text-slate-700 dark:text-slate-200 truncate">{s.displayName}</span>
-                          <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">Clan</span>
+                          <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">{m.clan_public_clan_badge()}</span>
                         {:else}
                           {#if s.avatarUrl}
                             <img src={s.avatarUrl} alt={s.displayName} class="w-6 h-6 rounded-full border border-slate-200/50 dark:border-slate-800 shrink-0" />
@@ -347,7 +348,7 @@
                     </td>
                     <td class="px-6 py-3 text-right whitespace-nowrap">
                       <span class="font-black tracking-tight {s.amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}">
-                        {s.amount >= 0 ? '+' : ''}{s.amount.toLocaleString('fr-FR')}
+                        {s.amount >= 0 ? '+' : ''}{s.amount.toLocaleString(dateLocale())}
                       </span>
                     </td>
                   </tr>

@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
 
 
@@ -191,7 +193,7 @@
         const cleanVal = replaceEntityMentions(hideUserIds(part));
         if (cleanVal) {
           if (cleanVal.length > 50) {
-            blocks.push({ key: 'Détails', value: cleanVal });
+            blocks.push({ key: m.ctv_details(), value: cleanVal });
           } else {
             badges.push({ key: null, value: cleanVal });
           }
@@ -204,12 +206,13 @@
 </script>
 
 
-<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 font-inter">
-  <div>
-    <h2 class="text-lg font-extrabold text-primary tracking-tight font-headline">Journal d'Activité</h2>
-    <p class="text-on-surface-variant mt-1 leading-relaxed">Historique des actions de configuration pour {dashboardStore.state.guildName}.</p>
-  </div>
-  <div class="flex items-center gap-3">
+<ModulePage
+  title={m.ctv_activity_log()}
+  description="Historique des actions de configuration pour {dashboardStore.state.guildName}."
+  icon="history"
+  featureKey="activity"
+>
+  {#snippet actions()}
     <RefreshButton
       onClick={() => dashboardStore.refresh()}
       loading={dashboardStore.state.loading}
@@ -217,8 +220,7 @@
       className="px-5 py-2.5 font-bold "
       iconClass="text-lg"
     />
-  </div>
-</div>
+  {/snippet}
 
 
 <div class="section-card p-6 mb-8 font-inter">
@@ -231,7 +233,7 @@
           id="search"
           type="text"
           bind:value={searchQuery}
-          placeholder="Action, détails, module, utilisateur..."
+          placeholder={m.ctv_action_details_module_user()}
           className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
         />
       </div>
@@ -361,7 +363,7 @@
             </td>
             <td class="px-6 py-6 text-center">
               <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-bold 
-                {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
+ {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
                 {entry.eventType}
               </span>
             </td>
@@ -372,7 +374,7 @@
           <tr>
             <td colspan="6" class="px-6 py-20 text-center text-on-surface-variant opacity-50">
               <Papicon icon="history" size={40} class="mb-2 mx-auto" />
-              <p class="text-sm font-medium">Aucun événement ne correspond à votre recherche</p>
+              <p class="text-sm font-medium">{m.ctv_aucun_vnement_ne_correspond_vo()}</p>
             </td>
           </tr>
         {/if}
@@ -387,10 +389,11 @@
     <div class="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
       <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
       <div class="flex items-end justify-between mt-2">
-        <p class="text-lg font-extrabold text-on-surface">{kpi.val}</p>
+        <p class="text-lg font-semibold text-on-surface">{kpi.val}</p>
         <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
       </div>
     </div>
   {/each}
 </div>
+</ModulePage>
 

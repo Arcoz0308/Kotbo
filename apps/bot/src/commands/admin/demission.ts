@@ -10,7 +10,8 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
-import { errorContainer, v2 } from '../../utils/embeds.js';
+import { errorContainer } from '../../utils/embeds.js';
+import { v2Message } from '@arcscord/components';
 
 
 const data = new SlashCommandBuilder()
@@ -22,10 +23,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   const staff = await getStaffMember(interaction.guildId, interaction.user.id);
   if (!staff) {
-    await interaction.reply({
-      ...v2(errorContainer('Accès refusé', "Vous ne faites pas partie de l'équipe Staff.")),
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-    });
+    await interaction.reply(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      errorContainer('Accès refusé', "Vous ne faites pas partie de l'équipe Staff."),
+    ));
     return;
   }
 
@@ -39,10 +40,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
   });
 
   if (pending) {
-    await interaction.reply({
-      ...v2(errorContainer('Demande existante', "Vous avez déjà une demande de démission en attente d'approbation.")),
-      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-    });
+    await interaction.reply(v2Message(
+      { flags: MessageFlags.Ephemeral },
+      errorContainer('Demande existante', "Vous avez déjà une demande de démission en attente d'approbation."),
+    ));
     return;
   }
 

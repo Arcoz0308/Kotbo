@@ -19,6 +19,7 @@
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
 
   let candidatures = $state<any[]>([]);
   let tutors = $state<any[]>([]);
@@ -243,13 +244,13 @@
       }
       await fetchInitialData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
       loading = false;
     }
   }
 
   async function deleteCandidature(candidatureId: string) {
-    if (!confirm('Voulez-vous vraiment supprimer cette candidature définitivement ?')) return;
+    if (!(await confirmDialog.danger('Supprimer cette candidature ?', 'Cette suppression est définitive.'))) return;
     loading = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/candidatures/${candidatureId}`, {
@@ -263,7 +264,7 @@
       }
       await fetchInitialData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
       loading = false;
     }
   }
@@ -436,7 +437,7 @@
   }
 
   async function deleteForm(formId: string) {
-    if (!confirm('Voulez-vous vraiment supprimer ce formulaire ? Cette action est irréversible.')) return;
+    if (!(await confirmDialog.danger('Supprimer ce formulaire ?', 'Cette action est irréversible.'))) return;
 
     await deleteFormAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`, {
@@ -450,7 +451,7 @@
   }
 
   async function regenerateAPIKey(formId: string) {
-    if (!confirm('Voulez-vous vraiment régénérer la clé API ? L\'ancienne clé ne fonctionnera plus.')) return;
+    if (!(await confirmDialog.ask({ title: 'Régénérer la clé API ?', description: "L'ancienne clé ne fonctionnera plus.", confirmLabel: 'Régénérer', variant: 'warning' }))) return;
 
     await regenerateKeyAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}/regenerate-key`, {
@@ -477,7 +478,7 @@
       generatedScript = data.script;
       showScriptModal = true;
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -502,14 +503,14 @@
       <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-lg border border-outline-variant/20 relative">
         <button 
           onclick={() => activeTab = 'candidatures'}
-          class="flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 {activeTab === 'candidatures' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+          class="tab-button {activeTab === 'candidatures' ? 'active' : ''}"
         >
           <Papicon icon="people" size={16} />
           <span class="text-xs font-bold">Candidatures</span>
         </button>
         <button 
           onclick={() => activeTab = 'google-forms'}
-          class="flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 {activeTab === 'google-forms' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+          class="tab-button {activeTab === 'google-forms' ? 'active' : ''}"
         >
           <Papicon icon="description" size={16} />
           <span class="text-xs font-bold">Google Forms</span>
@@ -521,7 +522,7 @@
       {#if activeTab === 'google-forms' && canManageSettings}
         <button 
           onclick={() => showCreateModal = true}
-          class="px-4 py-2.5 rounded-xl bg-primary text-white font-semibold uppercase tracking-wider text-xs hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+          class="px-4 py-2.5 rounded-xl bg-primary text-white font-medium text-[13px] active:scale-[0.98] transition-all flex items-center gap-2"
         >
           <Papicon icon="add" size={16} />
           Nouveau Google Form
@@ -562,7 +563,7 @@
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-sm hover:shadow-rose-500/20 transition-all">
-        <div class="w-10 h-10 rounded-lg bg-background text-rose-500 flex items-center justify-center shadow-lg shadow-rose-500/20">
+        <div class="w-10 h-10 rounded-lg bg-background text-rose-500 flex items-center justify-center shadow-sm">
             <Papicon icon="block" size={18} />
         </div>
         <div class="text-xs text-rose-500">
@@ -577,7 +578,7 @@
       {#each ['ALL', 'PENDING', 'ORAL', 'APPROVED', 'REJECTED', 'AUTO_REJECTED'] as f}
         <button 
            onclick={() => filter = f}
-           class="px-6 py-2.5 rounded-full text-xs font-semibold uppercase tracking-widest transition-all {filter === f ? 'bg-primary text-white  scale-105' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}">
+           class="px-6 py-2.5 rounded-full text-[13px] font-medium transition-all {filter === f ? 'bg-primary text-white scale-105' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}">
            {f === 'ALL' ? 'Tout' : getStatusLabel(f)}
         </button>
       {/each}
@@ -687,7 +688,7 @@
                   <!-- Actions Side -->
                   <div class="xl:w-80 space-y-6 xl:border-l border-outline-variant/20 xl:pl-8">
                       <div>
-                          <p class="text-[10px] font-semibold uppercase tracking-widest text-primary mb-3">Notes de gestion</p>
+                          <p class="text-xs font-medium text-primary mb-3">Notes de gestion</p>
                           <textarea 
                              bind:value={candidature.notes}
                              onblur={() => doAction(candidature.id, 'status_update', { status: candidature.status, notes: candidature.notes })}
@@ -706,31 +707,31 @@
                              {#if candidature.status === 'PENDING'}
                                 <button 
                                    onclick={() => openValidateModal(candidature)}
-                                   class="col-span-2 py-3 rounded-lg bg-blue-600 text-white text-xs font-semibold uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                   class="col-span-2 py-3 rounded-lg bg-blue-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
                                     <Papicon icon="check_circle" size={14} /> Passer Oral
                                 </button>
                                 <button 
                                    onclick={() => openRejectModal(candidature)}
-                                   class="col-span-2 py-3 rounded-lg bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-xs font-semibold uppercase tracking-widest transition-all">
+                                   class="col-span-2 py-3 rounded-lg bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-[13px] font-medium transition-all">
                                     Refuser
                                 </button>
                              {/if}
                              {#if candidature.status === 'AUTO_REJECTED'}
                                <button 
                                  onclick={() => openValidateModal(candidature)}
-                                 class="col-span-2 py-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                 class="col-span-2 py-3 rounded-lg bg-emerald-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
                                   <Papicon icon="verified" size={14} /> Accepter quand même
                                </button>
                              {/if}
                              {#if candidature.status === 'ORAL'}
                                 <button 
                                    onclick={() => openOralPassModal(candidature)}
-                                   class="py-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                   class="py-3 rounded-lg bg-emerald-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center">
                                     Concluant
                                 </button>
                                 <button 
                                    onclick={() => openOralFailModal(candidature)}
-                                   class="py-3 rounded-lg bg-rose-600 text-white text-xs font-semibold uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                   class="py-3 rounded-lg bg-rose-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center">
                                     Échoué
                                 </button>
                              {/if}
@@ -831,7 +832,7 @@
                   {#if form.apiKey}
                     <button
                       onclick={() => showGoogleAppsScript(form)}
-                      class="flex-1 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                      class="flex-1 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-[13px] font-medium transition-all flex items-center justify-center gap-1.5"
                       title="Générer le script Google Forms"
                     >
                       <Papicon icon="code" size={14} />
@@ -882,7 +883,7 @@
         <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
              <div class="space-y-4">
                 <label class="block">
-                  <span class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">Salon de logs recrutement</span>
+                  <span class="text-[13px] font-medium text-on-surface-variant/60 ml-1 mb-2 block">Salon de logs recrutement</span>
                   <FormSelect
                      bind:value={recruitmentLogChannelId}
                      className="w-full"
@@ -895,7 +896,7 @@
                 </label>
 
                <label class="block">
-                 <span class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">ID Catégorie Tickets</span>
+                 <span class="text-[13px] font-medium text-on-surface-variant/60 ml-1 mb-2 block">ID Catégorie Tickets</span>
                  <FormInput 
                    type="text" 
                    bind:value={recruitmentCategoryId} 
@@ -921,7 +922,7 @@
             <button 
               onclick={updateConfig} 
               disabled={saveAction.state.loading}
-              class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary hover:scale-105 active:scale-95 transition-all  disabled:opacity-50"
+              class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary active:scale-[0.98] transition-all disabled:opacity-50"
             >
               {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
             </button>
@@ -941,7 +942,7 @@
         <p class="text-sm text-on-surface-variant/80 mb-6">Cette action créera un salon ticket et enverra un message privé au candidat.</p>
         
         <div>
-          <label for="validate-discord-id" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">ID Discord du Candidat</label>
+          <label for="validate-discord-id" class="field-label">ID Discord du Candidat</label>
           <input id="validate-discord-id" type="text" bind:value={validationDiscordId} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium font-mono" placeholder="Ex: 123456789012345678">
             <p class="text-[10px] text-on-surface-variant/60 mt-2">Ce champ doit être pré-rempli si le candidat a fourni un ID valide. Le bot s'en servira pour l'assigner au ticket.</p>
         </div>
@@ -951,7 +952,7 @@
             <button 
                onclick={() => doAction(validateModalTarget.id, 'approve', { discordUserId: validationDiscordId }).then(() => validateModalTarget = null)} 
                disabled={!validationDiscordId}
-               class="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white disabled:opacity-50 hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-blue-600/30">
+               class="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white disabled:opacity-50 active:scale-[0.98] transition-transform shadow-sm">
                Créer le ticket
             </button>
         </div>
@@ -970,7 +971,7 @@
         <p class="text-sm text-on-surface-variant/80 mb-6">Cette action clôturera la candidature.</p>
         
         <div>
-          <label for="reject-reason" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Raison (Envoyée en MP) — Optionnel</label>
+          <label for="reject-reason" class="field-label">Raison (Envoyée en MP) — Optionnel</label>
           <textarea id="reject-reason" bind:value={rejectReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder="Raison spécifique du refus..."></textarea>
         </div>
         
@@ -978,7 +979,7 @@
             <button onclick={() => rejectModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
             <button 
                onclick={() => doAction(rejectModalTarget.id, 'reject', { reason: rejectReason }).then(() => rejectModalTarget = null)} 
-               class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-rose-600/30">
+               class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm">
                Confirmer le refus
             </button>
         </div>
@@ -998,7 +999,7 @@
         
         <div class="space-y-4 font-inter">
              <div>
-               <label for="oral-pass-tutor" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Assigner un tuteur</label>
+               <label for="oral-pass-tutor" class="field-label">Assigner un tuteur</label>
                <select id="oral-pass-tutor" bind:value={tutorSelected} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
                     <option value="" disabled>Sélectionner un tuteur...</option>
                     {#each tutors as tutor}
@@ -1011,7 +1012,7 @@
              </div>
 
              <div>
-               <label for="oral-pass-hierarchy" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Hiérarchie d'intégration (Optionnel)</label>
+               <label for="oral-pass-hierarchy" class="field-label">Hiérarchie d'intégration (Optionnel)</label>
                <select id="oral-pass-hierarchy" bind:value={selectedHierarchyId} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
                     <option value="">-- Aucune --</option>
                     {#each hierarchies as h}
@@ -1023,7 +1024,7 @@
              {#if selectedHierarchyId}
                {@const hRoles = selectedHierarchyId ? hierarchies.find(h => h.id === selectedHierarchyId)?.roles || [] : []}
                <div>
-                 <label for="oral-pass-hierarchy-grade" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Grade hiérarchique de départ</label>
+                 <label for="oral-pass-hierarchy-grade" class="field-label">Grade hiérarchique de départ</label>
                  <select id="oral-pass-hierarchy-grade" bind:value={selectedHierarchyGrade} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
                       <option value="">-- Choisir un grade --</option>
                       {#each hRoles as r}
@@ -1034,7 +1035,7 @@
              {/if}
 
              <div>
-               <label for="oral-pass-notes" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Notes d'entretien</label>
+               <label for="oral-pass-notes" class="field-label">Notes d'entretien</label>
                <textarea id="oral-pass-notes" bind:value={oralPassNotes} class="w-full h-24 bg-surface-container rounded-lg p-4 focus:outline-hidden text-sm" placeholder="Observation sur l'entretien..."></textarea>
              </div>
         </div>
@@ -1051,7 +1052,7 @@
                   if (tutorSelected) await doAction(oralPassModalTarget.id, 'assign_tutor', { tutorUserId: tutorSelected });
                   oralPassModalTarget = null;
                }} 
-               class="flex-1 py-4 rounded-xl font-bold bg-emerald-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-emerald-500/30 font-inter">
+               class="flex-1 py-4 rounded-xl font-bold bg-emerald-600 text-white active:scale-[0.98] transition-transform shadow-sm font-inter">
                Valider & Intégrer
             </button>
         </div>
@@ -1070,7 +1071,7 @@
         <p class="text-sm text-on-surface-variant/80 mb-6">Le profil est rejeté et une attente d'1 mois est appliquée avant de pouvoir re-candidater.</p>
         
         <div>
-          <label for="oral-fail-reason" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Raison (Envoyée en MP) — Optionnel</label>
+          <label for="oral-fail-reason" class="field-label">Raison (Envoyée en MP) — Optionnel</label>
           <textarea id="oral-fail-reason" bind:value={oralFailReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden text-sm" placeholder="Raison de l'échec..."></textarea>
         </div>
         
@@ -1078,7 +1079,7 @@
             <button onclick={() => oralFailModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
             <button 
                onclick={() => doAction(oralFailModalTarget.id, 'oral_fail', { reason: oralFailReason }).then(() => oralFailModalTarget = null)} 
-               class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-rose-600/30">
+               class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm">
                Rejeter (Délai 1 mois)
             </button>
         </div>
@@ -1101,7 +1102,7 @@
 
       <div class="p-8 space-y-6">
         <label class="block">
-          <span class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Nom du formulaire</span>
+          <span class="text-[13px] font-medium text-primary mb-2 block">Nom du formulaire</span>
           <FormInput 
             type="text" 
             bind:value={newFormName} 
@@ -1111,7 +1112,7 @@
         </label>
 
         <label class="block">
-          <span class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Description</span>
+          <span class="text-[13px] font-medium text-primary mb-2 block">Description</span>
           <textarea 
             bind:value={newFormDescription} 
             placeholder="Description optionnelle..."
@@ -1125,7 +1126,7 @@
         <button 
           onclick={createForm} 
           disabled={createFormAction.state.loading || !newFormName.trim()}
-          class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+          class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary active:scale-[0.98] transition-all disabled:opacity-50"
         >
           {createFormAction.state.loading ? 'Création...' : 'Créer l\'intégration'}
         </button>
@@ -1171,7 +1172,7 @@
               navigator.clipboard.writeText(generatedScript);
               toast.success("Script copié !");
             }}
-            class="absolute top-4 right-4 px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-all shadow-md active:scale-95"
+            class="absolute top-4 right-4 px-4 py-2 rounded-xl bg-primary text-white text-[13px] font-medium hover:bg-primary/90 transition-all shadow-md active:scale-95"
           >
             Copier
           </button>
@@ -1217,7 +1218,7 @@
           </div>
           <button 
             onclick={copyKeyToClipboard}
-            class="absolute top-1/2 -translate-y-1/2 right-4 px-4 py-2.5 rounded-xl {keyCopied ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-all shadow-md active:scale-95"
+            class="absolute top-1/2 -translate-y-1/2 right-4 px-4 py-2.5 rounded-xl {keyCopied ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-[13px] font-medium hover:bg-primary/90 transition-all shadow-md active:scale-95"
           >
             {keyCopied ? 'Copié !' : 'Copier'}
           </button>

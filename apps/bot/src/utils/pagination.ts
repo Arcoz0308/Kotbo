@@ -1,16 +1,6 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ContainerBuilder,
-  TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
-  MessageFlags,
-  type ChatInputCommandInteraction,
-  ComponentType,
-} from 'discord.js';
-import { COLORS_RAW, text } from './embeds.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type ChatInputCommandInteraction, ComponentType } from 'discord.js';
+import { COLORS_RAW, kotboContainer } from './embeds.js';
+import { separator, v2Message } from '@arcscord/components';
 
 export interface PaginationOptions {
   interaction: ChatInputCommandInteraction;
@@ -30,29 +20,24 @@ export async function createPagination(opts: PaginationOptions) {
     const end = start + pageSize;
     const pageItems = items.slice(start, end);
 
-    const container = new ContainerBuilder()
-      .setAccentColor(color)
-      .addTextDisplayComponents(text(`### ${title}`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(pageItems.join('\n') || '*Aucun élément.*'));
-
     const footerParts: string[] = [];
     if (footerPrefix) footerParts.push(footerPrefix);
     if (totalPages > 1) footerParts.push(`Page ${pageIndex + 1}/${totalPages}`);
     footerParts.push(`Demandé par ${interaction.user.username}`);
 
-    container
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${footerParts.join(' · ')}`));
-
-    return container;
+    return kotboContainer({
+      color,
+      title,
+      fields: [
+        separator({ divider: true, spacing: 'small' }),
+        pageItems.join('\n') || '*Aucun élément.*',
+      ],
+      footerOverwrite: `-# ${footerParts.join(' · ')}`,
+    });
   };
 
   if (totalPages <= 1) {
-    return interaction.editReply({
-      components: [generateContainer(0)],
-      flags: MessageFlags.IsComponentsV2,
-    });
+    return interaction.editReply(v2Message(generateContainer(0)));
   }
 
   let currentPage = 0;
@@ -73,10 +58,10 @@ export async function createPagination(opts: PaginationOptions) {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(prev, next);
   };
 
-  const message = await interaction.editReply({
-    components: [generateContainer(currentPage), generateButtons(currentPage)],
-    flags: MessageFlags.IsComponentsV2,
-  });
+  const message = await interaction.editReply(v2Message(
+    generateContainer(currentPage),
+    generateButtons(currentPage),
+  ));
 
   const collector = message.createMessageComponentCollector({
     filter: (i) => i.user.id === interaction.user.id,
@@ -88,10 +73,10 @@ export async function createPagination(opts: PaginationOptions) {
     if (i.customId === 'prev') currentPage = Math.max(0, currentPage - 1);
     else if (i.customId === 'next') currentPage = Math.min(totalPages - 1, currentPage + 1);
 
-    await i.update({
-      components: [generateContainer(currentPage), generateButtons(currentPage)],
-      flags: MessageFlags.IsComponentsV2,
-    });
+    await i.update(v2Message(
+      generateContainer(currentPage),
+      generateButtons(currentPage),
+    ));
   });
 
   collector.on('end', async () => {
@@ -100,10 +85,10 @@ export async function createPagination(opts: PaginationOptions) {
       const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
         ...currentButtons.components.map(b => ButtonBuilder.from(b).setDisabled(true)),
       );
-      await interaction.editReply({
-        components: [generateContainer(currentPage), disabledRow],
-        flags: MessageFlags.IsComponentsV2,
-      });
+      await interaction.editReply(v2Message(
+        generateContainer(currentPage),
+        disabledRow,
+      ));
     } catch { /* message may have been deleted */ }
   });
 }

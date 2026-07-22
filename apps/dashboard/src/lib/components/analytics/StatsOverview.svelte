@@ -68,7 +68,7 @@
           <div class="p-3 rounded-lg transition-transform group-hover:rotate-12" style="background: {stat.color}15; color: {stat.color}">
             <Papicon icon={stat.icon} size={24} />
           </div>
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Total</span>
+          <span class="text-xs font-medium text-on-surface-variant/40">Total</span>
         </div>
         <div class="space-y-1 relative z-10">
           <h4 class="text-lg font-semibold text-on-surface">{stat.value}</h4>

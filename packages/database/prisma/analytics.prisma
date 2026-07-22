@@ -70,6 +70,22 @@ model ChannelDailyStat {
 }
 
 
+// Fréquence des mots par jour — agrégat anonyme (aucun contenu brut, aucun auteur).
+// Alimenté à la volée par le tracker de messages quand wordStatsEnabled est actif.
+model GuildWordStat {
+  id      String @id @default(cuid())
+  guildId String
+  dateKey String // YYYY-MM-DD
+  word    String
+  count   Int    @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, dateKey, word])
+  @@index([guildId, dateKey])
+  @@map("guild_word_stats")
+}
+
 model MemberInvite {
   id String @id @default(cuid())
 
@@ -99,6 +115,7 @@ model GuildInvite {
 
   inviterId   String?
   inviterTag  String?
+  sourceLabel String? // Provenance personnalisée (TikTok, Instagram, campagne, etc.)
 
   uses        Int @default(0)
   maxUses     Int?

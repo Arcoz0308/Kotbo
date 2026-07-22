@@ -1,25 +1,8 @@
-import {
-  type Interaction,
-  type Client,
-  TextChannel,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  ModalSubmitInteraction,
-  MessageFlags,
-  type AnySelectMenuInteraction,
-  PermissionFlagsBits,
-  type GuildMember,
-  TextInputBuilder,
-  TextInputStyle,
-  ModalBuilder,
-  StringSelectMenuBuilder,
-} from 'discord.js';
+import { type Interaction, type Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalSubmitInteraction, MessageFlags, type AnySelectMenuInteraction, PermissionFlagsBits, type GuildMember, TextInputBuilder, TextInputStyle, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { SanctionType } from '@prisma/client';
+import { SanctionStatus, SanctionType } from '@prisma/client';
 import { COLORS, successEmbed, errorEmbed, truncate } from '../utils/embeds.js';
 import { handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
@@ -37,15 +20,42 @@ import { handleDCInteraction } from '../services/moderation/dcDetectionService.j
 import { handleVerifyButtonClick, handleVerificationStaffAction } from '../services/moderation/securityVerificationService.js';
 import { showModeratorNoteModal } from '../commands/moderation/note.js';
 import { sendReportToAdmin } from '../commands/moderation/signal.js';
-import {
-  parseDurationToMs,
-  registerBanSanction,
-  registerKickSanction,
-  registerTimeoutSanction,
-  registerWarnSanction,
-  runGuildBan,
-} from '../services/moderation/sanctionService.js';
+import { parseDurationToMs, registerBanSanction, registerKickSanction, registerTimeoutSanction, registerWarnSanction } from '../services/moderation/sanctionService.js';
 
+
+/** Modal de saisie de raison (et durée pour timeout) partagé entre le select historique et les boutons rapides du casier. */
+function buildSanctionReasonModal(action: string, targetUserId: string, targetUsername: string): ModalBuilder {
+  const actionLabel = action === 'warn' ? 'Avertissement' : action === 'timeout' ? 'Timeout' : action === 'kick' ? 'Expulsion' : 'Bannissement';
+
+  const modal = new ModalBuilder()
+    .setCustomId(`sanction_modal:${action}:${targetUserId}`)
+    .setTitle(`Sanction : ${truncate(targetUsername, 20)}`);
+
+  const reasonInput = new TextInputBuilder()
+    .setCustomId('reason')
+    .setLabel(`Raison du ${actionLabel}`)
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Motif de la sanction...')
+    .setRequired(true)
+    .setMaxLength(500);
+
+  const rows: ActionRowBuilder<TextInputBuilder>[] = [];
+
+  if (action === 'timeout') {
+    const durationInput = new TextInputBuilder()
+      .setCustomId('duration')
+      .setLabel('Durée (ex: 2h, 1j)')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Exemple : 2h')
+      .setRequired(true)
+      .setMaxLength(50);
+    rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput));
+  }
+
+  rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput));
+  modal.addComponents(rows);
+  return modal;
+}
 
 function normalizeTargetLanguage(value: string | null | undefined): 'FR' | 'EN' | 'ES' | 'DE' {
   const normalized = value?.trim().toUpperCase();
@@ -190,10 +200,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       });
 
       const resourceName = result.drop.type === 'COINS' ? 'KotboCoins 🪙' : 'XP RPG ⭐';
-      const originalEmbed = interaction.message.embeds[0];
-      const updatedEmbed = EmbedBuilder.from(originalEmbed)
+      // Le message du drop est en Components V2 (voir utils/patchV2.ts) :
+      // `interaction.message.embeds` est vide, on reconstruit donc l'embed.
+      const updatedEmbed = new EmbedBuilder()
+        .setTitle('🎁 Un drop est apparu !')
         .setDescription(`🎁 **Réclamé !**\n\nCe drop de **${result.drop.amount}** **${resourceName}** a été ramassé par <@${user.id}> !`)
-        .setColor(COLORS.success);
+        .setColor(COLORS.success)
+        .setTimestamp();
 
       const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
@@ -357,6 +370,48 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       return;
     }
 
+    // Boutons rapides Warn/Timeout/Kick/Ban du casier → modal de raison
+    if (caseRoute.action === 'sanction' && caseRoute.sanctionType) {
+      const targetUser = await client.users.fetch(caseRoute.userId).catch(() => null);
+      await interaction.showModal(buildSanctionReasonModal(caseRoute.sanctionType, caseRoute.userId, targetUser?.username ?? 'Utilisateur'));
+      return;
+    }
+
+    // Bouton "Révoquer" d'une sanction active : lève la sanction côté Discord puis en base
+    if (caseRoute.action === 'revoke' && caseRoute.sanctionId) {
+      const sanction = await prisma.sanction.findFirst({
+        where: { id: caseRoute.sanctionId, guildId },
+      });
+
+      if (sanction && sanction.status === SanctionStatus.ACTIVE) {
+        const motif = `Sanction révoquée via le casier par ${user.tag}`;
+
+        if (sanction.type === SanctionType.BAN || sanction.type === SanctionType.TEMP_BAN || sanction.type === SanctionType.SOFTBAN) {
+          await interaction.guild!.members.unban(sanction.targetUserId, motif).catch(() => null);
+        } else if (sanction.type === SanctionType.TIMEOUT) {
+          const target = await interaction.guild!.members.fetch(sanction.targetUserId).catch(() => null);
+          if (target?.isCommunicationDisabled()) {
+            await target.timeout(null, motif).catch(() => null);
+          }
+        }
+
+        await prisma.sanction.update({
+          where: { id: sanction.id },
+          data: { status: SanctionStatus.RESOLVED, resolvedAt: new Date() },
+        });
+      }
+
+      const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, 'sanctions', caseRoute.pageIndex ?? 0);
+      await renderPanelTarget(interaction, {
+        // embeds: [] vide les embeds des anciens panels legacy, requis pour la conversion en Components V2
+        embeds: [],
+        components: panel.components,
+        files: panel.files,
+        flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
+      });
+      return;
+    }
+
     const section: MemberCaseSection = caseRoute.section ?? 'resume';
     const pageIndex = caseRoute.action === 'prev'
       ? Math.max(0, (caseRoute.pageIndex ?? 0) - 1)
@@ -366,10 +421,10 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, section, pageIndex);
     await renderPanelTarget(interaction, {
-      embeds: [panel.embed],
+      embeds: [],
       components: panel.components,
       files: panel.files,
-      flags: [MessageFlags.Ephemeral],
+      flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
     });
     return;
   }
@@ -479,6 +534,98 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
 
+
+  // ── Protection anti-raid (raid mode, reports staff) ──────────────────
+  if (customId.startsWith('rprot:')) {
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const [, action, entityId] = customId.split(':');
+
+    if (action === 'raidmode_off') {
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+      const { getRaidProtectionConfig, deactivateRaidMode } = await import('../services/moderation/raidProtectionService.js');
+      const config = await getRaidProtectionConfig(guildId!);
+      if (!config?.raidModeActive) {
+        await interaction.editReply({ content: 'ℹ️ Le mode raid est déjà inactif.' });
+        return;
+      }
+      await deactivateRaidMode(interaction.guild!, config);
+      await interaction.editReply({ content: '✅ Mode raid désactivé.' });
+      // Désactive le bouton sur le message d'alerte
+      await interaction.message.edit({ components: [] }).catch(() => null);
+      return;
+    }
+
+    if (action === 'invite_approve' || action === 'invite_reject') {
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+      const { approveInviteRequest, rejectInviteRequest } = await import('../services/moderation/inviteGuardService.js');
+      const approved = action === 'invite_approve';
+      const request = approved
+        ? await approveInviteRequest(client, entityId, user.id)
+        : await rejectInviteRequest(client, entityId, user.id);
+      if (!request) {
+        await interaction.editReply({ content: 'ℹ️ Cette demande a déjà été traitée.' });
+        return;
+      }
+      await interaction.editReply({
+        content: approved
+          ? `✅ Invitation approuvée${request.approvedInviteCode ? ` — nouveau lien envoyé à <@${request.creatorId}> (\`${request.approvedInviteCode}\`)` : ' (recréation échouée, créateur prévenu)'}.`
+          : '❌ Invitation rejetée, créateur prévenu.',
+      });
+      const original = interaction.message.embeds[0];
+      if (original) {
+        const { EmbedBuilder } = await import('discord.js');
+        const updated = EmbedBuilder.from(original)
+          .setColor(approved ? 0x57f287 : 0xed4245)
+          .addFields({ name: 'Décision', value: `${approved ? '✅ Approuvée' : '❌ Rejetée'} par <@${user.id}>`, inline: false });
+        await interaction.message.edit({ embeds: [updated], components: [] }).catch(() => null);
+      } else {
+        await interaction.message.edit({ components: [] }).catch(() => null);
+      }
+      return;
+    }
+
+    if (action === 'report_resolve' || action === 'report_dismiss') {
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+      const { handleReportDecision } = await import('../services/moderation/reportService.js');
+      const resolved = action === 'report_resolve';
+      const report = await handleReportDecision(entityId, user.id, resolved);
+      if (!report) {
+        await interaction.editReply({ content: 'ℹ️ Ce signalement a déjà été traité.' });
+        return;
+      }
+      await interaction.editReply({ content: resolved ? '✅ Signalement marqué comme traité.' : '🗑️ Signalement rejeté.' });
+      // Fige l'embed staff : plus de boutons + note de traitement
+      const original = interaction.message.embeds[0];
+      if (original) {
+        const { EmbedBuilder } = await import('discord.js');
+        const updated = EmbedBuilder.from(original)
+          .setColor(resolved ? 0x57f287 : 0x99aab5)
+          .addFields({ name: 'Traitement', value: `${resolved ? '✅ Traité' : '🗑️ Rejeté'} par <@${user.id}>`, inline: false });
+        await interaction.message.edit({ embeds: [updated], components: [] }).catch(() => null);
+      } else {
+        await interaction.message.edit({ components: [] }).catch(() => null);
+      }
+      return;
+    }
+    return;
+  }
+
+  // ── Ban Hygiene (comptes supprimés) ──────────────────────────────────
+  if (customId.startsWith('banhygiene:')) {
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    const { handleBanHygieneButton } = await import('../services/moderation/banHygieneService.js');
+    await handleBanHygieneButton(interaction);
+    return;
+  }
 
   // ── Security Verification Buttons ────────────────────────────────────
   if (customId.startsWith('secverif_start_')) {
@@ -994,6 +1141,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 
   if (!guildId) return;
 
+  // Hub des menus contextuels (clic droit → « ⚡ Actions Kotbo »)
+  if (customId.startsWith('ctxhub:') && interaction.isStringSelectMenu()) {
+    const { handleHubSelect } = await import('../services/core/contextMenuHubService.js');
+    await handleHubSelect(interaction);
+    return;
+  }
+
   // Menu déroulant des pages de présentation du thread d'accueil
   if (customId === 'wpage_select' && interaction.isStringSelectMenu()) {
     const { handleWelcomeMenuInteraction } = await import('../services/features/welcomeThreadService.js');
@@ -1022,7 +1176,8 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     if (!section) return;
 
     const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, section, caseRoute.pageIndex ?? 0);
-    await interaction.update({ embeds: [panel.embed], components: panel.components, files: panel.files });
+    // embeds: [] vide les embeds des anciens panels legacy, requis pour la conversion en Components V2
+    await interaction.update({ embeds: [], components: panel.components, files: panel.files, flags: [MessageFlags.IsComponentsV2] });
     return;
   }
 
@@ -1047,37 +1202,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     const targetUser = await client.users.fetch(targetUserId).catch(() => null);
     const targetUsername = targetUser?.username ?? 'Utilisateur';
 
-    const actionLabel = action === 'warn' ? 'Avertissement' : action === 'timeout' ? 'Timeout' : action === 'kick' ? 'Expulsion' : 'Bannissement';
-
-    const modal = new ModalBuilder()
-      .setCustomId(`sanction_modal:${action}:${targetUserId}`)
-      .setTitle(`Sanction : ${truncate(targetUsername, 20)}`);
-
-    const reasonInput = new TextInputBuilder()
-      .setCustomId('reason')
-      .setLabel(`Raison du ${actionLabel}`)
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder(`Motif de la sanction...`)
-      .setRequired(true)
-      .setMaxLength(500);
-
-    const rows: ActionRowBuilder<TextInputBuilder>[] = [];
-
-    if (action === 'timeout') {
-      const durationInput = new TextInputBuilder()
-        .setCustomId('duration')
-        .setLabel('Durée (ex: 2h, 1j)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Exemple : 2h')
-        .setRequired(true)
-        .setMaxLength(50);
-      rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput));
-    }
-
-    rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput));
-    modal.addComponents(rows);
-
-    await interaction.showModal(modal);
+    await interaction.showModal(buildSanctionReasonModal(action, targetUserId, targetUsername));
     return;
   }
 
@@ -1163,6 +1288,51 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   }
 
   if (!guildId) return;
+
+  // Modals des actions du hub des menus contextuels
+  if (customId.startsWith('ctxhub_modal:')) {
+    const { handleHubModal } = await import('../services/core/contextMenuHubService.js');
+    await handleHubModal(interaction);
+    return;
+  }
+
+  // ── Report modal (menu contextuel « Signaler ce message ») ───────────
+  if (customId.startsWith('report_modal:')) {
+    const [, targetId, channelId, messageId] = customId.split(':');
+    const reason = interaction.fields.getTextInputValue('reason');
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    // Récupère le contenu du message signalé (pour contexte staff)
+    let messageContent: string | undefined;
+    try {
+      const channel = await interaction.guild?.channels.fetch(channelId);
+      if (channel?.isTextBased()) {
+        const message = await channel.messages.fetch(messageId).catch(() => null);
+        messageContent = message?.content || undefined;
+      }
+    } catch { /* le contexte est optionnel */ }
+
+    const { createMemberReport } = await import('../services/moderation/reportService.js');
+    const { describeReportError } = await import('../commands/moderation/report.js');
+    const result = await createMemberReport({
+      client,
+      guild: interaction.guild!,
+      reporter: interaction.user,
+      targetId,
+      reason,
+      channelId,
+      messageId,
+      messageContent,
+    });
+
+    if (!result.ok) {
+      await interaction.editReply({ content: `❌ ${describeReportError(result)}` });
+    } else {
+      await interaction.editReply({ content: '✅ Signalement envoyé au staff. Merci de contribuer à la sécurité du serveur. 🙏' });
+    }
+    return;
+  }
 
   // Ban appeal decision modals (staff channel)
   if (customId.startsWith('appeal_modal:')) {
@@ -1652,6 +1822,18 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         moderatorNote: noteContent,
       },
     });
+
+    // Modal ouvert depuis le panel casier : re-render le résumé avec la note à jour.
+    if (interaction.isFromMessage() && interaction.guild) {
+      const panel = await buildMemberCasePanel(interaction.guild, targetUserId, 'resume', 0);
+      await renderPanelTarget(interaction, {
+        embeds: [],
+        components: panel.components,
+        files: panel.files,
+        flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2],
+      });
+      return;
+    }
 
     await interaction.reply({
       content: `✅ Note modérateur mise à jour pour <@${targetUserId}>.`,

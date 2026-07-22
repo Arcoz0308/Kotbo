@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -44,6 +45,7 @@
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption, type Sanction } from '../lib/sanctions/filterSort';
   import { toast } from '../lib/stores/toast.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import * as XLSX from 'xlsx';
 
   const sanctionTabs = ['sanctions', 'settings'] as const;
@@ -86,7 +88,7 @@
       if (!res.ok) throw new Error();
     } catch {
       banAppealNotifyOnBanDM = previous;
-      toast.error('Erreur lors de la mise à jour');
+      toast.error(m.sc_update_error());
     } finally {
       banAppealNotifySaving = false;
     }
@@ -100,7 +102,7 @@
     const name = newTableName.trim();
     if (!name) return;
     if (guildSettings.sanctionTables.some((t: any) => t.name.toLowerCase() === name.toLowerCase())) {
-      toast.error('Une échelle avec ce nom existe déjà.');
+      toast.error(m.sc_scale_exists());
       return;
     }
 
@@ -113,7 +115,7 @@
           level: 1,
           action: 'WARN',
           durationSeconds: null,
-          customReason: `Avertissement automatique pour ${name}`
+          customReason: m.sc_auto_warn_reason({ name })
         }
       ]
     });
@@ -122,8 +124,8 @@
     selectedTableIndex = guildSettings.sanctionTables.length - 1;
   }
 
-  function deleteSanctionTable(index: number) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce tableau de sanction ? Toutes les sanctions liées perdront leur référence.')) {
+  async function deleteSanctionTable(index: number) {
+    if (!(await confirmDialog.danger(m.sc_delete_table_q(), m.sc_delete_table_warn()))) {
       return;
     }
     guildSettings.sanctionTables.splice(index, 1);
@@ -150,7 +152,7 @@
       level: nextLevel,
       action: defaultAction,
       durationSeconds: defaultDuration,
-      customReason: `Récidive ${table.name} (Tier T${nextLevel})`
+      customReason: m.sc_repeat_reason({ name: table.name, level: nextLevel })
     });
   }
 
@@ -233,7 +235,7 @@
 
     ctx.font = '900 10px system-ui, -apple-system, sans-serif';
     ctx.fillStyle = '#00E5FF';
-    ctx.fillText('ÉCHELLE DE SANCTION PROGRESSIVE', 40, 95);
+    ctx.fillText(m.sc_canvas_title(), 40, 95);
     
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
@@ -302,18 +304,18 @@
       ctx.fillStyle = '#ffffff';
       
       let actionLabel = tier.action;
-      if (tier.action === 'WARN') actionLabel = 'AVERTISSEMENT';
+      if (tier.action === 'WARN') actionLabel = m.sc_action_warn();
       else if (tier.action === 'TIMEOUT') actionLabel = `TIMEOUT (${formatSeconds(tier.durationSeconds)})`;
-      else if (tier.action === 'TEMP_BAN') actionLabel = `BAN TEMPORAIRE (${formatSeconds(tier.durationSeconds)})`;
-      else if (tier.action === 'KICK') actionLabel = 'EXCLUSION (KICK)';
-      else if (tier.action === 'BAN') actionLabel = 'BANNISSEMENT DÉFINITIF';
+      else if (tier.action === 'TEMP_BAN') actionLabel = m.sc_action_temp_ban({ d: formatSeconds(tier.durationSeconds) });
+      else if (tier.action === 'KICK') actionLabel = m.sc_action_kick();
+      else if (tier.action === 'BAN') actionLabel = m.sc_action_ban();
       else if (tier.action === 'SOFTBAN') actionLabel = 'SOFTBAN';
 
       ctx.fillText(actionLabel, cardX + 80, cardY + 20);
 
       ctx.font = '13px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      const reason = tier.customReason || 'Raison par défaut';
+      const reason = tier.customReason || m.sc_default_reason();
       ctx.fillText(reason, cardX + 80, cardY + 45);
 
       if (index < table.tiers.length - 1) {
@@ -340,7 +342,7 @@
     ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.textAlign = 'center';
-    ctx.fillText('GÉNÉRÉ PAR KOTBO — LE CENTRE DE CONTRÔLE DISCORD', width / 2, height - 35);
+    ctx.fillText(m.sc_canvas_footer(), width / 2, height - 35);
 
     const link = document.createElement('a');
     link.download = `kotbo_tableau_${table.name.toLowerCase()}.png`;
@@ -356,21 +358,21 @@
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}h`;
     const days = Math.floor(hrs / 24);
-    return `${days}j`;
+    return m.home_short_days({ n: days });
   }
 
   function exportTableToXlsx(table: any) {
     if (!table) return;
     const data = table.tiers.map((tier: any) => ({
-      "Tableau": table.name,
-      "Niveau (Tier)": `T${tier.level}`,
+      [m.sc_xlsx_table()]: table.name,
+      [m.sc_xlsx_tier()]: `T${tier.level}`,
       "Action": tier.action,
-      "Durée (Secondes)": tier.durationSeconds || 'N/A',
-      "Raison personnalisée": tier.customReason || ''
+      [m.sc_xlsx_duration()]: tier.durationSeconds || 'N/A',
+      [m.sc_xlsx_custom_reason()]: tier.customReason || ''
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, `Tableau ${table.name}`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, `${m.sc_xlsx_table()} ${table.name}`);
     XLSX.writeFile(workbook, `kotbo_tableau_${table.name.toLowerCase()}.xlsx`);
   }
 
@@ -452,7 +454,7 @@
   let selectedCaseData = $state<any>(null);
   let selectedCaseLoading = $state(false);
   let selectedCaseError = $state('');
-  let memberActionReason = $state('Action lancée depuis la page Sanctions.');
+  let memberActionReason = $state(m.sc_member_action_reason());
   let memberActionDuration = $state('30m');
   let memberActionBusy = $state(false);
   let memberActionFeedback = $state('');
@@ -464,7 +466,7 @@
     try {
       selectedCaseData = await fetchMemberCase(userId);
     } catch (error) {
-      selectedCaseError = error instanceof Error ? error.message : 'Impossible de charger le profil membre.';
+      selectedCaseError = error instanceof Error ? error.message : m.sc_member_load_error();
       selectedCaseData = null;
     } finally {
       selectedCaseLoading = false;
@@ -475,7 +477,7 @@
     selectedCaseUser = { name: userName, id: userId };
     selectedCaseData = null;
     selectedCaseError = '';
-    memberActionReason = 'Action lancée depuis la page Sanctions.';
+    memberActionReason = m.sc_member_action_reason();
     memberActionDuration = '30m';
     memberActionFeedback = '';
     memberActionIsError = false;
@@ -566,10 +568,10 @@
     
     await saveAction.run(async () => {
       const ok = await updateFeatureConfiguration('sanctions', { [key]: value });
-      if (!ok) throw new Error('Erreur API');
+      if (!ok) throw new Error(m.sc_api_error());
       featureConfig[key] = value;
       return true;
-    }, { successMessage: 'Configuration mise à jour.' });
+    }, { successMessage: m.sc_config_updated() });
   }
 
   async function handleSaveSettings(): Promise<boolean> {
@@ -580,16 +582,16 @@
         propagateSanctions: guildSettings.propagateSanctions,
         sanctionReportEnabled: guildSettings.sanctionReportEnabled
       });
-      if (!ok1) throw new Error('Erreur API (Paramètres généraux)');
+      if (!ok1) throw new Error(m.sc_api_error_general());
 
       const ok2 = await updateSanctionTables(guildSettings.sanctionTables);
-      if (!ok2) throw new Error('Erreur API (Tableaux de sanction)');
+      if (!ok2) throw new Error(m.sc_api_error_tables());
 
       await dashboardStore.refresh();
       savedSettings = JSON.parse(JSON.stringify(guildSettings));
       success = true;
       return true;
-    }, { successMessage: 'Paramètres enregistrés.' });
+    }, { successMessage: m.sc_settings_saved() });
     return success;
   }
 
@@ -614,14 +616,14 @@
       const durationMs = action === 'TIMEOUT' ? 30 * 60 * 1000 : null; // 30m default for simplicity here
       
       await runMemberCaseAction(selectedCaseUser.id, action, { 
-        reason: memberActionReason.trim() || 'Action lancée depuis Sanctions.',
+        reason: memberActionReason.trim() || m.sc_action_from_sanctions(),
         durationMs: durationMs ?? undefined 
       });
-      memberActionFeedback = 'Action appliquée avec succès.';
+      memberActionFeedback = m.sc_action_applied();
       await loadMemberCase(selectedCaseUser.id);
     } catch (error) {
       memberActionIsError = true;
-      memberActionFeedback = error instanceof Error ? error.message : 'L’action de modération a échoué.';
+      memberActionFeedback = error instanceof Error ? error.message : m.sc_action_failed();
     } finally {
       memberActionBusy = false;
     }
@@ -788,38 +790,38 @@
       const isMissingProof = !linkedReport.evidenceLinks || linkedReport.evidenceLinks.length === 0;
       if (isMissingProof) {
         return {
-          label: 'Ajouter la preuve',
+          label: m.sc_add_proof(),
           icon: 'alert-triangle',
           disabled: false,
           variant: 'warning',
-          hint: 'Ce rapport est pré-rempli mais nécessite un lien de preuve (capture d’écran, etc.).',
+          hint: m.sc_add_proof_hint(),
         };
       }
       return {
-        label: 'Voir le rapport',
+        label: m.sc_view_report(),
         icon: 'paper',
         disabled: false,
         variant: 'success',
-        hint: 'Le rapport de sanction existe déjà et peut être consulté.',
+        hint: m.sc_view_report_hint(),
       };
     }
 
     if (canCreate) {
       return {
-        label: 'Creer le rapport',
+        label: m.sc_create_report(),
         icon: 'plus',
         disabled: false,
         variant: 'primary',
-        hint: 'Ouvre le formulaire pour compléter le rapport lié à cette sanction.',
+        hint: m.sc_create_report_hint(),
       };
     }
 
     return {
-      label: 'Rapport reserve',
+      label: m.sc_report_reserved(),
       icon: 'lock',
       disabled: true,
       variant: 'muted',
-      hint: 'Seule la personne qui a appliqué la sanction peut créer ce rapport.',
+      hint: m.sc_report_reserved_hint(),
     };
   }
 
@@ -832,7 +834,7 @@
     selectedRuleIds = [];
     detailedReason = sanction.reason;
     evidenceLinks = [''];
-    additionalNotes = sanction.reason ? `Raison initiale de la sanction: ${sanction.reason}` : '';
+    additionalNotes = sanction.reason ? m.sc_initial_reason({ reason: sanction.reason }) : '';
     reportMessage = '';
     reportMessageIsError = false;
     isEditing = false;
@@ -879,44 +881,44 @@
     reportMessageIsError = false;
 
     if (!selectedSanction) {
-      reportMessage = 'Selectionne une sanction avant de creer un rapport.';
+      reportMessage = m.sc_select_sanction_first();
       reportMessageIsError = true;
       return;
     }
 
     if (selectedReport) {
-      reportMessage = 'Un rapport existe deja pour cette sanction.';
+      reportMessage = m.sc_report_exists();
       reportMessageIsError = true;
       return;
     }
 
     if (reportRuleOptions.length === 0) {
-      reportMessage = 'Aucun article de règlement n’est configuré. Ajoute d’abord des règles dans le module Règlement.';
+      reportMessage = m.sc_no_rules_configured();
       reportMessageIsError = true;
       return;
     }
 
     if (selectedRuleIds.length === 0) {
-      reportMessage = 'Sélectionne au moins une règle enfreinte.';
+      reportMessage = m.sc_select_rule();
       reportMessageIsError = true;
       return;
     }
 
     if (selectedSanction.moderatorUserId !== authStore.user?.id) {
-      reportMessage = 'Seule la personne qui a applique la sanction peut creer ce rapport.';
+      reportMessage = m.sc_report_reserved_hint();
       reportMessageIsError = true;
       return;
     }
 
     if (!sanctionDurationLabel.trim()) {
-      reportMessage = 'Renseigne la durée de la sanction.';
+      reportMessage = m.sc_enter_duration();
       reportMessageIsError = true;
       return;
     }
 
     const sanitizedLinks = sanitizeEvidenceLinks(evidenceLinks);
     if (sanitizedLinks.length === 0) {
-      reportMessage = 'Ajoute au moins un lien de preuve valide (http/https).';
+      reportMessage = m.sc_add_proof_link();
       reportMessageIsError = true;
       return;
     }
@@ -924,7 +926,7 @@
     brokenRules = buildBrokenRulesPayload(selectedRuleIds, reportRuleOptions, selectedReportRules);
 
     if (!brokenRules.trim() || !detailedReason.trim()) {
-      reportMessage = 'Merci de remplir tous les champs obligatoires du rapport.';
+      reportMessage = m.sc_fill_required();
       reportMessageIsError = true;
       return;
     }
@@ -942,7 +944,7 @@
       });
 
       if (!ok) {
-        reportMessage = 'Impossible de creer le rapport de sanction.';
+        reportMessage = m.sc_create_report_error();
         reportMessageIsError = true;
         return;
       }
@@ -961,13 +963,13 @@
     
     const sanitizedLinks = sanitizeEvidenceLinks(evidenceLinks);
     if (sanitizedLinks.length === 0) {
-      reportMessage = 'Ajoute au moins un lien de preuve valide (http/https).';
+      reportMessage = m.sc_add_proof_link();
       reportMessageIsError = true;
       return;
     }
 
     if (selectedRuleIds.length === 0) {
-      reportMessage = 'Sélectionne au moins une règle enfreinte.';
+      reportMessage = m.sc_select_rule();
       reportMessageIsError = true;
       return;
     }
@@ -987,17 +989,17 @@
       });
 
       if (!ok) {
-        reportMessage = 'Impossible de mettre à jour le rapport.';
+        reportMessage = m.sc_update_report_error();
         reportMessageIsError = true;
         return;
       }
 
       await dashboardStore.refresh();
       isEditing = false;
-      reportMessage = 'Rapport mis à jour avec succès.';
+      reportMessage = m.sc_report_updated();
       reportMessageIsError = false;
     } catch (e) {
-      reportMessage = 'Une erreur est survenue lors de la mise à jour.';
+      reportMessage = m.sc_update_error_generic();
       reportMessageIsError = true;
     } finally {
       updateReportBusy = false;
@@ -1009,7 +1011,7 @@
     deletionMessageIsError = false;
 
     if (!canDeleteSanctions) {
-      deletionMessage = 'Seuls les administrateurs peuvent supprimer une infraction.';
+      deletionMessage = m.sc_only_admins_delete();
       deletionMessageIsError = true;
       return;
     }
@@ -1028,7 +1030,7 @@
   async function confirmDeleteSanction() {
     if (!pendingDeletion) return;
 
-    if (deleteConfirmationText.trim().toUpperCase() !== 'SUPPRIMER') {
+    if (deleteConfirmationText.trim().toUpperCase() !== m.sc_delete_keyword()) {
       deletionMessage = 'Suppression annulee: validation finale non confirmee.';
       deletionMessageIsError = true;
       return;
@@ -1040,7 +1042,7 @@
     try {
       const ok = await deleteSanction(sanctionToDelete.id);
       if (!ok) {
-        deletionMessage = 'Impossible de supprimer l\'infraction.';
+        deletionMessage = m.sc_delete_infraction_error();
         deletionMessageIsError = true;
         return;
       }
@@ -1050,7 +1052,7 @@
       }
 
       await dashboardStore.refresh();
-      deletionMessage = 'Infraction supprimee avec succes.';
+      deletionMessage = m.sc_infraction_deleted();
       deletionMessageIsError = false;
     } finally {
       deletingSanctionId = null;
@@ -1060,7 +1062,7 @@
 
 <ModulePage 
   title="Sanctions & Rapports" 
-  description="Suivi des sanctions, de leur auteur, de la cible et gestion des rapports via modal." 
+  description={m.sc_page_desc()} 
   icon="alert-triangle"
   featureKey="sanctions"
 >
@@ -1069,7 +1071,7 @@
       <RefreshButton
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
-        label="Actualiser"
+        label={m.common_refresh()}
         className="px-5 py-2.5 font-bold "
         iconClass="text-lg"
       />
@@ -1077,25 +1079,19 @@
   {/snippet}
 
   <div class="space-y-8">
-    <div class="flex border-b border-outline-variant/10">
-      <button 
+    <div class="tab-group w-fit">
+      <button
         onclick={() => gotoTab('/sanctions', 'sanctions', 'sanctions')}
-        class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'sanctions' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="tab-button {activeTab === 'sanctions' ? 'active' : ''}"
       >
-        Historique
-        {#if activeTab === 'sanctions'}
-          <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-        {/if}
+        {m.sc_tab_history()}
       </button>
       {#if canManageSettings}
-        <button 
+        <button
           onclick={() => gotoTab('/sanctions', 'settings', 'sanctions')}
-          class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'settings' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+          class="tab-button {activeTab === 'settings' ? 'active' : ''}"
         >
           Configuration
-          {#if activeTab === 'settings'}
-            <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-          {/if}
         </button>
       {/if}
     </div>
@@ -1103,15 +1099,15 @@
     {#if activeTab === 'sanctions'}
       <section class="section-card-flush font-inter">
         <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <h3 class="text-lg font-semibold">Liste des sanctions</h3>
+          <h3 class="text-lg font-semibold">{m.sc_sanctions_list()}</h3>
           <div class="flex items-center gap-3">
-            <span class="text-xs font-bold text-on-surface-variant">{filteredAndSortedSanctions.length} / {sanctions.length} entree(s)</span>
+            <span class="text-xs font-bold text-on-surface-variant">{m.sc_entries_count({ a: filteredAndSortedSanctions.length, b: sanctions.length })}</span>
             {#if hasActiveFiltersOrSort}
               <button
                 onclick={resetFiltersAndSort}
                 class="text-xs font-bold text-primary hover:text-primary/80 transition"
               >
-                Réinitialiser filtres et tri
+                {m.sc_reset_filters()}
               </button>
             {/if}
           </div>
@@ -1122,7 +1118,7 @@
             <FormInput
               type="search"
               bind:value={searchQuery}
-              placeholder="Rechercher par type, cible, staff, raison..."
+              placeholder={m.sc_search_ph()}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-800"
             />
           </label>
@@ -1155,7 +1151,7 @@
           </th>
           <th class="px-4 py-4">
             <ColumnSortFilter
-              label="Cible"
+              label={m.sc_col_target()}
               sortField="target"
               sortDirection={sortDirectionFor('target')}
               onToggleSort={() => toggleSort('target')}
@@ -1179,7 +1175,7 @@
           </th>
           <th class="px-4 py-4">
             <ColumnSortFilter
-              label="Duree"
+              label={m.sc_col_duration()}
               sortField="duration"
               sortDirection={sortDirectionFor('duration')}
               onToggleSort={() => toggleSort('duration')}
@@ -1187,7 +1183,7 @@
           </th>
           <th class="px-4 py-4">
             <ColumnSortFilter
-              label="Statut"
+              label={m.sc_col_status()}
               sortField="status"
               sortDirection={sortDirectionFor('status')}
               onToggleSort={() => toggleSort('status')}
@@ -1196,7 +1192,7 @@
               onToggleValue={(value) => toggleFilter('statuses', value)}
             />
           </th>
-          <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Rapport</th>
+          <th class="px-4 py-4 text-[13px] font-bold text-on-surface-variant">Rapport</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
@@ -1256,10 +1252,10 @@
                     <ActionButton
                       onClick={() => openDeleteModal(entry)}
                       disabled={deletingSanctionId === entry.id}
-                      title="Supprimer cette infraction"
+                      title={m.sc_delete_infraction_title()}
                       variant="danger"
                       icon="trash"
-                      label={deletingSanctionId === entry.id ? 'Suppression...' : 'Supprimer'}
+                      label={deletingSanctionId === entry.id ? m.sc_deleting() : m.common_delete()}
                       className="min-w-42.5"
                     />
                   {/if}
@@ -1271,7 +1267,7 @@
         {/if}
         {#if !showSanctionsSkeleton && sanctions.length === 0}
           <tr>
-            <td colspan="7" class="px-6 py-14 text-center text-on-surface-variant">Aucune sanction enregistree.</td>
+            <td colspan="7" class="px-6 py-14 text-center text-on-surface-variant">{m.sc_no_sanctions()}</td>
           </tr>
         {:else if !showSanctionsSkeleton && filteredAndSortedSanctions.length === 0}
           <tr>
@@ -1292,17 +1288,17 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-4">
               <div>
-                <p class="text-sm font-semibold text-on-surface">Rôle Modérateur</p>
-                <p class="text-xs text-on-surface-variant/70 mt-1">Rôle requis pour utiliser les commandes de modération.</p>
+                <p class="text-sm font-semibold text-on-surface">{m.sc_mod_role()}</p>
+                <p class="text-xs text-on-surface-variant/70 mt-1">{m.sc_mod_role_desc()}</p>
               </div>
-              <SearchableSelect bind:value={guildSettings.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun rôle —" className="w-full rounded-lg bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all" />
+              <SearchableSelect bind:value={guildSettings.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.sc_no_role_ph()} className="w-full rounded-lg bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all" />
             </div>
 
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-semibold text-on-surface">Propagation des sanctions</p>
-                  <p class="text-xs text-on-surface-variant/70 mt-1">Appliquer automatiquement les sanctions sur les serveurs liés.</p>
+                  <p class="text-sm font-semibold text-on-surface">{m.sc_propagation()}</p>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">{m.sc_propagation_desc()}</p>
                 </div>
                  <ToggleSwitch
                   checked={guildSettings.propagateSanctions}
@@ -1316,8 +1312,8 @@
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-semibold text-on-surface">Rapports de sanction</p>
-                  <p class="text-xs text-on-surface-variant/70 mt-1">Exiger la création de rapports détaillés pour chaque sanction.</p>
+                  <p class="text-sm font-semibold text-on-surface">{m.sc_reports()}</p>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">{m.sc_reports_desc()}</p>
                 </div>
                 <ToggleSwitch
                   checked={guildSettings.sanctionReportEnabled}
@@ -1331,10 +1327,10 @@
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-semibold text-on-surface">DM du lien d'appel lors d'un ban définitif</p>
+                  <p class="text-sm font-semibold text-on-surface">{m.sc_dm_appeal()}</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">
                     Envoie automatiquement le lien public de l'appel de bannissement par DM (hors bannissements temporaires).
-                    Même réglage que dans Appels de bannissement.
+                    {m.sc_same_setting()}
                   </p>
                 </div>
                 <ToggleSwitch
@@ -1368,8 +1364,8 @@
       <!-- Échelles de Sanctions Progressives -->
       <section class="section-card-flush font-inter mt-8">
         <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-          <h3 class="text-lg font-semibold">Échelles de Sanctions Progressives</h3>
-          <p class="text-xs text-on-surface-variant/70 mt-1">Configurez des échelles de sanctions qui s'alourdissent automatiquement à chaque récidive d'une infraction.</p>
+          <h3 class="text-lg font-semibold">{m.sc_scales_title()}</h3>
+          <p class="text-xs text-on-surface-variant/70 mt-1">{m.sc_scales_desc()}</p>
         </div>
 
         <div class="premium-card p-10 rounded-xl">
@@ -1377,7 +1373,7 @@
             <!-- Left panel: scales list -->
             <div class="w-full lg:w-1/3 space-y-4 border-r border-outline-variant/10 lg:pr-8">
               <div class="flex items-center justify-between">
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Mes Échelles</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{m.sc_my_scales()}</span>
                 {#if !showAddTableField}
                   <button 
                     onclick={() => showAddTableField = true}
@@ -1392,7 +1388,7 @@
                 <div class="flex gap-2 p-2 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
                   <FormInput 
                     bind:value={newTableName} 
-                    placeholder="Nom (ex: Spam, Pub)" 
+                    placeholder={m.sc_scale_name_ph()} 
                     className="flex-1 text-xs px-3 py-2 bg-transparent outline-none border-none text-on-surface"
                   />
                   <button 
@@ -1440,8 +1436,8 @@
               {#if guildSettings.sanctionTables.length === 0}
                 <div class="h-full min-h-[200px] flex flex-col items-center justify-center text-center space-y-2">
                   <Papicon icon="alert-triangle" size={32} class="text-on-surface-variant/40 animate-pulse" />
-                  <p class="text-sm font-bold text-on-surface-variant">Aucune échelle de sanction progressive n'est configurée.</p>
-                  <p class="text-xs text-on-surface-variant/60">Ajoutez une échelle de sanction pour commencer (ex: Spam, Insultes).</p>
+                  <p class="text-sm font-bold text-on-surface-variant">{m.sc_no_scales()}</p>
+                  <p class="text-xs text-on-surface-variant/60">{m.sc_add_scale_hint()}</p>
                 </div>
               {:else}
                 {@const currentTable = guildSettings.sanctionTables[selectedTableIndex]}
@@ -1452,12 +1448,12 @@
                         bind:value={currentTable.name} 
                         className="text-lg font-semibold bg-transparent border-none text-on-surface focus:ring-0 px-0 py-0 w-60"
                       />
-                      <span class="text-xs text-on-surface-variant/60 italic font-medium">(Cliquez pour renommer)</span>
+                      <span class="text-xs text-on-surface-variant/60 italic font-medium">{m.sc_click_rename()}</span>
                     </div>
 
                     <!-- Exporter -->
                     <div class="flex items-center gap-2">
-                      <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mr-2">Exporter l'échelle :</span>
+                      <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mr-2">{m.sc_export_scale()}</span>
                       <button 
                         onclick={() => exportTableToImage(currentTable)}
                         class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
@@ -1497,8 +1493,8 @@
                           <tr class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
                             <th class="py-3 px-4 w-20 text-center border-r border-outline-variant/10">Palier</th>
                             <th class="py-3 px-4 w-48 border-r border-outline-variant/10">Action</th>
-                            <th class="py-3 px-4 w-48 border-r border-outline-variant/10">Durée</th>
-                            <th class="py-3 px-4 border-r border-outline-variant/10">Raison Personnalisée</th>
+                            <th class="py-3 px-4 w-48 border-r border-outline-variant/10">{m.sc_col_duration()}</th>
+                            <th class="py-3 px-4 border-r border-outline-variant/10">{m.sc_col_custom_reason()}</th>
                             <th class="py-3 px-2 w-12 text-center"></th>
                           </tr>
                         </thead>
@@ -1515,10 +1511,10 @@
                                 <select 
                                   bind:value={tier.action}
                                   class="w-full bg-transparent font-bold py-1.5 px-2 rounded-lg cursor-pointer outline-hidden focus:bg-surface-container-high/40 border border-transparent focus:border-primary/20 transition-all
-                                    {tier.action === 'WARN' ? 'text-amber-500 dark:text-amber-400' : ''}
+ {tier.action === 'WARN' ? 'text-amber-500 dark:text-amber-400' : ''}
                                     {tier.action === 'TIMEOUT' ? 'text-blue-500 dark:text-blue-400' : ''}
                                     {tier.action === 'KICK' ? 'text-rose-500 dark:text-rose-400' : ''}
-                                    {tier.action === 'TEMP_BAN' ? 'text-red-500 dark:text-red-400 font-extrabold' : ''}
+                                    {tier.action === 'TEMP_BAN' ? 'text-red-500 dark:text-red-400 font-semibold' : ''}
                                     {tier.action === 'BAN' ? 'text-red-600 dark:text-red-500 font-semibold' : ''}
                                     {tier.action === 'SOFTBAN' ? 'text-purple-500 dark:text-purple-400' : ''}"
                                 >
@@ -1566,7 +1562,7 @@
                                 <input 
                                   type="text"
                                   bind:value={tier.customReason}
-                                  placeholder="Raison par défaut ou personnalisée..."
+                                  placeholder={m.sc_reason_ph()}
                                   class="w-full bg-transparent py-1.5 px-2 rounded-lg border border-transparent hover:border-outline-variant/10 focus:border-primary/30 focus:bg-surface-container-high/30 outline-hidden transition-all text-xs text-on-surface"
                                 />
                               </td>
@@ -1577,7 +1573,7 @@
                                   <button 
                                     onclick={() => removeTier(selectedTableIndex, tierIdx)}
                                     class="text-on-surface-variant/40 hover:text-red-500 active:scale-95 transition-all p-1.5 rounded-lg hover:bg-red-500/10 opacity-0 group-hover:opacity-100 cursor-pointer flex items-center justify-center mx-auto"
-                                    title="Supprimer ce palier"
+                                    title={m.sc_delete_tier()}
                                   >
                                     <Papicon icon="trash" size={13} />
                                   </button>
@@ -1594,7 +1590,7 @@
                                 class="w-full py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-primary hover:text-primary/80 hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                               >
                                 <Papicon icon="plus" size={12} />
-                                Insérer un nouveau palier (Row)
+                                {m.sc_insert_tier()}
                               </button>
                             </td>
                           </tr>
@@ -1616,8 +1612,8 @@
     use:portal
     class="modal-backdrop" 
     onclick={closeModal}
-    onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeModal()}
-    aria-label="Fermer le modal"
+    onkeydown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) closeModal(); }}
+    aria-label={m.sc_close_modal()}
     role="button"
     tabindex="-1"
   >
@@ -1631,10 +1627,10 @@
       <div class="relative bg-linear-to-br from-primary/10 via-surface to-surface p-8 border-b border-outline-variant/5">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Dossier de Sanction</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.sc_sanction_file()}</p>
             <h3 id="modal-title" class="text-2xl font-semibold text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
             <p class="text-xs font-bold text-on-surface-variant/60 mt-1">
-              Appliquée à 
+              {m.sc_applied_to()}
               <button onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface hover:text-primary transition-colors font-semibold">
                 @{selectedSanction.targetTag}
               </button> 
@@ -1659,13 +1655,13 @@
           <div class="space-y-8 animate-in fade-in duration-300">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-1.5">
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_incident_date()}</p>
                 <div class="rounded-lg bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
                   {new Date(selectedReport.incidentAt).toLocaleString('fr-FR')}
                 </div>
               </div>
               <div class="space-y-1.5">
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée annoncée</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_announced_duration()}</p>
                 <div class="rounded-lg bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
                   {selectedReport.sanctionDurationLabel || 'N/A'}
                 </div>
@@ -1673,12 +1669,12 @@
             </div>
 
             <div class="space-y-3">
-              <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+              <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_broken_rules()}</p>
               <SelectedRuleChips selectedRules={selectedReportRules} />
             </div>
 
             <div class="space-y-3">
-              <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+              <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_detailed_reason()}</p>
               <div class="rounded-xl bg-surface-container-high/30 p-6 text-sm text-on-surface-variant leading-relaxed italic border border-outline-variant/5">
                 "{selectedReport.detailedReason}"
               </div>
@@ -1686,7 +1682,7 @@
 
             {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
               <div class="space-y-3">
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves</p>
                 <div class="flex flex-wrap gap-2">
                   {#each selectedReport.evidenceLinks as link}
                     <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-[11px] font-semibold text-primary uppercase tracking-widest transition-all hover:bg-primary/10">
@@ -1700,14 +1696,14 @@
 
             {#if selectedReport.additionalNotes}
               <div class="space-y-3">
-                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_additional_notes()}</p>
                 <p class="text-sm text-on-surface-variant/70 leading-relaxed bg-surface-container-low p-4 rounded-lg border border-outline-variant/10">{selectedReport.additionalNotes}</p>
               </div>
             {/if}
 
             <div class="pt-6 flex flex-col items-center gap-4 border-t border-outline-variant/10">
               <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">
-                Rapport rédigé par 
+                {m.sc_report_by()}
                 <button 
                   onclick={() => openCaseModal(selectedReport.createdByUserId, selectedReport.createdByTag || selectedReport.createdByUserId)}
                   class="hover:text-primary transition-colors font-bold"
@@ -1722,7 +1718,7 @@
                   class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-[11px] font-semibold text-on-primary uppercase tracking-widest transition-all hover: active:scale-95 "
                 >
                   <Papicon icon="edit-3" size={16} />
-                  Modifier le rapport
+                  {m.sc_edit_report()}
                 </button>
               {/if}
             </div>
@@ -1733,40 +1729,40 @@
             {#if !canCreateSelectedReport && !isEditing}
               <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4 flex items-center gap-4">
                 <Papicon icon="lock" class="text-amber-500" />
-                <p class="text-xs font-bold text-amber-700">Seule la personne qui a appliqué la sanction peut créer ce rapport.</p>
+                <p class="text-xs font-bold text-amber-700">{m.sc_report_reserved_hint()}</p>
               </div>
             {/if}
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-1.5">
-                <label for="report-incident-at" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date et heure de l'incident</label>
+                <label for="report-incident-at" class="field-label">{m.sc_incident_datetime()}</label>
                 <input id="report-incident-at" type="datetime-local" bind:value={incidentAt} class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
               </div>
               <div class="space-y-1.5">
-                <label for="report-duration" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</label>
+                <label for="report-duration" class="field-label">{m.sc_applied_duration()}</label>
                 <input id="report-duration" type="text" bind:value={sanctionDurationLabel} placeholder="Ex: 2h, 1j, Permanent" class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
               </div>
             </div>
 
             <div class="space-y-3">
-              <label for="report-rules" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</label>
+              <label for="report-rules" class="field-label">{m.sc_broken_rules()}</label>
               <ReportRuleSelector
                 id="report-rules"
                 options={reportRuleOptions}
                 selectedIds={selectedRuleIds}
-                placeholder="Sélectionner les articles du règlement..."
+                placeholder={m.sc_select_rules_ph()}
                 onToggle={toggleRuleSelection}
               />
               <SelectedRuleChips selectedRules={isEditing ? selectedDraftRules : selectedDraftRules} />
             </div>
 
             <div class="space-y-1.5">
-              <label for="report-reason" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</label>
-              <textarea id="report-reason" bind:value={detailedReason} rows={4} placeholder="Décrivez précisément les faits reprochés..." class="w-full rounded-xl bg-surface-container-high px-5 py-4 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
+              <label for="report-reason" class="field-label">{m.sc_detailed_reason()}</label>
+              <textarea id="report-reason" bind:value={detailedReason} rows={4} placeholder={m.sc_describe_facts_ph()} class="w-full rounded-xl bg-surface-container-high px-5 py-4 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
             </div>
 
             <div class="space-y-3">
-              <p id="report-evidence-label" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+              <p id="report-evidence-label" class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves (URLs)</p>
               <EvidenceInputList
                 bind:links={evidenceLinks}
                 labelId="report-evidence-label"
@@ -1776,12 +1772,12 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="report-notes" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes contextuelles</label>
-              <textarea id="report-notes" bind:value={additionalNotes} rows={2} placeholder="Contexte, antécédents, remarques..." class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
+              <label for="report-notes" class="field-label">Notes contextuelles</label>
+              <textarea id="report-notes" bind:value={additionalNotes} rows={2} placeholder={m.sc_context_ph()} class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
             </div>
 
             {#if reportMessage}
-              <div class="rounded-xl p-4 text-xs font-semibold uppercase tracking-widest {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+              <div class="rounded-xl p-4 text-[13px] font-medium {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
                 {reportMessage}
               </div>
             {/if}
@@ -1797,17 +1793,17 @@
                 <button
                   onclick={handleUpdateReport}
                   disabled={updateReportBusy}
-                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95  disabled:opacity-50"
+                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95 disabled:opacity-50"
                 >
-                  {updateReportBusy ? 'Enregistrement...' : 'Mettre à jour le rapport'}
+                  {updateReportBusy ? m.sc_saving() : m.sc_update_report()}
                 </button>
               {:else}
                 <button
                   onclick={submitReport}
                   disabled={creatingReport || !canCreateSelectedReport}
-                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95  disabled:opacity-50"
+                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95 disabled:opacity-50"
                 >
-                  {creatingReport ? 'Création en cours...' : 'Finaliser et créer le rapport'}
+                  {creatingReport ? m.sc_creating() : m.sc_finalize_report()}
                 </button>
               {/if}
             </div>
@@ -1824,7 +1820,7 @@
     class="modal-backdrop" 
     onclick={closeDeleteModal}
     onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeDeleteModal()}
-    aria-label="Fermer le modal"
+    aria-label={m.sc_close_modal()}
     role="button"
     tabindex="-1"
   >
@@ -1839,31 +1835,31 @@
     >
       <div>
         <p class="text-[10px] font-semibold uppercase tracking-wider text-red-500">Action sensible</p>
-        <h3 id="delete-sanction-title" class="mt-1 text-xl font-semibold text-on-surface">Confirmer la suppression</h3>
+        <h3 id="delete-sanction-title" class="mt-1 text-xl font-semibold text-on-surface">{m.sc_confirm_deletion()}</h3>
         <p class="mt-2 text-sm text-on-surface-variant">
-          Tu es sur le point de supprimer l'infraction <span class="font-bold text-on-surface">{typeLabel(pendingDeletion.type)}</span>
-          pour <span class="font-bold text-on-surface">{pendingDeletion.targetTag}</span>. Cette action est irreversible.
+          {m.sc_delete_confirm_pre()} <span class="font-bold text-on-surface">{typeLabel(pendingDeletion.type)}</span>
+          {m.sc_for_target()} <span class="font-bold text-on-surface">{pendingDeletion.targetTag}</span>. {m.sc_irreversible()}
         </p>
       </div>
 
       <div>
-        <label for="delete-confirmation" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Tape SUPPRIMER pour valider</label>
+        <label for="delete-confirmation" class="field-label">{m.sc_type_delete({ word: m.sc_delete_keyword() })}</label>
         <FormInput
           id="delete-confirmation"
           type="text"
           bind:value={deleteConfirmationText}
           autocomplete="off"
           className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-red-400/40 focus:border-red-400 dark:focus:border-red-500 transition-all"
-          placeholder="SUPPRIMER"
+          placeholder={m.sc_delete_keyword()}
         />
       </div>
 
       <div class="flex flex-wrap items-center justify-end gap-2">
-        <ActionButton onClick={closeDeleteModal} variant="neutral" label="Annuler" />
+        <ActionButton onClick={closeDeleteModal} variant="neutral" label={m.common_cancel()} />
         <ActionButton
           onClick={confirmDeleteSanction}
           variant="danger"
-          label={deletingSanctionId ? 'Suppression...' : 'Supprimer definitivement'}
+          label={deletingSanctionId ? m.sc_deleting() : m.sc_delete_permanently()}
           disabled={Boolean(deletingSanctionId)}
         />
       </div>

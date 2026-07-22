@@ -595,6 +595,67 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /api/public/transcripts/:transcriptId/access — délivre un lien signé aux ayants droit
+  // (staff du serveur OU participant du ticket associé), sans exiger d'accès au dashboard.
+  if (parts[2] === 'transcripts' && parts[3] && parts[4] === 'access' && !parts[5] && method === 'GET') {
+    const transcriptId = parts[3];
+    if (!/^[a-zA-Z0-9_-]+$/.test(transcriptId)) {
+      json(res, 400, { error: 'ID de transcription invalide' });
+      return true;
+    }
+
+    const auth = await verifyAuth(req);
+    if (!auth) {
+      json(res, 401, { error: 'Vous devez vous connecter avec Discord pour voir cette transcription.' });
+      return true;
+    }
+
+    try {
+      const transcript = await prisma.transcript.findUnique({
+        where: { id: transcriptId },
+        select: { id: true, guildId: true },
+      });
+      if (!transcript) {
+        json(res, 404, { error: 'Transcription introuvable' });
+        return true;
+      }
+
+      // Le staff du serveur voit toutes les transcriptions.
+      const access = await resolveDashboardAccess(client, transcript.guildId, auth.userId).catch(() => null);
+      let authorized = !!access?.canViewDashboard;
+
+      // Sinon, un participant du ticket associé (ouvreur / staff ayant claim / staff ayant fermé).
+      if (!authorized) {
+        const ticket = await prisma.ticket.findFirst({
+          where: { transcriptId, guildId: transcript.guildId },
+          select: { userId: true, claimedById: true, closedById: true },
+        });
+        if (
+          ticket &&
+          (ticket.userId === auth.userId ||
+            ticket.claimedById === auth.userId ||
+            ticket.closedById === auth.userId)
+        ) {
+          authorized = true;
+        }
+      }
+
+      if (!authorized) {
+        json(res, 403, { error: "Vous n'avez pas accès à cette transcription." });
+        return true;
+      }
+
+      const { generateTranscriptSignature } = await import('@kotbo/core');
+      const { expires, signature } = generateTranscriptSignature(transcriptId, 3600);
+      json(res, 200, { signedUrl: `/api/public/transcripts/${transcriptId}?expires=${expires}&sig=${signature}` });
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error issuing transcript access for ${transcriptId}: ${errMessage}`);
+      json(res, 500, { error: 'Erreur interne du serveur' });
+    }
+    return true;
+  }
+
   // GET /api/public/guilds/:guildId/clans
   if (parts[2] === 'guilds' && parts[3] && parts[4] === 'clans' && !parts[5] && method === 'GET') {
     const guildId = parts[3];
@@ -759,7 +820,7 @@ export async function handlePublicRoutes(
   }
 
   // GET /api/public/transcripts/:transcriptId?expires=...&sig=...
-  if (parts[2] === 'transcripts' && parts[3] && method === 'GET') {
+  if (parts[2] === 'transcripts' && parts[3] && !parts[4] && method === 'GET') {
     const transcriptId = parts[3];
     if (!/^[a-zA-Z0-9_-]+$/.test(transcriptId)) {
       json(res, 400, { error: 'ID de transcription invalide' });

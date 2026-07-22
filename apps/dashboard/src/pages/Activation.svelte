@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -22,7 +23,7 @@
 
   async function handleActivate() {
     if (!code.trim()) {
-      errorMessage = "Veuillez saisir un code d'activation.";
+      errorMessage = m.ctv_please_enter_an_activation_cod();
       return;
     }
 
@@ -31,14 +32,14 @@
 
     try {
       await activateGuildWithCode(code.trim());
-      toast.success("Serveur activé avec succès !");
+      toast.success(m.ctv_server_activated_successfully());
       
       // Reset the dashboard store error and trigger a full sync/refresh
       dashboardStore.state.error = null;
       await dashboardStore.refresh();
     } catch (err: any) {
       console.error("Activation failed:", err);
-      errorMessage = err.message || "Erreur de communication avec le serveur de licence.";
+      errorMessage = err.message || m.ctv_communication_error_with_the_l();
     } finally {
       loading = false;
     }
@@ -85,7 +86,7 @@
         {#if authStore.user}
           <div class="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-lg">
             <span class="text-xs font-bold text-slate-300">{authStore.user.username}</span>
-            <button onclick={logout} class="text-[11px] font-semibold text-rose-500 uppercase tracking-widest hover:underline">Déconnexion</button>
+            <button onclick={logout} class="text-[11px] font-semibold text-rose-500 uppercase tracking-widest hover:underline">{m.ctv_disconnect()}</button>
           </div>
         {/if}
       </div>
@@ -119,7 +120,7 @@
             <div class="space-y-4">
               <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
                  <Papicon icon="lock" size={14} class="text-amber-500" />
-                 <span class="text-[11px] font-semibold uppercase tracking-wider text-amber-500">Sécurité requise</span>
+                 <span class="text-[11px] font-semibold uppercase tracking-wider text-amber-500">{m.ctv_security_required()}</span>
               </div>
               <h1 class="font-headline text-3xl font-semibold tracking-tighter text-white leading-tight">
                 Activation du Serveur <br/>
@@ -145,7 +146,7 @@
             {/if}
 
             <div class="space-y-2">
-              <label for="activation-code" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest block ml-1">Clé d'activation globale</label>
+              <label for="activation-code" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest block ml-1">{m.ctv_global_activation_key()}</label>
               <div class="relative">
                 <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                   <Papicon icon="key" size={18} />
@@ -170,7 +171,7 @@
               <div class="relative flex items-center justify-center gap-4 py-5 px-8 text-on-primary font-semibold uppercase tracking-widest text-[11px] transition-transform active:scale-95">
                 {#if loading}
                   <div class="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></div>
-                  <span>Activation en cours...</span>
+                  <span>{m.ctv_activation_in_progress()}</span>
                 {:else}
                   <div class="bg-white/10 p-2 rounded-xl group-hover/btn:rotate-12 transition-transform">
                     <Papicon icon="check" size={16} />
@@ -183,7 +184,7 @@
             <!-- Multi Guild Dropdown Option -->
             {#if authStore.guilds.length > 1}
               <div class="pt-6 border-t border-white/5 space-y-3">
-                <label for="guild-select" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest block text-center">Accéder à un autre serveur</label>
+                <label for="guild-select" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest block text-center">{m.ctv_access_another_server()}</label>
                 <div class="relative">
                   <select 
                     id="guild-select"
@@ -204,7 +205,7 @@
 
       <!-- Helper text -->
       <div class="mt-12 text-center">
-        <p class="text-slate-500 text-[10px] font-semibold uppercase tracking-widest opacity-40">
+        <p class="text-slate-500 text-xs font-medium opacity-40">
           Système de Contrôle Kotbo &copy; {year}
         </p>
       </div>

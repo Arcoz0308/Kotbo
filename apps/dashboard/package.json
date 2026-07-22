@@ -9,13 +9,14 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@inlang/paraglide-js": "^2.22.0",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@tailwindcss/vite": "^4.2.2",
     "autoprefixer": "10.4.27",
-    "postcss": "^8.5.8",
-    "svelte": "^5.53.12",
+    "postcss": "^8.5.19",
+    "svelte": "^5.56.6",
     "tailwindcss": "^4.2.2",
-    "vite": "8.0.1"
+    "vite": "8.1.5"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

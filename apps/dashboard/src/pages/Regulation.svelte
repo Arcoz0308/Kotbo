@@ -508,7 +508,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         onClick={() => dashboardStore.refresh()}
         loading={guildState.loading}
         label="Actualiser"
-        className="flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-semibold uppercase tracking-widest bg-on-surface text-surface shadow-sm hover:scale-105 transition-all duration-300"
+        className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-medium bg-on-surface text-surface shadow-sm  transition-all duration-300"
         iconClass="text-lg"
       />
     </div>
@@ -536,7 +536,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
       <div class="space-y-4">
         <div class="flex flex-col gap-2 p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
-          <span class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Actuel</span>
+          <span class="text-[13px] font-medium text-on-surface-variant/60">Actuel</span>
           <span class="text-sm font-semibold text-primary bg-primary/5 px-3 py-2 rounded-lg break-all">{regulationChannelLabel}</span>
         </div>
         {#if canManageSettings}
@@ -631,7 +631,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
           {#if guildState.regulationVerificationEnabled}
             <div class="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-              <label class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1" for="regulation-role-select">Rôle attribué</label>
+              <label class="field-label" for="regulation-role-select">Rôle attribué</label>
               <SearchableSelect 
                 id="regulation-role-select" 
                 bind:value={guildState.regulationRoleId} 
@@ -750,11 +750,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 </div>
                 
                 <div class="flex flex-wrap items-center gap-2">
-                   <span class="px-3 py-1 rounded-lg bg-surface-container-high/60 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 border border-outline-variant/5">
+                   <span class="px-3 py-1 rounded-lg bg-surface-container-high/60 text-xs font-medium text-on-surface-variant/60 border border-outline-variant/5">
                     {rule.enabled ? 'Visible' : 'Masqué'}
                    </span>
                    {#if canManageSettings}
-                    <span class="px-3 py-1 rounded-lg bg-primary/5 text-[10px] font-semibold uppercase tracking-widest text-primary/60 border border-primary/10 animate-pulse">
+                    <span class="px-3 py-1 rounded-lg bg-primary/5 text-xs font-medium text-primary/60 border border-primary/10 animate-pulse">
                       Glisser pour réorganiser
                     </span>
                    {/if}
@@ -788,14 +788,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                  <button 
                   onclick={() => moveRuleByOffset(rule.id, -1)}
                   disabled={reordering || rule.sortOrder === 0}
-                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-xs font-semibold uppercase tracking-widest disabled:opacity-30"
+                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-[13px] font-medium disabled:opacity-30"
                  >
                   Monter
                  </button>
                  <button 
                   onclick={() => moveRuleByOffset(rule.id, 1)}
                   disabled={reordering || rule.sortOrder === regulationRules.length - 1}
-                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-xs font-semibold uppercase tracking-widest disabled:opacity-30"
+                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-[13px] font-medium disabled:opacity-30"
                  >
                   Descendre
                  </button>
@@ -831,11 +831,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
-          <label for="regulation-title" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1">Titre de la règle</label>
+          <label for="regulation-title" class="field-label">Titre de la règle</label>
           <FormInput id="regulation-title" type="text" bind:value={draftTitle} className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="Ex: Respect et courtoisie" />
         </div>
         <div class="space-y-2">
-          <label for="regulation-emoji" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1">Emoji (Optionnel)</label>
+          <label for="regulation-emoji" class="field-label">Emoji (Optionnel)</label>
           <div class="flex gap-2">
             <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="📌 ou <:custom:123>" />
             <EmojiPicker bind:value={draftEmoji} />
@@ -858,7 +858,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="space-y-2">
-        <label for="regulation-description" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1">Description détaillée (Markdown supporté)</label>
+        <label for="regulation-description" class="field-label">Description détaillée (Markdown supporté)</label>
         <FormTextarea
           id="regulation-description"
           bind:value={draftDescription}
@@ -886,7 +886,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="flex items-center justify-end gap-3 pt-2">
         <button 
           onclick={closeModal} 
-          class="px-8 py-4 rounded-xl text-xs font-semibold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all"
+          class="px-8 py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all"
         >
           Annuler
         </button>
@@ -924,7 +924,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="space-y-3">
-        <label for="delete-rule-confirm" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1 text-center block w-full">Tapez <span class="text-error">SUPPRIMER</span> pour confirmer</label>
+        <label for="delete-rule-confirm" class="field-label">Tapez <span class="text-error">SUPPRIMER</span> pour confirmer</label>
         <FormInput
           id="delete-rule-confirm"
           type="text"
@@ -937,7 +937,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <div class="flex flex-col gap-2">
         <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? 'Suppression...' : 'Confirmer la Suppression'} disabled={saving} className="w-full py-4 rounded-xl shadow-sm shadow-error/20" />
-        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-xs font-semibold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
+        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
       </div>
     </div>
   </div>
@@ -969,11 +969,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="flex flex-col gap-2">
         <button
           onclick={confirmVerificationToggle}
-          class="w-full py-4 bg-amber-500 text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover: active:scale-95 transition-all shadow-lg shadow-amber-500/20"
+          class="w-full py-4 bg-amber-500 text-white rounded-xl text-[13px] font-medium hover: active:scale-95 transition-all shadow-sm"
         >
           Activer quand même
         </button>
-        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-xs font-semibold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
+        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
       </div>
     </div>
   </div>

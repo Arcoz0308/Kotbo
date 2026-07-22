@@ -573,7 +573,7 @@
                 <!-- Current time indicator -->
                 {#if isToday(date)}
                   {@const nowTop = getGlobalTimeTop()}
-                  <div class="absolute -left-[5px] w-[10px] h-[10px] bg-red-500 rounded-full z-30 shadow-lg shadow-red-500/40" style="top: calc({nowTop}% - 5px)"></div>
+                  <div class="absolute -left-[5px] w-[10px] h-[10px] bg-red-500 rounded-full z-30 shadow-sm" style="top: calc({nowTop}% - 5px)"></div>
                 {/if}
               </div>
             {/each}

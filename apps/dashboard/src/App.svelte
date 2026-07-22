@@ -10,6 +10,7 @@
   import { userPrefs } from "./lib/stores/userPreferences.svelte";
   import { toast } from "./lib/stores/toast.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
+  import GlobalConfirmDialog from "./lib/components/GlobalConfirmDialog.svelte";
   import InviteDetailsModal from "./lib/components/invitations/InviteDetailsModal.svelte";
   import FeedbackModal from "./lib/components/FeedbackModal.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
@@ -28,7 +29,7 @@
 
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
-  import Overview from "./pages/Overview.svelte";
+  import Home from "./pages/Home.svelte";
   import Analytics from "./pages/Analytics.svelte";
   import ModuleCatalog from "./pages/ModuleCatalog.svelte";
 
@@ -93,6 +94,7 @@
   import ReactionRoles from "./pages/ReactionRoles.svelte";
   import AutoResponses from "./pages/Triggers.svelte";
   import AutoMod from "./pages/AutoMod.svelte";
+  import RaidProtection from "./pages/RaidProtection.svelte";
   import Suggestions from "./pages/Suggestions.svelte";
   import EmbedBuilder from "./pages/EmbedBuilder.svelte";
   import UserSettings from "./pages/UserSettings.svelte";
@@ -174,6 +176,7 @@
     if (path.startsWith("/triggers")) return "auto_responses";
     if (path.startsWith("/automod")) return "automod";
     if (path.startsWith("/admin-lock")) return "automod";
+    if (path.startsWith("/raid-protection")) return "automod";
     if (path.startsWith("/suggestions")) return "suggestions";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
@@ -184,6 +187,7 @@
       if (segment === "leadership") return "staff_directory";
       return "staff_directory";
     }
+    if (path.startsWith("/evaluations")) return "staff_directory";
     if (path.startsWith("/modules")) return "modules";
     if (path.startsWith("/command-access")) return "commands";
     if (path.startsWith("/settings")) return "settings";
@@ -669,7 +673,7 @@
         {:else}
           <MainLayout>
             <Route path="/">
-              <Overview />
+              <Home />
             </Route>
 
             <Route path="/analytics/*">
@@ -893,6 +897,9 @@
             <Route path="/automod">
               <AutoMod />
             </Route>
+            <Route path="/raid-protection">
+              <RaidProtection />
+            </Route>
             <Route path="/suggestions">
               <Suggestions />
             </Route>
@@ -960,6 +967,7 @@
 {/if}
 
 <ToastContainer />
+<GlobalConfirmDialog />
 <InviteDetailsModal />
 <FeedbackModal />
 <CommandPalette />

@@ -5,7 +5,8 @@ import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
 import { authStore } from '../lib/stores/auth.svelte';
 import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions } from '../lib/api';
+import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions, type AdvancedAnalyticsSection } from '../lib/api';
+import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
 import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
 import LoadingHint from '../lib/components/LoadingHint.svelte';
 import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
@@ -388,9 +389,10 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
   const categories = [
     { id: 'overview', label: 'Aperçu', icon: 'Grid', description: 'Vue générale' },
     { id: 'engagement', label: 'Engagement', icon: 'ChatBubbles', description: 'Messages, Vocal, Membres' },
+    { id: 'community', label: 'Communauté', icon: 'Compass', description: 'Pouls, salons, social, mots' },
+    { id: 'growth', label: 'Croissance', icon: 'TrendingUp', description: 'Rétention, cohortes, churn' },
     { id: 'moderation', label: 'Modération', icon: 'Gavel', description: 'Modération et Staff' },
     { id: 'invitations', label: 'Invitations', icon: 'MailOpen', description: 'Analyse des invites' },
-    { id: 'growth', label: 'Croissance', icon: 'TrendingUp', description: 'Croissance & Rétention' },
   ];
 
   const tabsByCategory: Record<string, Array<{ id: string; label: string; icon: string; badge?: string; disabled?: boolean }>> = {
@@ -404,8 +406,15 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       { id: 'commands', label: 'Commandes', icon: 'Code' },
       { id: 'members', label: 'Membres', icon: 'UsersFour' },
     ],
+    community: [
+      { id: 'pulse', label: 'Pouls', icon: 'Activity' },
+      { id: 'channels', label: 'Salons', icon: 'ChatBubbles' },
+      { id: 'social', label: 'Social', icon: 'Users' },
+      { id: 'words', label: 'Mots', icon: 'ChatCircleDots' },
+    ],
     moderation: [
       { id: 'moderation', label: 'Modération', icon: 'Gavel' },
+      { id: 'mod-advanced', label: 'Analyse avancée', icon: 'ChartLineUp' },
       { id: 'staff', label: 'Annuaire Staff', icon: 'Users' },
       { id: 'performance', label: 'Performance Staff', icon: 'TrendUp' },
     ],
@@ -413,10 +422,23 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       { id: 'invitations', label: 'Invitations', icon: 'MailOpen' },
     ],
     growth: [
+      { id: 'cohorts', label: 'Cohortes', icon: 'UsersFour' },
+      { id: 'churn', label: 'Churn & Risque', icon: 'Warning' },
       { id: 'heatmap', label: 'Heatmap Horaire', icon: 'Fire' },
       { id: 'weekly', label: 'Semaine vs Semaine', icon: 'Calendar' },
       { id: 'algo', label: 'Daily Algo', icon: 'Code' },
     ],
+  };
+
+  /** Onglets servis par AdvancedAnalyticsPanel (chargent leurs propres données). */
+  const ADVANCED_TABS: Record<string, AdvancedAnalyticsSection> = {
+    pulse: 'activity',
+    channels: 'channels',
+    social: 'social',
+    words: 'words',
+    cohorts: 'retention',
+    churn: 'churn',
+    'mod-advanced': 'moderation',
   };
 
   const allValidTabs = Object.values(tabsByCategory).flatMap(tabs => tabs.map(t => t.id));
@@ -499,7 +521,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
           <Papicon icon="ChartLineUp" size={20} />
         </div>
         <div>
-          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Intelligence & Analytics</span>
+          <span class="text-xs font-medium text-primary">Intelligence & Analytics</span>
           <h2 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">
             Performance <span class="text-primary">Serveur</span>
           </h2>
@@ -520,7 +542,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
               {#each periodPresets as p}
                 <button
                   onclick={() => changePeriod(p.value as any)}
-                  class="px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-all duration-300 whitespace-nowrap { (isCustomPeriod ? p.value === 'custom' : period === p.value) ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+                  class="px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 whitespace-nowrap { (isCustomPeriod ? p.value === 'custom' : period === p.value) ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
                 >
                   {p.label}
                 </button>
@@ -542,7 +564,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
                 />
                 <button
                   onclick={applyCustomRange}
-                  class="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest hover:brightness-110 transition-all"
+                  class="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-xs font-medium hover:brightness-110 transition-all"
                 >
                   Appliquer
                 </button>
@@ -570,7 +592,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       {#each categories as cat}
         <button 
           onclick={() => { const firstTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; gotoTab('/analytics', firstTab, 'overview'); }}
-          class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+          class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-xs font-medium transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-sm scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           title={cat.description}
         >
           <div class="transition-transform group-hover:scale-110 {activeCategory === cat.id ? 'text-on-primary' : 'text-primary'}">
@@ -591,14 +613,14 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
             onclick={() => selectTab(tab)}
             disabled={tab.disabled}
             aria-disabled={tab.disabled}
-            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           >
             <div class="transition-transform {tab.disabled ? 'text-on-surface-variant/30' : activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
               <Papicon icon={tab.icon} size={14} />
             </div>
             {tab.label}
             {#if tab.badge}
-              <span class="ml-1 rounded-full border border-current/20 bg-current/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest {tab.disabled ? 'text-on-surface-variant/35' : 'text-current/80'}">
+              <span class="ml-1 rounded-full border border-current/20 bg-current/10 px-2 py-0.5 text-xs font-medium {tab.disabled ? 'text-on-surface-variant/35' : 'text-current/80'}">
                 {tab.badge}
               </span>
             {/if}
@@ -609,7 +631,10 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
   {/if}
 
 
-  {#if loading}
+  {#if ADVANCED_TABS[activeTab]}
+    <!-- Sections avancées : autonomes, elles chargent et cachent leurs propres données -->
+    <AdvancedAnalyticsPanel section={ADVANCED_TABS[activeTab]} />
+  {:else if loading}
     <AnalyticsSkeleton />
     <div class="flex justify-center mt-4">
       <LoadingHint context="analytics" />
@@ -646,7 +671,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
           <span class="text-xs text-on-surface-variant/60 max-w-md">{interactionsError}</span>
           <button 
             onclick={loadInteractions}
-            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-xs font-semibold uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98]"
+            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-[13px] font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             Réessayer
           </button>

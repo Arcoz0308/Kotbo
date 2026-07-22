@@ -8,6 +8,7 @@
   import { inviteDetailsModal } from '../../stores/inviteDetailsModal.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
+  import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import {
     fetchInvitationDetails,
     toggleInvitationSuspension,
@@ -89,7 +90,7 @@
 
   async function purgeInvite() {
     if (!details?.invite) return;
-    const ok = confirm(`Purger les membres invités via ${details.invite.code} ?`);
+    const ok = await confirmDialog.danger(`Purger les membres invités via ${details.invite.code} ?`, '', 'Purger');
     if (!ok) return;
     try {
       const result = await purgeInvitationMembers(details.invite.code);
@@ -103,7 +104,7 @@
   async function purgeInviter() {
     const inviterId = details?.invite?.inviterId;
     if (!inviterId) return;
-    const ok = confirm('Purger en cascade les membres invités par ce créateur ?');
+    const ok = await confirmDialog.danger('Purger en cascade ?', 'Tous les membres invités par ce créateur seront purgés.', 'Purger');
     if (!ok) return;
     try {
       const result = await purgeInviterMembers(inviterId);
@@ -116,7 +117,7 @@
 
   async function deleteInvite() {
     if (!details?.invite) return;
-    const ok = confirm(`Supprimer définitivement l'invitation ${details.invite.code} ?`);
+    const ok = await confirmDialog.danger(`Supprimer l'invitation ${details.invite.code} ?`, 'Cette suppression est définitive.');
     if (!ok) return;
     try {
       await deleteInvitation(details.invite.code);
@@ -247,19 +248,19 @@
             <div class="premium-card p-5 rounded-xl space-y-4">
               <div class="grid grid-cols-1 gap-4">
                 <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">JOINS</p>
+                  <p class="text-xs font-medium text-on-surface-variant/50">JOINS</p>
                   <p class="text-lg font-semibold text-emerald-500">{details.trend?.totalJoined ?? 0}</p>
                 </div>
                 <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">DEPARTS</p>
+                  <p class="text-xs font-medium text-on-surface-variant/50">DEPARTS</p>
                   <p class="text-lg font-semibold text-orange-500">{details.trend?.totalLeft ?? 0}</p>
                 </div>
                 <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">RESTANTS</p>
+                  <p class="text-xs font-medium text-on-surface-variant/50">RESTANTS</p>
                   <p class="text-lg font-semibold text-cyan-500">{details.trend?.totalStayed ?? 0}</p>
                 </div>
                 <div class="pt-2 border-t border-outline-variant/10">
-                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">EXPIRE</p>
+                  <p class="text-xs font-medium text-on-surface-variant/50">EXPIRE</p>
                   <p class="text-sm font-bold text-on-surface-variant/70">{details.invite?.expiresAt ? formatDate(details.invite.expiresAt) : 'Jamais'}</p>
                 </div>
               </div>
@@ -380,7 +381,7 @@
                     </div>
                   </div>
                   <div class="text-right">
-                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">Statut</p>
                     <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold {join.leftAt ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}">
                       {join.leftAt ? 'Parti' : 'Présent'}
                     </span>

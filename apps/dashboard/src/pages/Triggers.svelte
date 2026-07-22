@@ -5,6 +5,7 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
@@ -445,7 +446,7 @@
 
   async function handleDelete(id: string) {
     if (!canManageSettings) return;
-    if (!confirm('Supprimer ce déclencheur ?')) return;
+    if (!(await confirmDialog.danger('Supprimer ce déclencheur ?'))) return;
     await actionState.run(async () => {
       const ok = await deleteAutoResponse(id);
       if (!ok) throw new Error('Erreur de suppression');
@@ -542,7 +543,7 @@
 
   async function bulkDelete() {
     if (!canManageSettings || selectedIds.size === 0) return;
-    if (!confirm(`Supprimer les ${selectedIds.size} déclencheurs sélectionnés ?`)) return;
+    if (!(await confirmDialog.danger(`Supprimer ${selectedIds.size} déclencheurs ?`, 'Les déclencheurs sélectionnés seront supprimés définitivement.'))) return;
     await actionState.run(async () => {
       const ids = Array.from(selectedIds);
       let successCount = 0;
@@ -570,7 +571,7 @@
     {#if canManageSettings}
       <button 
         onclick={openCreateModal}
-        class="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-xl hover:scale-[1.03] transition-all cursor-pointer"
+        class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-xl transition-all cursor-pointer"
       >
         <Papicon icon="add" size={16} />
         Nouveau déclencheur
@@ -628,7 +629,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <!-- Trigger details -->
                   <div class="flex items-center gap-3 flex-wrap">
-                    <span class="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-xl bg-primary/10 text-primary border border-primary/25">
+                    <span class="text-[13px] font-medium px-3 py-1 rounded-xl bg-primary/10 text-primary border border-primary/25">
                       {matchTypeLabels[item.matchType] || item.matchType}
                     </span>
 
@@ -706,57 +707,57 @@
                 <div class="flex flex-wrap gap-2 pt-3 border-t border-outline-variant/10">
                   {#if item.response}
                     {@const badgeResponses = payloadToResponses(item.response)}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/10">
                       <Papicon icon="message" size={10} /> {badgeResponses.length > 1 ? `${badgeResponses.length} Messages` : 'Message'} · {getDestinationLabel(item)}
                     </span>
                   {/if}
                   {#if item.relayToStaffServer}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/10">
                       <Papicon icon="server" size={10} /> Relayé au staff
                     </span>
                   {/if}
                   {#if item.roleIdToAdd}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/10">
                       <Papicon icon="add" size={10} /> Ajouter {getRoleName(item.roleIdToAdd)}
                     </span>
                   {/if}
                   {#if item.roleIdToRemove}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-red-500/10 text-red-500 border border-red-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-red-500/10 text-red-500 border border-red-500/10">
                       <Papicon icon="delete" size={10} /> Retirer {getRoleName(item.roleIdToRemove)}
                     </span>
                   {/if}
                   {#if item.deleteTrigger && (!item.triggerType || item.triggerType === 'MESSAGE')}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/10">
                       <Papicon icon="close" size={10} /> Supprimer le message
                     </span>
                   {/if}
                   {#if item.closeTicket}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-purple-500/10 text-purple-500 border border-purple-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-purple-500/10 text-purple-500 border border-purple-500/10">
                       <Papicon icon="close" size={10} /> Fermer le ticket
                     </span>
                   {/if}
                   {#if item.rejectForm}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/10">
                       <Papicon icon="block" size={10} /> Rejeter la candidature
                     </span>
                   {/if}
                   {#if item.allowedRoleIds?.length}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/10">
                       <Papicon icon="shield" size={10} /> Rôles autorisés ({item.allowedRoleIds.length})
                     </span>
                   {/if}
                   {#if item.bannedRoleIds?.length}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/10">
                       <Papicon icon="block" size={10} /> Rôles interdits ({item.bannedRoleIds.length})
                     </span>
                   {/if}
                   {#if item.allowedChannelIds?.length}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/10">
                       <Papicon icon="tag" size={10} /> Salons autorisés ({item.allowedChannelIds.length})
                     </span>
                   {/if}
                   {#if item.bannedChannelIds?.length}
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/10">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/10">
                       <Papicon icon="block" size={10} /> Salons interdits ({item.bannedChannelIds.length})
                     </span>
                   {/if}
@@ -842,7 +843,7 @@
         <div class="flex border-b border-outline-variant/10 font-headline text-[10px] font-semibold uppercase tracking-wider mb-6">
           <button
             type="button"
-            class="flex-1 pb-3 text-center transition-all cursor-pointer border-b-2 {activeTab === 'trigger' ? 'border-primary text-primary font-bold' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}"
+            class="tab-button {activeTab === 'trigger' ? 'active' : ''}"
             onclick={() => activeTab = 'trigger'}
           >
             <span class="flex items-center justify-center gap-1.5">
@@ -852,7 +853,7 @@
           </button>
           <button
             type="button"
-            class="flex-1 pb-3 text-center transition-all cursor-pointer border-b-2 {activeTab === 'actions' ? 'border-primary text-primary font-bold' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}"
+            class="tab-button {activeTab === 'actions' ? 'active' : ''}"
             onclick={() => activeTab = 'actions'}
           >
             <span class="flex items-center justify-center gap-1.5">
@@ -862,7 +863,7 @@
           </button>
           <button
             type="button"
-            class="flex-1 pb-3 text-center transition-all cursor-pointer border-b-2 {activeTab === 'advanced' ? 'border-primary text-primary font-bold' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}"
+            class="tab-button {activeTab === 'advanced' ? 'active' : ''}"
             onclick={() => activeTab = 'advanced'}
           >
             <span class="flex items-center justify-center gap-1.5">
@@ -872,7 +873,7 @@
           </button>
           <button
             type="button"
-            class="flex-1 pb-3 text-center transition-all cursor-pointer border-b-2 {activeTab === 'filters' ? 'border-primary text-primary font-bold' : 'border-transparent text-on-surface-variant/60 hover:text-on-surface'}"
+            class="tab-button {activeTab === 'filters' ? 'active' : ''}"
             onclick={() => activeTab = 'filters'}
           >
             <span class="flex items-center justify-center gap-1.5">
@@ -1067,6 +1068,8 @@
                 {/if}
               </div>
             {/each}
+
+            <p class="text-[9px] text-on-surface-variant/40 ml-2">Variables utilisables: <code>{`{user}`}</code> (mention), <code>{`{username}`}</code> (pseudo), <code>{`{server}`}</code> (nom du serveur), <code>{`{channel}`}</code> (salon)</p>
 
             <button
               type="button"
@@ -1687,14 +1690,14 @@
           <button 
             type="button"
             onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
           >
             Annuler
           </button>
           {#if canManageSettings}
             <button 
               type="submit"
-              class="px-8 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-[1.03] transition-all cursor-pointer"
+              class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
             >
               Enregistrer
             </button>
