@@ -32,6 +32,8 @@ export async function handleClansRoutes(
           currentClanSeason: true,
           clanXpFromLevelUp: true,
           clanXpPerLevelUp: true,
+          clanXpFromBoost: true,
+          clanXpPerBoost: true,
           clanAnnouncementChannelId: true,
           clanRewardGiveaway: true,
           clanRewardXpBoost: true,
@@ -88,6 +90,8 @@ export async function handleClansRoutes(
         currentClanSeason: guildData.currentClanSeason,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
         clanXpPerLevelUp: guildData.clanXpPerLevelUp,
+        clanXpFromBoost: guildData.clanXpFromBoost,
+        clanXpPerBoost: guildData.clanXpPerBoost,
         clanAnnouncementChannelId: guildData.clanAnnouncementChannelId,
         clanRewardGiveaway: guildData.clanRewardGiveaway,
         clanRewardXpBoost: guildData.clanRewardXpBoost,
@@ -114,6 +118,8 @@ export async function handleClansRoutes(
         clanAutoAssignOnJoin?: boolean;
         clanXpFromLevelUp?: boolean;
         clanXpPerLevelUp?: number;
+        clanXpFromBoost?: boolean;
+        clanXpPerBoost?: number;
         clanAnnouncementChannelId?: string | null;
         clanRewardGiveaway?: boolean;
         clanRewardXpBoost?: boolean;
@@ -134,6 +140,14 @@ export async function handleClansRoutes(
           return true;
         }
         updateData.clanXpPerLevelUp = Math.floor(body.clanXpPerLevelUp);
+      }
+      if (body?.clanXpFromBoost !== undefined) updateData.clanXpFromBoost = body.clanXpFromBoost;
+      if (body?.clanXpPerBoost !== undefined) {
+        if (typeof body.clanXpPerBoost !== 'number' || body.clanXpPerBoost < 0) {
+          json(res, 400, { error: 'Le nombre de points par boost doit être un entier positif.' });
+          return true;
+        }
+        updateData.clanXpPerBoost = Math.floor(body.clanXpPerBoost);
       }
       if (body?.clanAnnouncementChannelId !== undefined) updateData.clanAnnouncementChannelId = body.clanAnnouncementChannelId || null;
       if (body?.clanRewardGiveaway !== undefined) updateData.clanRewardGiveaway = body.clanRewardGiveaway;
@@ -181,6 +195,8 @@ export async function handleClansRoutes(
         clanAutoAssignOnJoin: updatedGuild.clanAutoAssignOnJoin,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
+        clanXpFromBoost: updatedGuild.clanXpFromBoost,
+        clanXpPerBoost: updatedGuild.clanXpPerBoost,
         clanAnnouncementChannelId: updatedGuild.clanAnnouncementChannelId,
         clanRewardGiveaway: updatedGuild.clanRewardGiveaway,
         clanRewardXpBoost: updatedGuild.clanRewardXpBoost,

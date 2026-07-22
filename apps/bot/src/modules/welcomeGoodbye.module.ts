@@ -21,7 +21,7 @@ import {
 } from '../services/features/welcomeGoodbyeService.js';
 import { handleWelcomeThread } from '../services/features/welcomeThreadService.js';
 import { checkMemberCountTriggers } from '../services/core/ctfTriggerService.js';
-import { syncMemberClanFromDcLink, autoAssignClanOnJoin } from '../services/community/clanService.js';
+import { syncMemberClanFromDcLink, autoAssignClanOnJoin, awardClanPointsOnBoost } from '../services/community/clanService.js';
 import { logger } from '../utils/logger.js';
 
 const MODULE_NAME = 'welcome-goodbye';
@@ -73,6 +73,7 @@ export function registerWelcomeGoodbyeBusSubscribers(client: Client): void {
     if (!member) return;
 
     await handleGuildBoost(member, client);
+    await awardClanPointsOnBoost(payload.guildId, member);
   }, MODULE_NAME);
 
   // ── Nickname changes for tag auto-role (via member:update) ────

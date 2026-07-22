@@ -41,6 +41,8 @@
   let currentClanSeason = $state(1);
   let clanXpFromLevelUp = $state(false);
   let clanXpPerLevelUp = $state(50);
+  let clanXpFromBoost = $state(false);
+  let clanXpPerBoost = $state(100);
   let clanAnnouncementChannelId = $state<string | null>(null);
   let clanRewardGiveaway = $state(false);
   let clanRewardLeaderRole = $state(false);
@@ -63,6 +65,8 @@
   let savedClanAutoAssignOnJoin = $state(false);
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
+  let savedClanXpFromBoost = $state(false);
+  let savedClanXpPerBoost = $state(100);
   let savedClanAnnouncementChannelId = $state<string | null>(null);
   let savedClanRewardGiveaway = $state(false);
   let savedClanRewardLeaderRole = $state(false);
@@ -189,6 +193,8 @@
       || clanAutoAssignOnJoin !== savedClanAutoAssignOnJoin
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
       || clanXpPerLevelUp !== savedClanXpPerLevelUp
+      || clanXpFromBoost !== savedClanXpFromBoost
+      || clanXpPerBoost !== savedClanXpPerBoost
       || clanAnnouncementChannelId !== savedClanAnnouncementChannelId
       || clanRewardGiveaway !== savedClanRewardGiveaway
       || clanRewardLeaderRole !== savedClanRewardLeaderRole;
@@ -204,6 +210,8 @@
             clanAutoAssignOnJoin = savedClanAutoAssignOnJoin;
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
+            clanXpFromBoost = savedClanXpFromBoost;
+            clanXpPerBoost = savedClanXpPerBoost;
             clanAnnouncementChannelId = savedClanAnnouncementChannelId;
             clanRewardGiveaway = savedClanRewardGiveaway;
             clanRewardLeaderRole = savedClanRewardLeaderRole;
@@ -289,6 +297,8 @@
         currentClanSeason = res.currentClanSeason;
         clanXpFromLevelUp = res.clanXpFromLevelUp;
         clanXpPerLevelUp = res.clanXpPerLevelUp;
+        clanXpFromBoost = res.clanXpFromBoost;
+        clanXpPerBoost = res.clanXpPerBoost;
         clanAnnouncementChannelId = res.clanAnnouncementChannelId;
         clanRewardGiveaway = res.clanRewardGiveaway;
         clanRewardLeaderRole = res.clanRewardLeaderRole;
@@ -307,6 +317,8 @@
         savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
         savedClanXpFromLevelUp = res.clanXpFromLevelUp;
         savedClanXpPerLevelUp = res.clanXpPerLevelUp;
+        savedClanXpFromBoost = res.clanXpFromBoost;
+        savedClanXpPerBoost = res.clanXpPerBoost;
         savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
         savedClanRewardGiveaway = res.clanRewardGiveaway;
         savedClanRewardLeaderRole = res.clanRewardLeaderRole;
@@ -343,6 +355,8 @@
         clanAutoAssignOnJoin,
         clanXpFromLevelUp,
         clanXpPerLevelUp,
+        clanXpFromBoost,
+        clanXpPerBoost,
         clanAnnouncementChannelId: clanAnnouncementChannelId || null,
         clanRewardGiveaway,
         clanRewardLeaderRole,
@@ -358,6 +372,8 @@
       savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
+      savedClanXpFromBoost = res.clanXpFromBoost;
+      savedClanXpPerBoost = res.clanXpPerBoost;
       savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
       savedClanRewardGiveaway = res.clanRewardGiveaway;
       savedClanRewardLeaderRole = res.clanRewardLeaderRole;
@@ -1056,6 +1072,31 @@
                       disabled={!canManageSettings}
                     />
                     <span class="text-xs text-on-surface-variant/60 font-semibold shrink-0">{m.clan_xp_per_level_unit()}</span>
+                  </div>
+                </div>
+              {/if}
+
+              <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Gain par boost du serveur</span>
+                  <p class="text-xs text-on-surface-variant/70">Points bonus offerts au clan du membre lorsqu'il booste le serveur.</p>
+                </div>
+                <ToggleSwitch checked={clanXpFromBoost} onToggle={(v) => clanXpFromBoost = v} disabled={!canManageSettings} />
+              </div>
+
+              {#if clanXpFromBoost}
+                <div class="space-y-1.5 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
+                  <label for="clan-xp-boost-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Points attribués par boost</label>
+                  <div class="flex items-center gap-2">
+                    <input
+                      id="clan-xp-boost-amount"
+                      type="number"
+                      bind:value={clanXpPerBoost}
+                      min="0"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                      disabled={!canManageSettings}
+                    />
+                    <span class="text-xs text-on-surface-variant/60 font-semibold shrink-0">XP / boost</span>
                   </div>
                 </div>
               {/if}
