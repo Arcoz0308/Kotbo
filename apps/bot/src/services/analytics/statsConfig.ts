@@ -28,6 +28,8 @@ export type CustomStatEntry = {
   enabled?: boolean;
   type?: StatsCounterType;
   channelId?: string | null;
+  /** Type de salon Discord a creer pour ce compteur (vocal ou categorie). */
+  channelType?: string | null;
   template?: string | null;
   /** Role compte quand `type` vaut 'role'. */
   roleTargetId?: string | null;

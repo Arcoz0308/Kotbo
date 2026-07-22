@@ -1,5 +1,6 @@
+import type { ColorResolvable, OverwriteResolvable } from 'discord.js';
 import { readStatsConfig } from '../../../services/analytics/statsConfig.js';
-import { errorMessage, errorStack } from '../../../utils/errors.js';
+import { errorCode, errorMessage, errorStack } from '../../../utils/errors.js';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { cache } from '../../../utils/cache.js';
 import {
@@ -13,8 +14,9 @@ import {
   TextChannel,
   type Message,
   type Guild,
+  type Embed,
 } from 'discord.js';
-import { SanctionType } from '@prisma/client';
+import { Prisma, SanctionType } from '@prisma/client';
 import pLimit from 'p-limit';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
@@ -662,7 +664,7 @@ export async function handleModulesRoutes(
 
       await prisma.$transaction([
         prisma.guild.update({ where: { id: guildId }, data: moduleUpdates }),
-        prisma.dashboardSettings.update({ where: { guildId }, data: { commandRestrictions } }),
+        prisma.dashboardSettings.update({ where: { guildId }, data: { commandRestrictions: commandRestrictions as unknown as Prisma.InputJsonValue } }),
       ]);
 
       await pushAudit(guildId, {
@@ -1219,7 +1221,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
       const updatedEvidenceLinks = body?.evidenceLinks !== undefined
         ? parseEvidenceLinks(body.evidenceLinks)
-        : existingReport.evidenceLinks;
+        : parseEvidenceLinks(existingReport.evidenceLinks);
 
       const updatedAdditionalNotes = body?.additionalNotes !== undefined
         ? body.additionalNotes?.trim() || null
@@ -1240,7 +1242,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         data: {
           brokenRules: updatedBrokenRules,
           detailedReason: updatedDetailedReason,
-          evidenceLinks: updatedEvidenceLinks as unknown,
+          evidenceLinks: updatedEvidenceLinks,
           additionalNotes: updatedAdditionalNotes,
         }
       });
@@ -1503,16 +1505,27 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           json(res, 404, { error: 'Serveur introuvable' });
           return true;
         }
+        // Le repli ci-dessus ne selectionne que deux colonnes (base pas encore
+        // migree) : les autres sont donc optionnelles a la lecture.
+        const nickConfig = guild as typeof guild & Partial<{
+          nicknameModerationBypass: string[];
+          nickModOnJoin: boolean;
+          nickModOnUpdate: boolean;
+          nickModCheckInvisible: boolean;
+          nickModCheckGlobal: boolean;
+          nickModCheckCustom: boolean;
+          nickModDiscordAutoModSync: boolean;
+        }>;
         json(res, 200, {
           enabled: guild.autoNicknameModerationEnabled,
           whitelist: guild.nicknameModerationWhitelist,
-          bypass: guild.nicknameModerationBypass ?? [],
-          onJoin: guild.nickModOnJoin ?? true,
-          onUpdate: guild.nickModOnUpdate ?? true,
-          checkInvisible: guild.nickModCheckInvisible ?? true,
-          checkGlobal: guild.nickModCheckGlobal ?? true,
-          checkCustom: guild.nickModCheckCustom ?? true,
-          discordAutoModSync: guild.nickModDiscordAutoModSync ?? false,
+          bypass: nickConfig.nicknameModerationBypass ?? [],
+          onJoin: nickConfig.nickModOnJoin ?? true,
+          onUpdate: nickConfig.nickModOnUpdate ?? true,
+          checkInvisible: nickConfig.nickModCheckInvisible ?? true,
+          checkGlobal: nickConfig.nickModCheckGlobal ?? true,
+          checkCustom: nickConfig.nickModCheckCustom ?? true,
+          discordAutoModSync: nickConfig.nickModDiscordAutoModSync ?? false,
         });
       } catch (err) {
         logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
@@ -1540,7 +1553,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         ] as const;
         for (const { key, dbKey } of toggleFields) {
           if (body && Object.prototype.hasOwnProperty.call(body, key)) {
-            updateData[dbKey] = !!(body as unknown)[key];
+            updateData[dbKey] = !!body[key];
           }
         }
         if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
@@ -1593,9 +1606,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             activeBannedWords.map((b) => b.word.trim().toLowerCase())
           );
 
-          const invalidItems = updateData.nicknameModerationWhitelist.filter(
-            (item: string) => bannedSet.has(item)
-          );
+          const whitelistToCheck = (updateData.nicknameModerationWhitelist ?? []) as string[];
+          const invalidItems = whitelistToCheck.filter((item) => bannedSet.has(item));
           if (invalidItems.length > 0) {
             json(res, 400, {
               error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis personnalisés : ${invalidItems.join(', ')}`,
@@ -1653,7 +1665,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
   // GET /api/dashboard/guilds/:guildId/modules/stats - Module statistics
   if (moduleKey === 'modules' && parts.length === 6 && parts[5] === 'stats' && method === 'GET') {
     try {
-      const moduleName = url.searchParams.get('moduleName') as unknown || undefined;
+      const moduleName = (url.searchParams.get('moduleName') as KotboModule | null) ?? undefined;
       const startDate = url.searchParams.get('startDate') || undefined;
       const endDate = url.searchParams.get('endDate') || undefined;
       const periodDays = url.searchParams.get('period') ? parseInt(url.searchParams.get('period')!) : 30;
@@ -2053,6 +2065,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           tempVoiceRequiredRoleId?: string | null;
           tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string | null }>;
           honeypotEnabled?: boolean;
+          /** Demande au dashboard de creer le salon piege automatiquement. */
+          createHoneypotChannel?: boolean;
           honeypotChannelId?: string | null;
           honeypotSanction?: string;
           honeypotReinvite?: boolean;
@@ -2242,7 +2256,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
               if (cat) data.tempVoiceCategoryId = cat.id;
             }
             if (!body.tempVoiceChannelId) {
-              const parentId = data.tempVoiceCategoryId || body.tempVoiceCategoryId || undefined;
+              const parentId = (data.tempVoiceCategoryId as string | undefined) || body.tempVoiceCategoryId || undefined;
               const newVoice = await discordGuild.channels.create({
                 name: '➕ Créer un salon',
                 type: ChannelType.GuildVoice,
@@ -3115,7 +3129,14 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
       }
 
-      const syncFeature = async (featureKey: string, featureName: string, enabled?: boolean, channelId?: string | null, secondaryChannelId?: string | null) => {
+      // Les valeurs viennent de l'accumulateur `data`, alimente champ par champ
+      // depuis le corps de requete : on les normalise ici plutot qu'a chacun des
+      // ~20 appels.
+      const syncFeature = async (featureKey: string, featureName: string, rawEnabled?: unknown, rawChannelId?: unknown, rawSecondaryChannelId?: unknown) => {
+        const enabled = typeof rawEnabled === 'boolean' ? rawEnabled : undefined;
+        const channelId = rawChannelId === undefined ? undefined : (typeof rawChannelId === 'string' ? rawChannelId : null);
+        const secondaryChannelId = rawSecondaryChannelId === undefined ? undefined : (typeof rawSecondaryChannelId === 'string' ? rawSecondaryChannelId : null);
+
         const updateData: Record<string, unknown> = {};
         if (enabled !== undefined) updateData.enabled = enabled;
         if (channelId !== undefined) updateData.channelId = channelId;
@@ -4072,9 +4093,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             difficulty: body.difficulty || 'moyen',
             language: body.language || 'fr',
             functionName: body.functionName || 'solve',
-            functionArgs: body.functionArgs !== undefined ? body.functionArgs : undefined,
-            unitTests: body.unitTests !== undefined ? body.unitTests : undefined,
-            allowedLanguages: body.allowedLanguages !== undefined ? body.allowedLanguages : undefined,
+            functionArgs: body.functionArgs !== undefined ? (body.functionArgs as Prisma.InputJsonValue) : undefined,
+            unitTests: body.unitTests !== undefined ? (body.unitTests as Prisma.InputJsonValue) : undefined,
+            allowedLanguages: Array.isArray(body.allowedLanguages) ? body.allowedLanguages.map(String) : undefined,
           }
         });
 
@@ -4143,9 +4164,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             difficulty: body.difficulty !== undefined ? body.difficulty : undefined,
             language: body.language !== undefined ? body.language : undefined,
             functionName: body.functionName !== undefined ? body.functionName : undefined,
-            functionArgs: body.functionArgs !== undefined ? body.functionArgs : undefined,
-            unitTests: body.unitTests !== undefined ? body.unitTests : undefined,
-            allowedLanguages: body.allowedLanguages !== undefined ? body.allowedLanguages : undefined,
+            functionArgs: body.functionArgs !== undefined ? (body.functionArgs as Prisma.InputJsonValue) : undefined,
+            unitTests: body.unitTests !== undefined ? (body.unitTests as Prisma.InputJsonValue) : undefined,
+            allowedLanguages: Array.isArray(body.allowedLanguages) ? body.allowedLanguages.map(String) : undefined,
           }
         });
 
@@ -5007,16 +5028,27 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         return true;
       }
 
+      // Bloc `notifications` du fichier d'import : structure connue, mais le
+      // fichier vient de l'utilisateur donc tous les champs sont optionnels.
+      const notifications = (body?.notifications ?? {}) as Partial<{
+        email: string;
+        emailEnabled: boolean;
+        cloudBackup: boolean;
+        debugLog: boolean;
+        killSwitchEnabled: boolean;
+        severityByModule: unknown;
+      }>;
+
       const runtime = await getOrCreateRuntime(guildId);
       await prisma.dashboardSettings.update({
         where: { guildId },
         data: {
-          email: body.notifications?.email ?? runtime.email,
-          emailEnabled: !!body.notifications?.emailEnabled,
-          cloudBackup: !!body.notifications?.cloudBackup,
-          debugLog: !!body.notifications?.debugLog,
-          killSwitchEnabled: !!body.notifications?.killSwitchEnabled,
-          severityByModule: body.notifications?.severityByModule ?? runtime.severityByModule,
+          email: notifications.email ?? runtime.email,
+          emailEnabled: !!notifications.emailEnabled,
+          cloudBackup: !!notifications.cloudBackup,
+          debugLog: !!notifications.debugLog,
+          killSwitchEnabled: !!notifications.killSwitchEnabled,
+          severityByModule: notifications.severityByModule ?? runtime.severityByModule,
           messageTemplate: body.messageTemplate ?? runtime.messageTemplate
         }
       });
@@ -5350,6 +5382,15 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         ticketWelcomeDesc?: string | null;
         ticketWelcomeColor?: string | null;
         ticketWelcomeThumbnail?: string | null;
+        ticketWelcomeImage?: string | null;
+        ticketWelcomeFooter?: string | null;
+        /** Types de tickets proposes a l'ouverture, valides plus bas champ par champ. */
+        ticketTypes?: unknown;
+        ticketAllowOverclaim?: unknown;
+        ticketInactivityEnabled?: unknown;
+        ticketInactivityHours?: unknown;
+        ticketInactivityMessage?: unknown;
+        ticketOverclaimPermission?: unknown;
       }
 
       try {
@@ -5369,7 +5410,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             ticketMode: body.ticketMode === 'DM' || body.ticketMode === 'THREAD' ? body.ticketMode : 'CHANNEL',
             ticketDmRelayChannelId: body.ticketDmRelayChannelId || null,
             ticketFormEnabled: body.ticketFormEnabled ?? true,
-            ticketFormCustomFields: body.ticketFormCustomFields !== undefined ? body.ticketFormCustomFields : null,
+            ticketFormCustomFields: (body.ticketFormCustomFields ?? null) as Prisma.InputJsonValue,
             ticketEmbedThumbnail: body.ticketEmbedThumbnail || null,
             ticketEmbedImage: body.ticketEmbedImage || null,
             ticketEmbedFooter: body.ticketEmbedFooter || null,
@@ -5404,13 +5445,13 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
                           formEnabled: item.formEnabled !== false,
                           fields: Array.isArray(item.fields) ? item.fields : null,
                           formCustomFields: Array.isArray(item.formCustomFields) ? item.formCustomFields : null,
-                        }))
-                    : null,
+                        })) as unknown as Prisma.InputJsonValue
+                    : Prisma.JsonNull,
                 }
               : {}),
-            ticketAllowOverclaim: body.ticketAllowOverclaim ?? true,
-            ticketOverclaimPermission: body.ticketOverclaimPermission || 'ANY',
-            ticketInactivityEnabled: body.ticketInactivityEnabled ?? false,
+            ticketAllowOverclaim: typeof body.ticketAllowOverclaim === 'boolean' ? body.ticketAllowOverclaim : true,
+            ticketOverclaimPermission: typeof body.ticketOverclaimPermission === 'string' ? body.ticketOverclaimPermission : 'ANY',
+            ticketInactivityEnabled: typeof body.ticketInactivityEnabled === 'boolean' ? body.ticketInactivityEnabled : false,
             ticketInactivityHours: body.ticketInactivityHours !== undefined ? Number(body.ticketInactivityHours) : 24,
             ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !",
           }
@@ -5687,7 +5728,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
                 const oldEmbed = welcomeMsg.embeds[0];
                 if (oldEmbed) {
                   const updatedEmbed = EmbedBuilder.from(oldEmbed)
-                    .setColor(COLORS.warning as unknown)
+                    .setColor(COLORS.warning as ColorResolvable)
                     .setDescription(`Ce ticket est actuellement pris en charge par **${user.username}**.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`)
                     .setFields([
                       { name: 'Statut', value: `🛠️ Pris en charge par <@${user.userId}>`, inline: true }
@@ -5737,7 +5778,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
 
         const { closeTicket } = await import('../../../services/features/ticketService.js');
-        const updated = await closeTicket(client, ticketId, user.userId, user.username);
+        const updated = await closeTicket(client, ticketId, user.userId, user.username ?? user.userId);
 
         json(res, 200, updated);
       } catch (err: unknown) {
@@ -5902,7 +5943,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const cleanedUsername = ticket.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
         const channelName = `ticket-${cleanedUsername}`;
 
-        const permissionOverwrites: unknown[] = [
+        const permissionOverwrites: OverwriteResolvable[] = [
           { id: discordGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
           { id: ticket.userId, allow: [
             PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
@@ -5943,7 +5984,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           const headerEmbed = new EmbedBuilder()
             .setTitle('📜 Historique restauré')
             .setDescription(`Ce ticket a été restauré depuis une transcription par **${user.username || 'Staff'}** (<@${user.userId}>).\nLes messages ci-dessous sont une restitution de la conversation d'origine.`)
-            .setColor(COLORS.primary as unknown)
+            .setColor(COLORS.primary as ColorResolvable)
             .setTimestamp();
           await ticketChannel.send({ embeds: [headerEmbed], allowedMentions: { parse: [] } });
 
@@ -5958,7 +5999,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             for (const e of msg.embeds) {
               const eb = new EmbedBuilder();
               if (e.color) {
-                try { eb.setColor(e.color as unknown); } catch { /* ignored */ }
+                try { eb.setColor(e.color as ColorResolvable); } catch { /* ignored */ }
               }
               if (e.authorName) {
                 eb.setAuthor({ name: e.authorName, iconURL: e.authorIconUrl || undefined, url: e.authorUrl || undefined });
@@ -5995,8 +6036,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
                 embeds: discordEmbeds.length > 0 ? discordEmbeds.slice(0, 10) : undefined,
                 allowedMentions: { parse: [] },
               });
-            } catch (sendErr: Record<string, unknown>) {
-              logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${sendErr.message}`);
+            } catch (sendErr) {
+              logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${errorMessage(sendErr)}`);
             }
           }
 
@@ -6007,7 +6048,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const restoreEmbed = new EmbedBuilder()
           .setTitle('🔄 Ticket Restauré')
           .setDescription(`Ce ticket a été réouvert par **${user.username || "Staff"}** (<@${user.userId}>) depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || "Aucune"}`)
-          .setColor(COLORS.primary as unknown)
+          .setColor(COLORS.primary as ColorResolvable)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
@@ -6038,7 +6079,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             const logEmbed = new EmbedBuilder()
               .setTitle('🔄 Ticket Restauré')
               .setDescription(`Le ticket de **${ticket.username}** a été restauré depuis le Dashboard par **${user.username}**.`)
-              .setColor(COLORS.primary as unknown)
+              .setColor(COLORS.primary as ColorResolvable)
               .addFields([
                 { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
                 { name: 'Restauré par', value: `<@${user.userId}>`, inline: true },
@@ -6155,13 +6196,13 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
   return false;
 }
 
-function msgEmbedsMap(embeds: unknown[], guild: unknown) {
+function msgEmbedsMap(embeds: Embed[], guild: Guild | null) {
   return embeds.map(e => ({
     title: e.title,
     description: e.description,
     htmlDescription: e.description ? parseDiscordMarkdown(e.description, guild) : '',
     color: e.hexColor,
-    fields: e.fields ? e.fields.map((f: Record<string, unknown>) => ({
+    fields: e.fields ? e.fields.map((f) => ({
       name: f.name,
       value: f.value,
       htmlValue: f.value ? parseDiscordMarkdown(f.value, guild) : ''
