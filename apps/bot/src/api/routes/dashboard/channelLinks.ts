@@ -102,12 +102,15 @@ export async function handleChannelLinkRoutes(
   if (parts.length === 6 && parts[5] === 'direct' && method === 'POST') {
     try {
       const body = await readJsonBody(req);
-      if (!body?.sourceChannelId || !body?.targetGuildId || !body?.targetChannelId) {
+      const sourceChannelId = typeof body?.sourceChannelId === 'string' ? body.sourceChannelId : null;
+      const targetGuildId = typeof body?.targetGuildId === 'string' ? body.targetGuildId : null;
+      const targetChannelId = typeof body?.targetChannelId === 'string' ? body.targetChannelId : null;
+      if (!sourceChannelId || !targetGuildId || !targetChannelId) {
         json(res, 400, { error: 'sourceChannelId, targetGuildId et targetChannelId requis' });
         return true;
       }
 
-      const targetGuild = client.guilds.cache.get(body.targetGuildId);
+      const targetGuild = client.guilds.cache.get(targetGuildId);
       if (!targetGuild) {
         json(res, 400, { error: 'Le bot n\'est pas présent sur le serveur cible.' });
         return true;
@@ -126,12 +129,12 @@ export async function handleChannelLinkRoutes(
 
       const result = await createDirectLink({
         sourceGuildId: guildId,
-        sourceChannelId: body.sourceChannelId,
-        targetGuildId: body.targetGuildId,
-        targetChannelId: body.targetChannelId,
+        sourceChannelId,
+        targetGuildId,
+        targetChannelId,
         createdByUserId: user.userId,
-        direction: body.direction ?? 'BIDIRECTIONAL',
-        relayMode: body.relayMode ?? 'WEBHOOK',
+        direction: body?.direction === 'UNIDIRECTIONAL' ? 'UNIDIRECTIONAL' : 'BIDIRECTIONAL',
+        relayMode: body?.relayMode === 'EMBED' ? 'EMBED' : 'WEBHOOK',
         client,
       });
 
@@ -142,10 +145,10 @@ export async function handleChannelLinkRoutes(
 
       let serverInviteUrl: string | null = null;
       let topicUpdated = false;
-      if (body.createServerInvite) {
+      if (body?.createServerInvite) {
         try {
           const sourceGuild = client.guilds.cache.get(guildId);
-          const sourceChannel = sourceGuild?.channels.cache.get(body.sourceChannelId);
+          const sourceChannel = sourceGuild?.channels.cache.get(sourceChannelId);
           if (sourceChannel && 'createInvite' in sourceChannel && typeof sourceChannel.createInvite === 'function') {
             const discordInvite = await sourceChannel.createInvite({
               maxAge: 0,
@@ -154,15 +157,15 @@ export async function handleChannelLinkRoutes(
             });
             serverInviteUrl = discordInvite.url;
 
-            const targetGuild = client.guilds.cache.get(body.targetGuildId);
-            const targetChannel = targetGuild?.channels.cache.get(body.targetChannelId);
+            const targetGuild = client.guilds.cache.get(targetGuildId);
+            const targetChannel = targetGuild?.channels.cache.get(targetChannelId);
             if (targetChannel && 'setTopic' in targetChannel && typeof targetChannel.setTopic === 'function') {
               try {
                 const currentTopic = (targetChannel as any).topic ?? '';
                 const inviteTag = `🔗 ${discordInvite.url}`;
                 const cleanTopic = currentTopic.replace(/\n?🔗 https:\/\/discord\.gg\/\S+/g, '').trim();
                 const newTopic = cleanTopic ? `${cleanTopic}\n${inviteTag}` : inviteTag;
-                await targetChannel.setTopic(newTopic, 'Kotbo Link: Invitation ajoutée automatiquement');
+                await targetChannel.setTopic(newTopic);
                 topicUpdated = true;
               } catch (topicErr) {
                 logger.warn('ChannelLinkAPI', 'Impossible de modifier le topic du salon cible', topicErr);
@@ -214,15 +217,15 @@ export async function handleChannelLinkRoutes(
         data: {
           code,
           guildId,
-          channelId: body.channelId,
-          direction: body.direction ?? 'BIDIRECTIONAL',
-          relayMode: body.relayMode ?? 'WEBHOOK',
-          relayText: body.relayText ?? true,
-          relayImages: body.relayImages ?? true,
-          relayEmbeds: body.relayEmbeds ?? false,
-          relayReactions: body.relayReactions ?? false,
-          relayEdits: body.relayEdits ?? true,
-          relayDeletes: body.relayDeletes ?? true,
+          channelId: String(body?.channelId ?? ''),
+          direction: body?.direction === 'UNIDIRECTIONAL' ? 'UNIDIRECTIONAL' : 'BIDIRECTIONAL',
+          relayMode: body?.relayMode === 'EMBED' ? 'EMBED' : 'WEBHOOK',
+          relayText: typeof body?.relayText === 'boolean' ? body.relayText : true,
+          relayImages: typeof body?.relayImages === 'boolean' ? body.relayImages : true,
+          relayEmbeds: typeof body?.relayEmbeds === 'boolean' ? body.relayEmbeds : false,
+          relayReactions: typeof body?.relayReactions === 'boolean' ? body.relayReactions : false,
+          relayEdits: typeof body?.relayEdits === 'boolean' ? body.relayEdits : true,
+          relayDeletes: typeof body?.relayDeletes === 'boolean' ? body.relayDeletes : true,
           expiresAt: new Date(Date.now() + 30 * 60 * 1000),
           createdByUserId: user.userId,
         },
@@ -232,7 +235,7 @@ export async function handleChannelLinkRoutes(
       if (body.createServerInvite) {
         try {
           const guild = client.guilds.cache.get(guildId);
-          const channel = guild?.channels.cache.get(body.channelId);
+          const channel = guild?.channels.cache.get(String(body?.channelId ?? ''));
           if (channel && 'createInvite' in channel && typeof channel.createInvite === 'function') {
             const discordInvite = await channel.createInvite({
               maxAge: 24 * 60 * 60,
@@ -269,7 +272,7 @@ export async function handleChannelLinkRoutes(
       const allowedFields = ['relayText', 'relayImages', 'relayEmbeds', 'relayReactions', 'relayEdits', 'relayDeletes', 'sourceRelayMode', 'targetRelayMode', 'direction', 'enabled'];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
-        if (body[field] !== undefined) updateData[field] = body[field];
+        if (body?.[field] !== undefined) updateData[field] = body[field];
       }
 
       const updated = await prisma.channelLink.update({
@@ -324,7 +327,7 @@ export async function handleChannelLinkRoutes(
           const inviteTag = `🔗 ${discordInvite.url}`;
           const cleanTopic = currentTopic.replace(/\n?🔗 https:\/\/discord\.gg\/\S+/g, '').trim();
           const newTopic = cleanTopic ? `${cleanTopic}\n${inviteTag}` : inviteTag;
-          await remoteChannel.setTopic(newTopic, 'Kotbo Link: Invitation ajoutée automatiquement');
+          await remoteChannel.setTopic(newTopic);
           topicUpdated = true;
         } catch (err) {
           logger.warn('ChannelLinkAPI', 'Impossible de modifier le topic du salon distant', err);
