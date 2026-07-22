@@ -12,8 +12,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Kotbo" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <!-- Les polices sont servies localement via @fontsource (cf. src/app.css :
+         Inter 300-700 et Manrope 400-800, soit exactement les graisses que
+         demandait l'ancien lien Google Fonts). Recharger ces memes polices
+         depuis fonts.googleapis.com ajoutait deux requetes bloquantes vers un
+         tiers pour un resultat identique. Material Symbols n'etait utilise
+         nulle part dans src/. -->
   </head>
   <body>
     <div id="app"></div>

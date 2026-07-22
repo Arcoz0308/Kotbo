@@ -17,6 +17,7 @@
   import KeyboardShortcutsModal from "./lib/components/KeyboardShortcutsModal.svelte";
   import NotFound from "./pages/NotFound.svelte";
   import GlobalErrorOverlay from "./lib/components/GlobalErrorOverlay.svelte";
+  import LazyRoute from "./lib/components/LazyRoute.svelte";
 
   let globalError = $state<{ message: string; stack?: string } | null>(null);
   let showKeyboardShortcuts = $state(false);
@@ -27,99 +28,13 @@
     }
   });
 
+  // Seules les pages du chemin critique restent en import statique : elles font
+  // partie du premier rendu (ecran de connexion, accueil, 404). Toutes les
+  // autres passent par <LazyRoute> et sont chargees a la demande — voir
+  // src/lib/lazyRoutes.ts.
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
   import Home from "./pages/Home.svelte";
-  import Analytics from "./pages/Analytics.svelte";
-  import ModuleCatalog from "./pages/ModuleCatalog.svelte";
-
-  import ActivityLog from "./pages/ActivityLog.svelte";
-  import Logs from "./pages/Logs.svelte";
-  import NotificationsSettings from "./pages/NotificationsSettings.svelte";
-  import CommandAccess from "./pages/CommandAccess.svelte";
-  import Sanctions from "./pages/Sanctions.svelte";
-  import Detections from "./pages/Detections.svelte";
-  import Regulation from "./pages/Regulation.svelte";
-  import News from "./pages/News.svelte";
-  import SocialNetworks from "./pages/SocialNetworks.svelte";
-  import AdminLayout from "./lib/components/AdminLayout.svelte";
-  import AdminOverview from "./pages/admin/Overview.svelte";
-  import AdminServers from "./pages/admin/Servers.svelte";
-  import AdminShards from "./pages/admin/Shards.svelte";
-  import AdminSecurity from "./pages/admin/Security.svelte";
-  import AdminContent from "./pages/admin/Content.svelte";
-  import AdminConfig from "./pages/admin/Config.svelte";
-  import AdminActivation from "./pages/admin/Activation.svelte";
-  import AdminModules from "./pages/admin/Modules.svelte";
-  import AdminWhiteLabel from "./pages/admin/WhiteLabel.svelte";
-  import AdminBroadcast from "./pages/admin/Broadcast.svelte";
-  import AdminGdpr from "./pages/admin/Gdpr.svelte";
-  import Profile from "./pages/Profile.svelte";
-  import PublicProfile from "./pages/PublicProfile.svelte";
-  import StaffManagement from "./pages/StaffManagement.svelte";
-  import Members from "./pages/Members.svelte";
-  import Recruitment from "./pages/Recruitment.svelte";
-  import FormBuilder from "./pages/FormBuilder.svelte";
-  import FormResponses from "./pages/FormResponses.svelte";
-  import CustomForms from "./pages/CustomForms.svelte";
-  import CustomFormResponses from "./pages/CustomFormResponses.svelte";
-  import PublicForm from "./pages/PublicForm.svelte";
-  import PublicAppeal from "./pages/PublicAppeal.svelte";
-  import BanAppeals from "./pages/BanAppeals.svelte";
-  import AdminLockRequests from "./pages/AdminLockRequests.svelte";
-  import Planning from "./pages/Planning.svelte";
-  import Meetings from "./pages/Meetings.svelte";
-  import Inbox from "./pages/Inbox.svelte";
-  import Tutoring from "./pages/Tutoring.svelte";
-  import DoubleAccounts from "./pages/DoubleAccounts.svelte";
-  import NicknameModeration from "./pages/NicknameModeration.svelte";
-  import ChannelsManagement from "./pages/ChannelsManagement.svelte";
-  import GeneralSettings from "./pages/GeneralSettings.svelte";
-  import DailyAlgo from "./pages/DailyAlgo.svelte";
-  import DailyAlgoIDE from "./pages/DailyAlgoIDE.svelte";
-  import Events from "./pages/Events.svelte";
-  import EventEditor from "./pages/EventEditor.svelte";
-  import EventControl from "./pages/EventControl.svelte";
-  import Invitations from "./pages/Invitations.svelte";
-  import InvitationDetail from "./pages/InvitationDetail.svelte";
-  import Tickets from "./pages/Tickets.svelte";
-  import TranscriptDetail from "./pages/TranscriptDetail.svelte";
-  import SanctionEvidenceFile from "./pages/SanctionEvidenceFile.svelte";
-
-  import Leveling from "./pages/Leveling.svelte";
-  import LevelingPublic from "./pages/LevelingPublic.svelte";
-  import Economy from "./pages/Economy.svelte";
-  import Giveaways from "./pages/Giveaways.svelte";
-  import Announcement from "./pages/Announcement.svelte";
-  import ReactionRoles from "./pages/ReactionRoles.svelte";
-  import AutoResponses from "./pages/Triggers.svelte";
-  import AutoMod from "./pages/AutoMod.svelte";
-  import RaidProtection from "./pages/RaidProtection.svelte";
-  import Suggestions from "./pages/Suggestions.svelte";
-  import EmbedBuilder from "./pages/EmbedBuilder.svelte";
-  import UserSettings from "./pages/UserSettings.svelte";
-  import Backups from "./pages/Backups.svelte";
-  import Schedules from "./pages/Schedules.svelte";
-  import MCPSettings from "./pages/MCPSettings.svelte";
-  import FunSettings from "./pages/FunSettings.svelte";
-  import CustomBot from "./pages/CustomBot.svelte";
-  import Clans from "./pages/Clans.svelte";
-  import LevelingClanPublic from "./pages/LevelingClanPublic.svelte";
-  import Verify from "./pages/Verify.svelte";
-  import ChannelHealth from "./pages/ChannelHealth.svelte";
-  import ChannelLinks from "./pages/ChannelLinks.svelte";
-  import Transcripts from "./pages/Transcripts.svelte";
-  import MessageSearch from "./pages/MessageSearch.svelte";
-  import StaffServerLinks from "./pages/StaffServerLinks.svelte";
-  import Pulse from "./pages/Pulse.svelte";
-  import Reputation from "./pages/Reputation.svelte";
-  import Satisfaction from "./pages/Satisfaction.svelte";
-  import Seasons from "./pages/Seasons.svelte";
-  // Predictions page merged into Pulse
-  import Evaluations from "./pages/Evaluations.svelte";
-  import Marketplace from "./pages/Marketplace.svelte";
-  import Quests from "./pages/Quests.svelte";
-  import Widget from "./pages/Widget.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -462,195 +377,262 @@
 {:else}
   <svelte:boundary>
     {#if isPublicPage}
-      <Route path="/:serverId/news" let:meta>
-        <News serverId={meta.params.serverId} />
-      </Route>
-      <Route path="/:serverId/leveling/classement" let:meta>
-        <LevelingPublic serverId={meta.params.serverId} />
-      </Route>
-      <Route path="/:serverId/leveling/clan" let:meta>
-        <LevelingClanPublic serverId={meta.params.serverId} />
-      </Route>
-      <Route path="/profile/:userId" let:meta>
-        <PublicProfile userId={meta.params.userId} />
-      </Route>
-      <Route path="/transcripts/:transcriptId" let:meta>
-        <TranscriptDetail transcriptId={meta.params.transcriptId} />
-      </Route>
-      <Route path="/sanction-evidence/:fileId" let:meta>
-        <SanctionEvidenceFile fileId={meta.params.fileId} />
-      </Route>
-      <Route path="/form/:formId" let:meta>
-        <PublicForm formId={meta.params.formId} />
-      </Route>
-      <Route path="/appeal/:guildId" let:meta>
-        <PublicAppeal guildId={meta.params.guildId} />
-      </Route>
-      <Route path="/verify/:guildId/:token" let:meta>
-        <Verify guildId={meta.params.guildId} token={meta.params.token} />
-      </Route>
+      <LazyRoute
+        path="/:serverId/news"
+        load={() => import("./pages/News.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
+        path="/:serverId/leveling/classement"
+        load={() => import("./pages/LevelingPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
+        path="/:serverId/leveling/clan"
+        load={() => import("./pages/LevelingClanPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
+        path="/profile/:userId"
+        load={() => import("./pages/PublicProfile.svelte")}
+        props={(meta) => ({ userId: meta.params.userId })}
+      />
+      <LazyRoute
+        path="/transcripts/:transcriptId"
+        load={() => import("./pages/TranscriptDetail.svelte")}
+        props={(meta) => ({ transcriptId: meta.params.transcriptId })}
+      />
+      <LazyRoute
+        path="/sanction-evidence/:fileId"
+        load={() => import("./pages/SanctionEvidenceFile.svelte")}
+        props={(meta) => ({ fileId: meta.params.fileId })}
+      />
+      <LazyRoute
+        path="/form/:formId"
+        load={() => import("./pages/PublicForm.svelte")}
+        props={(meta) => ({ formId: meta.params.formId })}
+      />
+      <LazyRoute
+        path="/appeal/:guildId"
+        load={() => import("./pages/PublicAppeal.svelte")}
+        props={(meta) => ({ guildId: meta.params.guildId })}
+      />
+      <LazyRoute
+        path="/verify/:guildId/:token"
+        load={() => import("./pages/Verify.svelte")}
+        props={(meta) => ({ guildId: meta.params.guildId, token: meta.params.token })}
+      />
 
-      <Route path="/analytics/*">
-        <Analytics />
-      </Route>
-      <Route path="/activity">
-        <ActivityLog />
-      </Route>
+      <LazyRoute
+        path="/analytics/*"
+        load={() => import("./pages/Analytics.svelte")}
+      />
+      <LazyRoute
+        path="/activity"
+        load={() => import("./pages/ActivityLog.svelte")}
+      />
       {#if authStore.isBotAdmin}
-        <Route path="/admin">
-          <AdminOverview />
-        </Route>
-        <Route path="/admin/servers">
-          <AdminServers />
-        </Route>
-        <Route path="/admin/shards">
-          <AdminShards />
-        </Route>
-        <Route path="/admin/security">
-          <AdminSecurity />
-        </Route>
-        <Route path="/admin/content">
-          <AdminContent />
-        </Route>
-        <Route path="/admin/config">
-          <AdminConfig />
-        </Route>
-        <Route path="/admin/activation">
-          <AdminActivation />
-        </Route>
-        <Route path="/admin/modules">
-          <AdminModules />
-        </Route>
-        <Route path="/admin/whitelabel">
-          <AdminWhiteLabel />
-        </Route>
-        <Route path="/admin/broadcast">
-          <AdminBroadcast />
-        </Route>
-        <Route path="/admin/gdpr">
-          <AdminGdpr />
-        </Route>
+        <LazyRoute
+          path="/admin"
+          load={() => import("./pages/admin/Overview.svelte")}
+        />
+        <LazyRoute
+          path="/admin/servers"
+          load={() => import("./pages/admin/Servers.svelte")}
+        />
+        <LazyRoute
+          path="/admin/shards"
+          load={() => import("./pages/admin/Shards.svelte")}
+        />
+        <LazyRoute
+          path="/admin/security"
+          load={() => import("./pages/admin/Security.svelte")}
+        />
+        <LazyRoute
+          path="/admin/content"
+          load={() => import("./pages/admin/Content.svelte")}
+        />
+        <LazyRoute
+          path="/admin/config"
+          load={() => import("./pages/admin/Config.svelte")}
+        />
+        <LazyRoute
+          path="/admin/activation"
+          load={() => import("./pages/admin/Activation.svelte")}
+        />
+        <LazyRoute
+          path="/admin/modules"
+          load={() => import("./pages/admin/Modules.svelte")}
+        />
+        <LazyRoute
+          path="/admin/whitelabel"
+          load={() => import("./pages/admin/WhiteLabel.svelte")}
+        />
+        <LazyRoute
+          path="/admin/broadcast"
+          load={() => import("./pages/admin/Broadcast.svelte")}
+        />
+        <LazyRoute
+          path="/admin/gdpr"
+          load={() => import("./pages/admin/Gdpr.svelte")}
+        />
       {/if}
-      <Route path="/logs/*">
-        <Logs />
-      </Route>
-      <Route path="/sanctions/*">
-        <Sanctions />
-      </Route>
-      <Route path="/appeals">
-        <BanAppeals />
-      </Route>
-      <Route path="/admin-lock">
-        <AdminLockRequests />
-      </Route>
+      <LazyRoute
+        path="/logs/*"
+        load={() => import("./pages/Logs.svelte")}
+      />
+      <LazyRoute
+        path="/sanctions/*"
+        load={() => import("./pages/Sanctions.svelte")}
+      />
+      <LazyRoute
+        path="/appeals"
+        load={() => import("./pages/BanAppeals.svelte")}
+      />
+      <LazyRoute
+        path="/admin-lock"
+        load={() => import("./pages/AdminLockRequests.svelte")}
+      />
       <Route path="/detections">
         <div use:navigate={"/double-accounts/detections"}></div>
       </Route>
-      <Route path="/regulation">
-        <Regulation />
-      </Route>
-      <Route path="/profile">
-        <Profile />
-      </Route>
+      <LazyRoute
+        path="/regulation"
+        load={() => import("./pages/Regulation.svelte")}
+      />
+      <LazyRoute
+        path="/profile"
+        load={() => import("./pages/Profile.svelte")}
+      />
       {#if canManageSettings}
-        <Route path="/modules">
-          <ModuleCatalog />
-        </Route>
+        <LazyRoute
+          path="/modules"
+          load={() => import("./pages/ModuleCatalog.svelte")}
+        />
         <Route path="/module-settings/:moduleId" let:meta>
           <!-- Simple redirect logic for legacy URLs -->
           {@render handleLegacyRedirect(meta.params.moduleId)}
         </Route>
-        <Route path="/notifications">
-          <NotificationsSettings />
-        </Route>
-        <Route path="/command-access/*">
-          <CommandAccess />
-        </Route>
-        <Route path="/settings">
-          <GeneralSettings />
-        </Route>
-        <Route path="/automations">
-          <ModuleCatalog />
-        </Route>
-        <Route path="/staff-management/*">
-          <StaffManagement />
-        </Route>
-        <Route path="/channels-management/*">
-          <ChannelsManagement />
-        </Route>
+        <LazyRoute
+          path="/notifications"
+          load={() => import("./pages/NotificationsSettings.svelte")}
+        />
+        <LazyRoute
+          path="/command-access/*"
+          load={() => import("./pages/CommandAccess.svelte")}
+        />
+        <LazyRoute
+          path="/settings"
+          load={() => import("./pages/GeneralSettings.svelte")}
+        />
+        <LazyRoute
+          path="/automations"
+          load={() => import("./pages/ModuleCatalog.svelte")}
+        />
+        <LazyRoute
+          path="/staff-management/*"
+          load={() => import("./pages/StaffManagement.svelte")}
+        />
+        <LazyRoute
+          path="/channels-management/*"
+          load={() => import("./pages/ChannelsManagement.svelte")}
+        />
       {/if}
 
-      <Route path="/dailyalgo">
-        <DailyAlgo />
-      </Route>
-      <Route path="/members/*">
-        <Members />
-      </Route>
-      <Route path="/recruitment">
-        <Recruitment />
-      </Route>
-      <Route path="/tickets">
-        <Tickets />
-      </Route>
-      <Route path="/transcripts-list">
-        <Transcripts />
-      </Route>
-      <Route path="/message-search">
-        <MessageSearch />
-      </Route>
-      <Route path="/meetings">
-        <Meetings />
-      </Route>
+      <LazyRoute
+        path="/dailyalgo"
+        load={() => import("./pages/DailyAlgo.svelte")}
+      />
+      <LazyRoute
+        path="/members/*"
+        load={() => import("./pages/Members.svelte")}
+      />
+      <LazyRoute
+        path="/recruitment"
+        load={() => import("./pages/Recruitment.svelte")}
+      />
+      <LazyRoute
+        path="/tickets"
+        load={() => import("./pages/Tickets.svelte")}
+      />
+      <LazyRoute
+        path="/transcripts-list"
+        load={() => import("./pages/Transcripts.svelte")}
+      />
+      <LazyRoute
+        path="/message-search"
+        load={() => import("./pages/MessageSearch.svelte")}
+      />
+      <LazyRoute
+        path="/meetings"
+        load={() => import("./pages/Meetings.svelte")}
+      />
       <Route path="/absences">
         <div use:navigate={"/planning"}></div>
       </Route>
-      <Route path="/planning/*">
-        <Planning />
-      </Route>
-      <Route path="/inbox/*">
-        <Inbox />
-      </Route>
-      <Route path="/tutoring">
-        <Tutoring />
-      </Route>
-      <Route path="/double-accounts/*">
-        <DoubleAccounts />
-      </Route>
-      <Route path="/invitations/:code" let:meta>
-        {#key meta.params.code}
-          <InvitationDetail code={meta.params.code} />
-        {/key}
-      </Route>
-      <Route path="/invitations/*">
-        <Invitations />
-      </Route>
+      <LazyRoute
+        path="/planning/*"
+        load={() => import("./pages/Planning.svelte")}
+      />
+      <LazyRoute
+        path="/inbox/*"
+        load={() => import("./pages/Inbox.svelte")}
+      />
+      <LazyRoute
+        path="/tutoring"
+        load={() => import("./pages/Tutoring.svelte")}
+      />
+      <LazyRoute
+        path="/double-accounts/*"
+        load={() => import("./pages/DoubleAccounts.svelte")}
+      />
+      <LazyRoute
+        path="/invitations/:code"
+        load={() => import("./pages/InvitationDetail.svelte")}
+        props={(meta) => ({ code: meta.params.code })}
+        remountKey={(meta) => meta.params.code}
+      />
+      <LazyRoute
+        path="/invitations/*"
+        load={() => import("./pages/Invitations.svelte")}
+      />
 
-      <Route path="/backups">
-        <Backups />
-      </Route>
-      <Route path="/schedules">
-        <Schedules />
-      </Route>
-      <Route path="/mcp-settings">
-        <MCPSettings />
-      </Route>
-      <Route path="/custom-bot">
-        <CustomBot />
-      </Route>
+      <LazyRoute
+        path="/backups"
+        load={() => import("./pages/Backups.svelte")}
+      />
+      <LazyRoute
+        path="/schedules"
+        load={() => import("./pages/Schedules.svelte")}
+      />
+      <LazyRoute
+        path="/mcp-settings"
+        load={() => import("./pages/MCPSettings.svelte")}
+      />
+      <LazyRoute
+        path="/custom-bot"
+        load={() => import("./pages/CustomBot.svelte")}
+      />
 
-      <Route path="/events">
-        <Events />
-      </Route>
-      <Route path="/events/edit/:eventId" let:meta>
-        <EventEditor eventId={meta.params.eventId} />
-      </Route>
-      <Route path="/events/control/:eventId" let:meta>
-        <EventControl eventId={meta.params.eventId} />
-      </Route>
+      <LazyRoute
+        path="/events"
+        load={() => import("./pages/Events.svelte")}
+      />
+      <LazyRoute
+        path="/events/edit/:eventId"
+        load={() => import("./pages/EventEditor.svelte")}
+        props={(meta) => ({ eventId: meta.params.eventId })}
+      />
+      <LazyRoute
+        path="/events/control/:eventId"
+        load={() => import("./pages/EventControl.svelte")}
+        props={(meta) => ({ eventId: meta.params.eventId })}
+      />
 
-      <Route path="/userSettings">
-        <UserSettings />
-      </Route>
+      <LazyRoute
+        path="/userSettings"
+        load={() => import("./pages/UserSettings.svelte")}
+      />
 
       <!-- Fallback for authenticated users -->
       <Route fallback>
@@ -667,277 +649,362 @@
             <Activation />
           </Route>
         {:else if $router.path === "/dailyalgo/ide"}
-          <Route path="/dailyalgo/ide">
-            <DailyAlgoIDE />
-          </Route>
+          <LazyRoute
+            path="/dailyalgo/ide"
+            load={() => import("./pages/DailyAlgoIDE.svelte")}
+          />
         {:else}
           <MainLayout>
             <Route path="/">
               <Home />
             </Route>
 
-            <Route path="/analytics/*">
-              <Analytics />
-            </Route>
-            <Route path="/activity">
-              <ActivityLog />
-            </Route>
+            <LazyRoute
+              path="/analytics/*"
+              load={() => import("./pages/Analytics.svelte")}
+            />
+            <LazyRoute
+              path="/activity"
+              load={() => import("./pages/ActivityLog.svelte")}
+            />
             {#if authStore.isBotAdmin}
-              <Route path="/admin">
-                <AdminOverview />
-              </Route>
-              <Route path="/admin/servers">
-                <AdminServers />
-              </Route>
-              <Route path="/admin/shards">
-                <AdminShards />
-              </Route>
-              <Route path="/admin/security">
-                <AdminSecurity />
-              </Route>
-              <Route path="/admin/content">
-                <AdminContent />
-              </Route>
-              <Route path="/admin/config">
-                <AdminConfig />
-              </Route>
-              <Route path="/admin/activation">
-                <AdminActivation />
-              </Route>
-              <Route path="/admin/modules">
-                <AdminModules />
-              </Route>
-              <Route path="/admin/whitelabel">
-                <AdminWhiteLabel />
-              </Route>
-              <Route path="/admin/broadcast">
-                <AdminBroadcast />
-              </Route>
-              <Route path="/admin/gdpr">
-                <AdminGdpr />
-              </Route>
+              <LazyRoute
+                path="/admin"
+                load={() => import("./pages/admin/Overview.svelte")}
+              />
+              <LazyRoute
+                path="/admin/servers"
+                load={() => import("./pages/admin/Servers.svelte")}
+              />
+              <LazyRoute
+                path="/admin/shards"
+                load={() => import("./pages/admin/Shards.svelte")}
+              />
+              <LazyRoute
+                path="/admin/security"
+                load={() => import("./pages/admin/Security.svelte")}
+              />
+              <LazyRoute
+                path="/admin/content"
+                load={() => import("./pages/admin/Content.svelte")}
+              />
+              <LazyRoute
+                path="/admin/config"
+                load={() => import("./pages/admin/Config.svelte")}
+              />
+              <LazyRoute
+                path="/admin/activation"
+                load={() => import("./pages/admin/Activation.svelte")}
+              />
+              <LazyRoute
+                path="/admin/modules"
+                load={() => import("./pages/admin/Modules.svelte")}
+              />
+              <LazyRoute
+                path="/admin/whitelabel"
+                load={() => import("./pages/admin/WhiteLabel.svelte")}
+              />
+              <LazyRoute
+                path="/admin/broadcast"
+                load={() => import("./pages/admin/Broadcast.svelte")}
+              />
+              <LazyRoute
+                path="/admin/gdpr"
+                load={() => import("./pages/admin/Gdpr.svelte")}
+              />
             {/if}
-            <Route path="/logs/*">
-              <Logs />
-            </Route>
-            <Route path="/sanctions/*">
-              <Sanctions />
-            </Route>
-            <Route path="/appeals">
-              <BanAppeals />
-            </Route>
-            <Route path="/admin-lock">
-              <AdminLockRequests />
-            </Route>
+            <LazyRoute
+              path="/logs/*"
+              load={() => import("./pages/Logs.svelte")}
+            />
+            <LazyRoute
+              path="/sanctions/*"
+              load={() => import("./pages/Sanctions.svelte")}
+            />
+            <LazyRoute
+              path="/appeals"
+              load={() => import("./pages/BanAppeals.svelte")}
+            />
+            <LazyRoute
+              path="/admin-lock"
+              load={() => import("./pages/AdminLockRequests.svelte")}
+            />
             <Route path="/detections">
               <div use:navigate={"/double-accounts/detections"}></div>
             </Route>
-            <Route path="/regulation">
-              <Regulation />
-            </Route>
-            <Route path="/news/*">
-              <News />
-            </Route>
-            <Route path="/social-networks/*">
-              <SocialNetworks />
-            </Route>
-            <Route path="/profile/:userId" let:meta>
-              <Profile userId={meta.params.userId} />
-            </Route>
-            <Route path="/profile/*">
-              <Profile />
-            </Route>
+            <LazyRoute
+              path="/regulation"
+              load={() => import("./pages/Regulation.svelte")}
+            />
+            <LazyRoute
+              path="/news/*"
+              load={() => import("./pages/News.svelte")}
+            />
+            <LazyRoute
+              path="/social-networks/*"
+              load={() => import("./pages/SocialNetworks.svelte")}
+            />
+            <LazyRoute
+              path="/profile/:userId"
+              load={() => import("./pages/Profile.svelte")}
+              props={(meta) => ({ userId: meta.params.userId })}
+            />
+            <LazyRoute
+              path="/profile/*"
+              load={() => import("./pages/Profile.svelte")}
+            />
             {#if canManageSettings}
-              <Route path="/modules">
-                <ModuleCatalog />
-              </Route>
+              <LazyRoute
+                path="/modules"
+                load={() => import("./pages/ModuleCatalog.svelte")}
+              />
               <Route path="/module-settings/:moduleId" let:meta>
                 <!-- Simple redirect logic for legacy URLs -->
                 {@render handleLegacyRedirect(meta.params.moduleId)}
               </Route>
-              <Route path="/notifications">
-                <NotificationsSettings />
-              </Route>
-              <Route path="/command-access/*">
-                <CommandAccess />
-              </Route>
-              <Route path="/settings">
-                <GeneralSettings />
-              </Route>
-              <Route path="/backups">
-                <Backups />
-              </Route>
-              <Route path="/schedules">
-                <Schedules />
-              </Route>
-              <Route path="/mcp-settings">
-                <MCPSettings />
-              </Route>
-              <Route path="/custom-bot">
-                <CustomBot />
-              </Route>
-              <Route path="/automations">
-                <ModuleCatalog />
-              </Route>
-              <Route path="/staff-management/*">
-                <StaffManagement />
-              </Route>
-              <Route path="/channels-management/*">
-                <ChannelsManagement />
-              </Route>
+              <LazyRoute
+                path="/notifications"
+                load={() => import("./pages/NotificationsSettings.svelte")}
+              />
+              <LazyRoute
+                path="/command-access/*"
+                load={() => import("./pages/CommandAccess.svelte")}
+              />
+              <LazyRoute
+                path="/settings"
+                load={() => import("./pages/GeneralSettings.svelte")}
+              />
+              <LazyRoute
+                path="/backups"
+                load={() => import("./pages/Backups.svelte")}
+              />
+              <LazyRoute
+                path="/schedules"
+                load={() => import("./pages/Schedules.svelte")}
+              />
+              <LazyRoute
+                path="/mcp-settings"
+                load={() => import("./pages/MCPSettings.svelte")}
+              />
+              <LazyRoute
+                path="/custom-bot"
+                load={() => import("./pages/CustomBot.svelte")}
+              />
+              <LazyRoute
+                path="/automations"
+                load={() => import("./pages/ModuleCatalog.svelte")}
+              />
+              <LazyRoute
+                path="/staff-management/*"
+                load={() => import("./pages/StaffManagement.svelte")}
+              />
+              <LazyRoute
+                path="/channels-management/*"
+                load={() => import("./pages/ChannelsManagement.svelte")}
+              />
             {/if}
 
-            <Route path="/channel-health/*">
-              <ChannelHealth />
-            </Route>
-            <Route path="/pulse/*">
-              <Pulse />
-            </Route>
-            <Route path="/reputation">
-              <Reputation />
-            </Route>
+            <LazyRoute
+              path="/channel-health/*"
+              load={() => import("./pages/ChannelHealth.svelte")}
+            />
+            <LazyRoute
+              path="/pulse/*"
+              load={() => import("./pages/Pulse.svelte")}
+            />
+            <LazyRoute
+              path="/reputation"
+              load={() => import("./pages/Reputation.svelte")}
+            />
             <Route path="/satisfaction">
               <div use:navigate={"/tickets"}></div>
             </Route>
-            <Route path="/seasons">
-              <Seasons />
-            </Route>
+            <LazyRoute
+              path="/seasons"
+              load={() => import("./pages/Seasons.svelte")}
+            />
             <Route path="/predictions">
               <div use:navigate={"/pulse"}></div>
             </Route>
-            <Route path="/evaluations">
-              <Evaluations />
-            </Route>
-            <Route path="/marketplace/*">
-              <Marketplace />
-            </Route>
-            <Route path="/quests">
-              <Quests />
-            </Route>
-            <Route path="/widget">
-              <Widget />
-            </Route>
-            <Route path="/channel-links">
-              <ChannelLinks />
-            </Route>
-            <Route path="/staff-server">
-              <StaffServerLinks />
-            </Route>
+            <LazyRoute
+              path="/evaluations"
+              load={() => import("./pages/Evaluations.svelte")}
+            />
+            <LazyRoute
+              path="/marketplace/*"
+              load={() => import("./pages/Marketplace.svelte")}
+            />
+            <LazyRoute
+              path="/quests"
+              load={() => import("./pages/Quests.svelte")}
+            />
+            <LazyRoute
+              path="/widget"
+              load={() => import("./pages/Widget.svelte")}
+            />
+            <LazyRoute
+              path="/channel-links"
+              load={() => import("./pages/ChannelLinks.svelte")}
+            />
+            <LazyRoute
+              path="/staff-server"
+              load={() => import("./pages/StaffServerLinks.svelte")}
+            />
 
-            <Route path="/dailyalgo">
-              <DailyAlgo />
-            </Route>
-            <Route path="/members/*">
-              <Members />
-            </Route>
-            <Route path="/recruitment">
-              <Recruitment />
-            </Route>
-            <Route path="/forms">
-              <CustomForms />
-            </Route>
-            <Route path="/forms/builder/new">
-              <FormBuilder formId={null} />
-            </Route>
-            <Route path="/forms/builder/:formId" let:meta>
-              <FormBuilder formId={meta.params.formId} />
-            </Route>
-            <Route path="/forms/:formId/responses" let:meta>
-              <CustomFormResponses formId={meta.params.formId} />
-            </Route>
-            <Route path="/tickets">
-              <Tickets />
-            </Route>
-            <Route path="/transcripts-list">
-              <Transcripts />
-            </Route>
-            <Route path="/message-search">
-              <MessageSearch />
-            </Route>
-            <Route path="/meetings">
-              <Meetings />
-            </Route>
+            <LazyRoute
+              path="/dailyalgo"
+              load={() => import("./pages/DailyAlgo.svelte")}
+            />
+            <LazyRoute
+              path="/members/*"
+              load={() => import("./pages/Members.svelte")}
+            />
+            <LazyRoute
+              path="/recruitment"
+              load={() => import("./pages/Recruitment.svelte")}
+            />
+            <LazyRoute
+              path="/forms"
+              load={() => import("./pages/CustomForms.svelte")}
+            />
+            <LazyRoute
+              path="/forms/builder/new"
+              load={() => import("./pages/FormBuilder.svelte")}
+              props={() => ({ formId: null })}
+            />
+            <LazyRoute
+              path="/forms/builder/:formId"
+              load={() => import("./pages/FormBuilder.svelte")}
+              props={(meta) => ({ formId: meta.params.formId })}
+            />
+            <LazyRoute
+              path="/forms/:formId/responses"
+              load={() => import("./pages/CustomFormResponses.svelte")}
+              props={(meta) => ({ formId: meta.params.formId })}
+            />
+            <LazyRoute
+              path="/tickets"
+              load={() => import("./pages/Tickets.svelte")}
+            />
+            <LazyRoute
+              path="/transcripts-list"
+              load={() => import("./pages/Transcripts.svelte")}
+            />
+            <LazyRoute
+              path="/message-search"
+              load={() => import("./pages/MessageSearch.svelte")}
+            />
+            <LazyRoute
+              path="/meetings"
+              load={() => import("./pages/Meetings.svelte")}
+            />
             <Route path="/absences">
               <div use:navigate={"/planning"}></div>
             </Route>
-            <Route path="/planning/*">
-              <Planning />
-            </Route>
-            <Route path="/inbox/*">
-              <Inbox />
-            </Route>
-            <Route path="/tutoring">
-              <Tutoring />
-            </Route>
-            <Route path="/nickname-moderation/*">
-              <NicknameModeration />
-            </Route>
+            <LazyRoute
+              path="/planning/*"
+              load={() => import("./pages/Planning.svelte")}
+            />
+            <LazyRoute
+              path="/inbox/*"
+              load={() => import("./pages/Inbox.svelte")}
+            />
+            <LazyRoute
+              path="/tutoring"
+              load={() => import("./pages/Tutoring.svelte")}
+            />
+            <LazyRoute
+              path="/nickname-moderation/*"
+              load={() => import("./pages/NicknameModeration.svelte")}
+            />
 
-            <Route path="/leveling/*">
-              <Leveling />
-            </Route>
-            <Route path="/economy/*">
-              <Economy />
-            </Route>
-            <Route path="/giveaways">
-              <Giveaways />
-            </Route>
-            <Route path="/welcome/*">
-              <Announcement />
-            </Route>
-            <Route path="/announcement/*">
-              <Announcement />
-            </Route>
-            <Route path="/reaction-roles">
-              <ReactionRoles />
-            </Route>
-            <Route path="/triggers">
-              <AutoResponses />
-            </Route>
-            <Route path="/automod">
-              <AutoMod />
-            </Route>
-            <Route path="/raid-protection">
-              <RaidProtection />
-            </Route>
-            <Route path="/suggestions">
-              <Suggestions />
-            </Route>
-            <Route path="/embed-builder">
-              <EmbedBuilder />
-            </Route>
-            <Route path="/fun">
-              <FunSettings />
-            </Route>
-            <Route path="/clans">
-              <Clans />
-            </Route>
+            <LazyRoute
+              path="/leveling/*"
+              load={() => import("./pages/Leveling.svelte")}
+            />
+            <LazyRoute
+              path="/economy/*"
+              load={() => import("./pages/Economy.svelte")}
+            />
+            <LazyRoute
+              path="/giveaways"
+              load={() => import("./pages/Giveaways.svelte")}
+            />
+            <LazyRoute
+              path="/welcome/*"
+              load={() => import("./pages/Announcement.svelte")}
+            />
+            <LazyRoute
+              path="/announcement/*"
+              load={() => import("./pages/Announcement.svelte")}
+            />
+            <LazyRoute
+              path="/reaction-roles"
+              load={() => import("./pages/ReactionRoles.svelte")}
+            />
+            <LazyRoute
+              path="/triggers"
+              load={() => import("./pages/Triggers.svelte")}
+            />
+            <LazyRoute
+              path="/automod"
+              load={() => import("./pages/AutoMod.svelte")}
+            />
+            <LazyRoute
+              path="/raid-protection"
+              load={() => import("./pages/RaidProtection.svelte")}
+            />
+            <LazyRoute
+              path="/suggestions"
+              load={() => import("./pages/Suggestions.svelte")}
+            />
+            <LazyRoute
+              path="/embed-builder"
+              load={() => import("./pages/EmbedBuilder.svelte")}
+            />
+            <LazyRoute
+              path="/fun"
+              load={() => import("./pages/FunSettings.svelte")}
+            />
+            <LazyRoute
+              path="/clans"
+              load={() => import("./pages/Clans.svelte")}
+            />
 
-            <Route path="/double-accounts/*">
-              <DoubleAccounts />
-            </Route>
-            <Route path="/invitations/:code" let:meta>
-              {#key meta.params.code}
-                <InvitationDetail code={meta.params.code} />
-              {/key}
-            </Route>
-            <Route path="/invitations/*">
-              <Invitations />
-            </Route>
+            <LazyRoute
+              path="/double-accounts/*"
+              load={() => import("./pages/DoubleAccounts.svelte")}
+            />
+            <LazyRoute
+              path="/invitations/:code"
+              load={() => import("./pages/InvitationDetail.svelte")}
+              props={(meta) => ({ code: meta.params.code })}
+              remountKey={(meta) => meta.params.code}
+            />
+            <LazyRoute
+              path="/invitations/*"
+              load={() => import("./pages/Invitations.svelte")}
+            />
 
-            <Route path="/events">
-              <Events />
-            </Route>
-            <Route path="/events/edit/:eventId" let:meta>
-              <EventEditor eventId={meta.params.eventId} />
-            </Route>
-            <Route path="/events/control/:eventId" let:meta>
-              <EventControl eventId={meta.params.eventId} />
-            </Route>
+            <LazyRoute
+              path="/events"
+              load={() => import("./pages/Events.svelte")}
+            />
+            <LazyRoute
+              path="/events/edit/:eventId"
+              load={() => import("./pages/EventEditor.svelte")}
+              props={(meta) => ({ eventId: meta.params.eventId })}
+            />
+            <LazyRoute
+              path="/events/control/:eventId"
+              load={() => import("./pages/EventControl.svelte")}
+              props={(meta) => ({ eventId: meta.params.eventId })}
+            />
 
-            <Route path="/userSettings">
-              <UserSettings />
-            </Route>
+            <LazyRoute
+              path="/userSettings"
+              load={() => import("./pages/UserSettings.svelte")}
+            />
 
             <!-- Fallback for authenticated users -->
             <Route fallback>
