@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
@@ -57,11 +58,20 @@ export async function handleEventsRoutes(
   if (method === 'POST' && !parts[5]) {
     try {
       const body = await readJsonBody<Record<string, unknown>>(req);
+      if (!body || typeof body.title !== 'string' || !body.title.trim()) {
+        json(res, 400, { error: 'Le titre de l\'événement est requis.' });
+        return true;
+      }
+
       let event;
       if (body.type === 'CUSTOM') {
-        event = await createCustomEvent(client, guildId, body);
+        event = await createCustomEvent(client, guildId, body as Parameters<typeof createCustomEvent>[2]);
       } else {
-        event = await createEvent(guildId, body);
+        if (body.type !== 'QUIZ' && body.type !== 'CTF') {
+          json(res, 400, { error: "Type d'événement invalide : attendu CUSTOM, QUIZ ou CTF." });
+          return true;
+        }
+        event = await createEvent(guildId, body as Parameters<typeof createEvent>[1]);
       }
       json(res, 201, { event });
     } catch (err) {
@@ -151,8 +161,17 @@ export async function handleEventsRoutes(
     if (method === 'PATCH' && !parts[6]) {
       try {
         const body = await readJsonBody<Record<string, unknown>>(req);
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête invalide.' });
+          return true;
+        }
         const currentEvent = await prisma.event.findUnique({ where: { id: eventId } });
         const isLive = currentEvent?.status === 'ONGOING';
+
+        // Le corps vient du dashboard : on ne recopie que les champs presents,
+        // et les listes imbriquees ne sont acceptees que dans leur forme attendue.
+        const quizQuestions = Array.isArray(body.questions) ? body.questions as Record<string, unknown>[] : null;
+        const ctfChallenges = Array.isArray(body.ctfChallenges) ? body.ctfChallenges as Record<string, unknown>[] : null;
 
         const event = await prisma.event.update({
           where: { id: eventId },
@@ -165,10 +184,10 @@ export async function handleEventsRoutes(
             triggerType: body.triggerType,
             triggerValue: body.triggerValue,
             config: body.config,
-            triggerStatus: (body.triggerType !== (currentEvent as unknown)?.triggerType || body.triggerValue !== (currentEvent as unknown)?.triggerValue) ? 'PENDING' : undefined,
-            questions: (body.questions && !isLive && (currentEvent as unknown)?.type === 'QUIZ') ? {
+            triggerStatus: (body.triggerType !== currentEvent?.triggerType || body.triggerValue !== currentEvent?.triggerValue) ? 'PENDING' : undefined,
+            questions: (quizQuestions && !isLive && currentEvent?.type === 'QUIZ') ? {
               deleteMany: {},
-              create: body.questions.map((q: Record<string, unknown>, i: number) => ({
+              create: quizQuestions.map((q, i) => ({
                 text: q.text,
                 options: q.options,
                 correctOptionIndex: q.correctOptionIndex,
@@ -176,9 +195,9 @@ export async function handleEventsRoutes(
                 imageUrl: q.imageUrl
               }))
             } : undefined,
-            ctfChallenges: (body.ctfChallenges && !isLive && (currentEvent as unknown)?.type === 'CTF') ? {
+            ctfChallenges: (ctfChallenges && !isLive && currentEvent?.type === 'CTF') ? {
               deleteMany: {},
-              create: body.ctfChallenges.map((c: Record<string, unknown>, i: number) => ({
+              create: ctfChallenges.map((c, i) => ({
                 title: c.title,
                 description: c.description || '',
                 flag: c.flag,
@@ -189,50 +208,50 @@ export async function handleEventsRoutes(
                 sortOrder: i
               }))
             } : undefined
-          } as unknown,
-          include: { questions: true, ctfChallenges: true } as unknown
+          } as Prisma.EventUpdateInput,
+          include: { questions: true, ctfChallenges: true },
         });
 
-        if (isLive && body.questions && (currentEvent as unknown)?.type === 'QUIZ') {
+        if (isLive && quizQuestions && currentEvent?.type === 'QUIZ') {
           const existingQuestions = await prisma.eventQuizQuestion.findMany({
             where: { eventId },
             orderBy: { sortOrder: 'asc' }
           });
 
-          for (let i = 0; i < Math.min(existingQuestions.length, body.questions.length); i++) {
-            const q = body.questions[i];
+          for (let i = 0; i < Math.min(existingQuestions.length, quizQuestions.length); i++) {
+            const q = quizQuestions[i];
             if (i < existingQuestions.length) {
               await prisma.eventQuizQuestion.update({
                 where: { id: existingQuestions[i].id },
                 data: {
-                  text: q.text,
-                  options: q.options,
-                  correctOptionIndex: q.correctOptionIndex,
-                  imageUrl: q.imageUrl
+                  text: String(q.text ?? ''),
+                  options: (q.options ?? []) as Prisma.InputJsonValue,
+                  correctOptionIndex: Number(q.correctOptionIndex ?? 0),
+                  imageUrl: typeof q.imageUrl === 'string' ? q.imageUrl : null,
                 }
               });
             }
           }
         }
 
-        if (isLive && body.ctfChallenges && (currentEvent as unknown)?.type === 'CTF') {
+        if (isLive && ctfChallenges && currentEvent?.type === 'CTF') {
           const existingChallenges = await prisma.eventCtfChallenge.findMany({
             where: { eventId },
             orderBy: { sortOrder: 'asc' }
           });
 
-          for (let i = 0; i < Math.min(existingChallenges.length, body.ctfChallenges.length); i++) {
-            const c = body.ctfChallenges[i];
+          for (let i = 0; i < Math.min(existingChallenges.length, ctfChallenges.length); i++) {
+            const c = ctfChallenges[i];
             await prisma.eventCtfChallenge.update({
               where: { id: existingChallenges[i].id },
               data: {
-                title: c.title,
-                description: c.description || '',
-                flag: c.flag,
+                title: String(c.title ?? ''),
+                description: typeof c.description === 'string' ? c.description : '',
+                flag: String(c.flag ?? ''),
                 points: Number(c.points) || 100,
-                roleIdReward: c.roleIdReward || null,
+                roleIdReward: typeof c.roleIdReward === 'string' ? c.roleIdReward : null,
                 xpReward: Number(c.xpReward) || 0,
-                imageUrl: c.imageUrl || null
+                imageUrl: typeof c.imageUrl === 'string' ? c.imageUrl : null,
               }
             });
           }
