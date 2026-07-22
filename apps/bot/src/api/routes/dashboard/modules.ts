@@ -1,3 +1,4 @@
+import { readStatsConfig } from '../../../services/analytics/statsConfig.js';
 import { errorMessage, errorStack } from '../../../utils/errors.js';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { cache } from '../../../utils/cache.js';
@@ -684,7 +685,7 @@ export async function handleModulesRoutes(
   // PUT /api/dashboard/guilds/:guildId/sanctions/tables
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'tables' && method === 'PUT') {
     try {
-      const tables = await readJsonBody<unknown[]>(req);
+      const tables = await readJsonBody<Record<string, unknown>[]>(req);
       if (!Array.isArray(tables)) {
         json(res, 400, { error: 'Payload invalide. Doit être un tableau.' });
         return true;
@@ -2278,7 +2279,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           }
 
           if (body.statsEnabled && body.statsConfig) {
-            const sc = body.statsConfig as unknown;
+            const sc = readStatsConfig(body.statsConfig);
 
             const needsMember = sc.memberChannelId === '' || sc.memberChannelId === null;
             const needsBot = sc.botChannelId === '' || sc.botChannelId === null;
@@ -2286,7 +2287,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             const needsChannel = sc.channelChannelId === '' || sc.channelChannelId === null;
             const needsCategory = sc.categoryChannelId === '' || sc.categoryChannelId === null;
             const needsActivity = sc.activityChannelId === '' || sc.activityChannelId === null;
-            const needsCustomStats = Array.isArray(sc.customStats) && sc.customStats.some((c: unknown) => c.enabled && !c.channelId);
+            const needsCustomStats = Array.isArray(sc.customStats) && sc.customStats.some((c) => c.enabled && !c.channelId);
 
             if (needsMember || needsBot || needsRole || needsChannel || needsCategory || needsActivity || needsCustomStats || !sc.categoryId) {
               let statsCatId: string | undefined = sc.categoryId || undefined;
@@ -4964,7 +4965,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
   // POST /api/dashboard/guilds/:guildId/import
   if (moduleKey === 'import' && parts.length === 5 && method === 'POST') {
     try {
-      const body = await readJsonBody<unknown>(req);
+      const body = await readJsonBody<Record<string, unknown>>(req);
       if (!body) {
         json(res, 400, { error: 'Payload import invalide' });
         return true;
@@ -5348,8 +5349,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
               ? {
                   ticketTypes: Array.isArray(body.ticketTypes)
                     ? body.ticketTypes
-                        .filter((item: unknown) => item && typeof item === 'object')
-                        .map((item: unknown, index: number) => ({
+                        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+                        .map((item, index: number) => ({
                           id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ticket-type-${index + 1}`,
                           label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
                           description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : null,

@@ -56,7 +56,7 @@ export async function handleEventsRoutes(
   // POST /api/dashboard/guilds/:guildId/events
   if (method === 'POST' && !parts[5]) {
     try {
-      const body = await readJsonBody<unknown>(req);
+      const body = await readJsonBody<Record<string, unknown>>(req);
       let event;
       if (body.type === 'CUSTOM') {
         event = await createCustomEvent(client, guildId, body);
@@ -150,7 +150,7 @@ export async function handleEventsRoutes(
     // PATCH /api/dashboard/guilds/:guildId/events/:eventId
     if (method === 'PATCH' && !parts[6]) {
       try {
-        const body = await readJsonBody<unknown>(req);
+        const body = await readJsonBody<Record<string, unknown>>(req);
         const currentEvent = await prisma.event.findUnique({ where: { id: eventId } });
         const isLive = currentEvent?.status === 'ONGOING';
 

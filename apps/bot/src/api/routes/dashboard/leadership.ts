@@ -2983,7 +2983,7 @@ export async function handleGuildLeadershipRoutes(
       }
 
       try {
-        const body = await readJsonBody<unknown>(req);
+        const body = await readJsonBody<Record<string, unknown>>(req);
         const config = await tutoringService.updateTutoringConfig(guildId, body);
 
         await pushAudit(guildId, {

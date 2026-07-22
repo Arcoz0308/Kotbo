@@ -197,7 +197,7 @@ export async function handleGeneralistModulesRoutes(
     // POST /api/dashboard/guilds/:guildId/leveling/import
     if (parts.length === 6 && parts[5] === 'import' && method === 'POST') {
       try {
-        const body = await readJsonBody<unknown>(req);
+        const body = await readJsonBody<Record<string, unknown>>(req);
         if (!body || !Array.isArray(body)) {
           json(res, 400, { error: "Le corps de la requête doit être un tableau d'utilisateurs." });
           return true;
