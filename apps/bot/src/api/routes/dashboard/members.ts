@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, EmbedBuilder } from 'discord.js';
+import { type GuildMember, Client, EmbedBuilder } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
@@ -19,6 +19,7 @@ import {
   type AuthClaims,
   type DashboardAccess,
   type MemberCaseQuickAction,
+  type FeatureAccessMap,
 } from '../../shared.js';
 import {
   registerBanSanction,
@@ -38,7 +39,7 @@ export async function handleMembersRoutes(
   user: AuthClaims,
   guildId: string,
   access: DashboardAccess,
-  featureAccess: unknown
+  featureAccess: FeatureAccessMap
 ): Promise<boolean> {
   const method = req.method;
   const auditUser = user.username ?? `User${user.userId}`;
@@ -223,7 +224,7 @@ export async function handleMembersRoutes(
       }
 
       const discordGuild = client.guilds.cache.get(guildId);
-      const discordMembers: Map<string, unknown> = new Map();
+      const discordMembers = new Map<string, GuildMember>();
 
       if (discordGuild) {
         const allServerMembers = await getGuildMembers(discordGuild).catch(() => null);
@@ -471,7 +472,22 @@ export async function handleMembersRoutes(
       ]);
       const onServerCount = discordGuild?.memberCount ?? dbOnServerCount;
 
-      let members = result.members.map((m) => ({
+      // Type explicite : la liste peut ensuite etre remplacee par un repli
+      // Discord, dont certains champs sont absents (dernier passage, messages).
+      type MemberListEntry = {
+        id: string;
+        username: string;
+        displayName: string;
+        avatarUrl: string | null;
+        isBot: boolean;
+        lastSeenAt: string | null;
+        messageCount: number;
+        guildJoinedAt: string | null;
+        guildLeftAt: string | null;
+        isOnServer: boolean;
+      };
+
+      let members: MemberListEntry[] = result.members.map((m) => ({
         id: m.userId,
         username: m.username ?? 'Utilisateur inconnu',
         displayName: m.displayName ?? m.username ?? 'Utilisateur inconnu',
