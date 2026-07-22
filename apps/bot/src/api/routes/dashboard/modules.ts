@@ -42,6 +42,7 @@ import {
   getModulePerformanceStats,
   KOTBO_MODULES,
   setModuleActivation,
+  type KotboModule,
 } from '../../../services/analytics/moduleStatsService.js';
 
 const PRESET_LABELS: Record<DashboardPresetKey, string> = {
@@ -549,7 +550,7 @@ export async function handleModulesRoutes(
           : moduleId;
       
       // Mapper l'ID du module vers le nom KotboModule
-      const moduleMapping: Record<string, unknown> = {
+      const moduleMapping: Record<string, KotboModule> = {
         'codepolice': 'codePolice',
         'daily_algo': 'dailyAlgo',
         'translation': 'translation',
@@ -701,7 +702,7 @@ export async function handleModulesRoutes(
       // perdus des qu'on change de boucle, et chaque lecture redevient `unknown`.
       type SanctionTierInput = {
         level: number;
-        action: string;
+        action: SanctionType;
         durationSeconds: number | null;
         customReason: string | null;
       };
@@ -731,7 +732,7 @@ export async function handleModulesRoutes(
 
         const tiers: SanctionTierInput[] = [];
         for (const tier of rawTiers) {
-          const action = String(tier.action);
+          const action = String(tier.action) as SanctionType;
           if (!['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN'].includes(action)) {
             json(res, 400, { error: `Action invalide "${action}" dans le tableau "${tableName}".` });
             return true;
@@ -1006,7 +1007,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           fileName,
           mimeType,
           size: fileSize,
-          data: buffer,
+          data: new Uint8Array(buffer),
           uploadedByUserId: user.userId
         }
       });
@@ -1505,13 +1506,13 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         json(res, 200, {
           enabled: guild.autoNicknameModerationEnabled,
           whitelist: guild.nicknameModerationWhitelist,
-          bypass: (guild as unknown).nicknameModerationBypass ?? [],
-          onJoin: (guild as unknown).nickModOnJoin ?? true,
-          onUpdate: (guild as unknown).nickModOnUpdate ?? true,
-          checkInvisible: (guild as unknown).nickModCheckInvisible ?? true,
-          checkGlobal: (guild as unknown).nickModCheckGlobal ?? true,
-          checkCustom: (guild as unknown).nickModCheckCustom ?? true,
-          discordAutoModSync: (guild as unknown).nickModDiscordAutoModSync ?? false,
+          bypass: guild.nicknameModerationBypass ?? [],
+          onJoin: guild.nickModOnJoin ?? true,
+          onUpdate: guild.nickModOnUpdate ?? true,
+          checkInvisible: guild.nickModCheckInvisible ?? true,
+          checkGlobal: guild.nickModCheckGlobal ?? true,
+          checkCustom: guild.nickModCheckCustom ?? true,
+          discordAutoModSync: guild.nickModDiscordAutoModSync ?? false,
         });
       } catch (err) {
         logger.error('NicknameAPI', 'GET nickname-moderation error:', err);

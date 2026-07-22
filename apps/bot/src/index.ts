@@ -305,14 +305,14 @@ client.once(Events.ClientReady, async (c) => {
   // Load global config & blacklist into memory
   try {
     const config = await prisma.botGlobalConfig.findUnique({ where: { key: 'MAINTENANCE_MODE' } });
-    (global as unknown).KOTBO_MAINTENANCE_MODE = config?.value === 'true';
+    global.KOTBO_MAINTENANCE_MODE = config?.value === 'true';
 
     const blacklist = await prisma.globalBlacklist.findMany({ select: { userId: true } });
-    (global as unknown).KOTBO_BLACKLIST = new Set(blacklist.map(b => b.userId));
+    global.KOTBO_BLACKLIST = new Set(blacklist.map(b => b.userId));
   } catch (err) {
     logger.error('System', 'Erreur lors du chargement de la config globale', err);
-    (global as unknown).KOTBO_MAINTENANCE_MODE = false;
-    (global as unknown).KOTBO_BLACKLIST = new Set();
+    global.KOTBO_MAINTENANCE_MODE = false;
+    global.KOTBO_BLACKLIST = new Set();
   }
 
   // ── Event Bus Bridge (Phase 1: in-process) ──────────────────
@@ -507,7 +507,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   logger.info('Interactions', `Interaction reçue: ${interaction.type} - ${interaction.id}`);
   try {
     // 1. Vérification de la blacklist globale
-    const blacklist: Set<string> = (global as unknown).KOTBO_BLACKLIST || new Set();
+    const blacklist: Set<string> = global.KOTBO_BLACKLIST || new Set();
     if (blacklist.has(interaction.user.id)) {
       if (interaction.isRepliable()) {
         await interaction.reply({
@@ -519,7 +519,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // 2. Vérification du mode maintenance (sauf pour créateur et admins globaux)
-    if ((global as unknown).KOTBO_MAINTENANCE_MODE && interaction.user.id !== process.env.DISCORD_CLIENT_OWNER_ID) {
+    if (global.KOTBO_MAINTENANCE_MODE && interaction.user.id !== process.env.DISCORD_CLIENT_OWNER_ID) {
       // Allow global admins bypass
       const admin = await prisma.globalAdmin.findUnique({ where: { userId: interaction.user.id } });
       if (!admin) {

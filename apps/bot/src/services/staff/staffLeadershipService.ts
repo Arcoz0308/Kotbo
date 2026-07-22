@@ -163,7 +163,7 @@ const sendAbsenceDiscordRelay = async (params: {
         const channel = await client.channels.fetch(channelId).catch(() => null);
         if (!channel || !('send' in channel)) return;
 
-        await (channel as unknown).send({
+        await channel.send({
           content,
           embeds: [embed],
           allowedMentions: params.featureConfig?.notificationRoleId ? { roles: [params.featureConfig.notificationRoleId] } : undefined,
@@ -523,7 +523,7 @@ export const createMeeting = async (
 
     const row = buildMeetingRsvpRow(meeting.id);
 
-    const announcementMessage = await (announcementChannel as unknown).send({
+    const announcementMessage = await announcementChannel.send({
       content: '📢 **Nouvelle réunion staff planifiée !** @everyone',
       embeds: [embed],
       components: [row]
@@ -677,7 +677,7 @@ export const deleteMeeting = async (
       if (guildConfig?.meetingAnnouncementChannelId) {
         const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
         if (channel?.isTextBased()) {
-          const msg = await (channel as unknown).messages.fetch(meeting.discordMessageId).catch(() => null);
+          const msg = await channel.messages.fetch(meeting.discordMessageId).catch(() => null);
           if (msg) {
             await msg.delete().catch(() => null);
           }

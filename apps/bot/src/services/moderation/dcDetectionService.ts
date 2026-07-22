@@ -833,7 +833,7 @@ async function reportSuspectedDC(
       .setStyle(ButtonStyle.Secondary),
   );
 
-  await (logChannel as unknown).send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
+  await logChannel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
 }
 
 // ─── Interactions boutons Discord ─────────────────────────────────────────────

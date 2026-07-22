@@ -345,7 +345,7 @@ async function restoreChannel(
         }
 
         if (overwritesToSet.length > 0) {
-          await (newChannel as unknown).permissionOverwrites.set(overwritesToSet);
+          await newChannel.permissionOverwrites.set(overwritesToSet);
         }
       }
     }

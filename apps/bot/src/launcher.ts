@@ -184,13 +184,13 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
             process.exit(0);
           }
 
-          if (typeof (manager as unknown).respawnAll === 'function') {
-            (manager as unknown).respawnAll();
+          if (typeof manager.respawnAll === 'function') {
+            manager.respawnAll();
           } else {
-            const total = Number((manager as unknown).totalShards ?? (manager as unknown).shards?.size ?? 0);
+            const total = Number(manager.totalShards ?? manager.shards?.size ?? 0);
             for (let i = 0; i < total; i += 1) {
-              if (typeof (manager as unknown).respawn === 'function') {
-                (manager as unknown).respawn(i);
+              if (typeof manager.respawn === 'function') {
+                manager.respawn(i);
               }
             }
           }
@@ -210,9 +210,9 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
         if (message.type === 'respawn-shard' && Number.isInteger(Number(message.shardId))) {
           const target = Number(message.shardId);
           logger.warn('Sharding', `[${instanceLabel}] Respawn demandé pour le shard ${target} (via shard ${shard.id}).`);
-          if (typeof (manager as unknown).respawn === 'function') {
+          if (typeof manager.respawn === 'function') {
             try {
-              (manager as unknown).respawn(target);
+              manager.respawn(target);
             } catch (err) {
               logger.error('Sharding', `[${instanceLabel}] Erreur lors du respawn du shard ${target}:`, err);
             }

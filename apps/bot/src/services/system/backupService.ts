@@ -260,7 +260,7 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
     const textChannels = guild.channels.cache.filter((c) => c.isTextBased());
     for (const [_channelId, channel] of textChannels) {
       try {
-        const fetchedMessages = await (channel as unknown).messages.fetch({ limit: 50 });
+        const fetchedMessages = await channel.messages.fetch({ limit: 50 });
         for (const [_msgId, msg] of fetchedMessages) {
           if (msg.content || msg.embeds.length > 0 || msg.attachments.size > 0) {
             backupData.messages.push({

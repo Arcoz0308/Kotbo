@@ -820,7 +820,7 @@ async function applySanction(message: Message, action: string, reason: string, c
     if (guildDb?.logChannelId) {
       const logChannel = message.guild!.channels.cache.get(guildDb.logChannelId);
       if (logChannel?.isTextBased()) {
-        await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
+        await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
 
@@ -1045,7 +1045,7 @@ async function triggerGhostPingAlert(
     if (guildDb?.logChannelId) {
       const logChannel = message.guild!.channels.cache.get(guildDb.logChannelId);
       if (logChannel?.isTextBased()) {
-        await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
+        await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
       }
     }
 
@@ -1153,7 +1153,7 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
       if (guildDb?.logChannelId) {
         const logChannel = member.guild.channels.cache.get(guildDb.logChannelId);
         if (logChannel?.isTextBased()) {
-          await (logChannel as unknown).send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
+          await logChannel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
         }
       }
 
