@@ -339,6 +339,8 @@
                     <td class="px-6 py-3">
                       {#if s.source === 'ADMIN'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">Admin</span>
+                      {:else if s.source === 'BOOST'}
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">Boost du serveur</span>
                       {:else}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">XP</span>
                       {/if}

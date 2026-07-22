@@ -3158,6 +3158,8 @@ export interface ClansDataResult {
   currentClanSeason: number;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
+  clanXpFromBoost: boolean;
+  clanXpPerBoost: number;
   clanAnnouncementChannelId: string | null;
   clanRewardGiveaway: boolean;
   clanRewardXpBoost: boolean;
@@ -3186,6 +3188,8 @@ export async function updateClanSettings(
     clanAutoAssignOnJoin?: boolean;
     clanXpFromLevelUp?: boolean;
     clanXpPerLevelUp?: number;
+    clanXpFromBoost?: boolean;
+    clanXpPerBoost?: number;
     clanAnnouncementChannelId?: string | null;
     clanRewardGiveaway?: boolean;
     clanRewardLeaderRole?: boolean;
@@ -3201,6 +3205,8 @@ export async function updateClanSettings(
   clanAutoAssignOnJoin: boolean;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
+  clanXpFromBoost: boolean;
+  clanXpPerBoost: number;
   clanAnnouncementChannelId: string | null;
   clanRewardGiveaway: boolean;
   clanRewardLeaderRole: boolean;

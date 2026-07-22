@@ -23,7 +23,7 @@ export async function logClanContribution(
   clanId: string,
   userId: string,
   amount: number,
-  source: 'XP' | 'ADMIN',
+  source: 'XP' | 'ADMIN' | 'BOOST',
   season: number,
 ): Promise<void> {
   try {
@@ -408,6 +408,63 @@ export async function autoAssignClanOnJoin(guildId: string, member: GuildMember)
     broadcastDashboardStateChange(guildId, 'clans_updated');
   } catch (err) {
     logger.error('ClanService', `Erreur lors de l'auto-assignation de clan pour ${member.user.tag}:`, err);
+  }
+}
+
+/**
+ * Attribue des points de clan au membre qui vient de booster le serveur, si l'option
+ * « Gain par boost du serveur » est activée. Fonctionne comme le gain de passage de
+ * niveau : les points vont au clan du membre, avec résolution du compte canonique
+ * (double compte) et journalisation de l'événement (source 'BOOST').
+ */
+export async function awardClanPointsOnBoost(guildId: string, member: GuildMember): Promise<void> {
+  try {
+    if (member.user.bot) return;
+
+    const guildConfig = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { clansEnabled: true, currentClanSeason: true, clanXpFromBoost: true, clanXpPerBoost: true },
+    });
+    if (!guildConfig?.clansEnabled || !guildConfig.clanXpFromBoost || guildConfig.clanXpPerBoost <= 0) return;
+
+    const clans = await prisma.clan.findMany({ where: { guildId }, select: { id: true, name: true, roleId: true } });
+    if (clans.length === 0) return;
+
+    const memberClanRole = member.roles.cache.find(r => clans.some(c => c.roleId === r.id));
+    if (!memberClanRole) return; // Le booster n'appartient à aucun clan
+    const clan = clans.find(c => c.roleId === memberClanRole.id);
+    if (!clan) return;
+
+    // Résoudre l'identifiant canonique (double compte) comme pour le level-up
+    const { getAllLinkedUserIds } = await import('../moderation/altAccountService.js');
+    const linkedIds = await getAllLinkedUserIds(guildId, member.id).catch(() => [member.id]);
+    const canonicalUserId = linkedIds.sort()[0];
+
+    await prisma.clanMemberContribution.upsert({
+      where: {
+        guildId_clanId_userId_season: {
+          guildId,
+          clanId: clan.id,
+          userId: canonicalUserId,
+          season: guildConfig.currentClanSeason,
+        },
+      },
+      update: { xp: { increment: guildConfig.clanXpPerBoost } },
+      create: {
+        guildId,
+        clanId: clan.id,
+        userId: canonicalUserId,
+        season: guildConfig.currentClanSeason,
+        xp: guildConfig.clanXpPerBoost,
+      },
+    });
+
+    await logClanContribution(guildId, clan.id, canonicalUserId, guildConfig.clanXpPerBoost, 'BOOST', guildConfig.currentClanSeason);
+
+    logger.info('ClanService', `Points de clan (${guildConfig.clanXpPerBoost} XP) attribués à ${member.user.tag} pour son boost du serveur dans le clan "${clan.name}"`);
+    broadcastDashboardStateChange(guildId, 'clans_updated');
+  } catch (err) {
+    logger.error('ClanService', `Erreur lors de l'attribution des points de boost pour ${member.user.tag}:`, err);
   }
 }
 

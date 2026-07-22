@@ -116,6 +116,8 @@ model Guild {
   clanSeasonEndsAt   DateTime?
   clanXpFromLevelUp  Boolean @default(false)
   clanXpPerLevelUp   Int     @default(50)
+  clanXpFromBoost    Boolean @default(false)
+  clanXpPerBoost     Int     @default(100)
   lastWinningClanId  String?
   clanAnnouncementChannelId String?
   clanRewardGiveaway Boolean @default(false)
