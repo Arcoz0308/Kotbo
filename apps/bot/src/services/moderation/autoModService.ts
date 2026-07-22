@@ -583,7 +583,7 @@ export async function syncDiscordAutoModProfileRule(client: Client, guildId: str
         keywordFilter: keywords,
         allowList: allowList.length > 0 ? allowList : undefined
       },
-      actions: actions as unknown[], // Need to cast as any[] to match discord.js rule creation types
+      actions,
       enabled: true,
       exemptRoles,
       exemptChannels: []
@@ -610,7 +610,7 @@ export async function syncDiscordAutoModProfileRule(client: Client, guildId: str
  * Analyse un message et applique des sanctions si nécessaire
  * @returns true si le message a été supprimé ou l'utilisateur sanctionné (interrompre le traitement)
  */
-export async function handleAutoMod(message: Message, client: unknown): Promise<boolean> {
+export async function handleAutoMod(message: Message, client: Client): Promise<boolean> {
   // Ignorer si message privé, envoyé par un bot, ou par un administrateur du serveur
   if (!message.guild || !message.member || message.author.bot) return false;
   if (message.member.permissions.has(PermissionFlagsBits.Administrator)) return false;
@@ -763,7 +763,7 @@ async function deleteMessage(message: Message) {
 /**
  * Applique une sanction (WARN, TIMEOUT, ou DELETE_AND_WARN)
  */
-async function applySanction(message: Message, action: string, reason: string, client: unknown) {
+async function applySanction(message: Message, action: string, reason: string, client: Client) {
   const guildId = message.guild!.id;
   const target = {
     id: message.author.id,
@@ -776,7 +776,7 @@ async function applySanction(message: Message, action: string, reason: string, c
 
   // Informer l'utilisateur dans le salon d'origine de manière éphémère (ou message normal supprimé rapidement)
   if (action !== 'DELETE_ONLY') {
-    const warnAlert = await (message.channel as unknown).send(`⚠️ <@${message.author.id}>, votre message a été supprimé : ${reason.replace('[AutoMod] ', '')}`).catch(() => null);
+    const warnAlert = message.channel.isSendable() ? await message.channel.send(`⚠️ <@${message.author.id}>, votre message a été supprimé : ${reason.replace('[AutoMod] ', '')}`).catch(() => null) : null;
     if (warnAlert) {
       setTimeout(() => {
         warnAlert.delete().catch(() => null);
@@ -901,8 +901,8 @@ export async function handleGhostPingDelete(message: Message | PartialMessage, c
       const deletionLog = auditLogs.entries.find(entry => {
         const isRecent = Date.now() - entry.createdTimestamp < 5000;
         const isTargetMessage =
-          (entry.target as unknown)?.id === message.author.id &&
-          (entry.extra as unknown)?.channel?.id === message.channel.id;
+          (entry.target as { id?: string } | null)?.id === message.author.id &&
+          (entry.extra as { channel?: { id?: string } } | null)?.channel?.id === message.channel.id;
         return isRecent && isTargetMessage;
       });
 
@@ -1016,7 +1016,9 @@ async function triggerGhostPingAlert(
     ? `👻 **Ghost Ping détecté !** <@${author.id}> a mentionné ${targetsString} puis a modifié son message pour retirer la mention.`
     : `👻 **Ghost Ping détecté !** <@${author.id}> a mentionné ${targetsString} puis a supprimé son message.`;
 
-  await (message.channel as unknown).send(alertText).catch(() => null);
+  if (message.channel.isSendable()) {
+    await message.channel.send(alertText).catch(() => null);
+  }
 
   // 3. Notifier dans le salon de log si configuré
   try {

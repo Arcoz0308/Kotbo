@@ -72,7 +72,15 @@ export type StatsConfig = {
   // Stocke dans la meme colonne JSON pour ne pas multiplier les migrations.
   historicalScrapeStatus?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
   historicalScrapeError?: string | null;
-  historicalScrapeProgress?: number | null;
+  /** Avancement detaille du scrap en cours, ou null hors traitement. */
+  historicalScrapeProgress?: {
+    scrapedChannelsCount?: number;
+    totalChannelsCount?: number;
+    currentChannelName?: string;
+    currentChannelId?: string;
+    currentLastMessageId?: string | null;
+    scrapedMessagesCount?: number;
+  } | null;
   historicalScrapedAt?: string | null;
   historicalScrapedChannels?: string[];
   historicalScrapedMessages?: number;
