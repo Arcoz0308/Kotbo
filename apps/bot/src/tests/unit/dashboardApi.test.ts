@@ -146,10 +146,10 @@ const authenticatedHeaders = (extra: Record<string, string> = {}) => ({
 });
 
 const mockMcpKeyService = {
-  verifyMcpKey: mock(() => Promise.resolve(null)),
-  verifyMcpKeyByClientCredentials: mock(() => Promise.resolve(null)),
-  getActiveMcpKeyById: mock(() => Promise.resolve(null)),
-  findActiveMcpKeyById: mock(() => Promise.resolve(null)),
+  verifyMcpKey: mock((): Promise<unknown> => Promise.resolve(null)),
+  verifyMcpKeyByClientCredentials: mock((): Promise<unknown> => Promise.resolve(null)),
+  getActiveMcpKeyById: mock((): Promise<unknown> => Promise.resolve(null)),
+  findActiveMcpKeyById: mock((): Promise<unknown> => Promise.resolve(null)),
   createMcpKey: mock(() => Promise.resolve({})),
   getMcpKeys: mock(() => Promise.resolve([])),
   deactivateMcpKey: mock(() => Promise.resolve({ count: 1 })),
@@ -161,7 +161,7 @@ mock.module(mcpKeyServicePath, () => mockMcpKeyService);
 mock.module(mcpKeyServiceJsPath, () => mockMcpKeyService);
 
 const mockMcpTools = {
-  registerMcpTools: mock((server: Record<string, unknown>, _guildId: string, _permissions: string[], _client: Client, options?: { securitySchemes?: unknown }) => {
+  registerMcpTools: mock((server: { registerTool: (...args: unknown[]) => unknown }, _guildId: string, _permissions: string[], _client: Client, options?: { securitySchemes?: unknown }) => {
     const securitySchemes = options?.securitySchemes ?? [{ type: 'oauth2', scopes: ['mcp'] }];
     server.registerTool(
       'test_tool',
@@ -245,7 +245,7 @@ function createMockResponse(): MockResponse {
     _statusCode = statusCode;
     if (headers) {
       for (const key of Object.keys(headers)) {
-        res.setHeader(key, headers[key]);
+        res.setHeader(key, headers[key as keyof typeof headers]);
       }
     }
     return res;
@@ -260,7 +260,7 @@ function createMockResponse(): MockResponse {
     if (chunk) {
       _body += chunk.toString();
     }
-    (res as unknown).finished = true;
+    (res as unknown as { finished: boolean }).finished = true;
     res.body = _body;
     return res;
   };
@@ -298,11 +298,11 @@ const mockClient = {
             get: mock((channelId: string) => ({
               id: channelId,
               isTextBased: () => true,
-              send: mock((options: unknown) => Promise.resolve({ id: 'sent-msg-id', ...options })),
+              send: mock((options: Record<string, unknown>) => Promise.resolve({ id: 'sent-msg-id', ...options })),
               messages: {
                 fetch: mock((messageId: string) => Promise.resolve({
                   id: messageId,
-                  edit: mock((options: unknown) => Promise.resolve({ id: messageId, ...options })),
+                  edit: mock((options: Record<string, unknown>) => Promise.resolve({ id: messageId, ...options })),
                 })),
               },
             })),

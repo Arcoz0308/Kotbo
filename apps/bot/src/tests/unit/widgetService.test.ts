@@ -17,7 +17,7 @@ const mockDb = {
     findFirst: mock(() => Promise.resolve({ xp: 100 })),
   },
   staffActivity: {
-    findMany: mock(() => Promise.resolve([])),
+    findMany: mock((_args?: unknown): Promise<unknown[]> => Promise.resolve([])),
   },
 };
 
@@ -78,7 +78,7 @@ for (const [relativePath, factory] of moduleMocks) {
 // les fichiers executes ensuite (dashboardApi.test.ts notamment, qui interroge
 // un vrai serveur HTTP) recevaient la reponse 204 bouchonnee de ce fichier.
 const realFetch = globalThis.fetch;
-const fetchMock = mock(async () => new Response(null, { status: 204 }));
+const fetchMock = mock(async (_input?: unknown, _init?: RequestInit): Promise<Response> => new Response(null, { status: 204 }));
 globalThis.fetch = fetchMock as unknown as typeof fetch;
 
 afterAll(() => {

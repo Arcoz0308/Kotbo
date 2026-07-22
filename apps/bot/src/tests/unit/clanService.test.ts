@@ -4,22 +4,22 @@ import path from 'node:path';
 // Mock the database dependency
 const mockDb = {
   guild: {
-    findUnique: mock(() => Promise.resolve({ clansEnabled: true })),
+    findUnique: mock((): Promise<unknown> => Promise.resolve({ clansEnabled: true })),
   },
   linkedAccount: {
-    findFirst: mock(() => Promise.resolve(null)),
+    findFirst: mock((): Promise<unknown> => Promise.resolve(null)),
   },
   clan: {
-    findMany: mock(() => Promise.resolve([])),
+    findMany: mock((): Promise<unknown[]> => Promise.resolve([])),
   },
   memberLevel: {
-    findUnique: mock(() => Promise.resolve(null)),
+    findUnique: mock((_options?: unknown): Promise<unknown> => Promise.resolve(null)),
   },
   clanMemberContribution: {
-    findMany: mock(() => Promise.resolve([])),
-    findUnique: mock(() => Promise.resolve(null)),
-    update: mock(() => Promise.resolve({})),
-    delete: mock(() => Promise.resolve({})),
+    findMany: mock((): Promise<unknown[]> => Promise.resolve([])),
+    findUnique: mock((): Promise<unknown> => Promise.resolve(null)),
+    update: mock((): Promise<unknown> => Promise.resolve({})),
+    delete: mock((): Promise<unknown> => Promise.resolve({})),
   },
   // Exécute la callback avec le mock lui-même en guise de client transactionnel
   $transaction: mock((fn: (tx: typeof mockDb) => unknown) => Promise.resolve(fn(mockDb))),
@@ -45,7 +45,7 @@ const mockDiscordMember1 = {
   user: { tag: 'User1#0001' },
   roles: {
     cache: {
-      has: mock((roleId: string) => roleId === 'role-clan-1'),
+      has: mock((roleId: string): boolean => roleId === 'role-clan-1'),
     },
     add: mock(() => Promise.resolve({})),
     remove: mock(() => Promise.resolve({})),
@@ -56,7 +56,7 @@ const mockDiscordMember2 = {
   user: { tag: 'User2#0002' },
   roles: {
     cache: {
-      has: mock((roleId: string) => roleId === 'role-clan-2'),
+      has: mock((roleId: string): boolean => roleId === 'role-clan-2'),
     },
     add: mock(() => Promise.resolve({})),
     remove: mock(() => Promise.resolve({})),

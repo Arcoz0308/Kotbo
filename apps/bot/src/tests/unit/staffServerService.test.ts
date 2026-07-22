@@ -6,7 +6,7 @@ import type { StaffServerLink } from '@prisma/client';
 // Mock the database dependency
 const mockDb = {
   staffServerLink: {
-    findMany: mock(() => Promise.resolve([] as unknown[])) as unknown,
+    findMany: mock(() => Promise.resolve([] as unknown[])),
   },
 };
 

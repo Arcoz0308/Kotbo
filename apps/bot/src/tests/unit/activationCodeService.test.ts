@@ -4,19 +4,19 @@ import path from 'node:path';
 // Mock the database dependency
 const mockDb = {
   activationCode: {
-    update: mock(() => Promise.resolve({} as unknown)) as unknown,
-    findFirst: mock(() => Promise.resolve(null as unknown)) as unknown,
-    findUnique: mock(() => Promise.resolve(null as unknown)) as unknown,
-    delete: mock(() => Promise.resolve({} as unknown)) as unknown,
+    update: mock(() => Promise.resolve({} as unknown)),
+    findFirst: mock(() => Promise.resolve(null as unknown)),
+    findUnique: mock(() => Promise.resolve(null as unknown)),
+    delete: mock(() => Promise.resolve({} as unknown)),
   },
   guild: {
-    findMany: mock(() => Promise.resolve([] as unknown[])) as unknown,
-    findUnique: mock(() => Promise.resolve(null as unknown)) as unknown,
-    update: mock(() => Promise.resolve({} as unknown)) as unknown,
-    upsert: mock(() => Promise.resolve({} as unknown)) as unknown,
+    findMany: mock(() => Promise.resolve([] as unknown[])),
+    findUnique: mock(() => Promise.resolve(null as unknown)),
+    update: mock(() => Promise.resolve({} as unknown)),
+    upsert: mock(() => Promise.resolve({} as unknown)),
   },
   staffServerLink: {
-    findMany: mock(() => Promise.resolve([] as unknown[])) as unknown,
+    findMany: mock(() => Promise.resolve([] as unknown[])),
   },
   $transaction: mock(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb)) as unknown,
 };
