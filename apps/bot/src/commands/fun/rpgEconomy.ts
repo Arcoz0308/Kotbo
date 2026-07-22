@@ -214,7 +214,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
     }
 
     const event = status.event!;
-    const choices = event.choices as unknown[];
+    const choices = (event.choices ?? []) as Array<{ text: string; minLevel?: number }>;
 
     const embed = new EmbedBuilder()
       .setTitle(m.rpg_travel_event_title({ emoji: event.emoji, title: event.title }, { locale }))
@@ -229,7 +229,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
           .setCustomId(`rpg_choice:${event.id}:${idx}`)
           .setLabel(choice.text.substring(0, 80))
           .setStyle(ButtonStyle.Secondary)
-          .setDisabled(choice.minLevel && profile.level < choice.minLevel)
+          .setDisabled(Boolean(choice.minLevel && profile.level < choice.minLevel))
       );
     });
 

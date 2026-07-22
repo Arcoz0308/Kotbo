@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, ChannelType, type Guild, type GuildBasedChannel } from 'discord.js';
 import pLimit from 'p-limit';
@@ -188,7 +189,7 @@ export async function handleGuildGeneralRoutes(
       };
       const textChannels = allCh
         .filter((ch) => textChannelTypes.has(ch.type))
-        .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: ch.rawPosition ?? 0, type: channelTypeLabel(ch.type) }))
+        .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: 'rawPosition' in ch ? ch.rawPosition : 0, type: channelTypeLabel(ch.type) }))
         .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
         .map(({ id, name, mention, type }) => ({ id, name, mention, type }));
       const voiceChannels = allCh
@@ -469,8 +470,8 @@ export async function handleGuildGeneralRoutes(
       // Apply by updating user settings
       await prisma.dashboardUserSettings.upsert({
         where: { guildId_userId: { guildId, userId: user.userId } },
-        create: { guildId, userId: user.userId, bentoLayout: preset.layout },
-        update: { bentoLayout: preset.layout }
+        create: { guildId, userId: user.userId, bentoLayout: preset.layout as Prisma.InputJsonValue },
+        update: { bentoLayout: preset.layout as Prisma.InputJsonValue }
       });
       json(res, 200, { ok: true, layout: preset.layout });
     } catch (err) {

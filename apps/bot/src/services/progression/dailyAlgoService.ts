@@ -1324,9 +1324,9 @@ export async function reviewDailyAlgoSubmission(params: {
             { name: 'Défi', value: truncate(submission.run.problem.title, 256), inline: true },
             {
               name: 'Rapidité',
-              value: submission.speedBonusPoints > 0
-                ? `${formatRankMedal(submission.speedRank)} (${elapsed}) +${submission.speedBonusPoints}pts`
-                : `${formatRankMedal(submission.speedRank)} (${elapsed})`,
+              value: (submission.speedBonusPoints ?? 0) > 0
+                ? `${formatRankMedal(submission.speedRank ?? 0)} (${elapsed}) +${submission.speedBonusPoints}pts`
+                : `${formatRankMedal(submission.speedRank ?? 0)} (${elapsed})`,
               inline: true,
             },
           )

@@ -1,5 +1,5 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
+import { Collection, SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
 
 const data = new SlashCommandBuilder()
@@ -45,14 +45,15 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     // Filtrer par membre si spécifié
     if (targetUser) {
-      messagesToDelete = fetchedMessages.filter((m) => m.author.id === targetUser.id);
-      // Limiter au nombre demandé initialement
-      messagesToDelete = messagesToDelete.first(amount) as unknown;
+      // `.first(amount)` renvoie un tableau ; on reconstruit une Collection pour
+      // conserver `.size` et bulkDelete plus bas.
+      const filtered = fetchedMessages.filter((m) => m.author.id === targetUser.id);
+      messagesToDelete = new Collection(filtered.first(amount).map((m) => [m.id, m] as const));
     }
 
     // Filtrer les messages de moins de 14 jours (limite de l'API de bulkDelete de Discord)
     const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-    const deletableMessages = messagesToDelete.filter((m: Record<string, unknown>) => m.createdTimestamp > fourteenDaysAgo);
+    const deletableMessages = messagesToDelete.filter((m) => m.createdTimestamp > fourteenDaysAgo);
 
     if (deletableMessages.size === 0) {
       await interaction.editReply({

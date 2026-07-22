@@ -26,7 +26,7 @@ export async function handleGeneralistModulesRoutes(
 ): Promise<boolean> {
   const method = req.method;
   const moduleKey = parts[4];
-  const auditUser = `${user.username}#${user.discriminator || '0000'} (${user.userId})`;
+  const auditUser = `${user.username ?? 'Utilisateur'} (${user.userId})`;
 
   // Economy & RPG module routes
   if (moduleKey === 'economy') {

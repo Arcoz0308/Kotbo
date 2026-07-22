@@ -315,11 +315,11 @@ export async function refreshStaffEmbed(client: Client, appeal: AppealRecord) {
 // DÉCISION
 // ============================================================================
 
-function renderTemplate(template: string, vars: Record<string, string>): string {
+export function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_m, key: string) => vars[key] ?? `{${key}}`);
 }
 
-async function createReturnInvite(client: Client, guildId: string, inviteChannelId?: string | null): Promise<string | null> {
+export async function createReturnInvite(client: Client, guildId: string, inviteChannelId?: string | null): Promise<string | null> {
   const guild = await fetchGuild(client, guildId);
   if (!guild) return null;
 
@@ -343,7 +343,7 @@ async function createReturnInvite(client: Client, guildId: string, inviteChannel
   return null;
 }
 
-async function sendMemberDM(client: Client, userId: string, content: string): Promise<boolean> {
+export async function sendMemberDM(client: Client, userId: string, content: string): Promise<boolean> {
   try {
     const user = await client.users.fetch(userId);
     await user.send({ content });

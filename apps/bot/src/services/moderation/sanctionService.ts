@@ -202,7 +202,7 @@ async function findRecentSanction(params: {
   });
 }
 
-function formatSanctionDurationLabel(seconds: number | null): string | null {
+export function formatSanctionDurationLabel(seconds: number | null): string | null {
   if (!seconds) return null;
 
   const days = Math.floor(seconds / 86400);
