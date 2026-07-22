@@ -1,0 +1,60 @@
+// ============================================================================
+// CLANS & CONTRIBUTIONS SCHEMA
+// ============================================================================
+
+model Clan {
+  id          String   @id @default(cuid())
+  guildId     String
+  name        String
+  description String?
+  roleId      String   @unique // ID du rôle Discord unique associé
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  generalChannelId String?
+  leaderRoleId     String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  contributions ClanMemberContribution[]
+  contributionEvents ClanContributionEvent[]
+
+  @@unique([guildId, name])
+  @@map("clans")
+}
+
+model ClanMemberContribution {
+  id        String   @id @default(cuid())
+  guildId   String
+  clanId    String
+  userId    String
+  xp        Int      @default(0) // Points accumulés dans ce clan pour cette saison
+  season    Int      @default(1) // Numéro de la saison
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  clan  Clan  @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, clanId, userId, season])
+  @@map("clan_member_contributions")
+}
+
+// Journal des gains de points de clan (flux « derniers scores » temps réel).
+// Contrairement à ClanMemberContribution (total agrégé par saison), cette table
+// enregistre chaque gain individuel pour pouvoir afficher l'historique récent.
+model ClanContributionEvent {
+  id        String   @id @default(cuid())
+  guildId   String
+  clanId    String
+  userId    String   // 'system_manual_points' = gain attribué au clan entier (à afficher au nom du clan)
+  amount    Int      // Points gagnés lors de cet événement (peut être négatif si retrait)
+  source    String   // 'XP' (gagné via progression) | 'ADMIN' (attribué manuellement par un admin)
+  season    Int      @default(1)
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  clan  Clan  @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
+  @@map("clan_contribution_events")
+}

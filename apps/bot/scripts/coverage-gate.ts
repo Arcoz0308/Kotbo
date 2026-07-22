@@ -3,7 +3,10 @@ import { spawnSync } from 'node:child_process';
 const minLines = Number(process.env.KOTBO_COVERAGE_LINES ?? '90');
 const minFuncs = Number(process.env.KOTBO_COVERAGE_FUNCS ?? '80');
 
-const run = spawnSync('bun', ['test', '--coverage', 'src/tests'], {
+// --isolate : mock.module est global au process et n'est jamais annule, donc
+// un mock partiel pose par un fichier casse les fichiers executes ensuite.
+// Doit rester aligne avec le script test:unit.
+const run = spawnSync('bun', ['test', '--isolate', '--coverage', 'src/tests'], {
   cwd: process.cwd(),
   encoding: 'utf8',
   stdio: 'pipe',

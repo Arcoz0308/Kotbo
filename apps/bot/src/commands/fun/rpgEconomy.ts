@@ -22,6 +22,10 @@ import {
   listDiscoveredMonsters,
   simulateBattle,
 } from '../../services/features/combatService.js';
+import { getLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+type Locale = 'fr' | 'en';
 
 // Local interfaces to satisfy ESLint without using any
 interface LocalRpgItem {
@@ -60,11 +64,11 @@ function getProgressBar(current: number, max: number, length = 10, fillEmoji = '
 }
 
 // Check if economy module is enabled
-async function checkEconomyEnabled(interaction: ChatInputCommandInteraction): Promise<boolean> {
+async function checkEconomyEnabled(interaction: ChatInputCommandInteraction, locale: Locale): Promise<boolean> {
   const config = await getOrCreateEconomyConfig(interaction.guildId!);
   if (!config.enabled) {
     await interaction.reply({
-      embeds: [errorEmbed('Module Désactivé', "Le système d'économie et de RPG n'est pas activé sur ce serveur.")],
+      embeds: [errorEmbed(m.rpg_module_disabled_title({}, { locale }), m.rpg_module_disabled_desc({}, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return false;
@@ -84,7 +88,8 @@ const rpgProfileData = new SlashCommandBuilder()
   );
 
 async function rpgProfileExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const targetUser = interaction.options.getUser('membre') ?? interaction.user;
   const profile = await getOrCreateRpgProfile(interaction.guildId!, targetUser.id);
@@ -97,30 +102,33 @@ async function rpgProfileExecute(interaction: ChatInputCommandInteraction) {
   const xpNeeded = profile.level * 100;
 
   const embed = new EmbedBuilder()
-    .setTitle(`🛡️ Profil RPG — ${targetUser.displayName}`)
+    .setTitle(m.rpg_profile_title({ name: targetUser.displayName }, { locale }))
     .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
     .setColor(COLORS.primary)
-    .setDescription(profile.isTraveling ? `✈️ En voyage vers **${profile.travelDestination}**` : '🏡 Au repos dans la taverne')
+    .setDescription(profile.isTraveling ? m.rpg_profile_traveling({ dest: profile.travelDestination }, { locale }) : m.rpg_profile_resting({}, { locale }))
     .addFields(
-      { name: `${config.currencyEmoji} Portefeuille`, value: `**${profile.balance}** ${config.currencyName}`, inline: true },
-      { name: '⭐ Niveau', value: `Niveau **${profile.level}**`, inline: true },
-      { name: '⚡ Énergie', value: `${profile.energy} / ${config.maxEnergy}\n${getProgressBar(profile.energy, config.maxEnergy, 10, '⚡', '⚫')}`, inline: false },
-      { name: '❤️ Points de Vie (PV)', value: `${profile.health} / ${profile.maxHealth}\n${getProgressBar(profile.health, profile.maxHealth, 10, '❤️', '🖤')}`, inline: false },
-      { name: '📈 Expérience (XP)', value: `${profile.xp} / ${xpNeeded} XP\n${getProgressBar(profile.xp, xpNeeded, 10, '🟦', '⬛')}`, inline: false },
+      { name: m.rpg_profile_field_wallet({ emoji: config.currencyEmoji }, { locale }), value: `**${profile.balance}** ${config.currencyName}`, inline: true },
+      { name: m.rpg_profile_field_level({}, { locale }), value: m.rpg_profile_level_value({ level: profile.level }, { locale }), inline: true },
+      { name: m.rpg_profile_field_energy({}, { locale }), value: `${profile.energy} / ${config.maxEnergy}\n${getProgressBar(profile.energy, config.maxEnergy, 10, '⚡', '⚫')}`, inline: false },
+      { name: m.rpg_profile_field_hp({}, { locale }), value: `${profile.health} / ${profile.maxHealth}\n${getProgressBar(profile.health, profile.maxHealth, 10, '❤️', '🖤')}`, inline: false },
+      { name: m.rpg_profile_field_xp({}, { locale }), value: `${profile.xp} / ${xpNeeded} XP\n${getProgressBar(profile.xp, xpNeeded, 10, '🟦', '⬛')}`, inline: false },
       {
-        name: '⚔️ Statistiques combat',
-        value: `💥 Attaque: **${profile.attack}**\n🛡️ Défense: **${profile.defense}**\n👟 Vitesse: **${profile.speed}**`,
+        name: m.rpg_profile_field_combat_stats({}, { locale }),
+        value: m.rpg_profile_combat_stats_value({ atk: profile.attack, def: profile.defense, spd: profile.speed }, { locale }),
         inline: true
       },
       {
-        name: '🎒 Équipement équipé',
-        value: `🗡️ Arme: **${weapon ? weapon.emoji + ' ' + weapon.name : 'Aucune'}**\n🦺 Armure: **${armor ? armor.emoji + ' ' + armor.name : 'Aucune'}**`,
+        name: m.rpg_profile_field_equipment({}, { locale }),
+        value: m.rpg_profile_equipment_value({
+          weapon: weapon ? weapon.emoji + ' ' + weapon.name : m.rpg_profile_no_item({}, { locale }),
+          armor: armor ? armor.emoji + ' ' + armor.name : m.rpg_profile_no_item({}, { locale }),
+        }, { locale }),
         inline: true
       }
     );
 
   if (profile.rpgGuild) {
-    embed.addFields({ name: '🛡️ Guilde', value: `${profile.rpgGuild.emoji} **${profile.rpgGuild.name}** (Niveau ${profile.rpgGuild.level})`, inline: false });
+    embed.addFields({ name: m.rpg_profile_field_guild({}, { locale }), value: m.rpg_profile_guild_value({ emoji: profile.rpgGuild.emoji, name: profile.rpgGuild.name, level: profile.rpgGuild.level }, { locale }), inline: false });
   }
 
   await interaction.reply({ embeds: [embed] });
@@ -135,23 +143,24 @@ const rpgDailyData = new SlashCommandBuilder()
   .setDescription('🪙 Récupérer vos pièces quotidiennes gratuites');
 
 async function rpgDailyExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const result = await claimDaily(interaction.guildId!, interaction.user.id);
   const config = await getOrCreateEconomyConfig(interaction.guildId!);
 
   if (!result.success) {
     await interaction.reply({
-      embeds: [errorEmbed('Daily indisponible', `Vous devez encore attendre **${result.remainingHours} heures et ${result.remainingMinutes} minutes** avant de pouvoir réclamer votre récompense.`)],
+      embeds: [errorEmbed(m.rpg_daily_unavailable_title({}, { locale }), m.rpg_daily_unavailable_desc({ hours: result.remainingHours, minutes: result.remainingMinutes }, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return;
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🪙 Récompense Journalière')
-    .setDescription(`Vous avez récupéré **${result.reward}** ${config.currencyEmoji} **${config.currencyName}** !`)
-    .addFields({ name: 'Nouveau solde', value: `**${result.newBalance}** ${config.currencyEmoji}` })
+    .setTitle(m.rpg_daily_title({}, { locale }))
+    .setDescription(m.rpg_daily_desc({ reward: result.reward, emoji: config.currencyEmoji, currency: config.currencyName }, { locale }))
+    .addFields({ name: m.rpg_daily_new_balance({}, { locale }), value: `**${result.newBalance}** ${config.currencyEmoji}` })
     .setColor(COLORS.success)
     .setTimestamp();
 
@@ -167,7 +176,8 @@ const rpgTravelData = new SlashCommandBuilder()
   .setDescription("✈️ Démarrer ou résoudre un voyage d'aventure");
 
 async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
@@ -175,7 +185,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
   if (!config.rpgEnabled) {
     await interaction.reply({
-      embeds: [errorEmbed('RPG désactivé', "Le système d'aventures RPG est désactivé sur ce serveur.")],
+      embeds: [errorEmbed(m.rpg_travel_disabled_title({}, { locale }), m.rpg_travel_disabled_desc({}, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -189,7 +199,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
     if (!status.complete) {
       await interaction.reply({
-        embeds: [errorEmbed('Voyage en cours', `Vous êtes actuellement en voyage vers **${profile.travelDestination}**.\nTemps restant: **${status.remainingMinutes}** minutes.`)],
+        embeds: [errorEmbed(m.rpg_travel_in_progress_title({}, { locale }), m.rpg_travel_in_progress_desc({ dest: profile.travelDestination, minutes: status.remainingMinutes }, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -197,7 +207,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
     if (status.noEvent) {
       await interaction.reply({
-        embeds: [successEmbed('Voyage terminé', "Vous êtes bien arrivé à destination mais rien de particulier ne s'est passé en chemin.")]
+        embeds: [successEmbed(m.rpg_travel_done_title({}, { locale }), m.rpg_travel_done_desc({}, { locale }))]
       });
       return;
     }
@@ -206,10 +216,10 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
     const choices = event.choices as unknown[];
 
     const embed = new EmbedBuilder()
-      .setTitle(`${event.emoji} Événement de Voyage: ${event.title}`)
+      .setTitle(m.rpg_travel_event_title({ emoji: event.emoji, title: event.title }, { locale }))
       .setDescription(event.description)
       .setColor(COLORS.primary)
-      .setFooter({ text: 'Choisissez une action ci-dessous :' });
+      .setFooter({ text: m.rpg_travel_choose_action({}, { locale }) });
 
     const row = new ActionRowBuilder<ButtonBuilder>();
     choices.forEach((choice, idx) => {
@@ -234,7 +244,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
     collector.on('collect', async (i) => {
       if (i.user.id !== interaction.user.id) {
-        await i.reply({ content: "Ce n'est pas votre aventure !", flags: [MessageFlags.Ephemeral] });
+        await i.reply({ content: m.rpg_travel_not_your_adventure({}, { locale }), flags: [MessageFlags.Ephemeral] });
         return;
       }
 
@@ -244,19 +254,19 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
       try {
         const resolution = await chooseAdventureOutcome(guildId, userId, evId, idx);
-        
+
         const resolutionEmbed = new EmbedBuilder()
-          .setTitle(`${event.emoji} Résolution: ${event.title}`)
-          .setDescription(`Vous avez choisi : **${resolution.choiceText}**\n\n${resolution.criticalMessage || ''}`)
+          .setTitle(m.rpg_travel_resolution_title({ emoji: event.emoji, title: event.title }, { locale }))
+          .setDescription(m.rpg_travel_resolution_desc({ choice: resolution.choiceText, critical: resolution.criticalMessage || '' }, { locale }))
           .addFields(
-            { name: '❤️ Effet de Vie (PV)', value: `${resolution.hpEffect >= 0 ? '+' : ''}${resolution.hpEffect} PV`, inline: true },
-            { name: '🪙 KotboCoins', value: `${resolution.coinEffect >= 0 ? '+' : ''}${resolution.coinEffect} 🪙`, inline: true },
-            { name: '⭐ XP', value: `+${resolution.xpEffect} XP`, inline: true }
+            { name: m.rpg_travel_field_hp_effect({}, { locale }), value: `${resolution.hpEffect >= 0 ? '+' : ''}${resolution.hpEffect} PV`, inline: true },
+            { name: m.rpg_travel_field_coin_effect({}, { locale }), value: `${resolution.coinEffect >= 0 ? '+' : ''}${resolution.coinEffect} 🪙`, inline: true },
+            { name: m.rpg_travel_field_xp({}, { locale }), value: `+${resolution.xpEffect} XP`, inline: true }
           )
           .setColor(resolution.hpEffect < 0 ? COLORS.danger : COLORS.success);
 
         if (resolution.levelUp) {
-          resolutionEmbed.addFields({ name: '🎉 NIVEAU SUPÉRIEUR !', value: `Félicitations, vous passez **Niveau ${resolution.levelUp}** ! Vos PV ont été restaurés et vos statistiques augmentées.` });
+          resolutionEmbed.addFields({ name: m.rpg_travel_field_levelup({}, { locale }), value: m.rpg_travel_levelup_value({ level: resolution.levelUp }, { locale }) });
         }
 
         await interaction.editReply({
@@ -266,7 +276,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
         collector.stop();
       } catch (err: unknown) {
         await interaction.editReply({
-          embeds: [errorEmbed('Erreur résolution', err.message || 'Une erreur est survenue.')],
+          embeds: [errorEmbed(m.rpg_travel_resolution_error_title({}, { locale }), err.message || m.rpg_travel_generic_error({}, { locale }))],
           components: []
         });
         collector.stop();
@@ -278,16 +288,16 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
   // Case 2: Inactive Travel — Choose destination
   const destinations = [
-    { name: 'Forêt Mystique', time: 5, label: 'Forêt Mystique (5 min)' },
-    { name: 'Montagnes du Destin', time: 15, label: 'Montagnes du Destin (15 min)' },
-    { name: 'Marécage Maudit', time: 30, label: 'Marécage Maudit (30 min)' }
+    { name: 'Forêt Mystique', time: 5, label: m.rpg_travel_dest_forest_label({}, { locale }) },
+    { name: 'Montagnes du Destin', time: 15, label: m.rpg_travel_dest_mountains_label({}, { locale }) },
+    { name: 'Marécage Maudit', time: 30, label: m.rpg_travel_dest_swamp_label({}, { locale }) }
   ];
 
   const embed = new EmbedBuilder()
-    .setTitle("✈️ Commencer un voyage d'aventure")
-    .setDescription("Choisissez une destination ci-dessous. Voyager consomme **20 points d'énergie** et prend un certain temps réel.\nÀ la fin de la durée, lancez à nouveau la commande pour faire face à un événement aléatoire !")
+    .setTitle(m.rpg_travel_start_title({}, { locale }))
+    .setDescription(m.rpg_travel_start_desc({}, { locale }))
     .setColor(COLORS.primary)
-    .addFields({ name: 'Énergie actuelle', value: `${profile.energy} / ${config.maxEnergy}` });
+    .addFields({ name: m.rpg_travel_field_energy_now({}, { locale }), value: `${profile.energy} / ${config.maxEnergy}` });
 
   const row = new ActionRowBuilder<ButtonBuilder>();
   destinations.forEach((dest, idx) => {
@@ -318,13 +328,13 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
     try {
       await startTravel(guildId, userId, dest.name, dest.time);
       await interaction.editReply({
-        embeds: [successEmbed('Bon voyage !', `Vous commencez votre voyage vers **${dest.name}**. Revenez dans **${dest.time} minutes** pour découvrir ce qui vous attend !`)],
+        embeds: [successEmbed(m.rpg_travel_bon_voyage_title({}, { locale }), m.rpg_travel_bon_voyage_desc({ dest: dest.name, time: dest.time }, { locale }))],
         components: []
       });
       collector.stop();
     } catch (err: unknown) {
       await interaction.editReply({
-        embeds: [errorEmbed('Énergie insuffisante', err.message || 'Impossible de voyager.')],
+        embeds: [errorEmbed(m.rpg_travel_energy_insufficient_title({}, { locale }), err.message || m.rpg_travel_cannot_travel({}, { locale }))],
         components: []
       });
       collector.stop();
@@ -341,7 +351,8 @@ const rpgShopData = new SlashCommandBuilder()
   .setDescription('🛒 Consulter la boutique et acheter des objets RPG');
 
 async function rpgShopExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
@@ -349,7 +360,7 @@ async function rpgShopExecute(interaction: ChatInputCommandInteraction) {
 
   if (!config.shopEnabled) {
     await interaction.reply({
-      embeds: [errorEmbed('Boutique désactivée', 'La boutique RPG est désactivée sur ce serveur.')],
+      embeds: [errorEmbed(m.rpg_shop_disabled_title({}, { locale }), m.rpg_shop_disabled_desc({}, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -368,17 +379,22 @@ async function rpgShopExecute(interaction: ChatInputCommandInteraction) {
   });
 
   if (items.length === 0) {
-    await interaction.reply({ content: 'La boutique est vide actuellement.', flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ content: m.rpg_shop_empty({}, { locale }), flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🛒 Boutique RPG')
-    .setDescription(`Achetez des objets pour améliorer vos statistiques et voyager en toute sécurité !\nVotre Solde: **${profile.balance}** ${config.currencyEmoji}`)
+    .setTitle(m.rpg_shop_title({}, { locale }))
+    .setDescription(m.rpg_shop_desc({ balance: profile.balance, emoji: config.currencyEmoji }, { locale }))
     .setColor(COLORS.primary);
 
   // Group items by type for nice display
-  const typesMap: Record<string, string> = { WEAPON: '🗡️ Armes', ARMOR: '🦺 Armures', POTION: '🧪 Potions', QUEST: '🔑 Objets de quête' };
+  const typesMap: Record<string, string> = {
+    WEAPON: m.rpg_shop_type_weapon({}, { locale }),
+    ARMOR: m.rpg_shop_type_armor({}, { locale }),
+    POTION: m.rpg_shop_type_potion({}, { locale }),
+    QUEST: m.rpg_shop_type_quest({}, { locale }),
+  };
   const groupedItems = items.reduce((acc: Record<string, LocalRpgItem[]>, item: unknown) => {
     const localItem = item as LocalRpgItem;
     acc[localItem.type] = acc[localItem.type] || [];
@@ -389,17 +405,17 @@ async function rpgShopExecute(interaction: ChatInputCommandInteraction) {
   for (const [type, itemArray] of Object.entries(groupedItems)) {
     const list = itemArray.map((item: LocalRpgItem) => {
       let stats = '';
-      if (item.atkBonus) stats += ` (ATK +${item.atkBonus})`;
-      if (item.defBonus) stats += ` (DEF +${item.defBonus})`;
-      if (item.hpRestore) stats += ` (Restaure ${item.hpRestore} HP)`;
+      if (item.atkBonus) stats += m.rpg_shop_stat_atk({ v: item.atkBonus }, { locale });
+      if (item.defBonus) stats += m.rpg_shop_stat_def({ v: item.defBonus }, { locale });
+      if (item.hpRestore) stats += m.rpg_shop_stat_hp({ v: item.hpRestore }, { locale });
       return `${item.emoji} **${item.name}** - **${item.price}** 🪙\n*${item.description}*${stats}`;
     }).join('\n');
-    embed.addFields({ name: typesMap[type] || type, value: list || 'Vide' });
+    embed.addFields({ name: typesMap[type] || type, value: list || m.rpg_shop_empty_category({}, { locale }) });
   }
 
   const select = new StringSelectMenuBuilder()
     .setCustomId('rpg_buy')
-    .setPlaceholder('Sélectionnez un objet à acheter...');
+    .setPlaceholder(m.rpg_shop_select_placeholder({}, { locale }));
 
   items.slice(0, 25).forEach((item: unknown) => {
     const localItem = item as LocalRpgItem;
@@ -431,13 +447,13 @@ async function rpgShopExecute(interaction: ChatInputCommandInteraction) {
     try {
       const buyResult = await buyShopItem(guildId, userId, itemId);
       await interaction.editReply({
-        embeds: [successEmbed('Achat réussi !', `Vous avez acheté **${buyResult.itemName}** pour **${buyResult.price}** 🪙.\nNouveau solde: **${buyResult.newBalance}** 🪙.`)],
+        embeds: [successEmbed(m.rpg_shop_buy_success_title({}, { locale }), m.rpg_shop_buy_success_desc({ item: buyResult.itemName, price: buyResult.price, balance: buyResult.newBalance }, { locale }))],
         components: []
       });
       collector.stop();
     } catch (err: unknown) {
       await interaction.editReply({
-        embeds: [errorEmbed('Achat échoué', err.message || "Impossible d'effectuer l'achat.")],
+        embeds: [errorEmbed(m.rpg_shop_buy_failed_title({}, { locale }), err.message || m.rpg_shop_buy_failed_desc({}, { locale }))],
         components: []
       });
       collector.stop();
@@ -454,7 +470,8 @@ const rpgInventoryData = new SlashCommandBuilder()
   .setDescription('🎒 Gérer votre sac à dos, équiper vos armes et utiliser vos potions');
 
 async function rpgInventoryExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
@@ -464,31 +481,31 @@ async function rpgInventoryExecute(interaction: ChatInputCommandInteraction) {
 
   if (inventory.length === 0) {
     await interaction.reply({
-      embeds: [errorEmbed('Sac vide', 'Votre inventaire est vide ! Achetez des potions et des armes dans le `/rpg-shop`.')],
+      embeds: [errorEmbed(m.rpg_inventory_empty_title({}, { locale }), m.rpg_inventory_empty_desc({}, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return;
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🎒 Votre Inventaire RPG')
-    .setDescription('Utilisez le menu ci-dessous pour équiper une arme/armure ou boire une potion de soin/énergie.')
+    .setTitle(m.rpg_inventory_title({}, { locale }))
+    .setDescription(m.rpg_inventory_desc({}, { locale }))
     .setColor(COLORS.primary);
 
   const list = inventory.map((entry: unknown) => {
     const localEntry = entry as LocalInventoryEntry;
     const item = localEntry.item;
     let desc = `${item.emoji} **${item.name}** (x${localEntry.quantity}) - *${item.type}*`;
-    if (item.id === profile.weaponId) desc += ' 🟢 *(Équipé)*';
-    if (item.id === profile.armorId) desc += ' 🟢 *(Équipé)*';
+    if (item.id === profile.weaponId) desc += m.rpg_inventory_equipped_tag({}, { locale });
+    if (item.id === profile.armorId) desc += m.rpg_inventory_equipped_tag({}, { locale });
     return desc;
   }).join('\n');
 
-  embed.addFields({ name: 'Contenu du sac à dos', value: list });
+  embed.addFields({ name: m.rpg_inventory_field_content({}, { locale }), value: list });
 
   const select = new StringSelectMenuBuilder()
     .setCustomId('rpg_use')
-    .setPlaceholder('Choisissez un objet à équiper ou consommer...');
+    .setPlaceholder(m.rpg_inventory_select_placeholder({}, { locale }));
 
   inventory.forEach((entry: unknown) => {
     const localEntry = entry as LocalInventoryEntry;
@@ -496,7 +513,7 @@ async function rpgInventoryExecute(interaction: ChatInputCommandInteraction) {
     const isEquipped = item.id === profile.weaponId || item.id === profile.armorId;
     select.addOptions({
       label: `${item.name} (x${localEntry.quantity})`,
-      description: isEquipped ? 'Déjà équipé' : item.type === 'POTION' ? 'Consommer la potion' : 'Équiper cet objet',
+      description: isEquipped ? m.rpg_inventory_already_equipped({}, { locale }) : item.type === 'POTION' ? m.rpg_inventory_consume_potion({}, { locale }) : m.rpg_inventory_equip_item({}, { locale }),
       value: item.id,
       emoji: item.emoji
     });
@@ -527,20 +544,20 @@ async function rpgInventoryExecute(interaction: ChatInputCommandInteraction) {
       if (item.type === 'POTION') {
         const result = await consumePotionItem(guildId, userId, itemId);
         await interaction.editReply({
-          embeds: [successEmbed('Potion consommée', `Vous buvez **${result.itemName}**.\n❤️ PV restaurés: +${result.restoredHp} (Total: ${result.newHp} PV)\n⚡ Énergie restaurée: +${result.restoredEnergy} (Total: ${result.newEnergy})`)],
+          embeds: [successEmbed(m.rpg_potion_consumed_title({}, { locale }), m.rpg_potion_consumed_desc({ item: result.itemName, hp: result.restoredHp, newHp: result.newHp, energy: result.restoredEnergy, newEnergy: result.newEnergy }, { locale }))],
           components: []
         });
       } else {
         const result = await equipInventoryItem(guildId, userId, itemId);
         await interaction.editReply({
-          embeds: [successEmbed('Objet équipé', `Vous avez équipé l'objet **${result.itemName}** en tant que **${result.type}** !`)],
+          embeds: [successEmbed(m.rpg_item_equipped_title({}, { locale }), m.rpg_item_equipped_desc({ item: result.itemName, type: result.type }, { locale }))],
           components: []
         });
       }
       collector.stop();
     } catch (err: unknown) {
       await interaction.editReply({
-        embeds: [errorEmbed('Action échouée', err.message || 'Impossible de faire cette action.')],
+        embeds: [errorEmbed(m.rpg_action_failed_title({}, { locale }), err.message || m.rpg_action_failed_desc({}, { locale }))],
         components: []
       });
       collector.stop();
@@ -609,7 +626,8 @@ const rpgGuildData = new SlashCommandBuilder()
   );
 
 async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
@@ -617,7 +635,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
 
   if (!config.guildsEnabled) {
     await interaction.reply({
-      embeds: [errorEmbed('Guildes désactivées', 'Le système de guildes RPG est désactivé sur ce serveur.')],
+      embeds: [errorEmbed(m.rpg_guild_disabled_title({}, { locale }), m.rpg_guild_disabled_desc({}, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -630,7 +648,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
     const profile = await getOrCreateRpgProfile(guildId, userId);
     if (!profile.rpgGuildId) {
       await interaction.reply({
-        embeds: [errorEmbed('Pas de guilde', "Vous n'appartenez à aucune guilde. Créez-en une avec `/rpg-guild create` ou rejoignez-en une avec `/rpg-guild join`.")],
+        embeds: [errorEmbed(m.rpg_guild_no_guild_title({}, { locale }), m.rpg_guild_no_guild_desc({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -644,17 +662,17 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
     if (!rpgGuild) return;
 
     const xpNeeded = rpgGuild.level * 1000;
-    const membersList = rpgGuild.members.map((m: unknown) => `<@${(m as LocalGuildMember).userId}> (Niveau ${(m as LocalGuildMember).level})`).join(', ');
+    const membersList = rpgGuild.members.map((mb: unknown) => `<@${(mb as LocalGuildMember).userId}> (Niveau ${(mb as LocalGuildMember).level})`).join(', ');
 
     const embed = new EmbedBuilder()
-      .setTitle(`${rpgGuild.emoji} Guilde: ${rpgGuild.name}`)
-      .setDescription(rpgGuild.description || '*Aucune description.*')
+      .setTitle(m.rpg_guild_title({ emoji: rpgGuild.emoji, name: rpgGuild.name }, { locale }))
+      .setDescription(rpgGuild.description || m.rpg_guild_no_description({}, { locale }))
       .setColor(COLORS.primary)
       .addFields(
-        { name: '⭐ Niveau de la guilde', value: `Niveau **${rpgGuild.level}**`, inline: true },
-        { name: '🪙 Trésor de guilde', value: `**${rpgGuild.treasury}** KotboCoins`, inline: true },
-        { name: '📈 Progression XP', value: `${rpgGuild.xp} / ${xpNeeded} XP\n${getProgressBar(rpgGuild.xp, xpNeeded, 10, '🟨', '⬛')}`, inline: false },
-        { name: '👥 Membres', value: membersList || 'Aucun membre.' }
+        { name: m.rpg_guild_field_level({}, { locale }), value: m.rpg_profile_level_value({ level: rpgGuild.level }, { locale }), inline: true },
+        { name: m.rpg_guild_field_treasury({}, { locale }), value: m.rpg_guild_treasury_value({ amount: rpgGuild.treasury }, { locale }), inline: true },
+        { name: m.rpg_guild_field_xp({}, { locale }), value: `${rpgGuild.xp} / ${xpNeeded} XP\n${getProgressBar(rpgGuild.xp, xpNeeded, 10, '🟨', '⬛')}`, inline: false },
+        { name: m.rpg_guild_field_members({}, { locale }), value: membersList || m.rpg_guild_no_members({}, { locale }) }
       );
 
     await interaction.reply({ embeds: [embed] });
@@ -669,11 +687,11 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
     try {
       const rpgGuild = await createRpgGuild(guildId, userId, name, desc);
       await interaction.reply({
-        embeds: [successEmbed('Guilde créée !', `La guilde **${rpgGuild.name}** a été créée avec succès.\n500 KotboCoins ont été déduits de votre compte.`)]
+        embeds: [successEmbed(m.rpg_guild_created_title({}, { locale }), m.rpg_guild_created_desc({ name: rpgGuild.name }, { locale }))]
       });
     } catch (err: unknown) {
       await interaction.reply({
-        embeds: [errorEmbed('Création échouée', err.message || 'Impossible de créer la guilde.')],
+        embeds: [errorEmbed(m.rpg_guild_create_failed_title({}, { locale }), err.message || m.rpg_guild_create_failed_desc({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -690,7 +708,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
 
     if (!targetGuild) {
       await interaction.reply({
-        embeds: [errorEmbed('Guilde introuvable', "Aucune guilde avec ce nom n'existe sur ce serveur.")],
+        embeds: [errorEmbed(m.rpg_guild_not_found_title({}, { locale }), m.rpg_guild_not_found_desc({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -699,11 +717,11 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
     try {
       await joinRpgGuild(guildId, userId, targetGuild.id);
       await interaction.reply({
-        embeds: [successEmbed('Bienvenue !', `Vous avez rejoint la guilde **${targetGuild.name}**.`)]
+        embeds: [successEmbed(m.rpg_guild_welcome_title({}, { locale }), m.rpg_guild_welcome_desc({ name: targetGuild.name }, { locale }))]
       });
     } catch (err: unknown) {
       await interaction.reply({
-        embeds: [errorEmbed('Action échouée', err.message || 'Impossible de rejoindre la guilde.')],
+        embeds: [errorEmbed(m.rpg_action_failed_title({}, { locale }), err.message || m.rpg_guild_action_failed_desc_join({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -716,16 +734,16 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
       const result = await leaveRpgGuild(guildId, userId);
       if (result.dissolved) {
         await interaction.reply({
-          embeds: [successEmbed('Guilde dissoute', 'Comme vous étiez le dernier membre de la guilde, celle-ci a été dissoute.')]
+          embeds: [successEmbed(m.rpg_guild_dissolved_title({}, { locale }), m.rpg_guild_dissolved_desc({}, { locale }))]
         });
       } else {
         await interaction.reply({
-          embeds: [successEmbed('Départ réussi', `Vous avez quitté la guilde **${result.guildName}**.`)]
+          embeds: [successEmbed(m.rpg_guild_left_title({}, { locale }), m.rpg_guild_left_desc({ name: result.guildName }, { locale }))]
         });
       }
     } catch (err: unknown) {
       await interaction.reply({
-        embeds: [errorEmbed('Erreur', err.message || 'Impossible de quitter la guilde.')],
+        embeds: [errorEmbed(m.rpg_generic_error_title({}, { locale }), err.message || m.rpg_guild_leave_error_desc({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -738,14 +756,14 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
 
     try {
       const depositResult = await depositToRpgGuildTreasury(guildId, userId, amount);
-      const resEmbed = successEmbed('Dépôt enregistré', `Vous avez déposé **${depositResult.amount}** 🪙 dans le coffre commun.`);
+      const resEmbed = successEmbed(m.rpg_guild_deposit_title({}, { locale }), m.rpg_guild_deposit_desc({ amount: depositResult.amount }, { locale }));
       if (depositResult.levelUp) {
-        resEmbed.addFields({ name: '🎉 NIVEAU DE GUILDE SUPÉRIEUR !', value: `Grâce à votre don, la guilde passe au **Niveau ${depositResult.levelUp}** !` });
+        resEmbed.addFields({ name: m.rpg_guild_deposit_levelup_title({}, { locale }), value: m.rpg_guild_deposit_levelup_desc({ level: depositResult.levelUp }, { locale }) });
       }
       await interaction.reply({ embeds: [resEmbed] });
     } catch (err: unknown) {
       await interaction.reply({
-        embeds: [errorEmbed('Dépôt échoué', err.message || 'Impossible de déposer cette somme.')],
+        embeds: [errorEmbed(m.rpg_guild_deposit_failed_title({}, { locale }), err.message || m.rpg_guild_deposit_failed_desc({}, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -775,7 +793,8 @@ const rpgPayData = new SlashCommandBuilder()
   );
 
 async function rpgPayExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const guildId = interaction.guildId!;
   const senderId = interaction.user.id;
@@ -783,12 +802,12 @@ async function rpgPayExecute(interaction: ChatInputCommandInteraction) {
   const amount = interaction.options.getInteger('montant', true);
 
   if (receiver.bot) {
-    await interaction.reply({ embeds: [errorEmbed('Erreur', "Vous ne pouvez pas envoyer d'argent à un bot !")], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_generic_error_title({}, { locale }), m.rpg_pay_no_bot({}, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   if (receiver.id === senderId) {
-    await interaction.reply({ embeds: [errorEmbed('Erreur', "Vous ne pouvez pas vous envoyer d'argent à vous-même !")], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_generic_error_title({}, { locale }), m.rpg_pay_no_self({}, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
@@ -796,7 +815,7 @@ async function rpgPayExecute(interaction: ChatInputCommandInteraction) {
 
   if (senderProfile.balance < amount) {
     await interaction.reply({
-      embeds: [errorEmbed('Solde insuffisant', `Vous n'avez pas assez de KotboCoins (actuel: ${senderProfile.balance} 🪙).`)],
+      embeds: [errorEmbed(m.rpg_pay_insufficient_title({}, { locale }), m.rpg_pay_insufficient_desc({ balance: senderProfile.balance }, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -816,10 +835,10 @@ async function rpgPayExecute(interaction: ChatInputCommandInteraction) {
   ]);
 
   const config = await getOrCreateEconomyConfig(guildId);
-  const embed = successEmbed('Transaction réussie !', `Vous avez envoyé **${amount}** ${config.currencyEmoji} à <@${receiver.id}>.`)
+  const embed = successEmbed(m.rpg_pay_success_title({}, { locale }), m.rpg_pay_success_desc({ amount, emoji: config.currencyEmoji, id: receiver.id }, { locale }))
     .addFields(
-      { name: 'Votre nouveau solde', value: `**${senderProfile.balance - amount}** ${config.currencyEmoji}`, inline: true },
-      { name: 'Leur nouveau solde', value: `**${receiverProfile.balance + amount}** ${config.currencyEmoji}`, inline: true }
+      { name: m.rpg_pay_field_your_balance({}, { locale }), value: `**${senderProfile.balance - amount}** ${config.currencyEmoji}`, inline: true },
+      { name: m.rpg_pay_field_their_balance({}, { locale }), value: `**${receiverProfile.balance + amount}** ${config.currencyEmoji}`, inline: true }
     );
 
   await interaction.reply({ embeds: [embed] });
@@ -839,7 +858,8 @@ const rpgSellData = new SlashCommandBuilder()
   );
 
 async function rpgSellExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
@@ -847,30 +867,30 @@ async function rpgSellExecute(interaction: ChatInputCommandInteraction) {
 
   try {
     const profile = await getOrCreateRpgProfile(guildId, userId);
-    
+
     // Find matching item in inventory
-    const entry = profile.inventory.find((e: unknown) => 
+    const entry = profile.inventory.find((e: unknown) =>
       (e as LocalInventoryEntry).item.name.toLowerCase().includes(query)
     ) as LocalInventoryEntry | undefined;
 
     if (!entry) {
       await interaction.reply({
-        embeds: [errorEmbed('Objet non trouvé', `Vous ne possédez pas d'objet correspondant à "${query}" dans votre inventaire.`)],
+        embeds: [errorEmbed(m.rpg_sell_not_found_title({}, { locale }), m.rpg_sell_not_found_desc({ query }, { locale }))],
         flags: [MessageFlags.Ephemeral]
       });
       return;
     }
 
     const sellResult = await sellShopItem(guildId, userId, entry.item.id);
-    
-    const embed = successEmbed('Vente réussie !', `Vous avez vendu **${sellResult.itemName}** pour **${sellResult.sellPrice}** 🪙.`)
-      .addFields({ name: 'Nouveau solde', value: `**${sellResult.newBalance}** 🪙` });
+
+    const embed = successEmbed(m.rpg_sell_success_title({}, { locale }), m.rpg_sell_success_desc({ item: sellResult.itemName, price: sellResult.sellPrice }, { locale }))
+      .addFields({ name: m.rpg_sell_new_balance({}, { locale }), value: `**${sellResult.newBalance}** 🪙` });
 
     await interaction.reply({ embeds: [embed] });
   } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : "Impossible de vendre l'objet.";
+    const errMsg = err instanceof Error ? err.message : m.rpg_sell_error_desc({}, { locale });
     await interaction.reply({
-      embeds: [errorEmbed('Erreur vente', errMsg)],
+      embeds: [errorEmbed(m.rpg_sell_error_title({}, { locale }), errMsg)],
       flags: [MessageFlags.Ephemeral]
     });
   }
@@ -902,7 +922,8 @@ const rpgDropData = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 async function rpgDropExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const type = interaction.options.getString('type', true);
   const amount = interaction.options.getInteger('quantite', true);
@@ -918,18 +939,18 @@ async function rpgDropExecute(interaction: ChatInputCommandInteraction) {
     });
 
     const isCoins = type === 'COINS';
-    const resourceName = isCoins ? 'KotboCoins 🪙' : 'XP RPG ⭐';
+    const resourceName = isCoins ? m.rpg_drop_resource_coins({}, { locale }) : m.rpg_drop_resource_xp({}, { locale });
 
     const embed = new EmbedBuilder()
-      .setTitle('🎁 Un drop est apparu !')
-      .setDescription(`Un administrateur a fait tomber **${amount}** **${resourceName}** dans ce salon !\nSoyez le premier à cliquer sur le bouton ci-dessous pour les récupérer !`)
+      .setTitle(m.rpg_drop_title({}, { locale }))
+      .setDescription(m.rpg_drop_desc({ amount, resource: resourceName }, { locale }))
       .setColor(COLORS.primary)
       .setTimestamp();
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`rpg_drop_claim:${drop.id}`)
-        .setLabel('Réclamer 🎁')
+        .setLabel(m.rpg_drop_claim_button({}, { locale }))
         .setStyle(ButtonStyle.Success)
     );
 
@@ -938,9 +959,9 @@ async function rpgDropExecute(interaction: ChatInputCommandInteraction) {
       components: [row]
     });
   } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : 'Impossible de créer le drop.';
+    const errMsg = err instanceof Error ? err.message : m.rpg_drop_error_desc({}, { locale });
     await interaction.reply({
-      embeds: [errorEmbed('Erreur drop', errMsg)],
+      embeds: [errorEmbed(m.rpg_drop_error_title({}, { locale }), errMsg)],
       flags: [MessageFlags.Ephemeral]
     });
   }
@@ -994,7 +1015,8 @@ const rpgAdminData = new SlashCommandBuilder()
   );
 
 async function rpgAdminExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
 
   const sub = interaction.options.getSubcommand();
   const guildId = interaction.guildId!;
@@ -1004,18 +1026,18 @@ async function rpgAdminExecute(interaction: ChatInputCommandInteraction) {
 
     // Send a confirmation prompt to avoid accidental deletion
     const embed = new EmbedBuilder()
-      .setTitle('⚠️ Confirmation de Réinitialisation')
-      .setDescription(`Êtes-vous sûr de vouloir réinitialiser le composant **${component}** de l'économie/RPG ? Cette action est **irréversible** !`)
+      .setTitle(m.rpg_admin_reset_confirm_title({}, { locale }))
+      .setDescription(m.rpg_admin_reset_confirm_desc({ component }, { locale }))
       .setColor(COLORS.warning);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`rpg_reset_confirm:${component}`)
-        .setLabel('Confirmer la réinitialisation')
+        .setLabel(m.rpg_admin_reset_confirm_button({}, { locale }))
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId('rpg_reset_cancel')
-        .setLabel('Annuler')
+        .setLabel(m.rpg_admin_reset_cancel_button({}, { locale }))
         .setStyle(ButtonStyle.Secondary)
     );
 
@@ -1030,7 +1052,7 @@ async function rpgAdminExecute(interaction: ChatInputCommandInteraction) {
   const targetUser = interaction.options.getUser('membre', true);
   if (targetUser.bot) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', "Impossible de modifier les stats d'un bot.")],
+      embeds: [errorEmbed(m.rpg_generic_error_title({}, { locale }), m.rpg_admin_bot_error_desc({}, { locale }))],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -1043,25 +1065,25 @@ async function rpgAdminExecute(interaction: ChatInputCommandInteraction) {
     if (sub === 'set-balance') {
       const balance = interaction.options.getInteger('solde', true);
       stats.balance = balance;
-      desc = `Le solde de <@${targetUser.id}> a été mis à **${balance}** pièces.`;
+      desc = m.rpg_admin_balance_set_desc({ id: targetUser.id, value: balance }, { locale });
     } else if (sub === 'set-level') {
       const level = interaction.options.getInteger('niveau', true);
       stats.level = level;
-      desc = `Le niveau RPG de <@${targetUser.id}> a été mis à **${level}**.`;
+      desc = m.rpg_admin_level_set_desc({ id: targetUser.id, value: level }, { locale });
     } else if (sub === 'set-xp') {
       const xp = interaction.options.getInteger('xp', true);
       stats.xp = xp;
-      desc = `L'expérience RPG de <@${targetUser.id}> a été mise à **${xp}** XP.`;
+      desc = m.rpg_admin_xp_set_desc({ id: targetUser.id, value: xp }, { locale });
     }
 
     await adminSetStats(guildId, targetUser.id, stats);
     await interaction.reply({
-      embeds: [successEmbed('Statistiques mises à jour', desc)]
+      embeds: [successEmbed(m.rpg_admin_stats_updated_title({}, { locale }), desc)]
     });
   } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : 'Impossible de modifier les statistiques.';
+    const errMsg = err instanceof Error ? err.message : m.rpg_admin_modify_error_desc({}, { locale });
     await interaction.reply({
-      embeds: [errorEmbed('Erreur modification', errMsg)],
+      embeds: [errorEmbed(m.rpg_admin_modify_error_title({}, { locale }), errMsg)],
       flags: [MessageFlags.Ephemeral]
     });
   }
@@ -1079,13 +1101,14 @@ const rpgFightData = new SlashCommandBuilder()
   .setDescription('⚔️ Combattre un monstre aléatoire adapté à votre niveau');
 
 async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
 
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
-    await interaction.reply({ embeds: [errorEmbed('RPG désactivé', "Le système RPG n'est pas activé.")], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_travel_disabled_title({}, { locale }), m.rpg_boss_disabled_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
@@ -1095,18 +1118,18 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
     const diff = Date.now() - profile.lastBattle.getTime();
     if (diff < 2 * 60 * 1000) {
       const remaining = Math.ceil((2 * 60 * 1000 - diff) / 1000);
-      await interaction.reply({ embeds: [errorEmbed('Cooldown', `Vous devez attendre encore **${remaining}s** avant de combattre à nouveau.`)], flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_cooldown_title({}, { locale }), m.rpg_fight_cooldown_desc({ s: remaining }, { locale }))], flags: [MessageFlags.Ephemeral] });
       return;
     }
   }
 
   if (profile.energy < 15) {
-    await interaction.reply({ embeds: [errorEmbed('Énergie insuffisante', `Il vous faut **15 énergie** pour combattre. Vous avez **${profile.energy}**.`)], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_low_energy_title({}, { locale }), m.rpg_fight_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   if (profile.health <= 5) {
-    await interaction.reply({ embeds: [errorEmbed('PV trop bas', 'Vos PV sont trop bas pour combattre. Reposez-vous ou utilisez une potion !')], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_fight_low_hp_title({}, { locale }), m.rpg_fight_low_hp_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
@@ -1119,7 +1142,7 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
 
   const monster = await findRandomMonster(guildId, profile.level);
   if (!monster) {
-    await interaction.editReply({ embeds: [errorEmbed('Aucun monstre', 'Aucun monstre disponible pour votre niveau.')] });
+    await interaction.editReply({ embeds: [errorEmbed(m.rpg_fight_no_monster_title({}, { locale }), m.rpg_fight_no_monster_desc({}, { locale }))] });
     return;
   }
 
@@ -1156,14 +1179,14 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
   };
 
   const getEmbed = (turnsLog: string[]) => {
-    const logs = turnsLog.slice(-5).join('\n') || '*Le combat commence...*';
+    const logs = turnsLog.slice(-5).join('\n') || m.rpg_fight_combat_start_log({}, { locale });
     return new EmbedBuilder()
-      .setTitle(`⚔️ Combat : Vous vs ${monster.emoji} ${monster.name}`)
+      .setTitle(m.rpg_fight_title({ emoji: monster.emoji, name: monster.name }, { locale }))
       .setDescription(
         `${monster.description}\n\n` +
-        `**Vous** :\n${buildHpBar(playerHp, playerMaxHp)}\n\n` +
-        `**${monster.emoji} ${monster.name}** (Niveau ${monster.level}) :\n${buildHpBar(monsterHp, monsterMaxHp)}\n\n` +
-        `**Journal de combat** :\n${logs}`
+        `${m.rpg_fight_you_label_block({}, { locale })}\n${buildHpBar(playerHp, playerMaxHp)}\n\n` +
+        `${m.rpg_fight_enemy_label_block({ emoji: monster.emoji, name: monster.name, level: monster.level }, { locale })}\n${buildHpBar(monsterHp, monsterMaxHp)}\n\n` +
+        `${m.rpg_fight_combat_log_label({}, { locale })}\n${logs}`
       )
       .setColor('#5865F2')
       .setTimestamp();
@@ -1175,26 +1198,26 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
 
     const attackBtn = new ButtonBuilder()
       .setCustomId('combat_attack')
-      .setLabel('Attaquer')
+      .setLabel(m.rpg_fight_btn_attack({}, { locale }))
       .setEmoji('⚔️')
       .setStyle(ButtonStyle.Primary);
 
     const defendBtn = new ButtonBuilder()
       .setCustomId('combat_defend')
-      .setLabel('Défendre')
+      .setLabel(m.rpg_fight_btn_defend({}, { locale }))
       .setEmoji('🛡️')
       .setStyle(ButtonStyle.Secondary);
 
     const potionBtn = new ButtonBuilder()
       .setCustomId('combat_potion')
-      .setLabel(`Potion (${potionsCount})`)
+      .setLabel(m.rpg_fight_btn_potion({ count: potionsCount }, { locale }))
       .setEmoji('🧪')
       .setStyle(ButtonStyle.Success)
       .setDisabled(potionsCount === 0);
 
     const fleeBtn = new ButtonBuilder()
       .setCustomId('combat_flee')
-      .setLabel('Fuir')
+      .setLabel(m.rpg_fight_btn_flee({}, { locale }))
       .setEmoji('🏃')
       .setStyle(ButtonStyle.Danger);
 
@@ -1231,28 +1254,28 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
         const damage = critical ? Math.floor(baseDmg * 1.5) : baseDmg;
         monsterHp = Math.max(0, monsterHp - damage);
         totalDamageDealt += damage;
-        actionTaken = `🗡️ Vous infligez **${damage}** dégâts${critical ? ' **CRITIQUE !**' : ''} au ${monster.name}.`;
+        actionTaken = m.rpg_fight_action_attack({ dmg: damage, crit: critical ? m.rpg_fight_critical_suffix({}, { locale }) : '', name: monster.name }, { locale });
       } else if (btnInt.customId === 'combat_defend') {
         isDefending = true;
-        actionTaken = `🛡️ Vous vous mettez en posture défensive.`;
+        actionTaken = m.rpg_fight_action_defend({}, { locale });
       } else if (btnInt.customId === 'combat_potion') {
         const userPotions = await getPotions();
         if (userPotions.length === 0) {
-          actionTaken = `❌ Vous n'avez pas de potions !`;
+          actionTaken = m.rpg_fight_no_potions({}, { locale });
         } else {
           const potItem = userPotions[0];
           const restored = potItem.item.hpRestore;
           playerHp = Math.min(playerMaxHp, playerHp + restored);
-          
+
           if (potItem.quantity > 1) {
             await prisma.rpgInventoryItem.update({ where: { id: potItem.id }, data: { quantity: { decrement: 1 } } });
           } else {
             await prisma.rpgInventoryItem.delete({ where: { id: potItem.id } });
           }
-          actionTaken = `🧪 Vous buvez une **${potItem.item.name}** (+${restored} PV).`;
+          actionTaken = m.rpg_fight_action_potion({ item: potItem.item.name, hp: restored }, { locale });
         }
       } else if (btnInt.customId === 'combat_flee') {
-        turnsLog.push(`🏃 Vous fuyez le combat !`);
+        turnsLog.push(m.rpg_fight_action_flee({}, { locale }));
         collector.stop('fled');
         return;
       }
@@ -1270,7 +1293,7 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
       const monsterDamage = monsterCrit ? Math.floor(monsterBaseDmg * 1.5) : monsterBaseDmg;
       playerHp = Math.max(0, playerHp - monsterDamage);
       totalDamageTaken += monsterDamage;
-      turnsLog.push(`${monster.emoji} Le ${monster.name} vous inflige **${monsterDamage}** dégâts${monsterCrit ? ' **CRITIQUE !**' : ''}.`);
+      turnsLog.push(m.rpg_fight_monster_turn_log({ emoji: monster.emoji, name: monster.name, dmg: monsterDamage, crit: monsterCrit ? m.rpg_fight_critical_suffix({}, { locale }) : '' }, { locale }));
 
       if (playerHp <= 0) {
         collector.stop('defeat');
@@ -1299,12 +1322,8 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
         });
 
         const fledEmbed = new EmbedBuilder()
-          .setTitle(`🏃 Fuite — ${monster.emoji} ${monster.name}`)
-          .setDescription(
-            `Vous avez fui le combat !\n\n` +
-            `**Vous** :\n${buildHpBar(playerHp, playerMaxHp)}\n` +
-            `**${monster.name}** :\n${buildHpBar(monsterHp, monsterMaxHp)}`
-          )
+          .setTitle(m.rpg_fight_fled_title({ emoji: monster.emoji, name: monster.name }, { locale }))
+          .setDescription(m.rpg_fight_fled_desc({ playerBar: buildHpBar(playerHp, playerMaxHp), name: monster.name, monsterBar: buildHpBar(monsterHp, monsterMaxHp) }, { locale }))
           .setColor('#FFA500')
           .setTimestamp();
 
@@ -1319,8 +1338,8 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
         });
 
         const timeoutEmbed = new EmbedBuilder()
-          .setTitle(`⏳ Combat interrompu`)
-          .setDescription(`Vous avez mis trop de temps à répondre. Le combat s'est arrêté.`)
+          .setTitle(m.rpg_fight_timeout_title({}, { locale }))
+          .setDescription(m.rpg_fight_timeout_desc({}, { locale }))
           .setColor('#808080')
           .setTimestamp();
 
@@ -1334,7 +1353,7 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
 
         let itemDropped: string | null = null;
         let itemDropEmoji: string | null = null;
-        
+
         const drops = (Array.isArray(monster.drops) ? monster.drops : JSON.parse(String(monster.drops || '[]'))) as { itemName: string; chance: number; emoji?: string; coinBonus?: number }[];
         for (const drop of drops) {
           if (Math.random() < drop.chance) {
@@ -1385,27 +1404,23 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
         const levelUp = afterProfile && afterProfile.level > beforeLevel ? afterProfile.level : null;
 
         const victoryEmbed = new EmbedBuilder()
-          .setTitle(`🏆 Victoire — ${monster.emoji} ${monster.name}`)
-          .setDescription(
-            `Vous avez vaincu le **${monster.name}** !\n\n` +
-            `**Vous** :\n${buildHpBar(playerHp, playerMaxHp)}\n\n` +
-            `**Journal de combat** :\n${turnsLog.slice(-4).join('\n')}`
-          )
+          .setTitle(m.rpg_fight_victory_title({ emoji: monster.emoji, name: monster.name }, { locale }))
+          .setDescription(m.rpg_fight_victory_desc({ name: monster.name, playerBar: buildHpBar(playerHp, playerMaxHp), log: turnsLog.slice(-4).join('\n') }, { locale }))
           .setColor(COLORS.success)
           .addFields(
-            { name: '💥 Dégâts infligés', value: `${totalDamageDealt}`, inline: true },
-            { name: '🩸 Dégâts reçus', value: `${totalDamageTaken}`, inline: true },
-            { name: '⭐ XP gagné', value: `+${xpEarned}`, inline: true },
-            { name: `${config.currencyEmoji} Pièces gagnées`, value: `+${coinsEarned}`, inline: true },
+            { name: m.rpg_fight_field_dmg_dealt({}, { locale }), value: `${totalDamageDealt}`, inline: true },
+            { name: m.rpg_fight_field_dmg_taken({}, { locale }), value: `${totalDamageTaken}`, inline: true },
+            { name: m.rpg_fight_field_xp_earned({}, { locale }), value: `+${xpEarned}`, inline: true },
+            { name: m.rpg_fight_field_coins_earned({ emoji: config.currencyEmoji }, { locale }), value: `+${coinsEarned}`, inline: true },
           )
           .setTimestamp();
 
         if (itemDropped) {
-          victoryEmbed.addFields({ name: '🎁 Drop !', value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
+          victoryEmbed.addFields({ name: m.rpg_fight_field_drop({}, { locale }), value: `${itemDropEmoji || '📦'} **${itemDropped}**`, inline: true });
         }
 
         if (levelUp) {
-          victoryEmbed.addFields({ name: '🎉 NIVEAU SUPÉRIEUR !', value: `Vous passez au **Niveau ${levelUp}** !` });
+          victoryEmbed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: levelUp }, { locale }) });
         }
 
         await interaction.editReply({ embeds: [victoryEmbed], components: [row] });
@@ -1432,17 +1447,13 @@ async function rpgFightExecute(interaction: ChatInputCommandInteraction) {
         });
 
         const defeatEmbed = new EmbedBuilder()
-          .setTitle(`💀 Défaite — ${monster.emoji} ${monster.name}`)
-          .setDescription(
-            `Vous avez succombé face au **${monster.name}**...\n\n` +
-            `**Vous** :\n${buildHpBar(0, playerMaxHp)}\n\n` +
-            `**Journal de combat** :\n${turnsLog.slice(-4).join('\n')}`
-          )
+          .setTitle(m.rpg_fight_defeat_title({ emoji: monster.emoji, name: monster.name }, { locale }))
+          .setDescription(m.rpg_fight_defeat_desc({ name: monster.name, playerBar: buildHpBar(0, playerMaxHp), log: turnsLog.slice(-4).join('\n') }, { locale }))
           .setColor(COLORS.danger)
           .addFields(
-            { name: '💥 Dégâts infligés', value: `${totalDamageDealt}`, inline: true },
-            { name: '🩸 Dégâts reçus', value: `${totalDamageTaken}`, inline: true },
-            { name: '⭐ XP gagné', value: `+${xpEarned}`, inline: true },
+            { name: m.rpg_fight_field_dmg_dealt({}, { locale }), value: `${totalDamageDealt}`, inline: true },
+            { name: m.rpg_fight_field_dmg_taken({}, { locale }), value: `${totalDamageTaken}`, inline: true },
+            { name: m.rpg_fight_field_xp_earned({}, { locale }), value: `+${xpEarned}`, inline: true },
           )
           .setTimestamp();
 
@@ -1470,37 +1481,38 @@ const rpgBossData = new SlashCommandBuilder()
   );
 
 async function rpgBossExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
 
   const config = await getOrCreateEconomyConfig(guildId);
   if (!config.rpgEnabled) {
-    await interaction.reply({ embeds: [errorEmbed('RPG désactivé', "Le système RPG n'est pas activé.")], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_travel_disabled_title({}, { locale }), m.rpg_boss_disabled_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   const bossName = interaction.options.getString('boss', true);
   const boss = await findBoss(guildId, bossName);
   if (!boss) {
-    await interaction.reply({ embeds: [errorEmbed('Boss introuvable', `Aucun boss nommé **${bossName}** n'a été trouvé.`)], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_not_found_title({}, { locale }), m.rpg_boss_not_found_desc({ name: bossName }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
 
   if (profile.level < boss.level) {
-    await interaction.reply({ embeds: [errorEmbed('Niveau insuffisant', `Ce boss requiert le **Niveau ${boss.level}**. Vous êtes Niveau **${profile.level}**.`)], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_level_title({}, { locale }), m.rpg_boss_low_level_desc({ level: boss.level, myLevel: profile.level }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   if (profile.energy < 30) {
-    await interaction.reply({ embeds: [errorEmbed('Énergie insuffisante', `Il vous faut **30 énergie** pour un boss. Vous avez **${profile.energy}**.`)], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_energy_title({}, { locale }), m.rpg_boss_low_energy_desc({ energy: profile.energy }, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   if (profile.health <= 10) {
-    await interaction.reply({ embeds: [errorEmbed('PV trop bas', 'Vos PV sont trop bas pour affronter un boss !')], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_boss_low_hp_title({}, { locale }), m.rpg_boss_low_hp_desc({}, { locale }))], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
@@ -1513,39 +1525,40 @@ async function rpgBossExecute(interaction: ChatInputCommandInteraction) {
 
   const result = await simulateBattle(profile, boss);
   const turnSummary = result.turns.slice(-8).map(t => {
-    const who = t.attacker === 'player' ? '🗡️ Vous' : `${boss.emoji} ${boss.name}`;
-    const crit = t.critical ? ' **CRITIQUE !**' : '';
-    return `${who} inflige **${t.damage}** dégâts${crit}`;
+    const who = t.attacker === 'player' ? m.rpg_boss_you_label({}, { locale }) : `${boss.emoji} ${boss.name}`;
+    const crit = t.critical ? m.rpg_fight_critical_suffix({}, { locale }) : '';
+    return m.rpg_boss_turn_log({ who, dmg: t.damage, crit }, { locale });
   }).join('\n');
 
   const embed = new EmbedBuilder()
-    .setTitle(`${result.won ? '👑 Boss Vaincu !' : '💀 Défaite contre le Boss'} — ${boss.emoji} ${boss.name}`)
+    .setTitle(`${result.won ? m.rpg_boss_won_title({}, { locale }) : m.rpg_boss_lost_title({}, { locale })} — ${boss.emoji} ${boss.name}`)
     .setDescription(
       `${boss.description}\n\n` +
-      `**Résumé du combat** (${result.turns.length} tours)\n${turnSummary}`
+      `${m.rpg_boss_combat_summary_label({ turns: result.turns.length }, { locale })}\n${turnSummary}`
     )
     .setColor(result.won ? COLORS.success : COLORS.danger)
     .addFields(
-      { name: '💥 Dégâts infligés', value: `${result.totalDamageDealt}`, inline: true },
-      { name: '🩸 Dégâts reçus', value: `${result.totalDamageTaken}`, inline: true },
-      { name: '❤️ PV restants', value: `${result.playerHpRemaining} / ${profile.maxHealth}`, inline: true },
-      { name: '⭐ XP gagné', value: `+${result.xpEarned}`, inline: true },
-      { name: `${config.currencyEmoji} Pièces gagnées`, value: `+${result.coinsEarned}`, inline: true },
+      { name: m.rpg_fight_field_dmg_dealt({}, { locale }), value: `${result.totalDamageDealt}`, inline: true },
+      { name: m.rpg_fight_field_dmg_taken({}, { locale }), value: `${result.totalDamageTaken}`, inline: true },
+      { name: m.rpg_fight_field_hp_remaining({}, { locale }), value: `${result.playerHpRemaining} / ${profile.maxHealth}`, inline: true },
+      { name: m.rpg_fight_field_xp_earned({}, { locale }), value: `+${result.xpEarned}`, inline: true },
+      { name: m.rpg_fight_field_coins_earned({ emoji: config.currencyEmoji }, { locale }), value: `+${result.coinsEarned}`, inline: true },
     )
     .setTimestamp();
 
   if (result.itemDropped) {
-    embed.addFields({ name: '🎁 Drop de Boss !', value: `${result.itemDropEmoji || '📦'} **${result.itemDropped}**` });
+    embed.addFields({ name: m.rpg_boss_field_drop({}, { locale }), value: `${result.itemDropEmoji || '📦'} **${result.itemDropped}**` });
   }
 
   if (result.levelUp) {
-    embed.addFields({ name: '🎉 NIVEAU SUPÉRIEUR !', value: `Vous passez au **Niveau ${result.levelUp}** !` });
+    embed.addFields({ name: m.rpg_fight_field_levelup({}, { locale }), value: m.rpg_fight_field_levelup_desc({ level: result.levelUp }, { locale }) });
   }
 
   await interaction.editReply({ embeds: [embed] });
 }
 
 async function rpgBossAutocomplete(interaction: AutocompleteInteraction) {
+  const locale = getLocale(interaction as unknown as ChatInputCommandInteraction);
   const guildId = interaction.guildId;
   if (!guildId) return;
   const focused = interaction.options.getFocused().toLowerCase();
@@ -1553,7 +1566,7 @@ async function rpgBossAutocomplete(interaction: AutocompleteInteraction) {
   const filtered = bosses
     .filter(b => b.name.toLowerCase().includes(focused))
     .slice(0, 25)
-    .map(b => ({ name: `${b.emoji} ${b.name} (Niv. ${b.level})`, value: b.name }));
+    .map(b => ({ name: `${b.emoji} ${b.name}${m.rpg_boss_autocomplete_level({ level: b.level }, { locale })}`, value: b.name }));
   await interaction.respond(filtered);
 }
 
@@ -1569,7 +1582,8 @@ const rpgBestiaryData = new SlashCommandBuilder()
   .setDescription('📖 Consulter votre bestiaire de monstres découverts');
 
 async function rpgBestiaryExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
 
@@ -1578,7 +1592,7 @@ async function rpgBestiaryExecute(interaction: ChatInputCommandInteraction) {
   const discovered = await listDiscoveredMonsters(guildId, userId);
 
   if (discovered.length === 0) {
-    await interaction.editReply({ embeds: [errorEmbed('Bestiaire vide', 'Vous n\'avez encore vaincu aucun monstre. Utilisez `/rpg-fight` pour commencer !')] });
+    await interaction.editReply({ embeds: [errorEmbed(m.rpg_bestiary_empty_title({}, { locale }), m.rpg_bestiary_empty_desc({}, { locale }))] });
     return;
   }
 
@@ -1586,14 +1600,14 @@ async function rpgBestiaryExecute(interaction: ChatInputCommandInteraction) {
     where: { OR: [{ guildId: null }, { guildId }] }
   });
 
-  const lines = discovered.map(m => {
-    const bossTag = m.isBoss ? ' 👑 **BOSS**' : '';
-    return `${m.emoji} **${m.name}**${bossTag} — Niv. ${m.level} | ❤️ ${m.health} | ⚔️ ${m.attack} | 🛡️ ${m.defense}`;
+  const lines = discovered.map(mo => {
+    const bossTag = mo.isBoss ? m.rpg_bestiary_boss_tag({}, { locale }) : '';
+    return `${mo.emoji} **${mo.name}**${bossTag} — Niv. ${mo.level} | ❤️ ${mo.health} | ⚔️ ${mo.attack} | 🛡️ ${mo.defense}`;
   });
 
   const embed = new EmbedBuilder()
-    .setTitle(`📖 Bestiaire — ${interaction.user.displayName}`)
-    .setDescription(`**${discovered.length}/${allMonsters}** créatures découvertes\n\n${lines.join('\n')}`)
+    .setTitle(m.rpg_bestiary_title({ name: interaction.user.displayName }, { locale }))
+    .setDescription(m.rpg_bestiary_desc({ count: discovered.length, total: allMonsters, lines: lines.join('\n') }, { locale }))
     .setColor(COLORS.primary)
     .setTimestamp();
 
@@ -1612,7 +1626,8 @@ const fishData = new SlashCommandBuilder()
   .setDescription('🎣 Pêcher un poisson et gagner des pièces');
 
 async function fishExecute(interaction: ChatInputCommandInteraction) {
-  if (!await checkEconomyEnabled(interaction)) return;
+  const locale = getLocale(interaction);
+  if (!await checkEconomyEnabled(interaction, locale)) return;
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
 
@@ -1624,14 +1639,14 @@ async function fishExecute(interaction: ChatInputCommandInteraction) {
     if (!result.success) {
       if (result.cooldown) {
         await interaction.reply({
-          embeds: [errorEmbed('Canne au repos', `Vous devez attendre encore **${result.remainingMin}m ${result.remainingSec}s** avant de pêcher.`)],
+          embeds: [errorEmbed(m.rpg_fish_cooldown_title({}, { locale }), m.rpg_fish_cooldown_desc({ min: result.remainingMin, sec: result.remainingSec }, { locale }))],
           flags: [MessageFlags.Ephemeral]
         });
         return;
       }
       if (result.noEnergy) {
         await interaction.reply({
-          embeds: [errorEmbed('Pas d\'énergie', 'Il vous faut **5 énergie** pour pêcher.')],
+          embeds: [errorEmbed(m.rpg_fish_no_energy_title({}, { locale }), m.rpg_fish_no_energy_desc({}, { locale }))],
           flags: [MessageFlags.Ephemeral]
         });
         return;
@@ -1640,15 +1655,16 @@ async function fishExecute(interaction: ChatInputCommandInteraction) {
     }
 
     const rarityLabels: Record<string, string> = {
-      COMMON: 'Commun', UNCOMMON: 'Peu commun', RARE: 'Rare', EPIC: 'Épique', LEGENDARY: '✨ LÉGENDAIRE ✨'
+      COMMON: m.rpg_fish_rarity_common({}, { locale }),
+      UNCOMMON: m.rpg_fish_rarity_uncommon({}, { locale }),
+      RARE: m.rpg_fish_rarity_rare({}, { locale }),
+      EPIC: m.rpg_fish_rarity_epic({}, { locale }),
+      LEGENDARY: m.rpg_fish_rarity_legendary({}, { locale }),
     };
 
     const embed = new EmbedBuilder()
-      .setTitle('🎣 Prise !')
-      .setDescription(
-        `${result.fish.emoji} Vous avez pêché un **${result.fish.name}** !\n\n` +
-        `${result.rarityIcon} Rareté : **${rarityLabels[result.fish.rarity] || result.fish.rarity}**`
-      )
+      .setTitle(m.rpg_fish_title({}, { locale }))
+      .setDescription(m.rpg_fish_desc({ emoji: result.fish.emoji, name: result.fish.name, rarityIcon: result.rarityIcon, rarity: rarityLabels[result.fish.rarity] || result.fish.rarity }, { locale }))
       .setColor(
         result.fish.rarity === 'LEGENDARY' ? 0xffd700 :
         result.fish.rarity === 'EPIC' ? 0x9b59b6 :
@@ -1657,16 +1673,16 @@ async function fishExecute(interaction: ChatInputCommandInteraction) {
         COLORS.primary
       )
       .addFields(
-        { name: `${config.currencyEmoji} Valeur`, value: `**+${result.fish.value}** ${config.currencyName}`, inline: true },
-        { name: '⭐ XP', value: `**+${result.fish.xp}**`, inline: true },
-        { name: '🐟 Total pêché', value: `${result.totalFishCaught} poissons`, inline: true },
+        { name: m.rpg_fish_field_value({ emoji: config.currencyEmoji }, { locale }), value: m.rpg_fish_field_value_value({ value: result.fish.value, currency: config.currencyName }, { locale }), inline: true },
+        { name: m.rpg_fish_field_xp({}, { locale }), value: `**+${result.fish.xp}**`, inline: true },
+        { name: m.rpg_fish_field_total({}, { locale }), value: m.rpg_fish_field_total_value({ count: result.totalFishCaught }, { locale }), inline: true },
       )
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
   } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : 'Erreur lors de la pêche.';
-    await interaction.reply({ embeds: [errorEmbed('Erreur', errMsg)], flags: [MessageFlags.Ephemeral] });
+    const errMsg = err instanceof Error ? err.message : m.rpg_fish_error({}, { locale });
+    await interaction.reply({ embeds: [errorEmbed(m.rpg_generic_error_title({}, { locale }), errMsg)], flags: [MessageFlags.Ephemeral] });
   }
 }
 

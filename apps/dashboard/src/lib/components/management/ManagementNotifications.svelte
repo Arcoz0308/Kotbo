@@ -1,5 +1,5 @@
 <script module>
-  import { categoryMap, categoryIcons, categoryColors, categoryOrder } from './ManagementAccess.svelte';
+  import { categoryMap, categoryIcons, categoryColors, categoryOrder, categoryLabel } from './ManagementAccess.svelte';
 </script>
 
 <script lang="ts">
@@ -7,6 +7,7 @@
   import Papicon from '../Papicon.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
   import SearchableSelect from '../SearchableSelect.svelte';
+  import { m } from '../../i18n';
 
   let { features = $bindable([]), availableChannels = [], availableRoles = [], onSave = (_key: string) => {} } = $props();
 
@@ -16,7 +17,7 @@
     const catMap = new Map<string, Array<{ feature: any; idx: number }>>();
 
     features.forEach((feature, idx) => {
-      const cat = categoryMap[feature.featureKey] || 'Autre';
+      const cat = categoryMap[feature.featureKey] || 'other';
       if (!catMap.has(cat)) catMap.set(cat, []);
       catMap.get(cat)!.push({ feature, idx });
     });
@@ -34,10 +35,10 @@
     return groups;
   });
 
-  const notificationMethods = [
-    { key: 'notifyViaDiscordChannel', label: 'Salon Discord', desc: 'Envoi dans le salon configuré', icon: 'Hash' },
-    { key: 'notifyViaDM', label: 'Messages Privés', desc: 'Envoi en MP Discord', icon: 'Mail' },
-  ];
+  const notificationMethods = $derived([
+    { key: 'notifyViaDiscordChannel', label: m.mn_method_channel_label(), desc: m.mn_method_channel_desc(), icon: 'Hash' },
+    { key: 'notifyViaDM', label: m.mn_method_dm_label(), desc: m.mn_method_dm_desc(), icon: 'Mail' },
+  ]);
 
   let expandedCategory = $state<string | null>(null);
   let expandedFeature = $state<string | null>(null);
@@ -45,8 +46,8 @@
 
 <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 animate-in fade-in duration-500">
   <div>
-    <h3 class="text-2xl font-semibold">Système de Notifications</h3>
-    <p class="text-xs text-on-surface-variant/50 mt-1">Configurez qui et comment les alertes sont envoyées pour chaque module.</p>
+    <h3 class="text-2xl font-semibold">{m.mn_title()}</h3>
+    <p class="text-xs text-on-surface-variant/50 mt-1">{m.mn_desc()}</p>
   </div>
 
   <div class="space-y-4">
@@ -62,8 +63,8 @@
           class="w-full flex items-center gap-3 px-5 py-3 rounded-lg {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
         >
           <Papicon icon={catIcon} size={18} class={catColor.text} />
-          <span class="text-[11px] font-semibold uppercase tracking-widest {catColor.text}">{group.category}</span>
-          <span class="text-[10px] text-on-surface-variant/40 ml-1">{group.items.length} module{group.items.length > 1 ? 's' : ''}</span>
+          <span class="text-[11px] font-semibold uppercase tracking-widest {catColor.text}">{categoryLabel(group.category)}</span>
+          <span class="text-[10px] text-on-surface-variant/40 ml-1">{group.items.length} {m.ma_word_module()}{group.items.length > 1 ? 's' : ''}</span>
           <div class="ml-auto transform transition-transform {isCatExpanded ? 'rotate-180' : ''}">
             <Papicon icon="CaretDown" size={14} class="text-on-surface-variant/40" />
           </div>
@@ -85,13 +86,13 @@
                     <span class="text-sm font-bold">{feature.featureName}</span>
                     <div class="flex gap-1 ml-2">
                       {#if feature.featureKey === 'absences'}
-                        <span class="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold">Absences</span>
+                        <span class="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold">{m.mn_badge_absences()}</span>
                       {/if}
                       {#if feature.notifyViaDiscordChannel}
-                        <span class="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold">Salon</span>
+                        <span class="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold">{m.mn_badge_channel()}</span>
                       {/if}
                       {#if feature.notifyViaDM}
-                        <span class="px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-bold">MP</span>
+                        <span class="px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-bold">{m.mn_badge_dm()}</span>
                       {/if}
                     </div>
                   </div>
@@ -105,7 +106,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <!-- Methods -->
                       <div class="space-y-3">
-                        <p class="text-xs font-medium text-on-surface-variant/40">Méthodes d'envoi</p>
+                        <p class="text-xs font-medium text-on-surface-variant/40">{m.mn_methods_label()}</p>
                         <div class="space-y-2">
                           {#each notificationMethods as method}
                             <div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/5">
@@ -124,29 +125,29 @@
 
                       <!-- Configuration -->
                       <div class="space-y-3">
-                        <p class="text-xs font-medium text-on-surface-variant/40">Paramètres</p>
+                        <p class="text-xs font-medium text-on-surface-variant/40">{m.mn_settings_label()}</p>
                         <div class="space-y-4">
                           <div class="space-y-1.5">
-                            <label for="notify-channel-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
-                            <SearchableSelect id="notify-channel-{feature.featureKey}" bind:value={features[idx].channelId} options={availableChannels.map(channel => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder="Utiliser le salon par défaut" className="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                            <label for="notify-channel-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">{m.mn_alert_channel_label()}</label>
+                            <SearchableSelect id="notify-channel-{feature.featureKey}" bind:value={features[idx].channelId} options={availableChannels.map(channel => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder={m.mn_default_channel_placeholder()} className="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
                           </div>
                           <div class="space-y-1.5">
-                            <label for="notify-role-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Rôle à mentionner</label>
-                            <SearchableSelect id="notify-role-{feature.featureKey}" bind:value={features[idx].notificationRoleId} options={availableRoles.map(role => ({ id: role.id, name: `@${role.name}` }))} placeholder="Aucune mention" className="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                            <label for="notify-role-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">{m.mn_mention_role_label()}</label>
+                            <SearchableSelect id="notify-role-{feature.featureKey}" bind:value={features[idx].notificationRoleId} options={availableRoles.map(role => ({ id: role.id, name: `@${role.name}` }))} placeholder={m.mn_no_mention_placeholder()} className="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
                           </div>
                           <div class="space-y-1.5">
-                            <label for="notify-webhook-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">URL du Webhook Discord</label>
-                            <input 
-                              id="notify-webhook-{feature.featureKey}" 
-                              type="url" 
-                              placeholder="https://discord.com/api/webhooks/..." 
-                              bind:value={features[idx].metadata.webhookUrl} 
-                              class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" 
+                            <label for="notify-webhook-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">{m.mn_webhook_url_label()}</label>
+                            <input
+                              id="notify-webhook-{feature.featureKey}"
+                              type="url"
+                              placeholder="https://discord.com/api/webhooks/..."
+                              bind:value={features[idx].metadata.webhookUrl}
+                              class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none"
                             />
                           </div>
                           {#if feature.featureKey === 'absences'}
                             <p class="text-[10px] leading-relaxed text-amber-300/80 bg-amber-500/10 border border-amber-500/15 rounded-xl px-4 py-3">
-                              Ce flux relaye les absences staff vers Discord avec la raison, la durée, le message complémentaire et le supérieur notifié.
+                              {m.mn_absences_note()}
                             </p>
                           {/if}
                         </div>
@@ -158,7 +159,7 @@
                         onclick={() => onSave(feature.featureKey)}
                         class="px-6 py-2.5 bg-primary text-on-primary text-xs font-medium rounded-xl transition-transform"
                       >
-                        Appliquer
+                        {m.mn_apply()}
                       </button>
                     </div>
                   </div>

@@ -14,6 +14,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import { m } from '../lib/i18n';
 
   // Config State
   let config = $state({
@@ -100,7 +101,7 @@
     if (dirty) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'Gestion des salons',
+          label: m.cm_page_label(),
           onSave: () => handleSave(),
           onReset: () => {
             config = JSON.parse(JSON.stringify(savedConfig));
@@ -109,7 +110,7 @@
       });
     } else {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Gestion des salons') {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.cm_page_label()) {
           unsavedChanges.clear();
         }
       });
@@ -117,7 +118,7 @@
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Gestion des salons') {
+    if (unsavedChanges.pageLabel === m.cm_page_label()) {
       unsavedChanges.clear();
     }
   });
@@ -138,9 +139,9 @@
   async function handleRescanStats(force: boolean) {
     await rescanAction.run(async () => {
       const res = await rescanChannelsManagementStats({ force });
-      if (!res || !res.ok) throw new Error(res?.error || 'Erreur lors du lancement du scan');
+      if (!res || !res.ok) throw new Error(res?.error || m.cm_scan_launch_error());
       return true;
-    }, { successMessage: 'Scraping historique lancé avec succès en arrière-plan.' });
+    }, { successMessage: m.cm_scan_launched() });
   }
 
   const availableChannels = $derived((dashboardStore.state.discordChannels || []) as any[]);
@@ -186,12 +187,12 @@
     try {
       const res = await updateTempVoiceChannel(channelId, { name: newChannelName.trim() });
       if (res && res.ok) {
-        toast.success('Salon renommé avec succès.');
+        toast.success(m.cm_channel_renamed());
         await loadActiveTempChannels();
         editingChannel = null;
       }
     } catch (err) {
-      toast.error('Impossible de renommer le salon.');
+      toast.error(m.cm_rename_failed());
     } finally {
       actionInProgress = false;
     }
@@ -202,27 +203,27 @@
     try {
       const res = await updateTempVoiceChannel(channelId, { roleId });
       if (res && res.ok) {
-        toast.success(roleId ? 'Salon réservé avec succès.' : 'Réservation annulée avec succès.');
+        toast.success(roleId ? m.cm_channel_reserved() : m.cm_reservation_cancelled());
         await loadActiveTempChannels();
       }
     } catch (err) {
-      toast.error('Impossible de modifier la réservation.');
+      toast.error(m.cm_reservation_update_failed());
     } finally {
       actionInProgress = false;
     }
   }
 
   async function handleDeleteChannel(channelId: string) {
-    if (!(await confirmDialog.ask({ title: 'Fermer ce salon temporaire ?', description: 'Tous ses membres seront expulsés.', confirmLabel: 'Fermer le salon', variant: 'danger' }))) return;
+    if (!(await confirmDialog.ask({ title: m.cm_confirm_close_temp_title(), description: m.cm_confirm_close_temp_desc(), confirmLabel: m.cm_close_channel(), variant: 'danger' }))) return;
     actionInProgress = true;
     try {
       const res = await updateTempVoiceChannel(channelId, { action: 'DELETE' });
       if (res && res.ok) {
-        toast.success('Salon temporaire fermé.');
+        toast.success(m.cm_temp_channel_closed());
         await loadActiveTempChannels();
       }
     } catch (err) {
-      toast.error('Impossible de fermer le salon.');
+      toast.error(m.cm_close_failed());
     } finally {
       actionInProgress = false;
     }
@@ -264,7 +265,7 @@
         savedConfig = JSON.parse(JSON.stringify(config));
       }
     } catch (err) {
-      loadError = err instanceof Error ? err.message : 'Impossible de charger la configuration.';
+      loadError = err instanceof Error ? err.message : m.cm_config_load_failed();
     } finally {
       loading = false;
     }
@@ -281,8 +282,8 @@
     await saveAction.run(async () => {
       // Validate statistics role target only if role channel or auto-creation is requested
       if (config.statsConfig.roleEnabled && !config.statsConfig.roleTargetId) {
-        toast.error('Veuillez sélectionner un rôle cible pour les statistiques de rôles.');
-        throw new Error('Rôle cible manquant');
+        toast.error(m.cm_role_target_required());
+        throw new Error(m.cm_role_target_missing());
       }
 
       const res = await updateChannelsManagementConfig({
@@ -302,7 +303,7 @@
         honeypotReinvite: config.honeypotReinvite,
       } as any);
 
-      if (!res || !res.ok) throw new Error('Erreur de sauvegarde API');
+      if (!res || !res.ok) throw new Error(m.cm_save_api_error());
 
       // Update local state with resolved (auto-created) values from backend
       if (res.resolved) {
@@ -324,7 +325,7 @@
       savedConfig = JSON.parse(JSON.stringify(config));
       success = true;
       return true;
-    }, { successMessage: 'Configuration enregistrée avec succès.' });
+    }, { successMessage: m.cm_config_saved() });
     return success;
   }
 
@@ -346,8 +347,8 @@
 </script>
 
 <ModulePage
-  title="Gestion des salons"
-  description="Gérez les modules d'automatisation, de statistiques, de création de salons vocaux temporaires et de sécurité honeypot."
+  title={m.cm_page_label()}
+  description={m.cm_page_description()}
   icon="hash"
   featureKey="auto_thread"
 >
@@ -383,7 +384,7 @@
         onclick={() => gotoTab('/channels-management', 'stats', 'auto-thread')}
         class="tab-button {activeTab === 'stats' ? 'active' : ''}"
       >
-        Salons Stats
+        {m.cm_tab_stats()}
         {#if activeTab === 'stats'}
           <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
         {/if}
@@ -393,7 +394,7 @@
         onclick={() => gotoTab('/channels-management', 'temp-voice', 'auto-thread')}
         class="tab-button {activeTab === 'temp-voice' ? 'active' : ''}"
       >
-        Créer son salon
+        {m.cm_tab_temp_voice()}
         {#if activeTab === 'temp-voice'}
           <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
         {/if}
@@ -403,7 +404,7 @@
         onclick={() => gotoTab('/channels-management', 'honeypot', 'auto-thread')}
         class="tab-button {activeTab === 'honeypot' ? 'active' : ''}"
       >
-        Salon Honeypot
+        {m.cm_tab_honeypot()}
         {#if activeTab === 'honeypot'}
           <div class="absolute bottom-0 left-6 right-6 h-0.5 bg-primary rounded-t-full"></div>
         {/if}
@@ -419,9 +420,9 @@
             <div>
               <h3 class="text-xl font-semibold flex items-center gap-3">
                 <Papicon icon="chat" size={20} class="text-primary" />
-                Salons éligibles aux fils
+                {m.cm_eligible_channels_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">Sélectionnez les salons textuels et d'annonces où les fils de discussion doivent être créés automatiquement.</p>
+              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_eligible_channels_desc()}</p>
             </div>
             
             <div class="flex items-center gap-2">
@@ -429,13 +430,13 @@
                 onclick={selectAll}
                 class="px-4 py-2 bg-surface-container-high/40 hover:bg-surface-container-high/80 border border-outline-variant/10 text-xs font-bold rounded-xl transition-all"
               >
-                Sélectionner tout (filtre)
+                {m.cm_select_all_filtered()}
               </button>
               <button 
                 onclick={deselectAll}
                 class="px-4 py-2 bg-surface-container-high/40 hover:bg-surface-container-high/80 border border-outline-variant/10 text-xs font-bold rounded-xl transition-all"
               >
-                Tout désélectionner
+                {m.cm_deselect_all()}
               </button>
             </div>
           </div>
@@ -445,7 +446,7 @@
               <input
                 type="text"
                 bind:value={searchQuery}
-                placeholder="Rechercher un salon..."
+                placeholder={m.cm_search_channel_placeholder()}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg pl-11 pr-5 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
               />
               <div class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/50">
@@ -455,7 +456,7 @@
             
             <div class="px-5 py-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center gap-2 text-xs font-bold">
               <span class="text-primary">{config.autoThreadChannels.length}</span>
-              <span class="text-on-surface-variant/60">salon(s) sélectionné(s)</span>
+              <span class="text-on-surface-variant/60">{m.cm_channels_selected_count()}</span>
             </div>
           </div>
 
@@ -492,7 +493,7 @@
           {:else}
             <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30 bg-surface-container-high/10 border border-dashed border-outline-variant/10 rounded-lg gap-3">
               <Papicon icon="search" size={32} class="opacity-30" />
-              <p class="text-sm font-bold">Aucun salon ne correspond à votre recherche.</p>
+              <p class="text-sm font-bold">{m.cm_no_channel_matches_search()}</p>
             </div>
           {/if}
         </section>
@@ -506,9 +507,9 @@
             <div>
               <h3 class="text-xl font-semibold flex items-center gap-3">
                 <Papicon icon="bar-chart" size={20} class="text-primary" />
-                Salons de Statistiques
+                {m.cm_stats_channels_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">Affichez des compteurs en temps réel (Membres, Bots, Rôles...) directement dans les noms de salons vocaux.</p>
+              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_stats_channels_desc()}</p>
             </div>
             
             <div class="flex items-center gap-2">
@@ -523,14 +524,14 @@
           {#if config.statsEnabled}
             <!-- Category Selection for Stats -->
             <div class="space-y-1.5 max-w-xl pb-4 border-b border-outline-variant/10">
-              <label for="stats-category-select" class="text-xs font-bold text-on-surface/80 block">📁 Catégorie de création des salons de statistiques</label>
+              <label for="stats-category-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_stats_category_label()}</label>
               <div class="flex gap-2">
                 <div class="flex-1">
                   <SearchableSelect 
                     id="stats-category-select"
                     options={availableCategories.map(c => ({ id: c.id, name: `📁 ${c.name}` }))} 
                     bind:value={config.statsConfig.categoryId} 
-                    placeholder="— Créer la catégorie automatiquement —"
+                    placeholder={m.cm_create_category_auto_placeholder()}
                   />
                 </div>
                 <button
@@ -542,7 +543,7 @@
                   disabled={saveAction.state.loading || loading}
                   class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Créer la catégorie
+                  {m.cm_create_category()}
                 </button>
               </div>
             </div>
@@ -552,10 +553,10 @@
               <div class="space-y-1">
                 <h4 class="text-sm font-semibold flex items-center gap-2 text-primary">
                   <Papicon icon="history" size={16} />
-                  Reconstruire les Statistiques Historiques
+                  {m.cm_rebuild_historical_stats_title()}
                 </h4>
                 <p class="text-xs text-on-surface-variant/60">
-                  Scrapper tous les messages passés de vos salons textuels pour générer les graphiques d'activité sur le dashboard.
+                  {m.cm_rebuild_historical_stats_desc()}
                 </p>
               </div>
               <div class="flex gap-2 w-full md:w-auto">
@@ -567,19 +568,19 @@
                   disabled={rescanAction.state.loading || loading}
                   class="px-5 py-3 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-none"
                 >
-                  Lancer le Scan
+                  {m.cm_launch_scan()}
                 </button>
                 <button
                   type="button"
                   onclick={async () => {
-                    if (await confirmDialog.ask({ title: 'Recalculer toutes les statistiques ?', description: 'Les statistiques existantes du serveur seront écrasées puis recalculées.', confirmLabel: 'Recalculer', variant: 'warning' })) {
+                    if (await confirmDialog.ask({ title: m.cm_confirm_recompute_title(), description: m.cm_confirm_recompute_desc(), confirmLabel: m.cm_recompute(), variant: 'warning' })) {
                       await handleRescanStats(true);
                     }
                   }}
                   disabled={rescanAction.state.loading || loading}
                   class="px-5 py-3 bg-error/10 hover:bg-error/20 text-error border border-error/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-none"
                 >
-                  Forcer le Re-scan
+                  {m.cm_force_rescan()}
                 </button>
               </div>
             </div>
@@ -588,7 +589,7 @@
               <!-- Member Count -->
               <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
-                  <label for="stats-member-channel" class="text-xs font-bold text-on-surface/80 block">👤 Compteur de Membres</label>
+                  <label for="stats-member-channel" class="text-xs font-bold text-on-surface/80 block">{m.cm_member_counter_label()}</label>
                   <input 
                     type="checkbox" 
                     bind:checked={config.statsConfig.memberEnabled} 
@@ -602,7 +603,7 @@
                         id="stats-member-channel"
                         options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                         bind:value={config.statsConfig.memberChannelId} 
-                        placeholder="— Créer le salon automatiquement —"
+                        placeholder={m.cm_create_channel_auto_placeholder()}
                       />
                     </div>
                     <button
@@ -614,13 +615,13 @@
                       disabled={saveAction.state.loading || loading}
                       class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Créer le salon
+                      {m.cm_create_channel()}
                     </button>
                   </div>
                   <input 
                     type="text" 
                     bind:value={config.statsConfig.memberTemplate} 
-                    placeholder="Template: Membres : {'{count}'}" 
+                    placeholder={m.cm_template_members_placeholder()} 
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
@@ -629,7 +630,7 @@
               <!-- Bot Count -->
               <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
-                  <label for="stats-bot-channel" class="text-xs font-bold text-on-surface/80 block">🤖 Compteur de Bots</label>
+                  <label for="stats-bot-channel" class="text-xs font-bold text-on-surface/80 block">{m.cm_bot_counter_label()}</label>
                   <input 
                     type="checkbox" 
                     bind:checked={config.statsConfig.botEnabled} 
@@ -643,7 +644,7 @@
                         id="stats-bot-channel"
                         options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                         bind:value={config.statsConfig.botChannelId} 
-                        placeholder="— Créer le salon automatiquement —"
+                        placeholder={m.cm_create_channel_auto_placeholder()}
                       />
                     </div>
                     <button
@@ -655,13 +656,13 @@
                       disabled={saveAction.state.loading || loading}
                       class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Créer le salon
+                      {m.cm_create_channel()}
                     </button>
                   </div>
                   <input 
                     type="text" 
                     bind:value={config.statsConfig.botTemplate} 
-                    placeholder="Template: Bots : {'{count}'}" 
+                    placeholder={m.cm_template_bots_placeholder()} 
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
@@ -670,7 +671,7 @@
               <!-- Role Member Count -->
               <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
-                  <label for="stats-role-channel" class="text-xs font-bold text-on-surface/80 block">👑 Compteur par Rôle</label>
+                  <label for="stats-role-channel" class="text-xs font-bold text-on-surface/80 block">{m.cm_role_counter_label()}</label>
                   <input 
                     type="checkbox" 
                     bind:checked={config.statsConfig.roleEnabled} 
@@ -684,7 +685,7 @@
                         id="stats-role-channel"
                         options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                         bind:value={config.statsConfig.roleChannelId} 
-                        placeholder="— Créer le salon automatiquement —"
+                        placeholder={m.cm_create_channel_auto_placeholder()}
                       />
                     </div>
                     <button
@@ -696,18 +697,18 @@
                       disabled={saveAction.state.loading || loading}
                       class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Créer le salon
+                      {m.cm_create_channel()}
                     </button>
                   </div>
                   <SearchableSelect 
                     options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                     bind:value={config.statsConfig.roleTargetId} 
-                    placeholder="— Sélectionner le rôle cible —"
+                    placeholder={m.cm_select_target_role_placeholder()}
                   />
                   <input 
                     type="text" 
                     bind:value={config.statsConfig.roleTemplate} 
-                    placeholder="Template: Staff : {'{count}'}" 
+                    placeholder={m.cm_template_staff_placeholder()} 
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
@@ -716,7 +717,7 @@
               <!-- Channels Count -->
               <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
-                  <label for="stats-channel-channel" class="text-xs font-bold text-on-surface/80 block">💬 Compteur de Salons</label>
+                  <label for="stats-channel-channel" class="text-xs font-bold text-on-surface/80 block">{m.cm_channel_counter_label()}</label>
                   <input 
                     type="checkbox" 
                     bind:checked={config.statsConfig.channelEnabled} 
@@ -730,7 +731,7 @@
                         id="stats-channel-channel"
                         options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                         bind:value={config.statsConfig.channelChannelId} 
-                        placeholder="— Créer le salon automatiquement —"
+                        placeholder={m.cm_create_channel_auto_placeholder()}
                       />
                     </div>
                     <button
@@ -742,13 +743,13 @@
                       disabled={saveAction.state.loading || loading}
                       class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Créer le salon
+                      {m.cm_create_channel()}
                     </button>
                   </div>
                   <input 
                     type="text" 
                     bind:value={config.statsConfig.channelTemplate} 
-                    placeholder="Template: Salons : {'{count}'}" 
+                    placeholder={m.cm_template_channels_placeholder()} 
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
@@ -757,7 +758,7 @@
               <!-- Categories Count -->
               <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
-                  <label for="stats-category-channel" class="text-xs font-bold text-on-surface/80 block">📁 Compteur de Catégories</label>
+                  <label for="stats-category-channel" class="text-xs font-bold text-on-surface/80 block">{m.cm_category_counter_label()}</label>
                   <input 
                     type="checkbox" 
                     bind:checked={config.statsConfig.categoryEnabled} 
@@ -771,7 +772,7 @@
                         id="stats-category-channel"
                         options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                         bind:value={config.statsConfig.categoryChannelId} 
-                        placeholder="— Créer le salon automatiquement —"
+                        placeholder={m.cm_create_channel_auto_placeholder()}
                       />
                     </div>
                     <button
@@ -783,13 +784,13 @@
                       disabled={saveAction.state.loading || loading}
                       class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Créer le salon
+                      {m.cm_create_channel()}
                     </button>
                   </div>
                   <input 
                     type="text" 
                     bind:value={config.statsConfig.categoryTemplate} 
-                    placeholder="Template: Catégories : {'{count}'}" 
+                    placeholder={m.cm_template_categories_placeholder()} 
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
@@ -798,7 +799,7 @@
               <!-- Activity Count -->
               <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
-                  <label for="stats-activity-channel" class="text-xs font-bold text-on-surface/80 block">📈 Compteur d'Activité (24h)</label>
+                  <label for="stats-activity-channel" class="text-xs font-bold text-on-surface/80 block">{m.cm_activity_counter_label()}</label>
                   <input 
                     type="checkbox" 
                     bind:checked={config.statsConfig.activityEnabled} 
@@ -812,7 +813,7 @@
                         id="stats-activity-channel"
                         options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                         bind:value={config.statsConfig.activityChannelId} 
-                        placeholder="— Créer le salon automatiquement —"
+                        placeholder={m.cm_create_channel_auto_placeholder()}
                       />
                     </div>
                     <button
@@ -824,13 +825,13 @@
                       disabled={saveAction.state.loading || loading}
                       class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Créer le salon
+                      {m.cm_create_channel()}
                     </button>
                   </div>
                   <input 
                     type="text" 
                     bind:value={config.statsConfig.activityTemplate} 
-                    placeholder="Template: Actifs 24h : {'{count}'}" 
+                    placeholder={m.cm_template_activity_placeholder()} 
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
@@ -842,9 +843,9 @@
               <div>
                 <h4 class="text-sm font-semibold flex items-center gap-2">
                   <Papicon icon="plus-circle" size={16} class="text-primary" />
-                  Salons de Statistiques Personnalisés
+                  {m.cm_custom_stats_title()}
                 </h4>
-                <p class="text-xs text-on-surface-variant/60">Ajoutez des compteurs spécifiques ou des objectifs de membres.</p>
+                <p class="text-xs text-on-surface-variant/60">{m.cm_custom_stats_desc()}</p>
               </div>
 
               {#if !config.statsConfig.customStats}
@@ -855,17 +856,17 @@
                 {#each config.statsConfig.customStats as custom, index}
                   <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
                     <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
-                      <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">Compteur #{index + 1}</span>
+                      <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.cm_counter_n({ n: index + 1 })}</span>
                       <button
                         type="button"
                         onclick={() => {
                           config.statsConfig.customStats = config.statsConfig.customStats.filter((_, i) => i !== index);
                         }}
                         class="text-on-surface-variant/60 hover:text-error transition-all flex items-center gap-1.5 text-xs font-bold"
-                        title="Supprimer ce compteur"
+                        title={m.cm_delete_counter_title()}
                       >
                         <Papicon icon="trash-2" size={14} />
-                        Supprimer
+                        {m.common_delete()}
                       </button>
                     </div>
 
@@ -873,9 +874,9 @@
                       <!-- Enabled checkbox & Type -->
                       <div class="space-y-1.5">
                         <div class="flex items-center justify-between">
-                          <label for="custom-type-{index}" class="text-xs font-bold text-on-surface/80 block">Type de Statistique</label>
+                          <label for="custom-type-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_stat_type_label()}</label>
                           <label class="flex items-center gap-2 text-xs font-bold text-on-surface/80 cursor-pointer">
-                            Activer
+                            {m.cm_enable_verb()}
                             <input 
                               type="checkbox" 
                               bind:checked={custom.enabled} 
@@ -888,22 +889,22 @@
                           bind:value={custom.type}
                           class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                         >
-                          <option value="members">👤 Membres Totaux</option>
-                          <option value="bots">🤖 Bots Totaux</option>
-                          <option value="online">🟢 Membres en Ligne</option>
-                          <option value="voice">🔊 Membres en Vocal</option>
-                          <option value="role">👑 Rôle Spécifique</option>
-                          <option value="channels">💬 Salons Totaux</option>
-                          <option value="categories">📁 Catégories Totales</option>
-                          <option value="activity">📈 Actifs (24h)</option>
-                          <option value="boosts">⚡ Boosts de Serveur</option>
-                          <option value="goal">🎯 Objectif de Membres</option>
+                          <option value="members">{m.cm_opt_members_total()}</option>
+                          <option value="bots">{m.cm_opt_bots_total()}</option>
+                          <option value="online">{m.cm_opt_members_online()}</option>
+                          <option value="voice">{m.cm_opt_members_voice()}</option>
+                          <option value="role">{m.cm_opt_specific_role()}</option>
+                          <option value="channels">{m.cm_opt_channels_total()}</option>
+                          <option value="categories">{m.cm_opt_categories_total()}</option>
+                          <option value="activity">{m.cm_opt_activity_24h()}</option>
+                          <option value="boosts">{m.cm_opt_server_boosts()}</option>
+                          <option value="goal">{m.cm_opt_member_goal()}</option>
                         </select>
                       </div>
 
                       <!-- Channel Selection -->
                       <div class="space-y-1.5">
-                        <label for="custom-channel-{index}" class="text-xs font-bold text-on-surface/80 block">Salon Vocal</label>
+                        <label for="custom-channel-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_voice_channel_label()}</label>
                         {#if custom.enabled}
                           <div class="flex gap-2">
                             <div class="flex-1">
@@ -911,7 +912,7 @@
                                 id="custom-channel-{index}"
                                 options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                                 bind:value={custom.channelId} 
-                                placeholder="— Créer le salon automatiquement —"
+                                placeholder={m.cm_create_channel_auto_placeholder()}
                               />
                             </div>
                             <button
@@ -923,12 +924,12 @@
                               disabled={saveAction.state.loading || loading}
                               class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              Créer
+                              {m.cm_create_short()}
                             </button>
                           </div>
                         {:else}
                           <div class="text-xs text-on-surface-variant/40 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg px-4 py-2.5">
-                            Compteur désactivé
+                            {m.cm_counter_disabled()}
                           </div>
                         {/if}
                       </div>
@@ -936,12 +937,12 @@
                       <!-- Conditional field: Role ID -->
                       {#if custom.type === 'role'}
                         <div class="space-y-1.5">
-                          <label for="custom-role-select-{index}" class="text-xs font-bold text-on-surface/80 block">Rôle cible</label>
+                          <label for="custom-role-select-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_target_role_label()}</label>
                           <SearchableSelect 
                             id="custom-role-select-{index}"
                             options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                             bind:value={custom.roleTargetId} 
-                            placeholder="— Sélectionner le rôle cible —"
+                            placeholder={m.cm_select_target_role_placeholder()}
                           />
                         </div>
                       {/if}
@@ -949,12 +950,12 @@
                       <!-- Conditional field: Member Goal -->
                       {#if custom.type === 'goal'}
                         <div class="space-y-1.5">
-                          <label for="custom-goal-{index}" class="text-xs font-bold text-on-surface/80 block">Objectif (Nombre cible)</label>
+                          <label for="custom-goal-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_goal_target_label()}</label>
                           <input 
                             id="custom-goal-{index}"
                             type="number"
                             bind:value={custom.goalTarget}
-                            placeholder="Ex: 1000"
+                            placeholder={m.cm_goal_example_placeholder()}
                             class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                           />
                         </div>
@@ -962,18 +963,18 @@
 
                       <!-- Template -->
                       <div class="space-y-1.5">
-                        <label for="custom-template-{index}" class="text-xs font-bold text-on-surface/80 block">Modèle du nom (Template)</label>
+                        <label for="custom-template-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_name_template_label()}</label>
                         <input 
                           id="custom-template-{index}"
                           type="text" 
                           bind:value={custom.template} 
-                          placeholder={custom.type === 'goal' ? '🎯 Objectif : {count}/{goal}' : 'Template: Nom : {count}'} 
+                          placeholder={custom.type === 'goal' ? m.cm_template_goal_placeholder() : m.cm_template_name_placeholder()} 
                           class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                         />
                         <p class="text-[11px] text-on-surface-variant/40 mt-1">
-                          Le mot clé <code>{"{count}"}</code> sera remplacé par le nombre actuel.
+                          {m.cm_count_placeholder_hint({ code: '{count}' })}
                           {#if custom.type === 'goal'}
-                            Le mot clé <code>{"{goal}"}</code> sera remplacé par le nombre cible.
+                            {m.cm_goal_placeholder_hint({ code: '{goal}' })}
                           {/if}
                         </p>
                       </div>
@@ -999,11 +1000,11 @@
                   class="col-span-1 md:col-span-2 py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
                 >
                   <Papicon icon="plus" size={16} />
-                  Ajouter un compteur personnalisé
+                  {m.cm_add_custom_counter()}
                 </button>
               </div>
             </div>
-            <p class="text-[10px] text-on-surface-variant/40 mt-4 block">💡 Les noms des salons de statistiques sont rafraîchis toutes les 10 minutes par le bot pour éviter les limitations de l'API Discord.</p>
+            <p class="text-[10px] text-on-surface-variant/40 mt-4 block">{m.cm_stats_refresh_hint()}</p>
           {/if}
         </section>
 
@@ -1014,9 +1015,9 @@
             <div>
               <h3 class="text-xl font-semibold flex items-center gap-3">
                 <Papicon icon="volume-2" size={20} class="text-primary" />
-                Créer son salon (Salons Temporaires)
+                {m.cm_temp_voice_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">Créez un salon vocal "générateur". Quand un membre le rejoint, un nouveau salon privé temporaire est automatiquement créé pour lui.</p>
+              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_temp_voice_desc()}</p>
             </div>
             
             <div class="flex items-center gap-2">
@@ -1032,14 +1033,14 @@
             <div class="space-y-4 pt-4 border-t border-outline-variant/10 max-w-xl">
               <!-- Generator Voice Channel Selection -->
               <div class="space-y-1.5">
-                <label for="temp-voice-channel-select" class="text-xs font-bold text-on-surface/80 block">🔊 Salon Vocal Générateur</label>
+                <label for="temp-voice-channel-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_generator_voice_channel_label()}</label>
                 <div class="flex gap-2">
                   <div class="flex-1">
                     <SearchableSelect 
                       id="temp-voice-channel-select"
                       options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                       bind:value={config.tempVoiceChannelId} 
-                      placeholder="— Créer le salon automatiquement —"
+                      placeholder={m.cm_create_channel_auto_placeholder()}
                     />
                   </div>
                   <button
@@ -1051,21 +1052,21 @@
                     disabled={saveAction.state.loading || loading}
                     class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Créer le salon
+                    {m.cm_create_channel()}
                   </button>
                 </div>
               </div>
 
               <!-- Target Category Selection -->
               <div class="space-y-1.5">
-                <label for="temp-voice-category-select" class="text-xs font-bold text-on-surface/80 block">📁 Catégorie de création</label>
+                <label for="temp-voice-category-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_creation_category_label()}</label>
                 <div class="flex gap-2">
                   <div class="flex-1">
                     <SearchableSelect 
                       id="temp-voice-category-select"
                       options={availableCategories.map(c => ({ id: c.id, name: `📁 ${c.name}` }))} 
                       bind:value={config.tempVoiceCategoryId} 
-                      placeholder="— Créer la catégorie automatiquement —"
+                      placeholder={m.cm_create_category_auto_placeholder()}
                     />
                   </div>
                   <button
@@ -1077,32 +1078,32 @@
                     disabled={saveAction.state.loading || loading}
                     class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Créer la catégorie
+                    {m.cm_create_category()}
                   </button>
                 </div>
               </div>
 
               <!-- Name Template -->
               <div class="space-y-1.5">
-                <label for="temp-voice-name-template-input" class="text-xs font-bold text-on-surface/80 block">✏️ Modèle de nom du salon</label>
+                <label for="temp-voice-name-template-input" class="text-xs font-bold text-on-surface/80 block">{m.cm_name_template_channel_label()}</label>
                 <input 
                   id="temp-voice-name-template-input"
                   type="text" 
                   bind:value={config.tempVoiceNameTemplate} 
-                  placeholder="Ex: 🔊 Salon de {'{user}'}" 
+                  placeholder={m.cm_template_user_placeholder()} 
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all"
                 />
-                <p class="text-[10px] text-on-surface-variant/40 mt-1">Le mot clé `{"{user}"}` sera remplacé par le pseudonyme du membre.</p>
+                <p class="text-[10px] text-on-surface-variant/40 mt-1">{m.cm_user_placeholder_hint({ code: '{user}' })}</p>
               </div>
 
               <!-- Role Restriction Selection -->
               <div class="space-y-1.5">
-                <label for="temp-voice-role-select" class="text-xs font-bold text-on-surface/80 block">👑 Rôle requis pour utiliser</label>
+                <label for="temp-voice-role-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_required_role_label()}</label>
                 <SearchableSelect 
                   id="temp-voice-role-select"
                   options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                   bind:value={config.tempVoiceRequiredRoleId} 
-                  placeholder="— Aucun rôle requis (ouvert à tous) —"
+                  placeholder={m.cm_no_role_required_open_placeholder()}
                 />
               </div>
 
@@ -1115,40 +1116,40 @@
                 <div>
                   <h4 class="text-sm font-semibold flex items-center gap-2 text-primary">
                     <Papicon icon="plus-circle" size={16} />
-                    Salons Générateurs Additionnels
+                    {m.cm_additional_generators_title()}
                   </h4>
-                  <p class="text-xs text-on-surface-variant/60">Ajoutez d'autres salons générateurs de salons temporaires (ex: pour d'autres catégories ou avec d'autres templates de noms).</p>
+                  <p class="text-xs text-on-surface-variant/60">{m.cm_additional_generators_desc()}</p>
                 </div>
 
                 <div class="grid grid-cols-1 gap-6">
                   {#each config.tempVoiceGenerators as generator, index}
                     <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
                       <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
-                        <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">Générateur #{index + 2}</span>
+                        <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.cm_generator_n({ n: index + 2 })}</span>
                         <button
                           type="button"
                           onclick={() => {
                             config.tempVoiceGenerators = config.tempVoiceGenerators.filter((_, i) => i !== index);
                           }}
                           class="text-on-surface-variant/60 hover:text-error transition-all flex items-center gap-1.5 text-xs font-bold"
-                          title="Supprimer ce générateur"
+                          title={m.cm_delete_generator_title()}
                         >
                           <Papicon icon="trash-2" size={14} />
-                          Supprimer
+                          {m.common_delete()}
                         </button>
                       </div>
 
                       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <!-- Generator Voice Channel Selection -->
                         <div class="space-y-1.5">
-                          <label for="temp-voice-channel-select-{index}" class="text-xs font-bold text-on-surface/80 block">🔊 Salon Vocal Générateur</label>
+                          <label for="temp-voice-channel-select-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_generator_voice_channel_label()}</label>
                           <div class="flex gap-2">
                             <div class="flex-1">
                               <SearchableSelect 
                                 id="temp-voice-channel-select-{index}"
                                 options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
                                 bind:value={generator.channelId} 
-                                placeholder="— Créer automatiquement —"
+                                placeholder={m.cm_create_auto_placeholder()}
                               />
                             </div>
                             <button
@@ -1160,21 +1161,21 @@
                               disabled={saveAction.state.loading || loading}
                               class="px-3 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all"
                             >
-                              Créer
+                              {m.cm_create_short()}
                             </button>
                           </div>
                         </div>
 
                         <!-- Target Category Selection -->
                         <div class="space-y-1.5">
-                          <label for="temp-voice-category-select-{index}" class="text-xs font-bold text-on-surface/80 block">📁 Catégorie de création</label>
+                          <label for="temp-voice-category-select-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_creation_category_label()}</label>
                           <div class="flex gap-2">
                             <div class="flex-1">
                               <SearchableSelect 
                                 id="temp-voice-category-select-{index}"
                                 options={availableCategories.map(c => ({ id: c.id, name: `📁 ${c.name}` }))} 
                                 bind:value={generator.categoryId} 
-                                placeholder="— Créer automatiquement —"
+                                placeholder={m.cm_create_auto_placeholder()}
                               />
                             </div>
                             <button
@@ -1186,31 +1187,31 @@
                               disabled={saveAction.state.loading || loading}
                               class="px-3 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all"
                             >
-                              Créer
+                              {m.cm_create_short()}
                             </button>
                           </div>
                         </div>
 
                         <!-- Name Template -->
                         <div class="space-y-1.5">
-                          <label for="temp-voice-name-template-input-{index}" class="text-xs font-bold text-on-surface/80 block">✏️ Modèle de nom du salon</label>
+                          <label for="temp-voice-name-template-input-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_name_template_channel_label()}</label>
                           <input 
                             id="temp-voice-name-template-input-{index}"
                             type="text" 
                             bind:value={generator.nameTemplate} 
-                            placeholder="Ex: 🔊 Salon de {'{user}'}" 
+                            placeholder={m.cm_template_user_placeholder()} 
                             class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30 transition-all"
                           />
                         </div>
 
                         <!-- Required Role Selector -->
                         <div class="space-y-1.5">
-                          <label for="temp-voice-role-select-{index}" class="text-xs font-bold text-on-surface/80 block">👑 Rôle requis</label>
+                          <label for="temp-voice-role-select-{index}" class="text-xs font-bold text-on-surface/80 block">{m.cm_required_role_short_label()}</label>
                           <SearchableSelect 
                             id="temp-voice-role-select-{index}"
                             options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                             bind:value={generator.requiredRoleId} 
-                            placeholder="— Aucun rôle (public) —"
+                            placeholder={m.cm_no_role_public_placeholder()}
                           />
                         </div>
                       </div>
@@ -1233,20 +1234,20 @@
                     class="py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
                   >
                     <Papicon icon="plus" size={16} />
-                    Ajouter un salon vocal générateur supplémentaire
+                    {m.cm_add_extra_generator()}
                   </button>
                 </div>
               </div>
 
               <!-- Description of Chat Control Embed -->
               <div class="p-5 bg-primary/5 border border-primary/20 rounded-xl mt-4">
-                <h4 class="text-xs font-semibold text-primary uppercase tracking-wider mb-2">ℹ️ Embed de gestion du salon</h4>
+                <h4 class="text-xs font-semibold text-primary uppercase tracking-wider mb-2">{m.cm_management_embed_title()}</h4>
                 <p class="text-xs text-on-surface-variant/80 leading-relaxed">
-                  Dès la création du salon vocal temporaire, Kotbo enverra automatiquement un message embed interactif dans le chat textuel du salon vocal. Ce message permettra au créateur de gérer son salon à l'aide de boutons :
-                  <br/><strong class="text-on-surface font-semibold">• Verrouiller / Déverrouiller</strong> (rendre le salon privé)
-                  <br/><strong class="text-on-surface font-semibold">• Renommer</strong> (changer le nom du salon via un formulaire direct)
-                  <br/><strong class="text-on-surface font-semibold">• Limite d'utilisateurs</strong> (définir le nombre maximal de personnes connectées)
-                  <br/><strong class="text-on-surface font-semibold">• Exclure / Bannir</strong> (exclure un intrus du vocal)
+                  {m.cm_management_embed_intro()}
+                  <br/><strong class="text-on-surface font-semibold">• {m.cm_embed_bullet_lock()}</strong> {m.cm_embed_bullet_lock_desc()}
+                  <br/><strong class="text-on-surface font-semibold">• {m.cm_embed_bullet_rename()}</strong> {m.cm_embed_bullet_rename_desc()}
+                  <br/><strong class="text-on-surface font-semibold">• {m.cm_embed_bullet_limit()}</strong> {m.cm_embed_bullet_limit_desc()}
+                  <br/><strong class="text-on-surface font-semibold">• {m.cm_embed_bullet_kick()}</strong> {m.cm_embed_bullet_kick_desc()}
                 </p>
               </div>
             </div>
@@ -1259,9 +1260,9 @@
               <div>
                 <h3 class="text-xl font-semibold flex items-center gap-3">
                   <Papicon icon="volume-2" size={20} class="text-primary" />
-                  Salons Temporaires Actifs
+                  {m.cm_active_temp_channels_title()}
                 </h3>
-                <p class="text-xs text-on-surface-variant/60 mt-1">Liste des salons temporaires créés et actifs sur le serveur.</p>
+                <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_active_temp_channels_desc()}</p>
               </div>
               
               <button
@@ -1271,7 +1272,7 @@
                 class="px-3.5 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all flex items-center gap-2"
               >
                 <Papicon icon="refresh" size={14} class={loadingTempChannels ? "animate-spin" : ""} />
-                Actualiser
+                {m.common_refresh()}
               </button>
             </div>
 
@@ -1282,7 +1283,7 @@
             {:else if activeTempChannels.length === 0}
               <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30">
                 <Papicon icon="volume-x" size={32} class="opacity-50 mb-2" />
-                <p class="text-xs font-bold">Aucun salon temporaire actif</p>
+                <p class="text-xs font-bold">{m.cm_no_active_temp_channel()}</p>
               </div>
             {:else}
               <!-- Desktop Table -->
@@ -1290,11 +1291,11 @@
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr class="border-b border-outline-variant/15 text-xs font-medium text-on-surface-variant/70">
-                      <th class="py-3 px-4">Nom du Salon</th>
-                      <th class="py-3 px-4">Créateur</th>
-                      <th class="py-3 px-4 text-center">Membres</th>
-                      <th class="py-3 px-4">Réservation</th>
-                      <th class="py-3 px-4 text-right">Actions</th>
+                      <th class="py-3 px-4">{m.cm_col_channel_name()}</th>
+                      <th class="py-3 px-4">{m.cm_col_creator()}</th>
+                      <th class="py-3 px-4 text-center">{m.cm_col_members()}</th>
+                      <th class="py-3 px-4">{m.cm_col_reservation()}</th>
+                      <th class="py-3 px-4 text-right">{m.cm_col_actions()}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1314,14 +1315,14 @@
                                 disabled={actionInProgress}
                                 class="px-2 py-1 bg-primary text-white text-[10px] font-semibold rounded-md active:scale-[0.98] transition-transform"
                               >
-                                Valider
+                                {m.cm_validate()}
                               </button>
                               <button
                                 type="button"
                                 onclick={() => editingChannel = null}
                                 class="px-2 py-1 bg-surface-container text-on-surface text-[10px] font-semibold rounded-md border border-outline-variant/20"
                               >
-                                Annuler
+                                {m.common_cancel()}
                               </button>
                             </div>
                           {:else}
@@ -1334,7 +1335,7 @@
                                   newChannelName = chan.name;
                                 }}
                                 class="text-on-surface-variant/40 hover:text-primary transition-colors"
-                                title="Renommer"
+                                title={m.cm_rename_title()}
                               >
                                 <Papicon icon="edit" size={13} />
                               </button>
@@ -1364,7 +1365,7 @@
                               options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                               value={chan.roleId || ''} 
                               on:change={(e) => handleReserveChannel(chan.id, e.detail.value || null)}
-                              placeholder="— Public (Aucun rôle) —"
+                              placeholder={m.cm_public_no_role_placeholder()}
                             />
                           </div>
                         </td>
@@ -1376,7 +1377,7 @@
                             class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
                           >
                             <Papicon icon="trash-2" size={12} />
-                            Fermer
+                            {m.common_close()}
                           </button>
                         </td>
                       </tr>
@@ -1429,17 +1430,17 @@
                         <span class="text-on-surface-variant">{chan.creatorName}</span>
                       </div>
                       <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                        👤 {chan.membersCount} connectés
+                        👤 {chan.membersCount} {m.cm_members_connected_suffix()}
                       </span>
                     </div>
 
                     <div class="space-y-1">
-                      <span class="text-[10px] font-bold text-on-surface-variant/60 block">Réservation :</span>
+                      <span class="text-[10px] font-bold text-on-surface-variant/60 block">{m.cm_reservation_label()}</span>
                       <SearchableSelect 
                         options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                         value={chan.roleId || ''} 
                         on:change={(e) => handleReserveChannel(chan.id, e.detail.value || null)}
-                        placeholder="— Public (Aucun rôle) —"
+                        placeholder={m.cm_public_no_role_placeholder()}
                       />
                     </div>
 
@@ -1451,7 +1452,7 @@
                         class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-[9px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
                       >
                         <Papicon icon="trash-2" size={12} />
-                        Fermer le salon
+                        {m.cm_close_channel_full()}
                       </button>
                     </div>
                   </div>
@@ -1468,9 +1469,9 @@
             <div>
               <h3 class="text-xl font-semibold flex items-center gap-3">
                 <Papicon icon="shield" size={20} class="text-primary" />
-                Salon Honeypot (Piège Anti-Spam)
+                {m.cm_honeypot_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">Créez un salon d'appât (ex: `#don-not-send-here`). Toute personne écrivant à l'intérieur (non-staff) sera bannie instantanément pour éliminer les bots de spam et comptes piratés.</p>
+              <p class="text-xs text-on-surface-variant/60 mt-1">{m.cm_honeypot_desc()}</p>
             </div>
             
             <div class="flex items-center gap-2">
@@ -1486,14 +1487,14 @@
             <div class="space-y-6 pt-4 border-t border-outline-variant/10 max-w-xl">
               <!-- Honeypot Channel Selection -->
               <div class="space-y-1.5">
-                <label for="honeypot-channel-select" class="text-xs font-bold text-on-surface/80 block">⚠️ Salon Piège (Honeypot)</label>
+                <label for="honeypot-channel-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_honeypot_channel_label()}</label>
                 <div class="flex gap-2">
                   <div class="grow">
                     <SearchableSelect
                       id="honeypot-channel-select"
                       options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
                       bind:value={config.honeypotChannelId}
-                      placeholder="— Sélectionner un salon —"
+                      placeholder={m.cm_select_channel_placeholder()}
                     />
                   </div>
                   <button
@@ -1507,40 +1508,40 @@
                       if (res?.resolved?.honeypotChannelId) {
                         config.honeypotChannelId = res.resolved.honeypotChannelId;
                         savedConfig = JSON.parse(JSON.stringify(config));
-                        toast.success('Salon honeypot créé avec succès !');
+                        toast.success(m.cm_honeypot_created());
                       }
                     }}
                     disabled={saveAction.state.loading || loading}
                     class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Créer automatiquement
+                    {m.cm_create_automatically()}
                   </button>
                 </div>
               </div>
 
               <!-- Honeypot Sanction Selection -->
               <div class="space-y-1.5">
-                <label for="honeypot-sanction-select" class="text-xs font-bold text-on-surface/80 block">🛡️ Sanction à appliquer</label>
+                <label for="honeypot-sanction-select" class="text-xs font-bold text-on-surface/80 block">{m.cm_sanction_to_apply_label()}</label>
                 <select
                   id="honeypot-sanction-select"
                   bind:value={config.honeypotSanction}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                 >
-                  <option value="TIMEOUT">Exclusion Temporaire / Timeout (TO) — Par défaut</option>
-                  <option value="BAN">Bannissement Définitif</option>
-                  <option value="SOFTBAN">Softban (Ban + Déban immédiat, purge les messages)</option>
-                  <option value="KICK">Exclusion Simple (Kick)</option>
-                  <option value="WARN">Avertissement Simple (Warn)</option>
+                  <option value="TIMEOUT">{m.cm_opt_timeout_default()}</option>
+                  <option value="BAN">{m.cm_opt_ban_perm()}</option>
+                  <option value="SOFTBAN">{m.cm_opt_softban()}</option>
+                  <option value="KICK">{m.cm_opt_kick_simple()}</option>
+                  <option value="WARN">{m.cm_opt_warn_simple()}</option>
                 </select>
-                <p class="text-[10px] text-on-surface-variant/40 mt-1">Sélectionnez la sanction automatique à appliquer lorsqu'un membre écrit dans un salon piège.</p>
+                <p class="text-[10px] text-on-surface-variant/40 mt-1">{m.cm_sanction_select_hint()}</p>
               </div>
 
               {#if config.honeypotSanction === 'KICK' || config.honeypotSanction === 'SOFTBAN'}
                 <!-- Honeypot Auto Reinvite toggle -->
                 <div class="flex items-center justify-between p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                   <div class="space-y-0.5">
-                    <label for="honeypot-reinvite-toggle" class="text-xs font-bold text-on-surface/80 block">📨 Réinvitation automatique</label>
-                    <p class="text-[10px] text-on-surface-variant/60">Envoyer automatiquement une invitation temporaire en DM à l'utilisateur exclu par le honeypot.</p>
+                    <label for="honeypot-reinvite-toggle" class="text-xs font-bold text-on-surface/80 block">{m.cm_auto_reinvite_label()}</label>
+                    <p class="text-[10px] text-on-surface-variant/60">{m.cm_auto_reinvite_desc()}</p>
                   </div>
                   <div class="flex items-center gap-2">
                     <input 
@@ -1557,12 +1558,12 @@
               <div class="p-5 bg-error/10 border border-error/20 text-error rounded-xl space-y-3">
                 <h4 class="text-[13px] font-medium flex items-center gap-2">
                   <Papicon icon="alert-triangle" size={16} />
-                  Avertissement de Sécurité
+                  {m.cm_security_warning_title()}
                 </h4>
                 <p class="text-xs leading-relaxed opacity-90">
-                  Ce salon est configuré pour être visible par 100% des membres (y compris les nouveaux membres et les bots de spam) afin de servir de piège.
+                  {m.cm_security_warning_body1()}
                   <br/><br/>
-                  Toute personne (sauf bots et membres ayant les rôles de staff Kotbo configurés) qui enverra un message dans ce salon recevra la <strong>sanction automatique</strong> configurée ci-dessus, immédiatement et sans préavis.
+                  {m.cm_security_warning_body2({ strong: m.cm_security_warning_strong() })}
                 </p>
               </div>
             </div>

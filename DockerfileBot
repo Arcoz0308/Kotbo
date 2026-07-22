@@ -31,7 +31,8 @@ RUN bun run db:generate
 FROM oven/bun:1-alpine
 
 # Canvas text rendering requires system fonts (Alpine ships with none)
-RUN apk add --no-cache fontconfig ttf-dejavu \
+# postgresql-client provides pg_dump, used by the daily database backup job
+RUN apk add --no-cache fontconfig ttf-dejavu postgresql-client \
   && fc-cache -f
 
 WORKDIR /app

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { m } from '../../i18n';
 
   let { auditLogs = [] } = $props();
   let searchQuery = $state('');
@@ -63,7 +64,7 @@
             <td class="px-5 py-3.5 text-xs">{log.action}</td>
           </tr>
         {:else}
-          <tr><td colspan="4" class="px-6 py-12 text-center text-on-surface-variant/40 italic">Aucun événement enregistré</td></tr>
+          <tr><td colspan="4" class="px-6 py-12 text-center text-on-surface-variant/40 italic">{m.maud_no_events()}</td></tr>
         {/each}
       </tbody>
     </table>

@@ -1,11 +1,12 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, SeparatorBuilder, SectionBuilder, ThumbnailBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, AttachmentBuilder, MessageFlags, SeparatorSpacingSize, type ChatInputCommandInteraction } from 'discord.js';
+import { SlashCommandBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { getPublicProfileSnapshot } from '../../services/progression/profileService.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { generateProfileCard } from '../../services/core/imageService.js';
 import { getMemberRankData } from '../../services/progression/levelingService.js';
-import { COLORS_RAW, truncate, text } from '../../utils/embeds.js';
+import { kotboContainer, truncate } from '../../utils/embeds.js';
 import { E, rankEmoji } from '../../utils/emojis.js';
+import { actionRow, ContainerChild, mediaGallery, separator, v2Message } from '@arcscord/components';
 
 const data = new SlashCommandBuilder()
   .setName('profile')
@@ -109,20 +110,19 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   // Private profile
   if (hasPrivateProfile) {
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.warning)
-      .addSectionComponents(
-        new SectionBuilder()
-          .addTextDisplayComponents(text(`### ${E.lock} Profil privé · ${publicName}`))
-          .setThumbnailAccessory(new ThumbnailBuilder({ media: { url: profile.avatarUrl ?? user.displayAvatarURL() } }))
-      )
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text('Ce profil est en mode privé. Les informations détaillées sont masquées au public.'))
-      .addTextDisplayComponents(text(`${E.arrow} **Identité** · @${profile.username ?? user.username}\n${E.arrow} **Visibilité** · Profil privé`))
-      .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-      .addTextDisplayComponents(text(`-# ${E.info} Les membres du staff peuvent voir le profil complet via le dashboard.`));
-
-    await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: 'warning',
+        title: `${E.lock} Profil privé · ${publicName}`,
+        titleThumbnail: { url: profile.avatarUrl ?? user.displayAvatarURL() },
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          'Ce profil est en mode privé. Les informations détaillées sont masquées au public.',
+          `${E.arrow} **Identité** · @${profile.username ?? user.username}\n${E.arrow} **Visibilité** · Profil privé`,
+        ],
+        footerOverwrite: `-# ${E.info} Les membres du staff peuvent voir le profil complet via le dashboard.`,
+      }),
+    ));
     return;
   }
 
@@ -152,23 +152,19 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile.png' });
 
-    const container = new ContainerBuilder()
-      .setAccentColor(COLORS_RAW.primary)
-      .addMediaGalleryComponents(
-        new MediaGalleryBuilder().addItems(
-          new MediaGalleryItemBuilder({ media: { url: 'attachment://profile.png' } })
-        )
-      )
-      .addActionRowComponents(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setLabel('Profil complet').setURL(profileLink).setStyle(ButtonStyle.Link)
-        )
-      );
-
     await interaction.editReply({
-      components: [container],
+      ...v2Message(
+        kotboContainer({
+          color: 'primary',
+          fields: [
+            mediaGallery({ items: [{ media: { url: 'attachment://profile.png' } }] }),
+            actionRow(
+              new ButtonBuilder().setLabel('Profil complet').setURL(profileLink).setStyle(ButtonStyle.Link)
+            ),
+          ],
+        }),
+      ),
       files: [attachment],
-      flags: MessageFlags.IsComponentsV2,
     });
     return;
   }
@@ -196,56 +192,55 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     ).join('\n'), 900)
     : '*Aucun événement participé*';
 
-  const container = new ContainerBuilder()
-    .setAccentColor(COLORS_RAW.primary)
-    .addSectionComponents(
-      new SectionBuilder()
-        .addTextDisplayComponents(
-          text(`### ${E.profile} ${publicName}`)
-        )
-        .setThumbnailAccessory(new ThumbnailBuilder({ media: { url: profile.avatarUrl ?? user.displayAvatarURL() } }))
-    )
-    .addTextDisplayComponents(text(profile.bio?.trim() || '*Aucune bio renseignée*'))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text([
+  const fields: ContainerChild[] = [
+    profile.bio?.trim() || '*Aucune bio renseignée*',
+    separator({ divider: true, spacing: 'small' }),
+    [
       `**${E.stats} Vue générale**`,
       `${E.dot} Discord: <@${profile.userId}>`,
       `${E.dot} Rôles: **${profile.rolesSnapshot.length}**`,
       `${E.dot} Badge: **${currentTier}**`,
-    ].join('\n')))
-    .addTextDisplayComponents(text([
+    ].join('\n'),
+    [
       `**${E.xp} Activité**`,
       `${E.dot} Points: **${currentPoints.toFixed(1)}**`,
       `${E.dot} Messages: **${profile.messageCount.toLocaleString('fr-FR')}**`,
       `${E.dot} Vocal: **${formatDuration(profile.voiceTimeSeconds)}**`,
       `${E.dot} Streak Daily Algo: **${currentStreak}**`,
       `${E.dot} Classement: ${rankEmoji(currentRank ?? 0)}`,
-    ].join('\n')))
-    .addTextDisplayComponents(text([
+    ].join('\n'),
+    [
       `**${E.calendar} Arrivée & invitation**`,
       `${E.dot} Serveur: **${formatDate(profile.guildJoinedAt)}**`,
       `${E.dot} Compte: **${formatDate(profile.accountCreatedAt)}**`,
       `${E.dot} Dernière activité: **${formatDate(profile.lastSeenAt)}**`,
       `${E.dot} ${inviteText}`,
-    ].join('\n')))
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
-    .addTextDisplayComponents(text(`**${E.shield} Rôles**\n${roles}`))
-    .addTextDisplayComponents(text(`**${E.calendar} Événements**\n${eventHistory}`))
-    .addTextDisplayComponents(text(`**${E.fire} Daily Algo**\n${dailyAlgoLines}`));
+    ].join('\n'),
+    separator({ divider: true, spacing: 'small' }),
+    `**${E.shield} Rôles**\n${roles}`,
+    `**${E.calendar} Événements**\n${eventHistory}`,
+    `**${E.fire} Daily Algo**\n${dailyAlgoLines}`,
+  ];
 
   if (profile.guildLeftAt) {
-    container.addTextDisplayComponents(text(`${E.warning} Parti le **${formatDate(profile.guildLeftAt)}**`));
+    fields.push(`${E.warning} Parti le **${formatDate(profile.guildLeftAt)}**`);
   }
 
-  container
-    .addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
-    .addActionRowComponents(
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setLabel('Voir le profil complet').setURL(profileLink).setStyle(ButtonStyle.Link)
-      )
-    );
+  fields.push(
+    separator({ divider: false, spacing: 'small' }),
+    actionRow(
+      new ButtonBuilder().setLabel('Voir le profil complet').setURL(profileLink).setStyle(ButtonStyle.Link)
+    ),
+  );
 
-  await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
+  await interaction.editReply(v2Message(
+    kotboContainer({
+      color: 'primary',
+      title: `${E.profile} ${publicName}`,
+      titleThumbnail: { url: profile.avatarUrl ?? user.displayAvatarURL() },
+      fields,
+    }),
+  ));
 }
 
 export const profileCommand = { data, execute } satisfies SlashCommandDefinition;

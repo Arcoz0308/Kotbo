@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { m } from '../i18n';
+
   type AccessEntityOption = {
     id: string;
     name: string;
@@ -11,7 +13,7 @@
     options,
     selectedIds,
     disabled = false,
-    placeholder = 'Aucun élément sélectionné',
+    placeholder = m.aes_placeholder_default(),
     onToggle,
   }: {
     id: string;
@@ -23,7 +25,7 @@
   } = $props();
 
   const summaryLabel = $derived(
-    selectedIds.length > 0 ? `${selectedIds.length} élément(s) sélectionné(s)` : placeholder
+    selectedIds.length > 0 ? m.aes_summary_selected({ count: selectedIds.length }) : placeholder
   );
 
   function handleToggle(event: Event, optionId: string) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../stores/auth.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
@@ -12,6 +13,7 @@
   import { resolveGuildIconSrc, resolveUserAvatarSrc } from '../discordMedia';
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { isMobile } from '../stores/media.svelte';
+  import { userPrefs } from '../stores/userPreferences.svelte';
 
   const collapsed = $derived(sidebarStore.collapsed);
 
@@ -160,7 +162,7 @@
       >
         <Papicon icon="arrow-right" size={13} />
         <span class="hidden sm:inline">
-          {selectedGuild?.isStaffServer ? 'Serveur principal' : 'Serveur staff'}
+          {selectedGuild?.isStaffServer ? m.navbar_main_server() : m.navbar_staff_server()}
         </span>
       </button>
     {/if}
@@ -178,7 +180,7 @@
     <button
       onclick={themeStore.toggle}
       class="w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
-      aria-label="Changer de thème"
+      aria-label={m.navbar_change_theme()}
       id="theme-toggle"
     >
       {#if themeStore.dark}
@@ -186,6 +188,18 @@
       {:else}
         <Papicon icon="moon" size={16} class="text-on-surface-variant" />
       {/if}
+    </button>
+
+    <button
+      onclick={() => {
+        const nextLang = userPrefs.prefs.language === 'fr' ? 'en' : 'fr';
+        userPrefs.set('language', nextLang);
+      }}
+      class="w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container text-sm font-semibold select-none cursor-pointer"
+      title={m.navbar_lang_switch()}
+      aria-label={m.navbar_lang_switch()}
+    >
+      {userPrefs.prefs.language === 'fr' ? '🇬🇧' : '🇫🇷'}
     </button>
 
     <NotificationBell />
@@ -227,7 +241,7 @@
               onclick={startTutorial}
             >
               <Papicon icon="school" size={16} />
-              Tutoriel
+              {m.navbar_tutorial()}
             </button>
             <a
               href={authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile'}
@@ -235,7 +249,7 @@
               onclick={() => userMenuOpen = false}
             >
               <Papicon icon="user" size={16} />
-              Mon Profil
+              {m.navbar_my_profile()}
             </a>
             <a
               href="/activity"
@@ -243,7 +257,7 @@
               onclick={() => userMenuOpen = false}
             >
               <Papicon icon="history" size={16} />
-              Mon Activité
+              {m.navbar_my_activity()}
             </a>
             <a
               href="/userSettings"
@@ -251,7 +265,7 @@
               onclick={() => userMenuOpen = false}
             >
               <Papicon icon="settings" size={16} />
-              Paramètres
+              {m.navbar_settings()}
             </a>
           </div>
           <div class="border-t border-outline-variant py-1">
@@ -265,7 +279,7 @@
                 }
             >
               <Papicon icon="bug_report" size={16} />
-              Retour / Suggestion
+              {m.navbar_feedback()}
             </button>
             <button
               type="button"
@@ -273,7 +287,7 @@
               class="flex items-center gap-2.5 px-3 py-2 w-full text-left text-sm font-medium text-red-600 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-500/8"
             >
               <Papicon icon="log-out" size={16} />
-              Déconnexion
+              {m.navbar_logout()}
             </button>
           </div>
         </div>

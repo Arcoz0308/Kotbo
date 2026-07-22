@@ -1,16 +1,18 @@
+import { m } from '../i18n';
+
 export function typeLabel(value: string): string {
-  if (value === 'WARN') return 'Avertissement (Warn)';
-  if (value === 'KICK') return 'Exclusion (Kick)';
-  if (value === 'TIMEOUT') return 'Mise en sourdine / Timeout (TO)';
-  if (value === 'TEMP_BAN') return 'Bannissement temporaire';
-  if (value === 'BAN') return 'Bannissement definitif';
+  if (value === 'WARN') return m.fmt_type_warn();
+  if (value === 'KICK') return m.fmt_type_kick();
+  if (value === 'TIMEOUT') return m.fmt_type_timeout();
+  if (value === 'TEMP_BAN') return m.fmt_type_temp_ban();
+  if (value === 'BAN') return m.fmt_type_ban();
   return value;
 }
 
 export function statusLabel(value: string): string {
   if (value === 'ACTIVE') return 'Active';
-  if (value === 'RESOLVED') return 'Terminee';
-  return 'Echec';
+  if (value === 'RESOLVED') return m.fmt_status_resolved();
+  return m.fmt_status_failed();
 }
 
 export function durationLabel(seconds: number | null): string {

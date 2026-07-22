@@ -94,6 +94,7 @@
   import ReactionRoles from "./pages/ReactionRoles.svelte";
   import AutoResponses from "./pages/Triggers.svelte";
   import AutoMod from "./pages/AutoMod.svelte";
+  import RaidProtection from "./pages/RaidProtection.svelte";
   import Suggestions from "./pages/Suggestions.svelte";
   import EmbedBuilder from "./pages/EmbedBuilder.svelte";
   import UserSettings from "./pages/UserSettings.svelte";
@@ -102,6 +103,8 @@
   import MCPSettings from "./pages/MCPSettings.svelte";
   import FunSettings from "./pages/FunSettings.svelte";
   import CustomBot from "./pages/CustomBot.svelte";
+  import Clans from "./pages/Clans.svelte";
+  import LevelingClanPublic from "./pages/LevelingClanPublic.svelte";
   import Verify from "./pages/Verify.svelte";
   import ChannelHealth from "./pages/ChannelHealth.svelte";
   import ChannelLinks from "./pages/ChannelLinks.svelte";
@@ -121,6 +124,7 @@
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/classement\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/leveling\/clan\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
       $router.path.startsWith("/sanction-evidence/") ||
@@ -172,6 +176,7 @@
     if (path.startsWith("/triggers")) return "auto_responses";
     if (path.startsWith("/automod")) return "automod";
     if (path.startsWith("/admin-lock")) return "automod";
+    if (path.startsWith("/raid-protection")) return "automod";
     if (path.startsWith("/suggestions")) return "suggestions";
     if (path.startsWith("/embed-builder")) return "embed_builder";
     if (path.startsWith("/staff-management")) {
@@ -462,6 +467,9 @@
       </Route>
       <Route path="/:serverId/leveling/classement" let:meta>
         <LevelingPublic serverId={meta.params.serverId} />
+      </Route>
+      <Route path="/:serverId/leveling/clan" let:meta>
+        <LevelingClanPublic serverId={meta.params.serverId} />
       </Route>
       <Route path="/profile/:userId" let:meta>
         <PublicProfile userId={meta.params.userId} />
@@ -889,6 +897,9 @@
             <Route path="/automod">
               <AutoMod />
             </Route>
+            <Route path="/raid-protection">
+              <RaidProtection />
+            </Route>
             <Route path="/suggestions">
               <Suggestions />
             </Route>
@@ -897,6 +908,9 @@
             </Route>
             <Route path="/fun">
               <FunSettings />
+            </Route>
+            <Route path="/clans">
+              <Clans />
             </Route>
 
             <Route path="/double-accounts/*">

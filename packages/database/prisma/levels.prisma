@@ -39,6 +39,13 @@ model LevelConfig {
   ignoredRoles    String[] @default([])
   xpMultipliers   Json?
 
+  // Bonus d'XP selon la longueur du message : plus un message est long, plus
+  // le gain est multiplié, jusqu'à `lengthBonusMaxMultiplier` atteint à
+  // `lengthBonusThreshold` caractères (progression linéaire, plafonnée).
+  lengthBonusEnabled       Boolean @default(false)
+  lengthBonusThreshold     Int     @default(200)
+  lengthBonusMaxMultiplier Float   @default(2.0)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("level_configs")
