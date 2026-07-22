@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { readStatsConfig } from './services/analytics/statsConfig.js';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -148,7 +149,22 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
   }
 
   // Fast path: extract guildId from first arg (covers 99% of Discord events)
-  const arg = args[0];
+  // Les evenements Discord transportent des objets heterogenes : on ne lit ici
+  // que les proprietes permettant de remonter a un identifiant de serveur.
+  type GuildBearing = {
+    guild?: { id?: unknown } | null;
+    guildId?: unknown;
+    id?: unknown;
+    name?: unknown;
+    roles?: unknown;
+    // Presents sur les interactions uniquement.
+    isChatInput?: () => boolean;
+    commandName?: unknown;
+    user?: { id?: unknown } | null;
+    author?: { id?: unknown } | null;
+  };
+
+  const arg = args[0] as GuildBearing | null | undefined;
   if (!arg || typeof arg !== 'object') {
     return originalEmit.call(client, eventName, ...args);
   }
@@ -168,7 +184,7 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
   // Fallback: check remaining args only if first didn't yield a guildId
   if (!guildId) {
     for (let i = 1; i < args.length; i++) {
-      const a = args[i];
+      const a = args[i] as GuildBearing | null | undefined;
       if (!a || typeof a !== 'object') continue;
       if (a.guild && typeof a.guild.id === 'string') { guildId = a.guild.id; break; }
       if (typeof a.guildId === 'string') { guildId = a.guildId; break; }
@@ -235,7 +251,7 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
       if (Array.isArray(interaction.member.roles)) {
         roleIds = interaction.member.roles;
       } else if (interaction.member.roles && 'cache' in interaction.member.roles) {
-        roleIds = interaction.member.roles.cache.map((role: Record<string, unknown>) => role.id);
+        roleIds = interaction.member.roles.cache.map((role) => role.id);
       }
     }
     if (roleIds.length === 0) {
@@ -394,7 +410,7 @@ client.once(Events.ClientReady, async (c) => {
 
         await prisma.guild.update({
           where: { id: g.id },
-          data: { statsConfig: config }
+          data: { statsConfig: config as unknown as Prisma.InputJsonValue }
         });
       }
 
@@ -441,7 +457,7 @@ client.once(Events.ClientReady, async (c) => {
 
         await prisma.guild.update({
           where: { id: g.id },
-          data: { statsConfig: config }
+          data: { statsConfig: config as unknown as Prisma.InputJsonValue }
         });
       }
 
