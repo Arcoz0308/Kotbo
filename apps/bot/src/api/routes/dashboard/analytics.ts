@@ -68,7 +68,7 @@ export async function handleAnalyticsRoutes(
       // Préfixe `guild:<id>:` obligatoire : c'est ce que cache.invalidateGuild()
       // purge quand la config change (ex. activation des stats de mots).
       const cacheKey = `guild:${guildId}:analytics:advanced:${section}`;
-      const cached = await cache.get(cacheKey);
+      const cached = await cache.get<Record<string, unknown>>(cacheKey);
       if (cached) {
         json(res, 200, cached);
         return true;
@@ -367,7 +367,7 @@ export async function handleAnalyticsRoutes(
 
       // Check cache (30s TTL — live data stays fresh enough, avoids hammering DB on refreshes)
       const cacheKey = `analytics:${guildId}:${periodDays}:${queryStartDate || ''}:${queryEndDate || ''}:${url.searchParams.get('granularity') || ''}`;
-      const cached = await cache.get<unknown>(cacheKey);
+      const cached = await cache.get<Record<string, unknown>>(cacheKey);
       if (cached) {
         json(res, 200, cached);
         return true;

@@ -1,3 +1,4 @@
+import type { GuildLogEventConfig } from '@prisma/client';
 import {
   AuditLogEvent,
   ActionRowBuilder,
@@ -479,7 +480,7 @@ async function sendLogEmbed(
   
   // 1. Fetch event config from cache/database
   const cacheKey = `guild:${guild.id}:log_event_config:${eventType}`;
-  let config = await cache.get<unknown>(cacheKey);
+  let config = await cache.get<GuildLogEventConfig>(cacheKey);
   if (!config) {
     config = await prisma.guildLogEventConfig.findUnique({
       where: {

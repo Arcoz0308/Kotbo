@@ -50,7 +50,7 @@ const resolveStaffMemberId = async (guildId: string, staffIdentifier: string) =>
   }
 
   const cacheKey = `guild:${guildId}:staff_member:${staffIdentifier}`;
-  const cached = await cache.get<unknown>(cacheKey);
+  const cached = await cache.get<{ id?: string; isNotStaff?: boolean }>(cacheKey);
   if (cached) {
     if (cached.isNotStaff) return null;
     return cached.id;
