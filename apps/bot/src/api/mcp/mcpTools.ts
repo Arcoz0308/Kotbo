@@ -5609,7 +5609,7 @@ export function registerMcpTools(
       },
       guard('WRITE_COMMUNITY', async ({ giveaway_id, key_name }) => {
         try {
-          await endGiveaway(client, giveaway_id);
+          await endGiveaway(client, giveaway_id, guildId);
           await audit(key_name, 'Annulation giveaway MCP', giveaway_id, '');
           return ok({ ok: true, giveawayId: giveaway_id });
         } catch (e) {
@@ -5630,7 +5630,7 @@ export function registerMcpTools(
       },
       guard('WRITE_COMMUNITY', async ({ giveaway_id, key_name }) => {
         try {
-          await rerollGiveaway(client, giveaway_id);
+          await rerollGiveaway(client, giveaway_id, guildId);
           await audit(key_name, 'Reroll giveaway MCP', giveaway_id, '');
           return ok({ ok: true, giveawayId: giveaway_id });
         } catch (e) {

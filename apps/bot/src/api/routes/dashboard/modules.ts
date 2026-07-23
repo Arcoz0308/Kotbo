@@ -1537,10 +1537,36 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
     if (method === 'PATCH') {
       try {
         const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[]; onJoin?: boolean; onUpdate?: boolean; checkInvisible?: boolean; checkGlobal?: boolean; checkCustom?: boolean; discordAutoModSync?: boolean }>(req);
-        
+
+        if (!body || typeof body !== 'object' || Array.isArray(body)) {
+          json(res, 400, { error: 'Payload invalide' });
+          return true;
+        }
+
+        const allowedFields = new Set([
+          'enabled',
+          'whitelist',
+          'bypass',
+          'onJoin',
+          'onUpdate',
+          'checkInvisible',
+          'checkGlobal',
+          'checkCustom',
+          'discordAutoModSync',
+        ]);
+        const unknownFields = Object.keys(body).filter((key) => !allowedFields.has(key));
+        if (unknownFields.length > 0) {
+          json(res, 400, { error: `Champs inconnus : ${unknownFields.join(', ')}` });
+          return true;
+        }
+
         const updateData: Record<string, unknown> = {};
         if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
-          updateData.autoNicknameModerationEnabled = !!body.enabled;
+          if (typeof body.enabled !== 'boolean') {
+            json(res, 400, { error: 'Le champ enabled doit être un booléen' });
+            return true;
+          }
+          updateData.autoNicknameModerationEnabled = body.enabled;
         }
         // Toggles granulaires
         const toggleFields = [
@@ -1553,7 +1579,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         ] as const;
         for (const { key, dbKey } of toggleFields) {
           if (body && Object.prototype.hasOwnProperty.call(body, key)) {
-            updateData[dbKey] = !!body[key];
+            if (typeof body[key] !== 'boolean') {
+              json(res, 400, { error: `Le champ ${key} doit être un booléen` });
+              return true;
+            }
+            updateData[dbKey] = body[key];
           }
         }
         if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
@@ -1619,27 +1649,18 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         await prisma.guild.update({
           where: { id: guildId },
           data: updateData,
-        }).catch(async (dbErr) => {
-          if (Object.prototype.hasOwnProperty.call(updateData, 'nicknameModerationBypass')) {
-            logger.warn('NicknameAPI', 'Failed to update bypass list, retrying without it:', dbErr);
-            delete updateData.nicknameModerationBypass;
-            return prisma.guild.update({
-              where: { id: guildId },
-              data: updateData,
-            });
-          }
-          throw dbErr;
         });
 
         invalidateNicknameModerationCache(guildId);
 
-        // Synchroniser la règle native d'AutoMod de Discord pour les pseudos
-        try {
-          const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
-          await syncDiscordAutoModProfileRule(client, guildId);
-        } catch (syncErr) {
-          logger.error('NicknameAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
-        }
+        // La configuration locale est déjà persistée. La synchronisation Discord
+        // reste best-effort et ne doit pas bloquer la réponse HTTP ni figer les
+        // boutons du dashboard quand Discord répond lentement.
+        void import('../../../services/moderation/autoModService.js')
+          .then(({ syncDiscordAutoModProfileRule }) => syncDiscordAutoModProfileRule(client, guildId))
+          .catch((syncErr) => {
+            logger.error('NicknameAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+          });
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -2588,12 +2609,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           select: { nickModDiscordAutoModSync: true }
         });
         if (guildDb?.nickModDiscordAutoModSync) {
-          try {
-            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
-            await syncDiscordAutoModProfileRule(client, guildId);
-          } catch (syncErr) {
-            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
-          }
+          void import('../../../services/moderation/autoModService.js')
+            .then(({ syncDiscordAutoModProfileRule }) => syncDiscordAutoModProfileRule(client, guildId))
+            .catch((syncErr) => {
+              logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+            });
         }
 
         await pushAudit(guildId, {
@@ -2658,12 +2678,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           select: { nickModDiscordAutoModSync: true }
         });
         if (guildDb?.nickModDiscordAutoModSync) {
-          try {
-            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
-            await syncDiscordAutoModProfileRule(client, guildId);
-          } catch (syncErr) {
-            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
-          }
+          void import('../../../services/moderation/autoModService.js')
+            .then(({ syncDiscordAutoModProfileRule }) => syncDiscordAutoModProfileRule(client, guildId))
+            .catch((syncErr) => {
+              logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+            });
         }
 
         broadcastDashboardStateChange(guildId, 'banned_words_updated');
@@ -2693,12 +2712,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           select: { nickModDiscordAutoModSync: true }
         });
         if (guildDb?.nickModDiscordAutoModSync) {
-          try {
-            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
-            await syncDiscordAutoModProfileRule(client, guildId);
-          } catch (syncErr) {
-            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
-          }
+          void import('../../../services/moderation/autoModService.js')
+            .then(({ syncDiscordAutoModProfileRule }) => syncDiscordAutoModProfileRule(client, guildId))
+            .catch((syncErr) => {
+              logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+            });
         }
 
         await pushAudit(guildId, {

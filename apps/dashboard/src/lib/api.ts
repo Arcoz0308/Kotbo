@@ -1727,6 +1727,7 @@ export async function updateNicknameModerationConfig(
     checkInvisible?: boolean;
     checkGlobal?: boolean;
     checkCustom?: boolean;
+    discordAutoModSync?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {

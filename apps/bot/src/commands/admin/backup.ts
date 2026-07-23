@@ -5,6 +5,7 @@ import { E } from '../../utils/emojis.js';
 import { createBackup } from '../../services/system/backupService.js';
 import { restoreBackup, RestoreOptions } from '../../services/system/restoreService.js';
 import type { BackupData } from '../../services/system/backupService.js';
+import { MAX_BACKUP_IMPORT_BYTES, parseBackupImport } from '../../services/system/backupImportValidation.js';
 import type { Prisma } from '@prisma/client';
 import { extractTrackingInfo, resolveModuleFromCommand } from '../../utils/moduleTracking.js';
 import { separator, v2Message } from '@arcscord/components';
@@ -430,6 +431,13 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
     return;
   }
 
+  if (attachment.size > MAX_BACKUP_IMPORT_BYTES) {
+    await interaction.editReply(v2Message(
+      errorContainer('Fichier trop volumineux', `Le fichier ne doit pas dépasser ${MAX_BACKUP_IMPORT_BYTES / 1024 / 1024} Mo.`),
+    ));
+    return;
+  }
+
   // Télécharger le fichier
   let buffer: Buffer;
   try {
@@ -442,55 +450,18 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
     return;
   }
 
-  // Structure du fichier d'export, ecrite plus haut par la commande d'export.
-  // Tous les champs sont optionnels a la lecture : le fichier vient de
-  // l'utilisateur et peut avoir ete tronque ou modifie.
-  type ImportedBackup = {
-    name?: string;
-    description?: string | null;
-    serverName?: string;
-    serverIcon?: string | null;
-    data?: unknown;
-    options?: {
-      includeMessages?: boolean;
-      includeMembers?: boolean;
-      includeRoles?: boolean;
-      includeChannels?: boolean;
-      includeEmojis?: boolean;
-      includeStickers?: boolean;
-    };
-    stats?: {
-      rolesCount?: number;
-      channelsCount?: number;
-      membersCount?: number;
-      messagesCount?: number;
-      emojisCount?: number;
-      stickersCount?: number;
-      sizeBytes?: number;
-    };
-  };
-
-  // Parser le JSON
-  let importData: { version?: string; backup?: ImportedBackup };
+  let backupData;
   try {
-    const jsonString = buffer.toString('utf-8');
-    importData = JSON.parse(jsonString);
+    backupData = parseBackupImport(buffer.toString('utf-8'));
   } catch (error) {
     await interaction.editReply(v2Message(
-      errorContainer('JSON invalide', 'Le fichier JSON est invalide.'),
+      errorContainer(
+        'Sauvegarde invalide',
+        error instanceof Error ? error.message : 'Le fichier de sauvegarde est invalide.',
+      ),
     ));
     return;
   }
-
-  // Valider la structure
-  if (!importData.version || !importData.backup) {
-    await interaction.editReply(v2Message(
-      errorContainer('Structure invalide', 'Le fichier de sauvegarde a une structure invalide.'),
-    ));
-    return;
-  }
-
-  const backupData = importData.backup;
 
   // Vérifier le nombre de backups existants
   const existingBackups = await prisma.serverBackup.count({
@@ -514,26 +485,26 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
         guildId,
         name: backupName,
         description: backupData.description,
-        data: (backupData.data ?? {}) as Prisma.InputJsonValue,
-        includeMessages: backupData.options?.includeMessages ?? false,
-        includeMembers: backupData.options?.includeMembers ?? true,
-        includeRoles: backupData.options?.includeRoles ?? true,
-        includeChannels: backupData.options?.includeChannels ?? true,
-        includeEmojis: backupData.options?.includeEmojis ?? true,
-        includeStickers: backupData.options?.includeStickers ?? true,
+        data: backupData.data as unknown as Prisma.InputJsonValue,
+        includeMessages: backupData.options.includeMessages,
+        includeMembers: backupData.options.includeMembers,
+        includeRoles: backupData.options.includeRoles,
+        includeChannels: backupData.options.includeChannels,
+        includeEmojis: backupData.options.includeEmojis,
+        includeStickers: backupData.options.includeStickers,
         createdByUserId: interaction.user.id,
         createdByUsername: interaction.user.username,
         createdByTag: interaction.user.discriminator ?? '0000',
         serverName: backupData.serverName || 'Importé',
         serverIcon: backupData.serverIcon,
-        sizeBytes: backupData.stats?.sizeBytes || 0,
-        rolesCount: backupData.stats?.rolesCount || 0,
-        channelsCount: backupData.stats?.channelsCount || 0,
-        membersCount: backupData.stats?.membersCount || 0,
-        messagesCount: backupData.stats?.messagesCount || 0,
-        emojisCount: backupData.stats?.emojisCount || 0,
-        stickersCount: backupData.stats?.stickersCount || 0,
-        isPreset: true,
+        sizeBytes: backupData.stats.sizeBytes,
+        rolesCount: backupData.stats.rolesCount,
+        channelsCount: backupData.stats.channelsCount,
+        membersCount: backupData.stats.membersCount,
+        messagesCount: backupData.stats.messagesCount,
+        emojisCount: backupData.stats.emojisCount,
+        stickersCount: backupData.stats.stickersCount,
+        isPreset: false,
       },
     });
 

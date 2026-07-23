@@ -151,19 +151,38 @@
   // Actions
   // ---------------------------------------------------------------------------
 
-  async function saveToggle() {
-    await saveToggleAction.run(
+  async function saveToggle(nextValue: boolean) {
+    const previousValue = enabled;
+    enabled = nextValue;
+    const saved = await saveToggleAction.run(
       async () => {
-        const ok = await updateNicknameModerationConfig({ enabled });
+        const ok = await updateNicknameModerationConfig({ enabled: nextValue });
         if (!ok) throw new Error('Erreur API');
         return true;
       },
-      { successMessage: `Module ${enabled ? 'activé' : 'désactivé'}.` }
+      { successMessage: `Module ${nextValue ? 'activé' : 'désactivé'}.` }
     );
+    if (!saved) enabled = previousValue;
   }
 
   async function saveGranularToggle(field: 'onJoin' | 'onUpdate' | 'checkInvisible' | 'checkGlobal' | 'checkCustom' | 'discordAutoModSync', value: boolean) {
-    await saveToggleAction.run(
+    const previousValue = {
+      onJoin,
+      onUpdate,
+      checkInvisible,
+      checkGlobal,
+      checkCustom,
+      discordAutoModSync,
+    }[field];
+
+    if (field === 'onJoin') onJoin = value;
+    else if (field === 'onUpdate') onUpdate = value;
+    else if (field === 'checkInvisible') checkInvisible = value;
+    else if (field === 'checkGlobal') checkGlobal = value;
+    else if (field === 'checkCustom') checkCustom = value;
+    else discordAutoModSync = value;
+
+    const saved = await saveToggleAction.run(
       async () => {
         const ok = await updateNicknameModerationConfig({ [field]: value });
         if (!ok) throw new Error('Erreur API');
@@ -171,6 +190,15 @@
       },
       { successMessage: `Paramètre mis à jour.` }
     );
+
+    if (!saved) {
+      if (field === 'onJoin') onJoin = previousValue;
+      else if (field === 'onUpdate') onUpdate = previousValue;
+      else if (field === 'checkInvisible') checkInvisible = previousValue;
+      else if (field === 'checkGlobal') checkGlobal = previousValue;
+      else if (field === 'checkCustom') checkCustom = previousValue;
+      else discordAutoModSync = previousValue;
+    }
   }
 
   async function addWord() {
@@ -395,7 +423,7 @@
           </p>
         </div>
         <div class="flex-shrink-0">
-          <ToggleSwitch checked={enabled} onToggle={() => { enabled = !enabled; saveToggle(); }} disabled={saveToggleAction.state.loading} />
+          <ToggleSwitch checked={enabled} onToggle={saveToggle} disabled={saveToggleAction.state.loading} />
         </div>
       </div>
 
@@ -404,30 +432,30 @@
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">Nouveaux membres rejoignant le serveur</span>
-            <ToggleSwitch checked={onJoin} onToggle={() => { onJoin = !onJoin; saveGranularToggle('onJoin', onJoin); }} disabled={!enabled || saveToggleAction.state.loading} />
+            <ToggleSwitch checked={onJoin} onToggle={(value) => saveGranularToggle('onJoin', value)} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">Membres modifiant leur pseudo</span>
-            <ToggleSwitch checked={onUpdate} onToggle={() => { onUpdate = !onUpdate; saveGranularToggle('onUpdate', onUpdate); }} disabled={!enabled || saveToggleAction.state.loading} />
+            <ToggleSwitch checked={onUpdate} onToggle={(value) => saveGranularToggle('onUpdate', value)} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">Pseudos composés uniquement de caractères invisibles</span>
-            <ToggleSwitch checked={checkInvisible} onToggle={() => { checkInvisible = !checkInvisible; saveGranularToggle('checkInvisible', checkInvisible); }} disabled={!enabled || saveToggleAction.state.loading} />
+            <ToggleSwitch checked={checkInvisible} onToggle={(value) => saveGranularToggle('checkInvisible', value)} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">Mots de la liste globale (racisme, menaces, insultes…)</span>
-            <ToggleSwitch checked={checkGlobal} onToggle={() => { checkGlobal = !checkGlobal; saveGranularToggle('checkGlobal', checkGlobal); }} disabled={!enabled || saveToggleAction.state.loading} />
+            <ToggleSwitch checked={checkGlobal} onToggle={(value) => saveGranularToggle('checkGlobal', value)} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">Vos mots personnalisés ci-dessous</span>
-            <ToggleSwitch checked={checkCustom} onToggle={() => { checkCustom = !checkCustom; saveGranularToggle('checkCustom', checkCustom); }} disabled={!enabled || saveToggleAction.state.loading} />
+            <ToggleSwitch checked={checkCustom} onToggle={(value) => saveGranularToggle('checkCustom', value)} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
           <div class="flex items-center justify-between gap-4 py-3 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors border-t border-outline-variant/10 mt-2">
             <div class="flex flex-col gap-0.5">
               <span class="text-sm font-semibold text-on-surface">Règle d'AutoMod native de Discord (Pseudos)</span>
               <span class="text-xs text-on-surface-variant/60">Affiche la pop-up Discord native et bloque l'accès textuel/vocal aux membres enfreignant la règle.</span>
             </div>
-            <ToggleSwitch checked={discordAutoModSync} onToggle={() => { discordAutoModSync = !discordAutoModSync; saveGranularToggle('discordAutoModSync', discordAutoModSync); }} disabled={!enabled || saveToggleAction.state.loading} />
+            <ToggleSwitch checked={discordAutoModSync} onToggle={(value) => saveGranularToggle('discordAutoModSync', value)} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
         </div>
         <p class="text-xs text-on-surface-variant/40 italic mt-1">

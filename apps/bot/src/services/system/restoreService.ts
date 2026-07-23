@@ -421,6 +421,7 @@ async function restoreMessages(guild: Guild, messages: MessageData[], channelIdM
       await channel.send({
         content: messageData.content || undefined,
         embeds: (messageData.embeds as APIEmbed[]) || [],
+        allowedMentions: { parse: [] },
       });
       console.log(`✅ Message restauré dans: ${channel.name}`);
     } catch (error) {

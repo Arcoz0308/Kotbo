@@ -412,8 +412,18 @@ export async function handleGeneralistModulesRoutes(
           channelId: string;
         }>(req);
 
-        if (!body || !body.prize || !body.winnerCount || !body.durationMinutes || !body.channelId) {
+        if (
+          !body
+          || typeof body.prize !== 'string'
+          || typeof body.channelId !== 'string'
+          || typeof body.winnerCount !== 'number'
+          || typeof body.durationMinutes !== 'number'
+        ) {
           json(res, 400, { error: 'Champs obligatoires manquants' });
+          return true;
+        }
+        if (!/^\d{17,20}$/.test(body.channelId)) {
+          json(res, 400, { error: 'Salon Discord invalide' });
           return true;
         }
 
@@ -441,7 +451,16 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 7 && parts[6] === 'end' && method === 'POST') {
       const giveawayId = parts[5];
       try {
-        await endGiveaway(client, giveawayId);
+        const giveaway = await prisma.giveaway.findFirst({ where: { id: giveawayId, guildId } });
+        if (!giveaway) {
+          json(res, 404, { error: 'Giveaway introuvable sur ce serveur' });
+          return true;
+        }
+        if (giveaway.ended) {
+          json(res, 409, { error: 'Ce giveaway est déjà terminé' });
+          return true;
+        }
+        await endGiveaway(client, giveawayId, guildId);
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error ending giveaway:', err);
@@ -454,7 +473,16 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 7 && parts[6] === 'reroll' && method === 'POST') {
       const giveawayId = parts[5];
       try {
-        await rerollGiveaway(client, giveawayId);
+        const giveaway = await prisma.giveaway.findFirst({ where: { id: giveawayId, guildId } });
+        if (!giveaway) {
+          json(res, 404, { error: 'Giveaway introuvable sur ce serveur' });
+          return true;
+        }
+        if (!giveaway.ended) {
+          json(res, 409, { error: 'Le giveaway doit être terminé avant un reroll' });
+          return true;
+        }
+        await rerollGiveaway(client, giveawayId, guildId);
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error rerolling giveaway:', err);
@@ -467,9 +495,13 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 6 && method === 'DELETE') {
       const giveawayId = parts[5];
       try {
-        await prisma.giveaway.delete({
-          where: { id: giveawayId },
+        const deleted = await prisma.giveaway.deleteMany({
+          where: { id: giveawayId, guildId },
         });
+        if (deleted.count === 0) {
+          json(res, 404, { error: 'Giveaway introuvable sur ce serveur' });
+          return true;
+        }
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('GiveawaysAPI', 'Error deleting giveaway:', err);
