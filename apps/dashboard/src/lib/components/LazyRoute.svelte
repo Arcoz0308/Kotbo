@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Route as RouteLegacy } from 'tinro';
-  import { registerRouteLoader, type RouteLoader } from '../lazyRoutes';
+  import { Route as RouteLegacy, router } from 'tinro';
+  import { patternMatches, registerRouteLoader, type RouteLoader } from '../lazyRoutes';
   import LazyPage from './LazyPage.svelte';
 
   // tinro n'expose pas de types Svelte 5 ; meme traitement que dans App.svelte.
@@ -26,17 +26,24 @@
     remountKey?: (meta: any) => unknown;
   } = $props();
 
-  // Enregistre le loader des la construction (y compris pour les routes non
-  // affichees), afin que `prefetchRoute` puisse precharger n'importe quel lien
-  // au survol.
-  registerRouteLoader(path, load);
+  // Le loader reste disponible pour le prefetch, mais le composant Route de
+  // Tinro n'est créé que pour les motifs qui peuvent réellement correspondre
+  // à l'URL courante. Cela évite de monter plus de cent routes et LazyPage à
+  // chaque affichage du dashboard.
+  $effect(() => {
+    registerRouteLoader(path, load);
+  });
+
+  const active = $derived(patternMatches(path, $router.path));
 </script>
 
-<Route {path} let:meta>
-  <LazyPage
-    pattern={path}
-    {load}
-    pageProps={propsFor ? propsFor(meta) : {}}
-    remountKey={remountKeyFor ? remountKeyFor(meta) : undefined}
-  />
-</Route>
+{#if active}
+  <Route {path} let:meta>
+    <LazyPage
+      pattern={path}
+      {load}
+      pageProps={propsFor ? propsFor(meta) : {}}
+      remountKey={remountKeyFor ? remountKeyFor(meta) : undefined}
+    />
+  </Route>
+{/if}

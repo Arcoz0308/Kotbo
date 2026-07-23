@@ -57,7 +57,7 @@ export function loadPage(pattern: string, load: RouteLoader): Promise<PageCompon
  * Vrai si `target` (une URL concrete) correspond au motif de route `pattern`,
  * qui peut contenir des segments `:param` et se terminer par `*`.
  */
-function patternMatches(pattern: string, target: string): boolean {
+export function patternMatches(pattern: string, target: string): boolean {
   const patternParts = pattern.split('/').filter(Boolean);
   const targetParts = target.split('/').filter(Boolean);
 

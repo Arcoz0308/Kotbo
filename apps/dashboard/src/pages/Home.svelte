@@ -8,8 +8,6 @@
   import type { ChangelogCommit } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
-  import LineChart from '../lib/components/LineChart.svelte';
-  import BarChart from '../lib/components/BarChart.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
@@ -85,51 +83,51 @@
     return items.map(item => ({ ...item, rowSpan: item.rowSpan || 1 }));
   }
 
-  async function loadLayout() {
-    // 1. Try DB
-    try {
-      const data = await fetchUserSettings();
-      if (data && data.bentoLayout) {
-        const parsed = ensureRowSpan(data.bentoLayout as LayoutItem[]);
-        const existingIds = new Set(parsed.map(item => item.id));
+  function completeLayout(items: LayoutItem[]): LayoutItem[] {
+    const parsed = ensureRowSpan(items);
+    const existingIds = new Set(parsed.map(item => item.id));
+    const missingModules: LayoutItem[] = MODULE_CATALOG
+      .filter(m => !existingIds.has(m.id))
+      .map(m => ({ id: m.id, colSpan: 1, rowSpan: 1, visible: false }));
+    return [...parsed, ...missingModules];
+  }
 
-        const missingModules: LayoutItem[] = MODULE_CATALOG
-          .filter(m => !existingIds.has(m.id))
-          .map(m => ({ id: m.id, colSpan: 1, rowSpan: 1, visible: false }));
+  function defaultLayout(): LayoutItem[] {
+    return completeLayout(DEFAULT_LAYOUT);
+  }
 
-        userLayout = [...parsed, ...missingModules];
-        return;
-      }
-    } catch (e) {
-      console.warn("Failed to fetch layout from DB, trying localStorage", e);
-    }
-
-    // 2. Try localStorage fallback
+  function loadLocalLayout(): LayoutItem[] {
     const key = getStorageKey();
     const saved = localStorage.getItem(key);
 
     if (saved) {
       try {
-        const parsed = ensureRowSpan(JSON.parse(saved) as LayoutItem[]);
-        const existingIds = new Set(parsed.map(item => item.id));
-
-        const missingModules: LayoutItem[] = MODULE_CATALOG
-          .filter(m => !existingIds.has(m.id))
-          .map(m => ({ id: m.id, colSpan: 1, rowSpan: 1, visible: false }));
-
-        userLayout = [...parsed, ...missingModules];
-        return;
+        return completeLayout(JSON.parse(saved) as LayoutItem[]);
       } catch (e) {
         console.error("Failed to parse saved layout, using default", e);
       }
     }
 
-    // 3. Fallback default
-    const defaultIds = new Set(DEFAULT_LAYOUT.map(item => item.id));
-    const hiddenItems: LayoutItem[] = MODULE_CATALOG
-      .filter(m => !defaultIds.has(m.id))
-      .map(m => ({ id: m.id, colSpan: 1, rowSpan: 1, visible: false }));
-    userLayout = [...DEFAULT_LAYOUT, ...hiddenItems];
+    return defaultLayout();
+  }
+
+  async function loadLayout() {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId) return;
+
+    // Le cache local permet de peindre la grille immédiatement. La version DB
+    // est ensuite appliquée silencieusement dès qu'elle arrive.
+    userLayout = loadLocalLayout();
+
+    try {
+      const data = await fetchUserSettings();
+      if (authStore.selectedGuildId === guildId && data?.bentoLayout) {
+        userLayout = completeLayout(data.bentoLayout as LayoutItem[]);
+        localStorage.setItem(getStorageKey(), JSON.stringify(userLayout));
+      }
+    } catch (e) {
+      console.warn("Failed to refresh layout from DB, keeping local layout", e);
+    }
   }
 
   async function saveLayout() {
@@ -471,12 +469,19 @@
     BIDIRECTIONAL: m.home_sync_bidirectional(),
   };
   let staffServerLinks = $state<any[]>([]);
+  let staffLinksGuildId: string | null = null;
 
   async function loadStaffServerLinks() {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId || staffLinksGuildId === guildId) return;
+    staffLinksGuildId = guildId;
     try {
       const data = await fetchStaffServerLinks();
-      staffServerLinks = Array.isArray(data) ? data : [];
+      if (authStore.selectedGuildId === guildId) {
+        staffServerLinks = Array.isArray(data) ? data : [];
+      }
     } catch {
+      staffLinksGuildId = null;
       staffServerLinks = [];
     }
   }
@@ -486,15 +491,17 @@
       loadLayout();
       loadStaffNotes();
       handleImportFromUrl();
-      loadChangelog();
-      loadStaffServerLinks();
     }
   });
 
+  let changelogLoaded = false;
+
   async function loadChangelog() {
+    if (changelogLoaded || changelogLoading) return;
     changelogLoading = true;
     try {
       changelogCommits = await fetchChangelog(10);
+      changelogLoaded = true;
     } catch {
       changelogCommits = [];
     } finally {
@@ -574,12 +581,15 @@
 
   let analyticsData = $state<any>(null);
   let analyticsLoading = $state(false);
+  let analyticsGuildId: string | null = null;
 
-  async function loadAnalytics() {
-    if (!authStore.selectedGuildId) return;
+  async function loadAnalytics(force = false) {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId || analyticsLoading || (!force && analyticsGuildId === guildId)) return;
     analyticsLoading = true;
     try {
       analyticsData = await fetchAnalytics({ period: 7 });
+      if (authStore.selectedGuildId === guildId) analyticsGuildId = guildId;
     } catch {
       analyticsData = null;
     } finally {
@@ -588,11 +598,16 @@
   }
 
   $effect(() => {
-    if (authStore.selectedGuildId) {
-      notificationsStore.fetchNotifications();
-      staffStore.fetchAll();
-      loadAnalytics();
+    const guildId = authStore.selectedGuildId;
+    const visibleIds = new Set(userLayout.filter((item) => item.visible).map((item) => item.id));
+    if (!guildId || visibleIds.size === 0) return;
+
+    if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
+      void loadAnalytics();
     }
+    if (visibleIds.has('staff')) void staffStore.fetchAll();
+    if (visibleIds.has('news')) void loadChangelog();
+    if (visibleIds.has('staffServer')) void loadStaffServerLinks();
   });
 
   const activeModulesCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'active').length);
@@ -704,9 +719,13 @@
 
   const handleRefresh = () => {
     dashboardStore.refresh();
-    notificationsStore.fetchNotifications();
-    staffStore.fetchAll();
-    loadAnalytics();
+    notificationsStore.fetchNotifications(true);
+
+    const visibleIds = new Set(userLayout.filter((item) => item.visible).map((item) => item.id));
+    if (visibleIds.has('staff')) staffStore.fetchAll(true);
+    if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
+      loadAnalytics(true);
+    }
   };
 
   function formatNumber(n: number): string {
@@ -966,7 +985,22 @@
               </div>
               <div class="w-full grow" style="min-height: {(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}px">
                 {#if activityData.length > 0}
-                  <LineChart data={activityData} height={(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128} labelKey="name" valueKey="value" color={statConfig.color} />
+                  {#await import('../lib/components/LineChart.svelte')}
+                    <div
+                      class="w-full rounded-lg bg-surface-container animate-pulse"
+                      style:height={`${(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}px`}
+                      aria-hidden="true"
+                    ></div>
+                  {:then module}
+                    {@const LineChart = module.default}
+                    <LineChart
+                      data={activityData}
+                      height={(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}
+                      labelKey="name"
+                      valueKey="value"
+                      color={statConfig.color}
+                    />
+                  {/await}
                 {:else}
                   <div class="h-full flex items-center justify-center text-on-surface-variant/40 text-xs">
                     {analyticsLoading ? m.common_loading() : m.home_no_data()}

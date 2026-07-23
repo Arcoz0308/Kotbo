@@ -2856,8 +2856,38 @@ export async function unbindGuildFromInstance(instanceId: string, guildId: strin
 // USER SETTINGS & LAYOUTS (BENTO / THEME)
 // ============================================================================
 
+const USER_SETTINGS_TTL_MS = 30_000;
+const userSettingsCache = new Map<string, { data: any; fetchedAt: number }>();
+const userSettingsInflight = new Map<string, Promise<any>>();
+
 export async function fetchUserSettings(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/user-settings', { method: 'GET', guildId, errorContext: 'API Error (Get User Settings):', silent: true });
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  const cached = userSettingsCache.get(selectedGuildId);
+  if (cached && Date.now() - cached.fetchedAt < USER_SETTINGS_TTL_MS) {
+    return cached.data;
+  }
+
+  const pending = userSettingsInflight.get(selectedGuildId);
+  if (pending) return pending;
+
+  const request = dashboardRequest('/user-settings', {
+    method: 'GET',
+    guildId: selectedGuildId,
+    errorContext: 'API Error (Get User Settings):',
+    silent: true
+  }).then((data) => {
+    userSettingsCache.set(selectedGuildId, { data, fetchedAt: Date.now() });
+    userSettingsInflight.delete(selectedGuildId);
+    return data;
+  }).catch((error) => {
+    userSettingsInflight.delete(selectedGuildId);
+    throw error;
+  });
+
+  userSettingsInflight.set(selectedGuildId, request);
+  return request;
 }
 
 export async function updateUserSettings(settings: {
@@ -2868,13 +2898,24 @@ export async function updateUserSettings(settings: {
   sidebarBehavior?: string;
   compactMode?: boolean;
 }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/user-settings', {
+  const selectedGuildId = getGuildId(guildId);
+  const result = await dashboardRequest('/user-settings', {
     method: 'PUT',
     payload: settings,
-    guildId,
+    guildId: selectedGuildId,
     errorContext: 'API Error (Update User Settings):',
     silent: true
   });
+
+  if (selectedGuildId) {
+    const previous = userSettingsCache.get(selectedGuildId)?.data ?? {};
+    userSettingsCache.set(selectedGuildId, {
+      data: { ...previous, ...settings, ...(result ?? {}) },
+      fetchedAt: Date.now()
+    });
+  }
+
+  return result;
 }
 
 // ============================================================================

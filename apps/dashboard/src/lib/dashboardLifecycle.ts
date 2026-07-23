@@ -40,6 +40,9 @@ class DashboardLifecycleManager {
   private intentionallyClosed = false;
   private isConnecting = false;
   private initialized = false;
+  private readonly handleRefreshRequest = () => {
+    void dashboardStore.refresh();
+  };
 
   constructor() {}
 
@@ -53,9 +56,7 @@ class DashboardLifecycleManager {
     }
 
     // Event listener for manual refresh requests
-    window.addEventListener('kotbo-dashboard-refresh-request', () => {
-      dashboardStore.refresh();
-    });
+    window.addEventListener('kotbo-dashboard-refresh-request', this.handleRefreshRequest);
 
     // Auto-refresh every 10 minutes
     this.autoRefreshTimer = setInterval(() => {
@@ -169,6 +170,7 @@ class DashboardLifecycleManager {
 
   destroy() {
     this.intentionallyClosed = true;
+    window.removeEventListener('kotbo-dashboard-refresh-request', this.handleRefreshRequest);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
     if (this.socket) {

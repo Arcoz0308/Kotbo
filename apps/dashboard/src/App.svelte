@@ -9,12 +9,11 @@
   import { themeStore } from "./lib/stores/theme.svelte";
   import { userPrefs } from "./lib/stores/userPreferences.svelte";
   import { toast } from "./lib/stores/toast.svelte";
+  import { feedbackModal } from "./lib/stores/feedbackModal.svelte";
+  import { inviteDetailsModal } from "./lib/stores/inviteDetailsModal.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
   import GlobalConfirmDialog from "./lib/components/GlobalConfirmDialog.svelte";
-  import InviteDetailsModal from "./lib/components/invitations/InviteDetailsModal.svelte";
-  import FeedbackModal from "./lib/components/FeedbackModal.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
-  import KeyboardShortcutsModal from "./lib/components/KeyboardShortcutsModal.svelte";
   import NotFound from "./pages/NotFound.svelte";
   import GlobalErrorOverlay from "./lib/components/GlobalErrorOverlay.svelte";
   import LazyRoute from "./lib/components/LazyRoute.svelte";
@@ -34,7 +33,6 @@
   // src/lib/lazyRoutes.ts.
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
-  import Home from "./pages/Home.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -663,9 +661,10 @@
           />
         {:else}
           <MainLayout>
-            <Route path="/">
-              <Home />
-            </Route>
+            <LazyRoute
+              path="/"
+              load={() => import("./pages/Home.svelte")}
+            />
 
             <LazyRoute
               path="/analytics/*"
@@ -1043,7 +1042,28 @@
 
 <ToastContainer />
 <GlobalConfirmDialog />
-<InviteDetailsModal />
-<FeedbackModal />
 <CommandPalette />
-<KeyboardShortcutsModal isOpen={showKeyboardShortcuts} onClose={() => showKeyboardShortcuts = false} />
+
+{#if inviteDetailsModal.open}
+  {#await import("./lib/components/invitations/InviteDetailsModal.svelte") then module}
+    {@const InviteDetailsModal = module.default}
+    <InviteDetailsModal />
+  {/await}
+{/if}
+
+{#if feedbackModal.open}
+  {#await import("./lib/components/FeedbackModal.svelte") then module}
+    {@const FeedbackModal = module.default}
+    <FeedbackModal />
+  {/await}
+{/if}
+
+{#if showKeyboardShortcuts}
+  {#await import("./lib/components/KeyboardShortcutsModal.svelte") then module}
+    {@const KeyboardShortcutsModal = module.default}
+    <KeyboardShortcutsModal
+      isOpen={showKeyboardShortcuts}
+      onClose={() => showKeyboardShortcuts = false}
+    />
+  {/await}
+{/if}

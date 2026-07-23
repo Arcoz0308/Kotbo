@@ -104,8 +104,6 @@ class AuthStore {
                     this.setGuild(this.guilds[0].id);
                 } else if (this.selectedGuildId && !this.guilds.some((guild) => guild.id === this.selectedGuildId) && this.guilds.length > 0) {
                     this.setGuild(this.guilds[0].id);
-                } else if (typeof window !== 'undefined') {
-                    window.dispatchEvent(new Event('kotbo-dashboard-refresh-request'));
                 }
             }
         } catch (err) {

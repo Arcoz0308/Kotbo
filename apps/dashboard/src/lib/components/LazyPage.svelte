@@ -21,7 +21,8 @@
 
   // Si la page a deja ete visitee, on part directement du composant en cache :
   // aucun squelette ne clignote lors d'un retour en arriere.
-  let Component = $state<unknown>(getCachedPage(pattern));
+  const getInitialComponent = () => getCachedPage(pattern);
+  let Component = $state<unknown>(getInitialComponent());
   let failed = $state(false);
 
   $effect(() => {
