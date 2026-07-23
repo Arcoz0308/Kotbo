@@ -1,3 +1,4 @@
+import type { RpgItem } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
@@ -426,7 +427,15 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
 
   if (!event) throw new Error('Événement introuvable.');
 
-  const choices = event.choices as unknown[];
+  // Colonne JSON : forme des choix proposes par un evenement d'aventure.
+  type AdventureChoice = {
+    text?: string;
+    minLevel?: number;
+    hpEffect?: number;
+    coinEffect?: number;
+    xpEffect?: number;
+  };
+  const choices = (event.choices ?? []) as AdventureChoice[];
   const choice = choices[choiceIndex];
 
   if (!choice) throw new Error('Choix invalide.');
@@ -571,7 +580,7 @@ export async function equipInventoryItem(guildId: string, userId: string, itemId
 
   // Recalculate stats based on equipment change
   // Deduct old item bonuses, add new ones
-  let oldItem: unknown = null;
+  let oldItem: RpgItem | null = null;
   if (item.type === 'WEAPON' && profile.weaponId) {
     oldItem = await prisma.rpgItem.findUnique({ where: { id: profile.weaponId } });
   } else if (item.type === 'ARMOR' && profile.armorId) {

@@ -4,7 +4,7 @@ import { handleUserActivity } from '../services/features/economyService.js';
 import { logger } from '../utils/logger.js';
 
 
-let voiceXpInterval: Timer | null = null;
+let voiceXpInterval: ReturnType<typeof setInterval> | null = null;
 
 // L'XP texte est gérée par le module bus (leveling.module.ts).
 // Ce fichier ne conserve que la boucle d'XP vocale (polling, non event-driven).
@@ -81,7 +81,7 @@ export function registerLevelingListener(client: Client) {
     } catch (err) {
       logger.error('LevelingEvents', "Erreur lors de la boucle d'XP vocale :", err);
     }
-  }, 60000) as unknown;
+  }, 60000) as ReturnType<typeof setInterval>;
 
   logger.info('System', 'Écouteurs de Leveling & XP enregistrés.');
 }

@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -116,7 +117,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.reply({ embeds: [embed] });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible de jouer au rps.')],
+      embeds: [errorEmbed('Erreur', errorMessage(err) || 'Impossible de jouer au rps.')],
       flags: [MessageFlags.Ephemeral]
     });
   }

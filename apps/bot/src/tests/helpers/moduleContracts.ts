@@ -36,7 +36,19 @@ export function readModuleSource(absolutePath: string): string {
   return readFileSync(absolutePath, 'utf8');
 }
 
+/**
+ * Recupere le nom d'une commande slash a partir de sa source.
+ *
+ * Deux formes coexistent depuis la migration i18n :
+ *  - `.setName('ping')`                 -> nom litteral
+ *  - `.setName(meta.name)` alimente par `getCommandMetadata('ping')`
+ *    -> le nom est porte par la cle de metadonnees, la seule chose lisible
+ *       statiquement.
+ */
 export function extractSlashCommandName(source: string): string | null {
-  const match = source.match(/\.setName\((['"])(?<name>[^'"]+)\1\)/);
-  return match?.groups?.name ?? null;
+  const literal = source.match(/\.setName\((['"])(?<name>[^'"]+)\1\)/);
+  if (literal?.groups?.name) return literal.groups.name;
+
+  const fromMetadata = source.match(/getCommandMetadata\((['"])(?<name>[^'"]+)\1\)/);
+  return fromMetadata?.groups?.name ?? null;
 }

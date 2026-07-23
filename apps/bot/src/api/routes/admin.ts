@@ -1444,7 +1444,25 @@ export async function handleAdminRoutes(
   // POST /api/admin/whitelabel — Create instance
   if (parts[2] === 'whitelabel' && parts.length === 3 && method === 'POST') {
     try {
-      const body = await readJsonBody(req);
+      // Creation d'une instance marque blanche : tous les champs viennent du
+      // corps de requete, valides juste en dessous.
+      const body = await readJsonBody<Partial<{
+        slug: string;
+        name: string;
+        discordToken: string;
+        discordClientId: string;
+        discordClientSecret: string;
+        discordRedirectUri: string;
+        dashboardUrl: string;
+        apiPort: string | number;
+        brandName: string;
+        brandColor: string;
+        brandLogoUrl: string;
+        brandFaviconUrl: string;
+        brandFooterText: string;
+        ownerId: string;
+        maxGuilds: string | number;
+      }>>(req);
       if (!body) { json(res, 400, { error: 'Body JSON requis' }); return true; }
 
       const { slug, name, discordToken, discordClientId, discordClientSecret,
@@ -1552,11 +1570,12 @@ export async function handleAdminRoutes(
         }
       }
 
-      if (updateData.dashboardUrl) {
+      const dashboardUrl = typeof updateData.dashboardUrl === 'string' ? updateData.dashboardUrl : null;
+      if (dashboardUrl) {
         try {
-          updateData.dashboardOrigin = new URL(updateData.dashboardUrl).origin;
+          updateData.dashboardOrigin = new URL(dashboardUrl).origin;
         } catch {
-          updateData.dashboardOrigin = updateData.dashboardUrl.replace(/\/$/, '');
+          updateData.dashboardOrigin = dashboardUrl.replace(/\/$/, '');
         }
       }
 
@@ -1622,7 +1641,7 @@ export async function handleAdminRoutes(
       }
 
       await prisma.guild.update({
-        where: { id: body.guildId },
+        where: { id: String(body.guildId) },
         data: { instanceId: instance.id },
       });
 

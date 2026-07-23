@@ -97,9 +97,9 @@ async function broadcastActivationChange(guildId: string, activated: boolean): P
 
   try {
     const client = getClient();
-    if ((client as unknown).shard) {
+    if (client.shard) {
       const activationPath = import.meta.url;
-      await (client as unknown).shard.broadcastEval((c: unknown, context: { id: string; activationPath: string; activated: boolean }) => {
+      await client.shard.broadcastEval((c: unknown, context: { id: string; activationPath: string; activated: boolean }) => {
         import(context.activationPath).then((m) => {
           if (context.activated) {
             m.activatedGuilds.add(context.id);

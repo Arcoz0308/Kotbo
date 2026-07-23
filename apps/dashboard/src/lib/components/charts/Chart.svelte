@@ -1,7 +1,49 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import Chart, { type ChartConfiguration, type ChartTypeRegistry } from 'chart.js/auto';
+  // `chart.js/auto` enregistre l'integralite des controleurs (radar, bubble,
+  // scatter, polarArea, echelles temporelles...) et empeche toute elimination
+  // de code mort. Ce composant est le seul point d'entree de chart.js du
+  // dashboard, et seuls trois types y sont utilises : bar, line et doughnut.
+  // On n'enregistre donc que ce qui sert reellement.
+  //
+  // Si un nouveau type de graphe est introduit, il faut ajouter son controleur
+  // (et ses elements/echelles) ci-dessous, sinon Chart.js leve une erreur
+  // explicite du type "bubble is not a registered controller".
+  import {
+    Chart,
+    ArcElement,
+    BarController,
+    BarElement,
+    CategoryScale,
+    DoughnutController,
+    Filler,
+    Legend,
+    LineController,
+    LineElement,
+    LinearScale,
+    PointElement,
+    Title,
+    Tooltip,
+    type ChartConfiguration,
+    type ChartTypeRegistry,
+  } from 'chart.js';
   import gradient from 'chartjs-plugin-gradient';
+
+  Chart.register(
+    BarController,
+    BarElement,
+    LineController,
+    LineElement,
+    PointElement,
+    DoughnutController,
+    ArcElement,
+    CategoryScale,
+    LinearScale,
+    Filler, // requis par les datasets `fill: true`
+    Legend,
+    Title,
+    Tooltip,
+  );
 
   let { 
     data, 

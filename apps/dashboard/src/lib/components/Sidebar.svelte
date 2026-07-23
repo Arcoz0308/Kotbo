@@ -7,6 +7,7 @@
   import { notificationsStore } from '../stores/notifications.svelte';
   import { sidebarStore } from '../stores/sidebar.svelte';
   import { updateSidebarFavorites } from '../api';
+  import { prefetchRoute } from '../lazyRoutes';
   import { portal } from '../actions/portal';
   import {
     generalItems,
@@ -442,7 +443,8 @@
         {#each group.items as item (item.href)}
           <a
             href={item.href}
-            onmouseenter={(e) => showTooltip(e, itemLabel(item))}
+            onmouseenter={(e) => { showTooltip(e, itemLabel(item)); prefetchRoute(item.href); }}
+            onfocus={() => prefetchRoute(item.href)}
             onmouseleave={hideTooltip}
             aria-label={itemLabel(item)}
             aria-current={isActiveNavItem(item.href) ? 'page' : undefined}
@@ -526,6 +528,8 @@
 
                 <a
                   href={item.href}
+                  onmouseenter={() => prefetchRoute(item.href)}
+                  onfocus={() => prefetchRoute(item.href)}
                   aria-current={isActiveNavItem(item.href) ? 'page' : undefined}
                   class="flex-1 flex items-center gap-2.5 pl-3 pr-2 py-2 min-w-0"
                 >

@@ -1,3 +1,4 @@
+import type { NewsChannel } from 'discord.js';
 import { type TextChannel, type Message, type Guild, type Embed, ComponentType } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -516,7 +517,7 @@ export async function generateTranscript(channel: TextChannel): Promise<{ id: st
   return generateTranscriptFromMessages(channel, allMessages);
 }
 
-export async function generateTranscriptFromMessages(channel: TextChannel, allMessages: Message[]): Promise<{ id: string; url: string; count: number }> {
+export async function generateTranscriptFromMessages(channel: TextChannel | NewsChannel, allMessages: Message[]): Promise<{ id: string; url: string; count: number }> {
   // 2. Build the HTML content
   let messagesHtml = '';
   

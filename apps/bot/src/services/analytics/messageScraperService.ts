@@ -1,3 +1,4 @@
+import { readStatsConfig } from './statsConfig.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { Client, ChannelType, TextChannel, Collection, Message } from 'discord.js';
@@ -24,7 +25,7 @@ export async function startHistoricalScraping(client: Client, guildId: string, f
     return;
   }
 
-  let statsConfig = (guildDb.statsConfig as unknown) || {};
+  let statsConfig = readStatsConfig(guildDb.statsConfig);
   const status = statsConfig.historicalScrapeStatus || 'NOT_STARTED';
 
   if (status === 'IN_PROGRESS' && !force) {
@@ -96,7 +97,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
       select: { statsConfig: true },
     });
 
-    const statsConfig = (guildDb?.statsConfig as unknown) || {};
+    const statsConfig = readStatsConfig(guildDb?.statsConfig);
 
     // Establish the boundary date so we only scrape historical messages older than when the bot started real-time tracking
     let scrapingBoundaryDate = statsConfig.scrapingBoundaryDate;
@@ -397,7 +398,7 @@ async function markScrapeFailed(guildId: string, errorMsg: string): Promise<void
       select: { statsConfig: true },
     });
 
-    const statsConfig = (guildDb?.statsConfig as unknown) || {};
+    const statsConfig = readStatsConfig(guildDb?.statsConfig);
     statsConfig.historicalScrapeStatus = 'FAILED';
     statsConfig.historicalScrapeError = errorMsg;
     delete statsConfig.historicalScrapeProgress;

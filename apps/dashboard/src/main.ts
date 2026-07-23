@@ -1,7 +1,6 @@
 import { mount } from 'svelte'
 import './app.css'
 import App from './App.svelte'
-import { initDashboardSentry } from './lib/sentry'
 
 const nativeFetch = window.fetch.bind(window)
 const configuredApiUrl = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/$/, '')
@@ -18,7 +17,21 @@ window.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
   return nativeFetch(input, { ...init, headers, credentials: init.credentials ?? 'include' })
 }
 
-initDashboardSentry()
+// Le suivi d'erreurs ne doit pas retarder le premier rendu. Son chunk est
+// chargé après l'événement load, pendant une période d'inactivité.
+if (import.meta.env.VITE_SENTRY_DSN) {
+  window.addEventListener('load', () => {
+    const initialize = () => {
+      void import('./lib/sentry').then(({ initDashboardSentry }) => initDashboardSentry())
+    }
+
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(initialize, { timeout: 2_000 })
+    } else {
+      window.setTimeout(initialize, 500)
+    }
+  }, { once: true })
+}
 
 // PWA : service worker (offline shell + widget Windows 11/Edge).
 // Uniquement en production pour ne pas interférer avec le HMR de Vite.

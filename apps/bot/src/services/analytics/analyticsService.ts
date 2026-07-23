@@ -60,7 +60,8 @@ function queueGuildDaily(guildId: string, dateKey: string, increments: Record<st
   const key = `${guildId}:${dateKey}`;
   const existing = guildDailyStatsBuffer.get(key) || {};
   for (const [col, val] of Object.entries(increments)) {
-    (existing as unknown)[col] = ((existing as unknown)[col] || 0) + val;
+    const counters = existing as Record<string, number>;
+    counters[col] = (counters[col] || 0) + val;
   }
   guildDailyStatsBuffer.set(key, existing);
 }
@@ -69,7 +70,8 @@ function queueGuildHourly(guildId: string, dateKey: string, hour: number, increm
   const key = `${guildId}:${dateKey}:${hour}`;
   const existing = guildHourlyStatsBuffer.get(key) || {};
   for (const [col, val] of Object.entries(increments)) {
-    (existing as unknown)[col] = ((existing as unknown)[col] || 0) + val;
+    const counters = existing as Record<string, number>;
+    counters[col] = (counters[col] || 0) + val;
   }
   guildHourlyStatsBuffer.set(key, existing);
 }
@@ -78,7 +80,8 @@ function queueChannelDaily(guildId: string, channelId: string, dateKey: string, 
   const key = `${guildId}:${channelId}:${dateKey}`;
   const existing = channelDailyStatsBuffer.get(key) || {};
   for (const [col, val] of Object.entries(increments)) {
-    (existing as unknown)[col] = ((existing as unknown)[col] || 0) + val;
+    const counters = existing as Record<string, number>;
+    counters[col] = (counters[col] || 0) + val;
   }
   channelDailyStatsBuffer.set(key, existing);
 }
@@ -87,7 +90,8 @@ function queueMemberDaily(guildId: string, userId: string, dateKey: string, incr
   const key = `${guildId}:${userId}:${dateKey}`;
   const existing = memberDailyStatsBuffer.get(key) || {};
   for (const [col, val] of Object.entries(increments)) {
-    (existing as unknown)[col] = ((existing as unknown)[col] || 0) + val;
+    const counters = existing as Record<string, number>;
+    counters[col] = (counters[col] || 0) + val;
   }
   memberDailyStatsBuffer.set(key, existing);
 }
@@ -104,8 +108,8 @@ async function flushGuildDailyStats(): Promise<void> {
     const [guildId, dateKey] = key.split(':');
     if (!guildId || !dateKey) return null;
 
-    const updateData: unknown = {};
-    const createData: unknown = { guildId, dateKey };
+    const updateData: Record<string, unknown> = {};
+    const createData: Record<string, unknown> = { guildId, dateKey };
 
     for (const [col, val] of Object.entries(data)) {
       if (val !== undefined && val !== 0) {
@@ -118,10 +122,10 @@ async function flushGuildDailyStats(): Promise<void> {
 
     return prisma.guildDailyStat.upsert({
       where: { guildId_dateKey: { guildId, dateKey } },
-      update: updateData,
-      create: createData,
+      update: updateData as never,
+      create: createData as never,
     });
-  }).filter(Boolean);
+  }).filter((op) => op !== null);
 
   if (ops.length > 0) {
     await prisma.$transaction(ops).catch((error) => {
@@ -139,8 +143,8 @@ async function flushGuildHourlyStats(): Promise<void> {
     if (!guildId || !dateKey || !hourStr) return null;
     const hour = parseInt(hourStr, 10);
 
-    const updateData: unknown = {};
-    const createData: unknown = { guildId, dateKey, hour };
+    const updateData: Record<string, unknown> = {};
+    const createData: Record<string, unknown> = { guildId, dateKey, hour };
 
     for (const [col, val] of Object.entries(data)) {
       if (val !== undefined && val !== 0) {
@@ -153,10 +157,10 @@ async function flushGuildHourlyStats(): Promise<void> {
 
     return prisma.guildHourlyStat.upsert({
       where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-      update: updateData,
-      create: createData,
+      update: updateData as never,
+      create: createData as never,
     });
-  }).filter(Boolean);
+  }).filter((op) => op !== null);
 
   if (ops.length > 0) {
     await prisma.$transaction(ops).catch((error) => {
@@ -205,10 +209,10 @@ async function flushChannelDailyStats(): Promise<void> {
 
     return prisma.channelDailyStat.upsert({
       where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
-      create: createData,
-      update: updateData,
+      create: createData as never,
+      update: updateData as never,
     });
-  }).filter(Boolean);
+  }).filter((op) => op !== null);
 
   if (ops.length > 0) {
     await prisma.$transaction(ops).catch((error) => {
@@ -231,8 +235,8 @@ async function flushMemberDailyStats(): Promise<void> {
       const [guildId, userId, dateKey] = key.split(':');
       if (!guildId || !userId || !dateKey) return null;
 
-      const updateData: unknown = {};
-      const createData: unknown = { guildId, userId, dateKey };
+      const updateData: Record<string, unknown> = {};
+      const createData: Record<string, unknown> = { guildId, userId, dateKey };
 
       for (const [col, val] of Object.entries(data)) {
         if (val !== undefined && val !== 0) {
@@ -245,10 +249,10 @@ async function flushMemberDailyStats(): Promise<void> {
 
       return prisma.memberDailyStat.upsert({
         where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-        update: updateData,
-        create: createData,
+        update: updateData as never,
+        create: createData as never,
       });
-    }).filter(Boolean);
+    }).filter((op) => op !== null);
 
     if (ops.length > 0) {
       await prisma.$transaction(ops).catch((error) => {

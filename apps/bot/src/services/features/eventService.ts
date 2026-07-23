@@ -1,5 +1,7 @@
 import {
+  type RepliableInteraction,
   ActionRowBuilder,
+  GuildMember,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
@@ -51,8 +53,8 @@ export async function getEvent(eventId: string) {
       participants: {
         orderBy: [
           { score: 'desc' },
-          { lastSolveAt: 'asc' }
-        ] as unknown,
+          { lastSolveAt: 'asc' },
+        ],
         include: {
           profile: true,
         },
@@ -61,7 +63,7 @@ export async function getEvent(eventId: string) {
         orderBy: { createdAt: 'asc' },
       },
       customForm: true,
-    } as unknown,
+    },
   });
 }
 
@@ -71,7 +73,7 @@ export async function createEvent(guildId: string, data: { title: string; descri
       guildId,
       title: data.title,
       description: data.description,
-      type: data.type as unknown,
+      type: data.type,
       channelId: data.channelId,
     },
   });
@@ -85,7 +87,6 @@ export async function publishEvent(client: Client, eventId: string) {
 
   if (!event) throw new Error('Événement introuvable');
 
-  // @ts-expect-error - CUSTOM type not yet in generated Prisma client
   if (event.type === 'CUSTOM') {
     return publishCustomEventAnnouncement(client, eventId);
   }
@@ -213,7 +214,7 @@ export async function nextQuestion(client: Client, eventId: string) {
   if (nextQuestion.imageUrl) embed.setImage(nextQuestion.imageUrl);
 
   const options = nextQuestion.options as string[];
-  const components: unknown[] = [];
+  const components: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [];
 
   if (options.length <= 5) {
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -306,7 +307,7 @@ export async function prevQuestion(client: Client, eventId: string) {
   if (prevQuestion.imageUrl) embed.setImage(prevQuestion.imageUrl);
 
   const options = prevQuestion.options as string[];
-  const components: unknown[] = [];
+  const components: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [];
 
   if (options.length <= 5) {
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -363,13 +364,13 @@ export async function handleQuizInteraction(
       userId: interaction.user.id,
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
+      displayName: (interaction.member instanceof GuildMember ? interaction.member.displayName : null) ?? interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
     update: {
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
+      displayName: (interaction.member instanceof GuildMember ? interaction.member.displayName : null) ?? interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
   });
@@ -456,7 +457,7 @@ export async function getEventStats(eventId: string) {
   if (!event) return null;
 
   if (event.type === 'CTF') {
-    const ctfChallenges = await (prisma as unknown).eventCtfChallenge.findMany({
+    const ctfChallenges = await prisma.eventCtfChallenge.findMany({
       where: { eventId },
       include: {
         solves: {
@@ -469,14 +470,14 @@ export async function getEventStats(eventId: string) {
     });
     return {
       type: 'CTF',
-      challenges: ctfChallenges.map((c: unknown) => ({
+      challenges: ctfChallenges.map((c) => ({
         id: c.id,
         title: c.title,
         points: c.points,
         xpReward: c.xpReward,
         roleIdReward: c.roleIdReward,
         solveCount: c.solves.length,
-        solves: c.solves.map((s: unknown) => ({
+        solves: c.solves.map((s) => ({
           userId: s.participant.userId,
           username: s.participant.username || s.participant.userTag || s.participant.userId,
           solvedAt: s.solvedAt,
@@ -514,7 +515,7 @@ export async function getEventStats(eventId: string) {
 
   for (const q of event.questions) {
     const qOptions = q.options as string[];
-    const qSortOrder = (q as unknown).sortOrder ?? 0;
+    const qSortOrder = q.sortOrder ?? 0;
     for (const r of q.responses) {
       const userId = r.participant.userId;
       const existing = latestResponses.get(userId);
@@ -545,7 +546,7 @@ export async function getEventStats(eventId: string) {
     questionText: currentQuestion.text,
     distribution,
     options: currentQuestion.options as string[],
-    latestResponses: Array.from(latestResponses.values()).map(({ _sortOrder, ...rest }) => rest),
+    latestResponses: Array.from(latestResponses.values()).map(({ sortOrder: _sortOrder, ...rest }) => rest),
     responses: currentQuestion.responses.map(r => ({
       userId: r.participant.userId,
       userTag: r.participant.userTag,
@@ -578,7 +579,7 @@ export async function finishEvent(client: Client, eventId: string) {
 
   const leaderboard = event.participants
     .slice(0, 10)
-    .map((p: unknown, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€" ${p.score} pts`)
+    .map((p: Record<string, unknown>, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€" ${p.score} pts`)
     .join('\n') || 'Aucun participant.';
 
   let description = `Bravo à tous les participants !
@@ -677,7 +678,7 @@ ${leaderboard}`;
   return { status: 'completed' };
 }
 
-export async function buildEventResultsView(interaction: unknown, eventId: string, page: number = 0) {
+export async function buildEventResultsView(interaction: RepliableInteraction, eventId: string, page: number = 0) {
   const userId = interaction.user.id;
   const guildId = interaction.guildId;
 
@@ -746,7 +747,7 @@ export async function buildEventResultsView(interaction: unknown, eventId: strin
     // On ne se fie pas uniquement à la relation WHERE côté Prisma car il arrive
     // que les données aient été enregistrées avec une relation incorrecte (bug question 39, etc.).
     const userResponse = Array.isArray(q.responses)
-      ? q.responses.find((r: unknown) => r.participant && r.participant.userId === userId)
+      ? q.responses.find((r) => r.participant && r.participant.userId === userId)
       : undefined;
     const options = q.options as string[];
     const correctLabel = options[q.correctOptionIndex];
@@ -818,7 +819,7 @@ export async function deleteEvent(client: Client, eventId: string) {
   });
 }
 
-export async function handleCtfFlagSubmission(interaction: unknown, eventId: string, flag: string) {
+export async function handleCtfFlagSubmission(interaction: RepliableInteraction, eventId: string, flag: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: { ctfChallenges: true }
@@ -828,7 +829,7 @@ export async function handleCtfFlagSubmission(interaction: unknown, eventId: str
     return interaction.reply({ content: "â�Œ Ce CTF n'est pas actif.", ephemeral: true });
   }
 
-  const challenge = (event as unknown).ctfChallenges.find((c: unknown) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());
+  const challenge = event.ctfChallenges.find((c) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());
   if (!challenge) {
     return interaction.reply({ content: 'â�Œ Flag incorrect. Essayez encore !', ephemeral: true });
   }
@@ -845,13 +846,13 @@ export async function handleCtfFlagSubmission(interaction: unknown, eventId: str
       userId: interaction.user.id,
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
+      displayName: (interaction.member instanceof GuildMember ? interaction.member.displayName : null) ?? interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
     update: {
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
+      displayName: (interaction.member instanceof GuildMember ? interaction.member.displayName : null) ?? interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
   });
@@ -876,7 +877,7 @@ export async function handleCtfFlagSubmission(interaction: unknown, eventId: str
     },
   });
 
-  const existingSolve = await (prisma as unknown).eventCtfSolve.findUnique({
+  const existingSolve = await prisma.eventCtfSolve.findUnique({
     where: {
       challengeId_participantId: {
         challengeId: challenge.id,
@@ -889,11 +890,11 @@ export async function handleCtfFlagSubmission(interaction: unknown, eventId: str
     return interaction.reply({ content: 'âš ï¸� Vous avez déjà résolu ce challenge !', ephemeral: true });
   }
 
-  const previousSolvesCount = await (prisma as unknown).eventCtfSolve.count({
+  const previousSolvesCount = await prisma.eventCtfSolve.count({
     where: { challengeId: challenge.id }
   });
 
-  await (prisma as unknown).eventCtfSolve.create({
+  await prisma.eventCtfSolve.create({
     data: {
       challengeId: challenge.id,
       participantId: participant.id,
@@ -913,10 +914,10 @@ export async function handleCtfFlagSubmission(interaction: unknown, eventId: str
   let roleFeedback = '';
   if (challenge.roleIdReward) {
     const member = interaction.member;
-    if (member && 'roles' in member) {
+    if (member instanceof GuildMember) {
       const role = interaction.guild?.roles.cache.get(challenge.roleIdReward);
       if (role) {
-        await (member.roles as unknown).add(role).catch((err: unknown) => {
+        await member.roles.add(role).catch((err: unknown) => {
           logger.error('CtfService', 'Failed to add reward role:', err);
         });
         roleFeedback = ` et le rôle **${role.name}** vous a été attribué`;
@@ -952,7 +953,7 @@ export async function handleCtfFlagSubmission(interaction: unknown, eventId: str
 }
 
 
-export async function buildCtfLeaderboard(interaction: unknown, eventId: string) {
+export async function buildCtfLeaderboard(interaction: RepliableInteraction, eventId: string) {
   const participants = await prisma.eventParticipant.findMany({
     where: { eventId },
     orderBy: [
@@ -978,7 +979,7 @@ export async function buildCtfLeaderboard(interaction: unknown, eventId: string)
   return interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-export async function buildCtfParticipantProgress(interaction: unknown, eventId: string) {
+export async function buildCtfParticipantProgress(interaction: RepliableInteraction, eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: {
@@ -1002,15 +1003,15 @@ export async function buildCtfParticipantProgress(interaction: unknown, eventId:
     },
   });
 
-  const solvedChallengeIds = new Set((participant as unknown)?.ctfSolves.map((s: unknown) => s.challengeId) || []);
+  const solvedChallengeIds = new Set(participant?.ctfSolves.map((s) => s.challengeId) ?? []);
 
-  const list = (event as unknown).ctfChallenges.map((c: unknown) => {
+  const list = event.ctfChallenges.map((c) => {
     const isSolved = solvedChallengeIds.has(c.id);
     const statusIcon = isSolved ? '✅' : '❌';
     return `${statusIcon} **${c.title}** (${c.points} pts) ${c.xpReward > 0 ? `[+${c.xpReward} XP]` : ''}`;
   }).join('\n') || 'Aucun challenge dans ce CTF.';
 
-  const totalPoints = (event as unknown).ctfChallenges.reduce((acc: number, c: unknown) => acc + c.points, 0);
+  const totalPoints = event.ctfChallenges.reduce((acc, c) => acc + c.points, 0);
   const userPoints = participant?.score || 0;
 
   const embed = new EmbedBuilder()
@@ -1073,7 +1074,6 @@ export async function createCustomEvent(
     location?: string;
   }
 ) {
-  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.announcementChannelId
   const event = await prisma.event.create({
     data: {
       guildId,
@@ -1104,7 +1104,6 @@ export async function createCustomEvent(
           entityType: GuildScheduledEventEntityType.External,
           entityMetadata: { location: data.location || 'Discord' },
         });
-        // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
         await prisma.event.update({ where: { id: event.id }, data: { discordEventId: scheduledEvent.id } });
         logger.info('EventService', `GuildScheduledEvent cree: ${scheduledEvent.id} pour l evenement ${event.id}`);
       }
@@ -1117,7 +1116,6 @@ export async function createCustomEvent(
 }
 
 export async function publishCustomEventAnnouncement(client: Client, eventId: string) {
-  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.customForm
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: { customForm: true },
@@ -1126,7 +1124,15 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
   if (!event) throw new Error('Evenement introuvable');
   if (event.type !== 'CUSTOM') throw new Error("Cet evenement n'est pas de type CUSTOM");
 
-  const config = (event.config as unknown) || {};
+  // `Event.config` est une colonne JSON : Prisma la type en JsonValue. On decrit
+  // ici les seuls champs lus par cette fonction plutot que de neutraliser le
+  // typage avec un cast.
+  const config = (event.config ?? {}) as {
+    createDiscordEvent?: boolean;
+    sendEmbed?: boolean;
+    location?: string;
+    endTime?: string | null;
+  };
   const createDiscordEvent = config.createDiscordEvent !== false;
   const sendEmbed = config.sendEmbed !== false;
   const location = config.location || 'Discord';
@@ -1151,7 +1157,6 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
           entityMetadata: { location },
         });
         discordEventId = scheduledEvent.id;
-        // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
         await prisma.event.update({ where: { id: event.id }, data: { discordEventId } });
         logger.info('EventService', `GuildScheduledEvent cree lors de la publication: ${scheduledEvent.id}`);
       }
@@ -1164,7 +1169,6 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
 
   // 2. Send announcement embed if enabled
   if (sendEmbed) {
-    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.announcementChannelId
     const channelId = event.announcementChannelId;
     if (!channelId) throw new Error("Aucun salon d'annonce configure pour cet evenement");
 
@@ -1183,7 +1187,6 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
       embed.addFields({ name: '🕒 Date', value: `<t:${Math.floor(date.getTime() / 1000)}:F>`, inline: true });
     }
 
-    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
     if (event.formId) {
       embed.addFields({ name: '📝 Inscription', value: "Cliquez sur S'inscrire pour remplir le formulaire.", inline: false });
     } else {
@@ -1221,7 +1224,6 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
     where: { id: eventId },
     data: {
       status: 'PUBLISHED',
-      // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.announcementMessageId
       announcementMessageId
     }
   });
@@ -1231,7 +1233,6 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
 }
 
 export async function handleCustomEventRegisterButton(interaction: ButtonInteraction, eventId: string) {
-  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.customForm
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: { customForm: true },
@@ -1244,11 +1245,10 @@ export async function handleCustomEventRegisterButton(interaction: ButtonInterac
     return interaction.reply({ content: '❌ Les inscriptions sont fermees pour cet evenement.', ephemeral: true });
   }
 
-  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
-  if (event.formId && (event as unknown).customForm) {
+  if (event.formId && event.customForm) {
     const { buildFormModal } = await import('./customFormService.js');
     // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
-    const modal = buildFormModal(event.formId, eventId, (event as unknown).customForm.structure);
+    const modal = buildFormModal(event.formId, eventId, event.customForm.structure);
     return interaction.showModal(modal);
   }
 
@@ -1258,15 +1258,12 @@ export async function handleCustomEventRegisterButton(interaction: ButtonInterac
 
 export async function deleteCustomEventDiscordEvent(client: Client, eventId: string) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
-  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
   if (!event?.discordEventId || !event.guildId) return;
   try {
     const discordGuild = await client.guilds.fetch(event.guildId).catch(() => null);
     if (!discordGuild) return;
-    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
     const scheduledEvent = await discordGuild.scheduledEvents.fetch(event.discordEventId).catch(() => null);
     if (scheduledEvent) await scheduledEvent.delete();
-    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
     logger.info('EventService', `GuildScheduledEvent ${event.discordEventId} supprime`);
   } catch (err) {
     logger.warn('EventService', `Impossible de supprimer le GuildScheduledEvent: ${err}`);

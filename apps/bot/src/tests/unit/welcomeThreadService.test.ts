@@ -5,7 +5,7 @@ import type { WelcomeMenuPage } from '@prisma/client';
 import type { WelcomeThreadConfigWithRelations } from '../../services/features/welcomeThreadService.js';
 
 const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
-  ['../../utils/db', () => ({ default: {}, prisma: {} })],
+  ['../../utils/db', () => ({ default: {}, prisma: {}, prismaRead: {} })],
   ['../../utils/logger', () => ({
     logger: {
       info: mock(() => undefined),

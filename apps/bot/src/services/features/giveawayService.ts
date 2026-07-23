@@ -1,4 +1,5 @@
-import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ColorResolvable } from 'discord.js';
+import { errorMessage } from '../../utils/errors.js';
+import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, type ButtonInteraction, type ColorResolvable, type Message } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
@@ -96,6 +97,33 @@ export async function createGiveaway(
     throw new Error('Les giveaways ne sont pas disponibles sur un serveur staff.');
   }
 
+  const cleanPrize = prize.trim();
+  const cleanDescription = description?.trim() || undefined;
+  if (!cleanPrize || cleanPrize.length > 200) {
+    throw new Error('Le lot doit contenir entre 1 et 200 caractères.');
+  }
+  if (!Number.isInteger(winnerCount) || winnerCount < 1 || winnerCount > 20) {
+    throw new Error('Le nombre de gagnants doit être compris entre 1 et 20.');
+  }
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 525_600) {
+    throw new Error('La durée doit être comprise entre 1 minute et 1 an.');
+  }
+  if (cleanDescription && cleanDescription.length > 2_000) {
+    throw new Error('La description ne peut pas dépasser 2 000 caractères.');
+  }
+
+  const discordGuild = client.guilds.cache.get(guildId)
+    || await client.guilds.fetch(guildId).catch(() => null);
+  if (!discordGuild) {
+    throw new Error('Serveur Discord introuvable.');
+  }
+
+  const channel = discordGuild.channels.cache.get(channelId)
+    || await discordGuild.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isTextBased() || !channel.isSendable()) {
+    throw new Error('Le salon sélectionné est introuvable ou le bot ne peut pas y envoyer de message.');
+  }
+
   const endsAt = new Date(Date.now() + durationMinutes * 60 * 1000);
 
   // 1. Sauvegarder dans la BDD pour générer l'ID
@@ -103,10 +131,10 @@ export async function createGiveaway(
     data: {
       guildId,
       channelId,
-      prize,
+      prize: cleanPrize,
       winnerCount,
       endsAt,
-      description,
+      description: cleanDescription,
       rpgXp,
       rpgCoins,
       rpgItemId,
@@ -116,22 +144,22 @@ export async function createGiveaway(
   });
 
   // 2. Créer l'embed et le message Discord
-  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-  if (!discordGuild) return giveaway;
-
-  const channel = discordGuild.channels.cache.get(channelId);
-  if (!channel?.isTextBased()) return giveaway;
-
   const embed = buildActiveGiveawayEmbed(giveaway, 0);
   const row = buildGiveawayJoinRow(giveaway.id);
 
-  const message = await channel.send({ embeds: [embed], components: [row] }).catch(() => null);
-  if (message) {
+  let publishedMessage: Message | null = null;
+  try {
+    publishedMessage = await channel.send({ embeds: [embed], components: [row] });
     // Mettre à jour avec le messageId
     await prisma.giveaway.update({
       where: { id: giveaway.id },
-      data: { messageId: message.id },
+      data: { messageId: publishedMessage.id },
     });
+  } catch (error) {
+    // Ne pas conserver un concours impossible à rejoindre dans le dashboard.
+    await publishedMessage?.delete().catch(() => undefined);
+    await prisma.giveaway.delete({ where: { id: giveaway.id } }).catch(() => undefined);
+    throw new Error(`Impossible de publier le giveaway : ${errorMessage(error)}`);
   }
 
   return giveaway;
@@ -140,7 +168,7 @@ export async function createGiveaway(
 /**
  * Gère l'action de clic sur le bouton d'inscription d'un giveaway
  */
-export async function handleGiveawayJoin(interaction: unknown) {
+export async function handleGiveawayJoin(interaction: ButtonInteraction) {
   const giveawayId = interaction.customId.split(':')[1];
   const userId = interaction.user.id;
 
@@ -228,7 +256,7 @@ export async function handleGiveawayJoin(interaction: unknown) {
       flags: [MessageFlags.Ephemeral],
     });
   } catch (err: unknown) {
-    if (err.message === 'ENDED_OR_NOT_FOUND') {
+    if (errorMessage(err) === 'ENDED_OR_NOT_FOUND') {
       return interaction.reply({
         content: '❌ Ce giveaway est terminé !',
         flags: [MessageFlags.Ephemeral],
@@ -245,11 +273,14 @@ export async function handleGiveawayJoin(interaction: unknown) {
 /**
  * Termine un giveaway actif et tire les gagnants
  */
-export async function endGiveaway(client: Client, giveawayId: string) {
-  const giveaway = await prisma.giveaway.findUnique({
-    where: { id: giveawayId },
+export async function endGiveaway(client: Client, giveawayId: string, expectedGuildId?: string) {
+  const giveaway = await prisma.giveaway.findFirst({
+    where: { id: giveawayId, ...(expectedGuildId ? { guildId: expectedGuildId } : {}) },
   });
 
+  if (!giveaway && expectedGuildId) {
+    throw new Error('Giveaway introuvable sur ce serveur.');
+  }
   if (!giveaway || giveaway.ended) return;
 
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
@@ -283,7 +314,7 @@ export async function endGiveaway(client: Client, giveawayId: string) {
       if (message) {
         const endedEmbed = buildGiveawayEmbed(
           giveaway,
-          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${participants.length}`,
+          `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
           '#FAA81A'
         );
 
@@ -327,7 +358,7 @@ export async function endGiveaway(client: Client, giveawayId: string) {
     if (message) {
       const endedEmbed = buildGiveawayEmbed(
         giveaway,
-        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${participants.length}`,
+        `${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`,
         '#ED4245'
       );
 
@@ -355,11 +386,14 @@ export async function endGiveaway(client: Client, giveawayId: string) {
 /**
  * Sélectionne un nouveau gagnant (Reroll)
  */
-export async function rerollGiveaway(client: Client, giveawayId: string) {
-  const giveaway = await prisma.giveaway.findUnique({
-    where: { id: giveawayId },
+export async function rerollGiveaway(client: Client, giveawayId: string, expectedGuildId?: string) {
+  const giveaway = await prisma.giveaway.findFirst({
+    where: { id: giveawayId, ...(expectedGuildId ? { guildId: expectedGuildId } : {}) },
   });
 
+  if (!giveaway && expectedGuildId) {
+    throw new Error('Giveaway introuvable sur ce serveur.');
+  }
   if (!giveaway || !giveaway.ended) return;
 
   const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);

@@ -1,3 +1,4 @@
+import { errorCode } from '../utils/errors.js';
 import { IncomingMessage } from 'node:http';
 import { Socket } from 'node:net';
 import { Client } from 'discord.js';
@@ -342,7 +343,7 @@ export const startDashboardApi = async (client: Client) => {
   try {
     server = startServer(port);
   } catch (err: unknown) {
-    if (err?.code === 'EADDRINUSE') {
+    if (errorCode(err) === 'EADDRINUSE') {
       logger.warn('DashboardAPI', `Port ${port} occupé, tentative de libération...`);
       try {
         const _proc = Bun.spawnSync(['cmd', '/c', `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /PID %a /F`]);

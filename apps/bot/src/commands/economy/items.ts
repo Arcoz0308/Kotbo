@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
@@ -67,7 +68,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.reply({ embeds: [embed] });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || "Impossible de lister l'inventaire.")],
+      embeds: [errorEmbed('Erreur', errorMessage(err) || "Impossible de lister l'inventaire.")],
       flags: [MessageFlags.Ephemeral]
     });
   }
