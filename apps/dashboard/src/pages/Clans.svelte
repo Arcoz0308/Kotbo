@@ -8,6 +8,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import MemberSearchSelect from '../lib/components/MemberSearchSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -75,6 +76,20 @@
 
   // Tab routing
   let activeTab = $state<'clans' | 'seasons' | 'points' | 'admin'>('clans');
+
+  let copySuccess = $state(false);
+  const publicClanUrl = $derived(
+    authStore.selectedGuildId
+      ? `${window.location.origin}/${authStore.selectedGuildId}/clan`
+      : ''
+  );
+
+  async function copyPublicClanUrl() {
+    if (!publicClanUrl) return;
+    await navigator.clipboard.writeText(publicClanUrl);
+    copySuccess = true;
+    setTimeout(() => { copySuccess = false; }, 2000);
+  }
 
   // Form states
   let formName = $state('');
@@ -657,6 +672,41 @@
     </div>
   {:else}
     {#if activeTab === 'clans'}
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-linear-to-r from-tertiary/10 to-secondary/10 border border-tertiary/20 rounded-xl p-6 px-8 shadow-xs relative overflow-hidden group mb-8">
+      <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" style="background: radial-gradient(circle, color-mix(in srgb, var(--color-tertiary) 5%, transparent) 0%, transparent 70%);"></div>
+      <div class="flex items-center gap-4 relative z-10">
+        <div class="w-12 h-12 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary shadow-inner transition-transform duration-350">
+          <Papicon icon="Globe" size={22} />
+        </div>
+        <div>
+          <p class="text-sm font-semibold text-on-surface">{m.clan_public_banner_title()}</p>
+          <p class="text-xs text-on-surface-variant/70 font-medium">{m.clan_public_page_desc()}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 shrink-0 relative z-10 w-full sm:w-auto">
+        <a
+          href={publicClanUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center justify-center gap-2 px-5 py-3 bg-tertiary/20 text-tertiary border border-tertiary/25 rounded-lg text-xs font-semibold hover:bg-tertiary/30 transition-all hover:scale-103 w-full sm:w-auto text-center"
+        >
+          <Papicon icon="ExternalLink" size={14} />
+          {m.clan_public_page_view()}
+        </a>
+        <button
+          onclick={copyPublicClanUrl}
+          class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+        >
+          {#if copySuccess}
+            <Papicon icon="Check" size={14} />
+            {m.clan_public_page_copied()}
+          {:else}
+            <Papicon icon="Copy" size={14} />
+            {m.clan_public_page_copy()}
+          {/if}
+        </button>
+      </div>
+    </div>
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
       
       <!-- Left side: General Settings -->
@@ -1160,12 +1210,10 @@
             <div class="space-y-4">
               <div class="space-y-1.5">
                 <label for="manual-points-member-user-id" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_member_id_label()}</label>
-                <input
+                <MemberSearchSelect
                   id="manual-points-member-user-id"
-                  type="text"
-                  placeholder={m.clan_id_placeholder()}
                   bind:value={manualPointsMemberUserId}
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-medium"
+                  placeholder={m.clan_id_placeholder()}
                   disabled={!canManageSettings}
                 />
               </div>

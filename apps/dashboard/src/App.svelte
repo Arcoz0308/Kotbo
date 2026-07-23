@@ -38,6 +38,7 @@
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/classement\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/clan\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/clan\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
       $router.path.startsWith("/sanction-evidence/") ||
@@ -395,6 +396,11 @@
       />
       <LazyRoute
         path="/:serverId/leveling/clan"
+        load={() => import("./pages/LevelingClanPublic.svelte")}
+        props={(meta) => ({ serverId: meta.params.serverId })}
+      />
+      <LazyRoute
+        path="/:serverId/clan"
         load={() => import("./pages/LevelingClanPublic.svelte")}
         props={(meta) => ({ serverId: meta.params.serverId })}
       />
