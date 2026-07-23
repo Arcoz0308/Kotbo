@@ -1233,7 +1233,7 @@
                 <button
                   type="button"
                   onclick={handleAddMemberPoints}
-                  class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                  class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/80 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
                   disabled={!manualPointsMemberUserId}
                 >
                   <Papicon icon="Sparkles" size={14} /> {m.clan_adjust_member_points_btn()}
