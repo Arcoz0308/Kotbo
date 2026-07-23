@@ -19,7 +19,17 @@
 
   let config = $state({ discordClientId: '' });
   let userMenuOpen = $state(false);
+  let langMenuOpen = $state(false);
   let searchQuery = $state('');
+
+  const languages = [
+    { code: 'fr', flag: '🇫🇷', label: 'Français' },
+    { code: 'en', flag: '🇬🇧', label: 'English' },
+  ] as const;
+
+  const currentLanguage = $derived(
+    languages.find((lang) => lang.code === userPrefs.prefs.language) ?? languages[0]
+  );
 
   onMount(() => {
     (async () => {
@@ -37,6 +47,9 @@
       const target = e.target as HTMLElement;
       if (!target.closest('.user-menu-container')) {
         userMenuOpen = false;
+      }
+      if (!target.closest('.lang-menu-container')) {
+        langMenuOpen = false;
       }
     };
     window.addEventListener('click', handleClick);
@@ -190,17 +203,43 @@
       {/if}
     </button>
 
-    <button
-      onclick={() => {
-        const nextLang = userPrefs.prefs.language === 'fr' ? 'en' : 'fr';
-        userPrefs.set('language', nextLang);
-      }}
-      class="w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container text-sm font-semibold select-none cursor-pointer"
-      title={m.navbar_lang_switch()}
-      aria-label={m.navbar_lang_switch()}
-    >
-      {userPrefs.prefs.language === 'fr' ? '🇬🇧' : '🇫🇷'}
-    </button>
+    <div class="relative lang-menu-container">
+      <button
+        onclick={() => (langMenuOpen = !langMenuOpen)}
+        class="w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container text-sm font-semibold select-none cursor-pointer"
+        title={m.navbar_lang_switch()}
+        aria-label={m.navbar_lang_switch()}
+        aria-haspopup="listbox"
+        aria-expanded={langMenuOpen}
+      >
+        {currentLanguage.flag}
+      </button>
+
+      {#if langMenuOpen}
+        <div
+          class="absolute right-0 mt-2 w-40 rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg py-1 z-50"
+          role="listbox"
+        >
+          {#each languages as lang}
+            <button
+              role="option"
+              aria-selected={userPrefs.prefs.language === lang.code}
+              onclick={() => {
+                userPrefs.set('language', lang.code);
+                langMenuOpen = false;
+              }}
+              class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors hover:bg-surface-container cursor-pointer {userPrefs.prefs.language === lang.code ? 'bg-surface-container font-semibold' : ''}"
+            >
+              <span class="text-base leading-none">{lang.flag}</span>
+              <span class="flex-1">{lang.label}</span>
+              {#if userPrefs.prefs.language === lang.code}
+                <Papicon icon="Check" size={14} class="text-primary" />
+              {/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
 
     <NotificationBell />
 
