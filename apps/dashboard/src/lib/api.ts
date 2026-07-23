@@ -3462,6 +3462,33 @@ export async function addClanPoints(
   });
 }
 
+export interface GuildMemberSearchResult {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  isBot: boolean;
+  isOnServer: boolean;
+}
+
+export async function searchGuildMembers(
+  query: string,
+  limit = 15,
+  guildId = authStore.selectedGuildId
+): Promise<GuildMemberSearchResult[]> {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  params.append('limit', String(limit));
+  params.append('botFilter', 'human');
+  const res = await dashboardRequest(`/members/search?${params.toString()}`, {
+    method: 'GET',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Search Guild Members):'
+  });
+  return (res?.members as GuildMemberSearchResult[]) ?? [];
+}
+
 export async function fetchPublicClans(guildId: string): Promise<any | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans`);

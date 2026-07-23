@@ -125,6 +125,7 @@
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/classement\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/clan\/?$/.test($router.path) ||
+      /^\/\d{17,19}\/clan\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
       $router.path.startsWith("/sanction-evidence/") ||
@@ -469,6 +470,9 @@
         <LevelingPublic serverId={meta.params.serverId} />
       </Route>
       <Route path="/:serverId/leveling/clan" let:meta>
+        <LevelingClanPublic serverId={meta.params.serverId} />
+      </Route>
+      <Route path="/:serverId/clan" let:meta>
         <LevelingClanPublic serverId={meta.params.serverId} />
       </Route>
       <Route path="/profile/:userId" let:meta>
