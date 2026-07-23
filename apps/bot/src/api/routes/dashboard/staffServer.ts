@@ -86,12 +86,16 @@ export async function handleStaffServerRoutes(
   if (parts.length === 5 && method === 'POST') {
     try {
       const body = await readJsonBody(req);
-      if (!body?.staffGuildId || !body?.syncMode) {
+      const staffGuildId = typeof body?.staffGuildId === 'string' ? body.staffGuildId : null;
+      const syncMode = body?.syncMode;
+      if (!staffGuildId || (syncMode !== 'BIDIRECTIONAL' && syncMode !== 'MAIN_TO_STAFF' && syncMode !== 'STAFF_TO_MAIN')) {
         json(res, 400, { error: 'staffGuildId et syncMode requis' });
         return true;
       }
 
-      const staffGuild = client.guilds.cache.get(body.staffGuildId);
+      const optionalId = (value: unknown) => (typeof value === 'string' ? value : undefined);
+
+      const staffGuild = client.guilds.cache.get(staffGuildId);
       if (!staffGuild) {
         json(res, 400, { error: 'Le bot n\'est pas présent sur le serveur staff.' });
         return true;
@@ -99,12 +103,12 @@ export async function handleStaffServerRoutes(
 
       const linkResult = await createStaffServerLink({
         mainGuildId: guildId,
-        staffGuildId: body.staffGuildId,
-        syncMode: body.syncMode,
-        hierarchyId: body.hierarchyId ?? undefined,
-        simpleStaffRoleId: body.simpleStaffRoleId ?? undefined,
-        mainLogChannelId: body.mainLogChannelId ?? undefined,
-        staffLogChannelId: body.staffLogChannelId ?? undefined,
+        staffGuildId,
+        syncMode,
+        hierarchyId: optionalId(body?.hierarchyId),
+        simpleStaffRoleId: optionalId(body?.simpleStaffRoleId),
+        mainLogChannelId: optionalId(body?.mainLogChannelId),
+        staffLogChannelId: optionalId(body?.staffLogChannelId),
         createdByUserId: user.userId,
       });
 
@@ -206,7 +210,7 @@ export async function handleStaffServerRoutes(
       ];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
-        if (body[field] !== undefined) updateData[field] = body[field];
+        if (body?.[field] !== undefined) updateData[field] = body[field];
       }
 
       const updated = await prisma.staffServerLink.update({
@@ -257,9 +261,9 @@ export async function handleStaffServerRoutes(
       const mapping = await prisma.staffServerRoleMapping.create({
         data: {
           staffServerLinkId: linkId,
-          staffRoleId: body.staffRoleId ?? null,
-          mainDiscordRoleId: body.mainDiscordRoleId ?? null,
-          staffDiscordRoleId: body.staffDiscordRoleId ?? null,
+          staffRoleId: typeof body?.staffRoleId === 'string' ? body.staffRoleId : null,
+          mainDiscordRoleId: typeof body?.mainDiscordRoleId === 'string' ? body.mainDiscordRoleId : null,
+          staffDiscordRoleId: typeof body?.staffDiscordRoleId === 'string' ? body.staffDiscordRoleId : null,
         },
       });
 

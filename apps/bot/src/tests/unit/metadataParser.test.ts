@@ -5,7 +5,7 @@ describe('fetchArticleMetadata', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    globalThis.fetch = mock() as unknown;
+    globalThis.fetch = mock() as unknown as typeof fetch;
   });
 
   afterEach(() => {

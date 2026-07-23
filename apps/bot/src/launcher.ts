@@ -1,12 +1,23 @@
+import { errorMessage } from './utils/errors.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
-import { ShardingManager, Client, GatewayIntentBits, ActivityType, type PresenceStatusData } from 'discord.js';
+import { ShardingManager, Client, GatewayIntentBits, ActivityType, type ActivitiesOptions, type PresenceStatusData } from 'discord.js';
 import prisma from './utils/db.js';
 import { logger } from './utils/logger.js';
 import { loadAllInstances, type ResolvedInstance } from './utils/instanceResolver.js';
+
+/**
+ * Messages IPC echanges entre le gestionnaire de shards et les shards.
+ * Ils traversent une frontiere de processus : tous les champs sont optionnels.
+ */
+type ShardIpcMessage = {
+  type?: string;
+  guildId?: string;
+  config?: { botToken?: string } & Record<string, unknown>;
+} & Record<string, unknown>;
 
 // Custom Bot instances (lightweight clients managed per-guild)
 const customBotClients = new Map<string, Client>();
@@ -45,7 +56,7 @@ async function startCustomBot(guildId: string, config: {
     logger.success('CustomBot', `[${guildId}] Bot "${c.user.tag}" connecté.`);
 
     const status = STATUS_MAP[config.botStatus || 'ONLINE'] || 'online';
-    const activities: unknown[] = [];
+    const activities: ActivitiesOptions[] = [];
 
     if (config.activityType && config.activityType !== 'NONE' && config.activityText) {
       activities.push({
@@ -78,7 +89,7 @@ async function startCustomBot(guildId: string, config: {
     logger.error('CustomBot', `[${guildId}] Impossible de se connecter:`, err);
     await prisma.customBotConfig.update({
       where: { guildId },
-      data: { isRunning: false, lastError: err.message || 'Login failed' },
+      data: { isRunning: false, lastError: errorMessage(err) || 'Login failed' },
     }).catch(() => {});
   }
 }
@@ -173,7 +184,7 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
       logger.error('Sharding', `[${instanceLabel}] Le Shard ${shard.id} est mort de manière inattendue (Code de sortie: ${exitCode}).`);
     });
 
-    shard.on('message', (message: unknown) => {
+    shard.on('message', (message: ShardIpcMessage | null | undefined) => {
       try {
         if (!message || typeof message !== 'object') return;
 
@@ -183,22 +194,15 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
             process.exit(0);
           }
 
-          if (typeof (manager as unknown).respawnAll === 'function') {
-            (manager as unknown).respawnAll();
-          } else {
-            const total = Number((manager as unknown).totalShards ?? (manager as unknown).shards?.size ?? 0);
-            for (let i = 0; i < total; i += 1) {
-              if (typeof (manager as unknown).respawn === 'function') {
-                (manager as unknown).respawn(i);
-              }
-            }
-          }
+          void manager.respawnAll().catch((err) => {
+            logger.error('Sharding', `[${instanceLabel}] Erreur lors du respawn global :`, err);
+          });
           return;
         }
 
         // Custom bot management via IPC
         if (message.type === 'custom-bot-start' && message.guildId && message.config?.botToken) {
-          startCustomBot(message.guildId, message.config);
+          startCustomBot(message.guildId, message.config as { botToken: string } & Record<string, unknown>);
           return;
         }
         if (message.type === 'custom-bot-stop' && message.guildId) {
@@ -209,13 +213,14 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
         if (message.type === 'respawn-shard' && Number.isInteger(Number(message.shardId))) {
           const target = Number(message.shardId);
           logger.warn('Sharding', `[${instanceLabel}] Respawn demandé pour le shard ${target} (via shard ${shard.id}).`);
-          if (typeof (manager as unknown).respawn === 'function') {
-            try {
-              (manager as unknown).respawn(target);
-            } catch (err) {
-              logger.error('Sharding', `[${instanceLabel}] Erreur lors du respawn du shard ${target}:`, err);
-            }
+          const targetShard = manager.shards.get(target);
+          if (!targetShard) {
+            logger.warn('Sharding', `[${instanceLabel}] Respawn impossible : shard ${target} inconnu.`);
+            return;
           }
+          void targetShard.respawn().catch((err) => {
+            logger.error('Sharding', `[${instanceLabel}] Erreur lors du respawn du shard ${target}:`, err);
+          });
           return;
         }
       } catch (err) {

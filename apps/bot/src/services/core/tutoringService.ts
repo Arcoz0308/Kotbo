@@ -140,7 +140,7 @@ const withFullChecklist = async <T extends { guildId: string; hierarchyId: strin
 };
 
 export const getTutorDashboard = async (guildId: string, tutorUserId: string, fetchAll: boolean = false) => {
-  const where: unknown = {
+  const where: Record<string, unknown> = {
     guildId,
     status: 'ONGOING'
   };

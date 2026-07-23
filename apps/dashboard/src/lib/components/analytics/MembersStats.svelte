@@ -4,7 +4,7 @@
   import ExportDropdown from './ExportDropdown.svelte';
   import { rescanMemberStats } from '../../api';
   import { toast } from '../../stores/toast.svelte';
-  import * as XLSX from 'xlsx';
+  import { downloadSingleSheetXlsx } from '../../xlsxExport';
 
   let { data, chartLabels, onOpenMember } = $props<{
     data: any;
@@ -46,11 +46,9 @@
     triggerDownload(csv, `${name}.csv`, 'text/csv;charset=utf-8');
   }
 
-  function exportXLSX(name: string, rows: Record<string, unknown>[]) {
+  async function exportXLSX(name: string, rows: Record<string, unknown>[]) {
     if (!rows.length) { toast.error('Aucune donnée.'); return; }
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name.slice(0, 31));
-    XLSX.writeFile(wb, `${name}.xlsx`);
+    await downloadSingleSheetXlsx(name, name, rows);
   }
 
   function exportImage(cardSelector: string, name: string) {

@@ -93,19 +93,21 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const result = await buyListing(guildId, userId, listingId);
 
-    if (!result.success) {
+    if (!result.success || !result.listing) {
       await interaction.editReply(v2Message(
         errorContainer('Achat impossible', result.error),
       ));
       return;
     }
 
+    const purchased = result.listing;
+
     await interaction.editReply(v2Message(
       kotboContainer({
         color: 'success',
         title: `${E.success} Achat réussi !`,
         fields: [
-          `Vous avez acheté **${result.listing.itemId}** (x${result.listing.quantity}) pour **${result.listing.price}** ${E.coins} à <@${result.listing.sellerId}>.`,
+          `Vous avez acheté **${purchased.itemId}** (x${purchased.quantity}) pour **${purchased.price}** ${E.coins} à <@${purchased.sellerId}>.`,
         ],
         footerTitle: 'Marché',
       }),
@@ -131,7 +133,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         color: 'success',
         title: `${E.success} Enchère placée !`,
         fields: [
-          `Vous avez enchéri **${amount}** ${E.coins} sur l'annonce de **${result.listing.itemId}**.`,
+          `Vous avez enchéri **${amount}** ${E.coins} sur l'annonce de **${result.listing?.itemId ?? 'objet'}**.`,
         ],
         footerTitle: 'Marché',
       }),
@@ -156,7 +158,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         color: 'success',
         title: `${E.success} Annonce annulée`,
         fields: [
-          `L'annonce pour **${result.listing.itemId}** a bien été annulée et l'objet a été retourné dans votre inventaire.`,
+          `L'annonce pour **${result.listing?.itemId ?? 'objet'}** a bien été annulée et l'objet a été retourné dans votre inventaire.`,
         ],
         footerTitle: 'Marché',
       }),
@@ -165,7 +167,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   if (subcommand === 'list') {
     await interaction.deferReply();
-    const listings = await getActiveListings(guildId);
+    const { listings } = await getActiveListings(guildId);
 
     if (listings.length === 0) {
       await interaction.editReply(v2Message(

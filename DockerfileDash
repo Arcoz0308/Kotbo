@@ -25,6 +25,16 @@ ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
 RUN bun run build
 
+# Pre-compression gzip des assets textuels, servis ensuite par `gzip_static on`
+# (cf. apps/dashboard/nginx.conf). On compresse au niveau 9 une fois pour toutes
+# au lieu de recompresser a chaque requete. `-k` conserve l'original, necessaire
+# pour les clients qui n'annoncent pas gzip.
+# woff2/woff/png/jpg sont deja compresses : on les laisse tels quels.
+RUN find dist -type f \
+      \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.json' \
+         -o -name '*.svg' -o -name '*.webmanifest' \) \
+      -size +1k -exec gzip -9 -k {} \;
+
 # Production stage
 FROM nginx:alpine
 

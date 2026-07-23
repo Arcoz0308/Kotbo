@@ -111,7 +111,7 @@ export function registerAbsenceMentionListener(client: Client): void {
           .setFooter({ text: 'Notification automatique d\'absence' })
           .setTimestamp();
 
-        await message.channel.send({ embeds: [embed] }).catch(() => null);
+        if (message.channel.isSendable()) await message.channel.send({ embeds: [embed] }).catch(() => null);
       }
     } catch (err) {
       logger.debug('AbsenceMention', `Erreur lors de la vérification des absences: ${err}`);

@@ -47,13 +47,13 @@ export async function publishNewsArticle(client: Client, guildId: string, articl
   const articleCategory = article.category || '';
   const articleSubcategory = article.subcategory || '';
 
-  let bestMatch = categoryConfigs.find((c: unknown) =>
+  let bestMatch = categoryConfigs.find((c) =>
     c.category.toLowerCase() === articleCategory.toLowerCase() &&
     c.subcategory.toLowerCase() === articleSubcategory.toLowerCase()
   );
 
   if (!bestMatch && articleSubcategory !== '') {
-    bestMatch = categoryConfigs.find((c: unknown) =>
+    bestMatch = categoryConfigs.find((c) =>
       c.category.toLowerCase() === articleCategory.toLowerCase() &&
       c.subcategory === ''
     );
@@ -130,7 +130,18 @@ export function generateRssXml(
   guildId: string,
   dashboardUrl: string,
   apiUrl: string,
-  articles: unknown[],
+  articles: Array<{
+    id?: string;
+    title: string;
+    content?: string | null;
+    summary?: string | null;
+    publishedAt: Date | string;
+    sourceUrl?: string | null;
+    authorName?: string | null;
+    category?: string | null;
+    subcategory?: string | null;
+    imageUrl?: string | null;
+  }>,
   category?: string | null,
   subcategory?: string | null
 ): string {

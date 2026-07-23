@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { createBackup } from '../../../services/system/backupService.js';
+import { parseBackupImport } from '../../../services/system/backupImportValidation.js';
 import {
   json,
   readJsonBody,
@@ -11,36 +12,6 @@ import {
   pushAudit,
   type AuthClaims,
 } from '../../shared.js';
-
-interface ImportBackupData {
-  name?: string | null;
-  description?: string | null;
-  serverName?: string | null;
-  serverIcon?: string | null;
-  data?: Prisma.InputJsonValue;
-  options?: {
-    includeMessages?: boolean;
-    includeMembers?: boolean;
-    includeRoles?: boolean;
-    includeChannels?: boolean;
-    includeEmojis?: boolean;
-    includeStickers?: boolean;
-  } | null;
-  stats?: {
-    sizeBytes?: number;
-    rolesCount?: number;
-    channelsCount?: number;
-    membersCount?: number;
-    messagesCount?: number;
-    emojisCount?: number;
-    stickersCount?: number;
-  } | null;
-}
-
-interface ImportDataStructure {
-  version?: string | null;
-  backup?: ImportBackupData | null;
-}
 
 export async function handleBackupRoutes(
   req: IncomingMessage,
@@ -264,29 +235,24 @@ export async function handleBackupRoutes(
         json(res, 400, { error: 'Fichier requis' });
         return true;
       }
+      if (typeof body.file !== 'string') {
+        json(res, 400, { error: 'Le fichier doit être envoyé sous forme de texte JSON' });
+        return true;
+      }
+      if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 100)) {
+        json(res, 400, { error: 'Le nom doit contenir entre 1 et 100 caractères' });
+        return true;
+      }
 
-      // Parser le JSON
-      let importData: ImportDataStructure;
+      let backupData;
       try {
-        const parsed = JSON.parse(body.file);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          importData = parsed;
-        } else {
-          json(res, 400, { error: 'Le fichier JSON est invalide' });
-          return true;
-        }
-      } catch {
-        json(res, 400, { error: 'Le fichier JSON est invalide' });
+        backupData = parseBackupImport(body.file);
+      } catch (error) {
+        json(res, 400, {
+          error: error instanceof Error ? error.message : 'Le fichier de sauvegarde est invalide',
+        });
         return true;
       }
-
-      // Valider la structure
-      if (!importData.version || !importData.backup) {
-        json(res, 400, { error: 'Le fichier de sauvegarde a une structure invalide' });
-        return true;
-      }
-
-      const backupData = importData.backup;
 
       // Vérifier le nombre de backups existants
       const existingBackups = await prisma.serverBackup.count({
@@ -300,7 +266,7 @@ export async function handleBackupRoutes(
       }
 
       // Générer le nom du backup
-      const backupName = body.name || backupData.name || `Import - ${backupData.serverName || 'Serveur'} - ${new Date().toLocaleDateString('fr-FR')}`;
+      const backupName = body.name?.trim() || backupData.name || `Import - ${backupData.serverName || 'Serveur'} - ${new Date().toLocaleDateString('fr-FR')}`;
 
       // Créer le backup dans la base de données
       const newBackup = await prisma.serverBackup.create({
@@ -308,25 +274,25 @@ export async function handleBackupRoutes(
           guildId,
           name: backupName,
           description: backupData.description,
-          data: backupData.data !== undefined ? backupData.data : Prisma.JsonNull,
-          includeMessages: backupData.options?.includeMessages ?? false,
-          includeMembers: backupData.options?.includeMembers ?? true,
-          includeRoles: backupData.options?.includeRoles ?? true,
-          includeChannels: backupData.options?.includeChannels ?? true,
-          includeEmojis: backupData.options?.includeEmojis ?? true,
-          includeStickers: backupData.options?.includeStickers ?? true,
+          data: backupData.data as unknown as Prisma.InputJsonValue,
+          includeMessages: backupData.options.includeMessages,
+          includeMembers: backupData.options.includeMembers,
+          includeRoles: backupData.options.includeRoles,
+          includeChannels: backupData.options.includeChannels,
+          includeEmojis: backupData.options.includeEmojis,
+          includeStickers: backupData.options.includeStickers,
           createdByUserId: user.userId,
           createdByUsername: user.username || 'Unknown',
           createdByTag: '0000',
           serverName: backupData.serverName || 'Importé',
           serverIcon: backupData.serverIcon,
-          sizeBytes: backupData.stats?.sizeBytes || 0,
-          rolesCount: backupData.stats?.rolesCount || 0,
-          channelsCount: backupData.stats?.channelsCount || 0,
-          membersCount: backupData.stats?.membersCount || 0,
-          messagesCount: backupData.stats?.messagesCount || 0,
-          emojisCount: backupData.stats?.emojisCount || 0,
-          stickersCount: backupData.stats?.stickersCount || 0,
+          sizeBytes: backupData.stats.sizeBytes,
+          rolesCount: backupData.stats.rolesCount,
+          channelsCount: backupData.stats.channelsCount,
+          membersCount: backupData.stats.membersCount,
+          messagesCount: backupData.stats.messagesCount,
+          emojisCount: backupData.stats.emojisCount,
+          stickersCount: backupData.stats.stickersCount,
           isPreset: false,
         },
       });
@@ -338,7 +304,7 @@ export async function handleBackupRoutes(
         context: backupName,
         module: 'Sauvegardes',
         eventType: 'Settings',
-        details: `Nom: ${backupName} | Taille: ${backupData.stats?.sizeBytes || 0} bytes | Rôles: ${backupData.stats?.rolesCount || 0} | Salons: ${backupData.stats?.channelsCount || 0} | Membres: ${backupData.stats?.membersCount || 0}`,
+        details: `Nom: ${backupName} | Taille: ${backupData.stats.sizeBytes} bytes | Rôles: ${backupData.stats.rolesCount} | Salons: ${backupData.stats.channelsCount} | Membres: ${backupData.stats.membersCount}`,
       });
 
       json(res, 200, newBackup);

@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+import { readStatsConfig } from './services/analytics/statsConfig.js';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -147,7 +149,22 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
   }
 
   // Fast path: extract guildId from first arg (covers 99% of Discord events)
-  const arg = args[0];
+  // Les evenements Discord transportent des objets heterogenes : on ne lit ici
+  // que les proprietes permettant de remonter a un identifiant de serveur.
+  type GuildBearing = {
+    guild?: { id?: unknown } | null;
+    guildId?: unknown;
+    id?: unknown;
+    name?: unknown;
+    roles?: unknown;
+    // Presents sur les interactions uniquement.
+    isChatInput?: () => boolean;
+    commandName?: unknown;
+    user?: { id?: unknown } | null;
+    author?: { id?: unknown } | null;
+  };
+
+  const arg = args[0] as GuildBearing | null | undefined;
   if (!arg || typeof arg !== 'object') {
     return originalEmit.call(client, eventName, ...args);
   }
@@ -167,7 +184,7 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
   // Fallback: check remaining args only if first didn't yield a guildId
   if (!guildId) {
     for (let i = 1; i < args.length; i++) {
-      const a = args[i];
+      const a = args[i] as GuildBearing | null | undefined;
       if (!a || typeof a !== 'object') continue;
       if (a.guild && typeof a.guild.id === 'string') { guildId = a.guild.id; break; }
       if (typeof a.guildId === 'string') { guildId = a.guildId; break; }
@@ -234,7 +251,7 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
       if (Array.isArray(interaction.member.roles)) {
         roleIds = interaction.member.roles;
       } else if (interaction.member.roles && 'cache' in interaction.member.roles) {
-        roleIds = interaction.member.roles.cache.map((role: unknown) => role.id);
+        roleIds = interaction.member.roles.cache.map((role) => role.id);
       }
     }
     if (roleIds.length === 0) {
@@ -304,14 +321,14 @@ client.once(Events.ClientReady, async (c) => {
   // Load global config & blacklist into memory
   try {
     const config = await prisma.botGlobalConfig.findUnique({ where: { key: 'MAINTENANCE_MODE' } });
-    (global as unknown).KOTBO_MAINTENANCE_MODE = config?.value === 'true';
+    global.KOTBO_MAINTENANCE_MODE = config?.value === 'true';
 
     const blacklist = await prisma.globalBlacklist.findMany({ select: { userId: true } });
-    (global as unknown).KOTBO_BLACKLIST = new Set(blacklist.map(b => b.userId));
+    global.KOTBO_BLACKLIST = new Set(blacklist.map(b => b.userId));
   } catch (err) {
     logger.error('System', 'Erreur lors du chargement de la config globale', err);
-    (global as unknown).KOTBO_MAINTENANCE_MODE = false;
-    (global as unknown).KOTBO_BLACKLIST = new Set();
+    global.KOTBO_MAINTENANCE_MODE = false;
+    global.KOTBO_BLACKLIST = new Set();
   }
 
   // ── Event Bus Bridge (Phase 1: in-process) ──────────────────
@@ -379,7 +396,7 @@ client.once(Events.ClientReady, async (c) => {
     });
 
     for (const g of activatedGuilds) {
-      let config = (g.statsConfig as unknown) || {};
+      let config = readStatsConfig(g.statsConfig);
       
       // If the scraping was stuck in IN_PROGRESS (e.g. bot crashed/restarted), reset it so it can be resumed
       if (config.historicalScrapeStatus === 'IN_PROGRESS') {
@@ -393,7 +410,7 @@ client.once(Events.ClientReady, async (c) => {
 
         await prisma.guild.update({
           where: { id: g.id },
-          data: { statsConfig: config }
+          data: { statsConfig: config as unknown as Prisma.InputJsonValue }
         });
       }
 
@@ -440,7 +457,7 @@ client.once(Events.ClientReady, async (c) => {
 
         await prisma.guild.update({
           where: { id: g.id },
-          data: { statsConfig: config }
+          data: { statsConfig: config as unknown as Prisma.InputJsonValue }
         });
       }
 
@@ -506,7 +523,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   logger.info('Interactions', `Interaction reçue: ${interaction.type} - ${interaction.id}`);
   try {
     // 1. Vérification de la blacklist globale
-    const blacklist: Set<string> = (global as unknown).KOTBO_BLACKLIST || new Set();
+    const blacklist: Set<string> = global.KOTBO_BLACKLIST || new Set();
     if (blacklist.has(interaction.user.id)) {
       if (interaction.isRepliable()) {
         await interaction.reply({
@@ -518,7 +535,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // 2. Vérification du mode maintenance (sauf pour créateur et admins globaux)
-    if ((global as unknown).KOTBO_MAINTENANCE_MODE && interaction.user.id !== process.env.DISCORD_CLIENT_OWNER_ID) {
+    if (global.KOTBO_MAINTENANCE_MODE && interaction.user.id !== process.env.DISCORD_CLIENT_OWNER_ID) {
       // Allow global admins bypass
       const admin = await prisma.globalAdmin.findUnique({ where: { userId: interaction.user.id } });
       if (!admin) {

@@ -15,11 +15,11 @@ const prismaMock = {
       messageLoggingEnabled: true,
       wordStatsBackfillStatus: null,
     })),
-    update: mock(async () => ({})),
+    update: mock(async (_args?: unknown) => ({})),
   },
   messageLog: {
     count: mock(async () => 0),
-    findMany: mock(async () => [] as Array<{ id: string; content: string; createdAt: Date }>),
+    findMany: mock(async (_args?: unknown) => [] as Array<{ id: string; content: string; createdAt: Date }>),
   },
   guildWordStat: {
     upsert: mock(() => ({})),
@@ -56,7 +56,7 @@ function setGuild(config: Record<string, unknown>) {
 /** Simule une table message_logs paginée par curseur d'id. */
 function setMessages(messages: Array<{ id: string; content: string; createdAt: Date }>) {
   prismaMock.messageLog.count = mock(async () => messages.length);
-  prismaMock.messageLog.findMany = mock(async (args: any) => {
+  prismaMock.messageLog.findMany = mock(async (args?: any) => {
     const after = args?.where?.id?.gt as string | undefined;
     return messages
       .filter((m) => (after ? m.id > after : true))

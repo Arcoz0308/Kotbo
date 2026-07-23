@@ -1,5 +1,7 @@
+import type { Prisma } from '@prisma/client';
+import { errorMessage, errorStack } from '../../../utils/errors.js';
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
+import { type OverwriteResolvable, Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
@@ -398,7 +400,7 @@ export async function handleGuildLeadershipRoutes(
             channelId: body?.channelId ?? undefined,
             notificationRoleId: body?.notificationRoleId ?? undefined,
             notifyViaDiscordChannel: body?.notifyViaDiscordChannel ?? undefined,
-            metadata: updatedMetadata,
+            metadata: updatedMetadata as Prisma.InputJsonValue,
           },
           create: {
             guildId,
@@ -407,7 +409,7 @@ export async function handleGuildLeadershipRoutes(
             channelId: body?.channelId ?? null,
             notificationRoleId: body?.notificationRoleId ?? null,
             notifyViaDiscordChannel: body?.notifyViaDiscordChannel ?? true,
-            metadata: updatedMetadata,
+            metadata: updatedMetadata as Prisma.InputJsonValue,
           }
         });
 
@@ -447,6 +449,7 @@ export async function handleGuildLeadershipRoutes(
           superiorUserId: string;
           message?: string;
           confirmIndefinite?: boolean;
+          notifyOnMention?: boolean;
         }>(req);
 
         const staffUserId = body?.staffUserId?.trim() || user.userId;
@@ -508,7 +511,7 @@ export async function handleGuildLeadershipRoutes(
           type,
           message: body.message,
           superiorUserId,
-          notifyOnMention: body.notifyOnMention ?? false,
+          notifyOnMention: body?.notifyOnMention === true,
         });
 
         await pushAudit(guildId, {
@@ -680,7 +683,7 @@ export async function handleGuildLeadershipRoutes(
         } else {
           logger.error('StaffAPI', 'Error creating meeting:', err);
         }
-        json(res, isValidationError ? 400 : 500, { error: err.message || 'Erreur lors de la création de la réunion' });
+        json(res, isValidationError ? 400 : 500, { error: errorMessage(err) || 'Erreur lors de la création de la réunion' });
       }
       return true;
     }
@@ -697,7 +700,7 @@ export async function handleGuildLeadershipRoutes(
           status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED';
         }>(req);
 
-        const data: unknown = {};
+        const data: Record<string, unknown> = {};
         if (body?.title) data.title = body.title;
         if (body?.description !== undefined) data.description = body.description;
         if (body?.scheduledAt) data.scheduledAt = new Date(body.scheduledAt);
@@ -718,8 +721,8 @@ export async function handleGuildLeadershipRoutes(
 
         json(res, 200, { meeting });
       } catch (err: unknown) {
-        logger.error('StaffAPI', `Error updating meeting ${meetingId}: ${err.message}`, err.stack);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la réunion', details: err.message });
+        logger.error('StaffAPI', `Error updating meeting ${meetingId}: ${errorMessage(err)}`, errorStack(err));
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la réunion', details: errorMessage(err) });
       }
       return true;
     }
@@ -808,7 +811,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { task });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error creating task:', err);
-        json(res, 500, { error: err.message || 'Erreur lors de la création de la tâche' });
+        json(res, 500, { error: errorMessage(err) || 'Erreur lors de la création de la tâche' });
       }
       return true;
     }
@@ -826,7 +829,7 @@ export async function handleGuildLeadershipRoutes(
           assigneeId?: string;
         }>(req);
 
-        const updateData: unknown = {};
+        const updateData: Record<string, unknown> = {};
         if (body?.title) updateData.title = body.title;
         if (body?.description !== undefined) updateData.description = body.description;
         if (body?.status) updateData.status = body.status;
@@ -849,7 +852,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { task });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error updating task:', err);
-        json(res, 500, { error: err.message || 'Erreur lors de la mise à jour de la tâche' });
+        json(res, 500, { error: errorMessage(err) || 'Erreur lors de la mise à jour de la tâche' });
       }
       return true;
     }
@@ -956,7 +959,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { call });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error creating call:', err);
-        json(res, 500, { error: err.message || "Erreur lors de la planification de l'appel" });
+        json(res, 500, { error: errorMessage(err) || "Erreur lors de la planification de l'appel" });
       }
       return true;
     }
@@ -974,7 +977,7 @@ export async function handleGuildLeadershipRoutes(
           invitees?: string[];
         }>(req);
 
-        const updateData: unknown = {};
+        const updateData: Record<string, unknown> = {};
         if (body?.title) updateData.title = body.title;
         if (body?.description !== undefined) updateData.description = body.description;
         if (body?.scheduledAt) updateData.scheduledAt = new Date(body.scheduledAt);
@@ -997,7 +1000,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { call });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error updating call:', err);
-        json(res, 500, { error: err.message || "Erreur lors de la mise à jour de l'appel" });
+        json(res, 500, { error: errorMessage(err) || "Erreur lors de la mise à jour de l'appel" });
       }
       return true;
     }
@@ -1395,7 +1398,7 @@ export async function handleGuildLeadershipRoutes(
         const member = await addStaffMember(
           guildId,
           body.userId,
-          body.grade as unknown,
+          String(body.grade),
           body.userTag,
           body.username,
           body.displayName,
@@ -1465,7 +1468,7 @@ export async function handleGuildLeadershipRoutes(
         }>(req);
 
         if (body?.grade) {
-          await updateStaffGrade(guildId, staffUserId, body.grade as unknown);
+          await updateStaffGrade(guildId, staffUserId, String(body.grade));
 
           await pushAudit(guildId, {
             user: user.username ?? `User${user.userId}`,
@@ -1996,7 +1999,7 @@ export async function handleGuildLeadershipRoutes(
             demoteRemoveAllRoles?: boolean;
           }>(req);
 
-          const data: unknown = {};
+          const data: Record<string, unknown> = {};
           if (Object.prototype.hasOwnProperty.call(body ?? {}, 'baseStaffRoleId')) {
             data.baseStaffRoleId = extractDiscordSnowflake(body?.baseStaffRoleId ?? null);
           }
@@ -2235,7 +2238,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, result);
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error importing role members:', err);
-        json(res, 500, { error: err.message || "Erreur lors de l'import" });
+        json(res, 500, { error: errorMessage(err) || "Erreur lors de l'import" });
       }
       return true;
     }
@@ -2253,9 +2256,9 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { ok: true, grade: result });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error adding member to hierarchy:', err);
-        json(res, /détecter automatiquement/i.test(err.message)
+        json(res, /détecter automatiquement/i.test(errorMessage(err))
           ? 400
-          : 500, { error: err.message || "Erreur lors de l'ajout" });
+          : 500, { error: errorMessage(err) || "Erreur lors de l'ajout" });
       }
       return true;
     }
@@ -2269,7 +2272,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { ok: true });
       } catch (err: unknown) {
         logger.error('StaffAPI', 'Error removing member from hierarchy:', err);
-        json(res, 500, { error: err.message || 'Erreur lors du retrait' });
+        json(res, 500, { error: errorMessage(err) || 'Erreur lors du retrait' });
       }
       return true;
     }
@@ -2688,7 +2691,7 @@ export async function handleGuildLeadershipRoutes(
         const staffName = resignation.staffMember.displayName ?? resignation.staffMember.username ?? resignation.staffMember.userId;
         const channelName = `demission-${staffName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30)}`;
 
-        const permissionOverwrites: unknown[] = [
+        const permissionOverwrites: OverwriteResolvable[] = [
           {
             id: discordGuild.id,
             deny: [PermissionFlagsBits.ViewChannel]
@@ -2982,8 +2985,8 @@ export async function handleGuildLeadershipRoutes(
       }
 
       try {
-        const body = await readJsonBody<unknown>(req);
-        const config = await tutoringService.updateTutoringConfig(guildId, body);
+        const body = await readJsonBody<Record<string, unknown>>(req);
+        const config = await tutoringService.updateTutoringConfig(guildId, (body ?? {}) as Parameters<typeof tutoringService.updateTutoringConfig>[1]);
 
         await pushAudit(guildId, {
           user: user.username ?? `User${user.userId}`,
@@ -2991,7 +2994,7 @@ export async function handleGuildLeadershipRoutes(
           context: getGuildName(client, guildId),
           module: 'Tutoring',
           eventType: 'Manuel',
-          details: `Intervalle: ${body.reportIntervalDays}j, Rappels: ${body.reminderDaysBefore}j, Min Test: ${body.minTestDays}j`,
+          details: `Intervalle: ${body?.reportIntervalDays}j, Rappels: ${body?.reminderDaysBefore}j, Min Test: ${body?.minTestDays}j`,
           channelId: null
         });
 
@@ -3035,6 +3038,7 @@ export async function handleGuildLeadershipRoutes(
           hierarchyId?: string | null;
           grade?: string | null;
         }>(req);
+        if (!body) { json(res, 400, { error: 'Corps de requête invalide.' }); return true; }
         const item = await tutoringService.upsertTutoringItem(guildId, body);
 
         await pushAudit(guildId, {
@@ -3117,7 +3121,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { period });
       } catch (err: unknown) {
         logger.error('TutoringAPI', 'Error creating period:', err);
-        json(res, 500, { error: err.message || 'Erreur création tutorat' });
+        json(res, 500, { error: errorMessage(err) || 'Erreur création tutorat' });
       }
       return true;
     }

@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { Client, TextChannel, Collection, Message } from 'discord.js';
@@ -62,7 +63,7 @@ export async function startMessageLoggingBackfill(client: Client, guildId: strin
 
   await prisma.guild.update({
     where: { id: guildId },
-    data: { messageLoggingStatus: initialStatus },
+    data: { messageLoggingStatus: initialStatus as unknown as Prisma.InputJsonValue },
   });
 
   // Run backfill task in background
@@ -136,7 +137,7 @@ async function runBackfillTask(client: Client, guildId: string, _force = false):
 
       await prisma.guild.update({
         where: { id: guildId },
-        data: { messageLoggingStatus: statusObj },
+        data: { messageLoggingStatus: statusObj as unknown as Prisma.InputJsonValue },
       });
 
       logger.info('MessageLoggingScraper', `Scraping historique pour #${channel.name} (${channel.id}) dans ${guild.name}`);
@@ -213,7 +214,7 @@ async function runBackfillTask(client: Client, guildId: string, _force = false):
             statusObj.scrapedMessagesCount = totalMessagesScraped;
             await prisma.guild.update({
               where: { id: guildId },
-              data: { messageLoggingStatus: statusObj },
+              data: { messageLoggingStatus: statusObj as unknown as Prisma.InputJsonValue },
             });
           }
 
@@ -243,7 +244,7 @@ async function runBackfillTask(client: Client, guildId: string, _force = false):
 
     await prisma.guild.update({
       where: { id: guildId },
-      data: { messageLoggingStatus: finalStatus },
+      data: { messageLoggingStatus: finalStatus as unknown as Prisma.InputJsonValue },
     });
 
     logger.success('MessageLoggingScraper', `Indexation rétroactive terminée pour la guilde ${guild.name} (${guildId}). Total : ${totalMessagesScraped} messages.`);
@@ -270,7 +271,7 @@ async function markBackfillFailed(guildId: string, errorMsg: string): Promise<vo
 
     await prisma.guild.update({
       where: { id: guildId },
-      data: { messageLoggingStatus: statusObj },
+      data: { messageLoggingStatus: statusObj as unknown as Prisma.InputJsonValue },
     });
   } catch (err) {
     logger.error('MessageLoggingScraper', `Impossible de marquer le statut en FAILED pour la guilde ${guildId}:`, err);

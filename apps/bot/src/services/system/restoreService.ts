@@ -1,6 +1,6 @@
-import { Guild, Role, ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
+import { type APIEmbed, Guild, Role, ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
-import { BackupData, RoleData, ChannelData, MemberData, EmojiData, StickerData } from './backupService.js';
+import { BackupData, RoleData, ChannelData, MemberData, EmojiData, StickerData , type MessageData } from './backupService.js';
 
 export interface RestoreOptions {
   fullRestore: boolean;
@@ -284,7 +284,7 @@ async function restoreChannel(
 
       // Mettre à jour le salon existant
       if ('edit' in existingChannel) {
-        const updateData: unknown = {};
+        const updateData: Record<string, unknown> = {};
         if (channelData.topic) updateData.topic = channelData.topic;
         if (channelData.nsfw !== undefined) updateData.nsfw = channelData.nsfw;
         if (channelData.rateLimitPerUser) updateData.rateLimitPerUser = channelData.rateLimitPerUser;
@@ -302,7 +302,7 @@ async function restoreChannel(
       }
     } else {
       // Créer un nouveau salon
-      const createData: unknown = {
+      const createData: Record<string, unknown> = {
         name: channelData.name,
         type: channelData.type,
         position: channelData.position,
@@ -319,7 +319,7 @@ async function restoreChannel(
       if (channelData.bitrate) createData.bitrate = channelData.bitrate;
       if (channelData.userLimit) createData.userLimit = channelData.userLimit;
 
-      const newChannel = await guild.channels.create(createData);
+      const newChannel = await guild.channels.create(createData as unknown as Parameters<typeof guild.channels.create>[0]);
       channelIdMap.set(channelData.id, newChannel.id);
       console.log(`✅ Salon créé: ${channelData.name}`);
 
@@ -345,7 +345,7 @@ async function restoreChannel(
         }
 
         if (overwritesToSet.length > 0) {
-          await (newChannel as unknown).permissionOverwrites.set(overwritesToSet);
+          await newChannel.permissionOverwrites.set(overwritesToSet);
         }
       }
     }
@@ -404,7 +404,7 @@ async function restoreMembers(
 /**
  * Restaure les messages
  */
-async function restoreMessages(guild: Guild, messages: unknown[], channelIdMap: Map<string, string>): Promise<void> {
+async function restoreMessages(guild: Guild, messages: MessageData[], channelIdMap: Map<string, string>): Promise<void> {
   console.log(`🔄 Restauration de ${messages.length} messages...`);
 
   for (const messageData of messages) {
@@ -417,9 +417,11 @@ async function restoreMessages(guild: Guild, messages: unknown[], channelIdMap: 
         continue;
       }
 
+      if (!channel.isTextBased() || !channel.isSendable()) continue;
       await channel.send({
         content: messageData.content || undefined,
-        embeds: messageData.embeds || [],
+        embeds: (messageData.embeds as APIEmbed[]) || [],
+        allowedMentions: { parse: [] },
       });
       console.log(`✅ Message restauré dans: ${channel.name}`);
     } catch (error) {

@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { createSuggestion } from '../../services/features/suggestionService.js';
@@ -36,7 +37,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     );
     await interaction.editReply(`💡 Votre suggestion a été publiée avec succès ! (ID : \`${suggestion.id}\`)`);
   } catch (err: unknown) {
-    await interaction.editReply(`❌ Impossible de publier la suggestion : ${err?.message || 'erreur inconnue'}`);
+    await interaction.editReply(`❌ Impossible de publier la suggestion : ${errorMessage(err) || 'erreur inconnue'}`);
   }
 }
 

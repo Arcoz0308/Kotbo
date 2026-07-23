@@ -1,14 +1,20 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
+  import { authStore } from '../stores/auth.svelte';
   import { fade, slide } from 'svelte/transition';
   import Papicon from './Papicon.svelte';
 
   let open = $state(false);
 
-  onMount(() => {
-    notificationsStore.fetchNotifications();
+  $effect(() => {
+    const guildId = authStore.selectedGuildId;
+    if (guildId && authStore.token) {
+      void notificationsStore.fetchNotifications();
+    }
+  });
 
+  onMount(() => {
     const interval = setInterval(() => {
       notificationsStore.fetchNotifications();
     }, 60000);

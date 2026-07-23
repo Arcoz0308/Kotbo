@@ -3,7 +3,7 @@
   import Chart from '../charts/Chart.svelte';
   import ExportDropdown from './ExportDropdown.svelte';
   import { toast } from '../../stores/toast.svelte';
-  import * as XLSX from 'xlsx';
+  import { downloadSingleSheetXlsx } from '../../xlsxExport';
 
   let { data, mode = 'messages', onOpenMember } = $props<{
     data: any;
@@ -147,11 +147,9 @@
     triggerDownload(csv, `${name}.csv`, 'text/csv;charset=utf-8');
   }
 
-  function doExportXLSX(name: string, rows: Record<string, unknown>[]) {
+  async function doExportXLSX(name: string, rows: Record<string, unknown>[]) {
     if (!rows.length) { toast.error('Aucune donnée.'); return; }
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name.slice(0, 31));
-    XLSX.writeFile(wb, `${name}.xlsx`);
+    await downloadSingleSheetXlsx(name, name, rows);
   }
 
   function doExportImage(cardSelector: string, name: string) {

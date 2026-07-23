@@ -1,3 +1,4 @@
+import { errorMessage } from '../utils/errors.js';
 import { type Interaction, type Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalSubmitInteraction, MessageFlags, type AnySelectMenuInteraction, PermissionFlagsBits, type GuildMember, TextInputBuilder, TextInputStyle, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
 import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
@@ -295,7 +296,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const { rerollGiveaway } = await import('../services/features/giveawayService.js');
-    await rerollGiveaway(client, giveawayId);
+    await rerollGiveaway(client, giveawayId, interaction.guildId ?? undefined);
     
     await interaction.editReply({ content: '✅ Le giveaway a été relancé (reroll).' });
     return;
@@ -740,7 +741,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId.startsWith('meeting_rsvp:')) {
     const parts = customId.split(':');
     const meetingId = parts[1];
-    const status = parts[2]; // PRESENT, EXCUSED, ABSENT
+    const status = parts[2] as 'PRESENT' | 'ABSENT' | 'EXCUSED'; // issu du customId
 
     if (!status || !meetingId) return;
 
@@ -788,7 +789,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         ABSENT: 'Absent ❌' 
       };
 
-      await checkInMeeting(client, meetingId, staffMember.id, status as unknown);
+      await checkInMeeting(client, meetingId, staffMember.id, status);
       
       let response = `✅ Votre statut pour cette réunion est désormais : **${labels[status] || status}**.`;
       if (status === 'ABSENT') {
@@ -941,7 +942,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         .setTimestamp();
 
       const distribution = stats.distribution || {};
-      const total = Object.values(distribution).reduce((s: number, v: unknown) => s + (v || 0), 0);
+      const total = Object.values(distribution).reduce((s: number, v) => s + (Number(v) || 0), 0);
 
       (Object.keys(distribution) || []).forEach((k) => {
         const idx = parseInt(k, 10);
@@ -1372,7 +1373,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       });
     } catch (err: unknown) {
       await interaction.reply({
-        content: `❌ Impossible de publier la suggestion : ${err?.message || 'erreur inconnue'}`,
+        content: `❌ Impossible de publier la suggestion : ${errorMessage(err) || 'erreur inconnue'}`,
         flags: [MessageFlags.Ephemeral],
       });
     }

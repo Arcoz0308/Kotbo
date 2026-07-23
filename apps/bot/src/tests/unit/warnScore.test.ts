@@ -5,12 +5,12 @@ const guildId = '987654321098765432';
 const userId = '123456789012345678';
 
 const prismaMock = {
-  guild: { findUnique: mock(async () => ({ warnWeightingEnabled: false, warnDecayDays: null })) },
+  guild: { findUnique: mock(async (): Promise<unknown> => ({ warnWeightingEnabled: false, warnDecayDays: null })) },
   sanction: {
     count: mock(async () => 0),
-    aggregate: mock(async () => ({ _sum: { weight: 0 } })),
+    aggregate: mock(async (_args?: unknown): Promise<unknown> => ({ _sum: { weight: 0 } })),
     create: mock(async (args: any) => ({ id: 'sanction-1', ...args.data })),
-    findFirst: mock(async () => null),
+    findFirst: mock(async (): Promise<unknown> => null),
   },
   guildDailyStat: { upsert: mock(async () => ({})) },
   memberProfile: { updateMany: mock(async () => ({ count: 0 })) },

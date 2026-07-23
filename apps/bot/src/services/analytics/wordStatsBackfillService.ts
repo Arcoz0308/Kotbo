@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+import { errorMessage } from '../../utils/errors.js';
 /**
  * wordStatsBackfillService.ts
  *
@@ -33,7 +35,7 @@ export interface WordStatsBackfillStatus {
 
 async function setStatus(guildId: string, status: WordStatsBackfillStatus): Promise<void> {
   await prisma.guild
-    .update({ where: { id: guildId }, data: { wordStatsBackfillStatus: status } })
+    .update({ where: { id: guildId }, data: { wordStatsBackfillStatus: status as unknown as Prisma.InputJsonValue } })
     .catch((err) => logger.warn('WordStatsBackfill', `Statut non enregistré pour ${guildId}:`, err));
 }
 
@@ -81,7 +83,7 @@ export async function startWordStatsBackfill(guildId: string, force = false): Pr
     logger.error('WordStatsBackfill', `Échec de l'indexation pour ${guildId}:`, err);
     await setStatus(guildId, {
       status: 'FAILED',
-      error: String(err?.message ?? err).slice(0, 500),
+      error: String(errorMessage(err) ?? err).slice(0, 500),
       completedAt: new Date().toISOString(),
     });
   });

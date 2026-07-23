@@ -417,7 +417,7 @@ export async function sendGlobalKeywordsPanel(
     ...guild.globalIgnoredKeywords.map(k => ({ label: `[Ignorer] ${truncate(k, 50)}`, value: `global:ignore:${k}` })),
   ].slice(0, 25);
 
-  const components: unknown[] = [row1];
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [row1];
 
   if (allKeywords.length > 0) {
     const select = new StringSelectMenuBuilder()
@@ -479,7 +479,7 @@ export async function sendFeedKeywordsPanel(
     ...feed.ignoredKeywords.map(k => ({ label: `[Ignorer] ${truncate(k, 50)}`, value: `feed:${feed.id}:ignore:${k}` })),
   ].slice(0, 25);
 
-  const components: unknown[] = [row1];
+  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [row1];
 
   if (allKeywords.length > 0) {
     const select = new StringSelectMenuBuilder()

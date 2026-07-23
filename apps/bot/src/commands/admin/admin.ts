@@ -9,7 +9,7 @@ import { errorContainer, infoContainer, kotboContainer, successContainer } from 
 import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { getModuleStatsSummary, getModuleActivationStats, getModuleUsageStats, getModulePerformanceStats } from '../../services/analytics/moduleStatsService.js';
+import { getModuleStatsSummary, getModuleActivationStats, getModuleUsageStats, getModulePerformanceStats , type KotboModule } from '../../services/analytics/moduleStatsService.js';
 import { separator, v2Message } from '@arcscord/components';
 
 
@@ -244,7 +244,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   } else if (subcommand === 'stats') {
     const type = interaction.options.getString('type', true);
     const period = interaction.options.getInteger('period') || 30;
-    const moduleName = interaction.options.getString('module') as unknown || undefined;
+    const moduleName = (interaction.options.getString('module') as KotboModule | null) ?? undefined;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 

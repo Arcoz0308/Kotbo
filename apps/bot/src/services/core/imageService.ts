@@ -362,7 +362,15 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
 // ─────────────────────────────────────────────────────────────
 // generateWeeklyRecapImage — Terminal-Style Weekly Recap
 // ─────────────────────────────────────────────────────────────
-export async function generateWeeklyRecapImage(guildId: string, items: unknown[]): Promise<Buffer> {
+export async function generateWeeklyRecapImage(
+  guildId: string,
+  items: Array<{
+    title: string;
+    titleTranslated?: string | null;
+    interestScore?: number | null;
+    feed?: { name?: string | null; category?: string | null } | null;
+  }>,
+): Promise<Buffer> {
   ensureCanvasFonts();
   const itemX = 50;
   const itemW = 900;

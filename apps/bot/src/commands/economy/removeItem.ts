@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type AutocompleteInteraction, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -115,7 +116,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || "Impossible de retirer l'objet.")],
+      embeds: [errorEmbed('Erreur', errorMessage(err) || "Impossible de retirer l'objet.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

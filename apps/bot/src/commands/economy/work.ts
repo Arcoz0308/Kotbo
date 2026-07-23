@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
 import { work, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
@@ -60,7 +61,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.reply({ embeds: [embed] });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible de travailler.')],
+      embeds: [errorEmbed('Erreur', errorMessage(err) || 'Impossible de travailler.')],
       flags: [MessageFlags.Ephemeral]
     });
   }

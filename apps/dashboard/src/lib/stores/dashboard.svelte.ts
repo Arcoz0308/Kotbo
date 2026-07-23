@@ -87,6 +87,14 @@ class DashboardStore {
   });
 
   private isRefreshing = false;
+  /**
+   * Guild pour laquelle un `refresh()` a deja abouti. Sert a distinguer le
+   * premier chargement (qui doit afficher un etat d'attente) des
+   * rafraichissements en arriere-plan. Compare a la guild courante plutot que
+   * pilote depuis `authStore`, pour eviter un import circulaire entre les deux
+   * stores.
+   */
+  private loadedGuildId: string | null = null;
 
   private mergeAuditTrail(existing: any[], incoming: any[]): any[] {
     if (!Array.isArray(incoming) || incoming.length === 0) {
@@ -119,8 +127,23 @@ class DashboardStore {
       this.state.loading = false;
       return;
     }
+    // Fige la guild visee pour toute la duree de l'appel : si l'utilisateur
+    // change de serveur pendant la requete, on ne doit pas marquer la nouvelle
+    // guild comme chargee avec les donnees de l'ancienne.
+    const requestedGuildId = authStore.selectedGuildId;
+
     this.isRefreshing = true;
-    this.state.loading = true;
+    // `loading` ne vaut `true` que tant qu'aucune donnee n'est affichable.
+    // Les rafraichissements suivants (message WebSocket, cycle de 10 min,
+    // bouton "actualiser") se font en arriere-plan : remettre `loading` a true
+    // renvoyait toute l'interface sur ses ecrans de chargement alors que les
+    // donnees precedentes etaient deja a l'ecran et parfaitement valides.
+    // Un changement de serveur repart d'un premier chargement : les donnees
+    // affichees appartiennent a l'ancienne guild et ne doivent pas etre prises
+    // pour des donnees a jour.
+    if (this.loadedGuildId !== requestedGuildId) {
+      this.state.loading = true;
+    }
 
     try {
       const [data, apprenticeData] = await Promise.all([
@@ -189,6 +212,7 @@ class DashboardStore {
         this.state.isTutor = !!data.member?.isTutor;
         authStore.member = data.member;
         this.state.error = null;
+        this.loadedGuildId = requestedGuildId;
         this.clearRetry();
       }
     } catch (err) {

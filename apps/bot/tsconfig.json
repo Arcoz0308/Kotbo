@@ -10,6 +10,12 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "resolveJsonModule": true,
+    // Les messages i18n sont compiles par paraglide en JavaScript annote en
+    // JSDoc, sans fichiers de declaration, dans un dossier regenere a chaque
+    // build (et gitignore, donc on ne peut pas y deposer un .d.ts). `allowJs`
+    // laisse TypeScript en deduire les types ; `checkJs` reste desactive, on ne
+    // verifie pas le code genere.
+    "allowJs": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "incremental": true,

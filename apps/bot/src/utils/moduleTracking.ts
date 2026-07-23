@@ -29,7 +29,7 @@ export async function wrapModuleTracking<T extends unknown[]>(
     return result;
   } catch (error: unknown) {
     success = false;
-    errorType = error?.name || error?.constructor?.name || 'UnknownError';
+    errorType = (error instanceof Error ? error.name : undefined) ?? 'UnknownError';
     throw error;
   } finally {
     const executionTimeMs = Date.now() - startTime;
@@ -65,10 +65,23 @@ export async function wrapModuleTracking<T extends unknown[]>(
 /**
  * Helper pour extraire guildId et userId d'une interaction Discord
  */
-export function extractTrackingInfo(interaction: unknown): { guildId?: string; userId?: string } {
+/**
+ * Source d'evenement exploitable pour le suivi : une interaction ou un message.
+ * Type structurel volontaire — la fonction accepte les deux formes et ne se sert
+ * que de l'identite du serveur et de l'auteur.
+ */
+export type TrackableEvent = {
+  guildId?: string | null;
+  guild?: { id: string } | null;
+  user?: { id: string } | null;
+  author?: { id: string } | null;
+  member?: { user?: { id: string } | null } | null;
+};
+
+export function extractTrackingInfo(interaction: TrackableEvent): { guildId?: string; userId?: string } {
   const guildId = interaction.guildId || interaction.guild?.id;
   const userId = interaction.user?.id || interaction.author?.id || interaction.member?.user?.id;
-  return { guildId, userId };
+  return { guildId: guildId ?? undefined, userId: userId ?? undefined };
 }
 
 /**

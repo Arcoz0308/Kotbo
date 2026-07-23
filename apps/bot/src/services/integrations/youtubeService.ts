@@ -1,7 +1,17 @@
 import { type Client } from 'discord.js';
 import prisma from '../../utils/db.js';
+import type { EmbedBuilder } from 'discord.js';
 import { buildYouTubeEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
+import type { DashboardFeatureConfig, Guild, YoutubeChannelFollow } from '@prisma/client';
+
+/**
+ * Abonnement YouTube tel que charge par le polling : la guilde et sa config de
+ * module sont incluses par la requete, ce que le modele seul ne dit pas.
+ */
+type YoutubeFollowWithGuild = YoutubeChannelFollow & {
+  guild: Guild & { dashboardFeatureConfigs: DashboardFeatureConfig[] };
+};
 
 // ==================== TYPES ====================
 
@@ -46,7 +56,7 @@ interface YouTubeSearchItem {
 
 interface YouTubeSearchResponse {
   items?: YouTubeSearchItem[];
-  error?: unknown;
+  error?: { message?: string };
 }
 
 interface YouTubePlaylistItemSnippet {
@@ -105,7 +115,8 @@ class YouTubeCache {
     this.cache.set(key, { data, expiresAt: Date.now() + ttlMs });
   }
 
-  get(key: string): unknown | null {
+  /** Le type stocke est connu du seul appelant : il le declare a la lecture. */
+  get<T = unknown>(key: string): T | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
 
@@ -114,7 +125,7 @@ class YouTubeCache {
       return null;
     }
 
-    return entry.data;
+    return entry.data as T;
   }
 
   clear(): void {
@@ -226,7 +237,7 @@ export async function resolveYoutubeChannel(query: string): Promise<{ channelId:
   const cleaned = query.trim();
   const cacheKey = `channel:${cleaned}`;
   
-  const cached = cache.get(cacheKey);
+  const cached = cache.get<{ channelId: string; channelName: string }>(cacheKey);
   if (cached) return cached;
 
   let result: { channelId: string; channelName: string } | null = null;
@@ -328,8 +339,9 @@ async function searchChannel(query: string, key: string): Promise<{ channelId: s
 async function isYoutubeShort(videoId: string): Promise<boolean> {
   const cacheKey = `short:${videoId}`;
   
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey);
+  const cachedShort = cache.get<boolean>(cacheKey);
+  if (cachedShort !== null) {
+    return cachedShort;
   }
 
   try {
@@ -473,7 +485,7 @@ async function sendNotification(
   guildId: string,
   targetChannelId: string,
   content: string,
-  embed: unknown,
+  embed: EmbedBuilder,
   mention?: string
 ): Promise<void> {
   const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -491,7 +503,7 @@ async function sendNotification(
 }
 
 async function updateFollowRecord(followId: string, updates: Record<string, string>): Promise<void> {
-  await (prisma as unknown).youtubeChannelFollow.update({
+  await prisma.youtubeChannelFollow.update({
     where: { id: followId },
     data: updates,
   }).catch((e: Error) => logger.error('YouTubeService', 'Failed to update follow record:', e));
@@ -509,7 +521,7 @@ export async function checkYoutubeFollows(client: Client) {
   }
 
   try {
-    const follows = await (prisma as unknown).youtubeChannelFollow.findMany({
+    const follows = await prisma.youtubeChannelFollow.findMany({
       include: {
         guild: {
           include: {
@@ -521,7 +533,7 @@ export async function checkYoutubeFollows(client: Client) {
       },
     });
 
-    const processingPromises = follows.map((follow: unknown) => 
+    const processingPromises = follows.map((follow) => 
       rateLimiter.execute(() => processFollow(client, follow, key))
     );
 
@@ -535,10 +547,10 @@ export async function checkYoutubeFollows(client: Client) {
 
 async function processFollow(
   client: Client,
-  follow: unknown,
+  follow: YoutubeFollowWithGuild,
   key: string
 ): Promise<void> {
-  const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c: unknown) => c.featureKey === 'youtube');
+  const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c) => c.featureKey === 'youtube');
   if (ytFeatureConfig && !ytFeatureConfig.enabled) {
     return;
   }
@@ -555,7 +567,7 @@ async function processFollow(
 
 async function checkAndNotifyLive(
   client: Client,
-  follow: unknown,
+  follow: YoutubeFollowWithGuild,
   channelId: string,
   _discordGuild: unknown
 ): Promise<void> {
@@ -570,8 +582,8 @@ async function checkAndNotifyLive(
       
       // Use custom embed title if message contains {title}, otherwise use default
       const embedTitle = follow.liveMessage?.includes('{title}') 
-        ? follow.liveMessage.replace('{title}', liveStatus.title)
-        : `🔴 En Live : ${liveStatus.title}`;
+        ? follow.liveMessage.replace('{title}', (liveStatus.title ?? ''))
+        : `🔴 En Live : ${(liveStatus.title ?? '')}`;
       
       const embed = buildYouTubeEmbed({
         title: embedTitle,
@@ -584,9 +596,9 @@ async function checkAndNotifyLive(
         client,
         follow.guildId,
         targetChannelId,
-        message.replace('{title}', liveStatus.title).replace('{channel}', follow.channelName),
+        message.replace('{title}', (liveStatus.title ?? '')).replace('{channel}', follow.channelName),
         embed,
-        follow.liveMention
+        follow.liveMention ?? undefined
       );
     }
 
@@ -596,7 +608,7 @@ async function checkAndNotifyLive(
 
 async function checkAndNotifyVideos(
   client: Client,
-  follow: unknown,
+  follow: YoutubeFollowWithGuild,
   channelId: string,
   key: string,
   _discordGuild: unknown
@@ -636,7 +648,7 @@ async function checkAndNotifyVideos(
         targetChannelId,
         message.replace('{title}', latestVideo.title).replace('{channel}', follow.channelName),
         embed,
-        follow.shortMention
+        follow.shortMention ?? undefined
       );
     }
 
@@ -666,7 +678,7 @@ async function checkAndNotifyVideos(
         targetChannelId,
         message.replace('{title}', latestVideo.title).replace('{channel}', follow.channelName),
         embed,
-        follow.videoMention
+        follow.videoMention ?? undefined
       );
     }
 

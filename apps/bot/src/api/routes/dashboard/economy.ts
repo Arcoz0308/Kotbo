@@ -15,6 +15,8 @@ interface LocalPlayerProfile {
   attack: number;
   defense: number;
   speed: number;
+  weaponId?: string | null;
+  armorId?: string | null;
   rpgGuild?: unknown;
 }
 

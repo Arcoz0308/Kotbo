@@ -1727,6 +1727,7 @@ export async function updateNicknameModerationConfig(
     checkInvisible?: boolean;
     checkGlobal?: boolean;
     checkCustom?: boolean;
+    discordAutoModSync?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {
@@ -2855,8 +2856,38 @@ export async function unbindGuildFromInstance(instanceId: string, guildId: strin
 // USER SETTINGS & LAYOUTS (BENTO / THEME)
 // ============================================================================
 
+const USER_SETTINGS_TTL_MS = 30_000;
+const userSettingsCache = new Map<string, { data: any; fetchedAt: number }>();
+const userSettingsInflight = new Map<string, Promise<any>>();
+
 export async function fetchUserSettings(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/user-settings', { method: 'GET', guildId, errorContext: 'API Error (Get User Settings):', silent: true });
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  const cached = userSettingsCache.get(selectedGuildId);
+  if (cached && Date.now() - cached.fetchedAt < USER_SETTINGS_TTL_MS) {
+    return cached.data;
+  }
+
+  const pending = userSettingsInflight.get(selectedGuildId);
+  if (pending) return pending;
+
+  const request = dashboardRequest('/user-settings', {
+    method: 'GET',
+    guildId: selectedGuildId,
+    errorContext: 'API Error (Get User Settings):',
+    silent: true
+  }).then((data) => {
+    userSettingsCache.set(selectedGuildId, { data, fetchedAt: Date.now() });
+    userSettingsInflight.delete(selectedGuildId);
+    return data;
+  }).catch((error) => {
+    userSettingsInflight.delete(selectedGuildId);
+    throw error;
+  });
+
+  userSettingsInflight.set(selectedGuildId, request);
+  return request;
 }
 
 export async function updateUserSettings(settings: {
@@ -2867,13 +2898,24 @@ export async function updateUserSettings(settings: {
   sidebarBehavior?: string;
   compactMode?: boolean;
 }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/user-settings', {
+  const selectedGuildId = getGuildId(guildId);
+  const result = await dashboardRequest('/user-settings', {
     method: 'PUT',
     payload: settings,
-    guildId,
+    guildId: selectedGuildId,
     errorContext: 'API Error (Update User Settings):',
     silent: true
   });
+
+  if (selectedGuildId) {
+    const previous = userSettingsCache.get(selectedGuildId)?.data ?? {};
+    userSettingsCache.set(selectedGuildId, {
+      data: { ...previous, ...settings, ...(result ?? {}) },
+      fetchedAt: Date.now()
+    });
+  }
+
+  return result;
 }
 
 // ============================================================================
@@ -3300,6 +3342,8 @@ export interface ClansDataResult {
   currentClanSeason: number;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
+  clanXpFromBoost: boolean;
+  clanXpPerBoost: number;
   clanAnnouncementChannelId: string | null;
   clanRewardGiveaway: boolean;
   clanRewardXpBoost: boolean;
@@ -3328,6 +3372,8 @@ export async function updateClanSettings(
     clanAutoAssignOnJoin?: boolean;
     clanXpFromLevelUp?: boolean;
     clanXpPerLevelUp?: number;
+    clanXpFromBoost?: boolean;
+    clanXpPerBoost?: number;
     clanAnnouncementChannelId?: string | null;
     clanRewardGiveaway?: boolean;
     clanRewardLeaderRole?: boolean;
@@ -3343,6 +3389,8 @@ export async function updateClanSettings(
   clanAutoAssignOnJoin: boolean;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
+  clanXpFromBoost: boolean;
+  clanXpPerBoost: number;
   clanAnnouncementChannelId: string | null;
   clanRewardGiveaway: boolean;
   clanRewardLeaderRole: boolean;
@@ -3454,6 +3502,33 @@ export async function addClanPoints(
     payload,
     errorContext: 'API Error (Add Clan Points):',
   });
+}
+
+export interface GuildMemberSearchResult {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  isBot: boolean;
+  isOnServer: boolean;
+}
+
+export async function searchGuildMembers(
+  query: string,
+  limit = 15,
+  guildId = authStore.selectedGuildId
+): Promise<GuildMemberSearchResult[]> {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  params.append('limit', String(limit));
+  params.append('botFilter', 'human');
+  const res = await dashboardRequest(`/members/search?${params.toString()}`, {
+    method: 'GET',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Search Guild Members):'
+  });
+  return (res?.members as GuildMemberSearchResult[]) ?? [];
 }
 
 export async function fetchPublicClans(guildId: string): Promise<any | null> {

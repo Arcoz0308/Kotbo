@@ -118,7 +118,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     }
 
     await interaction.reply({ content: '⏳ Clôture du giveaway...', flags: [MessageFlags.Ephemeral] });
-    await endGiveaway(interaction.client, id);
+    await endGiveaway(interaction.client, id, guildId);
     await interaction.editReply(`🛑 Le giveaway \`${id}\` a été clôturé.`);
   } 
   
@@ -137,7 +137,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     }
 
     await interaction.reply({ content: "⏳ Tirage d'un nouveau gagnant...", flags: [MessageFlags.Ephemeral] });
-    await rerollGiveaway(interaction.client, id);
+    await rerollGiveaway(interaction.client, id, guildId);
     await interaction.editReply(`🎲 Un nouveau gagnant a été tiré au sort pour le giveaway \`${id}\`.`);
   }
 }

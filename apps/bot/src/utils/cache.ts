@@ -1,3 +1,4 @@
+import type { DashboardSettings, Guild } from '@prisma/client';
 import { getRedis } from '../infra/redis.js';
 import { logger } from './logger.js';
 import prisma from './db.js';
@@ -115,7 +116,7 @@ export const cache = {
  */
 export async function getCachedGuild(guildId: string) {
   const cacheKey = `guild:${guildId}:config`;
-  let guild = await cache.get<unknown>(cacheKey);
+  let guild = await cache.get<Guild>(cacheKey);
 
   if (!guild) {
     guild = await prisma.guild.findUnique({
@@ -133,7 +134,7 @@ export async function getCachedGuild(guildId: string) {
  */
 export async function getCachedDashboardSettings(guildId: string) {
   const cacheKey = `guild:${guildId}:dashboard_settings`;
-  let settings = await cache.get<unknown>(cacheKey);
+  let settings = await cache.get<DashboardSettings>(cacheKey);
 
   if (!settings) {
     settings = await prisma.dashboardSettings.findUnique({

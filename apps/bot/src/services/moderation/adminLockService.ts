@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 // ============================================================================
 // ADMIN PERMISSION LOCK
 // Empêche l'octroi non autorisé de la permission ADMINISTRATOR (défense contre
@@ -10,7 +11,7 @@
 // d'un exécutant en cas de rafale d'actions destructrices (signe de raid).
 // ============================================================================
 
-import {
+import { type GuildMember,
   ActionRowBuilder,
   AuditLogEvent,
   ButtonBuilder,
@@ -99,7 +100,7 @@ export async function guardAdminGrant(params: GuardAdminGrantParams): Promise<Gu
       targetRoleName: params.targetRoleName ?? null,
       targetMemberId: params.targetMemberId ?? null,
       requestedPermissionBits: params.permissionBits.toString(),
-      pendingRoleCreatePayload: params.pendingRoleCreatePayload ?? undefined,
+      pendingRoleCreatePayload: (params.pendingRoleCreatePayload ?? undefined) as Prisma.InputJsonValue | undefined,
       requestedByUserId: params.actorId ?? 'mcp',
       requestedByTag: params.requestedByTag ?? null,
       requestedVia: params.requestedVia,
@@ -169,7 +170,7 @@ function buildRequestButtons(requestId: string, status: string): ActionRowBuilde
 const dmMessagesByRequestId = new Map<string, { userId: string; messageId: string }[]>();
 
 async function resolveApprovers(guild: Guild, securityRoleIds: string[]) {
-  const approvers = new Map<string, { id: string; send: (payload: unknown) => Promise<unknown> }>();
+  const approvers = new Map<string, GuildMember>();
   const owner = await guild.members.fetch(guild.ownerId).catch(() => guild.members.cache.get(guild.ownerId) ?? null);
   if (owner) approvers.set(owner.id, owner);
   for (const roleId of securityRoleIds) {

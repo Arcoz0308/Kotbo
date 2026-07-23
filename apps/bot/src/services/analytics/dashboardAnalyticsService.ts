@@ -1,3 +1,28 @@
+/** Un point de la serie temporelle, a la journee ou a la demi-heure. */
+type DailyStatBucket = {
+  dateKey: string;
+  messagesCount: number;
+  voiceMinutes: number;
+  membersJoined: number;
+  membersLeft: number;
+  activeMembers: number;
+  totalMembers: number;
+  onlineMembers: number;
+  // Presents seulement sur les points a la journee (pas sur les buckets horaires).
+  sanctionsCount?: number;
+  peakOnline?: number;
+};
+
+/** Cumul par membre sur la periode. */
+type MemberTotals = {
+  userId: string;
+  name: string;
+  username: string;
+  avatarUrl?: string | null;
+  messageCount: number;
+  voiceTimeSeconds: number;
+};
+
 import { prismaRead as prisma } from '../../utils/db.js';
 
 export const getDashboardAnalytics = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
@@ -13,7 +38,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
   }
   const finalStartKey = startKey.split('T')[0];
 
-  let dailyStats: unknown[] = [];
+  let dailyStats: DailyStatBucket[] = [];
   
   // Check if we should use hourly resolution (days=1 OR custom range < 72h)
   let useHourly = days === 1 && !options.startDate;
@@ -28,7 +53,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
 
   if (useHourly) {
     // Hourly resolution
-    const hourlyWhere: unknown = { guildId };
+    const hourlyWhere: Record<string, unknown> = { guildId };
     
     if (options.startDate && options.endDate) {
       const sDate = options.startDate.split('T')[0];
@@ -45,7 +70,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
       take: options.startDate ? 200 : 24 
     });
     
-    const stats: unknown[] = [];
+    const stats: DailyStatBucket[] = [];
     for (const h of hourlyStats) {
       const hourStr = String(h.hour).padStart(2, '0');
       
@@ -155,7 +180,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
     acc[curr.userId].messageCount += curr.messagesCount;
     acc[curr.userId].voiceTimeSeconds += curr.voiceMinutes * 60;
     return acc;
-  }, {} as Record<string, unknown>);
+  }, {} as Record<string, MemberTotals>);
 
   const memberTotalsArray = Object.values(memberTotals);
   

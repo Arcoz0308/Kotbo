@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { ContextCommandDefinition, SlashCommandDefinition } from '../../commands.js';
 import {
   ActionRowBuilder,
@@ -168,7 +169,7 @@ function validateTarget(interaction: ChatInputCommandInteraction<'cached'> | Use
   return null;
 }
 
-async function replyError(interaction: ChatInputCommandInteraction, title: string, description: string) {
+async function replyError(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction, title: string, description: string) {
   await interaction.reply({ embeds: [errorEmbed(title, description)], flags: [MessageFlags.Ephemeral] });
 }
 
@@ -346,7 +347,7 @@ async function execute(interaction: ChatInputCommandInteraction | UserContextMen
 
 async function executeInternal(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
   if (!canModerate(interaction)) {
-    await replyError(interaction as unknown, 'Serveur requis', "Cette commande ne peut être utilisée qu'en serveur.");
+    await replyError(interaction, 'Serveur requis', "Cette commande ne peut être utilisée qu'en serveur.");
     return;
   }
 
@@ -729,7 +730,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
           targetLabel: targetUser.tag,
         });
       } catch (err: unknown) {
-        const embed = errorEmbed('Erreur de sanction progressive', err.message || "Impossible d'appliquer la sanction progressive.");
+        const embed = errorEmbed('Erreur de sanction progressive', errorMessage(err) || "Impossible d'appliquer la sanction progressive.");
         await interaction.editReply({ embeds: [embed] });
       }
       return;

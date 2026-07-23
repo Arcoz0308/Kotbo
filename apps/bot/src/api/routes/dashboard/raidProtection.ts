@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { json, readJsonBody, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { json, readJsonBody, safePushAudit, getGuildName, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import {
   getRaidProtectionConfig,
   upsertRaidProtectionConfig,
@@ -44,7 +44,7 @@ export async function handleRaidProtectionRoutes(
   if (parts[4] !== 'raid-protection') return false;
   const method = req.method;
   const sub = parts[5];
-  const auditUser = `${user.username}#${user.discriminator || '0000'} (${user.userId})`;
+  const auditUser = `${user.username ?? 'Utilisateur'} (${user.userId})`;
 
   // GET /raid-protection — config + compteurs
   if (!sub && method === 'GET') {
@@ -76,7 +76,15 @@ export async function handleRaidProtectionRoutes(
         if (field in body) data[field] = body[field];
       }
       const config = await upsertRaidProtectionConfig(guildId, data);
-      pushAudit(client, guildId, auditUser, 'raid-protection', 'Mise à jour de la configuration de protection anti-raid');
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: 'Mise à jour de la configuration de protection anti-raid',
+        context: getGuildName(client, guildId),
+        module: 'RaidProtection',
+        eventType: 'Manuel',
+        details: '',
+        channelId: null,
+      }, 'RaidProtectionAPI');
       json(res, 200, { config });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur PATCH config:', err);
@@ -97,10 +105,26 @@ export async function handleRaidProtectionRoutes(
       const config = (await getRaidProtectionConfig(guildId)) ?? (await upsertRaidProtectionConfig(guildId, {}));
       if (body?.active) {
         await activateRaidMode(guild, config, true, user.userId);
-        pushAudit(client, guildId, auditUser, 'raid-protection', 'Mode raid activé manuellement');
+        await safePushAudit(guildId, {
+        user: auditUser,
+        action: 'Mode raid activé manuellement',
+        context: getGuildName(client, guildId),
+        module: 'RaidProtection',
+        eventType: 'Manuel',
+        details: '',
+        channelId: null,
+      }, 'RaidProtectionAPI');
       } else {
         await deactivateRaidMode(guild, config);
-        pushAudit(client, guildId, auditUser, 'raid-protection', 'Mode raid désactivé');
+        await safePushAudit(guildId, {
+        user: auditUser,
+        action: 'Mode raid désactivé',
+        context: getGuildName(client, guildId),
+        module: 'RaidProtection',
+        eventType: 'Manuel',
+        details: '',
+        channelId: null,
+      }, 'RaidProtectionAPI');
       }
       json(res, 200, { config: await getRaidProtectionConfig(guildId) });
     } catch (err) {
@@ -127,7 +151,15 @@ export async function handleRaidProtectionRoutes(
         if (body?.active) await enableDmLock(guild, until);
         else await disableDmLock(guild);
       }
-      pushAudit(client, guildId, auditUser, 'raid-protection', `${sub === 'joinlock' ? 'Join lock' : 'DM lock'} ${body?.active ? 'activé' : 'désactivé'}`);
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: `${sub === 'joinlock' ? 'Join lock' : 'DM lock'} ${body?.active ? 'activé' : 'désactivé'}`,
+        context: getGuildName(client, guildId),
+        module: 'RaidProtection',
+        eventType: 'Manuel',
+        details: '',
+        channelId: null,
+      }, 'RaidProtectionAPI');
       json(res, 200, { config: await getRaidProtectionConfig(guildId) });
     } catch (err) {
       logger.error('RaidProtectionAPI', `Erreur ${sub}:`, err);
@@ -148,7 +180,15 @@ export async function handleRaidProtectionRoutes(
       let deleted = 0;
       if (body?.active) deleted = await enableInviteEmergency(guild);
       else await disableInviteEmergency(guild);
-      pushAudit(client, guildId, auditUser, 'raid-protection', `Mode urgence invitations ${body?.active ? `activé (${deleted} supprimées)` : 'désactivé'}`);
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: `Mode urgence invitations ${body?.active ? `activé (${deleted} supprimées)` : 'désactivé'}`,
+        context: getGuildName(client, guildId),
+        module: 'RaidProtection',
+        eventType: 'Manuel',
+        details: '',
+        channelId: null,
+      }, 'RaidProtectionAPI');
       json(res, 200, { config: await getRaidProtectionConfig(guildId), deleted });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur invite-emergency:', err);
@@ -251,7 +291,15 @@ export async function handleRaidProtectionRoutes(
         json(res, 404, { error: 'Hash introuvable (ou global, non supprimable)' });
         return true;
       }
-      pushAudit(client, guildId, auditUser, 'raid-protection', 'Hash d\'image scam supprimé');
+      await safePushAudit(guildId, {
+        user: auditUser,
+        action: 'Hash d\'image scam supprimé',
+        context: getGuildName(client, guildId),
+        module: 'RaidProtection',
+        eventType: 'Manuel',
+        details: '',
+        channelId: null,
+      }, 'RaidProtectionAPI');
       json(res, 200, { success: true });
     } catch (err) {
       logger.error('RaidProtectionAPI', 'Erreur DELETE scam-image:', err);

@@ -43,7 +43,16 @@ export async function createListing(guildId: string, sellerId: string, data: {
   return { success: true, listing };
 }
 
-export async function buyListing(guildId: string, buyerId: string, listingId: string): Promise<{ success: boolean; error?: string }> {
+export async function buyListing(
+  guildId: string,
+  buyerId: string,
+  listingId: string,
+): Promise<{
+  success: boolean;
+  error?: string;
+  /** Details de l'annonce achetee, utilises pour le message de confirmation. */
+  listing?: { itemId: string; quantity: number; price: number; sellerId: string };
+}> {
   const listing = await prismaRead.marketplaceListing.findFirst({
     where: { id: listingId, guildId, status: 'ACTIVE', type: 'FIXED_PRICE' },
   });
@@ -90,10 +99,23 @@ export async function buyListing(guildId: string, buyerId: string, listingId: st
     }),
   ]);
 
-  return { success: true };
+  return {
+    success: true,
+    listing: {
+      itemId: listing.itemId,
+      quantity: listing.quantity,
+      price: listing.price,
+      sellerId: listing.sellerId,
+    },
+  };
 }
 
-export async function placeBid(guildId: string, bidderId: string, listingId: string, amount: number): Promise<{ success: boolean; error?: string }> {
+export async function placeBid(
+  guildId: string,
+  bidderId: string,
+  listingId: string,
+  amount: number,
+): Promise<{ success: boolean; error?: string; listing?: { itemId: string } }> {
   const listing = await prismaRead.marketplaceListing.findFirst({
     where: { id: listingId, guildId, status: 'ACTIVE', type: 'AUCTION' },
   });
@@ -130,10 +152,14 @@ export async function placeBid(guildId: string, bidderId: string, listingId: str
     }),
   ]);
 
-  return { success: true };
+  return { success: true, listing: { itemId: listing.itemId } };
 }
 
-export async function cancelListing(guildId: string, userId: string, listingId: string): Promise<{ success: boolean; error?: string }> {
+export async function cancelListing(
+  guildId: string,
+  userId: string,
+  listingId: string,
+): Promise<{ success: boolean; error?: string; listing?: { itemId: string } }> {
   const listing = await prismaRead.marketplaceListing.findFirst({
     where: { id: listingId, guildId, sellerId: userId, status: 'ACTIVE' },
   });
@@ -163,7 +189,7 @@ export async function cancelListing(guildId: string, userId: string, listingId: 
     data: { status: 'CANCELLED' },
   });
 
-  return { success: true };
+  return { success: true, listing: { itemId: listing.itemId } };
 }
 
 export async function processExpiredListings(guildId?: string): Promise<void> {

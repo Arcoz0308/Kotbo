@@ -3,6 +3,20 @@ import prisma from '../../utils/db.js';
 import { buildTwitchEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 
+/** Reponse de l'API Twitch : seuls les champs consommes ici sont decrits. */
+type TwitchUser = { id: string; login: string; display_name?: string };
+type TwitchStream = {
+  id: string;
+  user_id?: string;
+  user_login: string;
+  user_name: string;
+  title: string;
+  game_name?: string;
+  viewer_count?: number;
+  thumbnail_url?: string;
+  started_at?: string;
+};
+
 let twitchAccessToken: string | null = null;
 let twitchTokenExpiresAt = 0;
 
@@ -89,8 +103,8 @@ export async function getTwitchUserId(username: string): Promise<string | null> 
     });
 
     if (!res.ok) return null;
-    const data = await res.json() as unknown;
-    const users = data.data || [];
+    const data = await res.json() as { data?: TwitchUser[] };
+    const users = data.data ?? [];
     if (users.length > 0) {
       return users[0].id;
     }
@@ -112,7 +126,7 @@ export async function checkTwitchFollows(client: Client) {
   }
 
   try {
-    const follows = await (prisma as unknown).twitchChannelFollow.findMany({
+    const follows = await prisma.twitchChannelFollow.findMany({
       include: {
         guild: {
           include: {
@@ -127,19 +141,19 @@ export async function checkTwitchFollows(client: Client) {
     if (follows.length === 0) return;
 
     // Check features configuration
-    const activeFollows = follows.filter((follow: unknown) => {
-      const config = follow.guild.dashboardFeatureConfigs.find((c: unknown) => c.featureKey === 'twitch');
+    const activeFollows = follows.filter((follow) => {
+      const config = follow.guild.dashboardFeatureConfigs.find((c: Record<string, unknown>) => c.featureKey === 'twitch');
       return !config || config.enabled; // skip if explicitly disabled
     });
 
     if (activeFollows.length === 0) return;
 
-    const usernames = activeFollows.map((f: unknown) => f.streamerName);
+    const usernames = activeFollows.map((f: Record<string, unknown>) => f.streamerName);
     const uniqueUsernames = Array.from(new Set(usernames));
 
     // Twitch Helix accepts max 100 user_login per request — batch if needed
     const TWITCH_BATCH_SIZE = 100;
-    const liveMap = new Map<string, unknown>();
+    const liveMap = new Map<string, TwitchStream>();
 
     for (let i = 0; i < uniqueUsernames.length; i += TWITCH_BATCH_SIZE) {
       const batch = uniqueUsernames.slice(i, i + TWITCH_BATCH_SIZE);
@@ -158,8 +172,8 @@ export async function checkTwitchFollows(client: Client) {
         continue;
       }
 
-      const resData = await res.json() as unknown;
-      const liveStreams = resData.data || [];
+      const resData = await res.json() as { data?: TwitchStream[] };
+      const liveStreams = resData.data ?? [];
       for (const s of liveStreams) {
         liveMap.set(s.user_login.toLowerCase(), s);
       }
@@ -199,7 +213,7 @@ export async function checkTwitchFollows(client: Client) {
           }
 
           // Update DB follow state
-          await (prisma as unknown).twitchChannelFollow.update({
+          await prisma.twitchChannelFollow.update({
             where: { id: follow.id },
             data: {
               isLive: true,
@@ -228,7 +242,7 @@ export async function checkTwitchFollows(client: Client) {
           }
 
           // Update DB state
-          await (prisma as unknown).twitchChannelFollow.update({
+          await prisma.twitchChannelFollow.update({
             where: { id: follow.id },
             data: { isLive: false },
           });

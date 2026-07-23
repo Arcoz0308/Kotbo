@@ -1,3 +1,6 @@
+import type { ColorResolvable, OverwriteResolvable } from 'discord.js';
+import { readStatsConfig } from '../../../services/analytics/statsConfig.js';
+import { errorCode, errorMessage, errorStack } from '../../../utils/errors.js';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { cache } from '../../../utils/cache.js';
 import {
@@ -11,8 +14,9 @@ import {
   TextChannel,
   type Message,
   type Guild,
+  type Embed,
 } from 'discord.js';
-import { SanctionType } from '@prisma/client';
+import { Prisma, SanctionType } from '@prisma/client';
 import pLimit from 'p-limit';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
@@ -40,6 +44,7 @@ import {
   getModulePerformanceStats,
   KOTBO_MODULES,
   setModuleActivation,
+  type KotboModule,
 } from '../../../services/analytics/moduleStatsService.js';
 
 const PRESET_LABELS: Record<DashboardPresetKey, string> = {
@@ -547,7 +552,7 @@ export async function handleModulesRoutes(
           : moduleId;
       
       // Mapper l'ID du module vers le nom KotboModule
-      const moduleMapping: Record<string, unknown> = {
+      const moduleMapping: Record<string, KotboModule> = {
         'codepolice': 'codePolice',
         'daily_algo': 'dailyAlgo',
         'translation': 'translation',
@@ -659,7 +664,7 @@ export async function handleModulesRoutes(
 
       await prisma.$transaction([
         prisma.guild.update({ where: { id: guildId }, data: moduleUpdates }),
-        prisma.dashboardSettings.update({ where: { guildId }, data: { commandRestrictions } }),
+        prisma.dashboardSettings.update({ where: { guildId }, data: { commandRestrictions: commandRestrictions as unknown as Prisma.InputJsonValue } }),
       ]);
 
       await pushAudit(guildId, {
@@ -683,7 +688,7 @@ export async function handleModulesRoutes(
   // PUT /api/dashboard/guilds/:guildId/sanctions/tables
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'tables' && method === 'PUT') {
     try {
-      const tables = await readJsonBody<unknown[]>(req);
+      const tables = await readJsonBody<Record<string, unknown>[]>(req);
       if (!Array.isArray(tables)) {
         json(res, 400, { error: 'Payload invalide. Doit être un tableau.' });
         return true;
@@ -694,36 +699,68 @@ export async function handleModulesRoutes(
         return true;
       }
 
+      // La validation ci-dessous produit une structure typee reutilisee plus bas :
+      // sans cela, les controles (`typeof table.name === 'string'`...) sont
+      // perdus des qu'on change de boucle, et chaque lecture redevient `unknown`.
+      type SanctionTierInput = {
+        level: number;
+        action: SanctionType;
+        durationSeconds: number | null;
+        customReason: string | null;
+      };
+      type SanctionTableInput = { id?: string; name: string; tiers: SanctionTierInput[] };
+
+      const validatedTables: SanctionTableInput[] = [];
+
       for (const table of tables) {
         if (typeof table.name !== 'string' || !table.name.trim()) {
           json(res, 400, { error: 'Chaque tableau doit avoir un nom valide.' });
           return true;
         }
+        const tableName = table.name;
         if (!Array.isArray(table.tiers)) {
-          json(res, 400, { error: `Le tableau "${table.name}" doit avoir une liste de paliers.` });
+          json(res, 400, { error: `Le tableau "${tableName}" doit avoir une liste de paliers.` });
           return true;
         }
-        const levels = table.tiers.map((t: unknown) => t.level);
-        levels.sort((a: number, b: number) => a - b);
+        const rawTiers = table.tiers as Record<string, unknown>[];
+        const levels = rawTiers.map((t) => Number(t.level));
+        levels.sort((a, b) => a - b);
         for (let i = 0; i < levels.length; i++) {
           if (levels[i] !== i + 1) {
-            json(res, 400, { error: `Les paliers du tableau "${table.name}" doivent être séquentiels et commencer par le niveau 1.` });
+            json(res, 400, { error: `Les paliers du tableau "${tableName}" doivent être séquentiels et commencer par le niveau 1.` });
             return true;
           }
         }
-        for (const tier of table.tiers) {
-          if (!['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN'].includes(tier.action)) {
-            json(res, 400, { error: `Action invalide "${tier.action}" dans le tableau "${table.name}".` });
+
+        const tiers: SanctionTierInput[] = [];
+        for (const tier of rawTiers) {
+          const action = String(tier.action) as SanctionType;
+          if (!['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN'].includes(action)) {
+            json(res, 400, { error: `Action invalide "${action}" dans le tableau "${tableName}".` });
             return true;
           }
-          if (['TIMEOUT', 'TEMP_BAN'].includes(tier.action)) {
+          let durationSeconds: number | null = null;
+          if (['TIMEOUT', 'TEMP_BAN'].includes(action)) {
             const secs = Number(tier.durationSeconds);
             if (Number.isNaN(secs) || secs <= 0) {
-              json(res, 400, { error: `Le palier de niveau ${tier.level} (${tier.action}) du tableau "${table.name}" requiert une durée positive valide.` });
+              json(res, 400, { error: `Le palier de niveau ${tier.level} (${action}) du tableau "${tableName}" requiert une durée positive valide.` });
               return true;
             }
+            durationSeconds = secs;
           }
+          tiers.push({
+            level: Number(tier.level),
+            action,
+            durationSeconds,
+            customReason: typeof tier.customReason === 'string' ? tier.customReason : null,
+          });
         }
+
+        validatedTables.push({
+          id: typeof table.id === 'string' ? table.id : undefined,
+          name: tableName,
+          tiers,
+        });
       }
 
       await prisma.$transaction(async (tx) => {
@@ -732,7 +769,7 @@ export async function handleModulesRoutes(
           include: { tiers: true },
         });
 
-        const inputIds = new Set(tables.map((t) => t.id).filter(Boolean));
+        const inputIds = new Set(validatedTables.map((t) => t.id).filter(Boolean));
         const tablesToDelete = existingTables.filter((t) => !inputIds.has(t.id));
         if (tablesToDelete.length > 0) {
           await tx.sanctionTable.deleteMany({
@@ -740,11 +777,14 @@ export async function handleModulesRoutes(
           });
         }
 
-        for (const table of tables) {
-          let tableId = table.id;
-          const matched = existingTables.find((t) => t.id === tableId);
+        for (const table of validatedTables) {
+          const matched = table.id ? existingTables.find((t) => t.id === table.id) : undefined;
+          // Toujours defini a la sortie du if/else : soit le tableau existait,
+          // soit il vient d'etre cree.
+          let tableId: string;
 
           if (matched) {
+            tableId = matched.id;
             if (matched.name !== table.name) {
               await tx.sanctionTable.update({
                 where: { id: tableId },
@@ -766,11 +806,11 @@ export async function handleModulesRoutes(
 
           if (table.tiers.length > 0) {
             await tx.sanctionTier.createMany({
-              data: table.tiers.map((tier: unknown) => ({
+              data: table.tiers.map((tier) => ({
                 tableId,
                 level: tier.level,
                 action: tier.action,
-                durationSeconds: ['TIMEOUT', 'TEMP_BAN'].includes(tier.action) ? Number(tier.durationSeconds) : null,
+                durationSeconds: tier.durationSeconds,
                 customReason: tier.customReason?.trim() || null,
               })),
             });
@@ -969,7 +1009,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           fileName,
           mimeType,
           size: fileSize,
-          data: buffer,
+          data: new Uint8Array(buffer),
           uploadedByUserId: user.userId
         }
       });
@@ -1181,7 +1221,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
       const updatedEvidenceLinks = body?.evidenceLinks !== undefined
         ? parseEvidenceLinks(body.evidenceLinks)
-        : existingReport.evidenceLinks;
+        : parseEvidenceLinks(existingReport.evidenceLinks);
 
       const updatedAdditionalNotes = body?.additionalNotes !== undefined
         ? body.additionalNotes?.trim() || null
@@ -1202,7 +1242,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         data: {
           brokenRules: updatedBrokenRules,
           detailedReason: updatedDetailedReason,
-          evidenceLinks: updatedEvidenceLinks as unknown,
+          evidenceLinks: updatedEvidenceLinks,
           additionalNotes: updatedAdditionalNotes,
         }
       });
@@ -1465,16 +1505,27 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           json(res, 404, { error: 'Serveur introuvable' });
           return true;
         }
+        // Le repli ci-dessus ne selectionne que deux colonnes (base pas encore
+        // migree) : les autres sont donc optionnelles a la lecture.
+        const nickConfig = guild as typeof guild & Partial<{
+          nicknameModerationBypass: string[];
+          nickModOnJoin: boolean;
+          nickModOnUpdate: boolean;
+          nickModCheckInvisible: boolean;
+          nickModCheckGlobal: boolean;
+          nickModCheckCustom: boolean;
+          nickModDiscordAutoModSync: boolean;
+        }>;
         json(res, 200, {
           enabled: guild.autoNicknameModerationEnabled,
           whitelist: guild.nicknameModerationWhitelist,
-          bypass: (guild as unknown).nicknameModerationBypass ?? [],
-          onJoin: (guild as unknown).nickModOnJoin ?? true,
-          onUpdate: (guild as unknown).nickModOnUpdate ?? true,
-          checkInvisible: (guild as unknown).nickModCheckInvisible ?? true,
-          checkGlobal: (guild as unknown).nickModCheckGlobal ?? true,
-          checkCustom: (guild as unknown).nickModCheckCustom ?? true,
-          discordAutoModSync: (guild as unknown).nickModDiscordAutoModSync ?? false,
+          bypass: nickConfig.nicknameModerationBypass ?? [],
+          onJoin: nickConfig.nickModOnJoin ?? true,
+          onUpdate: nickConfig.nickModOnUpdate ?? true,
+          checkInvisible: nickConfig.nickModCheckInvisible ?? true,
+          checkGlobal: nickConfig.nickModCheckGlobal ?? true,
+          checkCustom: nickConfig.nickModCheckCustom ?? true,
+          discordAutoModSync: nickConfig.nickModDiscordAutoModSync ?? false,
         });
       } catch (err) {
         logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
@@ -1486,10 +1537,36 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
     if (method === 'PATCH') {
       try {
         const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[]; onJoin?: boolean; onUpdate?: boolean; checkInvisible?: boolean; checkGlobal?: boolean; checkCustom?: boolean; discordAutoModSync?: boolean }>(req);
-        
-        const updateData: unknown = {};
+
+        if (!body || typeof body !== 'object' || Array.isArray(body)) {
+          json(res, 400, { error: 'Payload invalide' });
+          return true;
+        }
+
+        const allowedFields = new Set([
+          'enabled',
+          'whitelist',
+          'bypass',
+          'onJoin',
+          'onUpdate',
+          'checkInvisible',
+          'checkGlobal',
+          'checkCustom',
+          'discordAutoModSync',
+        ]);
+        const unknownFields = Object.keys(body).filter((key) => !allowedFields.has(key));
+        if (unknownFields.length > 0) {
+          json(res, 400, { error: `Champs inconnus : ${unknownFields.join(', ')}` });
+          return true;
+        }
+
+        const updateData: Record<string, unknown> = {};
         if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
-          updateData.autoNicknameModerationEnabled = !!body.enabled;
+          if (typeof body.enabled !== 'boolean') {
+            json(res, 400, { error: 'Le champ enabled doit être un booléen' });
+            return true;
+          }
+          updateData.autoNicknameModerationEnabled = body.enabled;
         }
         // Toggles granulaires
         const toggleFields = [
@@ -1502,7 +1579,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         ] as const;
         for (const { key, dbKey } of toggleFields) {
           if (body && Object.prototype.hasOwnProperty.call(body, key)) {
-            updateData[dbKey] = !!(body as unknown)[key];
+            if (typeof body[key] !== 'boolean') {
+              json(res, 400, { error: `Le champ ${key} doit être un booléen` });
+              return true;
+            }
+            updateData[dbKey] = body[key];
           }
         }
         if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
@@ -1555,9 +1636,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             activeBannedWords.map((b) => b.word.trim().toLowerCase())
           );
 
-          const invalidItems = updateData.nicknameModerationWhitelist.filter(
-            (item: string) => bannedSet.has(item)
-          );
+          const whitelistToCheck = (updateData.nicknameModerationWhitelist ?? []) as string[];
+          const invalidItems = whitelistToCheck.filter((item) => bannedSet.has(item));
           if (invalidItems.length > 0) {
             json(res, 400, {
               error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis personnalisés : ${invalidItems.join(', ')}`,
@@ -1569,27 +1649,18 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         await prisma.guild.update({
           where: { id: guildId },
           data: updateData,
-        }).catch(async (dbErr) => {
-          if (Object.prototype.hasOwnProperty.call(updateData, 'nicknameModerationBypass')) {
-            logger.warn('NicknameAPI', 'Failed to update bypass list, retrying without it:', dbErr);
-            delete updateData.nicknameModerationBypass;
-            return prisma.guild.update({
-              where: { id: guildId },
-              data: updateData,
-            });
-          }
-          throw dbErr;
         });
 
         invalidateNicknameModerationCache(guildId);
 
-        // Synchroniser la règle native d'AutoMod de Discord pour les pseudos
-        try {
-          const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
-          await syncDiscordAutoModProfileRule(client, guildId);
-        } catch (syncErr) {
-          logger.error('NicknameAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
-        }
+        // La configuration locale est déjà persistée. La synchronisation Discord
+        // reste best-effort et ne doit pas bloquer la réponse HTTP ni figer les
+        // boutons du dashboard quand Discord répond lentement.
+        void import('../../../services/moderation/autoModService.js')
+          .then(({ syncDiscordAutoModProfileRule }) => syncDiscordAutoModProfileRule(client, guildId))
+          .catch((syncErr) => {
+            logger.error('NicknameAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+          });
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -1615,7 +1686,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
   // GET /api/dashboard/guilds/:guildId/modules/stats - Module statistics
   if (moduleKey === 'modules' && parts.length === 6 && parts[5] === 'stats' && method === 'GET') {
     try {
-      const moduleName = url.searchParams.get('moduleName') as unknown || undefined;
+      const moduleName = (url.searchParams.get('moduleName') as KotboModule | null) ?? undefined;
       const startDate = url.searchParams.get('startDate') || undefined;
       const endDate = url.searchParams.get('endDate') || undefined;
       const periodDays = url.searchParams.get('period') ? parseInt(url.searchParams.get('period')!) : 30;
@@ -1673,7 +1744,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           return true;
         }
 
-        const data: unknown = {};
+        const data: Record<string, unknown> = {};
         if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
           data.autoThreadEnabled = !!body.enabled;
         }
@@ -2015,6 +2086,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           tempVoiceRequiredRoleId?: string | null;
           tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string | null }>;
           honeypotEnabled?: boolean;
+          /** Demande au dashboard de creer le salon piege automatiquement. */
+          createHoneypotChannel?: boolean;
           honeypotChannelId?: string | null;
           honeypotSanction?: string;
           honeypotReinvite?: boolean;
@@ -2047,7 +2120,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           return true;
         }
 
-        const data: unknown = {};
+        const data: Record<string, unknown> = {};
         if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
           data.autoThreadEnabled = !!body.autoThreadEnabled;
         }
@@ -2204,7 +2277,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
               if (cat) data.tempVoiceCategoryId = cat.id;
             }
             if (!body.tempVoiceChannelId) {
-              const parentId = data.tempVoiceCategoryId || body.tempVoiceCategoryId || undefined;
+              const parentId = (data.tempVoiceCategoryId as string | undefined) || body.tempVoiceCategoryId || undefined;
               const newVoice = await discordGuild.channels.create({
                 name: '➕ Créer un salon',
                 type: ChannelType.GuildVoice,
@@ -2277,7 +2350,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           }
 
           if (body.statsEnabled && body.statsConfig) {
-            const sc = body.statsConfig as unknown;
+            const sc = readStatsConfig(body.statsConfig);
 
             const needsMember = sc.memberChannelId === '' || sc.memberChannelId === null;
             const needsBot = sc.botChannelId === '' || sc.botChannelId === null;
@@ -2285,7 +2358,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             const needsChannel = sc.channelChannelId === '' || sc.channelChannelId === null;
             const needsCategory = sc.categoryChannelId === '' || sc.categoryChannelId === null;
             const needsActivity = sc.activityChannelId === '' || sc.activityChannelId === null;
-            const needsCustomStats = Array.isArray(sc.customStats) && sc.customStats.some((c: unknown) => c.enabled && !c.channelId);
+            const needsCustomStats = Array.isArray(sc.customStats) && sc.customStats.some((c) => c.enabled && !c.channelId);
 
             if (needsMember || needsBot || needsRole || needsChannel || needsCategory || needsActivity || needsCustomStats || !sc.categoryId) {
               let statsCatId: string | undefined = sc.categoryId || undefined;
@@ -2536,12 +2609,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           select: { nickModDiscordAutoModSync: true }
         });
         if (guildDb?.nickModDiscordAutoModSync) {
-          try {
-            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
-            await syncDiscordAutoModProfileRule(client, guildId);
-          } catch (syncErr) {
-            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
-          }
+          void import('../../../services/moderation/autoModService.js')
+            .then(({ syncDiscordAutoModProfileRule }) => syncDiscordAutoModProfileRule(client, guildId))
+            .catch((syncErr) => {
+              logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+            });
         }
 
         await pushAudit(guildId, {
@@ -2558,7 +2630,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 201, { ok: true, id: created.id });
       } catch (err: unknown) {
-        if (err?.code === 'P2002') {
+        if (errorCode(err) === 'P2002') {
           json(res, 409, { error: 'Ce mot existe déjà sur ce serveur' });
         } else {
           logger.error('BannedWordsAPI', 'POST banned-words error:', err);
@@ -2606,12 +2678,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           select: { nickModDiscordAutoModSync: true }
         });
         if (guildDb?.nickModDiscordAutoModSync) {
-          try {
-            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
-            await syncDiscordAutoModProfileRule(client, guildId);
-          } catch (syncErr) {
-            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
-          }
+          void import('../../../services/moderation/autoModService.js')
+            .then(({ syncDiscordAutoModProfileRule }) => syncDiscordAutoModProfileRule(client, guildId))
+            .catch((syncErr) => {
+              logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+            });
         }
 
         broadcastDashboardStateChange(guildId, 'banned_words_updated');
@@ -2641,12 +2712,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           select: { nickModDiscordAutoModSync: true }
         });
         if (guildDb?.nickModDiscordAutoModSync) {
-          try {
-            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
-            await syncDiscordAutoModProfileRule(client, guildId);
-          } catch (syncErr) {
-            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
-          }
+          void import('../../../services/moderation/autoModService.js')
+            .then(({ syncDiscordAutoModProfileRule }) => syncDiscordAutoModProfileRule(client, guildId))
+            .catch((syncErr) => {
+              logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+            });
         }
 
         await pushAudit(guildId, {
@@ -2937,7 +3007,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         },
       });
 
-      const data: unknown = {};
+      const data: Record<string, unknown> = {};
       let applyLockChanged = false;
       if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
         data.statusCheckChannelId = extractDiscordSnowflake(body.discordChannel);
@@ -3077,8 +3147,15 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
       }
 
-      const syncFeature = async (featureKey: string, featureName: string, enabled?: boolean, channelId?: string | null, secondaryChannelId?: string | null) => {
-        const updateData: unknown = {};
+      // Les valeurs viennent de l'accumulateur `data`, alimente champ par champ
+      // depuis le corps de requete : on les normalise ici plutot qu'a chacun des
+      // ~20 appels.
+      const syncFeature = async (featureKey: string, featureName: string, rawEnabled?: unknown, rawChannelId?: unknown, rawSecondaryChannelId?: unknown) => {
+        const enabled = typeof rawEnabled === 'boolean' ? rawEnabled : undefined;
+        const channelId = rawChannelId === undefined ? undefined : (typeof rawChannelId === 'string' ? rawChannelId : null);
+        const secondaryChannelId = rawSecondaryChannelId === undefined ? undefined : (typeof rawSecondaryChannelId === 'string' ? rawSecondaryChannelId : null);
+
+        const updateData: Record<string, unknown> = {};
         if (enabled !== undefined) updateData.enabled = enabled;
         if (channelId !== undefined) updateData.channelId = channelId;
         if (secondaryChannelId !== undefined) updateData.secondaryChannelId = secondaryChannelId;
@@ -3459,7 +3536,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         });
         json(res, 200, articles);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error listing news for guild ${guildId}: ${err.message}`);
+        logger.error('NewsAPI', `Error listing news for guild ${guildId}: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération des actualités' });
       }
       return true;
@@ -3526,7 +3603,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 201, article);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error creating news for guild ${guildId}: ${err.message}`);
+        logger.error('NewsAPI', `Error creating news for guild ${guildId}: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de la création de l'actualité" });
       }
       return true;
@@ -3596,7 +3673,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, updated);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error updating news article ${articleId}: ${err.message}`);
+        logger.error('NewsAPI', `Error updating news article ${articleId}: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de la modification de l'actualité" });
       }
       return true;
@@ -3631,7 +3708,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error deleting news article ${articleId}: ${err.message}`);
+        logger.error('NewsAPI', `Error deleting news article ${articleId}: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de la suppression de l'actualité" });
       }
       return true;
@@ -3646,7 +3723,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         });
         json(res, 200, configs);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error listing news category configs for guild ${guildId}: ${err.message}`);
+        logger.error('NewsAPI', `Error listing news category configs for guild ${guildId}: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération de la configuration des catégories' });
       }
       return true;
@@ -3712,7 +3789,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, config);
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error saving news category config for guild ${guildId}: ${err.message}`);
+        logger.error('NewsAPI', `Error saving news category config for guild ${guildId}: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de l'enregistrement de la configuration de catégorie" });
       }
       return true;
@@ -3747,7 +3824,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('NewsAPI', `Error deleting news category config ${configId}: ${err.message}`);
+        logger.error('NewsAPI', `Error deleting news category config ${configId}: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la suppression de la configuration de catégorie' });
       }
       return true;
@@ -3802,11 +3879,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
   if (moduleKey === 'social-follows') {
     if (parts.length === 5 && method === 'GET') {
       try {
-        const youtube = await (prisma as unknown).youtubeChannelFollow.findMany({ where: { guildId } });
-        const twitch = await (prisma as unknown).twitchChannelFollow.findMany({ where: { guildId } });
+        const youtube = await prisma.youtubeChannelFollow.findMany({ where: { guildId } });
+        const twitch = await prisma.twitchChannelFollow.findMany({ where: { guildId } });
         json(res, 200, { youtube, twitch });
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error fetching social follows: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error fetching social follows: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération des réseaux sociaux suivis' });
       }
       return true;
@@ -3827,7 +3904,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
 
         const { channelId, channelName } = resolved;
-        const follow = await (prisma as unknown).youtubeChannelFollow.upsert({
+        const follow = await prisma.youtubeChannelFollow.upsert({
           where: { guildId_channelId: { guildId, channelId } },
           create: {
             guildId,
@@ -3857,7 +3934,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, follow);
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error adding youtube follow: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error adding youtube follow: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de l'ajout du suivi YouTube" });
       }
       return true;
@@ -3866,9 +3943,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
     if (parts.length === 7 && parts[5] === 'youtube' && method === 'DELETE') {
       try {
         const followId = parts[6];
-        const follow = await (prisma as unknown).youtubeChannelFollow.findUnique({ where: { id: followId } });
+        const follow = await prisma.youtubeChannelFollow.findUnique({ where: { id: followId } });
         if (follow) {
-          await (prisma as unknown).youtubeChannelFollow.delete({ where: { id: followId } });
+          await prisma.youtubeChannelFollow.delete({ where: { id: followId } });
           await pushAudit(guildId, {
             user: auditUser,
             action: 'YouTube Unfollow',
@@ -3881,7 +3958,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error deleting youtube follow: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error deleting youtube follow: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la suppression du suivi YouTube' });
       }
       return true;
@@ -3897,7 +3974,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const streamerName = body.streamerName.toLowerCase().trim();
         const streamerId = await getTwitchUserId(streamerName);
 
-        const follow = await (prisma as unknown).twitchChannelFollow.upsert({
+        const follow = await prisma.twitchChannelFollow.upsert({
           where: { guildId_streamerName: { guildId, streamerName } },
           create: {
             guildId,
@@ -3925,7 +4002,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, follow);
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error adding twitch follow: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error adding twitch follow: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de l'ajout du suivi Twitch" });
       }
       return true;
@@ -3934,9 +4011,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
     if (parts.length === 7 && parts[5] === 'twitch' && method === 'DELETE') {
       try {
         const followId = parts[6];
-        const follow = await (prisma as unknown).twitchChannelFollow.findUnique({ where: { id: followId } });
+        const follow = await prisma.twitchChannelFollow.findUnique({ where: { id: followId } });
         if (follow) {
-          await (prisma as unknown).twitchChannelFollow.delete({ where: { id: followId } });
+          await prisma.twitchChannelFollow.delete({ where: { id: followId } });
           await pushAudit(guildId, {
             user: auditUser,
             action: 'Twitch Unfollow',
@@ -3949,7 +4026,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('SocialFollowsAPI', `Error deleting twitch follow: ${err.message}`);
+        logger.error('SocialFollowsAPI', `Error deleting twitch follow: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la suppression du suivi Twitch' });
       }
       return true;
@@ -4034,9 +4111,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             difficulty: body.difficulty || 'moyen',
             language: body.language || 'fr',
             functionName: body.functionName || 'solve',
-            functionArgs: body.functionArgs !== undefined ? body.functionArgs : undefined,
-            unitTests: body.unitTests !== undefined ? body.unitTests : undefined,
-            allowedLanguages: body.allowedLanguages !== undefined ? body.allowedLanguages : undefined,
+            functionArgs: body.functionArgs !== undefined ? (body.functionArgs as Prisma.InputJsonValue) : undefined,
+            unitTests: body.unitTests !== undefined ? (body.unitTests as Prisma.InputJsonValue) : undefined,
+            allowedLanguages: Array.isArray(body.allowedLanguages) ? body.allowedLanguages.map(String) : undefined,
           }
         });
 
@@ -4105,9 +4182,9 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             difficulty: body.difficulty !== undefined ? body.difficulty : undefined,
             language: body.language !== undefined ? body.language : undefined,
             functionName: body.functionName !== undefined ? body.functionName : undefined,
-            functionArgs: body.functionArgs !== undefined ? body.functionArgs : undefined,
-            unitTests: body.unitTests !== undefined ? body.unitTests : undefined,
-            allowedLanguages: body.allowedLanguages !== undefined ? body.allowedLanguages : undefined,
+            functionArgs: body.functionArgs !== undefined ? (body.functionArgs as Prisma.InputJsonValue) : undefined,
+            unitTests: body.unitTests !== undefined ? (body.unitTests as Prisma.InputJsonValue) : undefined,
+            allowedLanguages: Array.isArray(body.allowedLanguages) ? body.allowedLanguages.map(String) : undefined,
           }
         });
 
@@ -4963,22 +5040,33 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
   // POST /api/dashboard/guilds/:guildId/import
   if (moduleKey === 'import' && parts.length === 5 && method === 'POST') {
     try {
-      const body = await readJsonBody<unknown>(req);
+      const body = await readJsonBody<Record<string, unknown>>(req);
       if (!body) {
         json(res, 400, { error: 'Payload import invalide' });
         return true;
       }
 
+      // Bloc `notifications` du fichier d'import : structure connue, mais le
+      // fichier vient de l'utilisateur donc tous les champs sont optionnels.
+      const notifications = (body?.notifications ?? {}) as Partial<{
+        email: string;
+        emailEnabled: boolean;
+        cloudBackup: boolean;
+        debugLog: boolean;
+        killSwitchEnabled: boolean;
+        severityByModule: unknown;
+      }>;
+
       const runtime = await getOrCreateRuntime(guildId);
       await prisma.dashboardSettings.update({
         where: { guildId },
         data: {
-          email: body.notifications?.email ?? runtime.email,
-          emailEnabled: !!body.notifications?.emailEnabled,
-          cloudBackup: !!body.notifications?.cloudBackup,
-          debugLog: !!body.notifications?.debugLog,
-          killSwitchEnabled: !!body.notifications?.killSwitchEnabled,
-          severityByModule: body.notifications?.severityByModule ?? runtime.severityByModule,
+          email: notifications.email ?? runtime.email,
+          emailEnabled: !!notifications.emailEnabled,
+          cloudBackup: !!notifications.cloudBackup,
+          debugLog: !!notifications.debugLog,
+          killSwitchEnabled: !!notifications.killSwitchEnabled,
+          severityByModule: notifications.severityByModule ?? runtime.severityByModule,
           messageTemplate: body.messageTemplate ?? runtime.messageTemplate
         }
       });
@@ -5276,7 +5364,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const signedUrl = `/api/public/transcripts/${transcriptId}?expires=${expires}&sig=${signature}`;
         json(res, 200, { signedUrl });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error generating signed transcript URL: ${err.message}`);
+        logger.error('TicketsAPI', `Error generating signed transcript URL: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la génération du lien signé' });
       }
       return true;
@@ -5312,6 +5400,15 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         ticketWelcomeDesc?: string | null;
         ticketWelcomeColor?: string | null;
         ticketWelcomeThumbnail?: string | null;
+        ticketWelcomeImage?: string | null;
+        ticketWelcomeFooter?: string | null;
+        /** Types de tickets proposes a l'ouverture, valides plus bas champ par champ. */
+        ticketTypes?: unknown;
+        ticketAllowOverclaim?: unknown;
+        ticketInactivityEnabled?: unknown;
+        ticketInactivityHours?: unknown;
+        ticketInactivityMessage?: unknown;
+        ticketOverclaimPermission?: unknown;
       }
 
       try {
@@ -5331,7 +5428,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             ticketMode: body.ticketMode === 'DM' || body.ticketMode === 'THREAD' ? body.ticketMode : 'CHANNEL',
             ticketDmRelayChannelId: body.ticketDmRelayChannelId || null,
             ticketFormEnabled: body.ticketFormEnabled ?? true,
-            ticketFormCustomFields: body.ticketFormCustomFields !== undefined ? body.ticketFormCustomFields : null,
+            ticketFormCustomFields: (body.ticketFormCustomFields ?? null) as Prisma.InputJsonValue,
             ticketEmbedThumbnail: body.ticketEmbedThumbnail || null,
             ticketEmbedImage: body.ticketEmbedImage || null,
             ticketEmbedFooter: body.ticketEmbedFooter || null,
@@ -5347,8 +5444,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
               ? {
                   ticketTypes: Array.isArray(body.ticketTypes)
                     ? body.ticketTypes
-                        .filter((item: unknown) => item && typeof item === 'object')
-                        .map((item: unknown, index: number) => ({
+                        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+                        .map((item, index: number) => ({
                           id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ticket-type-${index + 1}`,
                           label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
                           description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : null,
@@ -5366,13 +5463,13 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
                           formEnabled: item.formEnabled !== false,
                           fields: Array.isArray(item.fields) ? item.fields : null,
                           formCustomFields: Array.isArray(item.formCustomFields) ? item.formCustomFields : null,
-                        }))
-                    : null,
+                        })) as unknown as Prisma.InputJsonValue
+                    : Prisma.JsonNull,
                 }
               : {}),
-            ticketAllowOverclaim: body.ticketAllowOverclaim ?? true,
-            ticketOverclaimPermission: body.ticketOverclaimPermission || 'ANY',
-            ticketInactivityEnabled: body.ticketInactivityEnabled ?? false,
+            ticketAllowOverclaim: typeof body.ticketAllowOverclaim === 'boolean' ? body.ticketAllowOverclaim : true,
+            ticketOverclaimPermission: typeof body.ticketOverclaimPermission === 'string' ? body.ticketOverclaimPermission : 'ANY',
+            ticketInactivityEnabled: typeof body.ticketInactivityEnabled === 'boolean' ? body.ticketInactivityEnabled : false,
             ticketInactivityHours: body.ticketInactivityHours !== undefined ? Number(body.ticketInactivityHours) : 24,
             ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !",
           }
@@ -5380,7 +5477,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true, config: updated });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error updating ticket config: ${err.message}`);
+        logger.error('TicketsAPI', `Error updating ticket config: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
       }
       return true;
@@ -5398,8 +5495,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         await sendTicketSetupEmbed(client, guildId);
         json(res, 200, { success: true });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error sending ticket setup embed: ${err.message}`);
-        json(res, 500, { error: err.message || "Erreur lors de l'envoi de l'embed" });
+        logger.error('TicketsAPI', `Error sending ticket setup embed: ${errorMessage(err)}`);
+        json(res, 500, { error: errorMessage(err) || "Erreur lors de l'envoi de l'embed" });
       }
       return true;
     }
@@ -5464,7 +5561,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         });
         json(res, 200, { tickets: enrichedTickets, config: guildConfig || {} });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error listing tickets: ${err.message}`);
+        logger.error('TicketsAPI', `Error listing tickets: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération des tickets' });
       }
       return true;
@@ -5524,8 +5621,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { ticket: { ...ticket, channelName, userAvatar, claimedByAvatar }, messages });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error reading ticket details: ${err.stack}`);
-        json(res, 500, { error: `Erreur lors de la récupération du ticket: ${err.stack}` });
+        logger.error('TicketsAPI', `Error reading ticket details: ${errorStack(err)}`);
+        json(res, 500, { error: `Erreur lors de la récupération du ticket: ${errorStack(err)}` });
       }
       return true;
     }
@@ -5570,7 +5667,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           }
         });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error sending message to ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error sending message to ticket: ${errorMessage(err)}`);
         json(res, 500, { error: "Erreur lors de l'envoi du message" });
       }
       return true;
@@ -5649,7 +5746,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
                 const oldEmbed = welcomeMsg.embeds[0];
                 if (oldEmbed) {
                   const updatedEmbed = EmbedBuilder.from(oldEmbed)
-                    .setColor(COLORS.warning as unknown)
+                    .setColor(COLORS.warning as ColorResolvable)
                     .setDescription(`Ce ticket est actuellement pris en charge par **${user.username}**.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`)
                     .setFields([
                       { name: 'Statut', value: `🛠️ Pris en charge par <@${user.userId}>`, inline: true }
@@ -5682,7 +5779,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, updated);
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error claiming ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error claiming ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la prise en charge du ticket' });
       }
       return true;
@@ -5699,11 +5796,11 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
 
         const { closeTicket } = await import('../../../services/features/ticketService.js');
-        const updated = await closeTicket(client, ticketId, user.userId, user.username);
+        const updated = await closeTicket(client, ticketId, user.userId, user.username ?? user.userId);
 
         json(res, 200, updated);
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error closing ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error closing ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur' });
       }
       return true;
@@ -5749,7 +5846,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, updated);
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error reopening ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error reopening ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur' });
       }
       return true;
@@ -5789,7 +5886,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true, channelName: finalName });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error renaming ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error renaming ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors du renommage du ticket' });
       }
       return true;
@@ -5864,7 +5961,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const cleanedUsername = ticket.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
         const channelName = `ticket-${cleanedUsername}`;
 
-        const permissionOverwrites: unknown[] = [
+        const permissionOverwrites: OverwriteResolvable[] = [
           { id: discordGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
           { id: ticket.userId, allow: [
             PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
@@ -5905,7 +6002,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           const headerEmbed = new EmbedBuilder()
             .setTitle('📜 Historique restauré')
             .setDescription(`Ce ticket a été restauré depuis une transcription par **${user.username || 'Staff'}** (<@${user.userId}>).\nLes messages ci-dessous sont une restitution de la conversation d'origine.`)
-            .setColor(COLORS.primary as unknown)
+            .setColor(COLORS.primary as ColorResolvable)
             .setTimestamp();
           await ticketChannel.send({ embeds: [headerEmbed], allowedMentions: { parse: [] } });
 
@@ -5920,7 +6017,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             for (const e of msg.embeds) {
               const eb = new EmbedBuilder();
               if (e.color) {
-                try { eb.setColor(e.color as unknown); } catch { /* ignored */ }
+                try { eb.setColor(e.color as ColorResolvable); } catch { /* ignored */ }
               }
               if (e.authorName) {
                 eb.setAuthor({ name: e.authorName, iconURL: e.authorIconUrl || undefined, url: e.authorUrl || undefined });
@@ -5957,8 +6054,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
                 embeds: discordEmbeds.length > 0 ? discordEmbeds.slice(0, 10) : undefined,
                 allowedMentions: { parse: [] },
               });
-            } catch (sendErr: unknown) {
-              logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${sendErr.message}`);
+            } catch (sendErr) {
+              logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${errorMessage(sendErr)}`);
             }
           }
 
@@ -5969,7 +6066,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         const restoreEmbed = new EmbedBuilder()
           .setTitle('🔄 Ticket Restauré')
           .setDescription(`Ce ticket a été réouvert par **${user.username || "Staff"}** (<@${user.userId}>) depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || "Aucune"}`)
-          .setColor(COLORS.primary as unknown)
+          .setColor(COLORS.primary as ColorResolvable)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
@@ -6000,7 +6097,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
             const logEmbed = new EmbedBuilder()
               .setTitle('🔄 Ticket Restauré')
               .setDescription(`Le ticket de **${ticket.username}** a été restauré depuis le Dashboard par **${user.username}**.`)
-              .setColor(COLORS.primary as unknown)
+              .setColor(COLORS.primary as ColorResolvable)
               .addFields([
                 { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
                 { name: 'Restauré par', value: `<@${user.userId}>`, inline: true },
@@ -6014,8 +6111,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         json(res, 200, { success: true, channelId: ticketChannel.id });
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error restoring ticket: ${err.stack}`);
-        json(res, 500, { error: `Erreur lors de la restauration: ${err.message}` });
+        logger.error('TicketsAPI', `Error restoring ticket: ${errorStack(err)}`);
+        json(res, 500, { error: `Erreur lors de la restauration: ${errorMessage(err)}` });
       }
       return true;
     }
@@ -6107,7 +6204,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           json(res, 200, { success: true });
         }
       } catch (err: unknown) {
-        logger.error('TicketsAPI', `Error deleting ticket: ${err.message}`);
+        logger.error('TicketsAPI', `Error deleting ticket: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la suppression' });
       }
       return true;
@@ -6117,13 +6214,13 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
   return false;
 }
 
-function msgEmbedsMap(embeds: unknown[], guild: unknown) {
+function msgEmbedsMap(embeds: Embed[], guild: Guild | null) {
   return embeds.map(e => ({
     title: e.title,
     description: e.description,
     htmlDescription: e.description ? parseDiscordMarkdown(e.description, guild) : '',
     color: e.hexColor,
-    fields: e.fields ? e.fields.map((f: unknown) => ({
+    fields: e.fields ? e.fields.map((f) => ({
       name: f.name,
       value: f.value,
       htmlValue: f.value ? parseDiscordMarkdown(f.value, guild) : ''

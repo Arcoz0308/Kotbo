@@ -50,7 +50,7 @@ const resolveStaffMemberId = async (guildId: string, staffIdentifier: string) =>
   }
 
   const cacheKey = `guild:${guildId}:staff_member:${staffIdentifier}`;
-  const cached = await cache.get<unknown>(cacheKey);
+  const cached = await cache.get<{ id?: string; isNotStaff?: boolean }>(cacheKey);
   if (cached) {
     if (cached.isNotStaff) return null;
     return cached.id;
@@ -549,7 +549,7 @@ export const issueStaffWarning = async (
       userIdsToNotify.add(issuedByUserId);
     }
 
-    const grades = await (prisma as unknown).staffMemberHierarchyGrade.findMany({
+    const grades = await prisma.staffMemberHierarchyGrade.findMany({
       where: { staffMemberId: member.id },
       include: {
         hierarchy: true
@@ -1008,7 +1008,7 @@ export const createAPIKey = async (
 export const getAPIKeys = async (guildId: string, createdByUserId?: string) => {
   let resolvedCreatorId: string | null = null;
   if (createdByUserId) {
-    resolvedCreatorId = await resolveStaffMemberId(guildId, createdByUserId);
+    resolvedCreatorId = (await resolveStaffMemberId(guildId, createdByUserId)) ?? null;
     if (!resolvedCreatorId) {
       return [];
     }

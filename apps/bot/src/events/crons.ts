@@ -223,7 +223,7 @@ export async function registerCrons(client: Client): Promise<void> {
       const limit = pLimit(5);
       const tasks = featureConfigs.map((cfg) => limit(async () => {
         try {
-          const meta = cfg.metadata as unknown;
+          const meta = cfg.metadata as { workflowDraft?: { autoDetectionEnabled?: boolean }; autoDetectionEnabled?: boolean } | null;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
           if (!autoEnabled) return;
 
@@ -378,7 +378,7 @@ export async function registerCrons(client: Client): Promise<void> {
       const dcLimit = pLimit(5);
       await Promise.all(featureConfigs.map((cfg) => dcLimit(async () => {
         try {
-          const meta = cfg.metadata as unknown;
+          const meta = cfg.metadata as { workflowDraft?: { autoDetectionEnabled?: boolean }; autoDetectionEnabled?: boolean } | null;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
           if (!autoEnabled) return;
 

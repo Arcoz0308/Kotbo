@@ -155,7 +155,7 @@ export async function handleCaptchaMessage(message: Message): Promise<boolean> {
       await message.member.roles.remove(config.captchaUnverifiedRoleId, 'Captcha réussi').catch(() => null);
     }
 
-    const confirmation = await message.channel.send(`✅ ${message.author}, vérification réussie ! Bienvenue sur le serveur.`).catch(() => null);
+    const confirmation = message.channel.isSendable() ? await message.channel.send(`✅ ${message.author}, vérification réussie ! Bienvenue sur le serveur.`).catch(() => null) : null;
     if (confirmation) setTimeout(() => confirmation.delete().catch(() => null), 10_000);
     await logCaptcha(message.client, message.guild.id, config, `✅ <@${message.author.id}> a réussi le captcha.`);
     return true;
@@ -170,9 +170,9 @@ export async function handleCaptchaMessage(message: Message): Promise<boolean> {
     await logCaptcha(message.client, message.guild.id, config, `❌ <@${message.author.id}> a échoué le captcha (${attempts} tentatives) — ${config.captchaFailAction === 'BAN' ? 'banni' : 'expulsé'}.`);
   } else {
     await prisma.captchaSession.update({ where: { id: session.id }, data: { attempts } });
-    const warning = await message.channel
-      .send(`⚠️ ${message.author}, code incorrect. Il te reste **${config.captchaMaxAttempts - attempts}** tentative(s).`)
-      .catch(() => null);
+    const warning = message.channel.isSendable()
+      ? await message.channel.send(`⚠️ ${message.author}, code incorrect. Il te reste **${config.captchaMaxAttempts - attempts}** tentative(s).`).catch(() => null)
+      : null;
     if (warning) setTimeout(() => warning.delete().catch(() => null), 8_000);
   }
   return true;

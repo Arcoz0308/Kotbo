@@ -1,3 +1,4 @@
+import { errorMessage } from '../../utils/errors.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type AutocompleteInteraction, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -62,7 +63,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
   } catch (err: unknown) {
     await interaction.reply({
-      embeds: [errorEmbed('Achat échoué', err.message || "Impossible d'effectuer l'achat.")],
+      embeds: [errorEmbed('Achat échoué', errorMessage(err) || "Impossible d'effectuer l'achat.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

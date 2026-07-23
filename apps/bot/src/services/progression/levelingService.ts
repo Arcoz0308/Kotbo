@@ -1,5 +1,6 @@
 import { Client, GuildMember } from 'discord.js';
-import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas';
+import type { LevelConfig } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -33,7 +34,7 @@ export function getLevelFromXp(xp: number): number {
 
 export async function getOrCreateLevelConfig(guildId: string) {
   const cacheKey = `guild:${guildId}:level_config`;
-  let config = await cache.get<unknown>(cacheKey);
+  let config = await cache.get<LevelConfig>(cacheKey);
 
   if (config) return config;
 
@@ -665,7 +666,7 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
 }
 
 // Helper pour dessiner des rectangles arrondis
-function roundRect(ctx: unknown, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient) {
+function roundRect(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);

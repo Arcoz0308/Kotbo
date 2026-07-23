@@ -5,10 +5,16 @@
  */
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
+import { completeModuleMock } from '../helpers/moduleMock.js';
 
 const moduleMocks: Array<[string, () => Record<string, unknown>]> = [
-  ['../../utils/db', () => ({ default: {}, prisma: {} })],
-  ['../../infra/redis', () => ({ getRedis: () => null })], // pas de Redis : L1 mémoire uniquement
+  ['../../utils/db', () => ({ default: {}, prisma: {}, prismaRead: {} })],
+  // Mock COMPLET : `mock.module` est global au process, un mock partiel ferait
+  // disparaitre initRedis & co. pour les fichiers de test charges ensuite.
+  ['../../infra/redis', () => completeModuleMock(
+    path.resolve(import.meta.dir, '../../infra/redis.ts'),
+    { getRedis: () => null }, // pas de Redis : L1 mémoire uniquement
+  )],
   ['../../utils/logger', () => ({
     logger: {
       info: mock(() => undefined), warn: mock(() => undefined),
@@ -38,7 +44,7 @@ describe('invalidateGuild couvre le cache des analytics avancées', () => {
     // Reproduit le bug : les stats de mots étaient servies avec enabled:false
     // pendant 5 min après activation, car la clé échappait à l'invalidation.
     await cache.set(advancedKey(guildId, 'words'), { enabled: false, topWords: [] }, 300);
-    expect(await cache.get(advancedKey(guildId, 'words'))).toEqual({ enabled: false, topWords: [] });
+    expect(await cache.get<unknown>(advancedKey(guildId, 'words'))).toEqual({ enabled: false, topWords: [] });
 
     await cache.invalidateGuild(guildId);
 
@@ -63,7 +69,7 @@ describe('invalidateGuild couvre le cache des analytics avancées', () => {
 
     await cache.invalidateGuild(guildId);
 
-    expect(await cache.get(advancedKey(otherGuild, 'words'))).toEqual({ enabled: true });
+    expect(await cache.get<unknown>(advancedKey(otherGuild, 'words'))).toEqual({ enabled: true });
     await cache.invalidateGuild(otherGuild);
   });
 
