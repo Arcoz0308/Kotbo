@@ -1,5 +1,6 @@
 <script lang="ts">
   import { searchGuildMembers, type GuildMemberSearchResult } from '../api';
+  import { m } from '../i18n';
 
   interface Props {
     id?: string;
@@ -11,7 +12,7 @@
   let {
     id = '',
     value = $bindable(''),
-    placeholder = 'Rechercher un membre par pseudo…',
+    placeholder = '',
     disabled = false
   }: Props = $props();
 
@@ -102,7 +103,7 @@
   <input
     {id}
     type="text"
-    {placeholder}
+    placeholder={placeholder || m.member_search_placeholder()}
     bind:value={query}
     oninput={handleInput}
     onfocus={() => !disabled && (open = true)}
@@ -118,7 +119,7 @@
       type="button"
       class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-rose-500 transition-colors"
       onmousedown={(e) => { e.preventDefault(); clear(); }}
-      aria-label="Effacer"
+      aria-label={m.member_search_clear()}
     >✕</button>
   {/if}
 
@@ -130,12 +131,12 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
           </svg>
-          Recherche…
+          {m.member_search_loading()}
         </div>
       {:else if query.trim() && results.length === 0}
-        <div class="px-4 py-3 text-xs text-on-surface-variant">Aucun membre trouvé.</div>
+        <div class="px-4 py-3 text-xs text-on-surface-variant">{m.member_search_no_results()}</div>
       {:else if !query.trim()}
-        <div class="px-4 py-3 text-xs text-on-surface-variant">Saisissez un pseudo pour rechercher.</div>
+        <div class="px-4 py-3 text-xs text-on-surface-variant">{m.member_search_prompt()}</div>
       {:else}
         {#each results as member, i (member.id)}
           <button
@@ -158,7 +159,7 @@
               {/if}
             </div>
             {#if !member.isOnServer}
-              <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface-container-low text-on-surface-variant/60 shrink-0">Parti</span>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface-container-low text-on-surface-variant/60 shrink-0">{m.member_search_left_badge()}</span>
             {/if}
           </button>
         {/each}

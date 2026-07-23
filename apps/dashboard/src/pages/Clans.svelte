@@ -679,8 +679,8 @@
           <Papicon icon="Globe" size={22} />
         </div>
         <div>
-          <p class="text-sm font-semibold text-on-surface">Page publique du classement des clans</p>
-          <p class="text-xs text-on-surface-variant/70 font-medium">Partagez ce lien avec vos membres pour qu'ils suivent la guerre des clans en direct.</p>
+          <p class="text-sm font-semibold text-on-surface">{m.clan_public_banner_title()}</p>
+          <p class="text-xs text-on-surface-variant/70 font-medium">{m.clan_public_page_desc()}</p>
         </div>
       </div>
       <div class="flex items-center gap-3 shrink-0 relative z-10 w-full sm:w-auto">
@@ -691,7 +691,7 @@
           class="flex items-center justify-center gap-2 px-5 py-3 bg-tertiary/20 text-tertiary border border-tertiary/25 rounded-lg text-xs font-semibold hover:bg-tertiary/30 transition-all hover:scale-103 w-full sm:w-auto text-center"
         >
           <Papicon icon="ExternalLink" size={14} />
-          Voir la page
+          {m.clan_public_page_view()}
         </a>
         <button
           onclick={copyPublicClanUrl}
@@ -699,10 +699,10 @@
         >
           {#if copySuccess}
             <Papicon icon="Check" size={14} />
-            Copié !
+            {m.clan_public_page_copied()}
           {:else}
             <Papicon icon="Copy" size={14} />
-            Copier le lien
+            {m.clan_public_page_copy()}
           {/if}
         </button>
       </div>
