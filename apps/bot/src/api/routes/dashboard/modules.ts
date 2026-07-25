@@ -4854,7 +4854,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         if (result.status === 'already-closed') {
           json(res, 409, {
-            error: `La semaine ${result.weekKey} est déjà clôturée.`,
+            error: `La semaine ${result.weekKey} est déjà clôturée et rien de nouveau n'est à rattraper.`,
             weekKey: result.weekKey,
           });
           return true;
