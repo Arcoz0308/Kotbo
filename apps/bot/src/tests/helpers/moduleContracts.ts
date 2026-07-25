@@ -46,9 +46,12 @@ export function readModuleSource(absolutePath: string): string {
  *       statiquement.
  */
 export function extractSlashCommandName(source: string): string | null {
-  const literal = source.match(/\.setName\((['"])(?<name>[^'"]+)\1\)/);
-  if (literal?.groups?.name) return literal.groups.name;
-
+  // Les metadonnees sont prioritaires : quand la commande est construite via
+  // `.setName(meta.name)`, le premier `.setName('...')` litteral du fichier est
+  // celui d'une *sous-commande* (`list`, `claim`, ...) et non celui de la commande.
   const fromMetadata = source.match(/getCommandMetadata\((['"])(?<name>[^'"]+)\1\)/);
-  return fromMetadata?.groups?.name ?? null;
+  if (fromMetadata?.groups?.name) return fromMetadata.groups.name;
+
+  const literal = source.match(/\.setName\((['"])(?<name>[^'"]+)\1\)/);
+  return literal?.groups?.name ?? null;
 }
