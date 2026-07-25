@@ -2,6 +2,7 @@ import { type Client } from 'discord.js';
 import cron from 'node-cron';
 import prisma from '../utils/db.js';
 import { runDailyAlgoForAllGuilds, runDailyAlgoSummariesForAllGuilds } from '../services/progression/dailyAlgoService.js';
+import { runDailyAlgoWeeklyClosuresForAllGuilds } from '../services/progression/dailyAlgoWeekService.js';
 import { scanGuildMembersForYoungAccounts, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS } from '../services/moderation/dcDetectionService.js';
 import { processScheduledSanctions, checkMissingReports } from '../services/moderation/sanctionService.js';
 import { processMeetingNotifications } from '../services/staff/staffLeadershipService.js';
@@ -133,6 +134,10 @@ export async function registerCrons(client: Client): Promise<void> {
     'daily-algo-summary': async () => {
       logger.debug('Cron', 'Génération du bilan quotidien Daily Algo...');
       await runDailyAlgoSummariesForAllGuilds(client);
+    },
+    'daily-algo-week': async () => {
+      logger.debug('Cron', 'Clôture de la semaine Daily Algo...');
+      await runDailyAlgoWeeklyClosuresForAllGuilds(client);
     },
     sanctions: async () => {
       logger.debug('Cron', 'Traitement des sanctions planifiées...');
@@ -266,6 +271,14 @@ export async function registerCrons(client: Client): Promise<void> {
   cron.schedule('59 23 * * *', async () => {
     await runCronJob('daily-algo-summary', async () => {
       await runDailyAlgoSummariesForAllGuilds(client);
+    }, 2000);
+  }, { timezone: 'UTC' });
+
+  // 🏁 Daily Algo: Clôture de la semaine, le lundi à 00:05 UTC.
+  // Un peu après minuit pour laisser passer le bilan de 23:59 de la veille.
+  cron.schedule('5 0 * * 1', async () => {
+    await runCronJob('daily-algo-week', async () => {
+      await runDailyAlgoWeeklyClosuresForAllGuilds(client);
     }, 2000);
   }, { timezone: 'UTC' });
 

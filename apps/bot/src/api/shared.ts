@@ -621,6 +621,44 @@ export function resolveDailyAlgoFinalScore(submission: {
   return Math.round((sum / 5) * 10) / 10;
 }
 
+/**
+ * Total de points d'une soumission Daily Algo, toujours en entier.
+ *
+ * `pointsAwarded` est la source de vérité : il a été figé à la notation, plancher
+ * de participation et majoration du week-end compris. Les soumissions notées avant
+ * la v2 ne l'ont pas ; on retombe alors sur la moyenne plus le bonus de rapidité,
+ * arrondis à l'unité supérieure — ce qui évite une migration de données.
+ */
+export function resolveDailyAlgoTotalPoints(submission: {
+  status?: string;
+  pointsAwarded?: number | null;
+  scoreFinal: number | null;
+  scoreCorrectness: number | null;
+  scoreComments: number | null;
+  scoreCompactness: number | null;
+  scoreOptimization: number | null;
+  scoreReadability: number | null;
+  speedBonusPoints?: number | null;
+}): number | null {
+  // Seule une soumission approuvée rapporte des points : un rejet survenu après
+  // une approbation ne doit rien conserver. `null` et non 0, pour que l'interface
+  // continue d'afficher « — » sur une soumission en attente plutôt que « 0 pt ».
+  if (submission.status !== undefined && submission.status !== 'APPROVED') {
+    return null;
+  }
+
+  if (typeof submission.pointsAwarded === 'number') {
+    return submission.pointsAwarded;
+  }
+
+  const finalScore = resolveDailyAlgoFinalScore(submission);
+  if (finalScore === null) {
+    return null;
+  }
+
+  return Math.max(0, Math.ceil(finalScore + (submission.speedBonusPoints ?? 0)));
+}
+
 export type DashboardState = {
   guildName: string;
   configChannelId: string;
@@ -642,6 +680,28 @@ export type DashboardState = {
   translationEnabled: boolean;
   codePoliceEnabled: boolean;
   dailyAlgoEnabled: boolean;
+  // ── Daily Algo v2 : barème, semaine, sanctions, pont clans ──
+  dailyAlgoTimezone: string;
+  dailyAlgoParticipationPoints: number;
+  dailyAlgoWeekendMultiplier: number;
+  dailyAlgoWeeklyRewardsEnabled: boolean;
+  dailyAlgoWeekRole1Id: string;
+  dailyAlgoWeekRole2Id: string;
+  dailyAlgoWeekRole3Id: string;
+  dailyAlgoWeekRoleRotate: boolean;
+  dailyAlgoWeekXp1: number;
+  dailyAlgoWeekXp2: number;
+  dailyAlgoWeekXp3: number;
+  dailyAlgoWeekParticipationXp: number;
+  dailyAlgoWeekAnnouncementChannelId: string;
+  dailyAlgoSanctionType: string;
+  dailyAlgoSanctionWeight: number;
+  dailyAlgoSanctionDurationMinutes: number;
+  clanPointsFromDailyAlgo: boolean;
+  clanPointsFromDailyAlgoRate: number;
+  clanPointsDailyAlgoTop1: number;
+  clanPointsDailyAlgoTop2: number;
+  clanPointsDailyAlgoTop3: number;
   githubReleasesEnabled: boolean;
   digestEnabled: boolean;
   youtubeEnabled: boolean;
@@ -3184,6 +3244,27 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     translationEnabled: guild.translationEnabled,
     codePoliceEnabled: guild.codePoliceEnabled,
     dailyAlgoEnabled: guild.dailyAlgoEnabled,
+    dailyAlgoTimezone: guild.dailyAlgoTimezone,
+    dailyAlgoParticipationPoints: guild.dailyAlgoParticipationPoints,
+    dailyAlgoWeekendMultiplier: guild.dailyAlgoWeekendMultiplier,
+    dailyAlgoWeeklyRewardsEnabled: guild.dailyAlgoWeeklyRewardsEnabled,
+    dailyAlgoWeekRole1Id: guild.dailyAlgoWeekRole1Id ?? '',
+    dailyAlgoWeekRole2Id: guild.dailyAlgoWeekRole2Id ?? '',
+    dailyAlgoWeekRole3Id: guild.dailyAlgoWeekRole3Id ?? '',
+    dailyAlgoWeekRoleRotate: guild.dailyAlgoWeekRoleRotate,
+    dailyAlgoWeekXp1: guild.dailyAlgoWeekXp1,
+    dailyAlgoWeekXp2: guild.dailyAlgoWeekXp2,
+    dailyAlgoWeekXp3: guild.dailyAlgoWeekXp3,
+    dailyAlgoWeekParticipationXp: guild.dailyAlgoWeekParticipationXp,
+    dailyAlgoWeekAnnouncementChannelId: guild.dailyAlgoWeekAnnouncementChannelId ?? '',
+    dailyAlgoSanctionType: guild.dailyAlgoSanctionType,
+    dailyAlgoSanctionWeight: guild.dailyAlgoSanctionWeight,
+    dailyAlgoSanctionDurationMinutes: guild.dailyAlgoSanctionDurationMinutes,
+    clanPointsFromDailyAlgo: guild.clanPointsFromDailyAlgo,
+    clanPointsFromDailyAlgoRate: guild.clanPointsFromDailyAlgoRate,
+    clanPointsDailyAlgoTop1: guild.clanPointsDailyAlgoTop1,
+    clanPointsDailyAlgoTop2: guild.clanPointsDailyAlgoTop2,
+    clanPointsDailyAlgoTop3: guild.clanPointsDailyAlgoTop3,
     githubReleasesEnabled: guild.githubReleasesEnabled,
     digestEnabled: guild.digestEnabled,
     autoThreadEnabled: guild.autoThreadEnabled,

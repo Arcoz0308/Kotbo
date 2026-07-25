@@ -26,6 +26,7 @@
     resetAllClans,
     rollbackClanSeason,
     addClanPoints,
+    updateGlobalSettings,
     type ClanEntry,
     type ClansDataResult
   } from '../lib/api';
@@ -147,6 +148,45 @@
   );
 
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+
+  // ── Pont Daily Algo → Clans ──────────────────────────────────────────────────
+  // Vue symétrique de celle de la page Daily Algo : un admin qui part des clans
+  // doit trouver le lien ici, sans deviner qu'il est rangé dans l'autre onglet.
+  // Ce panneau a sa propre sauvegarde (route /settings) et reste donc à l'écart du
+  // suivi de modifications de la page, qui passe par updateClanSettings.
+  const dailyAlgoEnabled = $derived(!!(dashboardStore.state as any).dailyAlgoEnabled);
+  const bridgeAction = createAsyncActionState();
+
+  const bridge = $state({
+    clanPointsFromDailyAlgo: false,
+    clanPointsFromDailyAlgoRate: 1,
+    clanPointsDailyAlgoTop1: 30,
+    clanPointsDailyAlgoTop2: 20,
+    clanPointsDailyAlgoTop3: 10,
+  });
+
+  function syncBridgeFromStore() {
+    const s = dashboardStore.state as any;
+    bridge.clanPointsFromDailyAlgo = s.clanPointsFromDailyAlgo ?? false;
+    bridge.clanPointsFromDailyAlgoRate = s.clanPointsFromDailyAlgoRate ?? 1;
+    bridge.clanPointsDailyAlgoTop1 = s.clanPointsDailyAlgoTop1 ?? 30;
+    bridge.clanPointsDailyAlgoTop2 = s.clanPointsDailyAlgoTop2 ?? 20;
+    bridge.clanPointsDailyAlgoTop3 = s.clanPointsDailyAlgoTop3 ?? 10;
+  }
+
+  async function saveBridgeSettings() {
+    await bridgeAction.run(async () => {
+      const ok = await updateGlobalSettings({ ...bridge });
+      if (!ok) return false;
+
+      await dashboardStore.refresh();
+      syncBridgeFromStore();
+      return true;
+    }, {
+      successMessage: 'Lien Daily Algo enregistré.',
+      failureMessage: "Impossible d'enregistrer le lien Daily Algo.",
+    });
+  }
 
   const formatLocal = (dateStr: string | null) => {
     if (!dateStr) return '';
@@ -350,6 +390,7 @@
   onMount(async () => {
     window.addEventListener('kotbo-ws-message', handleWsMessage);
     await dashboardStore.refresh();
+    syncBridgeFromStore();
     await refreshData();
     const channelsData = await fetchDiscordChannels().catch(() => null);
     if (channelsData) {
@@ -1151,6 +1192,92 @@
                 </div>
               {/if}
             </div>
+          </section>
+
+          <!-- Lien avec le Daily Algo : verrouillé si le module est inactif -->
+          <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+            <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
+              <Papicon icon="Code" size={16} class="text-amber-500" />
+              Points du Daily Algo
+            </h3>
+
+            {#if !dailyAlgoEnabled}
+              <div class="p-5 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
+                <span class="text-2xl">🔒</span>
+                <div>
+                  <h4 class="text-sm font-semibold text-on-surface">Le Daily Algo n'est pas activé</h4>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">
+                    Activez le module Daily Algo pour pouvoir convertir ses points en points
+                    de clan. Les clans fonctionnent parfaitement sans.
+                  </p>
+                </div>
+              </div>
+            {:else}
+              <InlineFeedback state={bridgeAction} />
+
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="text-sm font-medium text-on-surface">Convertir les points du Daily Algo</span>
+                    <p class="text-xs text-on-surface-variant/70">
+                      À la clôture de la semaine, chaque participant convertit ses points en
+                      points de clan. Sans ce réglage, les deux modules tournent sans lien.
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    checked={bridge.clanPointsFromDailyAlgo}
+                    onToggle={(v) => bridge.clanPointsFromDailyAlgo = v}
+                    disabled={!canManageSettings}
+                  />
+                </div>
+
+                {#if bridge.clanPointsFromDailyAlgo}
+                  <div class="space-y-4 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
+                    <div class="space-y-1.5">
+                      <label for="clan-da-rate" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Taux de conversion</label>
+                      <input
+                        id="clan-da-rate"
+                        type="number"
+                        min="0.1"
+                        max="100"
+                        step="0.1"
+                        bind:value={bridge.clanPointsFromDailyAlgoRate}
+                        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                        disabled={!canManageSettings}
+                      />
+                      <p class="text-[10px] text-on-surface-variant/50 ml-1">
+                        1 = un point de Daily Algo donne un point de clan.
+                      </p>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                      <div class="space-y-1.5">
+                        <label for="clan-da-top1" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥇 Bonus</label>
+                        <input id="clan-da-top1" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop1} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
+                      </div>
+                      <div class="space-y-1.5">
+                        <label for="clan-da-top2" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥈 Bonus</label>
+                        <input id="clan-da-top2" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop2} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
+                      </div>
+                      <div class="space-y-1.5">
+                        <label for="clan-da-top3" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥉 Bonus</label>
+                        <input id="clan-da-top3" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop3} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+
+                {#if canManageSettings}
+                  <button
+                    onclick={saveBridgeSettings}
+                    disabled={bridgeAction.state.loading}
+                    class="w-full py-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[13px] font-medium transition-colors hover:bg-amber-500/20 disabled:opacity-50"
+                  >
+                    {bridgeAction.state.loading ? 'Enregistrement…' : 'Enregistrer le lien'}
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </section>
         </div>
 
