@@ -175,7 +175,14 @@ export const getClientIp = (req: IncomingMessage): string => {
   return req.socket.remoteAddress || '127.0.0.1';
 };
 
-export { configRateLimiter, errorReportRateLimiter, feedbackReportRateLimiter, partnershipRateLimiter } from './limiters.js';
+export {
+  configRateLimiter,
+  errorReportRateLimiter,
+  feedbackReportRateLimiter,
+  partnershipRateLimiter,
+  dashboardWriteRateLimiter,
+  dashboardSensitiveRateLimiter,
+} from './limiters.js';
 
 export const checkRateLimit = (limiterMap: Map<string, number[]>, ip: string, limit: number, windowMs: number): boolean => {
   const now = Date.now();

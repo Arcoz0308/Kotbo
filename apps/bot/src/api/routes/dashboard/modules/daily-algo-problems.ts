@@ -1,7 +1,7 @@
 /** Routes dashboard du module `daily-algo-problems`. */
 import prisma from '../../../../utils/db.js';
 import { logger } from '../../../../utils/logger.js';
-import { getGuildName, json, pushAudit, readJsonBody, resolveAdminAccess } from '../../../shared.js';
+import { broadcastDashboardStateChange, getGuildName, json, pushAudit, readJsonBody, resolveAdminAccess } from '../../../shared.js';
 import { Prisma } from '@prisma/client';
 import { type ModuleRouteContext } from './_shared.js';
 
@@ -76,6 +76,8 @@ export async function handleDailyAlgoProblemsRoutes(ctx: ModuleRouteContext): Pr
           channelId: null
         });
 
+        broadcastDashboardStateChange(guildId, 'daily_algo_problems_updated');
+
         json(res, 201, problem);
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error creating daily algo problem:', err);
@@ -147,6 +149,8 @@ export async function handleDailyAlgoProblemsRoutes(ctx: ModuleRouteContext): Pr
           channelId: null
         });
 
+        broadcastDashboardStateChange(guildId, 'daily_algo_problems_updated');
+
         json(res, 200, updated);
       } catch (err) {
         logger.error('DailyAlgoAPI', `Error updating daily algo problem ${problemId}:`, err);
@@ -189,6 +193,8 @@ export async function handleDailyAlgoProblemsRoutes(ctx: ModuleRouteContext): Pr
           details: `Exercice "${existing.title}" supprimé.`,
           channelId: null
         });
+
+        broadcastDashboardStateChange(guildId, 'daily_algo_problems_updated');
 
         json(res, 200, { success: true });
       } catch (err) {

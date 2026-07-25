@@ -11,6 +11,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS, truncate } from '../../utils/embeds.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
+import { broadcastDashboardStateChange } from '../../api/shared.js';
 import {
   DAILY_ALGO_SPEED_BONUS,
   clampCriterionScore,
@@ -857,6 +858,10 @@ export async function queueDailyAlgoSubmission(params: {
 
   logger.success('DailyAlgo', `Réponse de ${submission.authorName} (${formatRankMedal(speedRank)}) envoyée en validation pour la guilde ${run.guildId}`);
 
+  // Le panel affiche la file de validation en direct : sans cet évènement, une
+  // soumission postée depuis Discord n'apparaît qu'au prochain « Actualiser ».
+  broadcastDashboardStateChange(run.guildId, 'daily_algo_submission_created');
+
   return { speedRank };
 }
 
@@ -1074,7 +1079,9 @@ export type DailyAlgoUserParticipation = {
   dateKey: string | null;
   problemTitle: string;
   difficulty: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  // `DISMISSED` = hors-sujet : la soumission existe et reste visible, mais ne
+  // rapporte aucun point et n'entraine aucune sanction.
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISMISSED';
   submittedAt: Date;
   speedRank: number | null;
   scoreFinal: number | null;
@@ -1544,6 +1551,10 @@ export async function reviewDailyAlgoSubmission(params: {
       false
     ).catch(() => null);
   }
+
+  // Notation faite depuis Discord comme depuis le panel : le classement de la
+  // semaine et la file de validation changent, on prévient les onglets ouverts.
+  broadcastDashboardStateChange(submission.run.guildId, 'daily_algo_submission_reviewed');
 
   return true;
 }

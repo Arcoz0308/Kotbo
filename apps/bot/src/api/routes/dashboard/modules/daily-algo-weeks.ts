@@ -1,7 +1,7 @@
 /** Routes dashboard du module `daily-algo-weeks`. */
 import { closeDailyAlgoWeek, getCurrentDailyAlgoWeek, getDailyAlgoWeekHistory } from '../../../../services/progression/dailyAlgoWeekService.js';
 import { logger } from '../../../../utils/logger.js';
-import { broadcastDashboardStateChange, getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
+import { getGuildName, json, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
 
 export async function handleDailyAlgoWeeksRoutes(ctx: ModuleRouteContext): Promise<boolean> {
@@ -91,8 +91,8 @@ export async function handleDailyAlgoWeeksRoutes(ctx: ModuleRouteContext): Promi
           channelId: null,
         });
 
-        broadcastDashboardStateChange(guildId, 'daily_algo_week_closed');
-
+        // Pas de broadcast ici : closeDailyAlgoWeek le fait deja, pour le cron
+        // du lundi comme pour cette cloture manuelle.
         json(res, 200, { ok: true, ...result });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Erreur lors de la clôture manuelle de la semaine:', err);

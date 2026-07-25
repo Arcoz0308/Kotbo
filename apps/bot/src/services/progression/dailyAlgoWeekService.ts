@@ -17,6 +17,7 @@ import { logger } from '../../utils/logger.js';
 import { COLORS, truncate } from '../../utils/embeds.js';
 import { addXp } from './levelingService.js';
 import { getGuildDailyAlgoRanking } from './dailyAlgoService.js';
+import { broadcastDashboardStateChange } from '../../api/shared.js';
 import {
   convertToClanPoints,
   formatWeekRangeLabel,
@@ -326,12 +327,50 @@ async function rotatePodiumRole(discordGuild: DiscordGuild, roleId: string): Pro
  * clan déjà attribués et seul le delta est complété. Une clôture interrompue en
  * cours de route se reprend par le même mécanisme.
  */
+/**
+ * Clôtures en cours, par serveur.
+ *
+ * Le versement passe par Discord (XP, rôles, annonce) et dure donc plusieurs
+ * secondes. Deux clôtures lancées dans cet intervalle — le bouton cliqué deux
+ * fois, ou une clôture manuelle pendant le cron du lundi — se marcheraient
+ * dessus : chacune verrait le travail de l'autre comme « pas encore fait ».
+ * Les réservations en base restent la garantie de fond ; ce verrou évite
+ * simplement d'y arriver, et fait attendre le second appelant plutôt que de le
+ * laisser recalculer tout en parallèle.
+ */
+const closuresInFlight = new Map<string, Promise<DailyAlgoWeekCloseResult>>();
+
 export async function closeDailyAlgoWeek(params: {
   client: Client;
   guildId: string;
   /** Semaine à clôturer. Par défaut, la semaine précédente (usage du cron). */
   weekKey?: string;
   /** Membre à l'origine d'une clôture manuelle ; absent pour le cron. */
+  closedById?: string;
+}): Promise<DailyAlgoWeekCloseResult> {
+  const pending = closuresInFlight.get(params.guildId);
+  if (pending) {
+    // On enchaîne derrière la clôture en cours au lieu de la doubler : le second
+    // appel repart d'un état à jour et ne rattrapera que ce qui reste vraiment.
+    await pending.catch(() => null);
+  }
+
+  const run = runCloseDailyAlgoWeek(params);
+  closuresInFlight.set(params.guildId, run);
+
+  try {
+    return await run;
+  } finally {
+    if (closuresInFlight.get(params.guildId) === run) {
+      closuresInFlight.delete(params.guildId);
+    }
+  }
+}
+
+async function runCloseDailyAlgoWeek(params: {
+  client: Client;
+  guildId: string;
+  weekKey?: string;
   closedById?: string;
 }): Promise<DailyAlgoWeekCloseResult> {
   const settings = await getGuildWeekSettings(params.guildId);
@@ -430,6 +469,7 @@ export async function closeDailyAlgoWeek(params: {
     });
 
     logger.info('DailyAlgoWeek', `Semaine ${weekKey} clôturée pour ${params.guildId} sans récompenses (option désactivée).`);
+    broadcastDashboardStateChange(params.guildId, 'daily_algo_week_closed');
     return {
       status: isResuming ? 'resumed' : 'closed',
       weekKey,
@@ -475,6 +515,8 @@ export async function closeDailyAlgoWeek(params: {
     'DailyAlgoWeek',
     `Semaine ${weekKey} clôturée pour ${params.guildId} : ${ranking.length} participant(s), ${xpGranted} XP, ${rolesAssigned} rôle(s), ${clanPointsGranted} point(s) de clan.`,
   );
+
+  broadcastDashboardStateChange(params.guildId, 'daily_algo_week_closed');
 
   return {
     status: isResuming ? 'resumed' : 'closed',
@@ -542,16 +584,31 @@ async function grantWeeklyRewards(params: {
     const xpToGrant = resolveRankXp(settings, reward.rank);
 
     // Déjà versée lors d'une passe précédente : on ne repasse pas dessus.
+    //
+    // On réserve la ligne **avant** de verser, par une écriture conditionnée à
+    // `xpGranted: 0`. Lire puis écrire ne suffisait pas : une clôture manuelle
+    // lancée pendant le cron du lundi (ou deux clics sur le bouton) voyait deux
+    // fois `xpGranted === 0` et versait l'XP deux fois. Ici, la base tranche —
+    // le second appel ne modifie aucune ligne et passe son tour.
     if (reward.xpGranted === 0 && xpToGrant > 0) {
-      try {
-        await addXp(settings.id, reward.userId, xpToGrant, client);
-        await prisma.dailyAlgoWeeklyReward.update({
-          where: { id: reward.id },
-          data: { xpGranted: xpToGrant },
-        });
-        xpGranted += xpToGrant;
-      } catch (err) {
-        logger.error('DailyAlgoWeek', `Impossible de verser l'XP hebdomadaire à ${reward.userId} :`, err);
+      const claimed = await prisma.dailyAlgoWeeklyReward.updateMany({
+        where: { id: reward.id, xpGranted: 0 },
+        data: { xpGranted: xpToGrant },
+      });
+
+      if (claimed.count === 1) {
+        try {
+          await addXp(settings.id, reward.userId, xpToGrant, client);
+          xpGranted += xpToGrant;
+        } catch (err) {
+          logger.error('DailyAlgoWeek', `Impossible de verser l'XP hebdomadaire à ${reward.userId} :`, err);
+          // La réservation ne doit pas se transformer en XP jamais versée : on
+          // la relâche pour que la prochaine passe retente.
+          await prisma.dailyAlgoWeeklyReward.update({
+            where: { id: reward.id },
+            data: { xpGranted: 0 },
+          }).catch(() => null);
+        }
       }
     }
 

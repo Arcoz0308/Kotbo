@@ -8,6 +8,8 @@ import { type CommandAccessLevel, type DashboardPresetKey, parseDiscordMarkdown,
 import { SanctionType } from '@prisma/client';
 import { type Embed, type Guild } from 'discord.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Client } from 'discord.js';
+import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 
 /** Tout ce qu un sous-routeur recoit du repartiteur. */
 export type ModuleRouteContext = {

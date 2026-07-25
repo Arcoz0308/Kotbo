@@ -32,13 +32,13 @@ export const moderationItems: PageConfig[] = [
   { name: m.nav_members(),             icon: "users",         href: "/members",            featureKey: "members", beta: false, wip: false },
   { name: m.nav_sanctions(),           icon: "alert-triangle",href: "/sanctions",          featureKey: "sanctions", beta: false, wip: false },
   { name: m.nav_ban_appeals(),       icon: "gavel",         href: "/appeals",            featureKey: "sanctions", beta: true, wip: false },
-  { name: m.nav_automod(),     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: true, wip: false },
-  { name: m.nav_admin_lock(),          icon: "lock",          href: "/admin-lock",         featureKey: "automod", beta: true, wip: false },
+  { name: m.nav_automod(),     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: false, wip: false },
+  { name: m.nav_admin_lock(),          icon: "lock",          href: "/admin-lock",         featureKey: "automod", beta: flse, wip: false },
   { name: m.nav_nicknames(),             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
   { name: m.nav_security_dc(),       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
   { name: m.nav_invitations(),         icon: "link",          href: "/invitations",        featureKey: "members", beta: false, wip: false },
   { name: m.nav_discord_logs(),        icon: "file-text",     href: "/logs",              featureKey: "logs", beta: false, wip: false },
-  { name: m.nav_message_search(),  icon: "search",        href: "/message-search",    featureKey: "logs", beta: true, wip: false },
+  { name: m.nav_message_search(),  icon: "search",        href: "/message-search",    featureKey: "logs", beta: false, wip: false },
   { name: m.nav_transcripts(),      icon: "file",          href: "/transcripts-list",  featureKey: "tickets", beta: false, wip: false },
   { name: m.nav_activity_log(),  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
   { name: m.nav_events(),          icon: "zap",           href: "/events",            featureKey: "events", beta: false, wip: false },
@@ -48,24 +48,24 @@ export const moderationItems: PageConfig[] = [
 
 export const levelingItems: PageConfig[] = [
   { name: m.nav_leveling(),       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
-  { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: true, wip: false },
-  { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: true, wip: false },
+  { name: m.nav_seasons(),             icon: "flag",          href: "/seasons",          featureKey: "leveling", beta: false, wip: false },
+  { name: m.nav_reputation(),          icon: "star",          href: "/reputation",       featureKey: "leveling", beta: false, wip: false },
   { name: m.nav_clans(),               icon: "shield",        href: "/clans",            featureKey: "leveling", beta: true, wip: false },
 ];
 
 export const economyItems: PageConfig[] = [
-  { name: m.nav_economy(),      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: true, wip: false },
-  { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "economy",  beta: true, wip: false },
-  { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "economy",  beta: true, wip: false },
+  { name: m.nav_economy(),      icon: "coins",         href: "/economy",          featureKey: "economy",  beta: false, wip: false },
+  { name: m.nav_marketplace(),              icon: "shopping-bag",  href: "/marketplace",      featureKey: "economy",  beta: false, wip: false },
+  { name: m.nav_quests(),              icon: "compass",       href: "/quests",           featureKey: "economy",  beta: false, wip: false },
 ];
 
 export const communityItems: PageConfig[] = [
   { name: m.nav_giveaways(),           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
   { name: m.nav_announcements(), icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: false, wip: false },
-  { name: m.nav_reaction_roles(),      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: true, wip: false },
+  { name: m.nav_reaction_roles(),      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: false, wip: false },
   { name: m.nav_triggers(),        icon: "message-square",href: "/triggers",         featureKey: "triggers", beta: false, wip: false },
   { name: m.nav_suggestions(),         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },
-  { name: m.nav_embeds(),              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: true, wip: false },
+  { name: m.nav_embeds(),              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: false, wip: false },
   { name: m.nav_regulation(),           icon: "book",          href: "/regulation",       featureKey: "regulation", beta: false, wip: false },
   { name: m.nav_news(),    icon: "rss",           href: "/news",             featureKey: "news", beta: false, wip: false },
   { name: m.nav_fun_channels(),          icon: "smile",         href: "/fun",              featureKey: "fun",  beta: true, wip: false },

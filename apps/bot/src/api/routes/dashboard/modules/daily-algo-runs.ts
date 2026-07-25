@@ -1,6 +1,6 @@
 /** Routes dashboard du module `daily-algo-runs`. */
 import { logger } from '../../../../utils/logger.js';
-import { json, readJsonBody } from '../../../shared.js';
+import { broadcastDashboardStateChange, json, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext, ensureDailyAlgoScheduleRuns, getDailyAlgoScheduleRuns } from './_shared.js';
 
 export async function handleDailyAlgoRunsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
@@ -29,6 +29,12 @@ export async function handleDailyAlgoRunsRoutes(ctx: ModuleRouteContext): Promis
         const parsedDaysForward = Number(body?.daysForward ?? url.searchParams.get('daysForward') ?? '21');
         const daysForward = Number.isFinite(parsedDaysForward) ? parsedDaysForward : 21;
         const result = await ensureDailyAlgoScheduleRuns(guildId, daysForward);
+        // Uniquement si le planning a reellement bouge : cette route est appelee
+        // automatiquement a l'ouverture de la page, et prevenir les clients d'un
+        // appel qui n'a rien cree ne ferait que les faire rappeler cette route.
+        if (result.createdCount > 0) {
+          broadcastDashboardStateChange(guildId, 'daily_algo_schedule_updated');
+        }
         json(res, 200, { ok: true, ...result });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Erreur lors de la génération du planning Daily Algo:', err);
