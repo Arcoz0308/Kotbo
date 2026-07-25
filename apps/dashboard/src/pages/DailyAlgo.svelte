@@ -759,8 +759,19 @@
           </p>
 
           {#if currentWeek?.status === 'CLOSED'}
-            <div class="p-4 bg-surface-container-high/20 rounded-lg border border-outline-variant/10 text-xs text-on-surface-variant/70">
-              La semaine <strong>{currentWeek.weekKey}</strong> est déjà clôturée.
+            <div class="p-4 bg-surface-container-high/20 rounded-lg border border-outline-variant/10 text-xs text-on-surface-variant/70 space-y-3">
+              <p>
+                La semaine <strong>{currentWeek.weekKey}</strong> est déjà clôturée.
+                Les participations arrivées depuis seront rattrapées par le cron du
+                lundi, ou tout de suite avec le bouton ci-dessous.
+              </p>
+              <button
+                onclick={confirmCloseWeek}
+                disabled={isClosingWeek}
+                class="px-5 py-2.5 bg-surface-container-high rounded-lg text-[13px] font-medium border border-outline-variant/10 disabled:opacity-50"
+              >
+                {isClosingWeek ? 'Rattrapage en cours…' : '♻️ Rattraper les points de la semaine'}
+              </button>
             </div>
           {:else if !closeWeekConfirmOpen}
             <button
@@ -790,6 +801,10 @@
                   {:else}
                     Aucun point de clan ne sera versé
                   {/if}
+                </li>
+                <li>
+                  Les participations qui arriveront d'ici dimanche seront rattrapées
+                  par le cron du lundi — rien ne sera perdu
                 </li>
               </ul>
               <div class="flex gap-3">

@@ -11,6 +11,7 @@
  */
 
 import { EmbedBuilder, type Client, type Guild as DiscordGuild, type TextChannel } from 'discord.js';
+import { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS, truncate } from '../../utils/embeds.js';
@@ -314,10 +315,16 @@ async function rotatePodiumRole(discordGuild: DiscordGuild, roleId: string): Pro
  * **Une seule implémentation**, partagée par le cron du lundi et le bouton
  * d'administration — un second chemin finirait par diverger du premier.
  *
- * Idempotence : les lignes `DailyAlgoWeeklyReward` (uniques par semaine et par
- * membre) servent de verrou, et `rewardsGrantedAt` marque la fin du versement. Une
- * clôture interrompue en cours de route peut donc être reprise : seules les lignes
- * dont l'XP n'a pas encore été versée sont traitées.
+ * **Rejouable, et c'est nécessaire.** Une clôture manuelle en milieu de semaine
+ * laisse derrière elle les jours restants : le cron du lundi doit pouvoir repasser
+ * et rattraper les participations arrivées entre-temps, sinon leurs points sont
+ * perdus en silence. Le classement est donc toujours recalculé.
+ *
+ * Ce qui empêche de verser deux fois n'est pas un verrou global mais l'état de
+ * chaque ligne `DailyAlgoWeeklyReward` (unique par semaine et par membre) :
+ * `xpGranted` marque l'XP déjà versée, `clanPointsGranted` cumule les points de
+ * clan déjà attribués et seul le delta est complété. Une clôture interrompue en
+ * cours de route se reprend par le même mécanisme.
  */
 export async function closeDailyAlgoWeek(params: {
   client: Client;
@@ -341,46 +348,77 @@ export async function closeDailyAlgoWeek(params: {
   }
 
   const week = await ensureDailyAlgoWeek(params.guildId, weekKey, timeZone);
+  const wasAlreadyClosed = week.status === 'CLOSED';
 
-  // Déjà entièrement traitée : rien à refaire.
-  if (week.rewardsGrantedAt) {
+  // Le classement est toujours recalculé, jamais relu depuis l'archive.
+  //
+  // C'est ce qui rend la clôture **rejouable**, et ce n'est pas un luxe : une
+  // clôture manuelle le mercredi laisse quatre jours de participations derrière
+  // elle. Si le lundi suivant le cron se contentait de constater « déjà clôturée »,
+  // les points de tous ces participants seraient perdus en silence.
+  const ranking = await getDailyAlgoWeekRanking(params.guildId, weekKey);
+
+  const existingRewards = await prisma.dailyAlgoWeeklyReward.findMany({
+    where: { weekId: week.id },
+  });
+  const rewardByUserId = new Map(existingRewards.map((reward) => [reward.userId, reward]));
+
+  const hasNewcomers = ranking.some((entry) => !rewardByUserId.has(entry.userId));
+  const hasPointChanges = ranking.some((entry) => {
+    const existing = rewardByUserId.get(entry.userId);
+    return existing ? existing.points !== entry.points : false;
+  });
+
+  // Rien de neuf depuis la dernière passe : on ne redistribue rien.
+  if (wasAlreadyClosed && week.rewardsGrantedAt && !hasNewcomers && !hasPointChanges) {
     return emptyResult('already-closed', weekKey);
   }
 
-  const isResuming = week.status === 'CLOSED';
-  const ranking = isResuming
-    ? readArchivedRanking(week.finalLeaderboard)
-    : await getDailyAlgoWeekRanking(params.guildId, weekKey);
+  await prisma.$transaction(async (tx) => {
+    await tx.dailyAlgoWeek.update({
+      where: { id: week.id },
+      data: {
+        status: 'CLOSED',
+        closedAt: week.closedAt ?? new Date(),
+        closedById: week.closedById ?? params.closedById ?? null,
+        // Colonne Json : le cast borne explicitement la conversion. Le contenu est
+        // uniquement composé de chaînes et de nombres, donc sûrement sérialisable.
+        finalLeaderboard: ranking as unknown as Prisma.InputJsonValue,
+      },
+    });
 
-  if (!isResuming) {
-    await prisma.$transaction(async (tx) => {
-      await tx.dailyAlgoWeek.update({
-        where: { id: week.id },
+    for (const entry of ranking) {
+      const rank = entry.rank <= 3 ? entry.rank : 0;
+      const existing = rewardByUserId.get(entry.userId);
+
+      if (existing) {
+        // Rattrapage : le total et le rang peuvent avoir bougé depuis la dernière
+        // passe. `xpGranted` et `clanPointsGranted` ne sont pas touchés ici, ce
+        // sont eux qui empêchent de verser deux fois.
+        if (existing.points !== entry.points || existing.rank !== rank) {
+          await tx.dailyAlgoWeeklyReward.update({
+            where: { id: existing.id },
+            data: { points: entry.points, rank },
+          });
+        }
+        continue;
+      }
+
+      await tx.dailyAlgoWeeklyReward.create({
         data: {
-          status: 'CLOSED',
-          closedAt: new Date(),
-          closedById: params.closedById ?? null,
-          finalLeaderboard: ranking,
+          weekId: week.id,
+          guildId: params.guildId,
+          userId: entry.userId,
+          // Le podium garde son rang ; au-delà, 0 marque une récompense de
+          // simple participation.
+          rank,
+          points: entry.points,
         },
       });
+    }
+  });
 
-      if (ranking.length > 0) {
-        await tx.dailyAlgoWeeklyReward.createMany({
-          data: ranking.map((entry) => ({
-            weekId: week.id,
-            guildId: params.guildId,
-            userId: entry.userId,
-            // Le podium garde son rang ; au-delà, 0 marque une récompense de
-            // simple participation.
-            rank: entry.rank <= 3 ? entry.rank : 0,
-            points: entry.points,
-          })),
-          skipDuplicates: true,
-        });
-      }
-    });
-  }
-
+  const isResuming = wasAlreadyClosed;
   const podium = ranking.filter((entry) => entry.rank <= 3);
 
   // Sans récompenses activées, on fige quand même le classement : la semaine est
@@ -451,27 +489,6 @@ export async function closeDailyAlgoWeek(params: {
 
 function emptyResult(status: DailyAlgoWeekCloseResult['status'], weekKey: string): DailyAlgoWeekCloseResult {
   return { status, weekKey, participants: 0, podium: [], xpGranted: 0, rolesAssigned: 0, clanPointsGranted: 0 };
-}
-
-/** Relit un classement archivé en JSON, en se méfiant de son contenu. */
-function readArchivedRanking(value: unknown): DailyAlgoWeekRankingEntry[] {
-  if (!Array.isArray(value)) return [];
-
-  return value.flatMap((raw) => {
-    if (!raw || typeof raw !== 'object') return [];
-    const entry = raw as Record<string, unknown>;
-
-    if (typeof entry.userId !== 'string' || typeof entry.rank !== 'number') return [];
-
-    return [{
-      rank: entry.rank,
-      userId: entry.userId,
-      userName: typeof entry.userName === 'string' ? entry.userName : entry.userId,
-      points: typeof entry.points === 'number' ? entry.points : 0,
-      participations: typeof entry.participations === 'number' ? entry.participations : 0,
-      bonusPoints: typeof entry.bonusPoints === 'number' ? entry.bonusPoints : 0,
-    }];
-  });
 }
 
 /**
@@ -589,8 +606,9 @@ function resolveClanPodiumBonus(settings: GuildWeekSettings, rank: number): numb
  * `clanService` n'est importé qu'ici, dynamiquement : « Daily Algo seul » ne doit
  * pas traîner le code des clans au chargement.
  *
- * Idempotence : seules les lignes dont `clanPointsGranted` vaut encore 0 sont
- * traitées, donc une clôture reprise ne verse pas deux fois.
+ * Idempotence : `clanPointsGranted` cumule ce qui a déjà été versé, et on ne verse
+ * que le delta. Une clôture rejouée complète donc les nouveaux points sans jamais
+ * doubler les anciens.
  */
 async function grantClanPointsForWeek(params: {
   client: Client;
@@ -602,19 +620,23 @@ async function grantClanPointsForWeek(params: {
 
   if (!settings.clansEnabled || !settings.clanPointsFromDailyAlgo) return 0;
 
-  const rewards = await prisma.dailyAlgoWeeklyReward.findMany({
-    where: { weekId, clanPointsGranted: 0 },
-  });
+  const rewards = await prisma.dailyAlgoWeeklyReward.findMany({ where: { weekId } });
   if (rewards.length === 0) return 0;
 
   const awards = rewards
-    .map((reward) => ({
-      reward,
+    .map((reward) => {
       // Conversion des points de la semaine (1 pour 1 par défaut), plus le bonus
       // forfaitaire si le membre est sur le podium.
-      amount: convertToClanPoints(reward.points, settings.clanPointsFromDailyAlgoRate)
-        + resolveClanPodiumBonus(settings, reward.rank),
-    }))
+      const target = convertToClanPoints(reward.points, settings.clanPointsFromDailyAlgoRate)
+        + resolveClanPodiumBonus(settings, reward.rank);
+
+      return {
+        reward,
+        // Delta et non total : une clôture rejouée après de nouvelles
+        // participations doit compléter ce qui a déjà été versé, pas le doubler.
+        amount: target - reward.clanPointsGranted,
+      };
+    })
     .filter((entry) => entry.amount > 0);
 
   if (awards.length === 0) return 0;
@@ -639,7 +661,9 @@ async function grantClanPointsForWeek(params: {
 
     await prisma.dailyAlgoWeeklyReward.update({
       where: { id: entry.reward.id },
-      data: { clanPointsGranted: amount },
+      // Incrément : la colonne cumule ce qui a réellement été versé, ce qui rend
+      // le calcul du delta juste au tour suivant.
+      data: { clanPointsGranted: { increment: amount } },
     }).catch(() => null);
 
     total += amount;

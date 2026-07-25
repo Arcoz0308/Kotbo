@@ -290,6 +290,23 @@ Bouton **« 🏁 Clôturer la semaine maintenant »** qui déclenche la même ro
 le cron du lundi, sans attendre. Indispensable pour tester le cycle complet sans
 laisser passer sept jours.
 
+**Le piège que ça ouvre.** Clôturer le mercredi laisse quatre jours de
+participations derrière soi. Si la clôture était un verrou définitif, le cron du
+lundi constaterait « déjà clôturée » et les points de tous ces participants
+seraient perdus en silence — sans le moindre message d'erreur.
+
+La clôture est donc **rejouable** : le classement est toujours recalculé, et ce qui
+empêche de verser deux fois n'est pas un verrou global mais l'état de chaque ligne
+`DailyAlgoWeeklyReward` — `xpGranted` marque l'XP déjà versée, `clanPointsGranted`
+cumule les points de clan et seul le delta est complété. Le cron du lundi rattrape
+donc naturellement une semaine clôturée à la main, et l'onglet Administration
+propose « ♻️ Rattraper les points de la semaine » pour le faire tout de suite.
+
+*Limite connue :* si un membre arrivé après la clôture manuelle prend la première
+place, il touche l'XP du 1er alors que l'ancien 1er garde la sienne. Les rôles du
+podium, eux, sont bien recalculés. Cas de figure uniquement atteignable via une
+clôture manuelle en milieu de semaine.
+
 Garde-fous, parce que le geste n'est pas annulable :
 - Confirmation explicite avant déclenchement, avec le récapitulatif de ce qui va
   être versé (podium, nombre de participants, total de points de clan si le pont
