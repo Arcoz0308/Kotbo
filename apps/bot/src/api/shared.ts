@@ -680,6 +680,28 @@ export type DashboardState = {
   translationEnabled: boolean;
   codePoliceEnabled: boolean;
   dailyAlgoEnabled: boolean;
+  // ── Daily Algo v2 : barème, semaine, sanctions, pont clans ──
+  dailyAlgoTimezone: string;
+  dailyAlgoParticipationPoints: number;
+  dailyAlgoWeekendMultiplier: number;
+  dailyAlgoWeeklyRewardsEnabled: boolean;
+  dailyAlgoWeekRole1Id: string;
+  dailyAlgoWeekRole2Id: string;
+  dailyAlgoWeekRole3Id: string;
+  dailyAlgoWeekRoleRotate: boolean;
+  dailyAlgoWeekXp1: number;
+  dailyAlgoWeekXp2: number;
+  dailyAlgoWeekXp3: number;
+  dailyAlgoWeekParticipationXp: number;
+  dailyAlgoWeekAnnouncementChannelId: string;
+  dailyAlgoSanctionType: string;
+  dailyAlgoSanctionWeight: number;
+  dailyAlgoSanctionDurationMinutes: number;
+  clanPointsFromDailyAlgo: boolean;
+  clanPointsFromDailyAlgoRate: number;
+  clanPointsDailyAlgoTop1: number;
+  clanPointsDailyAlgoTop2: number;
+  clanPointsDailyAlgoTop3: number;
   githubReleasesEnabled: boolean;
   digestEnabled: boolean;
   youtubeEnabled: boolean;
@@ -3222,6 +3244,27 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     translationEnabled: guild.translationEnabled,
     codePoliceEnabled: guild.codePoliceEnabled,
     dailyAlgoEnabled: guild.dailyAlgoEnabled,
+    dailyAlgoTimezone: guild.dailyAlgoTimezone,
+    dailyAlgoParticipationPoints: guild.dailyAlgoParticipationPoints,
+    dailyAlgoWeekendMultiplier: guild.dailyAlgoWeekendMultiplier,
+    dailyAlgoWeeklyRewardsEnabled: guild.dailyAlgoWeeklyRewardsEnabled,
+    dailyAlgoWeekRole1Id: guild.dailyAlgoWeekRole1Id ?? '',
+    dailyAlgoWeekRole2Id: guild.dailyAlgoWeekRole2Id ?? '',
+    dailyAlgoWeekRole3Id: guild.dailyAlgoWeekRole3Id ?? '',
+    dailyAlgoWeekRoleRotate: guild.dailyAlgoWeekRoleRotate,
+    dailyAlgoWeekXp1: guild.dailyAlgoWeekXp1,
+    dailyAlgoWeekXp2: guild.dailyAlgoWeekXp2,
+    dailyAlgoWeekXp3: guild.dailyAlgoWeekXp3,
+    dailyAlgoWeekParticipationXp: guild.dailyAlgoWeekParticipationXp,
+    dailyAlgoWeekAnnouncementChannelId: guild.dailyAlgoWeekAnnouncementChannelId ?? '',
+    dailyAlgoSanctionType: guild.dailyAlgoSanctionType,
+    dailyAlgoSanctionWeight: guild.dailyAlgoSanctionWeight,
+    dailyAlgoSanctionDurationMinutes: guild.dailyAlgoSanctionDurationMinutes,
+    clanPointsFromDailyAlgo: guild.clanPointsFromDailyAlgo,
+    clanPointsFromDailyAlgoRate: guild.clanPointsFromDailyAlgoRate,
+    clanPointsDailyAlgoTop1: guild.clanPointsDailyAlgoTop1,
+    clanPointsDailyAlgoTop2: guild.clanPointsDailyAlgoTop2,
+    clanPointsDailyAlgoTop3: guild.clanPointsDailyAlgoTop3,
     githubReleasesEnabled: guild.githubReleasesEnabled,
     digestEnabled: guild.digestEnabled,
     autoThreadEnabled: guild.autoThreadEnabled,
