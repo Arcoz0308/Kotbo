@@ -5589,8 +5589,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
     if (parts.length === 6 && method === 'GET') {
       const ticketId = parts[5];
       try {
-        const ticket = await prisma.ticket.findUnique({
-          where: { id: ticketId }
+        const ticket = await prisma.ticket.findFirst({
+          where: { id: ticketId, guildId }
         });
 
         if (!ticket) {
