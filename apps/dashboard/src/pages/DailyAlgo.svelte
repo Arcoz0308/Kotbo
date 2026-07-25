@@ -18,6 +18,11 @@
     fetchDailyAlgoSubmissionHistory,
     reviewDailyAlgoSubmission,
     fetchGlobalDailyAlgoLeaderboard,
+    fetchCurrentDailyAlgoWeek,
+    fetchDailyAlgoWeekHistory,
+    closeDailyAlgoWeek,
+    fetchClansData,
+    updateGlobalSettings,
   } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
@@ -27,6 +32,7 @@
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import DailyAlgoMiniIDE from '../lib/components/DailyAlgoMiniIDE.svelte';
   import {
@@ -137,6 +143,7 @@
 
   const formAction = createAsyncActionState();
   const apiKeyAction = createAsyncActionState();
+  const weekSettingsAction = createAsyncActionState();
 
   let dailyAlgoProblems = $state<any[]>([]);
   let dailyAlgoToday = $state<any | null>(null);
@@ -176,6 +183,153 @@
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
 
+  // ── Semaine compétitive & administration ────────────────────────────────────
+  let activeTab = $state<'defis' | 'semaine' | 'admin'>('defis');
+  let currentWeek = $state<any | null>(null);
+  let weekHistory = $state<any[]>([]);
+  let isFetchingWeek = $state(false);
+  let isClosingWeek = $state(false);
+  let closeWeekConfirmOpen = $state(false);
+
+  // Les clans sont un module indépendant : le pont Daily Algo → Clans ne peut
+  // être configuré que s'ils sont activés sur le serveur.
+  let clansEnabled = $state(false);
+
+  const weekSettings = $state({
+    dailyAlgoTimezone: 'Europe/Paris',
+    dailyAlgoParticipationPoints: 1,
+    dailyAlgoWeekendMultiplier: 1.5,
+    dailyAlgoWeeklyRewardsEnabled: false,
+    dailyAlgoWeekRole1Id: '',
+    dailyAlgoWeekRole2Id: '',
+    dailyAlgoWeekRole3Id: '',
+    dailyAlgoWeekRoleRotate: true,
+    dailyAlgoWeekXp1: 500,
+    dailyAlgoWeekXp2: 300,
+    dailyAlgoWeekXp3: 150,
+    dailyAlgoWeekParticipationXp: 100,
+    dailyAlgoWeekAnnouncementChannelId: '',
+    dailyAlgoSanctionType: 'WARN',
+    dailyAlgoSanctionWeight: 1,
+    dailyAlgoSanctionDurationMinutes: 60,
+    clanPointsFromDailyAlgo: false,
+    clanPointsFromDailyAlgoRate: 1,
+    clanPointsDailyAlgoTop1: 30,
+    clanPointsDailyAlgoTop2: 20,
+    clanPointsDailyAlgoTop3: 10,
+  });
+
+  const roleOptions = $derived(
+    ((dashboardStore.state.discordRoles as Array<{ id: string; name: string }>) ?? [])
+      .map((role) => ({ id: role.id, name: `@${role.name}` }))
+  );
+  const channelOptions = $derived(
+    ((dashboardStore.state.discordChannels as Array<{ id: string; name: string }>) ?? [])
+      .map((channel) => ({ id: channel.id, name: `#${channel.name}` }))
+  );
+
+  const numberFieldClass = 'w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 focus:outline-none transition-all';
+  const selectFieldClass = 'w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm transition-all';
+
+  /**
+   * Aperçu du barème : ce que gagne un participant moyen (moyenne 3.4/5, hors
+   * podium de rapidité), pour que l'admin voie l'effet de ses réglages sans avoir
+   * à attendre une semaine entière.
+   */
+  const scorePreview = $derived.by(() => {
+    const floor = Number(weekSettings.dailyAlgoParticipationPoints) || 0;
+    const multiplier = Number(weekSettings.dailyAlgoWeekendMultiplier) || 1;
+    const weekday = Math.ceil(floor + 3.4);
+    const weekend = Math.ceil((floor + 3.4) * multiplier);
+    return { weekday, weekend, week: weekday * 5 + weekend * 2 };
+  });
+
+  function syncWeekSettingsFromStore() {
+    const s = dashboardStore.state as any;
+    weekSettings.dailyAlgoTimezone = s.dailyAlgoTimezone ?? 'Europe/Paris';
+    weekSettings.dailyAlgoParticipationPoints = s.dailyAlgoParticipationPoints ?? 1;
+    weekSettings.dailyAlgoWeekendMultiplier = s.dailyAlgoWeekendMultiplier ?? 1.5;
+    weekSettings.dailyAlgoWeeklyRewardsEnabled = s.dailyAlgoWeeklyRewardsEnabled ?? false;
+    weekSettings.dailyAlgoWeekRole1Id = s.dailyAlgoWeekRole1Id ?? '';
+    weekSettings.dailyAlgoWeekRole2Id = s.dailyAlgoWeekRole2Id ?? '';
+    weekSettings.dailyAlgoWeekRole3Id = s.dailyAlgoWeekRole3Id ?? '';
+    weekSettings.dailyAlgoWeekRoleRotate = s.dailyAlgoWeekRoleRotate ?? true;
+    weekSettings.dailyAlgoWeekXp1 = s.dailyAlgoWeekXp1 ?? 500;
+    weekSettings.dailyAlgoWeekXp2 = s.dailyAlgoWeekXp2 ?? 300;
+    weekSettings.dailyAlgoWeekXp3 = s.dailyAlgoWeekXp3 ?? 150;
+    weekSettings.dailyAlgoWeekParticipationXp = s.dailyAlgoWeekParticipationXp ?? 100;
+    weekSettings.dailyAlgoWeekAnnouncementChannelId = s.dailyAlgoWeekAnnouncementChannelId ?? '';
+    weekSettings.dailyAlgoSanctionType = s.dailyAlgoSanctionType ?? 'WARN';
+    weekSettings.dailyAlgoSanctionWeight = s.dailyAlgoSanctionWeight ?? 1;
+    weekSettings.dailyAlgoSanctionDurationMinutes = s.dailyAlgoSanctionDurationMinutes ?? 60;
+    weekSettings.clanPointsFromDailyAlgo = s.clanPointsFromDailyAlgo ?? false;
+    weekSettings.clanPointsFromDailyAlgoRate = s.clanPointsFromDailyAlgoRate ?? 1;
+    weekSettings.clanPointsDailyAlgoTop1 = s.clanPointsDailyAlgoTop1 ?? 30;
+    weekSettings.clanPointsDailyAlgoTop2 = s.clanPointsDailyAlgoTop2 ?? 20;
+    weekSettings.clanPointsDailyAlgoTop3 = s.clanPointsDailyAlgoTop3 ?? 10;
+  }
+
+  async function loadWeekData() {
+    isFetchingWeek = true;
+    try {
+      const [current, history] = await Promise.all([
+        fetchCurrentDailyAlgoWeek(),
+        fetchDailyAlgoWeekHistory(10),
+      ]);
+      currentWeek = current?.week ?? null;
+      weekHistory = history?.weeks ?? [];
+    } catch (err) {
+      console.error('Error fetching daily algo week:', err);
+    } finally {
+      isFetchingWeek = false;
+    }
+  }
+
+  async function loadClansEnabled() {
+    try {
+      const clans = await fetchClansData();
+      clansEnabled = !!clans?.clansEnabled;
+    } catch {
+      clansEnabled = false;
+    }
+  }
+
+  async function saveWeekSettings() {
+    await weekSettingsAction.run(async () => {
+      const ok = await updateGlobalSettings({ ...weekSettings });
+      if (!ok) return false;
+
+      await dashboardStore.refresh();
+      syncWeekSettingsFromStore();
+      return true;
+    }, {
+      successMessage: 'Réglages enregistrés.',
+      failureMessage: "Impossible d'enregistrer les réglages.",
+    });
+  }
+
+  async function confirmCloseWeek() {
+    isClosingWeek = true;
+    try {
+      await weekSettingsAction.run(async () => {
+        const result = await closeDailyAlgoWeek();
+        if (!result?.ok) {
+          weekSettingsAction.setError(result?.error ?? 'Impossible de clôturer la semaine.');
+          return false;
+        }
+
+        weekSettingsAction.setMessage(
+          `Semaine ${result.weekKey} clôturée : ${result.participants} participant(s), ${result.xpGranted} XP versée.`
+        );
+        closeWeekConfirmOpen = false;
+        await loadWeekData();
+        return true;
+      }, { failureMessage: '' });
+    } finally {
+      isClosingWeek = false;
+    }
+  }
+
   async function loadFeatureConfig() {
     loadingConfig = true;
     try {
@@ -190,13 +344,16 @@
 
   onMount(async () => {
     await dashboardStore.refresh();
+    syncWeekSettingsFromStore();
     await Promise.all([
-      loadDailyAlgoProblems(), 
-      loadTodayDailyAlgoSubmissions(), 
-      loadDailyAlgoHistory(), 
-      loadDailyAlgoSchedule(), 
+      loadDailyAlgoProblems(),
+      loadTodayDailyAlgoSubmissions(),
+      loadDailyAlgoHistory(),
+      loadDailyAlgoSchedule(),
       loadMyApiKeys(),
-      loadFeatureConfig()
+      loadFeatureConfig(),
+      loadWeekData(),
+      loadClansEnabled()
     ]);
   });
 
@@ -336,7 +493,29 @@
     </div>
   {/snippet}
 
-  <div class="space-y-10 pb-20">
+  <!-- Navigation par Onglets -->
+  <div class="flex border-b border-outline-variant/15 mb-6">
+    <button
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'defis' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      onclick={() => activeTab = 'defis'}
+    >
+      <Papicon icon="Code" size={15} /> Défis & Notation
+    </button>
+    <button
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'semaine' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      onclick={() => activeTab = 'semaine'}
+    >
+      <Papicon icon="Award" size={15} /> Semaine & Podium
+    </button>
+    <button
+      class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'admin' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
+      onclick={() => activeTab = 'admin'}
+    >
+      <Papicon icon="Settings" size={15} /> Administration
+    </button>
+  </div>
+
+  <div class="space-y-10 pb-20" class:hidden={activeTab !== 'defis'}>
     
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -448,6 +627,444 @@
     {/if}
 
   </div>
+
+  <!-- ═══ Onglet Semaine & Podium ═══ -->
+  {#if activeTab === 'semaine'}
+    <div class="space-y-10 pb-20">
+      <div class="flex items-center justify-between px-2">
+        <div>
+          <h3 class="text-xl font-semibold text-on-surface">Semaine en cours</h3>
+          <p class="text-xs text-on-surface-variant/60 mt-1">
+            {#if currentWeek}
+              {currentWeek.weekKey} · {currentWeek.label}
+            {:else}
+              Aucune semaine ouverte pour le moment.
+            {/if}
+          </p>
+        </div>
+        <RefreshButton onClick={loadWeekData} loading={isFetchingWeek} label="Actualiser" />
+      </div>
+
+      {#if isFetchingWeek && !currentWeek}
+        <Skeleton height="220px" />
+      {:else if !currentWeek || currentWeek.ranking.length === 0}
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 text-center">
+          <span class="text-3xl">🗓️</span>
+          <h4 class="text-sm font-semibold text-on-surface mt-3">Aucune participation cette semaine</h4>
+          <p class="text-xs text-on-surface-variant/60 mt-1 max-w-md mx-auto">
+            Le classement se remplit à mesure que le staff note les soumissions. Toute
+            participation validée rapporte au moins le plancher de points.
+          </p>
+        </section>
+      {:else}
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest border-b border-outline-variant/10">
+                  <th class="px-6 py-4">#</th>
+                  <th class="px-6 py-4">Membre</th>
+                  <th class="px-6 py-4 text-right">Défis validés</th>
+                  <th class="px-6 py-4 text-right">Bonus manuels</th>
+                  <th class="px-6 py-4 text-right">Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each currentWeek.ranking as entry (entry.userId)}
+                  <tr class="text-sm border-b border-outline-variant/5 last:border-0">
+                    <td class="px-6 py-3 font-bold text-on-surface-variant/70">
+                      {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                    </td>
+                    <td class="px-6 py-3 font-semibold text-on-surface">{entry.userName}</td>
+                    <td class="px-6 py-3 text-right text-on-surface-variant/70">{entry.participations}</td>
+                    <td class="px-6 py-3 text-right text-on-surface-variant/70">
+                      {entry.bonusPoints > 0 ? `✨ +${entry.bonusPoints}` : '—'}
+                    </td>
+                    <td class="px-6 py-3 text-right font-black text-primary">{entry.points}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {/if}
+
+      <section class="space-y-4">
+        <h3 class="text-xl font-semibold text-on-surface px-2">Semaines clôturées</h3>
+        {#if weekHistory.length === 0}
+          <p class="text-xs text-on-surface-variant/50 italic px-2">
+            Aucune semaine clôturée pour l'instant. La première clôture a lieu le lundi
+            suivant, ou immédiatement via l'onglet Administration.
+          </p>
+        {:else}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {#each weekHistory as week (week.weekKey)}
+              <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-bold text-on-surface">{week.weekKey}</span>
+                  <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    {week.participants} participant{week.participants > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <p class="text-[11px] text-on-surface-variant/50">{week.label}</p>
+                {#if week.podium.length > 0}
+                  <div class="space-y-1 pt-2 border-t border-outline-variant/10">
+                    {#each week.podium as entry (entry.rank)}
+                      <p class="text-xs text-on-surface-variant/80 flex items-center justify-between gap-2">
+                        <span>{entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '🥉'} <code class="text-[10px]">{entry.userId}</code></span>
+                        <span class="font-bold">{entry.points} pts{entry.xpGranted > 0 ? ` · ${entry.xpGranted} XP` : ''}{entry.clanPointsGranted > 0 ? ` · ${entry.clanPointsGranted} pts clan` : ''}</span>
+                      </p>
+                    {/each}
+                  </div>
+                {/if}
+                {#if week.closedById}
+                  <p class="text-[10px] text-on-surface-variant/40 italic">Clôturée manuellement</p>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </section>
+    </div>
+  {/if}
+
+  <!-- ═══ Onglet Administration ═══ -->
+  {#if activeTab === 'admin'}
+    <div class="space-y-10 pb-20">
+      <InlineFeedback state={weekSettingsAction} />
+
+      {#if !canManageSettings}
+        <section class="bg-surface-container-high/20 rounded-xl border border-outline-variant/10 p-10 flex flex-col items-center text-center gap-3">
+          <span class="text-3xl">🔒</span>
+          <h4 class="text-sm font-semibold text-on-surface">Réservé aux administrateurs</h4>
+          <p class="text-xs text-on-surface-variant/70 max-w-md">
+            Vous n'avez pas la permission de configurer ce module.
+          </p>
+        </section>
+      {:else}
+        <!-- Clôture anticipée -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
+            <Papicon icon="Award" size={20} class="text-amber-500" />
+            Clôturer la semaine maintenant
+          </h3>
+          <p class="text-xs text-on-surface-variant/70 max-w-2xl">
+            Déclenche immédiatement ce que fait le cron du lundi : le classement est figé,
+            les récompenses versées, les rôles du podium attribués et l'annonce publiée.
+            Utile pour tester le cycle complet sans attendre sept jours.
+            <strong class="text-on-surface">Cette action ne s'annule pas.</strong>
+          </p>
+
+          {#if currentWeek?.status === 'CLOSED'}
+            <div class="p-4 bg-surface-container-high/20 rounded-lg border border-outline-variant/10 text-xs text-on-surface-variant/70">
+              La semaine <strong>{currentWeek.weekKey}</strong> est déjà clôturée.
+            </div>
+          {:else if !closeWeekConfirmOpen}
+            <button
+              onclick={() => closeWeekConfirmOpen = true}
+              disabled={!currentWeek}
+              class="px-6 py-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[13px] font-medium transition-colors hover:bg-amber-500/20 disabled:opacity-50"
+            >
+              🏁 Clôturer la semaine {currentWeek?.weekKey ?? ''}
+            </button>
+          {:else}
+            <div class="p-6 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-4">
+              <p class="text-sm font-semibold text-on-surface">
+                Confirmer la clôture de {currentWeek?.weekKey} ?
+              </p>
+              <ul class="text-xs text-on-surface-variant/70 space-y-1 list-disc list-inside">
+                <li>{currentWeek?.ranking?.length ?? 0} participant(s) seront récompensés</li>
+                <li>
+                  {#if weekSettings.dailyAlgoWeeklyRewardsEnabled}
+                    XP et rôles du podium attribués
+                  {:else}
+                    Récompenses désactivées : le classement sera seulement archivé
+                  {/if}
+                </li>
+                <li>
+                  {#if clansEnabled && weekSettings.clanPointsFromDailyAlgo}
+                    Les points de la semaine seront convertis en points de clan
+                  {:else}
+                    Aucun point de clan ne sera versé
+                  {/if}
+                </li>
+              </ul>
+              <div class="flex gap-3">
+                <button
+                  onclick={confirmCloseWeek}
+                  disabled={isClosingWeek}
+                  class="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-[13px] font-medium disabled:opacity-50"
+                >
+                  {isClosingWeek ? 'Clôture en cours…' : 'Oui, clôturer'}
+                </button>
+                <button
+                  onclick={() => closeWeekConfirmOpen = false}
+                  disabled={isClosingWeek}
+                  class="px-5 py-2.5 bg-surface-container-high rounded-lg text-[13px] font-medium border border-outline-variant/10 disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- Barème & points -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
+            <Papicon icon="Sparkles" size={20} class="text-primary" />
+            Barème & points
+          </h3>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div class="space-y-1.5">
+              <label for="daPartPoints" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Plancher de participation (pts)</label>
+              <input id="daPartPoints" type="number" min="0" max="50" step="1" bind:value={weekSettings.dailyAlgoParticipationPoints} disabled={!canManageSettings} class={numberFieldClass} />
+            </div>
+            <div class="space-y-1.5">
+              <label for="daWeekendMult" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Multiplicateur du week-end</label>
+              <input id="daWeekendMult" type="number" min="1" max="10" step="0.1" bind:value={weekSettings.dailyAlgoWeekendMultiplier} disabled={!canManageSettings} class={numberFieldClass} />
+            </div>
+            <div class="space-y-1.5">
+              <label for="daTimezone" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Fuseau horaire (IANA)</label>
+              <input id="daTimezone" type="text" placeholder="Europe/Paris" bind:value={weekSettings.dailyAlgoTimezone} disabled={!canManageSettings} class={numberFieldClass} />
+            </div>
+          </div>
+
+          <div class="p-4 bg-primary/5 border border-primary/10 rounded-lg text-xs text-on-surface-variant/80">
+            <strong class="text-on-surface">Aperçu :</strong> un participant moyen (moyenne 3,4/5,
+            hors podium de rapidité) gagne <strong>{scorePreview.weekday} pts</strong> en semaine,
+            <strong>{scorePreview.weekend} pts</strong> le week-end, soit environ
+            <strong>{scorePreview.week} pts</strong> sur une semaine complète.
+            Les points sont toujours des entiers, arrondis à l'unité supérieure.
+          </div>
+        </section>
+
+        <!-- Semaine & podium -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
+            <Papicon icon="Award" size={20} class="text-secondary" />
+            Semaine & podium
+          </h3>
+
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-sm font-medium text-on-surface">Activer les récompenses hebdomadaires</span>
+              <p class="text-xs text-on-surface-variant/70">
+                Verse XP et rôles à la clôture du lundi. Désactivé, le classement est
+                quand même figé et archivé.
+              </p>
+            </div>
+            <ToggleSwitch
+              checked={weekSettings.dailyAlgoWeeklyRewardsEnabled}
+              onToggle={(v) => weekSettings.dailyAlgoWeeklyRewardsEnabled = v}
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          {#if weekSettings.dailyAlgoWeeklyRewardsEnabled}
+            <div class="space-y-6 pt-4 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
+              <p class="text-[11px] text-on-surface-variant/60">
+                Les trois rôles sont <strong>facultatifs</strong> : laisser un champ vide
+                signifie « pas de rôle », et le reste des récompenses est versé quand même.
+              </p>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div class="space-y-1.5">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">🥇 Rôle 1er</span>
+                  <SearchableSelect
+                    bind:value={weekSettings.dailyAlgoWeekRole1Id}
+                    options={roleOptions}
+                    placeholder="Aucun rôle"
+                    disabled={!canManageSettings}
+                    className={selectFieldClass}
+                  />
+                </div>
+                <div class="space-y-1.5">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">🥈 Rôle 2e</span>
+                  <SearchableSelect
+                    bind:value={weekSettings.dailyAlgoWeekRole2Id}
+                    options={roleOptions}
+                    placeholder="Aucun rôle"
+                    disabled={!canManageSettings}
+                    className={selectFieldClass}
+                  />
+                </div>
+                <div class="space-y-1.5">
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">🥉 Rôle 3e</span>
+                  <SearchableSelect
+                    bind:value={weekSettings.dailyAlgoWeekRole3Id}
+                    options={roleOptions}
+                    placeholder="Aucun rôle"
+                    disabled={!canManageSettings}
+                    className={selectFieldClass}
+                  />
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Rôles tournants</span>
+                  <p class="text-xs text-on-surface-variant/70">
+                    Retire les rôles du podium précédent à chaque clôture. Sans rotation,
+                    un rôle de champion s'accumule et perd son sens.
+                  </p>
+                </div>
+                <ToggleSwitch
+                  checked={weekSettings.dailyAlgoWeekRoleRotate}
+                  onToggle={(v) => weekSettings.dailyAlgoWeekRoleRotate = v}
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                <div class="space-y-1.5">
+                  <label for="daXp1" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP 1er</label>
+                  <input id="daXp1" type="number" min="0" step="10" bind:value={weekSettings.dailyAlgoWeekXp1} disabled={!canManageSettings} class={numberFieldClass} />
+                </div>
+                <div class="space-y-1.5">
+                  <label for="daXp2" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP 2e</label>
+                  <input id="daXp2" type="number" min="0" step="10" bind:value={weekSettings.dailyAlgoWeekXp2} disabled={!canManageSettings} class={numberFieldClass} />
+                </div>
+                <div class="space-y-1.5">
+                  <label for="daXp3" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP 3e</label>
+                  <input id="daXp3" type="number" min="0" step="10" bind:value={weekSettings.dailyAlgoWeekXp3} disabled={!canManageSettings} class={numberFieldClass} />
+                </div>
+                <div class="space-y-1.5">
+                  <label for="daXpPart" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP participation</label>
+                  <input id="daXpPart" type="number" min="0" step="10" bind:value={weekSettings.dailyAlgoWeekParticipationXp} disabled={!canManageSettings} class={numberFieldClass} />
+                </div>
+              </div>
+              <p class="text-[11px] text-on-surface-variant/50">
+                Le podium reçoit son XP dédiée <strong>à la place</strong> de l'XP de
+                participation, pas en plus.
+              </p>
+
+              <div class="space-y-1.5">
+                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon d'annonce</span>
+                <SearchableSelect
+                  bind:value={weekSettings.dailyAlgoWeekAnnouncementChannelId}
+                  options={channelOptions}
+                  placeholder="Par défaut : le salon du Daily Algo"
+                  disabled={!canManageSettings}
+                  className={selectFieldClass}
+                />
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- Points de clan (verrouillé si les clans sont inactifs) -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
+            <Papicon icon="Shield" size={20} class="text-tertiary" />
+            Points de clan
+          </h3>
+
+          {#if !clansEnabled}
+            <div class="p-6 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
+              <span class="text-3xl">🔒</span>
+              <div>
+                <h4 class="text-sm font-semibold text-on-surface">Les clans ne sont pas activés</h4>
+                <p class="text-xs text-on-surface-variant/70 max-w-md mt-1">
+                  Les clans ne sont pas activés sur ce serveur. Activez-les dans l'onglet
+                  Clans pour configurer ce lien. Le Daily Algo fonctionne parfaitement sans.
+                </p>
+              </div>
+            </div>
+          {:else}
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-medium text-on-surface">Convertir les points en points de clan</span>
+                  <p class="text-xs text-on-surface-variant/70">
+                    À la clôture, chaque participant convertit ses points de la semaine en
+                    points de clan. Sans ce réglage, les deux modules tournent sans lien.
+                  </p>
+                </div>
+                <ToggleSwitch
+                  checked={weekSettings.clanPointsFromDailyAlgo}
+                  onToggle={(v) => weekSettings.clanPointsFromDailyAlgo = v}
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              {#if weekSettings.clanPointsFromDailyAlgo}
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-4 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
+                  <div class="space-y-1.5">
+                    <label for="daClanRate" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Taux de conversion</label>
+                    <input id="daClanRate" type="number" min="0.1" max="100" step="0.1" bind:value={weekSettings.clanPointsFromDailyAlgoRate} disabled={!canManageSettings} class={numberFieldClass} />
+                  </div>
+                  <div class="space-y-1.5">
+                    <label for="daClanTop1" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Bonus clan 1er</label>
+                    <input id="daClanTop1" type="number" min="0" step="5" bind:value={weekSettings.clanPointsDailyAlgoTop1} disabled={!canManageSettings} class={numberFieldClass} />
+                  </div>
+                  <div class="space-y-1.5">
+                    <label for="daClanTop2" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Bonus clan 2e</label>
+                    <input id="daClanTop2" type="number" min="0" step="5" bind:value={weekSettings.clanPointsDailyAlgoTop2} disabled={!canManageSettings} class={numberFieldClass} />
+                  </div>
+                  <div class="space-y-1.5">
+                    <label for="daClanTop3" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Bonus clan 3e</label>
+                    <input id="daClanTop3" type="number" min="0" step="5" bind:value={weekSettings.clanPointsDailyAlgoTop3} disabled={!canManageSettings} class={numberFieldClass} />
+                  </div>
+                </div>
+                <p class="text-[11px] text-on-surface-variant/50">
+                  Taux 1 = 1 point de Daily Algo donne 1 point de clan. Un participant assidu
+                  pèse alors environ 70 points de clan par semaine, soit un peu plus qu'un
+                  passage de niveau.
+                </p>
+              {/if}
+            </div>
+          {/if}
+        </section>
+
+        <!-- Sanctions -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
+            <Papicon icon="Shield" size={20} class="text-red-500" />
+            Sanctions
+          </h3>
+          <p class="text-xs text-on-surface-variant/70 max-w-2xl">
+            Applique à la sanction déclenchée depuis le message de validation, en cas de
+            dérapage dans une soumission.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div class="space-y-1.5">
+              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Type de sanction</span>
+              <select
+                bind:value={weekSettings.dailyAlgoSanctionType}
+                disabled={!canManageSettings}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+              >
+                <option value="WARN">Avertissement</option>
+                <option value="TIMEOUT">Exclusion temporaire</option>
+              </select>
+            </div>
+            <div class="space-y-1.5">
+              <label for="daSanctionWeight" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Poids de l'avertissement (1-3)</label>
+              <input id="daSanctionWeight" type="number" min="1" max="3" step="1" bind:value={weekSettings.dailyAlgoSanctionWeight} disabled={!canManageSettings} class={numberFieldClass} />
+            </div>
+            <div class="space-y-1.5">
+              <label for="daSanctionDuration" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée du timeout (minutes)</label>
+              <input id="daSanctionDuration" type="number" min="1" max="40320" step="5" bind:value={weekSettings.dailyAlgoSanctionDurationMinutes} disabled={!canManageSettings} class={numberFieldClass} />
+            </div>
+          </div>
+        </section>
+
+        <div class="flex justify-end">
+          <button
+            onclick={saveWeekSettings}
+            disabled={weekSettingsAction.state.loading}
+            class="px-8 py-3 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform disabled:opacity-50"
+          >
+            {weekSettingsAction.state.loading ? 'Enregistrement…' : 'Enregistrer les réglages'}
+          </button>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   {#if dailyAlgoScheduleModalOpen}
     <div class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-background/80 animate-in fade-in duration-300">
       <div class="bg-surface-container-low border border-outline-variant/10 w-full max-w-2xl rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[85vh]">
