@@ -36,7 +36,7 @@ import { updateGuildStats } from '../../../events/stats.js';
 import { invalidateBannedWordsCache } from '../../../services/moderation/bannedWordsService.js';
 import { generateTranscriptFromMessages, resolveMentionsToText, embedToApiShape } from '../../../services/features/transcriptService.js';
 
-import { parseDiscordMarkdown, extractMediaUrls } from '../../shared.js';
+import { parseDiscordMarkdown, extractMediaUrls, resolveDailyAlgoTotalPoints } from '../../shared.js';
 import {
   getModuleStatsSummary,
   getModuleActivationStats,
@@ -4680,9 +4680,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         const submissions = rawSubmissions.map(submission => {
           const finalScore = resolveDailyAlgoFinalScore(submission);
-          const totalPoints = finalScore !== null
-            ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
-            : null;
+          const totalPoints = resolveDailyAlgoTotalPoints(submission);
 
           return {
             id: submission.id,
@@ -4758,9 +4756,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
         const submissions = run.submissions.map((submission) => {
           const finalScore = resolveDailyAlgoFinalScore(submission);
-          const totalPoints = finalScore !== null
-            ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
-            : null;
+          const totalPoints = resolveDailyAlgoTotalPoints(submission);
 
           return {
             id: submission.id,
@@ -4849,20 +4845,12 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 
           const topEntries = approved
             .map((submission) => ({
-              finalScore: resolveDailyAlgoFinalScore(submission),
               id: submission.id,
               authorName: submission.authorName,
-              totalPoints: 0,
-              scoreFinal: null,
+              totalPoints: resolveDailyAlgoTotalPoints(submission),
+              scoreFinal: resolveDailyAlgoFinalScore(submission),
               speedBonusPoints: submission.speedBonusPoints,
               speedRank: submission.speedRank,
-            }))
-            .map((entry) => ({
-              ...entry,
-              totalPoints: entry.finalScore !== null
-                ? Math.round(((entry.finalScore + (entry.speedBonusPoints ?? 0)) * 10)) / 10
-                : null,
-              scoreFinal: entry.finalScore,
             }))
             .filter((entry) => entry.totalPoints !== null)
             .sort((left, right) => {
@@ -4915,9 +4903,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         }
 
         const finalScore = resolveDailyAlgoFinalScore(submission);
-        const totalPoints = finalScore !== null
-          ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
-          : null;
+        const totalPoints = resolveDailyAlgoTotalPoints(submission);
 
         json(res, 200, {
           id: submission.id,
@@ -4951,7 +4937,8 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
       const submissionId = parts[5];
       try {
         const body = await readJsonBody<{
-          action?: 'approve' | 'reject';
+          // `dismiss` = hors-sujet : aucun point, mais aucune sanction.
+          action?: 'approve' | 'reject' | 'dismiss';
           feedback?: string;
           scores?: {
             correctness?: number;
@@ -4962,7 +4949,7 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           };
         }>(req);
 
-        if (!body?.action || !['approve', 'reject'].includes(body.action)) {
+        if (!body?.action || !['approve', 'reject', 'dismiss'].includes(body.action)) {
           json(res, 400, { error: 'Action Daily Algo invalide.' });
           return true;
         }
@@ -5016,15 +5003,25 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
           return true;
         }
 
+        const auditAction = body.action === 'approve'
+          ? 'Validation soumission Daily Algo'
+          : body.action === 'dismiss'
+            ? 'Soumission Daily Algo hors-sujet'
+            : 'Rejet soumission Daily Algo';
+
+        const auditDetails = body.action === 'approve'
+          ? `Soumission ${submissionId} validée avec notation.`
+          : body.action === 'dismiss'
+            ? `Soumission ${submissionId} classée hors-sujet (aucun point, aucune sanction).`
+            : `Soumission ${submissionId} rejetée.`;
+
         await pushAudit(guildId, {
           user: auditUser,
-          action: body.action === 'approve' ? 'Validation soumission Daily Algo' : 'Rejet soumission Daily Algo',
+          action: auditAction,
           context: getGuildName(client, guildId),
           module: 'Daily Algo',
           eventType: 'Manuel',
-          details: body.action === 'approve'
-            ? `Soumission ${submissionId} validée avec notation.`
-            : `Soumission ${submissionId} rejetée.`,
+          details: auditDetails,
           channelId: null,
         });
 

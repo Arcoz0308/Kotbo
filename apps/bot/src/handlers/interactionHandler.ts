@@ -1102,6 +1102,19 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }
     }
 
+    if (action === 'dismiss') {
+      if (type === 'daily-algo') {
+        await reviewDailyAlgoSubmission({
+          client,
+          submissionId: itemId,
+          action: 'dismiss',
+          moderatorId: user.id,
+        });
+        logger.info('Handler', `Dismissed daily algo submission ${itemId} (hors-sujet, sans sanction)`);
+        return;
+      }
+    }
+
 
     return;
   }

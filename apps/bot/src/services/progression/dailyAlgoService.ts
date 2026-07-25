@@ -11,6 +11,16 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS, truncate } from '../../utils/embeds.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
+import {
+  DAILY_ALGO_SPEED_BONUS,
+  clampCriterionScore,
+  computeCriteriaAverage,
+  computeSubmissionPoints,
+  getSpeedBonus,
+  resolveRunMultiplier,
+  roundCriteriaAverage,
+  type DailyAlgoCriteriaScores,
+} from './dailyAlgoScoring.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -45,7 +55,8 @@ export const DAILY_ALGO_SCORING_RULES = {
     { key: 'optimization', label: '⚡ Optimisation (performance/runtime)', max: 5 },
     { key: 'readability', label: '🧹 Lisibilité (propreté/formatage)', max: 5 },
   ],
-  speedBonus: { 1: 3, 2: 2, 3: 1 },
+  // Barème unique : voir `dailyAlgoScoring.ts`, seule source de vérité.
+  speedBonus: DAILY_ALGO_SPEED_BONUS,
 } as const;
 
 const dailyAlgoRunDispatchSelect = {
@@ -127,16 +138,39 @@ function toDailyAlgoRunMessageData(run: DailyAlgoRunDispatchPayload): DailyAlgoR
   };
 }
 
-// ── Speed Bonus Config ─────────────────────────────────────────────────────────
+// ── Points d'une soumission ────────────────────────────────────────────────────
 
-const SPEED_BONUS: Record<number, number> = {
-  1: 3,
-  2: 2,
-  3: 1,
+type SubmissionPointsSource = {
+  status: string;
+  pointsAwarded?: number | null;
+  scoreFinal?: number | null;
+  speedBonusPoints?: number | null;
 };
 
-function getSpeedBonus(rank: number): number {
-  return SPEED_BONUS[rank] ?? 0;
+/**
+ * Total de points d'une soumission, toujours en entier.
+ *
+ * `pointsAwarded` est la source de vérité dès qu'il est renseigné : il a été figé
+ * à la notation. Les soumissions notées avant la v2 ne l'ont pas ; on le
+ * reconstitue alors depuis la moyenne et le bonus déjà en base, ce qui évite une
+ * migration de données rétroactive.
+ */
+function resolveSubmissionPoints(submission: SubmissionPointsSource): number {
+  // Seule une soumission approuvée rapporte des points, quoi qu'il reste en base :
+  // une soumission rejetée après avoir été approuvée ne doit rien conserver.
+  if (submission.status !== 'APPROVED') {
+    return 0;
+  }
+
+  if (typeof submission.pointsAwarded === 'number') {
+    return submission.pointsAwarded;
+  }
+
+  if (typeof submission.scoreFinal !== 'number') {
+    return 0;
+  }
+
+  return Math.max(0, Math.ceil(submission.scoreFinal + (submission.speedBonusPoints ?? 0)));
 }
 
 function resolveSkillTier(averageScore: number, approvedCount: number): DailyAlgoSkillTier {
@@ -233,27 +267,17 @@ function resolveRunDateKey(runDateKey: string | null | undefined, runCreatedAt?:
   return getLocalDateKey();
 }
 
-function isSpeedBonusEnabledForRun(params: {
-  runDateKey?: string | null;
-  runCreatedAt?: Date;
-}): boolean {
-  const todayKey = getLocalDateKey();
-  const runKey = resolveRunDateKey(params.runDateKey, params.runCreatedAt);
-
-  // Bonus rapidité actif uniquement pour les runs passés.
-  return runKey < todayKey;
-}
-
-function resolveEffectiveSpeedBonus(
-  rawBonus: number | null | undefined,
-  params: {
-    runDateKey?: string | null;
-    runCreatedAt?: Date;
-  },
-): number {
-  if (!isSpeedBonusEnabledForRun(params)) {
-    return 0;
-  }
+/**
+ * Bonus de rapidité effectivement acquis par une soumission.
+ *
+ * Le bonus compte dès la soumission, y compris le jour même. Une version
+ * précédente le neutralisait tant que la journée n'était pas terminée, mais comme
+ * il était aussi neutralisé *à l'écriture*, il finissait stocké à 0 et
+ * n'apparaissait jamais — le 3/2/1 était mort. Le rang de soumission est attribué
+ * une fois pour toutes et ne bouge plus après coup : rien ne justifie de le
+ * masquer, et le figer dans `pointsAwarded` exige de le connaître tout de suite.
+ */
+function resolveEffectiveSpeedBonus(rawBonus: number | null | undefined): number {
   return rawBonus ?? 0;
 }
 
@@ -301,6 +325,15 @@ export function buildDailyAlgoValidationButtons(submissionId: string, disabled =
     .setURL(`${DASHBOARD_URL}/dailyalgo/ide?submissionId=${submissionId}`)
     .setDisabled(disabled);
 
+  // Hors-sujet : la réponse ne traite pas le sujet. Aucun point, aucune sanction.
+  // À distinguer du rejet, réservé aux dérapages.
+  const dismiss = new ButtonBuilder()
+    .setCustomId(`validate:dismiss:daily-algo:${submissionId}`)
+    .setLabel('Hors-sujet')
+    .setEmoji('🚫')
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(disabled);
+
   const reject = new ButtonBuilder()
     .setCustomId(`validate:reject:daily-algo:${submissionId}`)
     .setLabel('Rejeter')
@@ -308,7 +341,7 @@ export function buildDailyAlgoValidationButtons(submissionId: string, disabled =
     .setStyle(ButtonStyle.Danger)
     .setDisabled(disabled);
 
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(rate, reject)];
+  return [new ActionRowBuilder<ButtonBuilder>().addComponents(rate, dismiss, reject)];
 }
 
 // ── Embed Builders ─────────────────────────────────────────────────────────────
@@ -498,31 +531,30 @@ type LeaderboardSubmission = {
   scoreOptimization: number | null;
   scoreReadability: number | null;
   scoreFinal: number | null;
+  pointsAwarded: number | null;
 };
 
 function buildLeaderboardEmbed(
   submissions: LeaderboardSubmission[],
-  runDateKey: string | null,
   runCreatedAt: Date,
 ): EmbedBuilder {
-  const speedBonusEnabled = isSpeedBonusEnabledForRun({ runDateKey, runCreatedAt });
-
   const approved = submissions
     .filter((s) => s.status === 'APPROVED' && s.scoreFinal !== null)
     .sort((a, b) => {
+      const pointsA = resolveSubmissionPoints(a);
+      const pointsB = resolveSubmissionPoints(b);
+      if (pointsB !== pointsA) return pointsB - pointsA;
+
       const scoreA = a.scoreFinal ?? 0;
       const scoreB = b.scoreFinal ?? 0;
       if (scoreB !== scoreA) return scoreB - scoreA;
-
-      const bonusA = speedBonusEnabled ? (a.speedBonusPoints ?? 0) : 0;
-      const bonusB = speedBonusEnabled ? (b.speedBonusPoints ?? 0) : 0;
-      if (bonusB !== bonusA) return bonusB - bonusA;
 
       return (a.speedRank ?? 999) - (b.speedRank ?? 999);
     });
 
   const pending = submissions.filter((s) => s.status === 'PENDING');
   const rejected = submissions.filter((s) => s.status === 'REJECTED');
+  const dismissed = submissions.filter((s) => s.status === 'DISMISSED');
   const maxApprovedEntries = 15;
   const maxPendingEntries = 10;
   const maxRejectedEntries = 10;
@@ -545,14 +577,14 @@ function buildLeaderboardEmbed(
     lines.push('**🏆 Classés**\n');
     for (let i = 0; i < Math.min(approved.length, maxApprovedEntries); i++) {
       const s = approved[i]!;
-      const bonus = speedBonusEnabled ? (s.speedBonusPoints ?? 0) : 0;
-      const totalScore = (s.scoreFinal ?? 0) + bonus;
+      const bonus = resolveEffectiveSpeedBonus(s.speedBonusPoints);
+      const totalScore = resolveSubmissionPoints(s);
       const medal = formatRankMedal(i + 1);
       const speedTag = bonus > 0
         ? ` ⚡+${bonus}`
         : '';
 
-      lines.push(`${medal} **${s.authorName}** — **${totalScore.toFixed(1)}** pts${speedTag}`);
+      lines.push(`${medal} **${s.authorName}** — **${totalScore}** pts${speedTag}`);
       lines.push(`┊ ✅ ${formatScoreBar(s.scoreCorrectness ?? 0)} · 💬 ${formatScoreBar(s.scoreComments ?? 0)}`);
       lines.push(`┊ 📦 ${formatScoreBar(s.scoreCompactness ?? 0)} · ⚡ ${formatScoreBar(s.scoreOptimization ?? 0)}`);
       lines.push(`┊ 🧹 ${formatScoreBar(s.scoreReadability ?? 0)}`);
@@ -576,6 +608,19 @@ function buildLeaderboardEmbed(
 
     if (pending.length > maxPendingEntries) {
       lines.push(`… et ${pending.length - maxPendingEntries} autre${pending.length - maxPendingEntries > 1 ? 's' : ''} en attente`);
+    }
+    lines.push('');
+  }
+
+  // ── Off-topic participants (no points, no sanction) ──
+  if (dismissed.length > 0) {
+    lines.push('**🚫 Hors-sujet**\n');
+    for (const s of dismissed.slice(0, maxRejectedEntries)) {
+      lines.push(`${s.authorName}`);
+    }
+
+    if (dismissed.length > maxRejectedEntries) {
+      lines.push(`… et ${dismissed.length - maxRejectedEntries} autre${dismissed.length - maxRejectedEntries > 1 ? 's' : ''}`);
     }
     lines.push('');
   }
@@ -630,7 +675,7 @@ export async function updateDailyAlgoLeaderboard(client: Client, runId: string):
     return;
   }
 
-  const embed = buildLeaderboardEmbed(run.submissions, run.dateKey, run.createdAt);
+  const embed = buildLeaderboardEmbed(run.submissions, run.createdAt);
 
   if (run.leaderboardMessageId) {
     logger.debug('DailyAlgo', `Mise à jour du message de classement ${run.leaderboardMessageId} pour le run ${runId}...`);
@@ -745,10 +790,9 @@ export async function queueDailyAlgoSubmission(params: {
   // Calculate speed rank
   const currentCount = run.submissions.length;
   const speedRank = currentCount + 1;
-  const speedBonusPoints = resolveEffectiveSpeedBonus(getSpeedBonus(speedRank), {
-    runDateKey: run.dateKey,
-    runCreatedAt: run.createdAt,
-  });
+  // Bonus brut : on le stocke tel quel. Le neutraliser ici (parce que le run est
+  // celui du jour) le figeait à 0 pour toujours.
+  const speedBonusPoints = getSpeedBonus(speedRank);
 
   const channelId = run.validationChannelId ?? run.guild.dailyAlgoValidationChannelId ?? run.challengeChannelId;
   const channel = await params.client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
@@ -882,19 +926,37 @@ function countStreaks(dateKeys: string[]): { current: number; best: number } {
   return { current, best };
 }
 
-export async function getGuildDailyAlgoRanking(guildId: string): Promise<DailyAlgoGuildRankingEntry[]> {
+/**
+ * Bornes de journées facultatives, sous forme de clés « YYYY-MM-DD ».
+ * Ces clés sont triables comme des chaînes : filtrer une semaine se réduit donc à
+ * une comparaison lexicographique, sans arithmétique de fuseau.
+ */
+export type DailyAlgoDateKeyRange = {
+  firstDateKey: string;
+  lastDateKey: string;
+};
+
+export async function getGuildDailyAlgoRanking(
+  guildId: string,
+  range?: DailyAlgoDateKeyRange,
+): Promise<DailyAlgoGuildRankingEntry[]> {
   const approvedSubmissions = await prisma.dailyAlgoSubmission.findMany({
     where: {
       status: 'APPROVED',
       run: {
         guildId,
+        ...(range
+          ? { dateKey: { gte: range.firstDateKey, lte: range.lastDateKey } }
+          : {}),
       },
     },
     select: {
       authorId: true,
       authorName: true,
+      status: true,
       speedBonusPoints: true,
       scoreFinal: true,
+      pointsAwarded: true,
       run: {
         select: {
           dateKey: true,
@@ -918,10 +980,7 @@ export async function getGuildDailyAlgoRanking(guildId: string): Promise<DailyAl
 
   for (const submission of approvedSubmissions) {
     const score = submission.scoreFinal ?? 0;
-    const points = score + resolveEffectiveSpeedBonus(submission.speedBonusPoints, {
-      runDateKey: submission.run.dateKey,
-      runCreatedAt: submission.run.createdAt,
-    });
+    const points = resolveSubmissionPoints(submission);
     const existing = byUser.get(submission.authorId);
 
     if (!existing) {
@@ -957,8 +1016,9 @@ export async function getGuildDailyAlgoRanking(guildId: string): Promise<DailyAl
       authorName: data.authorName,
       approvedCount: data.approvedCount,
       averageScore,
-      bestScore: Math.round(data.bestScore * 10) / 10,
-      totalPoints: Math.round(data.totalPoints * 10) / 10,
+      // Les points sont des entiers : une somme d'entiers l'est aussi.
+      bestScore: data.bestScore,
+      totalPoints: data.totalPoints,
       currentStreak: current,
       bestStreak: best,
       tier: resolveSkillTier(averageScore, data.approvedCount),
@@ -977,6 +1037,17 @@ export async function getGuildDailyAlgoRanking(guildId: string): Promise<DailyAl
   }));
 }
 
+/**
+ * Profil d'un membre, rang compris.
+ *
+ * Le rang impose de connaître les totaux de tous les autres : on passe donc par le
+ * classement complet, il n'y a pas de raccourci. Le coût réel est le chargement de
+ * l'historique intégral des soumissions approuvées du serveur — un `groupBy` ne
+ * suffirait pas, les séries (`streaks`) ont besoin de la liste des journées et les
+ * soumissions d'avant la v2 ont besoin du repli de calcul. La vraie correction est
+ * une table d'agrégats entretenue à la notation ; tant qu'elle n'existe pas, éviter
+ * d'appeler cette fonction dans une boucle.
+ */
 export async function getDailyAlgoUserProfile(guildId: string, authorId: string): Promise<DailyAlgoGuildRankingEntry | null> {
   const ranking = await getGuildDailyAlgoRanking(guildId);
   return ranking.find((entry) => entry.authorId === authorId) ?? null;
@@ -1023,6 +1094,7 @@ export async function getDailyAlgoUserParticipations(
       speedRank: true,
       scoreFinal: true,
       speedBonusPoints: true,
+      pointsAwarded: true,
       run: {
         select: {
           dateKey: true,
@@ -1054,32 +1126,22 @@ export async function getDailyAlgoUserParticipations(
         },
         select: {
           id: true,
+          status: true,
           scoreFinal: true,
           speedBonusPoints: true,
+          pointsAwarded: true,
           speedRank: true,
-          run: {
-            select: {
-              dateKey: true,
-              createdAt: true,
-            },
-          },
         },
       });
 
       approved.sort((a, b) => {
+        const pointsA = resolveSubmissionPoints(a);
+        const pointsB = resolveSubmissionPoints(b);
+        if (pointsB !== pointsA) return pointsB - pointsA;
+
         const scoreA = a.scoreFinal ?? 0;
         const scoreB = b.scoreFinal ?? 0;
         if (scoreB !== scoreA) return scoreB - scoreA;
-
-        const bonusA = resolveEffectiveSpeedBonus(a.speedBonusPoints, {
-          runDateKey: a.run.dateKey,
-          runCreatedAt: a.run.createdAt,
-        });
-        const bonusB = resolveEffectiveSpeedBonus(b.speedBonusPoints, {
-          runDateKey: b.run.dateKey,
-          runCreatedAt: b.run.createdAt,
-        });
-        if (bonusB !== bonusA) return bonusB - bonusA;
 
         return (a.speedRank ?? 999) - (b.speedRank ?? 999);
       });
@@ -1096,12 +1158,9 @@ export async function getDailyAlgoUserParticipations(
   };
 
   const participations = await Promise.all(submissions.map(async (submission) => {
-    const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints, {
-      runDateKey: submission.run.dateKey,
-      runCreatedAt: submission.run.createdAt,
-    });
+    const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints);
     const totalPoints = submission.scoreFinal !== null
-      ? Math.round(((submission.scoreFinal ?? 0) + effectiveBonus) * 10) / 10
+      ? resolveSubmissionPoints(submission)
       : null;
     const rankInRun = submission.status === 'APPROVED'
       ? await resolveRankInRun(submission.runId, submission.id)
@@ -1129,7 +1188,7 @@ export async function getDailyAlgoUserParticipations(
 export type DailyAlgoSubmissionFeedback = {
   submissionId: string;
   runId: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISMISSED';
   problemTitle: string;
   scoreCorrectness: number | null;
   scoreComments: number | null;
@@ -1160,6 +1219,7 @@ export async function getDailyAlgoSubmissionFeedbackForUser(runId: string, autho
       scoreReadability: true,
       scoreFinal: true,
       speedBonusPoints: true,
+      pointsAwarded: true,
       reviewFeedback: true,
       validatedAt: true,
       run: {
@@ -1180,12 +1240,9 @@ export async function getDailyAlgoSubmissionFeedbackForUser(runId: string, autho
     return null;
   }
 
-  const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints, {
-    runDateKey: submission.run.dateKey,
-    runCreatedAt: submission.run.createdAt,
-  });
+  const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints);
   const totalPoints = submission.scoreFinal !== null
-    ? Math.round(((submission.scoreFinal ?? 0) + effectiveBonus) * 10) / 10
+    ? resolveSubmissionPoints(submission)
     : null;
 
   return {
@@ -1211,7 +1268,12 @@ export async function getDailyAlgoSubmissionFeedbackForUser(runId: string, autho
 export async function reviewDailyAlgoSubmission(params: {
   client: Client;
   submissionId: string;
-  action: 'approve' | 'reject';
+  /**
+   * `dismiss` = hors-sujet : aucun point, mais aucune sanction. À réserver aux
+   * réponses qui ne traitent pas le sujet ; une tentative maladroite mais sincère
+   * doit être approuvée (elle touche alors le plancher de participation).
+   */
+  action: 'approve' | 'reject' | 'dismiss';
   moderatorId: string;
   allowReviewedUpdate?: boolean;
   scores?: {
@@ -1242,18 +1304,19 @@ export async function reviewDailyAlgoSubmission(params: {
   const todayKey = getLocalDateKey();
   const runDateKey = submission.run.dateKey ?? getLocalDateKey(submission.run.createdAt);
   const isTodayRun = runDateKey === todayKey;
-  const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints, {
-    runDateKey,
-    runCreatedAt: submission.run.createdAt,
-  });
-  const isAlreadyReviewed = submission.status === 'APPROVED' || submission.status === 'REJECTED';
+  const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints);
+  const isAlreadyReviewed = submission.status === 'APPROVED'
+    || submission.status === 'REJECTED'
+    || submission.status === 'DISMISSED';
   const canEditReviewedSubmission = params.allowReviewedUpdate === true && isAlreadyReviewed && isTodayRun;
 
   if (submission.status !== 'PENDING' && !canEditReviewedSubmission) {
     return false;
   }
 
-  const status = params.action === 'approve' ? 'APPROVED' : 'REJECTED';
+  const status = params.action === 'approve'
+    ? 'APPROVED'
+    : params.action === 'dismiss' ? 'DISMISSED' : 'REJECTED';
   const normalizedFeedback = typeof params.feedback === 'string'
     ? params.feedback.trim()
     : '';
@@ -1265,24 +1328,48 @@ export async function reviewDailyAlgoSubmission(params: {
   };
 
   if (params.action === 'approve' && params.scores) {
-    const { correctness, comments, compactness, optimization, readability } = params.scores;
+    // Aucune note à 0 : on est là pour apprendre, une tentative vaut au moins 1/5.
+    const correctness = clampCriterionScore(params.scores.correctness);
+    const comments = clampCriterionScore(params.scores.comments);
+    const compactness = clampCriterionScore(params.scores.compactness);
+    const optimization = clampCriterionScore(params.scores.optimization);
+    const readability = clampCriterionScore(params.scores.readability);
+
+    const clampedScores: DailyAlgoCriteriaScores = {
+      correctness, comments, compactness, optimization, readability,
+    };
+
     const hasLowScore = [correctness, comments, compactness, optimization, readability].some((score) => score < 5);
 
     if (hasLowScore && !normalizedFeedback) {
       throw new Error('Une explication est obligatoire quand une note est inférieure à 5/5.');
     }
 
-    const scoreFinal = (correctness + comments + compactness + optimization + readability) / 5;
-
     updateData.scoreCorrectness = correctness;
     updateData.scoreComments = comments;
     updateData.scoreCompactness = compactness;
     updateData.scoreOptimization = optimization;
     updateData.scoreReadability = readability;
-    updateData.scoreFinal = Math.round(scoreFinal * 10) / 10;
+    updateData.scoreFinal = roundCriteriaAverage(computeCriteriaAverage(clampedScores));
+
+    // Total figé, en entier. Le bonus de rapidité y est toujours inclus : la
+    // notation a lieu le jour même, on ne peut pas attendre pour le connaître.
+    updateData.pointsAwarded = computeSubmissionPoints({
+      scores: clampedScores,
+      speedRank: submission.speedRank,
+      participationPoints: submission.run.guild.dailyAlgoParticipationPoints,
+      pointsMultiplier: submission.run.pointsMultiplier,
+    });
     updateData.reviewFeedback = normalizedFeedback || 'Rien à redire.';
-  } else if (normalizedFeedback) {
-    updateData.reviewFeedback = normalizedFeedback;
+  } else {
+    // Rejet ou hors-sujet : aucun point. Remise à zéro explicite, car la
+    // renotation du jour même peut porter sur une soumission déjà approuvée qui
+    // avait donc déjà un total figé.
+    updateData.pointsAwarded = 0;
+
+    if (normalizedFeedback) {
+      updateData.reviewFeedback = normalizedFeedback;
+    }
   }
 
   await prisma.dailyAlgoSubmission.update({
@@ -1299,16 +1386,21 @@ export async function reviewDailyAlgoSubmission(params: {
       if (message) {
         const moderator = await params.client.users.fetch(params.moderatorId).catch(() => null);
 
+        const moderatorLabel = moderator?.globalName ?? moderator?.username ?? null;
+
         let footerLabel: string;
         if (params.action === 'approve' && params.scores) {
-          const scoreFinal = (params.scores.correctness + params.scores.comments + params.scores.compactness + params.scores.optimization + params.scores.readability) / 5;
-          const totalScore = Math.round(scoreFinal * 10) / 10 + effectiveBonus;
-          footerLabel = moderator
-            ? `✅ Noté ${totalScore.toFixed(1)}pts par ${moderator.globalName ?? moderator.username}`
-            : `✅ Noté ${totalScore.toFixed(1)}pts`;
+          const totalScore = Number(updateData.pointsAwarded ?? 0);
+          footerLabel = moderatorLabel
+            ? `✅ Noté ${totalScore}pts par ${moderatorLabel}`
+            : `✅ Noté ${totalScore}pts`;
+        } else if (params.action === 'dismiss') {
+          footerLabel = moderatorLabel
+            ? `🚫 Hors-sujet par ${moderatorLabel}`
+            : '🚫 Hors-sujet';
         } else {
-          footerLabel = moderator
-            ? `❌ Rejeté par ${moderator.globalName ?? moderator.username}`
+          footerLabel = moderatorLabel
+            ? `❌ Rejeté par ${moderatorLabel}`
             : '❌ Rejeté';
         }
 
@@ -1359,16 +1451,26 @@ export async function reviewDailyAlgoSubmission(params: {
     const guild = params.client.guilds.cache.get(submission.run.guildId) || await params.client.guilds.fetch(submission.run.guildId).catch(() => null);
     const serverName = guild ? guild.name : '';
 
+    const dmDescription = params.action === 'approve'
+      ? 'Ta soumission a été notée par le staff.'
+      : params.action === 'dismiss'
+        ? 'Ta soumission a été jugée hors-sujet par le staff : elle ne rapporte pas de points, mais elle n’entraîne aucune sanction. N’hésite pas à retenter demain !'
+        : 'Ta soumission a été rejetée par le staff.';
+
+    const dmStatusLabel = params.action === 'approve'
+      ? '✅ Validée'
+      : params.action === 'dismiss' ? '🚫 Hors-sujet' : '❌ Rejetée';
+
     const dmEmbed = new EmbedBuilder()
-      .setColor(params.action === 'approve' ? COLORS.success : COLORS.danger)
+      .setColor(params.action === 'approve'
+        ? COLORS.success
+        : params.action === 'dismiss' ? COLORS.warning : COLORS.danger)
       .setTitle(`📬 Retour Daily Algo · ${submission.run.problem.title}`)
-      .setDescription(params.action === 'approve'
-        ? 'Ta soumission a été notée par le staff.'
-        : 'Ta soumission a été rejetée par le staff.')
+      .setDescription(dmDescription)
       .addFields(
         {
           name: 'Statut',
-          value: params.action === 'approve' ? '✅ Validée' : '❌ Rejetée',
+          value: dmStatusLabel,
           inline: true,
         },
         {
@@ -1381,19 +1483,19 @@ export async function reviewDailyAlgoSubmission(params: {
       .setFooter({ text: serverName ? `Kotbo · Daily Algo · ${serverName}` : 'Kotbo · Daily Algo' });
 
     if (params.action === 'approve' && params.scores) {
-      const rawAvg = (params.scores.correctness + params.scores.comments + params.scores.compactness + params.scores.optimization + params.scores.readability) / 5;
-      const average = Math.round(rawAvg * 10) / 10;
-      const totalPoints = Math.round((average + effectiveBonus) * 10) / 10;
+      const average = Number(updateData.scoreFinal ?? 0);
+      const totalPoints = Number(updateData.pointsAwarded ?? 0);
+      const bonusLabel = effectiveBonus > 0 ? ` (dont ⚡+${effectiveBonus} de rapidité)` : '';
 
       dmEmbed.addFields(
         {
           name: 'Détail des notes',
-          value: `✅ ${params.scores.correctness}/5 · 💬 ${params.scores.comments}/5 · 📦 ${params.scores.compactness}/5 · ⚡ ${params.scores.optimization}/5 · 🧹 ${params.scores.readability}/5`,
+          value: `✅ ${updateData.scoreCorrectness}/5 · 💬 ${updateData.scoreComments}/5 · 📦 ${updateData.scoreCompactness}/5 · ⚡ ${updateData.scoreOptimization}/5 · 🧹 ${updateData.scoreReadability}/5`,
           inline: false,
         },
         {
           name: 'Résultat',
-          value: `Moyenne: **${average.toFixed(1)}/5** · Total: **${totalPoints.toFixed(1)} pts**`,
+          value: `Moyenne: **${average.toFixed(1)}/5** · Total: **${totalPoints} pts**${bonusLabel}`,
           inline: false,
         },
       );
@@ -1414,10 +1516,12 @@ export async function reviewDailyAlgoSubmission(params: {
       submission.run.guildId,
       submission.authorId,
       `Retour Daily Algo : ${submission.run.problem.title}`,
-      params.action === 'approve' 
-        ? `Votre soumission a été validée avec une note de ${updateData.scoreFinal}/5.`
-        : `Votre soumission a été rejetée. Motif : ${normalizedFeedback || 'Non spécifié'}`,
-      params.action === 'approve' ? 'SUCCESS' : 'ERROR',
+      params.action === 'approve'
+        ? `Votre soumission a été validée avec une note de ${updateData.scoreFinal}/5, soit ${updateData.pointsAwarded} pts.`
+        : params.action === 'dismiss'
+          ? `Votre soumission a été jugée hors-sujet (aucune sanction). Motif : ${normalizedFeedback || 'Non spécifié'}`
+          : `Votre soumission a été rejetée. Motif : ${normalizedFeedback || 'Non spécifié'}`,
+      params.action === 'approve' ? 'SUCCESS' : params.action === 'dismiss' ? 'WARNING' : 'ERROR',
       '/dailyalgo/ide',
       false
     ).catch(() => null);
@@ -1498,15 +1602,14 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
 
   // Sort by total score desc
   const ranked = allApproved.sort((a, b) => {
-    const scoreA = (a.scoreFinal ?? 0) + resolveEffectiveSpeedBonus(a.speedBonusPoints, {
-      runDateKey: a.runDateKey,
-      runCreatedAt: a.runCreatedAt,
-    });
-    const scoreB = (b.scoreFinal ?? 0) + resolveEffectiveSpeedBonus(b.speedBonusPoints, {
-      runDateKey: b.runDateKey,
-      runCreatedAt: b.runCreatedAt,
-    });
+    const pointsA = resolveSubmissionPoints(a);
+    const pointsB = resolveSubmissionPoints(b);
+    if (pointsB !== pointsA) return pointsB - pointsA;
+
+    const scoreA = a.scoreFinal ?? 0;
+    const scoreB = b.scoreFinal ?? 0;
     if (scoreB !== scoreA) return scoreB - scoreA;
+
     return (a.speedRank ?? 999) - (b.speedRank ?? 999);
   });
 
@@ -1537,11 +1640,8 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
 
     for (let i = 0; i < uniqueRanked.length; i++) {
       const s = uniqueRanked[i]!;
-      const effectiveBonus = resolveEffectiveSpeedBonus(s.speedBonusPoints, {
-        runDateKey: s.runDateKey,
-        runCreatedAt: s.runCreatedAt,
-      });
-      const totalScore = (s.scoreFinal ?? 0) + effectiveBonus;
+      const effectiveBonus = resolveEffectiveSpeedBonus(s.speedBonusPoints);
+      const totalScore = resolveSubmissionPoints(s);
       const medal = formatRankMedal(i + 1);
       const speedTag = effectiveBonus > 0 ? ` ⚡+${effectiveBonus}` : '';
 
@@ -1549,7 +1649,7 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
       const member = await guild.members.fetch(s.authorId).catch(() => null);
       const displayName = member?.displayName ?? s.authorName;
 
-      lines.push(`${medal} **${displayName}** — **${totalScore.toFixed(1)}** pts${speedTag}`);
+      lines.push(`${medal} **${displayName}** — **${totalScore}** pts${speedTag}`);
       lines.push(`┊ ✅ ${s.scoreCorrectness}/5 · 💬 ${s.scoreComments}/5 · 📦 ${s.scoreCompactness}/5 · ⚡ ${s.scoreOptimization}/5 · 🧹 ${s.scoreReadability}/5`);
       lines.push('');
     }
@@ -1738,6 +1838,16 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
   }
 
   const dateKey = getLocalDateKey();
+
+  // Majoration du week-end, déterminée dans le fuseau du serveur : un serveur
+  // français ne doit pas voir son samedi commencer à 02:00 du matin.
+  const runMultiplier = resolveRunMultiplier({
+    date: new Date(),
+    timeZone: guild.dailyAlgoTimezone,
+    weekendMultiplier: guild.dailyAlgoWeekendMultiplier,
+  });
+  const runKind = runMultiplier > 1 ? 'WEEKEND' : 'DAILY';
+
   const existingRunRaw = await prisma.dailyAlgoRun.findFirst({
     where: {
       guildId,
@@ -1827,6 +1937,10 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
               problemId: candidate.id,
               challengeChannelId: channelId,
               validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
+              kind: runKind,
+              // Figé au tirage : ajuster le réglage plus tard ne réécrit pas les
+              // points déjà attribués sur ce run.
+              pointsMultiplier: runMultiplier,
             },
             select: dailyAlgoRunDispatchSelect,
           });
