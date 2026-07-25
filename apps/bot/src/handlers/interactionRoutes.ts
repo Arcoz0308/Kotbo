@@ -1,5 +1,6 @@
 export type ValidateRoute = {
-  action: 'approve' | 'reject' | 'translate' | 'pin' | 'rate';
+  /** `dismiss` = hors-sujet : aucun point, mais aucune sanction (Daily Algo). */
+  action: 'approve' | 'reject' | 'dismiss' | 'translate' | 'pin' | 'rate';
   type: 'daily-algo';
   itemId: string;
 };

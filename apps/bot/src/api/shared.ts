@@ -621,6 +621,44 @@ export function resolveDailyAlgoFinalScore(submission: {
   return Math.round((sum / 5) * 10) / 10;
 }
 
+/**
+ * Total de points d'une soumission Daily Algo, toujours en entier.
+ *
+ * `pointsAwarded` est la source de vérité : il a été figé à la notation, plancher
+ * de participation et majoration du week-end compris. Les soumissions notées avant
+ * la v2 ne l'ont pas ; on retombe alors sur la moyenne plus le bonus de rapidité,
+ * arrondis à l'unité supérieure — ce qui évite une migration de données.
+ */
+export function resolveDailyAlgoTotalPoints(submission: {
+  status?: string;
+  pointsAwarded?: number | null;
+  scoreFinal: number | null;
+  scoreCorrectness: number | null;
+  scoreComments: number | null;
+  scoreCompactness: number | null;
+  scoreOptimization: number | null;
+  scoreReadability: number | null;
+  speedBonusPoints?: number | null;
+}): number | null {
+  // Seule une soumission approuvée rapporte des points : un rejet survenu après
+  // une approbation ne doit rien conserver. `null` et non 0, pour que l'interface
+  // continue d'afficher « — » sur une soumission en attente plutôt que « 0 pt ».
+  if (submission.status !== undefined && submission.status !== 'APPROVED') {
+    return null;
+  }
+
+  if (typeof submission.pointsAwarded === 'number') {
+    return submission.pointsAwarded;
+  }
+
+  const finalScore = resolveDailyAlgoFinalScore(submission);
+  if (finalScore === null) {
+    return null;
+  }
+
+  return Math.max(0, Math.ceil(finalScore + (submission.speedBonusPoints ?? 0)));
+}
+
 export type DashboardState = {
   guildName: string;
   configChannelId: string;
