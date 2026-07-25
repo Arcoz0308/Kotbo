@@ -11,9 +11,13 @@ export const clanTasks = new Map<string, { type: 'distribute' | 'clear'; process
 // toujours placée en fin de nom, ce qui permet de la retirer proprement (peu
 // importe où elle a été ajoutée par une version précédente) via stripTrophyTag.
 
+/** Origines possibles d'un gain de points de clan, telles qu'affichées côté public. */
+export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
+
 /**
  * Journalise un gain de points de clan pour le flux « derniers scores » public.
- * `source` : 'XP' (progression) ou 'ADMIN' (attribution manuelle).
+ * `source` : 'XP' (progression), 'ADMIN' (attribution manuelle), 'BOOST' (boost du
+ * serveur) ou 'DAILY_ALGO' (conversion des points de la semaine).
  * `userId` : identifiant du membre, ou 'system_manual_points' pour un gain
  * attribué au clan entier (affiché au nom du clan côté public).
  * Best-effort : n'interrompt jamais le flux appelant en cas d'erreur.
@@ -23,7 +27,7 @@ export async function logClanContribution(
   clanId: string,
   userId: string,
   amount: number,
-  source: 'XP' | 'ADMIN' | 'BOOST',
+  source: ClanContributionSource,
   season: number,
 ): Promise<void> {
   try {
@@ -34,6 +38,116 @@ export async function logClanContribution(
   } catch (err) {
     logger.error('ClanService', `Erreur lors de la journalisation d'un gain de clan (${clanId}, ${userId}):`, err);
   }
+}
+
+/**
+ * Attribue des points de clan à plusieurs membres d'un coup.
+ *
+ * Fonction **générique et sans opinion** : elle reçoit des montants déjà calculés
+ * et un simple libellé d'origine. C'est volontaire — les clans n'ont pas à
+ * connaître le Daily Algo ni aucun autre module. Le sens de la dépendance va
+ * toujours du module appelant vers les clans, jamais l'inverse.
+ *
+ * Ne fait rien si les clans sont désactivés, si aucun clan n'existe, ou pour un
+ * membre qui n'appartient à aucun clan : ces cas sont normaux, pas des erreurs.
+ *
+ * Retourne, par identifiant d'origine, le nombre de points réellement attribués.
+ */
+export async function awardClanPointsToMembers(params: {
+  guildId: string;
+  client: Client;
+  source: ClanContributionSource;
+  /** Montants déjà calculés et arrondis par l'appelant. */
+  awards: Array<{ userId: string; amount: number }>;
+  reason?: string;
+}): Promise<Map<string, number>> {
+  const granted = new Map<string, number>();
+
+  const positiveAwards = params.awards.filter((award) => award.amount > 0);
+  if (positiveAwards.length === 0) return granted;
+
+  const guildConfig = await prisma.guild.findUnique({
+    where: { id: params.guildId },
+    select: { clansEnabled: true, currentClanSeason: true },
+  });
+
+  if (!guildConfig?.clansEnabled) return granted;
+
+  const clans = await prisma.clan.findMany({
+    where: { guildId: params.guildId },
+    select: { id: true, name: true, roleId: true },
+  });
+  if (clans.length === 0) return granted;
+
+  const discordGuild = params.client.guilds.cache.get(params.guildId)
+    ?? await params.client.guilds.fetch(params.guildId).catch(() => null);
+  if (!discordGuild) return granted;
+
+  const { getAllLinkedUserIds } = await import('../moderation/altAccountService.js');
+
+  for (const award of positiveAwards) {
+    try {
+      const member = discordGuild.members.cache.get(award.userId)
+        ?? await discordGuild.members.fetch(award.userId).catch(() => null);
+
+      // Membre parti du serveur : on n'attribue rien, sans lever d'erreur.
+      if (!member || member.user.bot) continue;
+
+      const memberClanRole = member.roles.cache.find((role) => clans.some((clan) => clan.roleId === role.id));
+      if (!memberClanRole) continue; // Aucun clan : cas normal.
+
+      const clan = clans.find((entry) => entry.roleId === memberClanRole.id);
+      if (!clan) continue;
+
+      // Identifiant canonique : sans ça, un membre avec un double compte se
+      // retrouverait avec deux lignes de contribution pour la même saison.
+      const linkedIds = await getAllLinkedUserIds(params.guildId, member.id).catch(() => [member.id]);
+      const canonicalUserId = linkedIds.sort()[0] ?? member.id;
+
+      await prisma.clanMemberContribution.upsert({
+        where: {
+          guildId_clanId_userId_season: {
+            guildId: params.guildId,
+            clanId: clan.id,
+            userId: canonicalUserId,
+            season: guildConfig.currentClanSeason,
+          },
+        },
+        update: { xp: { increment: award.amount } },
+        create: {
+          guildId: params.guildId,
+          clanId: clan.id,
+          userId: canonicalUserId,
+          season: guildConfig.currentClanSeason,
+          xp: award.amount,
+        },
+      });
+
+      await logClanContribution(
+        params.guildId,
+        clan.id,
+        canonicalUserId,
+        award.amount,
+        params.source,
+        guildConfig.currentClanSeason,
+      );
+
+      granted.set(award.userId, award.amount);
+    } catch (err) {
+      logger.error('ClanService', `Erreur lors de l'attribution de points de clan à ${award.userId} :`, err);
+    }
+  }
+
+  if (granted.size > 0) {
+    const total = [...granted.values()].reduce((sum, value) => sum + value, 0);
+    logger.info(
+      'ClanService',
+      `${total} point(s) de clan attribué(s) à ${granted.size} membre(s) (${params.source}${params.reason ? ` · ${params.reason}` : ''}) sur ${params.guildId}.`,
+    );
+    broadcastDashboardStateChange(params.guildId, 'clans_updated');
+  }
+
+  return granted;
 }
 
 /** Retire toute balise trophée « [🏆 ...] » d'un nom de catégorie (début, milieu ou fin). */
