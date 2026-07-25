@@ -503,6 +503,36 @@ export async function ensureDailyAlgoSchedule(daysForward = 21, guildId = authSt
   });
 }
 
+export async function fetchCurrentDailyAlgoWeek(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/daily-algo-weeks/current', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Current Daily Algo Week):'
+  });
+}
+
+export async function fetchDailyAlgoWeekHistory(limit = 10, guildId = authStore.selectedGuildId) {
+  const safeLimit = Math.max(1, Math.min(52, Math.trunc(limit || 1)));
+  return dashboardRequest(`/daily-algo-weeks/history?limit=${safeLimit}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Daily Algo Week History):'
+  });
+}
+
+/**
+ * Clôture une semaine sans attendre le cron du lundi.
+ * Sans `weekKey`, clôture la semaine en cours. Geste non annulable.
+ */
+export async function closeDailyAlgoWeek(weekKey = null, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/daily-algo-weeks/close', {
+    method: 'POST',
+    payload: weekKey ? { weekKey } : {},
+    guildId,
+    errorContext: 'API Error (Close Daily Algo Week):'
+  });
+}
+
 export async function swapTodayDailyAlgoProblem(problemId, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/daily-algo-runs/today/problem', {
     method: 'PATCH',
