@@ -326,6 +326,22 @@ en fr/en comme les autres de cette page.
 
 Chaque lot est livrable et vérifiable seul. On valide en vrai avant de passer au suivant.
 
+> **État au 25/07/2026 — branche `feat/daily-algo-v2`**
+>
+> | Lot | État |
+> |---|---|
+> | 0 — Fondations | ✅ livré |
+> | 1 — Toute participation récompensée | ✅ livré |
+> | 2 — Semaine, podium, onglet Administration | ✅ livré |
+> | 3 — Pont vers les Clans | ✅ livré |
+> | 4 — Week-end majoré | 🟡 le multiplicateur est appliqué et figé au tirage (fait en Lot 1). Reste : difficulté préférentielle le week-end et affichage « ×1,5 » sur l'embed du défi. |
+> | 5 — Points bonus manuels | ⏸️ reporté. La table existe et le classement hebdomadaire **les lit déjà** ; il manque l'API, l'interface et la commande. |
+> | 6 — Sanctions | ⏸️ reporté. Les réglages existent et sont au panel ; il manque le bouton, le câblage `sanctionService` et la pré-détection. |
+> | 7 — Finitions | 🟡 i18n non fait (assumé pour livrer testable). Seul le libellé du badge public des clans est traduit fr/en. |
+>
+> En clair : le cycle complet **soumission → notation → points entiers → semaine →
+> podium → points de clan** est fonctionnel et testable de bout en bout.
+
 ### Lot 0 — Fondations
 - Créer `feat/daily-algo-v2` depuis `origin/main`.
 - Migration Prisma : toutes les colonnes/modèles de la section 5.
