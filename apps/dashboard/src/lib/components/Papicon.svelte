@@ -393,32 +393,34 @@
 
 </script>
 
-{#if isPapiconAvailable && reactIcon}
-  <svg
-    width={svgProps.width ?? size}
-    height={svgProps.height ?? size}
-    viewBox={svgProps.viewBox ?? "0 0 24 24"}
-    fill={svgProps.fill ?? "none"}
-    xmlns="http://www.w3.org/2000/svg"
-    class={className}
-  >
-    {#each svgChildren as child}
-      {#if child.type === 'path'}
-        <path
-          d={child.props?.d}
-          fill={child.props?.fill ?? "currentColor"}
-          fill-rule={child.props?.fillRule}
-          clip-rule={child.props?.clipRule}
-        />
-      {:else}
-        {@const Tag = child.type}
-        <Tag 
-          {...child.props} 
-          fill={child.props?.fill ?? (['line', 'polyline', 'polygon'].includes(child.type) ? 'none' : 'currentColor')}
-        />
-      {/if}
-    {/each}
-  </svg>
-{:else}
-  <LucideComponent size={size} class={className} stroke-width={2.5} />
-{/if}
+{#key isPapiconAvailable ? iconName : lucideIconName}
+  {#if isPapiconAvailable && reactIcon}
+    <svg
+      width={svgProps.width ?? size}
+      height={svgProps.height ?? size}
+      viewBox={svgProps.viewBox ?? "0 0 24 24"}
+      fill={svgProps.fill ?? "none"}
+      xmlns="http://www.w3.org/2000/svg"
+      class={className}
+    >
+      {#each svgChildren as child}
+        {#if child.type === 'path'}
+          <path
+            d={child.props?.d}
+            fill={child.props?.fill ?? "currentColor"}
+            fill-rule={child.props?.fillRule}
+            clip-rule={child.props?.clipRule}
+          />
+        {:else}
+          {@const Tag = child.type}
+          <Tag
+            {...child.props}
+            fill={child.props?.fill ?? (['line', 'polyline', 'polygon'].includes(child.type) ? 'none' : 'currentColor')}
+          />
+        {/if}
+      {/each}
+    </svg>
+  {:else}
+    <LucideComponent size={size} class={className} stroke-width={2.5} />
+  {/if}
+{/key}

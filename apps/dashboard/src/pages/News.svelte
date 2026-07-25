@@ -80,7 +80,7 @@
     })
   );
 
-  const forumSections = $derived(() => {
+  const forumSections = $derived.by(() => {
     const categoryMap = new Map<string, Map<string, any[]>>();
 
     for (const article of filteredArticles) {
