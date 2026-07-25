@@ -87,11 +87,10 @@ export type DailyAlgoPointsInput = {
  *
  *     ceil( ( plancher + moyenne_des_critères + bonus_rapidité ) × multiplicateur )
  *
- * Le bonus de rapidité est **toujours** inclus ici, y compris le jour même.
- * L'affichage du classement quotidien le masque tant que la journée n'est pas
- * terminée (voir `isSpeedBonusEnabledForRun` dans `dailyAlgoService`), mais la
- * valeur figée doit être le total définitif : sinon une soumission notée le jour
- * même perdrait son bonus pour toujours.
+ * Le bonus de rapidité est **toujours** inclus, y compris le jour même. Le rang de
+ * soumission est acquis définitivement dès l'envoi, et le total est figé à la
+ * notation — qui a lieu le jour même : le neutraliser en attendant la fin de la
+ * journée le perdrait pour toujours.
  */
 export function computeSubmissionPoints(input: DailyAlgoPointsInput): number {
   const participation = Math.max(0, input.participationPoints);
