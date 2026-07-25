@@ -1079,7 +1079,9 @@ export type DailyAlgoUserParticipation = {
   dateKey: string | null;
   problemTitle: string;
   difficulty: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  // `DISMISSED` = hors-sujet : la soumission existe et reste visible, mais ne
+  // rapporte aucun point et n'entraine aucune sanction.
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISMISSED';
   submittedAt: Date;
   speedRank: number | null;
   scoreFinal: number | null;
