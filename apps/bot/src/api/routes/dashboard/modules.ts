@@ -31,6 +31,11 @@ import {
   getLocalDateKey,
   reviewDailyAlgoSubmission,
 } from '../../../services/progression/dailyAlgoService.js';
+import {
+  closeDailyAlgoWeek,
+  getCurrentDailyAlgoWeek,
+  getDailyAlgoWeekHistory,
+} from '../../../services/progression/dailyAlgoWeekService.js';
 import { invalidateNicknameModerationCache } from '../../../events/nicknameModeration.js';
 import { updateGuildStats } from '../../../events/stats.js';
 import { invalidateBannedWordsCache } from '../../../services/moderation/bannedWordsService.js';
@@ -2980,6 +2985,28 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
         translationEnabled?: boolean;
         codePoliceEnabled?: boolean;
         dailyAlgoEnabled?: boolean;
+        // ── Daily Algo v2 : barème, semaine, sanctions, pont clans ──
+        dailyAlgoTimezone?: string;
+        dailyAlgoParticipationPoints?: number;
+        dailyAlgoWeekendMultiplier?: number;
+        dailyAlgoWeeklyRewardsEnabled?: boolean;
+        dailyAlgoWeekRole1Id?: string | null;
+        dailyAlgoWeekRole2Id?: string | null;
+        dailyAlgoWeekRole3Id?: string | null;
+        dailyAlgoWeekRoleRotate?: boolean;
+        dailyAlgoWeekXp1?: number;
+        dailyAlgoWeekXp2?: number;
+        dailyAlgoWeekXp3?: number;
+        dailyAlgoWeekParticipationXp?: number;
+        dailyAlgoWeekAnnouncementChannelId?: string | null;
+        dailyAlgoSanctionType?: string;
+        dailyAlgoSanctionWeight?: number;
+        dailyAlgoSanctionDurationMinutes?: number;
+        clanPointsFromDailyAlgo?: boolean;
+        clanPointsFromDailyAlgoRate?: number;
+        clanPointsDailyAlgoTop1?: number;
+        clanPointsDailyAlgoTop2?: number;
+        clanPointsDailyAlgoTop3?: number;
         githubReleasesEnabled?: boolean;
         digestEnabled?: boolean;
         youtubeEnabled?: boolean;
@@ -3055,6 +3082,108 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
       }
       if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoChannelId')) {
         data.dailyAlgoChannelId = extractDiscordSnowflake(body.dailyAlgoChannelId);
+      }
+
+      // ── Daily Algo v2 ────────────────────────────────────────────────────────
+      // Toutes ces valeurs sont réglables depuis le panel : rien n'est codé en dur
+      // côté bot. Les bornes ci-dessous évitent qu'une saisie farfelue casse le
+      // barème (multiplicateur nul, XP négative, taux de conversion à zéro…).
+      const readClampedInt = (value: unknown, min: number, max: number, fallback: number): number => {
+        const parsed = Math.trunc(Number(value));
+        if (!Number.isFinite(parsed)) return fallback;
+        return Math.min(max, Math.max(min, parsed));
+      };
+
+      const readClampedFloat = (value: unknown, min: number, max: number, fallback: number): number => {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return fallback;
+        return Math.min(max, Math.max(min, parsed));
+      };
+
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoTimezone')) {
+        const candidate = typeof body.dailyAlgoTimezone === 'string' ? body.dailyAlgoTimezone.trim() : '';
+        // Un fuseau invalide ferait échouer tous les calculs de semaine : on le
+        // vérifie ici plutôt que de le découvrir à la clôture du lundi.
+        let isValidTimeZone = false;
+        if (candidate) {
+          try {
+            new Intl.DateTimeFormat('en-US', { timeZone: candidate });
+            isValidTimeZone = true;
+          } catch {
+            isValidTimeZone = false;
+          }
+        }
+
+        if (!isValidTimeZone) {
+          json(res, 400, { error: `Fuseau horaire invalide : « ${candidate} ».` });
+          return true;
+        }
+
+        data.dailyAlgoTimezone = candidate;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoParticipationPoints')) {
+        data.dailyAlgoParticipationPoints = readClampedInt(body.dailyAlgoParticipationPoints, 0, 50, 1);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekendMultiplier')) {
+        data.dailyAlgoWeekendMultiplier = readClampedFloat(body.dailyAlgoWeekendMultiplier, 1, 10, 1.5);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeeklyRewardsEnabled')) {
+        data.dailyAlgoWeeklyRewardsEnabled = !!body.dailyAlgoWeeklyRewardsEnabled;
+      }
+      // Rôles du podium : facultatifs. Vider le champ = aucun rôle attribué, le
+      // reste des récompenses continue de fonctionner.
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekRole1Id')) {
+        data.dailyAlgoWeekRole1Id = extractDiscordSnowflake(body.dailyAlgoWeekRole1Id);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekRole2Id')) {
+        data.dailyAlgoWeekRole2Id = extractDiscordSnowflake(body.dailyAlgoWeekRole2Id);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekRole3Id')) {
+        data.dailyAlgoWeekRole3Id = extractDiscordSnowflake(body.dailyAlgoWeekRole3Id);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekRoleRotate')) {
+        data.dailyAlgoWeekRoleRotate = !!body.dailyAlgoWeekRoleRotate;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekXp1')) {
+        data.dailyAlgoWeekXp1 = readClampedInt(body.dailyAlgoWeekXp1, 0, 1_000_000, 500);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekXp2')) {
+        data.dailyAlgoWeekXp2 = readClampedInt(body.dailyAlgoWeekXp2, 0, 1_000_000, 300);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekXp3')) {
+        data.dailyAlgoWeekXp3 = readClampedInt(body.dailyAlgoWeekXp3, 0, 1_000_000, 150);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekParticipationXp')) {
+        data.dailyAlgoWeekParticipationXp = readClampedInt(body.dailyAlgoWeekParticipationXp, 0, 1_000_000, 100);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoWeekAnnouncementChannelId')) {
+        data.dailyAlgoWeekAnnouncementChannelId = extractDiscordSnowflake(body.dailyAlgoWeekAnnouncementChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoSanctionType')) {
+        data.dailyAlgoSanctionType = body.dailyAlgoSanctionType === 'TIMEOUT' ? 'TIMEOUT' : 'WARN';
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoSanctionWeight')) {
+        data.dailyAlgoSanctionWeight = readClampedInt(body.dailyAlgoSanctionWeight, 1, 3, 1);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoSanctionDurationMinutes')) {
+        data.dailyAlgoSanctionDurationMinutes = readClampedInt(body.dailyAlgoSanctionDurationMinutes, 1, 40_320, 60);
+      }
+      // Pont Daily Algo → Clans : troisième interrupteur, indépendant de
+      // `clansEnabled` et `dailyAlgoEnabled`.
+      if (Object.prototype.hasOwnProperty.call(body, 'clanPointsFromDailyAlgo')) {
+        data.clanPointsFromDailyAlgo = !!body.clanPointsFromDailyAlgo;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'clanPointsFromDailyAlgoRate')) {
+        data.clanPointsFromDailyAlgoRate = readClampedFloat(body.clanPointsFromDailyAlgoRate, 0.1, 100, 1);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'clanPointsDailyAlgoTop1')) {
+        data.clanPointsDailyAlgoTop1 = readClampedInt(body.clanPointsDailyAlgoTop1, 0, 100_000, 30);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'clanPointsDailyAlgoTop2')) {
+        data.clanPointsDailyAlgoTop2 = readClampedInt(body.clanPointsDailyAlgoTop2, 0, 100_000, 20);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'clanPointsDailyAlgoTop3')) {
+        data.clanPointsDailyAlgoTop3 = readClampedInt(body.clanPointsDailyAlgoTop3, 0, 100_000, 10);
       }
       if (Object.prototype.hasOwnProperty.call(body, 'meetingAnnouncementChannelId')) {
         data.meetingAnnouncementChannelId = extractDiscordSnowflake(body.meetingAnnouncementChannelId);
@@ -4652,6 +4781,101 @@ function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Erreur lors de la génération du planning Daily Algo:', err);
         json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la génération du planning Daily Algo' });
+      }
+      return true;
+    }
+  }
+
+  // Semaine compétitive Daily Algo
+  if (moduleKey === 'daily-algo-weeks') {
+    // GET /api/dashboard/guilds/:guildId/daily-algo-weeks/current
+    if (parts.length === 6 && parts[5] === 'current' && method === 'GET') {
+      if (!access.canViewDashboard) {
+        json(res, 403, { error: 'Accès refusé.' });
+        return true;
+      }
+
+      try {
+        const week = await getCurrentDailyAlgoWeek(guildId);
+        json(res, 200, { week });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Erreur lors de la récupération de la semaine en cours:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de la semaine en cours' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/daily-algo-weeks/history
+    if (parts.length === 6 && parts[5] === 'history' && method === 'GET') {
+      if (!access.canViewDashboard) {
+        json(res, 403, { error: 'Accès refusé.' });
+        return true;
+      }
+
+      try {
+        const parsedLimit = Number(url.searchParams.get('limit') ?? '10');
+        const limit = Number.isFinite(parsedLimit) ? parsedLimit : 10;
+        const weeks = await getDailyAlgoWeekHistory(guildId, limit);
+        json(res, 200, { weeks });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Erreur lors de la récupération de l\'historique des semaines:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de l\'historique des semaines' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/daily-algo-weeks/close
+    // Clôture manuelle : « finir la semaine plus tôt ». Verse les récompenses
+    // immédiatement, sans attendre le cron du lundi. Geste non annulable, donc
+    // réservé à ceux qui peuvent configurer le serveur.
+    if (parts.length === 6 && parts[5] === 'close' && method === 'POST') {
+      if (!access.canManageSettings) {
+        json(res, 403, { error: 'Seuls les administrateurs peuvent clôturer une semaine.' });
+        return true;
+      }
+
+      try {
+        const body = await readJsonBody<{ weekKey?: unknown }>(req);
+        const weekKey = typeof body?.weekKey === 'string' && body.weekKey.trim().length > 0
+          ? body.weekKey.trim()
+          : undefined;
+
+        const result = await closeDailyAlgoWeek({
+          client,
+          guildId,
+          weekKey,
+          closedById: user.userId,
+        });
+
+        if (result.status === 'disabled') {
+          json(res, 400, { error: "Le Daily Algo n'est pas activé sur ce serveur." });
+          return true;
+        }
+
+        if (result.status === 'already-closed') {
+          json(res, 409, {
+            error: `La semaine ${result.weekKey} est déjà clôturée.`,
+            weekKey: result.weekKey,
+          });
+          return true;
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Clôture manuelle de la semaine Daily Algo',
+          context: getGuildName(client, guildId),
+          module: 'Daily Algo',
+          eventType: 'Manuel',
+          details: `Semaine ${result.weekKey} clôturée : ${result.participants} participant(s), ${result.xpGranted} XP versée, ${result.rolesAssigned} rôle(s) attribué(s).`,
+          channelId: null,
+        });
+
+        broadcastDashboardStateChange(guildId, 'daily_algo_week_closed');
+
+        json(res, 200, { ok: true, ...result });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Erreur lors de la clôture manuelle de la semaine:', err);
+        json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la clôture de la semaine' });
       }
       return true;
     }
