@@ -11,7 +11,7 @@ import {
 } from 'discord.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import prisma from '../../utils/db.js';
-import { runDistribution, runClear } from '../../services/community/clanService.js';
+import { runDistribution, runClear, runDeduplicate } from '../../services/community/clanService.js';
 import { E, rankEmoji } from '../../utils/emojis.js';
 import { COLORS_RAW } from '../../utils/embeds.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
@@ -74,6 +74,12 @@ export const data = new SlashCommandBuilder()
       .setName('clear')
       .setDescription(m.c4_clan_clear_desc({}, { locale: 'en' }))
       .setDescriptionLocalizations({ fr: m.c4_clan_clear_desc({}, { locale: 'fr' }) })
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('dedupe')
+      .setDescription(m.c4_clan_dedupe_desc({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c4_clan_dedupe_desc({}, { locale: 'fr' }) })
   ) as any;
 
 export async function autocomplete(interaction: AutocompleteInteraction) {
@@ -343,6 +349,29 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       try {
         const initiator = `${interaction.user.username} (${interaction.user.id})`;
         const message = await runClear(guildId, interaction.client, initiator);
+        await interaction.editReply(message);
+      } catch (err: any) {
+        await interaction.editReply(m.c4_clan_error({ message: err.message }, { locale }));
+      }
+      return;
+    }
+
+    // ── SUBCOMMAND: dedupe (Admin Only) ───────────────────────────────────────
+    if (sub === 'dedupe') {
+      const isExecutorAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+      if (!isExecutorAdmin) {
+        await interaction.reply({
+          content: m.c4_clan_admin_required({}, { locale }),
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+      try {
+        const initiator = `${interaction.user.username} (${interaction.user.id})`;
+        const message = await runDeduplicate(guildId, interaction.client, initiator);
         await interaction.editReply(message);
       } catch (err: any) {
         await interaction.editReply(m.c4_clan_error({ message: err.message }, { locale }));

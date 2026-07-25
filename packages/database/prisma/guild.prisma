@@ -147,6 +147,8 @@ model Guild {
   updatedAt DateTime @updatedAt
 
   clansEnabled      Boolean @default(false)
+  /// Héritée : l'unicité de clan est désormais toujours appliquée. La colonne
+  /// reste pour ne pas casser les bases existantes, mais plus rien ne la lit.
   clansUnique       Boolean @default(true)
   clanAutoAssignOnJoin Boolean @default(false)
   currentClanSeason Int     @default(1)
