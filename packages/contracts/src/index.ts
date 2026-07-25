@@ -20,6 +20,29 @@ export type {
   MemberSearchResponseData,
 } from './schemas/members.js';
 
+export type {
+  DashboardSanctionType,
+  DashboardSanctionStatus,
+  DashboardRole,
+  SanctionItem,
+  SanctionReportItem,
+  MemberCaseQuickAction,
+  MemberCaseLogEntry,
+  MemberCaseChannelMessage,
+  MemberCaseChannelSummary,
+  MemberCaseInviteInfo,
+  MemberCaseProfile,
+  LinkedAccountItem,
+  MemberCaseInteractionNode,
+  MemberCaseInteractionEdge,
+  MemberCaseInteractionGraph,
+  CrossServerSanctionEntry,
+  CrossServerSanctionSummaryPayload,
+  MemberCaseCandidature,
+  MemberCaseConnection,
+  MemberCaseResponse,
+} from './types/memberCase.js';
+
 export {
   DiscordSnowflake,
   GuildIdParam,
