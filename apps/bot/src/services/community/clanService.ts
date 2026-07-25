@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, ChannelType, CategoryChannel, type GuildMember } from 'discord.js';
+import { Client, EmbedBuilder, ChannelType, CategoryChannel, type Guild, type GuildMember } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
@@ -167,64 +167,117 @@ export function buildCategoryName(currentName: string, isWinner: boolean, reward
   return `${base} [🏆 ${suffix}]`;
 }
 
+/**
+ * Cadence des notifications de progression.
+ *
+ * Chaque `broadcastDashboardStateChange` fait recharger l'état complet de la
+ * guilde à tous les panels ouverts. Prévenir à chaque membre traité, soit toutes
+ * les 450 ms, revenait à leur faire retélécharger salons, rôles et catégories
+ * des centaines de fois pour une barre de progression. On prévient donc au
+ * rythme de l'oeil, et systématiquement à la fin.
+ */
+const CLAN_TASK_PROGRESS_INTERVAL_MS = 2_000;
+
 export async function runDistribution(guildId: string, client: Client, initiatorName: string): Promise<string> {
+  // Le verrou est posé avant le premier `await`. La préparation (lecture des
+  // clans, fetch du serveur et surtout `members.fetch()`) dure plusieurs secondes
+  // sur un gros serveur : en le posant après, deux clics rapprochés — ou deux
+  // administrateurs — franchissaient tous les deux le test et lançaient deux
+  // distributions concurrentes sur les mêmes membres.
   if (clanTasks.has(guildId)) {
     throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
   }
+  clanTasks.set(guildId, { type: 'distribute', processed: 0, total: 0 });
 
-  const clans = await prisma.clan.findMany({ where: { guildId } });
-  if (clans.length === 0) {
-    throw new Error('Veuillez configurer au moins un clan avant de lancer la distribution.');
+  let targetList: GuildMember[];
+  let assignableClans: { roleId: string; count: number }[];
+  let discordGuild: Guild;
+
+  try {
+    const clans = await prisma.clan.findMany({ where: { guildId } });
+    if (clans.length === 0) {
+      throw new Error('Veuillez configurer au moins un clan avant de lancer la distribution.');
+    }
+
+    const resolvedGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!resolvedGuild) {
+      throw new Error('Serveur introuvable sur Discord.');
+    }
+    discordGuild = resolvedGuild;
+
+    // Récupérer tous les membres
+    const allMembers = await discordGuild.members.fetch().catch(() => null);
+    if (!allMembers) {
+      throw new Error('Impossible de récupérer la liste des membres Discord.');
+    }
+
+    const clanRoleIds = clans.map((c) => c.roleId);
+
+    // Un clan dont le rôle Discord a été supprimé ne peut rien recevoir. Le
+    // garder dans la répartition serait pire que l'ignorer : son effectif
+    // resterait à zéro, donc il serait choisi à chaque tour comme « le plus
+    // petit clan », et toutes les attributions échoueraient en silence.
+    assignableClans = clans
+      .filter((clan) => discordGuild.roles.cache.has(clan.roleId))
+      .map((clan) => ({
+        roleId: clan.roleId,
+        count: discordGuild.roles.cache.get(clan.roleId)?.members.size ?? 0,
+      }));
+
+    if (assignableClans.length === 0) {
+      throw new Error('Aucun clan configuré ne correspond à un rôle existant sur Discord. Vérifiez la configuration des clans.');
+    }
+
+    if (assignableClans.length < clans.length) {
+      logger.warn(
+        'ClanService',
+        `${clans.length - assignableClans.length} clan(s) ignoré(s) sur ${guildId} : leur rôle Discord n'existe plus.`,
+      );
+    }
+
+    // Filtrer les humains qui n'ont pas encore de rôle de clan
+    const membersWithoutClan = allMembers.filter((member) => {
+      if (member.user.bot) return false;
+      return !member.roles.cache.some((r) => clanRoleIds.includes(r.id));
+    });
+
+    if (membersWithoutClan.size === 0) {
+      clanTasks.delete(guildId);
+      return 'Tous les membres ont déjà un clan.';
+    }
+
+    targetList = [...membersWithoutClan.values()];
+  } catch (err) {
+    // La préparation a échoué : le verrou ne doit pas rester posé, sinon plus
+    // aucune opération de masse n'est possible jusqu'au redémarrage du bot.
+    clanTasks.delete(guildId);
+    throw err;
   }
 
-  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-  if (!discordGuild) {
-    throw new Error('Serveur introuvable sur Discord.');
-  }
-
-  // Récupérer tous les membres
-  const allMembers = await discordGuild.members.fetch().catch(() => null);
-  if (!allMembers) {
-    throw new Error('Impossible de récupérer la liste des membres Discord.');
-  }
-
-  const clanRoleIds = clans.map((c) => c.roleId);
-  
-  // Filtrer les humains qui n'ont pas encore de rôle de clan
-  const membersWithoutClan = allMembers.filter((member) => {
-    if (member.user.bot) return false;
-    return !member.roles.cache.some((r) => clanRoleIds.includes(r.id));
-  });
-
-  if (membersWithoutClan.size === 0) {
-    return 'Tous les membres ont déjà un clan.';
-  }
-
-  const targetList = [...membersWithoutClan.values()];
-  
-  // Démarrer la tâche asynchrone bridée
   clanTasks.set(guildId, { type: 'distribute', processed: 0, total: targetList.length });
   broadcastDashboardStateChange(guildId, 'clans_updated');
 
   // Lancement asynchrone non-bloquant
   (async () => {
     logger.info('ClanService', `Lancement de la distribution équilibrée pour ${targetList.length} membres dans "${discordGuild.name}" par ${initiatorName}`);
-    
-    // Récupérer le nombre initial de membres sur Discord pour chaque clan
-    const clanCounts = clans.map((c) => {
-      const count = discordGuild.roles.cache.get(c.roleId)?.members.size ?? 0;
-      return { roleId: c.roleId, count };
-    });
 
     // Mélanger la liste pour préserver le côté aléatoire
     const shuffledList = [...targetList].sort(() => Math.random() - 0.5);
+    const clanCounts = [...assignableClans];
+    const failuresByRoleId = new Map<string, number>();
+    let lastProgressAt = 0;
 
     for (let i = 0; i < shuffledList.length; i++) {
       const currentTask = clanTasks.get(guildId);
       if (!currentTask || currentTask.type !== 'distribute') break;
 
+      if (clanCounts.length === 0) {
+        logger.error('ClanService', `Distribution interrompue sur ${guildId} : plus aucun clan attribuable.`);
+        break;
+      }
+
       const member = shuffledList[i];
-      
+
       // Trouver le clan qui a actuellement le moins de membres
       clanCounts.sort((a, b) => a.count - b.count);
       const targetClan = clanCounts[0];
@@ -232,8 +285,23 @@ export async function runDistribution(guildId: string, client: Client, initiator
       try {
         await member.roles.add(targetClan.roleId, 'Distribution globale et équilibrée des clans');
         targetClan.count++; // Incrémenter pour la répartition suivante
+        failuresByRoleId.delete(targetClan.roleId);
       } catch (e) {
         logger.warn('ClanService', `Impossible d'attribuer le clan à ${member.user.tag}:`, e);
+
+        // Un rôle que le bot ne peut pas poser (hiérarchie, permissions) échoue
+        // à tous les coups et reste éternellement le plus petit : on le sort de
+        // la répartition plutôt que de laisser toute la distribution échouer.
+        const failures = (failuresByRoleId.get(targetClan.roleId) ?? 0) + 1;
+        failuresByRoleId.set(targetClan.roleId, failures);
+
+        if (failures >= 3) {
+          clanCounts.splice(clanCounts.indexOf(targetClan), 1);
+          logger.error(
+            'ClanService',
+            `Rôle ${targetClan.roleId} retiré de la distribution sur ${guildId} après 3 échecs consécutifs (permissions ou hiérarchie).`,
+          );
+        }
       }
 
       clanTasks.set(guildId, {
@@ -241,7 +309,12 @@ export async function runDistribution(guildId: string, client: Client, initiator
         processed: i + 1,
         total: shuffledList.length,
       });
-      broadcastDashboardStateChange(guildId, 'clans_updated');
+
+      const now = Date.now();
+      if (now - lastProgressAt >= CLAN_TASK_PROGRESS_INTERVAL_MS || i === shuffledList.length - 1) {
+        lastProgressAt = now;
+        broadcastDashboardStateChange(guildId, 'clans_updated');
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 450));
     }
@@ -249,7 +322,11 @@ export async function runDistribution(guildId: string, client: Client, initiator
     logger.info('ClanService', `Distribution équilibrée terminée pour "${discordGuild.name}"`);
     clanTasks.delete(guildId);
     broadcastDashboardStateChange(guildId, 'clans_updated');
-  })().catch((e) => logger.error('ClanService', 'Erreur critique dans le thread de distribution:', e));
+  })().catch((e) => {
+    logger.error('ClanService', 'Erreur critique dans le thread de distribution:', e);
+    clanTasks.delete(guildId);
+    broadcastDashboardStateChange(guildId, 'clans_updated');
+  });
 
   await pushAudit(guildId, {
     user: initiatorName,
@@ -265,46 +342,60 @@ export async function runDistribution(guildId: string, client: Client, initiator
 }
 
 export async function runClear(guildId: string, client: Client, initiatorName: string): Promise<string> {
+  // Même verrou anticipé que pour la distribution : voir le commentaire là-bas.
   if (clanTasks.has(guildId)) {
     throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
   }
+  clanTasks.set(guildId, { type: 'clear', processed: 0, total: 0 });
 
-  const clans = await prisma.clan.findMany({ where: { guildId } });
-  if (clans.length === 0) {
-    throw new Error('Aucun clan n\'est configuré sur ce serveur.');
+  let targetList: GuildMember[];
+  let clanRoleIds: string[];
+  let discordGuild: Guild;
+
+  try {
+    const clans = await prisma.clan.findMany({ where: { guildId } });
+    if (clans.length === 0) {
+      throw new Error('Aucun clan n\'est configuré sur ce serveur.');
+    }
+
+    const resolvedGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!resolvedGuild) {
+      throw new Error('Serveur introuvable sur Discord.');
+    }
+    discordGuild = resolvedGuild;
+
+    clanRoleIds = clans.map((c) => c.roleId);
+
+    // Récupérer les membres
+    const allMembers = await discordGuild.members.fetch().catch(() => null);
+    if (!allMembers) {
+      throw new Error('Impossible de récupérer la liste des membres.');
+    }
+
+    // Filtrer les membres qui ont au moins un rôle de clan
+    const membersWithClan = allMembers.filter((member) => {
+      return member.roles.cache.some((r) => clanRoleIds.includes(r.id));
+    });
+
+    if (membersWithClan.size === 0) {
+      clanTasks.delete(guildId);
+      return 'Aucun membre ne possède de rôle de clan.';
+    }
+
+    targetList = [...membersWithClan.values()];
+  } catch (err) {
+    clanTasks.delete(guildId);
+    throw err;
   }
 
-  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-  if (!discordGuild) {
-    throw new Error('Serveur introuvable sur Discord.');
-  }
-
-  const clanRoleIds = clans.map((c) => c.roleId);
-
-  // Récupérer les membres
-  const allMembers = await discordGuild.members.fetch().catch(() => null);
-  if (!allMembers) {
-    throw new Error('Impossible de récupérer la liste des membres.');
-  }
-
-  // Filtrer les membres qui ont au moins un rôle de clan
-  const membersWithClan = allMembers.filter((member) => {
-    return member.roles.cache.some((r) => clanRoleIds.includes(r.id));
-  });
-
-  if (membersWithClan.size === 0) {
-    return 'Aucun membre ne possède de rôle de clan.';
-  }
-
-  const targetList = [...membersWithClan.values()];
-
-  // Démarrer la tâche
   clanTasks.set(guildId, { type: 'clear', processed: 0, total: targetList.length });
   broadcastDashboardStateChange(guildId, 'clans_updated');
 
   // Lancement asynchrone
   (async () => {
     logger.info('ClanService', `Lancement du retrait de tous les clans pour ${targetList.length} membres dans "${discordGuild.name}" par ${initiatorName}`);
+
+    let lastProgressAt = 0;
 
     for (let i = 0; i < targetList.length; i++) {
       const currentTask = clanTasks.get(guildId);
@@ -324,7 +415,12 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
         processed: i + 1,
         total: targetList.length,
       });
-      broadcastDashboardStateChange(guildId, 'clans_updated');
+
+      const now = Date.now();
+      if (now - lastProgressAt >= CLAN_TASK_PROGRESS_INTERVAL_MS || i === targetList.length - 1) {
+        lastProgressAt = now;
+        broadcastDashboardStateChange(guildId, 'clans_updated');
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 450));
     }
@@ -332,7 +428,11 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
     logger.info('ClanService', `Retrait de tous les clans terminé pour "${discordGuild.name}"`);
     clanTasks.delete(guildId);
     broadcastDashboardStateChange(guildId, 'clans_updated');
-  })().catch((e) => logger.error('ClanService', 'Erreur critique dans le thread de retrait:', e));
+  })().catch((e) => {
+    logger.error('ClanService', 'Erreur critique dans le thread de retrait:', e);
+    clanTasks.delete(guildId);
+    broadcastDashboardStateChange(guildId, 'clans_updated');
+  });
 
   await pushAudit(guildId, {
     user: initiatorName,
