@@ -152,7 +152,7 @@ async function replyRanking(interaction: ChatInputCommandInteraction, guildId: s
 
   const top = ranking.slice(0, 10);
   const lines = top.map((entry) => (
-    `${rankMedal(entry.rank)} **${entry.authorName}** — ${entry.totalPoints.toFixed(1)} pts · moyenne ${entry.averageScore.toFixed(1)}/5 · ${formatTierBadge(entry.tier)}`
+    `${rankMedal(entry.rank)} **${entry.authorName}** — ${entry.totalPoints} pts · moyenne ${entry.averageScore.toFixed(1)}/5 · ${formatTierBadge(entry.tier)}`
   ));
 
   const currentUserRank = ranking.find((entry) => entry.authorId === interaction.user.id) ?? null;
@@ -209,7 +209,7 @@ async function replyProfile(interaction: ChatInputCommandInteraction, guildId: s
       },
       {
         name: 'Performance',
-        value: `Points cumulés: **${profile.totalPoints.toFixed(1)}**\nMoyenne: **${profile.averageScore.toFixed(1)}/5**\nMeilleur score: **${profile.bestScore.toFixed(1)}**`,
+        value: `Points cumulés: **${profile.totalPoints}**\nMoyenne: **${profile.averageScore.toFixed(1)}/5**\nMeilleur score: **${profile.bestScore}**`,
         inline: false,
       },
       {
