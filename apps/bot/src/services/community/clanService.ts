@@ -4,7 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
 import { getClient } from '../../utils/client.js';
 
-export const clanTasks = new Map<string, { type: 'distribute' | 'clear'; processed: number; total: number }>();
+export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
 
 // ─── Balise de champion sur la catégorie QG ──────────────────────────────────
 // Format unifié : « <nom de base> [🏆 CHAMPION · <bonus>] ». La balise est
@@ -448,6 +448,182 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
 }
 
 /**
+ * Répare les membres qui portent plusieurs rôles de clan.
+ *
+ * La sécurité de clan unique est **réactive** : elle se déclenche à l'ajout d'un
+ * rôle et ne repasse jamais sur l'existant. Un cumul né avant son activation,
+ * pendant une coupure de la passerelle, ou d'un retrait de rôle refusé par
+ * Discord, reste donc en place indéfiniment et gonfle les effectifs affichés.
+ *
+ * Clan conservé, dans l'ordre : celui où le membre a le plus contribué cette
+ * saison — on ne lui fait pas perdre son XP — sinon le moins peuplé, ce qui
+ * rééquilibre au passage. Les rôles retirés voient leurs contributions migrées
+ * vers le clan conservé.
+ */
+export async function runDeduplicate(guildId: string, client: Client, initiatorName: string): Promise<string> {
+  if (clanTasks.has(guildId)) {
+    throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
+  }
+  clanTasks.set(guildId, { type: 'dedupe', processed: 0, total: 0 });
+
+  let duplicates: { member: GuildMember; clanIds: string[] }[];
+  let discordGuild: Guild;
+  let clansById: Map<string, { id: string; name: string; roleId: string }>;
+  let currentSeason: number;
+
+  try {
+    const guildData = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { currentClanSeason: true },
+    });
+    currentSeason = guildData?.currentClanSeason ?? 1;
+
+    const clans = await prisma.clan.findMany({ where: { guildId } });
+    if (clans.length < 2) {
+      throw new Error('Il faut au moins deux clans configurés pour qu\'un doublon soit possible.');
+    }
+
+    const resolvedGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!resolvedGuild) {
+      throw new Error('Serveur introuvable sur Discord.');
+    }
+    discordGuild = resolvedGuild;
+
+    const allMembers = await discordGuild.members.fetch().catch(() => null);
+    if (!allMembers) {
+      throw new Error('Impossible de récupérer la liste des membres Discord.');
+    }
+
+    clansById = new Map(clans.map((clan) => [clan.id, { id: clan.id, name: clan.name, roleId: clan.roleId }]));
+    const clanByRoleId = new Map(clans.map((clan) => [clan.roleId, clan]));
+
+    duplicates = [];
+    for (const member of allMembers.values()) {
+      const held = member.roles.cache
+        .filter((role) => clanByRoleId.has(role.id))
+        .map((role) => clanByRoleId.get(role.id)!.id);
+
+      if (held.length > 1) {
+        duplicates.push({ member, clanIds: held });
+      }
+    }
+
+    if (duplicates.length === 0) {
+      clanTasks.delete(guildId);
+      return 'Aucun membre ne cumule plusieurs clans.';
+    }
+  } catch (err) {
+    clanTasks.delete(guildId);
+    throw err;
+  }
+
+  clanTasks.set(guildId, { type: 'dedupe', processed: 0, total: duplicates.length });
+  broadcastDashboardStateChange(guildId, 'clans_updated');
+
+  const total = duplicates.length;
+
+  (async () => {
+    logger.info('ClanService', `Nettoyage de ${total} membre(s) à clans multiples dans "${discordGuild.name}" par ${initiatorName}`);
+
+    // Import dynamique, comme dans `awardClanPointsToMembers` : le module des
+    // doubles comptes n'a pas à être chargé pour qui n'utilise pas les clans.
+    const { getAllLinkedUserIds } = await import('../moderation/altAccountService.js');
+
+    // Effectifs courants, pour départager les membres sans contribution en
+    // faveur du clan le moins peuplé.
+    const counts = new Map<string, number>();
+    for (const clan of clansById.values()) {
+      counts.set(clan.id, discordGuild.roles.cache.get(clan.roleId)?.members.size ?? 0);
+    }
+
+    let lastProgressAt = 0;
+    let repaired = 0;
+
+    for (let i = 0; i < duplicates.length; i++) {
+      const currentTask = clanTasks.get(guildId);
+      if (!currentTask || currentTask.type !== 'dedupe') break;
+
+      const { member, clanIds } = duplicates[i];
+
+      // Les contributions sont stockées sous l'identifiant canonique d'un groupe
+      // de comptes liés (cf. `awardClanPointsToMembers`). Chercher sur le seul
+      // `member.id` ferait lire zéro XP à un double compte, et on le déplacerait
+      // alors vers un clan où il n'a rien construit.
+      const linkedIds = await getAllLinkedUserIds(guildId, member.id).catch(() => [member.id]);
+      const canonicalUserId = linkedIds.sort()[0] ?? member.id;
+
+      const contributions = await prisma.clanMemberContribution.groupBy({
+        by: ['clanId'],
+        where: { guildId, userId: canonicalUserId, season: currentSeason, clanId: { in: clanIds } },
+        _sum: { xp: true },
+      }).catch(() => [] as { clanId: string; _sum: { xp: number | null } }[]);
+
+      const xpByClanId = new Map(contributions.map((row) => [row.clanId, row._sum.xp ?? 0]));
+
+      const keptClanId = [...clanIds].sort((a, b) => {
+        const xpDiff = (xpByClanId.get(b) ?? 0) - (xpByClanId.get(a) ?? 0);
+        if (xpDiff !== 0) return xpDiff;
+        return (counts.get(a) ?? 0) - (counts.get(b) ?? 0);
+      })[0];
+
+      const removedClanIds = clanIds.filter((clanId) => clanId !== keptClanId);
+      const rolesToRemove = removedClanIds
+        .map((clanId) => clansById.get(clanId)?.roleId)
+        .filter((roleId): roleId is string => !!roleId);
+
+      try {
+        await member.roles.remove(rolesToRemove, 'Nettoyage : un membre ne peut appartenir qu\'à un seul clan');
+        repaired += 1;
+
+        for (const clanId of removedClanIds) {
+          counts.set(clanId, Math.max(0, (counts.get(clanId) ?? 1) - 1));
+          // L'XP gagnée sous l'ancien rôle suit le membre : la retirer serait
+          // le punir d'un doublon qu'il n'a pas provoqué.
+          await migrateContributions(guildId, canonicalUserId, clanId, keptClanId);
+        }
+
+        logger.info(
+          'ClanService',
+          `${member.user.tag} conservé dans "${clansById.get(keptClanId)?.name}", retiré de [${removedClanIds.map((id) => clansById.get(id)?.name).join(', ')}].`,
+        );
+      } catch (e) {
+        logger.warn('ClanService', `Impossible de nettoyer les clans de ${member.user.tag}:`, e);
+      }
+
+      clanTasks.set(guildId, { type: 'dedupe', processed: i + 1, total });
+
+      const now = Date.now();
+      if (now - lastProgressAt >= CLAN_TASK_PROGRESS_INTERVAL_MS || i === duplicates.length - 1) {
+        lastProgressAt = now;
+        broadcastDashboardStateChange(guildId, 'clans_updated');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    }
+
+    logger.info('ClanService', `Nettoyage des clans multiples terminé pour "${discordGuild.name}" : ${repaired}/${total} membre(s) corrigé(s).`);
+    clanTasks.delete(guildId);
+    broadcastDashboardStateChange(guildId, 'clans_updated');
+  })().catch((e) => {
+    logger.error('ClanService', 'Erreur critique dans le thread de nettoyage:', e);
+    clanTasks.delete(guildId);
+    broadcastDashboardStateChange(guildId, 'clans_updated');
+  });
+
+  await pushAudit(guildId, {
+    user: initiatorName,
+    action: 'Nettoyage des clans multiples',
+    context: discordGuild.name,
+    module: 'Clans',
+    eventType: 'Manuel',
+    details: `Nettoyage lancé pour ${total} membre(s) portant plusieurs rôles de clan.`,
+    channelId: null,
+  }).catch(() => null);
+
+  return `${total} membre(s) portent plusieurs clans. Le nettoyage a commencé en arrière-plan et progresse doucement pour respecter les limites de Discord. Le clan conservé est celui où le membre a le plus contribué cette saison.`;
+}
+
+/**
  * Synchronise les clans pour les comptes reliés (doubles comptes).
  * Si un utilisateur (ou les deux) possède déjà un clan, on harmonise.
  */
@@ -521,22 +697,44 @@ export async function syncMemberClanFromDcLink(
         targetClan = clan1;
         logger.info('ClanService', `Synchro DC : Alignement de ${member2.user.tag} vers le clan de ${member1.user.tag} ("${clan1.name}" avec ${xp1} XP vs ${xp2} XP)`);
         
-        // Retirer le rôle du clan 2 à member2 et ajouter le rôle du clan 1
-        await member2.roles.remove(clan2.roleId, `Double compte aligné sur ${member1.user.tag} (synchro auto)`).catch(() => null);
-        await member2.roles.add(clan1.roleId, `Double compte aligné sur ${member1.user.tag} (synchro auto)`).catch(() => null);
+        // Retirer le rôle du clan 2 à member2 puis ajouter celui du clan 1.
+        //
+        // L'ajout est conditionné à la réussite du retrait : si Discord refuse
+        // le retrait (hiérarchie, permissions, coupure), poser quand même le
+        // second rôle laissait le membre avec **deux clans**, en silence, et
+        // définitivement — la sécurité de clan unique ne repasse jamais sur
+        // l'existant. Mieux vaut le laisser sur son clan d'origine.
+        const removed2 = await member2.roles.remove(clan2.roleId, `Double compte aligné sur ${member1.user.tag} (synchro auto)`)
+          .then(() => true)
+          .catch((err: unknown) => {
+            logger.error('ClanService', `Retrait du clan "${clan2.name}" impossible pour ${member2.user.tag}, alignement abandonné :`, err);
+            return false;
+          });
 
-        // Migrer les contributions de member2 du clan2 vers clan1
-        await migrateContributions(guildId, u2, clan2.id, clan1.id);
+        if (removed2) {
+          await member2.roles.add(clan1.roleId, `Double compte aligné sur ${member1.user.tag} (synchro auto)`).catch(() => null);
+
+          // Migrer les contributions de member2 du clan2 vers clan1
+          await migrateContributions(guildId, u2, clan2.id, clan1.id);
+        }
       } else {
         targetClan = clan2;
         logger.info('ClanService', `Synchro DC : Alignement de ${member1.user.tag} vers le clan de ${member2.user.tag} ("${clan2.name}" avec ${xp2} XP vs ${xp1} XP)`);
         
-        // Retirer le rôle du clan 1 à member1 et ajouter le rôle du clan 2
-        await member1.roles.remove(clan1.roleId, `Double compte aligné sur ${member2.user.tag} (synchro auto)`).catch(() => null);
-        await member1.roles.add(clan2.roleId, `Double compte aligné sur ${member2.user.tag} (synchro auto)`).catch(() => null);
+        // Même précaution que ci-dessus : pas d'ajout sans retrait réussi.
+        const removed1 = await member1.roles.remove(clan1.roleId, `Double compte aligné sur ${member2.user.tag} (synchro auto)`)
+          .then(() => true)
+          .catch((err: unknown) => {
+            logger.error('ClanService', `Retrait du clan "${clan1.name}" impossible pour ${member1.user.tag}, alignement abandonné :`, err);
+            return false;
+          });
 
-        // Migrer les contributions de member1 du clan1 vers clan2
-        await migrateContributions(guildId, u1, clan1.id, clan2.id);
+        if (removed1) {
+          await member1.roles.add(clan2.roleId, `Double compte aligné sur ${member2.user.tag} (synchro auto)`).catch(() => null);
+
+          // Migrer les contributions de member1 du clan1 vers clan2
+          await migrateContributions(guildId, u1, clan1.id, clan2.id);
+        }
       }
     } else {
       // Attribuer le clan à celui qui ne l'a pas

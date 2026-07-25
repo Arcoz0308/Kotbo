@@ -38,7 +38,6 @@
 
   // States
   let clansEnabled = $state(false);
-  let clansUnique = $state(true);
   let clanAutoAssignOnJoin = $state(false);
   let currentClanSeason = $state(1);
   let clanXpFromLevelUp = $state(false);
@@ -63,7 +62,6 @@
 
   // Saved states (for dirty checking)
   let savedClansEnabled = $state(false);
-  let savedClansUnique = $state(true);
   let savedClanAutoAssignOnJoin = $state(false);
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
@@ -244,7 +242,6 @@
   // Sync state changes with the unsaved changes bar
   $effect(() => {
     const dirty = clansEnabled !== savedClansEnabled
-      || clansUnique !== savedClansUnique
       || clanAutoAssignOnJoin !== savedClanAutoAssignOnJoin
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
       || clanXpPerLevelUp !== savedClanXpPerLevelUp
@@ -261,7 +258,6 @@
           onSave: () => handleSaveSettings(),
           onReset: () => {
             clansEnabled = savedClansEnabled;
-            clansUnique = savedClansUnique;
             clanAutoAssignOnJoin = savedClanAutoAssignOnJoin;
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
@@ -347,7 +343,6 @@
       const res = await fetchClansData();
       if (res) {
         clansEnabled = res.clansEnabled;
-        clansUnique = res.clansUnique;
         clanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
         currentClanSeason = res.currentClanSeason;
         clanXpFromLevelUp = res.clanXpFromLevelUp;
@@ -368,7 +363,6 @@
         setSeasonDates(res.clanSeasonStartsAt, res.clanSeasonEndsAt);
         
         savedClansEnabled = res.clansEnabled;
-        savedClansUnique = res.clansUnique;
         savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
         savedClanXpFromLevelUp = res.clanXpFromLevelUp;
         savedClanXpPerLevelUp = res.clanXpPerLevelUp;
@@ -407,7 +401,6 @@
     await actionState.run(async () => {
       const res = await updateClanSettings({
         clansEnabled,
-        clansUnique,
         clanAutoAssignOnJoin,
         clanXpFromLevelUp,
         clanXpPerLevelUp,
@@ -424,7 +417,6 @@
       if (!res) throw new Error(m.clan_err_save());
       
       savedClansEnabled = res.clansEnabled;
-      savedClansUnique = res.clansUnique;
       savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
@@ -766,14 +758,6 @@
 
             <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
               <div>
-                <span class="text-sm font-medium text-on-surface">{m.clan_unique_title()}</span>
-                <p class="text-xs text-on-surface-variant/70">{m.clan_unique_desc()}</p>
-              </div>
-              <ToggleSwitch checked={clansUnique} onToggle={(v) => clansUnique = v} disabled={!canManageSettings} />
-            </div>
-
-            <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
-              <div>
                 <span class="text-sm font-medium text-on-surface">{m.clan_autoassign_title()}</span>
                 <p class="text-xs text-on-surface-variant/70">{m.clan_autoassign_desc()}</p>
               </div>
@@ -854,7 +838,7 @@
 
             <div class="space-y-2">
               <div class="flex justify-between text-xs font-medium text-on-surface-variant">
-                <span>{taskInProgress.type === 'distribute' ? m.clan_task_type_distribute() : m.clan_task_type_clear()}</span>
+                <span>{taskInProgress.type === 'distribute' ? m.clan_task_type_distribute() : taskInProgress.type === 'dedupe' ? m.clan_task_type_dedupe() : m.clan_task_type_clear()}</span>
                 <span>{taskInProgress.processed} / {taskInProgress.total}</span>
               </div>
               <div class="w-full bg-surface-container-high rounded-full h-2">

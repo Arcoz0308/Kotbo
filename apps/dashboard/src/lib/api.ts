@@ -3391,7 +3391,7 @@ export interface ClansDataResult {
   clanSeasonStartsAt: string | null;
   clanSeasonEndsAt: string | null;
   clans: ClanEntry[];
-  taskInProgress: { type: 'distribute' | 'clear'; processed: number; total: number } | null;
+  taskInProgress: { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number } | null;
 }
 
 export async function fetchClansData(guildId = authStore.selectedGuildId): Promise<ClansDataResult | null> {

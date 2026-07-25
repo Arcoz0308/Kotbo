@@ -82,6 +82,7 @@
   "clan_bg_task_active": "Tâche en arrière-plan active",
   "clan_task_type_distribute": "Distribution aléatoire",
   "clan_task_type_clear": "Retrait des rôles",
+  "clan_task_type_dedupe": "Nettoyage des clans multiples",
   "clan_list_heading": "Clans Configurés",
   "clan_clear_all_title": "Retirer tous les rôles de clan du serveur",
   "clan_clear_all_btn": "Retirer à tous",

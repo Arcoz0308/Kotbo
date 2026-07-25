@@ -82,6 +82,7 @@
   "clan_bg_task_active": "Background task active",
   "clan_task_type_distribute": "Random distribution",
   "clan_task_type_clear": "Role removal",
+  "clan_task_type_dedupe": "Multi-clan cleanup",
   "clan_list_heading": "Configured Clans",
   "clan_clear_all_title": "Remove all clan roles from the server",
   "clan_clear_all_btn": "Remove from all",

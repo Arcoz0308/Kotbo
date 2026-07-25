@@ -1049,6 +1049,7 @@
   "c4_clan_opt_saison": "Le numéro de la saison à consulter (ex: 5)",
   "c4_clan_distribute_desc": "🎲 (Admin) Répartit aléatoirement les membres sans clan",
   "c4_clan_clear_desc": "🧹 (Admin) Retire tous les rôles de clan du serveur",
+  "c4_clan_dedupe_desc": "🧩 (Admin) Corrige les membres qui portent plusieurs clans",
   "c4_clan_guild_only": "❌ Cette commande doit être exécutée sur un serveur.",
   "c4_clan_module_disabled": "❌ Le module de clans est actuellement désactivé sur ce serveur.",
   "c4_clan_list_empty": "Aucun clan n'est configuré sur ce serveur.",
