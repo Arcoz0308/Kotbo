@@ -6,6 +6,9 @@ import {
   resolveAdminAccess,
   resolveDashboardAccess,
   resolveFeatureAccessMap,
+  checkRateLimit,
+  dashboardWriteRateLimiter,
+  dashboardSensitiveRateLimiter,
 } from '../shared.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import { logger } from '../../utils/logger.js';
@@ -136,6 +139,38 @@ export async function handleDashboardRoutes(
     if (isDailyAlgoReviewAction && !access.canModerateDailyAlgo) {
       json(res, 403, { error: 'Action de modération Daily Algo non autorisée.' });
       return true;
+    }
+
+    // Rate limiting des écritures.
+    //
+    // Point de passage unique : toutes les routes de guilde transitent par ici,
+    // donc un seul garde-fou couvre les réglages, les clans, le Daily Algo et le
+    // reste, sans avoir à y penser route par route.
+    //
+    // La clé est « membre + serveur » et non l'IP : deux administrateurs derrière
+    // la même sortie réseau ne doivent pas se pénaliser mutuellement.
+    if (method !== 'GET') {
+      const rateKey = `${user.userId}:${guildId}`;
+
+      // Plafond large : aucun usage humain ne l'atteint. Il sert a arreter net une
+      // page qui partirait en boucle de requetes.
+      if (!checkRateLimit(dashboardWriteRateLimiter, rateKey, 60, 60 * 1000)) {
+        json(res, 429, { error: 'Trop de modifications en peu de temps. Réessayez dans une minute.' });
+        return true;
+      }
+
+      // Actions coûteuses ou irréversibles : enregistrement de réglages, clôture
+      // de semaine Daily Algo, remises à zéro et distributions de clans.
+      const isSensitiveWrite =
+        (parts[4] === 'settings' && (method === 'PATCH' || method === 'PUT'))
+        || (parts[4] === 'daily-algo-weeks' && parts[5] === 'close')
+        || (parts[4] === 'clans'
+          && ['distribute', 'clear', 'reset-season', 'reset-all', 'rollback-season'].includes(parts[5] ?? ''));
+
+      if (isSensitiveWrite && !checkRateLimit(dashboardSensitiveRateLimiter, rateKey, 10, 60 * 1000)) {
+        json(res, 429, { error: 'Trop d\'enregistrements successifs. Patientez une minute avant de réessayer.' });
+        return true;
+      }
     }
 
     // Dispatch to guild-specific sub-routers
