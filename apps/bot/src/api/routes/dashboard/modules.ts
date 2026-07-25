@@ -39,7 +39,17 @@ import {
 import { invalidateNicknameModerationCache } from '../../../events/nicknameModeration.js';
 import { updateGuildStats } from '../../../events/stats.js';
 import { invalidateBannedWordsCache } from '../../../services/moderation/bannedWordsService.js';
-import { generateTranscriptFromMessages, resolveMentionsToText, embedToApiShape } from '../../../services/features/transcriptService.js';
+import { generateTranscriptFromMessages } from '../../../services/features/transcriptService.js';
+import { formatSanctionDurationLabel } from '../../../services/moderation/sanctionService.js';
+import {
+  MAX_EVIDENCE_MESSAGES,
+  EVIDENCE_CHANNEL_CONCURRENCY,
+  type FetchedEvidenceChannel,
+  parseEvidenceLinks,
+  resolveEvidenceChannel,
+  fetchUserMessagesInChannel,
+  serializeEvidenceMessage,
+} from '../../evidence.js';
 
 import { parseDiscordMarkdown, extractMediaUrls, resolveDailyAlgoTotalPoints } from '../../shared.js';
 import {
@@ -265,124 +275,6 @@ type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN' | 
 
 function toSanctionType(value: DashboardSanctionType): SanctionType {
   return value as SanctionType;
-}
-
-function parseEvidenceLinks(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-    .filter((entry) => /^https?:\/\//i.test(entry));
-}
-
-const MAX_EVIDENCE_MESSAGES = 200;
-const MAX_SCAN_MESSAGES = 400;
-const EVIDENCE_CHANNEL_CONCURRENCY = 5;
-
-interface FetchedEvidenceChannel {
-  channelId: string;
-  channelName: string;
-  rawMessages: Message[];
-  truncated: boolean;
-}
-
-async function resolveEvidenceChannel(client: Client, guildId: string, channelId: string): Promise<{ channel: TextChannel } | { error: string }> {
-  const guild = client.guilds.cache.get(guildId);
-  if (!guild) {
-    return { error: 'Serveur Discord introuvable.' };
-  }
-
-  let channel = guild.channels.cache.get(channelId) ?? null;
-  if (!channel) {
-    channel = await guild.channels.fetch(channelId).catch(() => null);
-  }
-  if (!channel) {
-    return { error: 'Salon introuvable sur ce serveur.' };
-  }
-
-  if (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
-    return { error: 'Ce type de salon n’est pas encore pris en charge.' };
-  }
-
-  const textChannel = channel as TextChannel;
-  const me = guild.members.me;
-  if (!me || !textChannel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory])) {
-    return { error: "Le bot n'a pas accès à ce salon." };
-  }
-
-  return { channel: textChannel };
-}
-
-async function fetchUserMessagesInChannel(
-  channel: TextChannel,
-  authorId: string,
-  limit = MAX_EVIDENCE_MESSAGES,
-): Promise<{ messages: Message[]; truncated: boolean }> {
-  const matched: Message[] = [];
-  let scanned = 0;
-  let cursor: string | undefined;
-  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_EVIDENCE_MESSAGES);
-
-  while (matched.length < safeLimit && scanned < MAX_SCAN_MESSAGES) {
-    const batch = await channel.messages.fetch({ limit: 100, before: cursor });
-    if (batch.size === 0) break;
-
-    for (const msg of batch.values()) {
-      scanned++;
-      if (msg.author.id === authorId) {
-        matched.push(msg);
-        if (matched.length >= safeLimit) break;
-      }
-    }
-
-    cursor = batch.last()?.id;
-    if (batch.size < 100) break;
-  }
-
-  return {
-    messages: matched.sort((a, b) => a.createdTimestamp - b.createdTimestamp),
-    truncated: matched.length < safeLimit && scanned >= MAX_SCAN_MESSAGES,
-  };
-}
-
-function serializeEvidenceMessage(msg: Message, guild?: Guild) {
-  return {
-    id: msg.id,
-    content: msg.content ? resolveMentionsToText(msg.content, guild) : '',
-    createdAt: msg.createdAt.toISOString(),
-    attachments: [...msg.attachments.values()].map((attachment) => ({
-      url: attachment.url,
-      name: attachment.name,
-      contentType: attachment.contentType,
-      size: attachment.size,
-      kind: attachment.contentType?.startsWith('image/')
-        ? 'image' as const
-        : attachment.contentType?.startsWith('video/')
-          ? 'video' as const
-          : 'file' as const,
-    })),
-    embeds: msg.embeds.map((embed) => embedToApiShape(embed, guild)),
-    stickers: [...msg.stickers.values()].map((sticker) => ({
-      id: sticker.id,
-      name: sticker.name,
-      url: sticker.url,
-    })),
-  };
-}
-
-function formatSanctionDurationLabel(seconds: number | null): string | null {
-  if (!seconds) return null;
-
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const parts: string[] = [];
-
-  if (days) parts.push(`${days}j`);
-  if (hours) parts.push(`${hours}h`);
-  if (minutes) parts.push(`${minutes}m`);
-
-  return parts.length > 0 ? parts.join(' ') : `${seconds}s`;
 }
 
 function normalizeBrokenRulesPayload(value: string): string {

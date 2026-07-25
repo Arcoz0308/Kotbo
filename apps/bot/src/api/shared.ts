@@ -9,6 +9,7 @@ import prisma from '../utils/db.js';
 import { cache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { isStaffServerGuild } from '../services/staff/staffServerService.js';
+import { parseEvidenceLinks } from './evidence.js';
 export { COLORS, successEmbed } from '../utils/embeds.js';
 
 export {
@@ -999,29 +1000,6 @@ export function isDashboardSanctionType(value: string): value is DashboardSancti
 
 export function toSanctionType(value: DashboardSanctionType): SanctionType {
   return value as SanctionType;
-}
-
-export function parseEvidenceLinks(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-    .filter((entry) => /^https?:\/\//i.test(entry));
-}
-
-export function formatSanctionDurationLabel(seconds: number | null): string | null {
-  if (!seconds) return null;
-
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const parts: string[] = [];
-
-  if (days) parts.push(`${days}j`);
-  if (hours) parts.push(`${hours}h`);
-  if (minutes) parts.push(`${minutes}m`);
-
-  return parts.length > 0 ? parts.join(' ') : `${seconds}s`;
 }
 
 export function normalizeBrokenRulesPayload(value: string): string {

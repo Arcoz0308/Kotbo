@@ -62,6 +62,13 @@ import {
   resolveMentionsToText,
   embedToApiShape,
 } from '../../services/features/transcriptService.js';
+import {
+  MAX_EVIDENCE_MESSAGES,
+  EVIDENCE_CHANNEL_CONCURRENCY,
+  parseEvidenceLinks,
+  fetchUserMessagesInChannel,
+  serializeEvidenceMessage,
+} from '../evidence.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../utils/formCustomization.js';
 import { embedToV2 } from '../../utils/patchV2.js';
 import { getCallPermissionConfig, updateCallPermissionConfig, getAbsences, createAbsence, updateAbsenceStatus, deleteAbsence, getMeetings, createMeeting, updateMeeting, deleteMeeting, getNotifications, markNotificationRead, markAllNotificationsRead, getPolls, createPoll, castPollVote, getCalls, createCall, updateCall, deleteCall, getTasks, createTask, updateTask, deleteTask, createManagerNote, deleteManagerNote, getStaffAlertsAndProgression, getStaffCalendarData } from '../../services/staff/staffLeadershipService.js';
@@ -444,64 +451,6 @@ async function resolveStaffMemberRecord(guildId: string, client: Client, raw: st
       label: staffMember.displayName ?? staffMember.username ?? staffMember.userId,
     },
   };
-}
-
-const MAX_EVIDENCE_MESSAGES = 200;
-const MAX_SCAN_MESSAGES = 400;
-const EVIDENCE_CHANNEL_CONCURRENCY = 5;
-
-async function fetchUserMessagesInChannel(
-  channel: TextChannel,
-  authorId: string,
-  limit = MAX_EVIDENCE_MESSAGES,
-): Promise<{ messages: Message[]; truncated: boolean }> {
-  const matched: Message[] = [];
-  let scanned = 0;
-  let cursor: string | undefined;
-  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_EVIDENCE_MESSAGES);
-
-  while (matched.length < safeLimit && scanned < MAX_SCAN_MESSAGES) {
-    const batch = await channel.messages.fetch({ limit: 100, before: cursor });
-    if (batch.size === 0) break;
-
-    for (const msg of batch.values()) {
-      scanned++;
-      if (msg.author.id === authorId) {
-        matched.push(msg);
-        if (matched.length >= safeLimit) break;
-      }
-    }
-
-    cursor = batch.last()?.id;
-    if (batch.size < 100) break;
-  }
-
-  return {
-    messages: matched.sort((a, b) => a.createdTimestamp - b.createdTimestamp),
-    truncated: matched.length < safeLimit && scanned >= MAX_SCAN_MESSAGES,
-  };
-}
-
-function serializeEvidenceMessage(msg: Message, guild?: Guild) {
-  return {
-    id: msg.id,
-    content: msg.content ? resolveMentionsToText(msg.content, guild) : '',
-    createdAt: msg.createdAt.toISOString(),
-    attachments: [...msg.attachments.values()].map((attachment) => ({
-      url: attachment.url,
-      name: attachment.name,
-      contentType: attachment.contentType,
-      size: attachment.size,
-    })),
-    embeds: msg.embeds.map((embed) => embedToApiShape(embed, guild)),
-  };
-}
-
-function parseEvidenceLinks(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-    .filter((entry) => /^https?:\/\//i.test(entry));
 }
 
 const oauthSecuritySchemes = [
