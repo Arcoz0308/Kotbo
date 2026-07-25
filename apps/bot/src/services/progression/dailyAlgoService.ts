@@ -173,10 +173,19 @@ function resolveSubmissionPoints(submission: SubmissionPointsSource): number {
   return Math.max(0, Math.ceil(submission.scoreFinal + (submission.speedBonusPoints ?? 0)));
 }
 
+/**
+ * Palier de compétence, à partir de la moyenne **sur 5** et du nombre de
+ * soumissions validées.
+ *
+ * Les seuils étaient exprimés sur 10 (9, 8, 6) alors que `averageScore` est une
+ * moyenne sur 5 : aucun n'était atteignable et tout le monde restait « Débutant »
+ * à vie. Ils sont ramenés à l'échelle réelle, en gardant les proportions
+ * d'origine (9/10 → 4.5/5, 8/10 → 4/5, 6/10 → 3/5).
+ */
 function resolveSkillTier(averageScore: number, approvedCount: number): DailyAlgoSkillTier {
-  if (approvedCount >= 25 && averageScore >= 9) return 'Légende';
-  if (approvedCount >= 10 && averageScore >= 8) return 'Maître';
-  if (approvedCount >= 3 && averageScore >= 6) return 'Apprenti';
+  if (approvedCount >= 25 && averageScore >= 4.5) return 'Légende';
+  if (approvedCount >= 10 && averageScore >= 4) return 'Maître';
+  if (approvedCount >= 3 && averageScore >= 3) return 'Apprenti';
   return 'Débutant';
 }
 
@@ -929,7 +938,13 @@ function countStreaks(dateKeys: string[]): { current: number; best: number } {
 /**
  * Bornes de journées facultatives, sous forme de clés « YYYY-MM-DD ».
  * Ces clés sont triables comme des chaînes : filtrer une semaine se réduit donc à
- * une comparaison lexicographique, sans arithmétique de fuseau.
+ * une comparaison lexicographique, sans arithmétique de fuseau. La contrainte
+ * `@@unique([guildId, dateKey])` sert d'index pour ce filtre.
+ *
+ * Attention : `DailyAlgoRun.dateKey` est nullable. Un run dont la clé est nulle
+ * est donc exclu de toute plage (NULL échoue aux comparaisons SQL). Les runs créés
+ * par `sendDailyAlgo` ont toujours une clé ; seules d'éventuelles données
+ * anciennes pourraient manquer à l'appel d'un classement hebdomadaire.
  */
 export type DailyAlgoDateKeyRange = {
   firstDateKey: string;
@@ -1361,15 +1376,18 @@ export async function reviewDailyAlgoSubmission(params: {
       pointsMultiplier: submission.run.pointsMultiplier,
     });
     updateData.reviewFeedback = normalizedFeedback || 'Rien à redire.';
-  } else {
-    // Rejet ou hors-sujet : aucun point. Remise à zéro explicite, car la
-    // renotation du jour même peut porter sur une soumission déjà approuvée qui
-    // avait donc déjà un total figé.
+  } else if (params.action === 'reject' || params.action === 'dismiss') {
+    // Aucun point. Remise à zéro explicite : la renotation du jour même peut
+    // porter sur une soumission déjà approuvée, qui avait donc un total figé.
+    // Testé sur l'action et non sur « pas de notes », pour qu'une approbation
+    // sans notes ne vienne jamais écraser un total à 0.
     updateData.pointsAwarded = 0;
 
     if (normalizedFeedback) {
       updateData.reviewFeedback = normalizedFeedback;
     }
+  } else if (normalizedFeedback) {
+    updateData.reviewFeedback = normalizedFeedback;
   }
 
   await prisma.dailyAlgoSubmission.update({
