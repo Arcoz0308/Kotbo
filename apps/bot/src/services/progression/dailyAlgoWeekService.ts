@@ -17,6 +17,7 @@ import { COLORS, truncate } from '../../utils/embeds.js';
 import { addXp } from './levelingService.js';
 import { getGuildDailyAlgoRanking } from './dailyAlgoService.js';
 import {
+  convertToClanPoints,
   formatWeekRangeLabel,
   getPreviousWeekKey,
   getWeekBounds,
@@ -58,6 +59,8 @@ export type DailyAlgoWeekCloseResult = {
   podium: DailyAlgoWeekRankingEntry[];
   xpGranted: number;
   rolesAssigned: number;
+  /** Points de clan versés. Toujours 0 si le pont vers les clans est inactif. */
+  clanPointsGranted: number;
 };
 
 /** Rangs du podium, dans l'ordre. */
@@ -73,6 +76,14 @@ async function getGuildWeekSettings(guildId: string) {
       dailyAlgoEnabled: true,
       dailyAlgoChannelId: true,
       dailyAlgoTimezone: true,
+      // Pont vers les clans : trois interrupteurs indépendants doivent être
+      // réunis pour qu'un seul point de clan soit versé.
+      clansEnabled: true,
+      clanPointsFromDailyAlgo: true,
+      clanPointsFromDailyAlgoRate: true,
+      clanPointsDailyAlgoTop1: true,
+      clanPointsDailyAlgoTop2: true,
+      clanPointsDailyAlgoTop3: true,
       dailyAlgoWeeklyRewardsEnabled: true,
       dailyAlgoWeekRole1Id: true,
       dailyAlgoWeekRole2Id: true,
@@ -388,6 +399,7 @@ export async function closeDailyAlgoWeek(params: {
       podium,
       xpGranted: 0,
       rolesAssigned: 0,
+      clanPointsGranted: 0,
     };
   }
 
@@ -395,6 +407,18 @@ export async function closeDailyAlgoWeek(params: {
     client: params.client,
     settings,
     weekId: week.id,
+  });
+
+  // Pont vers les clans, en dernier : une erreur ici ne doit pas empêcher les
+  // récompenses propres au Daily Algo d'avoir été versées.
+  const clanPointsGranted = await grantClanPointsForWeek({
+    client: params.client,
+    settings,
+    weekId: week.id,
+    weekKey,
+  }).catch((err: unknown) => {
+    logger.error('DailyAlgoWeek', `Échec de la conversion en points de clan pour ${weekKey} :`, err);
+    return 0;
   });
 
   await announceWeekResults({
@@ -411,7 +435,7 @@ export async function closeDailyAlgoWeek(params: {
 
   logger.success(
     'DailyAlgoWeek',
-    `Semaine ${weekKey} clôturée pour ${params.guildId} : ${ranking.length} participant(s), ${xpGranted} XP, ${rolesAssigned} rôle(s).`,
+    `Semaine ${weekKey} clôturée pour ${params.guildId} : ${ranking.length} participant(s), ${xpGranted} XP, ${rolesAssigned} rôle(s), ${clanPointsGranted} point(s) de clan.`,
   );
 
   return {
@@ -421,11 +445,12 @@ export async function closeDailyAlgoWeek(params: {
     podium,
     xpGranted,
     rolesAssigned,
+    clanPointsGranted,
   };
 }
 
 function emptyResult(status: DailyAlgoWeekCloseResult['status'], weekKey: string): DailyAlgoWeekCloseResult {
-  return { status, weekKey, participants: 0, podium: [], xpGranted: 0, rolesAssigned: 0 };
+  return { status, weekKey, participants: 0, podium: [], xpGranted: 0, rolesAssigned: 0, clanPointsGranted: 0 };
 }
 
 /** Relit un classement archivé en JSON, en se méfiant de son contenu. */
@@ -543,6 +568,84 @@ async function grantWeeklyRewards(params: {
   }
 
   return { xpGranted, rolesAssigned };
+}
+
+/** Bonus forfaitaire de clan accordé au podium, en plus de la conversion. */
+function resolveClanPodiumBonus(settings: GuildWeekSettings, rank: number): number {
+  if (rank === 1) return Math.max(0, settings.clanPointsDailyAlgoTop1);
+  if (rank === 2) return Math.max(0, settings.clanPointsDailyAlgoTop2);
+  if (rank === 3) return Math.max(0, settings.clanPointsDailyAlgoTop3);
+  return 0;
+}
+
+/**
+ * Convertit les points de la semaine en points de clan.
+ *
+ * **Trois interrupteurs indépendants** doivent être réunis : le Daily Algo actif,
+ * les clans actifs, et le pont explicitement activé. Sinon on sort sans rien faire
+ * et sans erreur — c'est le cas normal sur un serveur qui n'utilise qu'un des deux
+ * modules, ou les deux sans vouloir les lier.
+ *
+ * `clanService` n'est importé qu'ici, dynamiquement : « Daily Algo seul » ne doit
+ * pas traîner le code des clans au chargement.
+ *
+ * Idempotence : seules les lignes dont `clanPointsGranted` vaut encore 0 sont
+ * traitées, donc une clôture reprise ne verse pas deux fois.
+ */
+async function grantClanPointsForWeek(params: {
+  client: Client;
+  settings: GuildWeekSettings;
+  weekId: string;
+  weekKey: string;
+}): Promise<number> {
+  const { client, settings, weekId, weekKey } = params;
+
+  if (!settings.clansEnabled || !settings.clanPointsFromDailyAlgo) return 0;
+
+  const rewards = await prisma.dailyAlgoWeeklyReward.findMany({
+    where: { weekId, clanPointsGranted: 0 },
+  });
+  if (rewards.length === 0) return 0;
+
+  const awards = rewards
+    .map((reward) => ({
+      reward,
+      // Conversion des points de la semaine (1 pour 1 par défaut), plus le bonus
+      // forfaitaire si le membre est sur le podium.
+      amount: convertToClanPoints(reward.points, settings.clanPointsFromDailyAlgoRate)
+        + resolveClanPodiumBonus(settings, reward.rank),
+    }))
+    .filter((entry) => entry.amount > 0);
+
+  if (awards.length === 0) return 0;
+
+  const { awardClanPointsToMembers } = await import('../community/clanService.js');
+
+  const granted = await awardClanPointsToMembers({
+    guildId: settings.id,
+    client,
+    source: 'DAILY_ALGO',
+    reason: `Daily Algo ${weekKey}`,
+    awards: awards.map((entry) => ({ userId: entry.reward.userId, amount: entry.amount })),
+  });
+
+  let total = 0;
+
+  for (const entry of awards) {
+    const amount = granted.get(entry.reward.userId);
+    // Absent de la map : membre sans clan ou parti du serveur. On laisse
+    // `clanPointsGranted` à 0, ce qui permettra un rattrapage ultérieur.
+    if (!amount) continue;
+
+    await prisma.dailyAlgoWeeklyReward.update({
+      where: { id: entry.reward.id },
+      data: { clanPointsGranted: amount },
+    }).catch(() => null);
+
+    total += amount;
+  }
+
+  return total;
 }
 
 /** Publie le bilan de la semaine dans le salon d'annonce, ou à défaut celui du module. */

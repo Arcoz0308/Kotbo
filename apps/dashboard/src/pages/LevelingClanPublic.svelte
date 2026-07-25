@@ -38,7 +38,7 @@
   interface RecentScore {
     id: string;
     amount: number;
-    source: string; // 'XP' | 'ADMIN'
+    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO'
     isClan: boolean;
     displayName: string;
     avatarUrl: string | null;
@@ -342,6 +342,10 @@
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">Admin</span>
                       {:else if s.source === 'BOOST'}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">Boost du serveur</span>
+                      {:else if s.source === 'DAILY_ALGO'}
+                        <!-- Ambre : ni le violet, ni le rose, ni le bleu ciel ne sont pris,
+                             et l'orange sert déjà aux pseudos dans ce même tableau. -->
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">{m.clan_public_source_daily_algo()}</span>
                       {:else}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">XP</span>
                       {/if}

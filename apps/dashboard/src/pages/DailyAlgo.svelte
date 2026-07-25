@@ -318,8 +318,11 @@
           return false;
         }
 
+        const clanPart = result.clanPointsGranted > 0
+          ? `, ${result.clanPointsGranted} point(s) de clan`
+          : '';
         weekSettingsAction.setMessage(
-          `Semaine ${result.weekKey} clôturée : ${result.participants} participant(s), ${result.xpGranted} XP versée.`
+          `Semaine ${result.weekKey} clôturée : ${result.participants} participant(s), ${result.xpGranted} XP versée${clanPart}.`
         );
         closeWeekConfirmOpen = false;
         await loadWeekData();
