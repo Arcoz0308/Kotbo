@@ -114,8 +114,8 @@ export async function fetchSocialFollows(guildId = authStore.selectedGuildId) {
   });
 }
 
-export async function addYoutubeFollow(payload: { query: string; channelId?: string; discordChannelId?: string | null; mention?: string | null; liveMessage?: string | null; videoMessage?: string | null; shortMessage?: string | null }, guildId = authStore.selectedGuildId) {
-  // If editing an existing follow, we can pass query as channelId
+export async function addYoutubeFollow(payload: { query?: string; channelId?: string; discordChannelId?: string | null; mention?: string | null; liveMessage?: string | null; videoMessage?: string | null; shortMessage?: string | null }, guildId = authStore.selectedGuildId) {
+  // Mise à jour d'un suivi existant : le channelId sert de requête de résolution.
   const body = {
     query: payload.query || payload.channelId || '',
     discordChannelId: payload.discordChannelId,
