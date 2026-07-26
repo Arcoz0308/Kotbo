@@ -651,25 +651,6 @@ export async function handleClansRoutes(
               }
             }
           }
-        }
-
-        // Renommer les catégories QG pour le vainqueur rétabli
-        const { ChannelType } = await import('discord.js');
-        for (const clan of clans) {
-          if (clan.generalChannelId) {
-            const channel = discordGuild.channels.cache.get(clan.generalChannelId) || await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
-            const category = channel && 'parent' in channel && channel.parent && channel.parent.type === ChannelType.GuildCategory
-              ? channel.parent
-              : (channel && channel.type === ChannelType.GuildCategory ? channel : null);
-            if (category) {
-              const isWinner = Boolean(restoredWinningClanId && clan.id === restoredWinningClanId);
-              const targetName = buildCategoryName(category.name, isWinner);
-              if (category.name !== targetName) {
-                await category.setName(targetName, "Annulation clôture saison").catch(() => null);
-              }
-            }
-          }
-        }
       })().catch((err) => {
         logger.error('ClansAPI', 'Error updating Discord elements during rollback:', err);
       });
