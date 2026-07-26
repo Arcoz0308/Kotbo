@@ -257,6 +257,8 @@
   "clan_public_season_hours_left": "{h} h {min} min restantes",
   "clan_public_season_ended": "Saison terminée",
   "clan_public_season_starts_in": "Débute dans {n} jour(s)",
+  "clan_public_searching": "Recherche en cours…",
+  "clan_public_no_points_yet": "Aucun point cette saison",
   "nav_economy": "Économie & RPG",
   "nav_marketplace": "Marché",
   "nav_quests": "Quêtes",
