@@ -190,8 +190,8 @@
       syncBridgeFromStore();
       return true;
     }, {
-      successMessage: 'Lien Daily Algo enregistré.',
-      failureMessage: "Impossible d'enregistrer le lien Daily Algo.",
+      successMessage: m.clan_da_save_success(),
+      failureMessage: m.clan_da_save_error(),
     });
   }
 
@@ -1190,15 +1190,15 @@
 
               <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
                 <div>
-                  <span class="text-sm font-medium text-on-surface">Gain par boost du serveur</span>
-                  <p class="text-xs text-on-surface-variant/70">Points bonus offerts au clan du membre lorsqu'il booste le serveur.</p>
+                  <span class="text-sm font-medium text-on-surface">{m.clan_boost_gain_title()}</span>
+                  <p class="text-xs text-on-surface-variant/70">{m.clan_boost_gain_desc()}</p>
                 </div>
                 <ToggleSwitch checked={clanXpFromBoost} onToggle={(v) => clanXpFromBoost = v} disabled={!canManageSettings} />
               </div>
 
               {#if clanXpFromBoost}
                 <div class="space-y-1.5 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
-                  <label for="clan-xp-boost-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Points attribués par boost</label>
+                  <label for="clan-xp-boost-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_boost_points_label()}</label>
                   <div class="flex items-center gap-2">
                     <input
                       id="clan-xp-boost-amount"
@@ -1208,7 +1208,7 @@
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                       disabled={!canManageSettings}
                     />
-                    <span class="text-xs text-on-surface-variant/60 font-semibold shrink-0">XP / boost</span>
+                    <span class="text-xs text-on-surface-variant/60 font-semibold shrink-0">{m.clan_boost_points_unit()}</span>
                   </div>
                 </div>
               {/if}
@@ -1219,17 +1219,16 @@
           <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
             <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
               <Papicon icon="Code" size={16} class="text-amber-500" />
-              Points du Daily Algo
+              {m.clan_da_bridge_heading()}
             </h3>
 
             {#if !dailyAlgoEnabled}
               <div class="p-5 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
                 <span class="text-2xl">🔒</span>
                 <div>
-                  <h4 class="text-sm font-semibold text-on-surface">Le Daily Algo n'est pas activé</h4>
+                  <h4 class="text-sm font-semibold text-on-surface">{m.clan_da_disabled_title()}</h4>
                   <p class="text-xs text-on-surface-variant/70 mt-1">
-                    Activez le module Daily Algo pour pouvoir convertir ses points en points
-                    de clan. Les clans fonctionnent parfaitement sans.
+                    {m.clan_da_disabled_desc()}
                   </p>
                 </div>
               </div>
@@ -1239,10 +1238,9 @@
               <div class="space-y-4">
                 <div class="flex items-center justify-between">
                   <div>
-                    <span class="text-sm font-medium text-on-surface">Convertir les points du Daily Algo</span>
+                    <span class="text-sm font-medium text-on-surface">{m.clan_da_convert_title()}</span>
                     <p class="text-xs text-on-surface-variant/70">
-                      À la clôture de la semaine, chaque participant convertit ses points en
-                      points de clan. Sans ce réglage, les deux modules tournent sans lien.
+                      {m.clan_da_convert_desc()}
                     </p>
                   </div>
                   <ToggleSwitch
@@ -1255,7 +1253,7 @@
                 {#if bridge.clanPointsFromDailyAlgo}
                   <div class="space-y-4 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
                     <div class="space-y-1.5">
-                      <label for="clan-da-rate" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Taux de conversion</label>
+                      <label for="clan-da-rate" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_da_rate_label()}</label>
                       <input
                         id="clan-da-rate"
                         type="number"
@@ -1267,21 +1265,21 @@
                         disabled={!canManageSettings}
                       />
                       <p class="text-[10px] text-on-surface-variant/50 ml-1">
-                        1 = un point de Daily Algo donne un point de clan.
+                        {m.clan_da_rate_hint()}
                       </p>
                     </div>
 
                     <div class="grid grid-cols-3 gap-3">
                       <div class="space-y-1.5">
-                        <label for="clan-da-top1" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥇 Bonus</label>
+                        <label for="clan-da-top1" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥇 {m.clan_da_bonus_label()}</label>
                         <input id="clan-da-top1" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop1} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
                       </div>
                       <div class="space-y-1.5">
-                        <label for="clan-da-top2" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥈 Bonus</label>
+                        <label for="clan-da-top2" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥈 {m.clan_da_bonus_label()}</label>
                         <input id="clan-da-top2" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop2} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
                       </div>
                       <div class="space-y-1.5">
-                        <label for="clan-da-top3" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥉 Bonus</label>
+                        <label for="clan-da-top3" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥉 {m.clan_da_bonus_label()}</label>
                         <input id="clan-da-top3" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop3} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
                       </div>
                     </div>
@@ -1294,7 +1292,7 @@
                     disabled={bridgeAction.state.loading}
                     class="w-full py-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[13px] font-medium transition-colors hover:bg-amber-500/20 disabled:opacity-50"
                   >
-                    {bridgeAction.state.loading ? 'Enregistrement…' : 'Enregistrer le lien'}
+                    {bridgeAction.state.loading ? m.clan_da_saving_btn() : m.clan_da_save_btn()}
                   </button>
                 {/if}
               </div>
