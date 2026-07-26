@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { fetchPublicClans, searchPublicClanScores } from '../lib/api';
+  import { fetchPublicClans, searchPublicClans, type PublicClanSearchResult } from '../lib/api';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
@@ -23,7 +23,8 @@
 
   interface Participant {
     userId: string;
-    rank: number;
+    /** `null` : trouvé par la recherche, mais aucun point marqué cette saison. */
+    rank: number | null;
     xp: number;
     displayName: string;
     avatarUrl: string | null;
@@ -76,7 +77,7 @@
       : ''
   );
 
-  onMount(async () => {
+  async function loadClans(initial = false) {
     try {
       const res = await fetchPublicClans(serverId);
       if (res) {
@@ -90,51 +91,64 @@
         recentScores = res.recentScores || [];
       }
     } catch (err: any) {
+      if (!initial) return;
       console.error(err);
       errorMsg = err.message || m.clan_public_error_loading();
     } finally {
-      loading = false;
+      if (initial) loading = false;
     }
-  });
-
-  // La recherche porte sur l'intégralité du classement (pour retrouver un membre
-  // très bas au classement), mais l'affichage reste plafonné pour garder la page
-  // courte : une requête trop large est signalée plutôt que déroulée.
-  function getMatchingParticipants(clan: ClanData): Participant[] {
-    if (!searchQuery.trim()) return clan.topParticipants;
-    const q = normalize(searchQuery);
-    return clan.topParticipants.filter(p =>
-      normalize(p.displayName).includes(q) || p.userId.includes(searchQuery)
-    );
   }
 
-  // Le flux principal se limite aux 20 derniers gains : dès qu'on cherche
-  // quelqu'un, on interroge le serveur pour remonter aussi ses gains plus anciens.
-  let searchedScores = $state<RecentScore[]>([]);
+  onMount(() => {
+    void loadClans(true);
+  });
+
+  // La page ne charge que la tête de chaque classement : dès qu'on cherche
+  // quelqu'un, c'est le serveur qui le retrouve, calcule son rang réel — même
+  // très bas au classement — et renvoie son historique de gains de la saison.
+  const searchActive = $derived(searchQuery.trim().length >= 2);
+  let searching = $state(false);
+  let searchResult = $state<PublicClanSearchResult>({ participants: [], scores: [], matchCounts: {} });
   let searchToken = 0;
 
   $effect(() => {
     const q = searchQuery.trim();
     if (q.length < 2) {
-      searchedScores = [];
+      searchResult = { participants: [], scores: [], matchCounts: {} };
+      searching = false;
       return;
     }
     const token = ++searchToken;
+    searching = true;
     const timer = setTimeout(async () => {
-      const results = await searchPublicClanScores(serverId, q);
-      if (token === searchToken) searchedScores = results;
+      const results = await searchPublicClans(serverId, q);
+      if (token !== searchToken) return;
+      searchResult = results;
+      searching = false;
     }, 300);
     return () => clearTimeout(timer);
   });
 
+  function getDisplayedParticipants(clan: ClanData): Participant[] {
+    if (!searchActive) return clan.topParticipants;
+    return searchResult.participants.filter(p => p.clanId === clan.id);
+  }
+
+  // Nombre de correspondances au-delà de ce qui est affiché, pour inviter à
+  // affiner plutôt que de dérouler une liste interminable.
+  function getHiddenCount(clan: ClanData, shown: number): number {
+    if (!searchActive) return 0;
+    return Math.max(0, (searchResult.matchCounts[clan.id] ?? shown) - shown);
+  }
+
   const displayedScores = $derived.by(() => {
-    if (!searchQuery.trim()) return recentScores;
+    if (!searchActive) return recentScores;
     const q = normalize(searchQuery);
     const local = recentScores.filter(s =>
       normalize(s.displayName).includes(q) || (s.userId ? s.userId.includes(searchQuery) : false)
     );
     const seen = new Set(local.map(s => s.id));
-    return [...local, ...searchedScores.filter(s => !seen.has(s.id))];
+    return [...local, ...searchResult.scores.filter((s: RecentScore) => !seen.has(s.id))];
   });
 
   function formatXp(xp: number): string {
@@ -186,7 +200,13 @@
   // longtemps sur un écran de suivi.
   let now = $state(Date.now());
   $effect(() => {
-    const interval = setInterval(() => (now = Date.now()), 60_000);
+    const interval = setInterval(() => {
+      now = Date.now();
+      // La bascule de saison est faite par un cron côté bot (toutes les 15 min) :
+      // sans resynchronisation, la page resterait figée sur « Saison terminée »
+      // et sur l'ancien classement jusqu'à un rechargement manuel.
+      if (seasonEndsAt && now >= new Date(seasonEndsAt).getTime()) void loadClans();
+    }, 60_000);
     return () => clearInterval(interval);
   });
 
@@ -212,7 +232,8 @@
     return { text: m.clan_public_season_hours_left({ h: hours, min: minutes }), ended: false };
   });
 
-  function getRankBadgeColor(rank: number) {
+  function getRankBadgeColor(rank: number | null) {
+    if (rank === null) return 'bg-slate-100 dark:bg-slate-800 text-slate-400';
     if (rank === 1) return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
     if (rank === 2) return 'bg-slate-400/10 text-slate-400 border border-slate-400/20';
     if (rank === 3) return 'bg-amber-700/10 text-amber-700 border border-amber-700/20';
@@ -367,9 +388,8 @@
       <div class="grid gap-8 items-start relative z-10" style={clansGridStyle}>
         
         {#each clans as clan}
-          {@const matches = getMatchingParticipants(clan)}
-          {@const pList = matches.slice(0, MEMBER_DISPLAY_LIMIT)}
-          {@const hiddenCount = searchQuery.trim() ? matches.length - pList.length : 0}
+          {@const pList = getDisplayedParticipants(clan).slice(0, MEMBER_DISPLAY_LIMIT)}
+          {@const hiddenCount = getHiddenCount(clan, pList.length)}
           
           <div
             class="clean-card bg-white dark:bg-[#111a2e] border-t-4 border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 duration-300 overflow-hidden"
@@ -399,7 +419,11 @@
 
             <!-- Participants list -->
             <div class="p-4">
-              {#if pList.length === 0}
+              {#if searching && pList.length === 0}
+                <div class="py-12 text-center text-xs text-slate-400 dark:text-slate-500 italic">
+                  {m.clan_public_searching()}
+                </div>
+              {:else if pList.length === 0}
                 <div class="py-12 text-center text-xs text-slate-400 dark:text-slate-500 italic">
                   {m.clan_public_no_members_found()}
                 </div>
@@ -411,7 +435,7 @@
 
                         <!-- Rank Badge -->
                         <span class="min-w-6 h-6 px-1.5 rounded-md flex items-center justify-center text-xs font-black shrink-0 tabular-nums whitespace-nowrap {getRankBadgeColor(p.rank)}">
-                          {p.rank}
+                          {p.rank ?? '—'}
                         </span>
 
                         <!-- User avatar -->
@@ -428,9 +452,15 @@
                         </span>
                       </div>
 
-                      <span class="text-xs font-extrabold text-amber-500 tracking-tight shrink-0 pl-2">
-                        {p.xp.toLocaleString(dateLocale())} XP
-                      </span>
+                      {#if p.rank === null}
+                        <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic shrink-0 pl-2">
+                          {m.clan_public_no_points_yet()}
+                        </span>
+                      {:else}
+                        <span class="text-xs font-extrabold text-amber-500 tracking-tight shrink-0 pl-2">
+                          {p.xp.toLocaleString(dateLocale())} XP
+                        </span>
+                      {/if}
                     </div>
                   {/each}
                 </div>
@@ -495,9 +525,9 @@
                     </td>
                     <td class="px-6 py-3">
                       {#if s.source === 'ADMIN'}
-                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">Admin</span>
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">{m.clan_public_admin_badge()}</span>
                       {:else if s.source === 'BOOST'}
-                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">Boost du serveur</span>
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">{m.clan_public_source_boost()}</span>
                       {:else if s.source === 'DAILY_ALGO'}
                         <!-- Ambre : ni le violet, ni le rose, ni le bleu ciel ne sont pris,
                              et l'orange sert déjà aux pseudos dans ce même tableau. -->

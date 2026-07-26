@@ -3,7 +3,7 @@ import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas';
 import type { LevelConfig } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { cache } from '../../utils/cache.js';
+import { cache, getCachedGuild } from '../../utils/cache.js';
 
 // Cooldown map: key is "guildId:userId", value is timestamp when cooldown expires
 const xpCooldowns = new Map<string, number>();
@@ -168,14 +168,9 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
 
   let finalAmount = amount;
   try {
-    const guildSettings = await prisma.guild.findUnique({
-      where: { id: guildId },
-      select: {
-        clanRewardXpBoost: true,
-        clanRewardXpBoostRate: true,
-        lastWinningClanId: true,
-      },
-    });
+    // Lecture mise en cache : `addXp` est appelée à chaque message, et le clan
+    // vainqueur comme son bonus ne changent qu'à la clôture d'une saison.
+    const guildSettings = await getCachedGuild(guildId);
 
     if (guildSettings?.clanRewardXpBoost && guildSettings.lastWinningClanId) {
       const winningClan = await prisma.clan.findUnique({

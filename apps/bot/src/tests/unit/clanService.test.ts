@@ -101,7 +101,30 @@ mock.module(clientJsPath, () => ({
 }));
 
 // Now import the service we want to test
-import { syncMemberClanFromDcLink } from '../../services/community/clanService.js';
+import { syncMemberClanFromDcLink, buildCategoryName, stripTrophyTag } from '../../services/community/clanService.js';
+
+describe('balise de champion sur les QG', () => {
+  test('retire la balise où qu\'elle se trouve dans le nom', () => {
+    expect(stripTrophyTag('QG Alpha [🏆 CHAMPION]')).toBe('QG Alpha');
+    expect(stripTrophyTag('[🏆 CHAMPION] QG Alpha')).toBe('QG Alpha');
+    expect(stripTrophyTag('QG [🏆 CHAMPION · +20% XP] Alpha')).toBe('QG Alpha');
+    expect(stripTrophyTag('QG Alpha')).toBe('QG Alpha');
+  });
+
+  test('un perdant repart du nom nettoyé', () => {
+    expect(buildCategoryName('QG Alpha [🏆 CHAMPION]', false)).toBe('QG Alpha');
+    expect(buildCategoryName('QG Alpha', false)).toBe('QG Alpha');
+  });
+
+  test('un gagnant est marqué une seule fois, bonus compris', () => {
+    expect(buildCategoryName('QG Alpha', true)).toBe('QG Alpha [🏆 CHAMPION]');
+    expect(buildCategoryName('QG Alpha', true, ['+20% XP', 'GIVEAWAY BOOST']))
+      .toBe('QG Alpha [🏆 CHAMPION · +20% XP + GIVEAWAY BOOST]');
+    // Deux clôtures d'affilée ne doivent pas empiler les balises.
+    const once = buildCategoryName('QG Alpha', true);
+    expect(buildCategoryName(once, true)).toBe(once);
+  });
+});
 
 describe('clan service DC sync tests', () => {
   beforeEach(() => {

@@ -19,7 +19,6 @@ export interface ClanEntry {
 
 export interface ClansDataResult {
   clansEnabled: boolean;
-  clansUnique: boolean;
   clanAutoAssignOnJoin: boolean;
   currentClanSeason: number;
   clanXpFromLevelUp: boolean;
@@ -50,7 +49,6 @@ export async function fetchClansData(guildId = authStore.selectedGuildId): Promi
 export async function updateClanSettings(
   payload: {
     clansEnabled?: boolean;
-    clansUnique?: boolean;
     clanAutoAssignOnJoin?: boolean;
     clanXpFromLevelUp?: boolean;
     clanXpPerLevelUp?: number;
@@ -67,7 +65,6 @@ export async function updateClanSettings(
   guildId = authStore.selectedGuildId,
 ): Promise<{
   clansEnabled: boolean;
-  clansUnique: boolean;
   clanAutoAssignOnJoin: boolean;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
@@ -150,6 +147,14 @@ export async function clearClans(guildId = authStore.selectedGuildId): Promise<{
   });
 }
 
+export async function dedupeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
+  return dashboardRequest('/clans/dedupe', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Dedupe Clans):',
+  });
+}
+
 export async function resetClanSeason(guildId = authStore.selectedGuildId): Promise<{ currentClanSeason: number } | null> {
   return dashboardRequest('/clans/reset-season', {
     method: 'POST',
@@ -224,14 +229,35 @@ export async function fetchPublicClans(guildId: string): Promise<any | null> {
   }
 }
 
-export async function searchPublicClanScores(guildId: string, query: string): Promise<any[]> {
+export interface PublicClanSearchResult {
+  participants: {
+    userId: string;
+    clanId: string;
+    clanName: string | null;
+    clanColor: string | null;
+    rank: number | null;
+    xp: number;
+    displayName: string;
+    avatarUrl: string | null;
+  }[];
+  scores: any[];
+  matchCounts: Record<string, number>;
+}
+
+const EMPTY_CLAN_SEARCH: PublicClanSearchResult = { participants: [], scores: [], matchCounts: {} };
+
+export async function searchPublicClans(guildId: string, query: string): Promise<PublicClanSearchResult> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans/scores?q=${encodeURIComponent(query)}`);
-    if (!response.ok) return [];
+    const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans/search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) return EMPTY_CLAN_SEARCH;
     const data = await response.json();
-    return data?.scores ?? [];
+    return {
+      participants: data?.participants ?? [],
+      scores: data?.scores ?? [],
+      matchCounts: data?.matchCounts ?? {},
+    };
   } catch (err) {
-    console.error('API Error (Search Public Clan Scores):', err);
-    return [];
+    console.error('API Error (Search Public Clans):', err);
+    return EMPTY_CLAN_SEARCH;
   }
 }
