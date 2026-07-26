@@ -755,6 +755,13 @@ export async function handlePublicRoutes(
         // Les points attribués au clan entier sont stockés sous un pseudo-membre :
         // ils comptent dans le total du clan mais ne sont pas un participant, et
         // les laisser ici décalerait le rang de tout le monde.
+        //
+        // Les ex æquo partagent le même rang, comme dans /clans/search qui le
+        // déduit d'un comptage : sans ça, quelqu'un se verrait 5e ici et 4e en
+        // se cherchant.
+        let rank = 0;
+        let previousXp: number | null = null;
+
         const topParticipants = clanContributions
           .filter((c) => c.userId !== CLAN_WIDE_USER_ID)
           .slice(0, PUBLIC_CLANS_TOP_LIMIT)
@@ -765,9 +772,12 @@ export async function handlePublicRoutes(
             const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
             const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
 
+            if (c.xp !== previousXp) rank = i + 1;
+            previousXp = c.xp;
+
             return {
               userId: c.userId,
-              rank: i + 1,
+              rank,
               xp: c.xp,
               displayName,
               avatarUrl,
@@ -890,7 +900,7 @@ export async function handlePublicRoutes(
     }
 
     const query = (url.searchParams.get('q') || '').trim();
-    const empty = { participants: [], scores: [] };
+    const empty = { participants: [], scores: [], matchCounts: {} };
     if (query.length < 2) {
       json(res, 200, empty);
       return true;
@@ -946,7 +956,7 @@ export async function handlePublicRoutes(
         return true;
       }
 
-      const matchedUserIds = [...userIds];
+      const matchedUserIds = [...userIds].slice(0, SEARCH_MATCH_LIMIT);
       const clanColor = (clan: { roleId: string } | undefined) => {
         const role = clan ? discordGuild?.roles.cache.get(clan.roleId) : null;
         return role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null;

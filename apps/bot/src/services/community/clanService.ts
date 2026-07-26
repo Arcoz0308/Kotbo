@@ -461,6 +461,18 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
       if (!currentTask || currentTask.type !== 'clear') break;
 
       const clan = clans[i];
+      const role = discordGuild.roles.cache.get(clan.roleId);
+
+      // Un rôle que le bot ne peut ni supprimer ni retirer (au-dessus de lui,
+      // géré par une intégration, ou @everyone) : ni l'échange ni le retrait un
+      // par un ne passeront, autant le dire tout de suite que de marteler
+      // Discord d'un refus par membre.
+      if (role && (!role.editable || role.id === discordGuild.id)) {
+        logger.warn('ClanService', `Rôle du clan "${clan.name}" hors de portée du bot (hiérarchie, intégration ou @everyone) : clan ignoré.`);
+        clanTasks.set(guildId, { type: 'clear', processed: i + 1, total: clans.length });
+        continue;
+      }
+
       const twin = await swapRoleForEmptyTwin(discordGuild, clan.roleId, 'Retrait global de tous les rôles de clan');
 
       if (twin) {
@@ -511,7 +523,7 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
 export async function runClanArtifactCleanup(
   guildId: string,
   client: Client,
-  clans: { name: string; generalChannelId: string | null }[],
+  clans: { generalChannelId: string | null }[],
   initiatorName: string
 ): Promise<void> {
   if (clans.length === 0) return;

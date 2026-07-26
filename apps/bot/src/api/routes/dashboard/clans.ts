@@ -509,7 +509,7 @@ export async function handleClansRoutes(
       // ne défait pas l'appartenance des gens à leur clan.
       const clansToClean = await prisma.clan.findMany({
         where: { guildId },
-        select: { name: true, generalChannelId: true },
+        select: { generalChannelId: true },
       });
       void runClanArtifactCleanup(guildId, client, clansToClean, auditUser).catch((err) => {
         logger.error('ClansAPI', 'Error cleaning up clan artifacts:', err);
