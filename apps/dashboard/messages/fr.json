@@ -239,6 +239,7 @@
   "clan_public_member_count": "{n} membres",
   "clan_public_season_xp_label": "XP de Saison",
   "clan_public_no_members_found": "Aucun membre trouvé ou aucun point marqué.",
+  "clan_public_more_results": "+{n} autres résultats — affinez votre recherche",
   "clan_public_recent_scores_title": "Derniers Scores",
   "clan_public_recent_scores_desc": "Les gains de points les plus récents, en temps réel.",
   "clan_public_no_recent_scores": "Aucun gain de points enregistré pour le moment.",

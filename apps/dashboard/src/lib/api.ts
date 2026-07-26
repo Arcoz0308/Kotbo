@@ -3579,3 +3579,15 @@ export async function fetchPublicClans(guildId: string): Promise<any | null> {
     return null;
   }
 }
+
+export async function searchPublicClanScores(guildId: string, query: string): Promise<any[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/clans/scores?q=${encodeURIComponent(query)}`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data?.scores ?? [];
+  } catch (err) {
+    console.error('API Error (Search Public Clan Scores):', err);
+    return [];
+  }
+}
