@@ -1187,10 +1187,17 @@ export async function checkAndProgressClanSeasons(client: Client): Promise<void>
       let nextStartsAt: Date | null = null;
       let nextEndsAt: Date | null = null;
 
+      // Une durée nulle ou négative (dates mal saisies) donnerait une saison déjà
+      // expirée : le cron la clôturerait de nouveau au passage suivant, en boucle.
+      // Dans ce cas on laisse la saison non planifiée plutôt que de la reconduire.
       if (guild.clanSeasonStartsAt && guild.clanSeasonEndsAt) {
         const durationMs = guild.clanSeasonEndsAt.getTime() - guild.clanSeasonStartsAt.getTime();
-        nextStartsAt = now;
-        nextEndsAt = new Date(now.getTime() + durationMs);
+        if (durationMs > 0) {
+          nextStartsAt = now;
+          nextEndsAt = new Date(now.getTime() + durationMs);
+        } else {
+          logger.warn('ClanService', `Durée de saison invalide pour le serveur ${guild.id} (fin <= début) : la saison ${nextSeason} démarre sans planification.`);
+        }
       }
 
       // 1. Décerner les bonus, renommer les QG et publier les annonces

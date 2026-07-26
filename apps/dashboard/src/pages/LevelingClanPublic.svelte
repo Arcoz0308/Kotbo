@@ -76,7 +76,7 @@
       : ''
   );
 
-  onMount(async () => {
+  async function loadClans(initial = false) {
     try {
       const res = await fetchPublicClans(serverId);
       if (res) {
@@ -90,11 +90,16 @@
         recentScores = res.recentScores || [];
       }
     } catch (err: any) {
+      if (!initial) return;
       console.error(err);
       errorMsg = err.message || m.clan_public_error_loading();
     } finally {
-      loading = false;
+      if (initial) loading = false;
     }
+  }
+
+  onMount(() => {
+    void loadClans(true);
   });
 
   // La recherche porte sur l'intégralité du classement (pour retrouver un membre
@@ -186,7 +191,13 @@
   // longtemps sur un écran de suivi.
   let now = $state(Date.now());
   $effect(() => {
-    const interval = setInterval(() => (now = Date.now()), 60_000);
+    const interval = setInterval(() => {
+      now = Date.now();
+      // La bascule de saison est faite par un cron côté bot (toutes les 15 min) :
+      // sans resynchronisation, la page resterait figée sur « Saison terminée »
+      // et sur l'ancien classement jusqu'à un rechargement manuel.
+      if (seasonEndsAt && now >= new Date(seasonEndsAt).getTime()) void loadClans();
+    }, 60_000);
     return () => clearInterval(interval);
   });
 

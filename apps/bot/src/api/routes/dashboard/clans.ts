@@ -161,10 +161,27 @@ export async function handleClansRoutes(
       }
       if (body?.clanRewardLeaderRole !== undefined) updateData.clanRewardLeaderRole = body.clanRewardLeaderRole;
       if (body?.clanSeasonStartsAt !== undefined) {
-        updateData.clanSeasonStartsAt = body.clanSeasonStartsAt ? new Date(body.clanSeasonStartsAt) : null;
+        const startsAt = body.clanSeasonStartsAt ? new Date(body.clanSeasonStartsAt) : null;
+        if (startsAt && Number.isNaN(startsAt.getTime())) {
+          json(res, 400, { error: 'La date de début de saison est invalide.' });
+          return true;
+        }
+        updateData.clanSeasonStartsAt = startsAt;
       }
       if (body?.clanSeasonEndsAt !== undefined) {
-        updateData.clanSeasonEndsAt = body.clanSeasonEndsAt ? new Date(body.clanSeasonEndsAt) : null;
+        const endsAt = body.clanSeasonEndsAt ? new Date(body.clanSeasonEndsAt) : null;
+        if (endsAt && Number.isNaN(endsAt.getTime())) {
+          json(res, 400, { error: 'La date de fin de saison est invalide.' });
+          return true;
+        }
+        updateData.clanSeasonEndsAt = endsAt;
+      }
+      // La durée de la saison sert de gabarit pour toutes les suivantes : une fin
+      // antérieure au début enchaînerait des saisons déjà expirées.
+      if (updateData.clanSeasonStartsAt && updateData.clanSeasonEndsAt
+        && updateData.clanSeasonEndsAt.getTime() <= updateData.clanSeasonStartsAt.getTime()) {
+        json(res, 400, { error: 'La date de fin de saison doit être postérieure à la date de début.' });
+        return true;
       }
 
       if (Object.keys(updateData).length === 0) {
@@ -417,10 +434,14 @@ export async function handleClansRoutes(
       let nextStartsAt: Date | null = null;
       let nextEndsAt: Date | null = null;
 
+      // Cf. checkAndProgressClanSeasons : une durée nulle ou négative produirait
+      // une saison immédiatement expirée, reclôturée par le cron toutes les 15 min.
       if (guild.clanSeasonStartsAt && guild.clanSeasonEndsAt) {
         const durationMs = guild.clanSeasonEndsAt.getTime() - guild.clanSeasonStartsAt.getTime();
-        nextStartsAt = new Date();
-        nextEndsAt = new Date(nextStartsAt.getTime() + durationMs);
+        if (durationMs > 0) {
+          nextStartsAt = new Date();
+          nextEndsAt = new Date(nextStartsAt.getTime() + durationMs);
+        }
       }
 
       // 1. Décerner les bonus, renommer les QG et publier les annonces de fin de saison
