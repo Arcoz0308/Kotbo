@@ -1127,9 +1127,11 @@ export async function handleEndSeason(
             || await discordGuild.roles.fetch(clan.leaderRoleId).catch(() => null);
           if (role) {
             const membersWithRole = Array.from(role.members.values());
-            for (const m of membersWithRole) {
-              await m.roles.remove(clan.leaderRoleId, `Clôture de la Saison ${currentSeason} - Réinitialisation des chefs`).catch(() => null);
-            }
+            await Promise.all(
+              membersWithRole.map((m) =>
+                m.roles.remove(clan.leaderRoleId!, `Clôture de la Saison ${currentSeason} - Réinitialisation des chefs`).catch(() => null)
+              )
+            );
           }
         } catch (err) {
           logger.warn('ClanService', `Erreur lors du nettoyage du rôle de chef ${clan.leaderRoleId}:`, err);
