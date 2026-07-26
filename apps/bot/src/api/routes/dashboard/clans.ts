@@ -3,7 +3,24 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
-import { clanTasks, runDistribution, runClear, handleEndSeason, buildCategoryName } from '../../../services/community/clanService.js';
+import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, buildCategoryName } from '../../../services/community/clanService.js';
+
+/** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
+const MAX_MANUAL_POINTS = 1_000_000;
+
+/**
+ * Segments d'URL qui désignent une action et non l'identifiant d'un clan : sans
+ * cette liste, un PUT sur /clans/reset-all irait chercher un clan « reset-all ».
+ */
+const RESERVED_SUBACTIONS = new Set([
+  'distribute',
+  'clear',
+  'dedupe',
+  'points',
+  'reset-season',
+  'reset-all',
+  'rollback-season',
+]);
 
 export async function handleClansRoutes(
   req: IncomingMessage,
@@ -27,7 +44,6 @@ export async function handleClansRoutes(
         where: { id: guildId },
         select: {
           clansEnabled: true,
-          clansUnique: true,
           clanAutoAssignOnJoin: true,
           currentClanSeason: true,
           clanXpFromLevelUp: true,
@@ -85,7 +101,6 @@ export async function handleClansRoutes(
 
       json(res, 200, {
         clansEnabled: guildData.clansEnabled,
-        clansUnique: guildData.clansUnique,
         clanAutoAssignOnJoin: guildData.clanAutoAssignOnJoin,
         currentClanSeason: guildData.currentClanSeason,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
@@ -114,7 +129,6 @@ export async function handleClansRoutes(
     try {
       const body = await readJsonBody<{
         clansEnabled?: boolean;
-        clansUnique?: boolean;
         clanAutoAssignOnJoin?: boolean;
         clanXpFromLevelUp?: boolean;
         clanXpPerLevelUp?: number;
@@ -131,7 +145,6 @@ export async function handleClansRoutes(
 
       const updateData: Record<string, any> = {};
       if (body?.clansEnabled !== undefined) updateData.clansEnabled = body.clansEnabled;
-      if (body?.clansUnique !== undefined) updateData.clansUnique = body.clansUnique;
       if (body?.clanAutoAssignOnJoin !== undefined) updateData.clanAutoAssignOnJoin = body.clanAutoAssignOnJoin;
       if (body?.clanXpFromLevelUp !== undefined) updateData.clanXpFromLevelUp = body.clanXpFromLevelUp;
       if (body?.clanXpPerLevelUp !== undefined) {
@@ -200,7 +213,7 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, Auto-assignation à la jointure: ${updatedGuild.clanAutoAssignOnJoin}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
+        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Auto-assignation à la jointure: ${updatedGuild.clanAutoAssignOnJoin}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
         channelId: null,
       });
 
@@ -208,7 +221,6 @@ export async function handleClansRoutes(
 
       json(res, 200, {
         clansEnabled: updatedGuild.clansEnabled,
-        clansUnique: updatedGuild.clansUnique,
         clanAutoAssignOnJoin: updatedGuild.clanAutoAssignOnJoin,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
@@ -300,7 +312,7 @@ export async function handleClansRoutes(
   }
 
   // PUT /api/dashboard/guilds/:guildId/clans/:id
-  if (subAction && subAction !== 'distribute' && subAction !== 'clear' && subAction !== 'reset-season' && subAction !== 'points' && method === 'PUT') {
+  if (subAction && !RESERVED_SUBACTIONS.has(subAction) && method === 'PUT') {
     try {
       const clanId = subAction;
       const body = await readJsonBody<{
@@ -364,7 +376,7 @@ export async function handleClansRoutes(
   }
 
   // DELETE /api/dashboard/guilds/:guildId/clans/:id
-  if (subAction && subAction !== 'distribute' && subAction !== 'clear' && subAction !== 'reset-season' && subAction !== 'points' && method === 'DELETE') {
+  if (subAction && !RESERVED_SUBACTIONS.has(subAction) && method === 'DELETE') {
     try {
       const clanId = subAction;
 
@@ -412,6 +424,18 @@ export async function handleClansRoutes(
     } catch (err: any) {
       logger.error('ClansAPI', 'Error launching clear:', err);
       json(res, err.message.includes('déjà en cours') || err.message.includes('Aucun clan') ? 400 : 500, { error: err.message });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/clans/dedupe (Repair members with several clans)
+  if (subAction === 'dedupe' && method === 'POST') {
+    try {
+      const message = await runDeduplicate(guildId, client, auditUser);
+      json(res, 200, { message });
+    } catch (err: any) {
+      logger.error('ClansAPI', 'Error launching dedupe:', err);
+      json(res, err.message.includes('déjà en cours') || err.message.includes('deux clans') ? 400 : 500, { error: err.message });
     }
     return true;
   }
@@ -480,6 +504,16 @@ export async function handleClansRoutes(
   // POST /api/dashboard/guilds/:guildId/clans/reset-all (Reset All Data)
   if (subAction === 'reset-all' && method === 'POST') {
     try {
+      // 0. Le nettoyage Discord a besoin des rôles avant que la base ne soit
+      // vidée. Il s'exécute en arrière-plan, à la cadence imposée par Discord.
+      const clansToClean = await prisma.clan.findMany({
+        where: { guildId },
+        select: { name: true, roleId: true, leaderRoleId: true, generalChannelId: true },
+      });
+      void runClanArtifactCleanup(guildId, client, clansToClean, auditUser).catch((err) => {
+        logger.error('ClansAPI', 'Error cleaning up clan artifacts:', err);
+      });
+
       // 1. Supprimer toutes les contributions
       await prisma.clanMemberContribution.deleteMany({
         where: { guildId }
@@ -509,7 +543,7 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: 'Réinitialisation totale des clans, contributions et retour à la saison 1.',
+        details: 'Réinitialisation totale des clans, contributions et retour à la saison 1. Retrait des rôles de clan et nettoyage des QG lancés en arrière-plan.',
         channelId: null,
       });
 
@@ -670,6 +704,16 @@ export async function handleClansRoutes(
 
       if (typeof body?.amount !== 'number') {
         json(res, 400, { error: 'Le paramètre amount (nombre) est requis.' });
+        return true;
+      }
+
+      // Les points sont des entiers en base : un décimal ferait échouer l'écriture.
+      if (!Number.isInteger(body.amount) || body.amount === 0) {
+        json(res, 400, { error: 'Le montant doit être un nombre entier différent de zéro.' });
+        return true;
+      }
+      if (Math.abs(body.amount) > MAX_MANUAL_POINTS) {
+        json(res, 400, { error: `Le montant doit rester compris entre -${MAX_MANUAL_POINTS} et ${MAX_MANUAL_POINTS}.` });
         return true;
       }
 

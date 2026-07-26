@@ -3375,7 +3375,6 @@ export interface ClanEntry {
 
 export interface ClansDataResult {
   clansEnabled: boolean;
-  clansUnique: boolean;
   clanAutoAssignOnJoin: boolean;
   currentClanSeason: number;
   clanXpFromLevelUp: boolean;
@@ -3406,7 +3405,6 @@ export async function fetchClansData(guildId = authStore.selectedGuildId): Promi
 export async function updateClanSettings(
   payload: {
     clansEnabled?: boolean;
-    clansUnique?: boolean;
     clanAutoAssignOnJoin?: boolean;
     clanXpFromLevelUp?: boolean;
     clanXpPerLevelUp?: number;
@@ -3423,7 +3421,6 @@ export async function updateClanSettings(
   guildId = authStore.selectedGuildId,
 ): Promise<{
   clansEnabled: boolean;
-  clansUnique: boolean;
   clanAutoAssignOnJoin: boolean;
   clanXpFromLevelUp: boolean;
   clanXpPerLevelUp: number;
@@ -3503,6 +3500,14 @@ export async function clearClans(guildId = authStore.selectedGuildId): Promise<{
     method: 'POST',
     guildId,
     errorContext: 'API Error (Clear Clans):',
+  });
+}
+
+export async function dedupeClans(guildId = authStore.selectedGuildId): Promise<{ message: string } | null> {
+  return dashboardRequest('/clans/dedupe', {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Dedupe Clans):',
   });
 }
 

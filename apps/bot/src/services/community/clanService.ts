@@ -448,6 +448,88 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
 }
 
 /**
+ * Efface du serveur Discord ce que les clans y ont laissé : rôles de clan et de
+ * chef portés par les membres, balise de champion sur les catégories QG.
+ *
+ * Utilisée par la réinitialisation totale, qui supprime les clans en base : sans
+ * ce nettoyage, les membres gardent indéfiniment des rôles ne correspondant plus
+ * à rien et les QG restent décorés d'un trophée pour une saison disparue. Les
+ * clans sont donc passés en paramètre, la base étant vidée dans la foulée.
+ */
+export async function runClanArtifactCleanup(
+  guildId: string,
+  client: Client,
+  clans: { name: string; roleId: string; leaderRoleId: string | null; generalChannelId: string | null }[],
+  initiatorName: string
+): Promise<void> {
+  if (clans.length === 0) return;
+
+  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (!discordGuild) return;
+
+  const roleIds = [
+    ...clans.map((c) => c.roleId),
+    ...clans.map((c) => c.leaderRoleId).filter((id): id is string => !!id),
+  ];
+
+  const allMembers = await discordGuild.members.fetch().catch(() => null);
+  const targetList = allMembers
+    ? [...allMembers.filter((member) => member.roles.cache.some((r) => roleIds.includes(r.id))).values()]
+    : [];
+
+  // Une distribution en cours n'a plus lieu d'être : le verrou est repris, ce
+  // qui fait sortir sa boucle au tour suivant.
+  clanTasks.set(guildId, { type: 'clear', processed: 0, total: targetList.length });
+  broadcastDashboardStateChange(guildId, 'clans_updated');
+
+  logger.info('ClanService', `Nettoyage des traces de clans sur "${discordGuild.name}" (${targetList.length} membre(s)) par ${initiatorName}`);
+
+  let lastProgressAt = 0;
+
+  for (let i = 0; i < targetList.length; i++) {
+    const member = targetList[i];
+    const toRemove = member.roles.cache.filter((r) => roleIds.includes(r.id)).map((r) => r.id);
+
+    await member.roles.remove(toRemove, 'Réinitialisation totale des clans').catch((e) => {
+      logger.warn('ClanService', `Impossible de retirer les rôles de clan de ${member.user.tag}:`, e);
+    });
+
+    clanTasks.set(guildId, { type: 'clear', processed: i + 1, total: targetList.length });
+
+    const now = Date.now();
+    if (now - lastProgressAt >= CLAN_TASK_PROGRESS_INTERVAL_MS || i === targetList.length - 1) {
+      lastProgressAt = now;
+      broadcastDashboardStateChange(guildId, 'clans_updated');
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  }
+
+  // Balise de champion sur les QG : le clan n'existe plus, le trophée non plus.
+  for (const clan of clans) {
+    if (!clan.generalChannelId) continue;
+
+    const channel = discordGuild.channels.cache.get(clan.generalChannelId)
+      || await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
+    const category = channel?.parent?.type === ChannelType.GuildCategory
+      ? channel.parent as CategoryChannel
+      : null;
+    if (!category) continue;
+
+    const targetName = stripTrophyTag(category.name);
+    if (category.name !== targetName) {
+      await category.setName(targetName, 'Réinitialisation totale des clans').catch((err) => {
+        logger.warn('ClanService', `Impossible de renommer la catégorie ${category.name}:`, err);
+      });
+    }
+  }
+
+  clanTasks.delete(guildId);
+  broadcastDashboardStateChange(guildId, 'clans_updated');
+  logger.info('ClanService', `Nettoyage des traces de clans terminé pour "${discordGuild.name}".`);
+}
+
+/**
  * Répare les membres qui portent plusieurs rôles de clan.
  *
  * La sécurité de clan unique est **réactive** : elle se déclenche à l'ajout d'un
@@ -579,7 +661,7 @@ export async function runDeduplicate(guildId: string, client: Client, initiatorN
           counts.set(clanId, Math.max(0, (counts.get(clanId) ?? 1) - 1));
           // L'XP gagnée sous l'ancien rôle suit le membre : la retirer serait
           // le punir d'un doublon qu'il n'a pas provoqué.
-          await migrateContributions(guildId, canonicalUserId, clanId, keptClanId);
+          await migrateContributions(guildId, canonicalUserId, clanId, keptClanId, currentSeason);
         }
 
         logger.info(
@@ -637,9 +719,10 @@ export async function syncMemberClanFromDcLink(
     // 1. Vérifier si les clans sont activés
     const guildSettings = await prisma.guild.findUnique({
       where: { id: guildId },
-      select: { clansEnabled: true },
+      select: { clansEnabled: true, currentClanSeason: true },
     });
     if (!guildSettings?.clansEnabled) return;
+    const currentSeason = guildSettings.currentClanSeason;
 
     // 2. Si otherUserId n'est pas fourni, on cherche les liens validés pour userId
     let u1 = userId;
@@ -715,7 +798,7 @@ export async function syncMemberClanFromDcLink(
           await member2.roles.add(clan1.roleId, `Double compte aligné sur ${member1.user.tag} (synchro auto)`).catch(() => null);
 
           // Migrer les contributions de member2 du clan2 vers clan1
-          await migrateContributions(guildId, u2, clan2.id, clan1.id);
+          await migrateContributions(guildId, u2, clan2.id, clan1.id, currentSeason);
         }
       } else {
         targetClan = clan2;
@@ -733,7 +816,7 @@ export async function syncMemberClanFromDcLink(
           await member1.roles.add(clan2.roleId, `Double compte aligné sur ${member2.user.tag} (synchro auto)`).catch(() => null);
 
           // Migrer les contributions de member1 du clan1 vers clan2
-          await migrateContributions(guildId, u1, clan1.id, clan2.id);
+          await migrateContributions(guildId, u1, clan1.id, clan2.id, currentSeason);
         }
       }
     } else {
@@ -881,18 +964,23 @@ export async function awardClanPointsOnBoost(guildId: string, member: GuildMembe
 }
 
 /**
- * Migre les contributions d'un utilisateur d'un clan vers un autre,
- * en fusionnant l'XP s'il existe déjà une contribution pour la même saison.
+ * Migre les contributions d'un utilisateur d'un clan vers un autre pour la
+ * saison en cours, en fusionnant l'XP s'il en avait déjà dans le clan cible.
+ *
+ * Les saisons closes ne bougent pas : leur classement a déjà été proclamé, et le
+ * rollback comme l'historique les recalculent depuis ces lignes. Déplacer une
+ * contribution passée d'un clan à l'autre réécrirait un palmarès.
  */
 async function migrateContributions(
   guildId: string,
   userId: string,
   sourceClanId: string,
-  targetClanId: string
+  targetClanId: string,
+  season: number
 ): Promise<void> {
   try {
     const sourceContribs = await prisma.clanMemberContribution.findMany({
-      where: { guildId, clanId: sourceClanId, userId },
+      where: { guildId, clanId: sourceClanId, userId, season },
     });
 
     // Utiliser une transaction pour garantir l'intégrité de la migration

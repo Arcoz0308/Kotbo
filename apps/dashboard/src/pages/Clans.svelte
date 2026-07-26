@@ -22,6 +22,7 @@
     deleteClan,
     distributeClans,
     clearClans,
+    dedupeClans,
     resetClanSeason,
     resetAllClans,
     rollbackClanSeason,
@@ -137,7 +138,7 @@
 
   // Confirmation state for reset/clear/distribute/reset-all/rollback
   let confirmInput = $state('');
-  let confirmActionType = $state<'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback' | null>(null);
+  let confirmActionType = $state<'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback' | null>(null);
   let showConfirmModal = $state(false);
 
   const canManageSettings = $derived(
@@ -583,15 +584,16 @@
     }, { successMessage: m.clan_success_deleted() });
   }
 
-  function confirmWordFor(type: 'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback' | null): string {
+  function confirmWordFor(type: 'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback' | null): string {
     return type === 'clear' ? m.clan_confirm_word_clear()
       : type === 'reset' ? m.clan_confirm_word_reset()
       : type === 'distribute' ? m.clan_confirm_word_distribute()
+      : type === 'dedupe' ? m.clan_confirm_word_dedupe()
       : type === 'reset-all' ? m.clan_confirm_word_resetall()
       : m.clan_confirm_word_rollback();
   }
 
-  function openConfirmation(type: 'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback') {
+  function openConfirmation(type: 'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback') {
     confirmActionType = type;
     confirmInput = '';
     showConfirmModal = true;
@@ -623,6 +625,10 @@
         const res = await distributeClans();
         if (!res) throw new Error(m.clan_err_distribute());
         await refreshData(true);
+      } else if (confirmActionType === 'dedupe') {
+        const res = await dedupeClans();
+        if (!res) throw new Error(m.clan_err_dedupe());
+        await refreshData(true);
       } else if (confirmActionType === 'reset-all') {
         const res = await resetAllClans();
         if (!res) throw new Error(m.clan_err_reset_all());
@@ -643,6 +649,8 @@
         ? m.clan_success_season_started()
         : confirmActionType === 'distribute'
         ? m.clan_success_distribute_started()
+        : confirmActionType === 'dedupe'
+        ? m.clan_success_dedupe_started()
         : confirmActionType === 'reset-all'
         ? m.clan_success_reset_all()
         : m.clan_success_rollback()
@@ -870,6 +878,15 @@
                 >
                   <Papicon icon="Users" size={12} /> {m.clan_distribute_btn()}
                 </button>
+                {#if clans.length > 1}
+                  <button
+                    onclick={() => openConfirmation('dedupe')}
+                    class="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant/30 hover:bg-surface-container-high/60 text-on-surface-variant font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                    title={m.clan_dedupe_title()}
+                  >
+                    <Papicon icon="Refresh" size={12} /> {m.clan_dedupe_btn()}
+                  </button>
+                {/if}
                 <button
                   onclick={openCreateModal}
                   class="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary font-bold text-xs rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
@@ -1540,6 +1557,8 @@
             {m.clan_confirm_desc_reset()}
           {:else if confirmActionType === 'distribute'}
             {m.clan_confirm_desc_distribute()}
+          {:else if confirmActionType === 'dedupe'}
+            {m.clan_confirm_desc_dedupe()}
           {:else if confirmActionType === 'reset-all'}
             <span class="text-rose-500 font-bold inline-flex items-center gap-1 align-[-2px]"><Papicon icon="AlertTriangle" size={13} /> {m.clan_confirm_desc_resetall_warning()}</span> {m.clan_confirm_desc_resetall()}
           {:else if confirmActionType === 'rollback'}
