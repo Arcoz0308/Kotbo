@@ -1137,7 +1137,7 @@ export async function handleEndSeason(
           .setTitle(`🏆 Victoire du Clan ${winningClan.name} !`)
           .setDescription(
             `Félicitations à tous les membres ! Grâce à votre investissement, notre clan remporte la **Saison ${currentSeason}** ! 🎉\n\n` +
-            `Nos bonus sont maintenant actifs dans toute notre catégorie QG. ` +
+            `Nos récompenses de vainqueurs sont désormais actives pour toute la **Saison ${nextSeason}**. ` +
             (leaderUserId ? `Un salut spécial à notre **Chef de Coalition** <@${leaderUserId}> pour son score impressionnant de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑` : '')
           )
           .setColor(0x10B981) // Green
