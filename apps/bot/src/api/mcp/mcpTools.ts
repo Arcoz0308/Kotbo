@@ -38,6 +38,7 @@ import { registerSystemSafetyNewTools } from './tools/system-safety-new.js';
 import { registerWriteChannelsTools } from './tools/write-channels.js';
 import { registerReadStats2Tools } from './tools/read-stats-2.js';
 import { registerWriteMembers2Tools } from './tools/write-members-2.js';
+import { registerWriteWelcomeThreadTools } from './tools/write-welcome-thread.js';
 
 export function registerMcpTools(
   mcpServer: McpServer,
@@ -135,4 +136,5 @@ export function registerMcpTools(
   registerWriteChannelsTools(ctx);
   registerReadStats2Tools(ctx);
   registerWriteMembers2Tools(ctx);
+  registerWriteWelcomeThreadTools(ctx);
 }

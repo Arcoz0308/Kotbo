@@ -37,7 +37,7 @@ const TYPING_REFRESH_MS = 8_000;
 const MIN_STEP_DELAY_MS = 250;
 const MAX_STEP_DELAY_MS = 120_000;
 /** Limites Discord sur les composants */
-const MAX_MENU_PAGES = 25;
+export const MAX_MENU_PAGES = 25;
 export const MAX_THREAD_STEPS = 20;
 
 // Type écrit à la main plutôt que Prisma.WelcomeThreadConfigGetPayload<{ include: ... }> :
