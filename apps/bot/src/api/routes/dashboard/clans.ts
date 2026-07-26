@@ -504,11 +504,12 @@ export async function handleClansRoutes(
   // POST /api/dashboard/guilds/:guildId/clans/reset-all (Reset All Data)
   if (subAction === 'reset-all' && method === 'POST') {
     try {
-      // 0. Le nettoyage Discord a besoin des rôles avant que la base ne soit
-      // vidée. Il s'exécute en arrière-plan, à la cadence imposée par Discord.
+      // 0. Le nettoyage des QG a besoin des clans avant que la base ne soit
+      // vidée. Les rôles des membres ne sont pas touchés : un reset des données
+      // ne défait pas l'appartenance des gens à leur clan.
       const clansToClean = await prisma.clan.findMany({
         where: { guildId },
-        select: { name: true, roleId: true, leaderRoleId: true, generalChannelId: true },
+        select: { name: true, generalChannelId: true },
       });
       void runClanArtifactCleanup(guildId, client, clansToClean, auditUser).catch((err) => {
         logger.error('ClansAPI', 'Error cleaning up clan artifacts:', err);
@@ -543,7 +544,7 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: 'Réinitialisation totale des clans, contributions et retour à la saison 1. Retrait des rôles de clan et nettoyage des QG lancés en arrière-plan.',
+        details: 'Réinitialisation totale des clans, contributions et retour à la saison 1. Balises de champion retirées des QG.',
         channelId: null,
       });
 
