@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
+  import ProfileWidgetPanel from '../lib/components/ProfileWidgetPanel.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
   import { themeStore, THEME_PRESETS, ACCENT_COLORS, type ThemeId, type CustomThemeColors, type AccentColorId } from '../lib/stores/theme.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -15,6 +18,20 @@
     }
     return `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`;
   };
+
+  const SETTINGS_BASE = '/userSettings';
+  const settingsTabs = ['preferences', 'widget'] as const;
+  let activeTab = $state<string>('preferences');
+
+  $effect(() => {
+    const _path = $router.path;
+    activeTab = resolveTabFromUrl(SETTINGS_BASE, settingsTabs, 'preferences');
+  });
+
+  const tabs = $derived([
+    { id: 'preferences', label: m.us_tab_preferences(), icon: 'Gears' },
+    { id: 'widget', label: m.us_tab_widget(), icon: 'Layout' },
+  ]);
 
   let savedFeedback = $state(false);
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -195,18 +212,41 @@
     </div>
 
     <!-- Save feedback badge -->
-    <div class="relative shrink-0">
-      <div class="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 {savedFeedback ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : 'bg-surface-container-high/30 border border-outline-variant/20 text-on-surface-variant/50'}">
-        {#if savedFeedback}
-          <Papicon icon="check" size={16} />
-          {m.us_saved_auto()}
-        {:else}
-          <Papicon icon="Gears" size={16} />
-          {m.us_autosave()}
-        {/if}
+    {#if activeTab === 'preferences'}
+      <div class="relative shrink-0">
+        <div class="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 {savedFeedback ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : 'bg-surface-container-high/30 border border-outline-variant/20 text-on-surface-variant/50'}">
+          {#if savedFeedback}
+            <Papicon icon="check" size={16} />
+            {m.us_saved_auto()}
+          {:else}
+            <Papicon icon="Gears" size={16} />
+            {m.us_autosave()}
+          {/if}
+        </div>
       </div>
-    </div>
+    {/if}
   </header>
+
+  <!-- ─── Onglets ───────────────────────────────────────────────── -->
+  <div class="flex justify-center">
+    <div class="flex gap-1 bg-surface-container-lowest/80 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/10 overflow-x-auto no-scrollbar">
+      {#each tabs as tab}
+        <button
+          onclick={() => gotoTab(SETTINGS_BASE, tab.id, 'preferences')}
+          class="tab-button {activeTab === tab.id ? 'active' : ''}"
+        >
+          <span class="flex items-center gap-2 pointer-events-none">
+            <Papicon icon={tab.icon} size={16} class={activeTab === tab.id ? 'text-on-primary' : 'text-primary'} />
+            {tab.label}
+          </span>
+        </button>
+      {/each}
+    </div>
+  </div>
+
+{#if activeTab === 'widget'}
+  <ProfileWidgetPanel />
+{:else}
 
   <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-5">
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -573,4 +613,5 @@
       {m.us_reset_button()}
     </button>
   </section>
+{/if}
 </div>

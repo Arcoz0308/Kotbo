@@ -312,6 +312,8 @@
   "navbar_lang_switch": "Changer de langue (Switch to English)",
   "us_title": "Préférences Utilisateur",
   "us_subtitle": "Personnalisez votre expérience sur le dashboard",
+  "us_tab_preferences": "Préférences",
+  "us_tab_widget": "Widget profil",
   "us_saved_auto": "Sauvegardé automatiquement",
   "us_autosave": "Sauvegarde automatique",
   "us_quick_overview": "Aperçu rapide",

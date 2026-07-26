@@ -83,7 +83,6 @@ export const staffItems: PageConfig[] = [
   { name: m.nav_planning(),            icon: "calendar",      href: "/planning",         featureKey: "absences", beta: false, wip: false },
   { name: m.nav_polls(),            icon: "bar-chart",     href: "/staff-management/polls",    featureKey: "polls", beta: false, wip: false },
   { name: m.nav_discipline(),          icon: "alert-circle",  href: "/staff-management/warnings", featureKey: "discipline", beta: false, wip: false },
-  { name: m.nav_profile_widget(),       icon: "layout",        href: "/widget",                    featureKey: "dashboard", beta: true, wip: false },
 ];
 
 export const crossServerItems: PageConfig[] = [

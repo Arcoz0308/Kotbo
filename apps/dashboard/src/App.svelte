@@ -646,10 +646,10 @@
               path="/quests"
               load={() => import("./pages/Quests.svelte")}
             />
-            <LazyRoute
-              path="/widget"
-              load={() => import("./pages/Widget.svelte")}
-            />
+            <!-- Le widget de profil est devenu un onglet des parametres utilisateur. -->
+            <Route path="/widget">
+              <div use:navigate={"/userSettings/widget"}></div>
+            </Route>
             <LazyRoute
               path="/channel-links"
               load={() => import("./pages/ChannelLinks.svelte")}
@@ -810,7 +810,7 @@
             />
 
             <LazyRoute
-              path="/userSettings"
+              path="/userSettings/*"
               load={() => import("./pages/UserSettings.svelte")}
             />
 
