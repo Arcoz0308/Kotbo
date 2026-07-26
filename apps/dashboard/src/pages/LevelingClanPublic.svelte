@@ -93,10 +93,11 @@
     }
   });
 
-  // Sans recherche : on n'affiche que le haut du classement pour garder la page
-  // légère. En recherche : on filtre sur l'intégralité du classement du clan.
-  function getFilteredParticipants(clan: ClanData): Participant[] {
-    if (!searchQuery) return clan.topParticipants.slice(0, MEMBER_DISPLAY_LIMIT);
+  // La recherche porte sur l'intégralité du classement (pour retrouver un membre
+  // très bas au classement), mais l'affichage reste plafonné pour garder la page
+  // courte : une requête trop large est signalée plutôt que déroulée.
+  function getMatchingParticipants(clan: ClanData): Participant[] {
+    if (!searchQuery.trim()) return clan.topParticipants;
     const q = normalize(searchQuery);
     return clan.topParticipants.filter(p =>
       normalize(p.displayName).includes(q) || p.userId.includes(searchQuery)
@@ -291,7 +292,9 @@
       <div class="grid gap-8 items-start relative z-10" style={clansGridStyle}>
         
         {#each clans as clan}
-          {@const pList = getFilteredParticipants(clan)}
+          {@const matches = getMatchingParticipants(clan)}
+          {@const pList = matches.slice(0, MEMBER_DISPLAY_LIMIT)}
+          {@const hiddenCount = searchQuery.trim() ? matches.length - pList.length : 0}
           
           <div
             class="clean-card bg-white dark:bg-[#111a2e] border-t-4 border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 duration-300 overflow-hidden"
@@ -356,6 +359,12 @@
                     </div>
                   {/each}
                 </div>
+
+                {#if hiddenCount > 0}
+                  <p class="pt-3 text-center text-[11px] text-slate-400 dark:text-slate-500 italic">
+                    {m.clan_public_more_results({ n: hiddenCount })}
+                  </p>
+                {/if}
               {/if}
             </div>
 
