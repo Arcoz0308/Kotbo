@@ -1,4 +1,4 @@
 <script>
-  let { serverId = '' } = $props();
+  const { serverId = '' } = $props();
 </script>
 <div>stub</div>

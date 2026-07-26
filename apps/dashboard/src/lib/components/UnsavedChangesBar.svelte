@@ -3,7 +3,7 @@
   import { m } from '../i18n';
 
   // Whether we're animating the bar in
-  let visible = $derived(unsavedChanges.isDirty);
+  const visible = $derived(unsavedChanges.isDirty);
 </script>
 
 {#if visible}

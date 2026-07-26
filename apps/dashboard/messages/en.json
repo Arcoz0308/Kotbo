@@ -346,6 +346,8 @@
   "navbar_lang_switch": "Switch to French",
   "us_title": "User Preferences",
   "us_subtitle": "Customize your dashboard experience",
+  "us_tab_preferences": "Preferences",
+  "us_tab_widget": "Profile widget",
   "us_saved_auto": "Saved automatically",
   "us_autosave": "Auto-save",
   "us_quick_overview": "Quick overview",

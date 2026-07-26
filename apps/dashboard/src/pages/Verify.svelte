@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { API_BASE_URL } from '../lib/api';
 
-  let { guildId = '', token = '' }: { guildId: string; token: string } = $props();
+  const { guildId = '', token = '' }: { guildId: string; token: string } = $props();
 
   let loading = $state(true);
   let verifying = $state(false);

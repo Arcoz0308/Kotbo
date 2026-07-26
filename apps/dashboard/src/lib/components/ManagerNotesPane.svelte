@@ -14,7 +14,7 @@
     onNoteDeleted: () => void;
   }
 
-  let { userId, notes, onNoteAdded, onNoteDeleted }: Props = $props();
+  const { userId, notes, onNoteAdded, onNoteDeleted }: Props = $props();
 
   let newNote = $state('');
   let isSaving = $state(false);

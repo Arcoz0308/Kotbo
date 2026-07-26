@@ -1,7 +1,7 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
 
-  let { onExportCSV, onExportXLSX, onExportImage } = $props<{
+  const { onExportCSV, onExportXLSX, onExportImage } = $props<{
     onExportCSV?: () => void;
     onExportXLSX?: () => void;
     onExportImage?: () => void;

@@ -1324,7 +1324,6 @@
                               <img src={embed.image.url} alt="embed-img" class="mt-2 max-w-full rounded-lg border border-white/10 max-h-60 object-contain bg-[#1e1f22]" />
                             {:else if embed.video?.url}
                               {#if embed.video.url.includes('giphy.com') || embed.video.url.includes('tenor.com') || embed.video.url.includes('gifv')}
-                                <!-- svelte-ignore a11y_media_has_caption -->
                                 <video src={embed.video.url} autoplay loop muted playsinline class="mt-2 max-w-full rounded-lg border border-white/10 max-h-60 bg-[#1e1f22]"></video>
                               {:else}
                                 <!-- svelte-ignore a11y_media_has_caption -->

@@ -155,15 +155,15 @@
   let dailyAlgoHistory = $state<any[]>([]);
   let dailyAlgoSchedule = $state<any[]>([]);
   let myApiKeys = $state<any[]>([]);
-  let dailyAlgoApiKeyName = $state('Kotbo Daily Algo');
-  let latestIssuedApiKey = $state('');
-  let dailyAlgoApiModalOpen = $state(false);
+  const dailyAlgoApiKeyName = $state('Kotbo Daily Algo');
+  const latestIssuedApiKey = $state('');
+  const dailyAlgoApiModalOpen = $state(false);
   let createDailyAlgoProblemModalOpen = $state(false);
   let editingDailyAlgoProblemId = $state<string | null>(null);
-  let ideFocusedSubmissionId = $state<string | null>(null);
-  let ideModalOpen = $state(false);
+  const ideFocusedSubmissionId = $state<string | null>(null);
+  const ideModalOpen = $state(false);
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
-  let dailyAlgoLibrarySearch = $state('');
+  const dailyAlgoLibrarySearch = $state('');
   let dailyAlgoScheduleModalOpen = $state(false);
   
   let algoDraft = $state({
@@ -178,7 +178,7 @@
     unitTests: [createUnitTestDraft(1, 'Cas 1')] as DailyAlgoUnitTestDraft[],
   });
 
-  let scoreDraftBySubmissionId = $state<Record<string, any>>({});
+  const scoreDraftBySubmissionId = $state<Record<string, any>>({});
 
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);

@@ -37,7 +37,7 @@
   let instances = $state<WLInstance[]>([]);
   let loading = $state(true);
   let showCreateModal = $state(false);
-  let editingInstance = $state<WLInstance | null>(null);
+  const editingInstance = $state<WLInstance | null>(null);
   let detailInstance = $state<any>(null);
   let allGuilds = $state<any[]>([]);
 

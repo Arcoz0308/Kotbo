@@ -1,7 +1,7 @@
 <script lang="ts">
   import Papicon from './Papicon.svelte';
 
-  let {
+  const {
     label,
     value,
     note = '',

@@ -8,7 +8,7 @@
   import { brandingStore } from '../stores/branding.svelte';
   import { m } from '../i18n';
 
-  let { children }: { children?: Snippet } = $props();
+  const { children }: { children?: Snippet } = $props();
 
   interface NavItem {
     path: string;

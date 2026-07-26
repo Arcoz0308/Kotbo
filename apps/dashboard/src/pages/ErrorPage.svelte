@@ -2,7 +2,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import { m } from '../lib/i18n';
 
-  let { 
+  const { 
     error = m.err_unexpected(),
     code = '500'
   } = $props();

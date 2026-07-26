@@ -810,7 +810,6 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 {#if modalOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="modal-backdrop bg-surface/30" role="dialog" aria-modal="true" aria-labelledby="regulation-modal-title" tabindex="-1" onclick={closeModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -905,7 +904,6 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 {#if deletingRule}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="modal-backdrop bg-error/10" role="dialog" aria-modal="true" aria-labelledby="delete-rule-title" tabindex="-1" onclick={closeDeleteModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -946,7 +944,6 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 {#if showVerificationWarningModal}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="modal-backdrop bg-amber-500/10" role="dialog" aria-modal="true" aria-labelledby="verification-warning-title" tabindex="-1" onclick={cancelVerificationToggle}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->

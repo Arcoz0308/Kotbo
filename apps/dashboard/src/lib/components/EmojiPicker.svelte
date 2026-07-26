@@ -57,7 +57,7 @@
     if (!term) {
       return emojiMap[activeTab] || [];
     }
-    let results: string[] = [];
+    const results: string[] = [];
     for (const key of Object.keys(emojiMap)) {
       results.push(...emojiMap[key].filter(e => e.includes(term)));
     }

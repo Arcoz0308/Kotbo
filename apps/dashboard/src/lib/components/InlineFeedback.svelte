@@ -11,7 +11,7 @@
     };
   }
 
-  let {
+  const {
     message = '',
     error = '',
     idleText = '',

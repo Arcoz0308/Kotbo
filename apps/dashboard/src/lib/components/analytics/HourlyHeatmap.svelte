@@ -5,7 +5,7 @@
   type HeatmapMetric = 'messages' | 'voice' | 'active' | 'joins' | 'leaves' | 'net';
   type HeatmapCell = { messages: number; voice: number; active: number; joins?: number; leaves?: number; net?: number };
 
-  let { data } = $props<{
+  const { data } = $props<{
     data: Record<number, Record<number, HeatmapCell>>;
   }>();
 

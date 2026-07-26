@@ -4,7 +4,7 @@
   import Modal from './Modal.svelte';
   import { localInitialAvatar } from '../discordMedia';
 
-  let {
+  const {
     show = false,
     event = null,
     onClose = () => {},

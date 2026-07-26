@@ -8,7 +8,7 @@
     label: string;
   };
 
-  let {
+  const {
     label,
     sortField = null,
     sortDirection = null,

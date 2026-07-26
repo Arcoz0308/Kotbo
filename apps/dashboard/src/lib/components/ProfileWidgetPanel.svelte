@@ -1,10 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchWidgetData, activateWidget, deactivateWidget, refreshWidget, refreshAllWidgets, rotateWidgetToken, API_BASE_URL } from '../lib/api';
-  import { toast } from '../lib/stores/toast.svelte';
-  import ModulePage from '../lib/components/ModulePage.svelte';
-  import { authStore } from '../lib/stores/auth.svelte';
-  import Papicon from '../lib/components/Papicon.svelte';
+  import { fetchWidgetData, activateWidget, deactivateWidget, refreshWidget, refreshAllWidgets, rotateWidgetToken, API_BASE_URL } from '../api';
+  import { toast } from '../stores/toast.svelte';
+  import Papicon from './Papicon.svelte';
 
   let loading = $state(true);
   let acting = $state(false);
@@ -142,12 +140,6 @@
 
   onMount(load);
 </script>
-
-<ModulePage
-  title="Widget Profil"
-  description="Affiche tes stats staff directement sur ton profil Discord."
-  icon="layout"
->
 
 <!-- ======================== CONTENT ======================== -->
 {#if loading}
@@ -461,4 +453,4 @@
 
   </div>
 {/if}
-</ModulePage>
+

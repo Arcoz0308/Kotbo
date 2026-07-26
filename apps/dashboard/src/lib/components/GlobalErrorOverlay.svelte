@@ -5,9 +5,9 @@
   import { m } from '../i18n';
   import Papicon from './Papicon.svelte';
 
-  let { errorMsg, errorStack } = $props<{ errorMsg: string; errorStack?: string }>();
+  const { errorMsg, errorStack } = $props<{ errorMsg: string; errorStack?: string }>();
 
-  let isRefreshed = sessionStorage.getItem('error_refreshed') === 'true';
+  const isRefreshed = sessionStorage.getItem('error_refreshed') === 'true';
   let isSending = $state(false);
   let isSent = $state(false);
 

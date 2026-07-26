@@ -3,7 +3,7 @@
   import { inviteDetailsModal } from '../../stores/inviteDetailsModal.svelte';
   import Chart from '../charts/Chart.svelte';
 
-  let { invitesData } = $props<{ 
+  const { invitesData } = $props<{ 
     invitesData: any;
   }>();
 

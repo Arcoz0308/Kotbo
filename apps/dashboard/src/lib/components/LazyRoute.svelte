@@ -7,7 +7,7 @@
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Route = RouteLegacy as any;
 
-  let {
+  const {
     path,
     load,
     props: propsFor,

@@ -10,7 +10,7 @@
   let downloading = $state(false);
   let preview = $state<GdprPreview | null>(null);
   let error = $state<string | null>(null);
-  let expanded = $state<Record<string, boolean>>({});
+  const expanded = $state<Record<string, boolean>>({});
 
   const canSearch = $derived(/^\d{5,25}$/.test(userId.trim()));
 

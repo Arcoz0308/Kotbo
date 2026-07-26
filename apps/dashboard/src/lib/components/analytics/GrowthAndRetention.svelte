@@ -2,7 +2,7 @@
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
 
-  let { data } = $props<{
+  const { data } = $props<{
     data: {
       growthTrend: Array<{
         dateKey: string;

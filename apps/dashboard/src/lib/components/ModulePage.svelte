@@ -7,7 +7,7 @@
   import InlineFeedback from './InlineFeedback.svelte';
   import { m } from '../i18n';
 
-  let { 
+  const { 
     title = '', 
     description = '', 
     icon = 'Grid', 

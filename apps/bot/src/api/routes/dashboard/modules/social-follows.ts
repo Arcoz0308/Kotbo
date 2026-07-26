@@ -1,5 +1,5 @@
 /** Routes dashboard du module `social-follows`. */
-import { getTwitchUserId } from '../../../../services/integrations/twitchService.js';
+import { getTwitchUserId, normalizeTwitchLogin } from '../../../../services/integrations/twitchService.js';
 import { resolveYoutubeChannel } from '../../../../services/integrations/youtubeService.js';
 import prisma from '../../../../utils/db.js';
 import { errorMessage } from '../../../../utils/errors.js';
@@ -89,7 +89,8 @@ export async function handleSocialFollowsRoutes(ctx: ModuleRouteContext): Promis
     if (parts.length === 7 && parts[5] === 'youtube' && method === 'DELETE') {
       try {
         const followId = parts[6];
-        const follow = await prisma.youtubeChannelFollow.findUnique({ where: { id: followId } });
+        // Le filtre sur guildId empêche la suppression d'un suivi d'une autre guilde.
+        const follow = await prisma.youtubeChannelFollow.findFirst({ where: { id: followId, guildId } });
         if (follow) {
           await prisma.youtubeChannelFollow.delete({ where: { id: followId } });
           await pushAudit(guildId, {
@@ -122,7 +123,13 @@ export async function handleSocialFollowsRoutes(ctx: ModuleRouteContext): Promis
           json(res, 400, { error: 'streamerName requis' });
           return true;
         }
-        const streamerName = body.streamerName.toLowerCase().trim();
+        // Une URL ou un @pseudo doit être ramené au login seul : c'est cette
+        // valeur que le polling compare aux logins renvoyés par Helix.
+        const streamerName = normalizeTwitchLogin(body.streamerName);
+        if (!streamerName) {
+          json(res, 400, { error: 'Nom de chaîne Twitch invalide' });
+          return true;
+        }
         const streamerId = await getTwitchUserId(streamerName);
 
         const follow = await prisma.twitchChannelFollow.upsert({
@@ -164,7 +171,8 @@ export async function handleSocialFollowsRoutes(ctx: ModuleRouteContext): Promis
     if (parts.length === 7 && parts[5] === 'twitch' && method === 'DELETE') {
       try {
         const followId = parts[6];
-        const follow = await prisma.twitchChannelFollow.findUnique({ where: { id: followId } });
+        // Le filtre sur guildId empêche la suppression d'un suivi d'une autre guilde.
+        const follow = await prisma.twitchChannelFollow.findFirst({ where: { id: followId, guildId } });
         if (follow) {
           await prisma.twitchChannelFollow.delete({ where: { id: followId } });
           await pushAudit(guildId, {

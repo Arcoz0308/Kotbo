@@ -5,7 +5,7 @@
   import { loadGoogleFont, themeBaseCss, themeStyleVars, type FormTheme } from '../lib/formTheme';
   import Papicon from '../lib/components/Papicon.svelte';
 
-  let { guildId }: { guildId: string } = $props();
+  const { guildId }: { guildId: string } = $props();
 
   // ── Types ──────────────────────────────────────────────────────────────────
   interface AppealField {

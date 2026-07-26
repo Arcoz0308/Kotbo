@@ -427,7 +427,7 @@
     return trimmed;
   }
 
-  let {
+  const {
     initialCode = '',
     initialLanguage = 'javascript',
     height = 560,

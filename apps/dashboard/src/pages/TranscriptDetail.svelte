@@ -11,7 +11,9 @@
   let error = $state('');
   let needsLogin = $state(false);
 
-  const loginUrl = `${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(`/transcripts/${transcriptId}`)}`;
+  const loginUrl = $derived(
+    `${API_BASE_URL}/api/auth/discord/login?returnTo=${encodeURIComponent(`/transcripts/${transcriptId}`)}`
+  );
 
   onMount(async () => {
     await authStore.initialize();

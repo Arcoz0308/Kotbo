@@ -8,7 +8,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
 
-  let { formId }: { formId: string } = $props();
+  const { formId }: { formId: string } = $props();
 
   interface Submission {
     id: string;
@@ -19,7 +19,7 @@
     createdAt: string;
   }
 
-  interface FormInfo { id: string; name: string; structure?: any; _count?: { submissions?: number } };
+  interface FormInfo { id: string; name: string; structure?: any; _count?: { submissions?: number } }
 
   let form = $state<FormInfo | null>(null);
   let responses = $state<Submission[]>([]);

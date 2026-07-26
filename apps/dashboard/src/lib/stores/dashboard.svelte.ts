@@ -61,6 +61,7 @@ class DashboardStore {
     funEnabled: false,
     economyEnabled: false,
     levelingEnabled: false,
+    adminLockEnabled: false,
     isStaffServer: false,
     funCountingChannelId: '',
     funOneWordStoryChannelId: '',
@@ -252,6 +253,7 @@ class DashboardStore {
         this.state.funEnabled = data.funEnabled || false;
         this.state.economyEnabled = data.economyEnabled || false;
         this.state.levelingEnabled = data.levelingEnabled || false;
+        this.state.adminLockEnabled = data.adminLockEnabled || false;
         this.state.isStaffServer = data.isStaffServer || false;
         this.state.funCountingChannelId = data.funCountingChannelId || '';
         this.state.funOneWordStoryChannelId = data.funOneWordStoryChannelId || '';

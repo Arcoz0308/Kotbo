@@ -8,7 +8,7 @@
   import { ALLOWED_FONTS, loadGoogleFont, themeStyleVars, type FormTheme } from '../lib/formTheme';
 
   // ── Props ──────────────────────────────────────────────────────────────────
-  let { formId = null }: { formId?: string | null } = $props();
+  const { formId = null }: { formId?: string | null } = $props();
 
   // ── Types ──────────────────────────────────────────────────────────────────
   type FieldType =

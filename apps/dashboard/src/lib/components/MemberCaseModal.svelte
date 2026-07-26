@@ -70,7 +70,7 @@
   let messageQuery = $state('');
   let messageChannelId = $state('');
   let messageIncludeDeleted = $state(true);
-  let messageLimit = $state(20);
+  const messageLimit = $state(20);
   let messageOffset = $state(0);
   let messageFrom = $state('');
   let messageTo = $state('');
@@ -418,7 +418,7 @@
 
   const sanctions = $derived(
     caseData?.sanctions
-      ? [...caseData?.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      ? [...caseData.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : []
   );
 

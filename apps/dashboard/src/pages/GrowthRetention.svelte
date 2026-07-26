@@ -17,7 +17,7 @@
   let loading = $state(true);
   let error = $state('');
   let period = $state(90);
-  let heatmapDays = $state(30);
+  const heatmapDays = $state(30);
   let activeTab = $state('growth');
 
   async function loadData() {

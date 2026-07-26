@@ -1,7 +1,7 @@
 <script lang="ts">
   import { m } from '../i18n';
 
-  let {
+  const {
     checked = false,
     disabled = false,
     onToggle = (_v: boolean) => {},

@@ -5,7 +5,7 @@
   import { Sparkles, ArrowRight, Rocket, Zap, Shield, LayoutGrid, Compass, Wrench } from 'lucide-svelte';
   import { m } from '../i18n';
 
-  let show = $derived(onboardingStore.showWelcome);
+  const show = $derived(onboardingStore.showWelcome);
   let step = $state(0);
 
   const features = [

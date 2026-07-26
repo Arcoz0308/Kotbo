@@ -7,7 +7,7 @@
   import SearchableSelect from './SearchableSelect.svelte';
   import ActionButton from './ActionButton.svelte';
 
-  let { featureKey = '', roleAccess = [], title = 'Permissions par rôle', description = 'Définissez les accès spécifiques pour chaque rôle Discord.', guildId = null } = $props();
+  const { featureKey = '', roleAccess = [], title = 'Permissions par rôle', description = 'Définissez les accès spécifiques pour chaque rôle Discord.', guildId = null } = $props();
 
   const saveAction = createAsyncActionState();
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);

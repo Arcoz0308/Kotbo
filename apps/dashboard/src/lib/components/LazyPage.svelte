@@ -3,7 +3,7 @@
   import Skeleton from './Skeleton.svelte';
   import { m } from '../i18n';
 
-  let {
+  const {
     pattern,
     load,
     pageProps = {},
