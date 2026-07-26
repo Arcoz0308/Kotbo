@@ -108,14 +108,23 @@
   let manualPointsMemberUserId = $state('');
   let manualPointsAmountMember = $state(100);
 
-  // Les points sont des entiers en base : on arrondit ici plutôt que de laisser
-  // l'API refuser une saisie décimale.
+  // Les points sont des entiers positifs en base : on valide ici plutôt que de
+  // laisser l'API refuser la saisie.
+  function isValidPointsAmount(amount: number): boolean {
+    return Number.isFinite(amount) && Math.round(amount) >= 1;
+  }
+
   function sanitizePoints(amount: number): number {
     return Math.max(1, Math.min(MAX_MANUAL_POINTS, Math.round(amount)));
   }
 
   async function handleAddClanPoints() {
-    if (!canManageSettings || !selectedClanIdForPoints || !manualPointsAmountClan) return;
+    if (!canManageSettings || !selectedClanIdForPoints) return;
+    // Un bouton qui ne fait rien passe pour une panne : on dit ce qui manque.
+    if (!isValidPointsAmount(manualPointsAmountClan)) {
+      actionState.setError(m.clan_err_invalid_amount());
+      return;
+    }
     await actionState.run(async () => {
       const res = await addClanPoints({
         clanId: selectedClanIdForPoints,
@@ -129,7 +138,11 @@
   }
 
   async function handleAddMemberPoints() {
-    if (!canManageSettings || !manualPointsMemberUserId || !manualPointsAmountMember) return;
+    if (!canManageSettings || !manualPointsMemberUserId) return;
+    if (!isValidPointsAmount(manualPointsAmountMember)) {
+      actionState.setError(m.clan_err_invalid_amount());
+      return;
+    }
     await actionState.run(async () => {
       const res = await addClanPoints({
         clanId: null,
@@ -194,17 +207,6 @@
       failureMessage: m.clan_da_save_error(),
     });
   }
-
-  const formatLocal = (dateStr: string | null) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return '';
-    const tzOffset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
-  };
-
-  const formSeasonStartsAt = $derived(startDate ? `${startDate}T${startTime}` : '');
-  const formSeasonEndsAt = $derived(endDate ? `${endDate}T${endTime}` : '');
 
   function parseDateToIso(dateVal: string, timeVal: string): string | null {
     if (!dateVal) return null;
@@ -275,7 +277,6 @@
             clanAnnouncementChannelId = savedClanAnnouncementChannelId;
             clanRewardGiveaway = savedClanRewardGiveaway;
             clanRewardLeaderRole = savedClanRewardLeaderRole;
-            setSeasonDates(savedClanSeasonStartsAt, savedClanSeasonEndsAt);
           }
         });
       });

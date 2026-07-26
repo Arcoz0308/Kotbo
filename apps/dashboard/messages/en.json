@@ -210,6 +210,7 @@
   "clan_success_dedupe_started": "Multi-clan cleanup started in the background.",
   "clan_err_dedupe": "Error during the multi-clan cleanup",
   "clan_err_add_clan_points": "Error while adding points to the clan.",
+  "clan_err_invalid_amount": "Enter a whole amount of points greater than zero.",
   "clan_success_points_adjusted": "Points adjusted successfully!",
   "clan_err_add_member_points": "Error while adding points to the member.",
   "clan_success_member_points_adjusted": "Member points adjusted successfully!",

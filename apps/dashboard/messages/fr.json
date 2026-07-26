@@ -210,6 +210,7 @@
   "clan_success_dedupe_started": "Nettoyage des clans multiples démarré en arrière-plan.",
   "clan_err_dedupe": "Erreur lors du nettoyage des clans multiples",
   "clan_err_add_clan_points": "Erreur lors de l'ajout de points au clan.",
+  "clan_err_invalid_amount": "Saisissez un montant de points entier et supérieur à zéro.",
   "clan_success_points_adjusted": "Points ajustés avec succès !",
   "clan_err_add_member_points": "Erreur lors de l'ajout de points au membre.",
   "clan_success_member_points_adjusted": "Points du membre ajustés avec succès !",
