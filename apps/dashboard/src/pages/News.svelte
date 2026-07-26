@@ -293,9 +293,9 @@
       // Links
       .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="text-primary hover:underline font-bold">$1</a>')
       // Blockquotes
-      .replace(/^\> (.*$)/gim, '<blockquote class="border-l-4 border-primary/30 pl-4 py-1 my-2 bg-primary/5 rounded-r-lg italic text-sm text-on-surface-variant">$1</blockquote>')
+      .replace(/^> (.*$)/gim, '<blockquote class="border-l-4 border-primary/30 pl-4 py-1 my-2 bg-primary/5 rounded-r-lg italic text-sm text-on-surface-variant">$1</blockquote>')
       // List items
-      .replace(/^\- (.*$)/gim, '<li class="ml-4 list-disc text-sm text-on-surface-variant">$1</li>')
+      .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc text-sm text-on-surface-variant">$1</li>')
       // Line breaks
       .replace(/\n/g, '<br/>');
   }

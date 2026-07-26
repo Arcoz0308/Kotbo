@@ -132,7 +132,6 @@
     <div class="children-row">
       {#each node.children as child (child.id)}
         <div class="child-wrap">
-          <!-- svelte-ignore svelte_self_deprecated -->
           <HierarchyNode node={child} />
         </div>
       {/each}

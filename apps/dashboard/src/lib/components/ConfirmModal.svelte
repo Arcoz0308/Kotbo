@@ -83,7 +83,6 @@
 
     <!-- Modal -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-lg shadow-sm shadow-black/50 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200"
       onclick={(e) => e.stopPropagation()}

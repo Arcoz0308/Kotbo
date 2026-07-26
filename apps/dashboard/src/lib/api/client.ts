@@ -94,7 +94,7 @@ export async function dashboardMutation(path: string, options: {
         toast.success('Opération réussie');
       }
     } else {
-      let message = "Erreur lors de l\'opération";
+      let message = "Erreur lors de l'opération";
       try {
         const data = await response.json();
         message = data.error || data.message || message;

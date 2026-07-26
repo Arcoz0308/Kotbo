@@ -57,8 +57,8 @@ export function detectIdeLanguageFromCode(code: string): IdeLanguage {
     /\benum\s+\w+/,
     /\b(public|private|protected|readonly)\s+\w+/,
     /\bimplements\s+\w+/,
-    /:\s*[A-Z][\w<>, \[\]\|&]*/,
-    /\bas\s+[A-Z][\w<>, \[\]\|&]*/,
+    /:\s*[A-Z][\w<>, [\]|&]*/,
+    /\bas\s+[A-Z][\w<>, [\]|&]*/,
   ];
 
   const pythonScore = pythonHints.reduce((score, pattern) => score + (pattern.test(source) ? 1 : 0), 0);

@@ -73,7 +73,7 @@ export async function fetchGlobalDailyAlgoLeaderboard() {
 
 export async function fetchAdminGuildInvite(guildId: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/invite`, { method: 'POST' });
-  if (!response.ok) throw new Error("Erreur lors de la création de l\'invitation");
+  if (!response.ok) throw new Error("Erreur lors de la création de l'invitation");
   return response.json();
 }
 
@@ -97,14 +97,14 @@ export async function addGlobalAdmin(userId: string) {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || "Erreur lors de l\'ajout de l\'admin global");
+    throw new Error(error.error || "Erreur lors de l'ajout de l'admin global");
   }
   return response.json();
 }
 
 export async function removeGlobalAdmin(userId: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/admins/${userId}`, { method: 'DELETE' });
-  if (!response.ok) throw new Error("Erreur lors de la suppression de l\'admin global");
+  if (!response.ok) throw new Error("Erreur lors de la suppression de l'admin global");
   return response.json();
 }
 
@@ -122,7 +122,7 @@ export async function addGlobalBlacklist(userId: string, reason: string) {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || "Erreur d\'ajout blacklist");
+    throw new Error(error.error || "Erreur d'ajout blacklist");
   }
   return response.json();
 }
@@ -329,19 +329,19 @@ export async function updateRecruitmentConfig(payload: any, guildId: string = au
 
 export async function fetchActivationCodes() {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'GET' });
-  if (!response.ok) throw new Error("Erreur lors du chargement des codes d\'activation");
+  if (!response.ok) throw new Error("Erreur lors du chargement des codes d'activation");
   return response.json();
 }
 
 export async function createActivationCode() {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'POST' });
-  if (!response.ok) throw new Error("Erreur lors de la génération du code d\'activation");
+  if (!response.ok) throw new Error("Erreur lors de la génération du code d'activation");
   return response.json();
 }
 
 export async function deleteActivationCode(id: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes/${id}`, { method: 'DELETE' });
-  if (!response.ok) throw new Error("Erreur lors de la suppression du code d\'activation");
+  if (!response.ok) throw new Error("Erreur lors de la suppression du code d'activation");
   return response.json();
 }
 
@@ -353,7 +353,7 @@ export async function deactivateAdminGuild(guildId: string) {
 
 export async function activateAdminGuildAuto(guildId: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/activate-auto`, { method: 'POST' });
-  if (!response.ok) throw new Error("Erreur lors de l\'activation automatique du serveur");
+  if (!response.ok) throw new Error("Erreur lors de l'activation automatique du serveur");
   return response.json();
 }
 
@@ -388,7 +388,7 @@ export async function activateGuildWithCode(code: string, guildId = authStore.se
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || "Erreur lors de l\'activation du serveur");
+    throw new Error(error.error || "Erreur lors de l'activation du serveur");
   }
   return response.json();
 }
