@@ -12,41 +12,61 @@ import {
 import { getOrCreateFeatureConfigs, updateFeatureConfig } from '../../services/core/dashboardManagementService.js';
 import { successEmbed, errorEmbed } from '../../utils/embeds.js';
 import { SlashCommandDefinition } from '../../commands.js';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('b5_suggestcfg');
+const enableMeta = getCommandMetadata('b5_suggestcfg_enable');
+const disableMeta = getCommandMetadata('b5_suggestcfg_disable');
+const statusMeta = getCommandMetadata('b5_suggestcfg_status');
+const sendEmbedMeta = getCommandMetadata('b5_suggestcfg_sendembed');
 
 const data = new SlashCommandBuilder()
-  .setName('suggestion-config')
-  .setDescription('⚙️ Configure le module de suggestions')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((subcommand) =>
     subcommand
-      .setName('enable')
-      .setDescription('Active le module de suggestions')
+      .setName(enableMeta.name)
+      .setNameLocalizations(enableMeta.nameLocalizations)
+      .setDescription(enableMeta.description)
+      .setDescriptionLocalizations(enableMeta.descriptionLocalizations)
       .addChannelOption((option) =>
         option
           .setName('channel')
-          .setDescription('Salon où les suggestions seront envoyées')
+          .setDescription(m.b5_suggestcfg_enable_opt_channel({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_suggestcfg_enable_opt_channel({}, { locale: 'fr' }) })
           .setRequired(true)
           .addChannelTypes(ChannelType.GuildText)
       )
   )
   .addSubcommand((subcommand) =>
     subcommand
-      .setName('disable')
-      .setDescription('Désactive le module de suggestions')
+      .setName(disableMeta.name)
+      .setNameLocalizations(disableMeta.nameLocalizations)
+      .setDescription(disableMeta.description)
+      .setDescriptionLocalizations(disableMeta.descriptionLocalizations)
   )
   .addSubcommand((subcommand) =>
     subcommand
-      .setName('status')
-      .setDescription('Affiche le statut actuel du module de suggestions')
+      .setName(statusMeta.name)
+      .setNameLocalizations(statusMeta.nameLocalizations)
+      .setDescription(statusMeta.description)
+      .setDescriptionLocalizations(statusMeta.descriptionLocalizations)
   )
   .addSubcommand((subcommand) =>
     subcommand
-      .setName('send-embed')
-      .setDescription('Envoie un embed avec un formulaire pour soumettre des suggestions')
+      .setName(sendEmbedMeta.name)
+      .setNameLocalizations(sendEmbedMeta.nameLocalizations)
+      .setDescription(sendEmbedMeta.description)
+      .setDescriptionLocalizations(sendEmbedMeta.descriptionLocalizations)
       .addChannelOption((option) =>
         option
           .setName('channel')
-          .setDescription("Salon où envoyer l'embed")
+          .setDescription(m.b5_suggestcfg_sendembed_opt_channel({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b5_suggestcfg_sendembed_opt_channel({}, { locale: 'fr' }) })
           .setRequired(true)
           .addChannelTypes(ChannelType.GuildText)
       )

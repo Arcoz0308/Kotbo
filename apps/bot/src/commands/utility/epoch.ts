@@ -1,16 +1,21 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { infoEmbed, errorEmbed } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b1_epoch');
+
 const data = new SlashCommandBuilder()
-  .setName('epoch')
-  .setDescription('🕐 Convertis entre timestamp Unix et date lisible')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addStringOption(option =>
     option
       .setName('value')
-      .setDescription('Timestamp Unix (ex: 1712155663) ou date YYYY-MM-DD')
+      .setDescription(m.b1_epoch_opt_value({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b1_epoch_opt_value({}, { locale: 'fr' }) })
       .setRequired(false)
   );
 

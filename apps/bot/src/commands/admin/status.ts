@@ -8,6 +8,8 @@ import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
 import { separator, v2Message } from '@arcscord/components';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
 
 function getStatusEmoji(code: number): string {
   if (code >= 200 && code < 300) return E.success;
@@ -37,13 +39,18 @@ function getStatusLabel(code: number): string {
   return labels[code] ?? 'Statut inconnu';
 }
 
+const meta = getCommandMetadata('c6_status');
+
 const data = new SlashCommandBuilder()
-  .setName('status')
-  .setDescription("Vérifie le statut HTTP d'une URL")
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addStringOption(option =>
     option
       .setName('url')
-      .setDescription("L'URL à vérifier (ex: https://example.com)")
+      .setDescription(m.c6_status_opt_url({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c6_status_opt_url({}, { locale: 'fr' }) })
       .setRequired(true)
   );
 

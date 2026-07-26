@@ -10,19 +10,38 @@ import { generateServerStatsImage } from '../../services/core/imageService.js';
 import { kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { mediaGallery, v2Message } from '@arcscord/components';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('c6_serverstats');
 
 const data = new SlashCommandBuilder()
-  .setName('serverstats')
-  .setDescription('📈 Affiche les statistiques globales du serveur')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addIntegerOption((option) =>
     option
       .setName('periode')
-      .setDescription('Période en jours (défaut: 30)')
+      .setDescription(m.c6_serverstats_opt_periode({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c6_serverstats_opt_periode({}, { locale: 'fr' }) })
       .setRequired(false)
       .addChoices(
-        { name: '7 jours', value: 7 },
-        { name: '30 jours', value: 30 },
-        { name: '90 jours', value: 90 },
+        {
+          name: m.c6_period_choice_7({}, { locale: 'en' }),
+          name_localizations: { fr: m.c6_period_choice_7({}, { locale: 'fr' }) },
+          value: 7,
+        },
+        {
+          name: m.c6_period_choice_30({}, { locale: 'en' }),
+          name_localizations: { fr: m.c6_period_choice_30({}, { locale: 'fr' }) },
+          value: 30,
+        },
+        {
+          name: m.c6_period_choice_90({}, { locale: 'en' }),
+          name_localizations: { fr: m.c6_period_choice_90({}, { locale: 'fr' }) },
+          value: 90,
+        },
       ),
   );
 

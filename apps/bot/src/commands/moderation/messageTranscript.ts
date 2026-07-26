@@ -13,7 +13,7 @@ import prisma from '../../utils/db.js';
 import { successEmbed, errorEmbed } from '../../utils/embeds.js';
 import { generateTranscriptFromMessages } from '../../services/features/transcriptService.js';
 import { logger } from '../../utils/logger.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 async function isStaffMember(interaction: MessageContextMenuCommandInteraction, guildId: string): Promise<boolean> {
@@ -43,12 +43,17 @@ function transcriptPublicLink(transcriptId: string): string {
   return `${dashboardUrl}/transcripts/${transcriptId}`;
 }
 
+const fromMeta = getCommandMetadata('b2_msgtranscript_from_context');
+const contextMeta = getCommandMetadata('b2_msgtranscript_context');
+
 const fromData = new ContextMenuCommandBuilder()
-  .setName('Transcrire depuis ce message')
+  .setName(fromMeta.name)
+  .setNameLocalizations(fromMeta.nameLocalizations)
   .setType(ApplicationCommandType.Message);
 
 const contextData = new ContextMenuCommandBuilder()
-  .setName('Transcrire avec contexte')
+  .setName(contextMeta.name)
+  .setNameLocalizations(contextMeta.nameLocalizations)
   .setType(ApplicationCommandType.Message);
 
 async function executeFrom(interaction: MessageContextMenuCommandInteraction): Promise<void> {

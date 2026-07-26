@@ -2652,5 +2652,16 @@
   "e5_absence_confirm": "Confirmer l'absence",
   "e6_searchable_select_no_results": "Aucun résultat",
   "e6_toggle_switch_aria_label": "Bouton de basculement",
-  "e5_bar_chart_volume": "Volume"
+  "e5_bar_chart_volume": "Volume",
+  "home_mod_botlanguage_title": "Langue du bot",
+  "home_mod_botlanguage_desc": "Langue des réponses du bot sur ce serveur",
+  "home_botlanguage": "Langue du bot",
+  "home_botlanguage_mode_manual": "Choix explicite",
+  "home_botlanguage_mode_auto": "Détection automatique",
+  "home_botlanguage_detected": "Détecté depuis Discord : {lang}",
+  "home_botlanguage_detected_none": "Aucune langue exploitable détectée — repli sur l'anglais",
+  "home_botlanguage_auto_action": "Repasser en auto",
+  "home_botlanguage_hint": "Un choix explicite est prioritaire sur la langue du serveur Discord.",
+  "home_botlanguage_fr": "Français",
+  "home_botlanguage_en": "Anglais"
 }

@@ -4,8 +4,8 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { staffStore } from '../lib/stores/staff.svelte';
-  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks } from '../lib/api';
-  import type { ChangelogCommit } from '../lib/api';
+  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks, fetchGuildLanguage, updateGuildLanguage } from '../lib/api';
+  import type { ChangelogCommit, GuildLanguageState } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -29,6 +29,7 @@
     { id: 'notifications', colSpan: 1, rowSpan: 1, visible: true },
     { id: 'staff', colSpan: 1, rowSpan: 1, visible: true },
     { id: 'audit', colSpan: 1, rowSpan: 1, visible: true },
+    { id: 'botLanguage', colSpan: 1, rowSpan: 1, visible: true },
     { id: 'actions', colSpan: 3, rowSpan: 1, visible: true },
   ];
 
@@ -42,6 +43,7 @@
     { id: 'notifications', title: m.home_mod_notifications_title(), desc: m.home_mod_notifications_desc(), icon: 'inbox' },
     { id: 'staff', title: m.home_mod_staff_title(), desc: m.home_mod_staff_desc(), icon: 'users' },
     { id: 'audit', title: m.home_mod_audit_title(), desc: m.home_mod_audit_desc(), icon: 'activity' },
+    { id: 'botLanguage', title: m.home_mod_botlanguage_title(), desc: m.home_mod_botlanguage_desc(), icon: 'globe' },
     { id: 'actions', title: m.home_mod_actions_title(), desc: m.home_mod_actions_desc(), icon: 'plus-circle' },
     { id: 'notes', title: m.home_mod_notes_title(), desc: m.home_mod_notes_desc(), icon: 'edit' },
     { id: 'serverInfo', title: m.home_mod_serverinfo_title(), desc: m.home_mod_serverinfo_desc(), icon: 'server' },
@@ -597,6 +599,38 @@
     }
   }
 
+  let botLanguage = $state<GuildLanguageState | null>(null);
+  let botLanguageLoading = $state(false);
+  let botLanguageGuildId: string | null = null;
+
+  async function loadBotLanguage(force = false) {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId || botLanguageLoading || (!force && botLanguageGuildId === guildId)) return;
+    botLanguageLoading = true;
+    try {
+      botLanguage = await fetchGuildLanguage();
+      if (authStore.selectedGuildId === guildId) botLanguageGuildId = guildId;
+    } finally {
+      botLanguageLoading = false;
+    }
+  }
+
+  async function setBotLanguage(payload: { mode: 'auto' } | { language: 'fr' | 'en' }) {
+    if (botLanguageLoading) return;
+    botLanguageLoading = true;
+    try {
+      const ok = await updateGuildLanguage(payload);
+      if (ok) {
+        botLanguage = await fetchGuildLanguage();
+      }
+    } finally {
+      botLanguageLoading = false;
+    }
+  }
+
+  const botLanguageLabel = (code: 'fr' | 'en') =>
+    code === 'fr' ? m.home_botlanguage_fr() : m.home_botlanguage_en();
+
   $effect(() => {
     const guildId = authStore.selectedGuildId;
     const visibleIds = new Set(userLayout.filter((item) => item.visible).map((item) => item.id));
@@ -608,6 +642,7 @@
     if (visibleIds.has('staff')) void staffStore.fetchAll();
     if (visibleIds.has('news')) void loadChangelog();
     if (visibleIds.has('staffServer')) void loadStaffServerLinks();
+    if (visibleIds.has('botLanguage')) void loadBotLanguage();
   });
 
   const activeModulesCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'active').length);
@@ -1009,6 +1044,67 @@
               </div>
             </div>
           {/if}
+        {:else if item.id === 'botLanguage'}
+          <div class="flex flex-col gap-4 h-full">
+            <div class="flex items-center gap-2.5 shrink-0">
+              <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
+                <Papicon icon="globe" size={16} />
+              </div>
+              <h3 class="font-medium text-on-surface">{m.home_botlanguage()}</h3>
+            </div>
+
+            {#if botLanguage}
+              <div class="flex flex-col gap-3 grow">
+                <div>
+                  <p class="text-2xl font-semibold text-on-surface">{botLanguageLabel(botLanguage.locale)}</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">
+                    {botLanguage.mode === 'manual' ? m.home_botlanguage_mode_manual() : m.home_botlanguage_mode_auto()}
+                  </p>
+                </div>
+
+                <p class="text-[11px] text-on-surface-variant">
+                  {#if botLanguage.detected}
+                    {m.home_botlanguage_detected({ lang: botLanguageLabel(botLanguage.detected) })}
+                  {:else}
+                    {m.home_botlanguage_detected_none()}
+                  {/if}
+                </p>
+
+                <div class="flex flex-wrap gap-2 mt-auto">
+                  {#each botLanguage.available as code}
+                    <button
+                      type="button"
+                      disabled={botLanguageLoading}
+                      onclick={() => setBotLanguage({ language: code })}
+                      class="px-2.5 py-1 rounded-lg text-xs border transition-colors disabled:opacity-50 cursor-pointer
+                        {botLanguage.mode === 'manual' && botLanguage.locale === code
+                          ? 'border-primary text-primary bg-primary/10'
+                          : 'border-outline-variant text-on-surface-variant hover:bg-surface-container'}"
+                    >
+                      {botLanguageLabel(code)}
+                    </button>
+                  {/each}
+                  <button
+                    type="button"
+                    disabled={botLanguageLoading || botLanguage.mode === 'auto'}
+                    onclick={() => setBotLanguage({ mode: 'auto' })}
+                    class="px-2.5 py-1 rounded-lg text-xs border transition-colors disabled:opacity-50 cursor-pointer
+                      {botLanguage.mode === 'auto'
+                        ? 'border-primary text-primary bg-primary/10'
+                        : 'border-outline-variant text-on-surface-variant hover:bg-surface-container'}"
+                  >
+                    {m.home_botlanguage_auto_action()}
+                  </button>
+                </div>
+
+                <p class="text-[10px] text-on-surface-variant/70">{m.home_botlanguage_hint()}</p>
+              </div>
+            {:else}
+              <div class="h-full flex items-center justify-center text-on-surface-variant/40 text-xs">
+                {botLanguageLoading ? m.common_loading() : m.home_no_data()}
+              </div>
+            {/if}
+          </div>
         {:else if item.id === 'system'}
           <div class="flex flex-col gap-4 h-full justify-between">
             <div class="flex items-center justify-between shrink-0">

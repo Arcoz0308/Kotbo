@@ -40,103 +40,147 @@ import { sendBanAppealNotificationDM } from '../../services/moderation/banAppeal
 import * as altAccountService from '../../services/moderation/altAccountService.js';
 import { buildMemberCaseActionRow } from '../../services/moderation/memberCaseService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 type Locale = 'fr' | 'en';
 
-const DURATION_HELP = 'Exemples: 30m, 2h, 3j, 1 semaine';
+const DURATION_HELP = {
+  en: m.b1_sanction_opt_duree({}, { locale: 'en' }),
+  fr: m.b1_sanction_opt_duree({}, { locale: 'fr' }),
+};
 const SANCTION_PAGE_SIZE = 5;
 const SANCTION_LIST_TIMEOUT_MS = 2 * 60 * 1000;
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 
+const meta = getCommandMetadata('b1_sanction');
+const warnMeta = getCommandMetadata('b1_sanction_warn');
+const toMeta = getCommandMetadata('b1_sanction_to');
+const kickMeta = getCommandMetadata('b1_sanction_kick');
+const banMeta = getCommandMetadata('b1_sanction_ban');
+const tempbanMeta = getCommandMetadata('b1_sanction_tempban');
+const softbanMeta = getCommandMetadata('b1_sanction_softban');
+const listMeta = getCommandMetadata('b1_sanction_list');
+const tableauMeta = getCommandMetadata('b1_sanction_tableau');
+const contextMeta = getCommandMetadata('b1_sanction_context');
+
+/** Décrit une option en anglais avec sa localisation française. */
+const describe = (key: string) => ({
+  en: (m as any)[key]({}, { locale: 'en' }) as string,
+  fr: (m as any)[key]({}, { locale: 'fr' }) as string,
+});
+
+const graviteChoice = (level: 1 | 2 | 3) => ({
+  name: (m as any)[`b1_sanction_gravite_${level}`]({}, { locale: 'en' }) as string,
+  name_localizations: { fr: (m as any)[`b1_sanction_gravite_${level}`]({}, { locale: 'fr' }) as string },
+  value: level,
+});
+
 const data = new SlashCommandBuilder()
-  .setName('sanction')
-  .setDescription('🛡️ Gère les sanctions (warn, TO, kick, ban, tempban, list)')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
   .addSubcommand((sub) =>
     sub
-      .setName('warn')
-      .setDescription('Ajoute un avertissement à un membre')
-      .addUserOption((option) => option.setName('membre').setDescription('Membre à avertir').setRequired(true))
-      .addStringOption((option) => option.setName('raison').setDescription('Raison du warn').setRequired(true))
+      .setName(warnMeta.name)
+      .setNameLocalizations(warnMeta.nameLocalizations)
+      .setDescription(warnMeta.description)
+      .setDescriptionLocalizations(warnMeta.descriptionLocalizations)
+      .addUserOption((option) => option.setName('membre').setDescription(describe('b1_sanction_warn_opt_membre').en).setDescriptionLocalizations({ fr: describe('b1_sanction_warn_opt_membre').fr }).setRequired(true))
+      .addStringOption((option) => option.setName('raison').setDescription(describe('b1_sanction_warn_opt_raison').en).setDescriptionLocalizations({ fr: describe('b1_sanction_warn_opt_raison').fr }).setRequired(true))
       .addIntegerOption((option) =>
         option
           .setName('gravite')
-          .setDescription('Gravité du warn (compte dans le score si la pondération est activée)')
+          .setDescription(describe('b1_sanction_warn_opt_gravite').en)
+          .setDescriptionLocalizations({ fr: describe('b1_sanction_warn_opt_gravite').fr })
           .setRequired(false)
-          .addChoices(
-            { name: 'Léger (1 point)', value: 1 },
-            { name: 'Normal (2 points)', value: 2 },
-            { name: 'Grave (3 points)', value: 3 },
-          ),
+          .addChoices(graviteChoice(1), graviteChoice(2), graviteChoice(3)),
       ),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('to')
-      .setDescription('Applique un timeout, avec renouvellement auto si nécessaire')
-      .addUserOption((option) => option.setName('membre').setDescription('Membre à timeout').setRequired(true))
-      .addStringOption((option) => option.setName('duree').setDescription(DURATION_HELP).setRequired(true))
-      .addStringOption((option) => option.setName('raison').setDescription('Raison du timeout').setRequired(true)),
+      .setName(toMeta.name)
+      .setNameLocalizations(toMeta.nameLocalizations)
+      .setDescription(toMeta.description)
+      .setDescriptionLocalizations(toMeta.descriptionLocalizations)
+      .addUserOption((option) => option.setName('membre').setDescription(describe('b1_sanction_to_opt_membre').en).setDescriptionLocalizations({ fr: describe('b1_sanction_to_opt_membre').fr }).setRequired(true))
+      .addStringOption((option) => option.setName('duree').setDescription(DURATION_HELP.en).setDescriptionLocalizations({ fr: DURATION_HELP.fr }).setRequired(true))
+      .addStringOption((option) => option.setName('raison').setDescription(describe('b1_sanction_to_opt_raison').en).setDescriptionLocalizations({ fr: describe('b1_sanction_to_opt_raison').fr }).setRequired(true)),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('kick')
-      .setDescription('Exclut un membre du serveur')
-      .addUserOption((option) => option.setName('membre').setDescription('Membre à exclure').setRequired(true))
-      .addStringOption((option) => option.setName('raison').setDescription('Raison du kick').setRequired(true)),
+      .setName(kickMeta.name)
+      .setNameLocalizations(kickMeta.nameLocalizations)
+      .setDescription(kickMeta.description)
+      .setDescriptionLocalizations(kickMeta.descriptionLocalizations)
+      .addUserOption((option) => option.setName('membre').setDescription(describe('b1_sanction_kick_opt_membre').en).setDescriptionLocalizations({ fr: describe('b1_sanction_kick_opt_membre').fr }).setRequired(true))
+      .addStringOption((option) => option.setName('raison').setDescription(describe('b1_sanction_kick_opt_raison').en).setDescriptionLocalizations({ fr: describe('b1_sanction_kick_opt_raison').fr }).setRequired(true)),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('ban')
-      .setDescription('Bannit définitivement un membre')
-      .addUserOption((option) => option.setName('membre').setDescription('Membre à bannir').setRequired(true))
-      .addStringOption((option) => option.setName('raison').setDescription('Raison du ban').setRequired(true)),
+      .setName(banMeta.name)
+      .setNameLocalizations(banMeta.nameLocalizations)
+      .setDescription(banMeta.description)
+      .setDescriptionLocalizations(banMeta.descriptionLocalizations)
+      .addUserOption((option) => option.setName('membre').setDescription(describe('b1_sanction_ban_opt_membre').en).setDescriptionLocalizations({ fr: describe('b1_sanction_ban_opt_membre').fr }).setRequired(true))
+      .addStringOption((option) => option.setName('raison').setDescription(describe('b1_sanction_ban_opt_raison').en).setDescriptionLocalizations({ fr: describe('b1_sanction_ban_opt_raison').fr }).setRequired(true)),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('tempban')
-      .setDescription('Bannit temporairement un membre')
-      .addUserOption((option) => option.setName('membre').setDescription('Membre à bannir temporairement').setRequired(true))
-      .addStringOption((option) => option.setName('duree').setDescription(DURATION_HELP).setRequired(true))
-      .addStringOption((option) => option.setName('raison').setDescription('Raison du tempban').setRequired(true)),
+      .setName(tempbanMeta.name)
+      .setNameLocalizations(tempbanMeta.nameLocalizations)
+      .setDescription(tempbanMeta.description)
+      .setDescriptionLocalizations(tempbanMeta.descriptionLocalizations)
+      .addUserOption((option) => option.setName('membre').setDescription(describe('b1_sanction_tempban_opt_membre').en).setDescriptionLocalizations({ fr: describe('b1_sanction_tempban_opt_membre').fr }).setRequired(true))
+      .addStringOption((option) => option.setName('duree').setDescription(DURATION_HELP.en).setDescriptionLocalizations({ fr: DURATION_HELP.fr }).setRequired(true))
+      .addStringOption((option) => option.setName('raison').setDescription(describe('b1_sanction_tempban_opt_raison').en).setDescriptionLocalizations({ fr: describe('b1_sanction_tempban_opt_raison').fr }).setRequired(true)),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('softban')
-      .setDescription('Bannit puis débannit immédiatement un membre pour supprimer ses messages récents (7 jours)')
-      .addUserOption((option) => option.setName('membre').setDescription('Membre à softban').setRequired(true))
-      .addStringOption((option) => option.setName('raison').setDescription('Raison du softban').setRequired(true)),
+      .setName(softbanMeta.name)
+      .setNameLocalizations(softbanMeta.nameLocalizations)
+      .setDescription(softbanMeta.description)
+      .setDescriptionLocalizations(softbanMeta.descriptionLocalizations)
+      .addUserOption((option) => option.setName('membre').setDescription(describe('b1_sanction_softban_opt_membre').en).setDescriptionLocalizations({ fr: describe('b1_sanction_softban_opt_membre').fr }).setRequired(true))
+      .addStringOption((option) => option.setName('raison').setDescription(describe('b1_sanction_softban_opt_raison').en).setDescriptionLocalizations({ fr: describe('b1_sanction_softban_opt_raison').fr }).setRequired(true)),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('list')
-      .setDescription("Affiche la liste des sanctions d'un membre")
-      .addUserOption((option) => option.setName('membre').setDescription('Membre à afficher').setRequired(true)),
+      .setName(listMeta.name)
+      .setNameLocalizations(listMeta.nameLocalizations)
+      .setDescription(listMeta.description)
+      .setDescriptionLocalizations(listMeta.descriptionLocalizations)
+      .addUserOption((option) => option.setName('membre').setDescription(describe('b1_sanction_list_opt_membre').en).setDescriptionLocalizations({ fr: describe('b1_sanction_list_opt_membre').fr }).setRequired(true)),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('tableau')
-      .setDescription('Applique une sanction progressive via un tableau de sanction')
-      .addUserOption((option) => option.setName('membre').setDescription('Membre à sanctionner').setRequired(true))
+      .setName(tableauMeta.name)
+      .setNameLocalizations(tableauMeta.nameLocalizations)
+      .setDescription(tableauMeta.description)
+      .setDescriptionLocalizations(tableauMeta.descriptionLocalizations)
+      .addUserOption((option) => option.setName('membre').setDescription(describe('b1_sanction_tableau_opt_membre').en).setDescriptionLocalizations({ fr: describe('b1_sanction_tableau_opt_membre').fr }).setRequired(true))
       .addStringOption((option) =>
         option
           .setName('nom')
-          .setDescription('Nom du tableau de sanction')
+          .setDescription(describe('b1_sanction_tableau_opt_nom').en)
+          .setDescriptionLocalizations({ fr: describe('b1_sanction_tableau_opt_nom').fr })
           .setRequired(true)
           .setAutocomplete(true)
       )
       .addStringOption((option) =>
         option
           .setName('raison')
-          .setDescription('Raison de la sanction')
+          .setDescription(describe('b1_sanction_tableau_opt_raison').en)
+          .setDescriptionLocalizations({ fr: describe('b1_sanction_tableau_opt_raison').fr })
           .setRequired(false)
       )
       .addIntegerOption((option) =>
         option
           .setName('bypass')
-          .setDescription('Forcer un palier spécifique (ex: 3 pour T3) (optionnel)')
+          .setDescription(describe('b1_sanction_tableau_opt_bypass').en)
+          .setDescriptionLocalizations({ fr: describe('b1_sanction_tableau_opt_bypass').fr })
           .setRequired(false)
           .setMinValue(1)
           .setAutocomplete(true)
@@ -144,7 +188,8 @@ const data = new SlashCommandBuilder()
   );
 
 const contextData = new ContextMenuCommandBuilder()
-  .setName('Sanctionner')
+  .setName(contextMeta.name)
+  .setNameLocalizations(contextMeta.nameLocalizations)
   .setType(ApplicationCommandType.User)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 

@@ -1,30 +1,44 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('b4_channel');
+const clearMeta = getCommandMetadata('b4_channel_clear');
+const duplicateMeta = getCommandMetadata('b4_channel_duplicate');
 
 const data = new SlashCommandBuilder()
-  .setName('channel')
-  .setDescription('📁 Gère les salons du serveur')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
   .addSubcommand((sub) =>
     sub
-      .setName('clear')
-      .setDescription('Supprimer et re-créer un salon pour vider ses messages'),
+      .setName(clearMeta.name)
+      .setNameLocalizations(clearMeta.nameLocalizations)
+      .setDescription(clearMeta.description)
+      .setDescriptionLocalizations(clearMeta.descriptionLocalizations),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('duplicate')
-      .setDescription('Dupliquer un salon')
+      .setName(duplicateMeta.name)
+      .setNameLocalizations(duplicateMeta.nameLocalizations)
+      .setDescription(duplicateMeta.description)
+      .setDescriptionLocalizations(duplicateMeta.descriptionLocalizations)
       .addChannelOption((option) =>
         option
           .setName('salon')
-          .setDescription('Le salon à dupliquer (par défaut : le salon actuel)')
+          .setDescription(m.b4_channel_duplicate_opt_salon({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_channel_duplicate_opt_salon({}, { locale: 'fr' }) })
           .setRequired(false),
       )
       .addStringOption((option) =>
         option
           .setName('nom')
-          .setDescription('Le nouveau nom du salon dupliqué')
+          .setDescription(m.b4_channel_duplicate_opt_nom({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_channel_duplicate_opt_nom({}, { locale: 'fr' }) })
           .setRequired(false),
       ),
   );

@@ -6,12 +6,22 @@ import { kotboContainer, truncate } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { logger } from '../../utils/logger.js';
 import { ContainerChild, separator, v2Message } from '@arcscord/components';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('c2_profil');
 
 const data = new SlashCommandBuilder()
-  .setName('profil')
-  .setDescription('👤 Affiche le profil staff détaillé')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addUserOption((option) =>
-    option.setName('utilisateur').setDescription('Membre staff à afficher (par défaut: toi)').setRequired(false),
+    option
+      .setName('utilisateur')
+      .setDescription(m.c2_profil_opt_utilisateur({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c2_profil_opt_utilisateur({}, { locale: 'fr' }) })
+      .setRequired(false),
   );
 
 function formatGrade(grade: string): string {

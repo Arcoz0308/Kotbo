@@ -5,18 +5,25 @@ import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt 
 import { COLORS_RAW, errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { separator, v2Message } from '@arcscord/components';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 const DICE_EMOJIS = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
+const meta = getCommandMetadata('b3_dice');
+const miseMeta = getCommandMetadata('b3_dice_mise');
+
 const data = new SlashCommandBuilder()
-  .setName('dice')
-  .setDescription('🎲 Lancer deux dés pour parier et tenter de gagner des pièces')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addIntegerOption(option =>
     option
-      .setName('mise')
-      .setDescription('Le montant à miser')
+      .setName(miseMeta.name)
+      .setNameLocalizations(miseMeta.nameLocalizations)
+      .setDescription(miseMeta.description)
+      .setDescriptionLocalizations(miseMeta.descriptionLocalizations)
       .setRequired(true)
       .setMinValue(1)
   );
@@ -24,7 +31,7 @@ const data = new SlashCommandBuilder()
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
-  const bet = interaction.options.getInteger('mise', true);
+  const bet = interaction.options.getInteger(miseMeta.name, true);
   const locale = await getEffectiveLocale(interaction);
 
   try {

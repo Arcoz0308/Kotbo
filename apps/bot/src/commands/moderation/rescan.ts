@@ -9,27 +9,42 @@ import prisma from '../../utils/db.js';
 import { infoEmbed, successEmbed, errorEmbed } from '../../utils/embeds.js';
 import { scanGuildMembersForYoungAccounts } from '../../services/moderation/dcDetectionService.js';
 import { scanAndModeratePseudos } from '../../services/moderation/nicknameModerationService.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b4_rescan');
+const dcMeta = getCommandMetadata('b4_rescan_dc');
+const dcScanMeta = getCommandMetadata('b4_rescan_dc_scan');
+const pseudoMeta = getCommandMetadata('b4_rescan_pseudo');
+const pseudoRescanMeta = getCommandMetadata('b4_rescan_pseudo_rescan');
+const statsMeta = getCommandMetadata('b4_rescan_stats');
+const statsRescanMeta = getCommandMetadata('b4_rescan_stats_rescan');
+
 const data = new SlashCommandBuilder()
-  .setName('rescan')
-  .setDescription('Scanner les membres du serveur.')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   // ──────────────────────────────────────────────────────────────────────────
   // Sous-groupe : dc (comptes récents)
   // ──────────────────────────────────────────────────────────────────────────
   .addSubcommandGroup((group) =>
     group
-      .setName('dc')
-      .setDescription('Scanner les comptes Discord récents.')
+      .setName(dcMeta.name)
+      .setNameLocalizations(dcMeta.nameLocalizations)
+      .setDescription(dcMeta.description)
+      .setDescriptionLocalizations(dcMeta.descriptionLocalizations)
       .addSubcommand((sub) =>
         sub
-          .setName('scan')
-          .setDescription("Signaler les membres dont le compte est trop récent à l'arrivée.")
+          .setName(dcScanMeta.name)
+          .setNameLocalizations(dcScanMeta.nameLocalizations)
+          .setDescription(dcScanMeta.description)
+          .setDescriptionLocalizations(dcScanMeta.descriptionLocalizations)
           .addIntegerOption((opt) =>
             opt
               .setName('seuil_jours')
-              .setDescription('Nombre de jours maximum entre création du compte et arrivée')
+              .setDescription(m.b4_rescan_dc_scan_opt_seuil({}, { locale: 'en' }))
+              .setDescriptionLocalizations({ fr: m.b4_rescan_dc_scan_opt_seuil({}, { locale: 'fr' }) })
               .setMinValue(1)
               .setMaxValue(30)
               .setRequired(false)
@@ -41,12 +56,16 @@ const data = new SlashCommandBuilder()
   // ──────────────────────────────────────────────────────────────────────────
   .addSubcommandGroup((group) =>
     group
-      .setName('pseudo')
-      .setDescription('Modération des pseudos.')
+      .setName(pseudoMeta.name)
+      .setNameLocalizations(pseudoMeta.nameLocalizations)
+      .setDescription(pseudoMeta.description)
+      .setDescriptionLocalizations(pseudoMeta.descriptionLocalizations)
       .addSubcommand((sub) =>
         sub
-          .setName('rescan')
-          .setDescription('Scanner et modérer tous les pseudos non conformes du serveur.')
+          .setName(pseudoRescanMeta.name)
+          .setNameLocalizations(pseudoRescanMeta.nameLocalizations)
+          .setDescription(pseudoRescanMeta.description)
+          .setDescriptionLocalizations(pseudoRescanMeta.descriptionLocalizations)
       )
   )
   // ──────────────────────────────────────────────────────────────────────────
@@ -54,16 +73,21 @@ const data = new SlashCommandBuilder()
   // ──────────────────────────────────────────────────────────────────────────
   .addSubcommandGroup((group) =>
     group
-      .setName('stats')
-      .setDescription('Reconstruire ou lancer les statistiques historiques.')
+      .setName(statsMeta.name)
+      .setNameLocalizations(statsMeta.nameLocalizations)
+      .setDescription(statsMeta.description)
+      .setDescriptionLocalizations(statsMeta.descriptionLocalizations)
       .addSubcommand((sub) =>
         sub
-          .setName('rescan')
-          .setDescription("Scrapper l'historique des messages pour initialiser les statistiques.")
+          .setName(statsRescanMeta.name)
+          .setNameLocalizations(statsRescanMeta.nameLocalizations)
+          .setDescription(statsRescanMeta.description)
+          .setDescriptionLocalizations(statsRescanMeta.descriptionLocalizations)
           .addBooleanOption((opt) =>
             opt
               .setName('forcer')
-              .setDescription('Forcer le re-scrap complet de tous les salons (recommencer à zéro)')
+              .setDescription(m.b4_rescan_stats_rescan_opt_forcer({}, { locale: 'en' }))
+              .setDescriptionLocalizations({ fr: m.b4_rescan_stats_rescan_opt_forcer({}, { locale: 'fr' }) })
               .setRequired(false)
           )
       )

@@ -4,14 +4,21 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, Me
 import prisma from '../../utils/db.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('b3_roulette');
 
 const data = new SlashCommandBuilder()
-  .setName('roulette')
-  .setDescription('🔫 Jouer à la roulette russe pour tenter de faire fructifier vos pièces (1/6 de danger)')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addIntegerOption(option =>
     option
       .setName('mise')
-      .setDescription('Le montant à miser')
+      .setDescription(m.b3_roulette_opt_mise({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b3_roulette_opt_mise({}, { locale: 'fr' }) })
       .setRequired(true)
       .setMinValue(1)
   );

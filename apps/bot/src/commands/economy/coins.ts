@@ -4,22 +4,29 @@ import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/
 import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { v2Message } from '@arcscord/components';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b3_coins');
+const membreMeta = getCommandMetadata('b3_coins_membre');
+
 const data = new SlashCommandBuilder()
-  .setName('coins')
-  .setDescription("🪙 Consulter le solde de pièces d'un membre")
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addUserOption(option =>
     option
-      .setName('membre')
-      .setDescription('Le membre à inspecter (défaut: vous-même)')
+      .setName(membreMeta.name)
+      .setNameLocalizations(membreMeta.nameLocalizations)
+      .setDescription(membreMeta.description)
+      .setDescriptionLocalizations(membreMeta.descriptionLocalizations)
       .setRequired(false)
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
-  const targetUser = interaction.options.getUser('membre') ?? interaction.user;
+  const targetUser = interaction.options.getUser(membreMeta.name) ?? interaction.user;
   const locale = await getEffectiveLocale(interaction);
 
   if (targetUser.bot) {

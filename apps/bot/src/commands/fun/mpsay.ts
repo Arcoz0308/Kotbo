@@ -10,23 +10,29 @@ import {
 } from 'discord.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b2_mpsay');
+
 const data = new SlashCommandBuilder()
-  .setName('mpsay')
-  .setDescription('💬 Envoyer un message privé à un utilisateur en tant que bot')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
   .addUserOption(option =>
     option
       .setName('destinataire')
-      .setDescription('L’utilisateur à qui envoyer le message')
+      .setDescription(m.b2_mpsay_opt_destinataire({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_mpsay_opt_destinataire({}, { locale: 'fr' }) })
       .setRequired(true),
   )
   .addStringOption(option =>
     option
       .setName('message')
-      .setDescription('Le contenu du message à envoyer')
+      .setDescription(m.b2_mpsay_opt_message({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_mpsay_opt_message({}, { locale: 'fr' }) })
       .setRequired(true)
       .setMaxLength(4000),
   );

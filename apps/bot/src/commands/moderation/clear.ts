@@ -1,17 +1,22 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { Collection, SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b2_clear');
+
 const data = new SlashCommandBuilder()
-  .setName('clear')
-  .setDescription('🧹 Supprime un nombre défini de messages dans le salon')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
   .addIntegerOption((option) =>
     option
       .setName('nombre')
-      .setDescription('Nombre de messages à supprimer (1 à 100)')
+      .setDescription(m.b2_clear_opt_nombre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_clear_opt_nombre({}, { locale: 'fr' }) })
       .setRequired(true)
       .setMinValue(1)
       .setMaxValue(100),
@@ -19,7 +24,8 @@ const data = new SlashCommandBuilder()
   .addUserOption((option) =>
     option
       .setName('membre')
-      .setDescription('Filtrer et supprimer uniquement les messages de ce membre')
+      .setDescription(m.b2_clear_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_clear_opt_membre({}, { locale: 'fr' }) })
       .setRequired(false),
   );
 

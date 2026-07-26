@@ -11,7 +11,7 @@ import {
 } from 'discord.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 interface LocalRpgItem {
@@ -41,16 +41,26 @@ const RARITY_EMOJI: Record<string, string> = {
   COMMON: '⬜', UNCOMMON: '🟩', RARE: '🟦', EPIC: '🟪', LEGENDARY: '🟨'
 };
 
+const meta = getCommandMetadata('b3_inv');
+const membreMeta = getCommandMetadata('b3_inv_membre');
+
 const data = new SlashCommandBuilder()
-  .setName('inventaire')
-  .setDescription('🎒 Afficher votre inventaire RPG détaillé')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addUserOption(option =>
-    option.setName('membre').setDescription('Voir l\'inventaire d\'un autre membre').setRequired(false)
+    option
+      .setName(membreMeta.name)
+      .setNameLocalizations(membreMeta.nameLocalizations)
+      .setDescription(membreMeta.description)
+      .setDescriptionLocalizations(membreMeta.descriptionLocalizations)
+      .setRequired(false)
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
-  const targetUser = interaction.options.getUser('membre') ?? interaction.user;
+  const targetUser = interaction.options.getUser(membreMeta.name) ?? interaction.user;
   const locale = await getEffectiveLocale(interaction);
 
   const config = await getOrCreateEconomyConfig(guildId);

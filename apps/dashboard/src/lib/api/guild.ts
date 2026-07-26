@@ -34,6 +34,43 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
   }
 }
 
+export interface GuildLanguageState {
+  /** `manual` = choix explicite d'un admin, `auto` = detection depuis Discord. */
+  mode: 'manual' | 'auto';
+  /** Langue effectivement appliquee apres la cascade. */
+  locale: 'fr' | 'en';
+  /** Langue declaree du serveur Discord, `null` si inexploitable. */
+  detected: 'fr' | 'en' | null;
+  available: Array<'fr' | 'en'>;
+}
+
+export async function fetchGuildLanguage(guildId = authStore.selectedGuildId): Promise<GuildLanguageState | null> {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}/language`);
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('API Error (Guild language):', error);
+    return null;
+  }
+}
+
+/** Passe `language: null` (ou `mode: 'auto'`) pour repasser en detection auto. */
+export async function updateGuildLanguage(
+  payload: { mode: 'auto' } | { language: 'fr' | 'en' },
+  guildId = authStore.selectedGuildId,
+) {
+  return dashboardMutation('/language', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Guild language):',
+  });
+}
+
 export async function updateModuleStatus(moduleId, status, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/modules/${moduleId}`, {
     method: 'PUT',
