@@ -3,8 +3,9 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicClans } from '../lib/api';
-  import { m, dateLocale, getLocale, setLocale, locales, type Locale } from '../lib/i18n';
+  import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
+  import { userPrefs } from '../lib/stores/userPreferences.svelte';
 
   interface Props {
     serverId: string;
@@ -55,7 +56,7 @@
   const currentLocale = getLocale();
   function switchLocale(loc: Locale) {
     if (loc === currentLocale) return;
-    setLocale(loc);
+    userPrefs.set('language', loc);
   }
 
   // Grille : autant de colonnes que de clans (responsive, se replie si trop étroit)
