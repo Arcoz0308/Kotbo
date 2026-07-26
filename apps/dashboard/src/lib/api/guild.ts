@@ -1,0 +1,128 @@
+/** Etat de la guilde, modules, presets et reglages globaux. */
+import { authStore } from '../stores/auth.svelte';
+import { toast } from '../stores/toast.svelte';
+import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation } from './client';
+
+export async function fetchGuildState(guildId = authStore.selectedGuildId) {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) {
+    console.warn('API: Attempted to fetch guild state without a selected guild.');
+    return null;
+  }
+
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}`);
+    if (!response.ok) {
+      const error = new Error(`Server error: ${response.status}`);
+      (error as any).status = response.status;
+      try {
+        const body = await response.clone().json();
+        if (body?.needsActivation) {
+          (error as any).needsActivation = true;
+        }
+        if (body?.hint) {
+          (error as any).hint = body.hint;
+          console.error('API hint:', body.hint);
+        }
+      } catch { }
+      throw error;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    throw error;
+  }
+}
+
+export async function updateModuleStatus(moduleId, status, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/modules/${moduleId}`, {
+    method: 'PUT',
+    payload: { status },
+    guildId
+  });
+}
+
+export async function applyGuildPreset(presetKey, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/presets', {
+    method: 'POST',
+    payload: { presetKey },
+    guildId,
+    errorContext: 'API Error (Presets):'
+  });
+}
+
+
+
+export async function translateText(text, targetLang = 'fr') {
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/translate`, {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ text, targetLang })
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.translatedText;
+  } catch (error) {
+    console.error('API Error (Translation):', error);
+    return null;
+  }
+}
+
+export async function updateGlobalSettings(settings, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/settings', {
+    method: 'PATCH',
+    payload: settings,
+    guildId,
+    errorContext: 'API Error (Global Settings):'
+  });
+}
+
+export async function updateSidebarFavorites(sidebarFavorites: string[], guildId = authStore.selectedGuildId) {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return false;
+
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}/settings`, {
+      method: 'PATCH',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ sidebarFavorites })
+    });
+
+    if (!response.ok) {
+      let message = 'Erreur lors de la sauvegarde des favoris';
+      try {
+        const data = await response.json();
+        message = data.error || data.message || message;
+      } catch {
+        // Ignore JSON parsing errors.
+      }
+      toast.error(message);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('API Error (Sidebar Favorites):', error);
+    toast.error('Erreur réseau ou serveur');
+    return false;
+  }
+}
+
+export async function updateNotificationsSettings(notifications, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/notifications', {
+    method: 'PUT',
+    payload: notifications,
+    guildId,
+    errorContext: 'API Error (Notifications):'
+  });
+}
+
+export async function updateCommandAccessSettings(commandRestrictions, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/command-access', {
+    method: 'PUT',
+    payload: { commandRestrictions },
+    guildId,
+    errorContext: 'API Error (Command Access):'
+  });
+}

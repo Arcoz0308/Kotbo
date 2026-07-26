@@ -1,0 +1,49 @@
+/** Economie et RPG. */
+import { authStore } from '../stores/auth.svelte';
+import { dashboardMutation, dashboardRequest } from './client';
+
+// ==========================================
+// ECONOMY & RPG APIs
+// ==========================================
+export async function fetchEconomyConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/config', { method: 'GET', guildId, errorContext: 'API Error (Fetch Economy Config):' });
+}
+
+export async function updateEconomyConfig(config: any, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/config', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Economy Config):' });
+}
+
+export async function fetchRpgItems(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/items', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Items):' });
+}
+
+export async function saveRpgItem(item: any, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/items', { method: 'POST', payload: item, guildId, errorContext: 'API Error (Save RPG Item):' });
+}
+
+export async function deleteRpgItem(itemId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/items/${itemId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete RPG Item):' });
+}
+
+export async function fetchRpgPlayers(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/players', { method: 'GET', guildId, errorContext: 'API Error (Fetch RPG Players):' });
+}
+
+export async function updateRpgPlayer(userId: string, payload: any, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/economy/players/${userId}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update RPG Player):' });
+}
+
+export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds', guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/economy/reset', { method: 'POST', payload: { component }, guildId, errorContext: 'API Error (Reset Economy):' });
+}
+
+export async function updateSanctionTables(tables, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/sanctions/tables', {
+    method: 'PUT',
+    payload: tables,
+    guildId,
+    errorContext: 'API Error (Update Sanction Tables):'
+  });
+}
+
+// ── MCP API Keys ────────────────────────────────────────────────────────────

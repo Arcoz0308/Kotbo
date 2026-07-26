@@ -1,0 +1,158 @@
+/** News, journaux d evenements et suivis sociaux. */
+import { authStore } from '../stores/auth.svelte';
+import { API_BASE_URL, dashboardMutation, dashboardRequest } from './client';
+
+export async function fetchNews(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/news', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch News):'
+  });
+}
+
+export async function fetchPublicNews(guildId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/news`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors du chargement des actualités publiques');
+  }
+
+  return response.json();
+}
+
+export async function fetchPublicLeveling(guildId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/leveling`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors du chargement du classement de leveling');
+  }
+
+  return response.json();
+}
+
+export async function createNews(payload: { title: string; content: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean; publishMode?: 'summary' | 'full_embed' }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/news', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Create News):'
+  });
+}
+
+export async function updateNews(articleId: string, payload: { title?: string; content?: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean; publishMode?: 'summary' | 'full_embed' }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/news/${articleId}`, {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update News):'
+  });
+}
+
+export async function deleteNews(articleId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/news/${articleId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete News):'
+  });
+}
+
+export async function fetchNewsCategoryConfigs(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/news/category-configs', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch News Category Configs):'
+  });
+}
+
+export async function createNewsCategoryConfig(payload: { category: string; subcategory?: string; channelId: string }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/news/category-configs', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Create News Category Config):'
+  });
+}
+
+export async function deleteNewsCategoryConfig(configId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/news/category-configs/${configId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete News Category Config):'
+  });
+}
+
+export async function fetchLogEventConfigs(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/logs/event-configs', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Log Event Configs):'
+  });
+}
+
+export async function updateLogEventConfigs(configs: Array<{ eventType: string; enabled: boolean; channelId: string | null }>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/logs/event-configs', {
+    method: 'PUT',
+    payload: { configs },
+    guildId,
+    errorContext: 'API Error (Update Log Event Configs):'
+  });
+}
+
+export async function fetchSocialFollows(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/social-follows', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Social Follows):'
+  });
+}
+
+export async function addYoutubeFollow(payload: { query: string; channelId?: string; discordChannelId?: string | null; mention?: string | null; liveMessage?: string | null; videoMessage?: string | null; shortMessage?: string | null }, guildId = authStore.selectedGuildId) {
+  // If editing an existing follow, we can pass query as channelId
+  const body = {
+    query: payload.query || payload.channelId || '',
+    discordChannelId: payload.discordChannelId,
+    mention: payload.mention,
+    liveMessage: payload.liveMessage,
+    videoMessage: payload.videoMessage,
+    shortMessage: payload.shortMessage
+  };
+  return dashboardRequest('/social-follows/youtube', {
+    method: 'POST',
+    payload: body,
+    guildId,
+    errorContext: 'API Error (Add Youtube Follow):'
+  });
+}
+
+export async function deleteYoutubeFollow(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/social-follows/youtube/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Youtube Follow):'
+  });
+}
+
+export async function addTwitchFollow(payload: { streamerName: string; discordChannelId?: string | null; mention?: string | null; liveMessage?: string | null }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/social-follows/twitch', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Add Twitch Follow):'
+  });
+}
+
+export async function deleteTwitchFollow(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/social-follows/twitch/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Twitch Follow):'
+  });
+}
