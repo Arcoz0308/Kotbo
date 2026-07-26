@@ -823,6 +823,124 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /api/public/guilds/:guildId/clans/scores?q=...
+  // Recherche dédiée : le flux principal ne renvoie que les 20 derniers gains,
+  // ici on remonte l'historique complet de la personne cherchée.
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'clans' && parts[5] === 'scores' && !parts[6] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+
+    const query = (url.searchParams.get('q') || '').trim();
+    if (query.length < 2) {
+      json(res, 200, { scores: [] });
+      return true;
+    }
+
+    try {
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { clansEnabled: true, currentClanSeason: true },
+      });
+      if (!guildConfig?.clansEnabled) {
+        json(res, 200, { scores: [] });
+        return true;
+      }
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      const normalized = query.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+      const matches = (value: string | null | undefined) =>
+        !!value && value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').includes(normalized);
+
+      const userIds = new Set<string>();
+      if (/^\d{17,19}$/.test(query)) userIds.add(query);
+
+      // Les pseudos affichés viennent surtout du cache Discord ; la table des
+      // profils sert de repli pour les membres absents du cache.
+      if (discordGuild) {
+        for (const member of discordGuild.members.cache.values()) {
+          if (matches(member.displayName) || matches(member.user?.username)) userIds.add(member.id);
+        }
+      }
+      const profileMatches = await prisma.memberProfile.findMany({
+        where: {
+          guildId,
+          OR: [
+            { displayName: { contains: query, mode: Prisma.QueryMode.insensitive } },
+            { globalName: { contains: query, mode: Prisma.QueryMode.insensitive } },
+          ],
+        },
+        take: 50,
+      });
+      for (const p of profileMatches) userIds.add(p.userId);
+
+      const clans = await prisma.clan.findMany({ where: { guildId } });
+      const matchingClanIds = clans.filter((c) => matches(c.name)).map((c) => c.id);
+
+      if (userIds.size === 0 && matchingClanIds.length === 0) {
+        json(res, 200, { scores: [] });
+        return true;
+      }
+
+      const orConditions: Prisma.ClanContributionEventWhereInput[] = [];
+      if (userIds.size > 0) orConditions.push({ userId: { in: [...userIds] } });
+      if (matchingClanIds.length > 0) {
+        orConditions.push({ clanId: { in: matchingClanIds }, userId: 'system_manual_points' });
+      }
+
+      const events = await prisma.clanContributionEvent.findMany({
+        where: { guildId, season: guildConfig.currentClanSeason, OR: orConditions },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+
+      const clanById = new Map(clans.map((c) => [c.id, c]));
+      const eventProfiles = await prisma.memberProfile.findMany({
+        where: { guildId, userId: { in: [...new Set(events.map((e) => e.userId))] } },
+      });
+      const profileMap = new Map(eventProfiles.map((p) => [p.userId, p]));
+
+      const scores = events.map((e) => {
+        const clan = clanById.get(e.clanId);
+        const role = clan ? discordGuild?.roles.cache.get(clan.roleId) : null;
+        const isClanGlobal = e.userId === 'system_manual_points';
+
+        let displayName: string;
+        let avatarUrl: string | null = null;
+        if (isClanGlobal) {
+          displayName = clan?.name || 'Clan';
+        } else {
+          const profile = profileMap.get(e.userId);
+          const discordMember = discordGuild?.members.cache.get(e.userId);
+          displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${e.userId}`;
+          avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+        }
+
+        return {
+          id: e.id,
+          amount: e.amount,
+          source: e.source,
+          isClan: isClanGlobal,
+          userId: isClanGlobal ? null : e.userId,
+          displayName,
+          avatarUrl,
+          clanName: clan?.name || null,
+          clanColor: role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null,
+          createdAt: e.createdAt.toISOString(),
+        };
+      });
+
+      json(res, 200, { scores });
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.warn('PublicAPI', `Recherche de scores indisponible pour ${guildId} : ${errMessage}`);
+      json(res, 200, { scores: [] });
+    }
+    return true;
+  }
+
   // GET /api/public/transcripts/:transcriptId?expires=...&sig=...
   if (parts[2] === 'transcripts' && parts[3] && !parts[4] && method === 'GET') {
     const transcriptId = parts[3];

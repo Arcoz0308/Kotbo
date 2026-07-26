@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { fetchPublicClans } from '../lib/api';
+  import { fetchPublicClans, searchPublicClanScores } from '../lib/api';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
@@ -103,12 +103,33 @@
     );
   }
 
-  const filteredRecentScores = $derived.by(() => {
-    if (!searchQuery) return recentScores;
+  // Le flux principal se limite aux 20 derniers gains : dès qu'on cherche
+  // quelqu'un, on interroge le serveur pour remonter aussi ses gains plus anciens.
+  let searchedScores = $state<RecentScore[]>([]);
+  let searchToken = 0;
+
+  $effect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      searchedScores = [];
+      return;
+    }
+    const token = ++searchToken;
+    const timer = setTimeout(async () => {
+      const results = await searchPublicClanScores(serverId, q);
+      if (token === searchToken) searchedScores = results;
+    }, 300);
+    return () => clearTimeout(timer);
+  });
+
+  const displayedScores = $derived.by(() => {
+    if (!searchQuery.trim()) return recentScores;
     const q = normalize(searchQuery);
-    return recentScores.filter(s =>
+    const local = recentScores.filter(s =>
       normalize(s.displayName).includes(q) || (s.userId ? s.userId.includes(searchQuery) : false)
     );
+    const seen = new Set(local.map(s => s.id));
+    return [...local, ...searchedScores.filter(s => !seen.has(s.id))];
   });
 
   function formatXp(xp: number): string {
@@ -311,7 +332,7 @@
                       <div class="flex items-center gap-3 min-w-0">
 
                         <!-- Rank Badge -->
-                        <span class="min-w-6 h-6 px-1.5 rounded-md flex items-center justify-center text-xs font-black shrink-0 {getRankBadgeColor(p.rank)}">
+                        <span class="min-w-6 h-6 px-1.5 rounded-md flex items-center justify-center text-xs font-black shrink-0 tabular-nums whitespace-nowrap {getRankBadgeColor(p.rank)}">
                           {p.rank}
                         </span>
 
@@ -353,7 +374,7 @@
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_recent_scores_desc()}</p>
         </div>
 
-        {#if filteredRecentScores.length === 0}
+        {#if displayedScores.length === 0}
           <div class="py-14 text-center text-xs text-slate-400 dark:text-slate-500 italic">
             {m.clan_public_no_recent_scores()}
           </div>
@@ -369,7 +390,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each filteredRecentScores as s, i}
+                {#each displayedScores as s, i}
                   <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
                     <td class="px-6 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatRelativeTime(s.createdAt)}</td>
                     <td class="px-6 py-3">
