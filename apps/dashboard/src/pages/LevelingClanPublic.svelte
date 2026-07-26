@@ -3,7 +3,8 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicClans } from '../lib/api';
-  import { m, dateLocale } from '../lib/i18n';
+  import { m, dateLocale, getLocale, setLocale, locales, type Locale } from '../lib/i18n';
+  import { themeStore } from '../lib/stores/theme.svelte';
 
   interface Props {
     serverId: string;
@@ -50,6 +51,12 @@
   let clans = $state<ClanData[]>([]);
   let recentScores = $state<RecentScore[]>([]);
   let searchQuery = $state('');
+
+  const currentLocale = getLocale();
+  function switchLocale(loc: Locale) {
+    if (loc === currentLocale) return;
+    setLocale(loc);
+  }
 
   // Grille : autant de colonnes que de clans (responsive, se replie si trop étroit)
   const clansGridStyle = $derived(
@@ -155,11 +162,38 @@
         </div>
       </div>
 
-      <!-- Badge "Live" -->
-      <div class="flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-        <span class="ml-2.5 uppercase tracking-wider text-[10px]">{m.clan_public_live_badge()}</span>
+      <div class="flex items-center gap-3 self-start sm:self-auto">
+        <!-- Sélecteur de langue -->
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-[10px] font-bold uppercase tracking-wider">
+          {#each locales as loc}
+            <button
+              type="button"
+              onclick={() => switchLocale(loc)}
+              class="px-2.5 py-1 rounded-full transition-colors {currentLocale === loc ? 'bg-white dark:bg-[#111a2e] text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}"
+            >{loc}</button>
+          {/each}
+        </div>
+
+        <!-- Bascule thème clair/sombre -->
+        <button
+          type="button"
+          onclick={themeStore.toggle}
+          aria-label={m.navbar_change_theme()}
+          class="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+        >
+          {#if themeStore.dark}
+            <Papicon icon="sun" size={15} class="text-amber-500" />
+          {:else}
+            <Papicon icon="moon" size={15} />
+          {/if}
+        </button>
+
+        <!-- Badge "Live" -->
+        <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
+          <span class="ml-2.5 uppercase tracking-wider text-[10px]">{m.clan_public_live_badge()}</span>
+        </div>
       </div>
     </header>
 
@@ -203,8 +237,16 @@
           type="text"
           bind:value={searchQuery}
           placeholder={m.clan_public_search_placeholder()}
-          class="w-full pl-11 pr-4 py-3 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 shadow-sm transition-all"
+          class="w-full pl-11 pr-11 py-3 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 shadow-sm transition-all"
         />
+        {#if searchQuery}
+          <button
+            type="button"
+            onclick={() => searchQuery = ''}
+            aria-label={m.clan_public_search_placeholder()}
+            class="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-750 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all"
+          >✕</button>
+        {/if}
       </div>
 
       <!-- ─── Side-by-side Clans Column Grid (une colonne par clan) ─── -->
@@ -229,12 +271,6 @@
                   {m.clan_public_member_count({ n: clan.memberCount })}
                 </span>
               </div>
-
-              {#if clan.description}
-                <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed italic">
-                  « {clan.description} »
-                </p>
-              {/if}
 
               <!-- Score Card -->
               <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
@@ -292,8 +328,6 @@
 
       <!-- ─── Section « Derniers Scores » ─── -->
       <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
-        <div class="tape-accent"></div>
-
         <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
             <span class="text-emerald-500"><Papicon icon="Activity" size={16} /></span>
@@ -368,42 +402,73 @@
 </div>
 
 <style>
-  /* Accents de style Feuille Index */
+  /* Styles pour isoler le style du tableau blanc épuré */
   .whiteboard-container {
-    background-color: #f8fafc;
-    background-image: 
-      radial-gradient(#cbd5e1 0.75px, transparent 0.75px), 
-      radial-gradient(#cbd5e1 0.75px, #f8fafc 0.75px);
-    background-size: 30px 30px;
-    background-position: 0 0, 15px 15px;
-  }
-  
-  :global(.dark) .whiteboard-container {
-    background-color: #070d19;
-    background-image: 
-      radial-gradient(#1e293b 0.75px, transparent 0.75px), 
-      radial-gradient(#1e293b 0.75px, #070d19 0.75px);
-    background-size: 30px 30px;
-    background-position: 0 0, 15px 15px;
+    background-color: #faf9f6;
+    background-image:
+      radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+    background-size: 24px 24px;
+    color: #0f172a;
+    font-family: 'Outfit', sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  .tape-accent {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, #f59e0b 0%, #10b981 50%, #3b82f6 100%);
-    opacity: 0.85;
+  :global(.dark) .whiteboard-container {
+    background-color: #090d16 !important;
+    background-image: radial-gradient(#1e293b 1.2px, transparent 1.2px) !important;
+    color: #f8fafc !important;
   }
 
   .clean-card {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -2px rgba(0, 0, 0, 0.02);
   }
-  
   :global(.dark) .clean-card {
-    background-color: #0e1626;
-    border: 1px solid #1e293b;
+    background-color: #111a2e !important;
+    border-color: #1e293b !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15), 0 2px 4px -2px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .tape-accent {
+    position: absolute;
+    top: -8px;
+    right: 24px;
+    width: 80px;
+    height: 20px;
+    background-color: rgba(251, 191, 36, 0.22);
+    border-left: 1px dashed rgba(0,0,0,0.1);
+    border-right: 1px dashed rgba(0,0,0,0.1);
+    transform: rotate(3deg);
+    z-index: 10;
+  }
+  :global(.dark) .tape-accent {
+    background-color: rgba(251, 191, 36, 0.1) !important;
+    border-left: 1px dashed rgba(255,255,255,0.08) !important;
+    border-right: 1px dashed rgba(255,255,255,0.08) !important;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  :global(.dark) ::-webkit-scrollbar-track {
+    background: #0c1322;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  :global(.dark) ::-webkit-scrollbar-thumb {
+    background: #1e293b;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  :global(.dark) ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
   }
 </style>
