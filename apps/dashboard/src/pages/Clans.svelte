@@ -101,17 +101,25 @@
   let availableChannels = $state<any[]>([]);
 
   // Points Management tab states & handlers
+  // Même borne que l'API : au-delà, c'est une faute de frappe.
+  const MAX_MANUAL_POINTS = 1_000_000;
   let selectedClanIdForPoints = $state('');
   let manualPointsAmountClan = $state(100);
   let manualPointsMemberUserId = $state('');
   let manualPointsAmountMember = $state(100);
+
+  // Les points sont des entiers en base : on arrondit ici plutôt que de laisser
+  // l'API refuser une saisie décimale.
+  function sanitizePoints(amount: number): number {
+    return Math.max(-MAX_MANUAL_POINTS, Math.min(MAX_MANUAL_POINTS, Math.round(amount)));
+  }
 
   async function handleAddClanPoints() {
     if (!canManageSettings || !selectedClanIdForPoints || !manualPointsAmountClan) return;
     await actionState.run(async () => {
       const res = await addClanPoints({
         clanId: selectedClanIdForPoints,
-        amount: manualPointsAmountClan,
+        amount: sanitizePoints(manualPointsAmountClan),
       });
       if (!res) throw new Error(m.clan_err_add_clan_points());
       await refreshData(true);
@@ -126,7 +134,7 @@
       const res = await addClanPoints({
         clanId: null,
         userId: manualPointsMemberUserId,
-        amount: manualPointsAmountMember,
+        amount: sanitizePoints(manualPointsAmountMember),
       });
       if (!res) throw new Error(m.clan_err_add_member_points());
       await refreshData(true);
@@ -293,6 +301,7 @@
 
   // Polling mechanism while a background operation is active (kept as fallback)
   let pollInterval: ReturnType<typeof setInterval> | null = null;
+  let taskWasRunning = false;
   $effect(() => {
     if (taskInProgress && !pollInterval) {
       pollInterval = setInterval(() => {
@@ -302,6 +311,14 @@
       clearInterval(pollInterval);
       pollInterval = null;
     }
+
+    // « Retirer à tous » recrée les rôles de clan : sans recharger la liste des
+    // rôles Discord, la colonne Rôle afficherait un identifiant brut jusqu'au
+    // prochain rafraîchissement de la page.
+    if (taskWasRunning && !taskInProgress) {
+      void dashboardStore.refresh();
+    }
+    taskWasRunning = !!taskInProgress;
   });
 
   onDestroy(() => {
@@ -396,6 +413,10 @@
   // Dynamically import channels fetch
   import { fetchDiscordChannels } from '../lib/api';
 
+  // Les dates de saison ne passent volontairement pas par ici : elles ont leur
+  // propre enregistrement, avec sa validation. Les joindre à chaque sauvegarde
+  // de réglage rognait leur seconde au passage, et une plage incohérente encore
+  // en cours de saisie faisait échouer la sauvegarde d'un simple interrupteur.
   async function handleSaveSettings(): Promise<boolean> {
     if (!canManageSettings) return false;
     let success = false;
@@ -411,12 +432,10 @@
         clanRewardGiveaway,
         clanRewardLeaderRole,
         clanRewardXpBoost,
-        clanRewardXpBoostRate,
-        clanSeasonStartsAt: parseDateToIso(startDate, startTime),
-        clanSeasonEndsAt: parseDateToIso(endDate, endTime)
+        clanRewardXpBoostRate
       });
       if (!res) throw new Error(m.clan_err_save());
-      
+
       savedClansEnabled = res.clansEnabled;
       savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
@@ -426,8 +445,6 @@
       savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
       savedClanRewardGiveaway = res.clanRewardGiveaway;
       savedClanRewardLeaderRole = res.clanRewardLeaderRole;
-      savedClanSeasonStartsAt = res.clanSeasonStartsAt;
-      savedClanSeasonEndsAt = res.clanSeasonEndsAt;
       success = true;
       return true;
     }, { successMessage: m.clan_success_settings_saved() });
@@ -1309,6 +1326,9 @@
                 <input
                   id="manual-points-clan-amount"
                   type="number"
+                  step="1"
+                  min={-MAX_MANUAL_POINTS}
+                  max={MAX_MANUAL_POINTS}
                   bind:value={manualPointsAmountClan}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                   disabled={!canManageSettings}
@@ -1351,6 +1371,9 @@
                 <input
                   id="manual-points-member-amount"
                   type="number"
+                  step="1"
+                  min={-MAX_MANUAL_POINTS}
+                  max={MAX_MANUAL_POINTS}
                   bind:value={manualPointsAmountMember}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                   disabled={!canManageSettings}
