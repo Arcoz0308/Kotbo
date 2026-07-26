@@ -583,6 +583,7 @@ export type DashboardState = {
   funEnabled: boolean;
   economyEnabled: boolean;
   levelingEnabled: boolean;
+  adminLockEnabled: boolean;
   isStaffServer: boolean;
   funCountingChannelId: string;
   funOneWordStoryChannelId: string;
@@ -2565,9 +2566,10 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
 
   const guild = await prisma.guild.findUnique({ 
     where: { id: guildId },
-    include: { 
+    include: {
       dashboardFeatureConfigs: true,
-      levelConfig: true
+      levelConfig: true,
+      autoModConfig: { select: { adminLockEnabled: true } }
     }
   });
   if (!guild) return null;
@@ -3120,6 +3122,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     funEnabled: guild.funEnabled,
     economyEnabled: guild.economyEnabled,
     levelingEnabled: guild.levelConfig?.enabled ?? false,
+    adminLockEnabled: guild.autoModConfig?.adminLockEnabled ?? false,
     isStaffServer,
     funCountingChannelId: guild.funCountingChannelId ?? '',
     funOneWordStoryChannelId: guild.funOneWordStoryChannelId ?? '',

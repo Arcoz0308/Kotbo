@@ -100,6 +100,7 @@
   const isStaff      = $derived(!!authStore.member);
 
   const isStaffServerGuild = $derived(!!dashboardStore.state.isStaffServer);
+  const isAdminLockEnabled = $derived(!!dashboardStore.state.adminLockEnabled);
 
   const visibleGeneral    = $derived(generalItems.filter((i) => canViewFeature(i.featureKey)));
   const visibleLeveling   = $derived(isStaffServerGuild ? [] : levelingItems.filter((i) => canViewFeature(i.featureKey)));
@@ -107,7 +108,10 @@
   const visibleCommunity  = $derived(isStaffServerGuild ? [] : communityItems.filter((i) => canViewFeature(i.featureKey)));
   const visibleModeration = $derived(
     isStaff || isModerator || isAdmin
-      ? moderationItems.filter((i) => canViewFeature(i.featureKey))
+      ? moderationItems
+          // Admin Permission Lock : masqué tant que le module n'est pas activé
+          .filter((i) => i.href !== '/admin-lock' || isAdminLockEnabled)
+          .filter((i) => canViewFeature(i.featureKey))
       : [],
   );
   const visibleConfig = $derived(
