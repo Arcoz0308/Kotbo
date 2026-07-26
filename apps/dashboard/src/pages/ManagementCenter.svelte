@@ -9,6 +9,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import {
+    applyGuildPreset,
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
     updateRoleAccess,
