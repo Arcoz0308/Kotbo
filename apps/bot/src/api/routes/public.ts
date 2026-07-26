@@ -714,8 +714,10 @@ export async function handlePublicRoutes(
         const clanContributions = contributions.filter((c) => c.clanId === clan.id);
         const totalXp = clanContributions.reduce((sum, c) => sum + c.xp, 0);
 
-        // Top participants du clan
-        const topParticipants = clanContributions.slice(0, 10).map((c) => {
+        // Classement complet du clan (le front n'en affiche qu'un extrait par
+        // défaut, mais a besoin de toute la liste pour retrouver n'importe quel
+        // membre via la recherche et afficher son rang réel).
+        const topParticipants = clanContributions.map((c, i) => {
           const profile = profileMap.get(c.userId);
           const discordMember = discordGuild?.members.cache.get(c.userId);
 
@@ -724,6 +726,7 @@ export async function handlePublicRoutes(
 
           return {
             userId: c.userId,
+            rank: i + 1,
             xp: c.xp,
             displayName,
             avatarUrl,
@@ -790,6 +793,7 @@ export async function handlePublicRoutes(
             amount: e.amount,
             source: e.source, // 'XP' | 'ADMIN'
             isClan: isClanGlobal,
+            userId: isClanGlobal ? null : e.userId,
             displayName,
             avatarUrl,
             clanName: clan?.name || null,

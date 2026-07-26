@@ -21,6 +21,7 @@
   
   interface Participant {
     userId: string;
+    rank: number;
     xp: number;
     displayName: string;
     avatarUrl: string | null;
@@ -42,11 +43,18 @@
     amount: number;
     source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO'
     isClan: boolean;
+    userId: string | null;
     displayName: string;
     avatarUrl: string | null;
     clanName: string | null;
     clanColor: string | null;
     createdAt: string;
+  }
+
+  const MEMBER_DISPLAY_LIMIT = 10;
+
+  function normalize(s: string): string {
+    return s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
   }
 
   let clans = $state<ClanData[]>([]);
@@ -85,15 +93,23 @@
     }
   });
 
-  // Filter participants in each clan based on search query
+  // Sans recherche : on n'affiche que le haut du classement pour garder la page
+  // légère. En recherche : on filtre sur l'intégralité du classement du clan.
   function getFilteredParticipants(clan: ClanData): Participant[] {
-    if (!searchQuery) return clan.topParticipants;
-    const q = searchQuery.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-    return clan.topParticipants.filter(p => {
-      const name = p.displayName.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-      return name.includes(q) || p.userId.includes(searchQuery);
-    });
+    if (!searchQuery) return clan.topParticipants.slice(0, MEMBER_DISPLAY_LIMIT);
+    const q = normalize(searchQuery);
+    return clan.topParticipants.filter(p =>
+      normalize(p.displayName).includes(q) || p.userId.includes(searchQuery)
+    );
   }
+
+  const filteredRecentScores = $derived.by(() => {
+    if (!searchQuery) return recentScores;
+    const q = normalize(searchQuery);
+    return recentScores.filter(s =>
+      normalize(s.displayName).includes(q) || (s.userId ? s.userId.includes(searchQuery) : false)
+    );
+  });
 
   function formatXp(xp: number): string {
     if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
@@ -290,13 +306,13 @@
                 </div>
               {:else}
                 <div class="space-y-1.5">
-                  {#each pList as p, index}
+                  {#each pList as p}
                     <div class="flex items-center justify-between p-2.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 rounded-xl transition-all duration-200 group/item">
                       <div class="flex items-center gap-3 min-w-0">
-                        
+
                         <!-- Rank Badge -->
-                        <span class="w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0 {getRankBadgeColor(index + 1)}">
-                          {index + 1}
+                        <span class="min-w-6 h-6 px-1.5 rounded-md flex items-center justify-center text-xs font-black shrink-0 {getRankBadgeColor(p.rank)}">
+                          {p.rank}
                         </span>
 
                         <!-- User avatar -->
@@ -337,7 +353,7 @@
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_recent_scores_desc()}</p>
         </div>
 
-        {#if recentScores.length === 0}
+        {#if filteredRecentScores.length === 0}
           <div class="py-14 text-center text-xs text-slate-400 dark:text-slate-500 italic">
             {m.clan_public_no_recent_scores()}
           </div>
@@ -353,7 +369,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each recentScores as s, i}
+                {#each filteredRecentScores as s, i}
                   <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
                     <td class="px-6 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatRelativeTime(s.createdAt)}</td>
                     <td class="px-6 py-3">
