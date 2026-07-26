@@ -89,11 +89,11 @@
     return days;
   }
 
-  let calendarDays = $derived(getDaysForView(currentDate, view as ViewType));
-  let isTimeView = $derived(view !== 'month');
-  let colCount = $derived(calendarDays.length);
+  const calendarDays = $derived(getDaysForView(currentDate, view as ViewType));
+  const isTimeView = $derived(view !== 'month');
+  const colCount = $derived(calendarDays.length);
 
-  let headerTitle = $derived.by(() => {
+  const headerTitle = $derived.by(() => {
     if (view === 'day') {
       return capitalize(currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
     }

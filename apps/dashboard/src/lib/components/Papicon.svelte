@@ -2,7 +2,7 @@
   import { Papicons } from "@getpapillon/papicons";
   import * as LucideIcons from "lucide-svelte";
 
-  let { 
+  const { 
     icon = "", 
     size = 24, 
     class: className = "" 

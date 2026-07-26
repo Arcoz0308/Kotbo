@@ -26,7 +26,7 @@
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
 
   let createTutoringModalOpen = $state(false);
-  let createTutoringForm = $state({
+  const createTutoringForm = $state({
     staffUserId: '',
     mentorId: '',
     plannedDurationDays: 14,

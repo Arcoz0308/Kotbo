@@ -256,7 +256,7 @@
   }
 
   const filteredGroups = $derived.by((): NavGroup[] => {
-    let groups = showOnlyFavorites
+    const groups = showOnlyFavorites
       ? navGroups
           .map((g) => ({ ...g, items: g.items.filter((i) => favorites.includes(i.href)) }))
           .filter((g) => g.items.length > 0)

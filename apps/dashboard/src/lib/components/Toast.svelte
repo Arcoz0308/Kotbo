@@ -3,7 +3,7 @@
   import Papicon from './Papicon.svelte';
   import { m } from '../i18n';
 
-  let { item }: { item: ToastType } = $props();
+  const { item }: { item: ToastType } = $props();
 
   const iconName = $derived({
     success: 'check_circle',

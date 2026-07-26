@@ -28,7 +28,7 @@
     }, 2000);
   }
 
-  let customColors = $state<CustomThemeColors>({ ...themeStore.customColors });
+  const customColors = $state<CustomThemeColors>({ ...themeStore.customColors });
   let showCustomEditor = $state(false);
 
   function handleToggle<K extends keyof typeof userPrefs.prefs>(key: K, value: any) {

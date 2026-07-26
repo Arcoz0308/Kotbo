@@ -46,37 +46,37 @@
     'sparkles': Sparkles,
   };
 
-  let show = $derived(
+  const show = $derived(
     onboardingStore.initialized
     && !onboardingStore.checklistDismissed
     && onboardingStore.welcomeSeen
   );
 
-  let minimized = $derived(onboardingStore.checklistMinimized);
-  let activeTab = $derived(onboardingStore.activeTab);
+  const minimized = $derived(onboardingStore.checklistMinimized);
+  const activeTab = $derived(onboardingStore.activeTab);
 
   // Discover stats
-  let discoverCompleted = $derived(onboardingStore.completedCount);
-  let discoverTotal = $derived(onboardingStore.totalTasks);
-  let discoverProgress = $derived(onboardingStore.progress);
-  let discoverDone = $derived(onboardingStore.allCompleted);
+  const discoverCompleted = $derived(onboardingStore.completedCount);
+  const discoverTotal = $derived(onboardingStore.totalTasks);
+  const discoverProgress = $derived(onboardingStore.progress);
+  const discoverDone = $derived(onboardingStore.allCompleted);
 
   // Setup stats
-  let setupCompletedCount = $derived(onboardingStore.completedSetupCount);
-  let setupTotal = $derived(onboardingStore.totalSetupTasks);
-  let setupProgress = $derived(onboardingStore.setupProgress);
-  let setupDone = $derived(onboardingStore.allSetupCompleted);
-  let essentialsDone = $derived(onboardingStore.essentialsDone);
-  let essentialTotal = $derived(onboardingStore.essentialSetupCount);
-  let essentialCompleted = $derived(onboardingStore.completedEssentialCount);
+  const setupCompletedCount = $derived(onboardingStore.completedSetupCount);
+  const setupTotal = $derived(onboardingStore.totalSetupTasks);
+  const setupProgress = $derived(onboardingStore.setupProgress);
+  const setupDone = $derived(onboardingStore.allSetupCompleted);
+  const essentialsDone = $derived(onboardingStore.essentialsDone);
+  const essentialTotal = $derived(onboardingStore.essentialSetupCount);
+  const essentialCompleted = $derived(onboardingStore.completedEssentialCount);
 
   // Overall
-  let overallProgress = $derived(onboardingStore.overallProgress);
-  let bothDone = $derived(onboardingStore.bothCompleted);
+  const overallProgress = $derived(onboardingStore.overallProgress);
+  const bothDone = $derived(onboardingStore.bothCompleted);
 
   // Current tab active progress for the FAB
-  let fabProgress = $derived(activeTab === 'discover' ? discoverProgress : setupProgress);
-  let fabRemaining = $derived(
+  const fabProgress = $derived(activeTab === 'discover' ? discoverProgress : setupProgress);
+  const fabRemaining = $derived(
     activeTab === 'discover'
       ? discoverTotal - discoverCompleted
       : setupTotal - setupCompletedCount

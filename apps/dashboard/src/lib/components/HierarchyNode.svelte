@@ -16,7 +16,7 @@
     children: HierarchyTreeNode[];
   };
 
-  let { node, isRoot = false }: { node: HierarchyTreeNode; isRoot?: boolean } = $props();
+  const { node, isRoot = false }: { node: HierarchyTreeNode; isRoot?: boolean } = $props();
 
   function getMembersForRole(hierarchyMembers: HierarchyTreeNode['members'], roleName: string) {
     if (!hierarchyMembers) return [];

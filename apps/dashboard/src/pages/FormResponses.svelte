@@ -6,7 +6,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
 
-  let { formId }: { formId: string } = $props();
+  const { formId }: { formId: string } = $props();
 
   interface Candidature {
     id: string;

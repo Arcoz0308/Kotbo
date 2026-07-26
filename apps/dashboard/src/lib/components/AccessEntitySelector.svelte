@@ -8,7 +8,7 @@
     description?: string;
   };
 
-  let {
+  const {
     id,
     options,
     selectedIds,

@@ -524,7 +524,7 @@
   }
 
   function buildCommandSignature(cmdName: string, subName?: string, options?: any[]): string {
-    let parts = [`/${cmdName}`];
+    const parts = [`/${cmdName}`];
     if (subName) parts.push(subName);
     
     if (options) {

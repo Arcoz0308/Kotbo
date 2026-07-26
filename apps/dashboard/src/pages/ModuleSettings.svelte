@@ -40,7 +40,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { m } from '../lib/i18n';
 
-  let { moduleId } = $props();
+  const { moduleId } = $props();
 
   const module = $derived((dashboardStore.state.modules as Array<{ id: string; name: string; description: string; status: string }>).find((m) => m.id === moduleId) || { 
     name: m.ms_module_loading_name(), 

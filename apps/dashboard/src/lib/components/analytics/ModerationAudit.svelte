@@ -4,7 +4,7 @@
   import DetailedAnalyticsModal from './DetailedAnalyticsModal.svelte';
   import { m } from '../../i18n';
 
-  let { data, onOpenMember, chartLabels } = $props<{ 
+  const { data, onOpenMember, chartLabels } = $props<{ 
     data: any; 
     onOpenMember: (id: string, name: string) => void;
     chartLabels?: any;

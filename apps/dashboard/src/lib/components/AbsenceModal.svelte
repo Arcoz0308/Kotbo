@@ -7,7 +7,7 @@
   import ActionButton from './ActionButton.svelte';
   import Modal from './Modal.svelte';
 
-  let {
+  const {
     show = false,
     onClose = () => {},
     onSave = (data: any) => {},
@@ -56,7 +56,7 @@
     }
   });
   let isIndefinite = $state(false);
-  let confirmIndefinite = $state(false);
+  const confirmIndefinite = $state(false);
 
   const absenceTypes = [
     { value: 'CONGÉ', label: m.e5_absence_type_conge() },

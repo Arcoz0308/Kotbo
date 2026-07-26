@@ -6,7 +6,7 @@
   import { toast } from '../../stores/toast.svelte';
   import { downloadSingleSheetXlsx } from '../../xlsxExport';
 
-  let { data, chartLabels, onOpenMember } = $props<{
+  const { data, chartLabels, onOpenMember } = $props<{
     data: any;
     chartLabels: any[];
     onOpenMember?: (userId: string, name: string) => void;

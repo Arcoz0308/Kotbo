@@ -45,7 +45,7 @@
     Tooltip,
   );
 
-  let { 
+  const { 
     data, 
     type = 'line', 
     options = {}, 

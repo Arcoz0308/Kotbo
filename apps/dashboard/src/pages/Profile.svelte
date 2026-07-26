@@ -26,9 +26,9 @@
   interface Props {
     userId?: string;
   }
-  let { userId }: Props = $props();
+  const { userId }: Props = $props();
 
-  let targetUserId = $derived(userId || authStore.user?.id || '');
+  const targetUserId = $derived(userId || authStore.user?.id || '');
 
   let staffMember: StaffMember | null = $state(null);
   let publicProfile: any = $state(null);

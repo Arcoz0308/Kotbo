@@ -3,7 +3,7 @@
   import DetailedAnalyticsModal from './DetailedAnalyticsModal.svelte';
   import { m } from '../../i18n';
 
-  let { data, onOpenMember, fmt, fmtH } = $props<{ 
+  const { data, onOpenMember, fmt, fmtH } = $props<{ 
     data: any; 
     onOpenMember: (id: string, name: string) => void;
     fmt: (n: number) => string;

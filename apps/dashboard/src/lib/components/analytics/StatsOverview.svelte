@@ -6,7 +6,7 @@
   import { downloadSingleSheetXlsx } from '../../xlsxExport';
   import { m } from '../../i18n';
 
-  let { data, chartLabels } = $props<{ data: any; chartLabels: any[] }>();
+  const { data, chartLabels } = $props<{ data: any; chartLabels: any[] }>();
 
   const fmt = (n: number) => n?.toLocaleString('fr-FR') ?? '0';
 

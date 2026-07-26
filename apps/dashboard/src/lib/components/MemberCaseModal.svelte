@@ -70,7 +70,7 @@
   let messageQuery = $state('');
   let messageChannelId = $state('');
   let messageIncludeDeleted = $state(true);
-  let messageLimit = $state(20);
+  const messageLimit = $state(20);
   let messageOffset = $state(0);
   let messageFrom = $state('');
   let messageTo = $state('');

@@ -87,7 +87,7 @@
     };
     
     // Start progress simulation
-    let progressInterval = setInterval(() => {
+    const progressInterval = setInterval(() => {
       if (!creatingBackup) return;
       if (creatingBackup.progress < 30) {
         creatingBackup.progress += 5;
@@ -222,7 +222,7 @@
       statusText: 'Chargement du fichier...'
     };
     
-    let progressInterval = setInterval(() => {
+    const progressInterval = setInterval(() => {
       if (!creatingBackup) return;
       if (creatingBackup.progress < 40) {
         creatingBackup.progress += 10;

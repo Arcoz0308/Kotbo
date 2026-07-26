@@ -9,7 +9,7 @@
   interface Props {
     userId: string;
   }
-  let { userId }: Props = $props();
+  const { userId }: Props = $props();
 
   let profile: any = $state(null);
   let loading = $state(true);

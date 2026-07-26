@@ -6,7 +6,7 @@
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
 
-  let { section }: { section: AdvancedAnalyticsSection } = $props();
+  const { section }: { section: AdvancedAnalyticsSection } = $props();
 
   let data: any = $state(null);
   /**

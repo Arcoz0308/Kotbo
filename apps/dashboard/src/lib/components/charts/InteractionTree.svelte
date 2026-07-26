@@ -27,7 +27,7 @@
     weight: number;
   }
 
-  let {
+  const {
     nodes = [],
     edges = [],
     onSelectNode = (id: string) => {}
@@ -95,7 +95,7 @@
     hoveredNodeId = null;
   }
 
-  let adjacency = $derived.by(() => {
+  const adjacency = $derived.by(() => {
     const adj = new Map<string, Map<string, number>>();
     for (const edge of edges) {
       if (!adj.has(edge.from)) adj.set(edge.from, new Map());
@@ -261,7 +261,7 @@
     }
   });
 
-  let displayNodes = $derived.by(() => {
+  const displayNodes = $derived.by(() => {
     return simNodes.map(node => {
       const isDimmed = hoveredNodeId
         ? node.id !== hoveredNodeId && !edges.some(e =>
@@ -273,7 +273,7 @@
     });
   });
 
-  let groupedEdges = $derived.by(() => {
+  const groupedEdges = $derived.by(() => {
     const pairMap = new Map<string, any>();
 
     for (const edge of edges) {
@@ -307,7 +307,7 @@
     return Array.from(pairMap.values());
   });
 
-  let edgesWithCoords = $derived.by(() => {
+  const edgesWithCoords = $derived.by(() => {
     if (simNodes.length === 0) return [];
     const maxTotal = Math.max(1, ...groupedEdges.map(e => e.totalCount));
 
@@ -362,8 +362,8 @@
     }).filter(Boolean);
   });
 
-  let selectedNode = $derived(displayNodes.find(n => n.id === selectedNodeId) || null);
-  let selectedNodeStats = $derived.by(() => {
+  const selectedNode = $derived(displayNodes.find(n => n.id === selectedNodeId) || null);
+  const selectedNodeStats = $derived.by(() => {
     if (!selectedNodeId) return null;
     let mentions = 0, replies = 0, reactions = 0;
     for (const e of edges) {

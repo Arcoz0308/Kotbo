@@ -2,7 +2,7 @@
   type ButtonVariant = 'primary' | 'success' | 'muted' | 'danger' | 'neutral' | 'warning';
   type ButtonSize = 'sm' | 'md' | 'lg';
 
-  let {
+  const {
     onClick,
     type = 'button',
     variant = 'neutral',

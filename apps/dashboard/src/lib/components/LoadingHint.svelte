@@ -3,7 +3,7 @@
 
   type HintSet = { delay: number; messages: string[] };
 
-  let {
+  const {
     context = 'default',
     class: className = '',
   }: {

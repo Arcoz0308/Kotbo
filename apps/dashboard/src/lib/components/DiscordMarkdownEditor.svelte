@@ -48,7 +48,7 @@
   const filteredEmojis = $derived.by(() => {
     const term = emojiSearch.trim().toLowerCase();
     if (!term) return emojiMap[emojiCategory] || [];
-    let results: string[] = [];
+    const results: string[] = [];
     for (const key of Object.keys(emojiMap)) {
       results.push(...emojiMap[key].filter(e => e.includes(term)));
     }

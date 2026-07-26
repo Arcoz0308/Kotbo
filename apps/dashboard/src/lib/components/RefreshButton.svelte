@@ -1,7 +1,7 @@
 <script lang="ts">
   import { m } from '../i18n';
 
-  let {
+  const {
     onClick,
     loading = false,
     label = m.d6_refresh(),

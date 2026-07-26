@@ -1,6 +1,6 @@
 <script lang="ts">
   import { m } from '../i18n';
-  let {
+  const {
     text = m.d1_privacy_default_text(),
     compact = false,
     showDpa = false,

@@ -24,7 +24,7 @@
     { id: 'system', label: m.ksm_cat_system() },
   ];
 
-  let { isOpen = false, onClose = () => {} }: { isOpen?: boolean; onClose?: () => void } = $props();
+  const { isOpen = false, onClose = () => {} }: { isOpen?: boolean; onClose?: () => void } = $props();
 
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {

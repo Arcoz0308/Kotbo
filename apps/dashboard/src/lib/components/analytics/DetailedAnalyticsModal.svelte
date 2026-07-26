@@ -4,7 +4,7 @@
   import Chart from '../charts/Chart.svelte';
   import { m } from '../../i18n';
 
-  let {
+  const {
     open = false,
     title,
     subtitle,

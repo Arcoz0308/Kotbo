@@ -2,7 +2,7 @@
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
 
-  let { data, chartLabels, invitesData, onOpenMember } = $props<{
+  const { data, chartLabels, invitesData, onOpenMember } = $props<{
     data: any;
     chartLabels: any[];
     invitesData: any;

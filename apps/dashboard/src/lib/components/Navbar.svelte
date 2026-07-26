@@ -20,7 +20,7 @@
   let config = $state({ discordClientId: '' });
   let userMenuOpen = $state(false);
   let langMenuOpen = $state(false);
-  let searchQuery = $state('');
+  const searchQuery = $state('');
 
   const languages = [
     { code: 'fr', flag: '🇫🇷', label: 'Français' },

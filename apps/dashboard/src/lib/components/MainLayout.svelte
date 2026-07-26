@@ -24,7 +24,7 @@
   import { authStore } from '../stores/auth.svelte';
   import { onboardingStore } from '../stores/tutorial.svelte';
 
-  let { children }: { children?: Snippet } = $props();
+  const { children }: { children?: Snippet } = $props();
 
   onMount(() => {
     dashboardLifecycle.init();

@@ -25,7 +25,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
 
-  let { serverId = '' }: { serverId?: string } = $props();
+  const { serverId = '' }: { serverId?: string } = $props();
 
   // State management
   let articles = $state<any[]>([]);
@@ -277,7 +277,7 @@
     if (!text) return '<p class="text-on-surface-variant/40 italic">Aucun contenu rédigé pour le moment...</p>';
     
     // Escaping simple HTML tags to avoid XSS (just standard practice)
-    let escaped = text
+    const escaped = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
