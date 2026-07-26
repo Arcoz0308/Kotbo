@@ -26,6 +26,12 @@
       "rules": {
         "no-irregular-whitespace": "off"
       }
+    },
+    {
+      "files": ["src/lib/components/Skeleton.svelte"],
+      "rules": {
+        "svelte/valid-compile": "off"
+      }
     }
   ],
   "ignorePatterns": ["dist", "src/lib/paraglide", "node_modules"],
