@@ -18,7 +18,9 @@
   let guildIcon = $state<string | null>(null);
   let enabled = $state(false);
   let currentClanSeason = $state(1);
-  
+  let seasonStartsAt = $state<string | null>(null);
+  let seasonEndsAt = $state<string | null>(null);
+
   interface Participant {
     userId: string;
     rank: number;
@@ -82,6 +84,8 @@
         guildName = res.guildName ?? 'Kotbo Server';
         guildIcon = res.guildIcon ?? null;
         currentClanSeason = res.currentClanSeason ?? 1;
+        seasonStartsAt = res.clanSeasonStartsAt ?? null;
+        seasonEndsAt = res.clanSeasonEndsAt ?? null;
         clans = res.clans || [];
         recentScores = res.recentScores || [];
       }
@@ -158,6 +162,56 @@
     return m.clan_public_years_ago({ n: years });
   }
 
+  function formatSeasonDate(iso: string): string {
+    return new Date(iso).toLocaleDateString(dateLocale(), {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  const seasonRangeLabel = $derived.by(() => {
+    if (seasonStartsAt && seasonEndsAt) {
+      return m.clan_public_season_range({
+        start: formatSeasonDate(seasonStartsAt),
+        end: formatSeasonDate(seasonEndsAt),
+      });
+    }
+    if (seasonStartsAt) return m.clan_public_season_from({ start: formatSeasonDate(seasonStartsAt) });
+    if (seasonEndsAt) return m.clan_public_season_until({ end: formatSeasonDate(seasonEndsAt) });
+    return null;
+  });
+
+  // Le compte à rebours se rafraîchit à la minute : la page reste ouverte
+  // longtemps sur un écran de suivi.
+  let now = $state(Date.now());
+  $effect(() => {
+    const interval = setInterval(() => (now = Date.now()), 60_000);
+    return () => clearInterval(interval);
+  });
+
+  const seasonCountdown = $derived.by(() => {
+    if (seasonStartsAt) {
+      const start = new Date(seasonStartsAt).getTime();
+      if (!Number.isNaN(start) && start > now) {
+        return {
+          text: m.clan_public_season_starts_in({ n: Math.ceil((start - now) / 86_400_000) }),
+          ended: false,
+        };
+      }
+    }
+    if (!seasonEndsAt) return null;
+    const end = new Date(seasonEndsAt).getTime();
+    if (Number.isNaN(end)) return null;
+    const diff = end - now;
+    if (diff <= 0) return { text: m.clan_public_season_ended(), ended: true };
+    const days = Math.floor(diff / 86_400_000);
+    if (days >= 1) return { text: m.clan_public_season_days_left({ n: days }), ended: false };
+    const hours = Math.floor(diff / 3_600_000);
+    const minutes = Math.floor((diff % 3_600_000) / 60_000);
+    return { text: m.clan_public_season_hours_left({ h: hours, min: minutes }), ended: false };
+  });
+
   function getRankBadgeColor(rank: number) {
     if (rank === 1) return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
     if (rank === 2) return 'bg-slate-400/10 text-slate-400 border border-slate-400/20';
@@ -198,6 +252,27 @@
             <span class="text-amber-500"><Papicon icon="Shield" size={14} /></span>
             <span>{m.clan_public_header_subtitle({ n: currentClanSeason })}</span>
           </div>
+
+          {#if seasonRangeLabel || seasonCountdown}
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              {#if seasonRangeLabel}
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  <Papicon icon="Calendar" size={12} />
+                  {seasonRangeLabel}
+                </span>
+              {/if}
+              {#if seasonCountdown}
+                <span
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border {seasonCountdown.ended
+                    ? 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+                    : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'}"
+                >
+                  <Papicon icon="Clock" size={12} />
+                  {seasonCountdown.text}
+                </span>
+              {/if}
+            </div>
+          {/if}
         </div>
       </div>
 

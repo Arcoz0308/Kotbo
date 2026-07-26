@@ -667,7 +667,12 @@ export async function handlePublicRoutes(
     try {
       const guildConfig = await prisma.guild.findUnique({
         where: { id: guildId },
-        select: { clansEnabled: true, currentClanSeason: true },
+        select: {
+          clansEnabled: true,
+          currentClanSeason: true,
+          clanSeasonStartsAt: true,
+          clanSeasonEndsAt: true,
+        },
       });
 
       const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -810,6 +815,8 @@ export async function handlePublicRoutes(
       json(res, 200, {
         enabled: true,
         currentClanSeason: guildConfig.currentClanSeason,
+        clanSeasonStartsAt: guildConfig.clanSeasonStartsAt?.toISOString() ?? null,
+        clanSeasonEndsAt: guildConfig.clanSeasonEndsAt?.toISOString() ?? null,
         guildName: discordGuild?.name || 'Kotbo Server',
         guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
         clans: clansData,
