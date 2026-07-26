@@ -468,10 +468,7 @@ export async function handleClansRoutes(
         }
       }
 
-      // 1. Décerner les bonus, renommer les QG et publier les annonces de fin de saison
-      await handleEndSeason(guildId, client, auditUser, guild.currentClanSeason, nextSeason);
-
-      // 2. Mettre à jour la saison en base de données
+      // 1. Mettre à jour la saison en base de données immédiatement
       await prisma.guild.update({
         where: { id: guildId },
         data: { 
@@ -479,6 +476,11 @@ export async function handleClansRoutes(
           clanSeasonStartsAt: nextStartsAt,
           clanSeasonEndsAt: nextEndsAt,
         },
+      });
+
+      // 2. Décerner les bonus, renommer les QG et publier les annonces de fin de saison en arrière-plan
+      void handleEndSeason(guildId, client, auditUser, guild.currentClanSeason, nextSeason).catch((err) => {
+        logger.error('ClansAPI', 'Error handling end season in background:', err);
       });
 
       await pushAudit(guildId, {
@@ -598,7 +600,7 @@ export async function handleClansRoutes(
         }
       }
 
-      // 2. Mettre à jour la guilde
+      // 2. Mettre à jour la guilde et supprimer les contributions de la saison annulée en BDD
       await prisma.guild.update({
         where: { id: guildId },
         data: {
@@ -609,9 +611,6 @@ export async function handleClansRoutes(
         }
       });
 
-      // 3. Supprimer toutes les contributions de la saison "annulée" (currentSeason).
-      // Le journal des gains suit le même sort : le conserver ferait réapparaître,
-      // au prochain reset, des scores dont plus aucune contribution n'existe.
       await prisma.clanMemberContribution.deleteMany({
         where: { guildId, season: currentSeason }
       });
@@ -619,18 +618,19 @@ export async function handleClansRoutes(
         where: { guildId, season: currentSeason }
       });
 
-      // 4. Rétablir les rôles de chefs de clan
-      const clans = await prisma.clan.findMany({ where: { guildId } });
-      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-      if (discordGuild) {
+      // 3. Rétablir les rôles de chefs et renommer les QG Discord en arrière-plan
+      (async () => {
+        const clans = await prisma.clan.findMany({ where: { guildId } });
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (!discordGuild) return;
+
         // Retirer les chefs actuels
         for (const clan of clans) {
           if (clan.leaderRoleId) {
             const role = discordGuild.roles.cache.get(clan.leaderRoleId) || await discordGuild.roles.fetch(clan.leaderRoleId).catch(() => null);
             if (role) {
-              for (const [, m] of role.members) {
-                await m.roles.remove(clan.leaderRoleId, "Annulation clôture saison").catch(() => null);
-              }
+              const members = Array.from(role.members.values());
+              await Promise.all(members.map(m => m.roles.remove(clan.leaderRoleId!, "Annulation clôture saison").catch(() => null)));
             }
           }
         }
@@ -653,12 +653,11 @@ export async function handleClansRoutes(
           }
         }
 
-        // 5. Renommer les catégories QG pour le vainqueur rétabli
+        // Renommer les catégories QG pour le vainqueur rétabli
         const { ChannelType } = await import('discord.js');
         for (const clan of clans) {
           if (clan.generalChannelId) {
             const channel = discordGuild.channels.cache.get(clan.generalChannelId) || await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
-            // On renomme la catégorie parente du salon QG (même logique que la fin de saison).
             const category = channel && 'parent' in channel && channel.parent && channel.parent.type === ChannelType.GuildCategory
               ? channel.parent
               : (channel && channel.type === ChannelType.GuildCategory ? channel : null);
@@ -671,9 +670,11 @@ export async function handleClansRoutes(
             }
           }
         }
-      }
+      })().catch((err) => {
+        logger.error('ClansAPI', 'Error updating Discord elements during rollback:', err);
+      });
 
-      // 6. Audit
+      // 4. Audit
       await pushAudit(guildId, {
         user: auditUser,
         action: 'Annulation Clôture de Saison',
@@ -736,14 +737,12 @@ export async function handleClansRoutes(
 
       if (body.userId?.trim()) {
         const userId = body.userId.trim();
-        // Vérifier si l'utilisateur existe dans la base de données (profil membre du serveur)
-        const dbMember = await prisma.memberProfile.findUnique({
-          where: { guildId_userId: { guildId, userId } }
-        });
-        if (!dbMember) {
-          json(res, 404, { error: "L'utilisateur n'existe pas dans la base de données de Kotbo (il doit interagir sur Discord d'abord)." });
-          return true;
-        }
+        // S'assurer que le profil membre existe en base de données
+        await prisma.memberProfile.upsert({
+          where: { guildId_userId: { guildId, userId } },
+          update: {},
+          create: { guildId, userId },
+        }).catch(() => null);
 
         // Récupérer le membre Discord et ses rôles
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
