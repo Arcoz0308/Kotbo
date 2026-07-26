@@ -6,6 +6,25 @@ import { getClient } from '../../utils/client.js';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
 
+/**
+ * Refus d'une opération de masse quand une autre tourne déjà.
+ *
+ * Le message nomme la tâche en cours et son avancement : sans ça, un refus sec
+ * ressemble à une panne, alors qu'il suffit d'attendre.
+ */
+function busyTaskError(guildId: string): Error {
+  const task = clanTasks.get(guildId);
+  const label = task?.type === 'distribute' ? 'la distribution des clans'
+    : task?.type === 'dedupe' ? 'le nettoyage des clans multiples'
+    : 'le retrait des rôles de clan';
+  const progress = task && task.total > 0 ? ` (${task.processed}/${task.total})` : '';
+
+  return new Error(
+    `Impossible de lancer cette opération : ${label}${progress} est encore en cours sur ce serveur. `
+    + 'Sa progression est affichée sur le Dashboard, réessayez une fois terminée.'
+  );
+}
+
 // ─── Balise de champion sur la catégorie QG ──────────────────────────────────
 // Format unifié : « <nom de base> [🏆 CHAMPION · <bonus>] ». La balise est
 // toujours placée en fin de nom, ce qui permet de la retirer proprement (peu
@@ -185,7 +204,7 @@ export async function runDistribution(guildId: string, client: Client, initiator
   // administrateurs — franchissaient tous les deux le test et lançaient deux
   // distributions concurrentes sur les mêmes membres.
   if (clanTasks.has(guildId)) {
-    throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
+    throw busyTaskError(guildId);
   }
   clanTasks.set(guildId, { type: 'distribute', processed: 0, total: 0 });
 
@@ -423,7 +442,7 @@ async function removeRoleMemberByMember(guild: Guild, roleId: string, reason: st
 export async function runClear(guildId: string, client: Client, initiatorName: string): Promise<string> {
   // Même verrou anticipé que pour la distribution : voir le commentaire là-bas.
   if (clanTasks.has(guildId)) {
-    throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
+    throw busyTaskError(guildId);
   }
   clanTasks.set(guildId, { type: 'clear', processed: 0, total: 0 });
 
@@ -567,7 +586,7 @@ export async function runClanArtifactCleanup(
  */
 export async function runDeduplicate(guildId: string, client: Client, initiatorName: string): Promise<string> {
   if (clanTasks.has(guildId)) {
-    throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
+    throw busyTaskError(guildId);
   }
   clanTasks.set(guildId, { type: 'dedupe', processed: 0, total: 0 });
 

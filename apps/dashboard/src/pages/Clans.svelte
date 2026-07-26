@@ -111,7 +111,7 @@
   // Les points sont des entiers en base : on arrondit ici plutôt que de laisser
   // l'API refuser une saisie décimale.
   function sanitizePoints(amount: number): number {
-    return Math.max(-MAX_MANUAL_POINTS, Math.min(MAX_MANUAL_POINTS, Math.round(amount)));
+    return Math.max(1, Math.min(MAX_MANUAL_POINTS, Math.round(amount)));
   }
 
   async function handleAddClanPoints() {
@@ -883,23 +883,26 @@
               {#if canManageSettings}
                 <button
                   onclick={() => openConfirmation('clear')}
-                  class="flex items-center gap-1.5 px-3 py-1.5 border border-rose-500/30 hover:bg-rose-500/10 text-rose-500 font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                  title={m.clan_clear_all_title()}
+                  disabled={!!taskInProgress}
+                  class="flex items-center gap-1.5 px-3 py-1.5 border border-rose-500/30 hover:bg-rose-500/10 text-rose-500 font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  title={taskInProgress ? m.clan_task_running_hint() : m.clan_clear_all_title()}
                 >
                   <Papicon icon="Trash" size={12} /> {m.clan_clear_all_btn()}
                 </button>
                 <button
                   onclick={handleDistribute}
-                  class="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/15 hover:bg-secondary/25 text-secondary font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                  title={m.clan_distribute_title()}
+                  disabled={!!taskInProgress}
+                  class="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/15 hover:bg-secondary/25 text-secondary font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-secondary/15"
+                  title={taskInProgress ? m.clan_task_running_hint() : m.clan_distribute_title()}
                 >
                   <Papicon icon="Users" size={12} /> {m.clan_distribute_btn()}
                 </button>
                 {#if clans.length > 1}
                   <button
                     onclick={() => openConfirmation('dedupe')}
-                    class="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant/30 hover:bg-surface-container-high/60 text-on-surface-variant font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                    title={m.clan_dedupe_title()}
+                    disabled={!!taskInProgress}
+                    class="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant/30 hover:bg-surface-container-high/60 text-on-surface-variant font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    title={taskInProgress ? m.clan_task_running_hint() : m.clan_dedupe_title()}
                   >
                     <Papicon icon="Refresh" size={12} /> {m.clan_dedupe_btn()}
                   </button>
@@ -1327,7 +1330,7 @@
                   id="manual-points-clan-amount"
                   type="number"
                   step="1"
-                  min={-MAX_MANUAL_POINTS}
+                  min="1"
                   max={MAX_MANUAL_POINTS}
                   bind:value={manualPointsAmountClan}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
@@ -1372,7 +1375,7 @@
                   id="manual-points-member-amount"
                   type="number"
                   step="1"
-                  min={-MAX_MANUAL_POINTS}
+                  min="1"
                   max={MAX_MANUAL_POINTS}
                   bind:value={manualPointsAmountMember}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"

@@ -411,7 +411,7 @@ export async function handleClansRoutes(
       json(res, 200, { message });
     } catch (err: any) {
       logger.error('ClansAPI', 'Error launching distribution:', err);
-      json(res, err.message.includes('déjà en cours') || err.message.includes('configurer') ? 400 : 500, { error: err.message });
+      json(res, err.message.includes('en cours') || err.message.includes('configurer') ? 400 : 500, { error: err.message });
     }
     return true;
   }
@@ -423,7 +423,7 @@ export async function handleClansRoutes(
       json(res, 200, { message });
     } catch (err: any) {
       logger.error('ClansAPI', 'Error launching clear:', err);
-      json(res, err.message.includes('déjà en cours') || err.message.includes('Aucun clan') ? 400 : 500, { error: err.message });
+      json(res, err.message.includes('en cours') || err.message.includes('Aucun clan') ? 400 : 500, { error: err.message });
     }
     return true;
   }
@@ -435,7 +435,7 @@ export async function handleClansRoutes(
       json(res, 200, { message });
     } catch (err: any) {
       logger.error('ClansAPI', 'Error launching dedupe:', err);
-      json(res, err.message.includes('déjà en cours') || err.message.includes('deux clans') ? 400 : 500, { error: err.message });
+      json(res, err.message.includes('en cours') || err.message.includes('deux clans') ? 400 : 500, { error: err.message });
     }
     return true;
   }
@@ -708,13 +708,14 @@ export async function handleClansRoutes(
         return true;
       }
 
-      // Les points sont des entiers en base : un décimal ferait échouer l'écriture.
-      if (!Number.isInteger(body.amount) || body.amount === 0) {
-        json(res, 400, { error: 'Le montant doit être un nombre entier différent de zéro.' });
+      // Les points sont des entiers positifs : la base ne stocke pas de décimale,
+      // et un retrait manuel fausserait un classement déjà annoncé.
+      if (!Number.isInteger(body.amount) || body.amount <= 0) {
+        json(res, 400, { error: 'Le montant doit être un nombre entier positif (pas de décimale, pas de retrait).' });
         return true;
       }
-      if (Math.abs(body.amount) > MAX_MANUAL_POINTS) {
-        json(res, 400, { error: `Le montant doit rester compris entre -${MAX_MANUAL_POINTS} et ${MAX_MANUAL_POINTS}.` });
+      if (body.amount > MAX_MANUAL_POINTS) {
+        json(res, 400, { error: `Le montant ne peut pas dépasser ${MAX_MANUAL_POINTS.toLocaleString('fr-FR')} points.` });
         return true;
       }
 
