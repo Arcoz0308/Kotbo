@@ -141,7 +141,7 @@
   let showConfirmModal = $state(false);
 
   const canManageSettings = $derived(
-    !!dashboardStore.state.featureAccess?.welcome_goodbye?.canConfigure
+    !!dashboardStore.state.featureAccess?.leveling?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
   );
 
@@ -663,7 +663,7 @@
   title={m.clan_page_title()}
   description={m.clan_page_desc()}
   icon="Shield"
-  featureKey="welcome_goodbye"
+  featureKey="leveling"
 >
   <InlineFeedback state={actionState} />
 

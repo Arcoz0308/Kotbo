@@ -722,21 +722,27 @@ export async function handlePublicRoutes(
         // Classement complet du clan (le front n'en affiche qu'un extrait par
         // défaut, mais a besoin de toute la liste pour retrouver n'importe quel
         // membre via la recherche et afficher son rang réel).
-        const topParticipants = clanContributions.map((c, i) => {
-          const profile = profileMap.get(c.userId);
-          const discordMember = discordGuild?.members.cache.get(c.userId);
+        //
+        // Les points attribués au clan entier sont stockés sous un pseudo-membre :
+        // ils comptent dans le total du clan mais ne sont pas un participant, et
+        // les laisser ici décalerait le rang de tout le monde.
+        const topParticipants = clanContributions
+          .filter((c) => c.userId !== 'system_manual_points')
+          .map((c, i) => {
+            const profile = profileMap.get(c.userId);
+            const discordMember = discordGuild?.members.cache.get(c.userId);
 
-          const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
-          const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+            const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
+            const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
 
-          return {
-            userId: c.userId,
-            rank: i + 1,
-            xp: c.xp,
-            displayName,
-            avatarUrl,
-          };
-        });
+            return {
+              userId: c.userId,
+              rank: i + 1,
+              xp: c.xp,
+              displayName,
+              avatarUrl,
+            };
+          });
 
         return {
           id: clan.id,

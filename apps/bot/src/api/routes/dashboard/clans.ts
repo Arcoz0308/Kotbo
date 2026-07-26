@@ -574,8 +574,13 @@ export async function handleClansRoutes(
         }
       });
 
-      // 3. Supprimer toutes les contributions de la saison "annulée" (currentSeason)
+      // 3. Supprimer toutes les contributions de la saison "annulée" (currentSeason).
+      // Le journal des gains suit le même sort : le conserver ferait réapparaître,
+      // au prochain reset, des scores dont plus aucune contribution n'existe.
       await prisma.clanMemberContribution.deleteMany({
+        where: { guildId, season: currentSeason }
+      });
+      await prisma.clanContributionEvent.deleteMany({
         where: { guildId, season: currentSeason }
       });
 
