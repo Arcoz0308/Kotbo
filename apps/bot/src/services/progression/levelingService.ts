@@ -173,16 +173,17 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
     const guildSettings = await getCachedGuild(guildId);
 
     if (guildSettings?.clanRewardXpBoost && guildSettings.lastWinningClanId) {
-      const winningClan = await prisma.clan.findUnique({
-        where: { id: guildSettings.lastWinningClanId },
+      const winnerIds = guildSettings.lastWinningClanId.split(',');
+      const winningClans = await prisma.clan.findMany({
+        where: { id: { in: winnerIds } },
         select: { roleId: true },
       });
 
-      if (winningClan) {
+      if (winningClans.length > 0) {
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
         if (discordGuild) {
           const member = discordGuild.members.cache.get(userId) || await discordGuild.members.fetch(userId).catch(() => null);
-          if (member && member.roles.cache.has(winningClan.roleId)) {
+          if (member && winningClans.some((c) => member.roles.cache.has(c.roleId))) {
             finalAmount = Math.round(amount * guildSettings.clanRewardXpBoostRate);
           }
         }

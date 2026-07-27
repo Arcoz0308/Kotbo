@@ -1092,10 +1092,7 @@ export async function handleEndSeason(
     const clans = await prisma.clan.findMany({ where: { guildId } });
     if (clans.length === 0) return;
 
-    // 2. Calculer les totaux d'XP par clan pour la saison
-    let winningClan = null;
-    let maxClanXp = -1;
-
+    // 2. Calculer les totaux d'XP par clan pour la saison et trouver TOUS les clans gagnants (ex æquo)
     const clansWithXp = await Promise.all(
       clans.map(async (clan) => {
         const aggregate = await prisma.clanMemberContribution.aggregate({
@@ -1107,12 +1104,10 @@ export async function handleEndSeason(
       })
     );
 
-    for (const item of clansWithXp) {
-      if (item.totalXp > maxClanXp && item.totalXp > 0) {
-        maxClanXp = item.totalXp;
-        winningClan = item.clan;
-      }
-    }
+    const maxClanXp = Math.max(...clansWithXp.map((item) => item.totalXp), 0);
+    const winningClans = maxClanXp > 0
+      ? clansWithXp.filter((item) => item.totalXp === maxClanXp).map((item) => item.clan)
+      : [];
 
     // Récupérer le serveur Discord
     const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -1139,72 +1134,81 @@ export async function handleEndSeason(
       }
     }
 
-    let leaderUserId: string | null = null;
-    let leaderXp = 0;
+    // Map pour stocker les chefs (éventuellement multiples par clan en cas d'ex æquo)
+    const clanLeadersMap = new Map<string, { userIds: string[]; xp: number }>();
 
-    // 3. Traiter le vainqueur s'il y en a un
-    if (winningClan) {
-      // Enregistrer le vainqueur
+    // 3. Traiter le(s) vainqueur(s)
+    if (winningClans.length > 0) {
+      const winningIdsString = winningClans.map((c) => c.id).join(',');
       await prisma.guild.update({
         where: { id: guildId },
-        data: { lastWinningClanId: winningClan.id },
+        data: { lastWinningClanId: winningIdsString },
       });
-
-      // Trouver le chef du clan gagnant pour l'annonce
-      const topWinnerContributor = await prisma.clanMemberContribution.findFirst({
-        where: { guildId, clanId: winningClan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
-        orderBy: { xp: 'desc' },
-      });
-
-      if (topWinnerContributor && topWinnerContributor.xp > 0) {
-        leaderUserId = topWinnerContributor.userId;
-        leaderXp = topWinnerContributor.xp;
-      }
     } else {
-      // Pas de vainqueur cette saison, reset lastWinningClanId
       await prisma.guild.update({
         where: { id: guildId },
         data: { lastWinningClanId: null },
       });
     }
 
-    // 4. Attribuer le rôle de chef de clan pour chaque clan si activé
-    if (guildSettings.clanRewardLeaderRole) {
-      for (const clan of clans) {
-        if (!clan.leaderRoleId) continue;
+    // 4. Attribuer les rôles de chefs pour TOUS les ex æquo de chaque clan
+    for (const clan of clans) {
+      const topContrib = await prisma.clanMemberContribution.findFirst({
+        where: { guildId, clanId: clan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
+        orderBy: { xp: 'desc' },
+      });
 
-        // Trouver le meilleur contributeur de ce clan pour la saison
-        const topContributor = await prisma.clanMemberContribution.findFirst({
-          where: { guildId, clanId: clan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
-          orderBy: { xp: 'desc' },
+      if (topContrib && topContrib.xp > 0) {
+        const topContributors = await prisma.clanMemberContribution.findMany({
+          where: {
+            guildId,
+            clanId: clan.id,
+            season: currentSeason,
+            userId: { not: 'system_manual_points' },
+            xp: topContrib.xp,
+          },
         });
 
-        if (topContributor && topContributor.xp > 0) {
-          const member = discordGuild.members.cache.get(topContributor.userId) 
-            || await discordGuild.members.fetch(topContributor.userId).catch(() => null);
-          if (member) {
-            await member.roles.add(clan.leaderRoleId, `Chef du clan ${clan.name} - Fin de la Saison ${currentSeason}`).catch((err) => {
-              logger.warn('ClanService', `Impossible d'attribuer le rôle de chef du clan ${clan.name} à ${member.user.tag}:`, err);
-            });
+        const topUserIds = topContributors.map((c) => c.userId);
+        clanLeadersMap.set(clan.id, { userIds: topUserIds, xp: topContrib.xp });
+
+        if (guildSettings.clanRewardLeaderRole && clan.leaderRoleId) {
+          for (const userId of topUserIds) {
+            const member = discordGuild.members.cache.get(userId)
+              || await discordGuild.members.fetch(userId).catch(() => null);
+            if (member) {
+              await member.roles.add(clan.leaderRoleId, `Chef du clan ${clan.name} (ex æquo) - Fin de la Saison ${currentSeason}`).catch((err) => {
+                logger.warn('ClanService', `Impossible d'attribuer le rôle de chef du clan ${clan.name} à ${member.user.tag}:`, err);
+              });
+            }
           }
         }
       }
     }
 
-    // 4. Envoyer l'annonce globale de fin de saison
+    // 5. Envoyer l'annonce globale de fin de saison (avec gestion ex æquo)
     if (guildSettings.clanAnnouncementChannelId) {
       try {
         const announcementChannel = discordGuild.channels.cache.get(guildSettings.clanAnnouncementChannelId)
           || await discordGuild.channels.fetch(guildSettings.clanAnnouncementChannelId).catch(() => null);
           
         if (announcementChannel && announcementChannel.isTextBased()) {
+          const isTie = winningClans.length > 1;
+          const title = isTie
+            ? `🤝 Fin de la Saison de Clans ${currentSeason} (Égalité Ex Æquo) !`
+            : `🏁 Fin de la Saison de Clans ${currentSeason} !`;
+
           const globalEmbed = new EmbedBuilder()
-            .setTitle(`🏁 Fin de la Saison de Clans ${currentSeason} !`)
+            .setTitle(title)
             .setColor(0xF59E0B) // Amber
             .setTimestamp();
 
-          if (winningClan) {
-            let winnerText = `Le clan **${winningClan.name}** remporte la victoire pour cette saison avec un total de **${maxClanXp.toLocaleString('fr-FR')} XP** ! 🎉\n\n`;
+          if (winningClans.length > 0) {
+            const winnerNamesText = winningClans.map((c) => `**${c.name}**`).join(' et ');
+            let winnerText = isTie
+              ? `Les clans ${winnerNamesText} se hissent ex æquo à la première place avec **${maxClanXp.toLocaleString('fr-FR')} XP** chacun ! 🎉\n\n`
+              : `Le clan ${winnerNamesText} remporte la victoire pour cette saison avec un total de **${maxClanXp.toLocaleString('fr-FR')} XP** ! 🎉\n\n`;
+
             winnerText += `Ses membres bénéficient d'avantages exclusifs pour la **Saison ${nextSeason}** :\n`;
             if (guildSettings.clanRewardXpBoost) {
               winnerText += `- **Boost d'XP** : +${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% d'XP sur tout le serveur !\n`;
@@ -1212,9 +1216,18 @@ export async function handleEndSeason(
             if (guildSettings.clanRewardGiveaway) {
               winnerText += `- **Giveaways** : Plus de chances de remporter les tirages au sort !\n`;
             }
-            
-            if (leaderUserId) {
-              winnerText += `\nFélicitations à <@${leaderUserId}>, couronné **Chef de Coalition** du clan avec une contribution record de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑`;
+
+            const winningLeadersMentions: string[] = [];
+            for (const winClan of winningClans) {
+              const leaderData = clanLeadersMap.get(winClan.id);
+              if (leaderData && leaderData.userIds.length > 0) {
+                const mentions = leaderData.userIds.map((u) => `<@${u}>`).join(', ');
+                winningLeadersMentions.push(`${winClan.name} : ${mentions} (${leaderData.xp.toLocaleString('fr-FR')} XP)`);
+              }
+            }
+
+            if (winningLeadersMentions.length > 0) {
+              winnerText += `\nFélicitations aux **Chefs de Coalition** 👑 :\n` + winningLeadersMentions.map((m) => `• ${m}`).join('\n');
             }
 
             globalEmbed.setDescription(winnerText);
@@ -1231,20 +1244,38 @@ export async function handleEndSeason(
       }
     }
 
-    // 6. Envoyer l'annonce interne dans le QG du clan vainqueur
-    if (winningClan && winningClan.generalChannelId) {
+    // 6. Envoyer l'annonce interne dans le QG de CHAQUE clan gagnant (ex æquo pris en compte)
+    for (const winningClan of winningClans) {
+      if (!winningClan.generalChannelId) continue;
       try {
         const qgChannel = discordGuild.channels.cache.get(winningClan.generalChannelId)
           || await discordGuild.channels.fetch(winningClan.generalChannelId).catch(() => null);
           
         if (qgChannel && qgChannel.isTextBased()) {
+          const isTie = winningClans.length > 1;
+          const otherWinners = winningClans.filter((c) => c.id !== winningClan.id).map((c) => `**${c.name}**`).join(' et ');
+          
+          const title = isTie
+            ? `🤝 Victoire du Clan ${winningClan.name} (Ex Æquo) !`
+            : `🏆 Victoire du Clan ${winningClan.name} !`;
+
+          const leaderData = clanLeadersMap.get(winningClan.id);
+          const leaderMentions = leaderData ? leaderData.userIds.map((u) => `<@${u}>`).join(', ') : '';
+          const leaderXpText = leaderData ? `${leaderData.xp.toLocaleString('fr-FR')} XP` : '';
+
+          let description = isTie
+            ? `Félicitations à tous les membres ! Notre clan partage la victoire de la **Saison ${currentSeason}** ex æquo avec ${otherWinners} avec un total de **${maxClanXp.toLocaleString('fr-FR')} XP** ! 🎉\n\n`
+            : `Félicitations à tous les membres ! Grâce à votre investissement, notre clan remporte la **Saison ${currentSeason}** ! 🎉\n\n`;
+
+          description += `Nos récompenses de vainqueurs sont désormais actives pour toute la **Saison ${nextSeason}**. `;
+          if (leaderMentions) {
+            const chefLabel = leaderData && leaderData.userIds.length > 1 ? 'nos **Chefs de Coalition**' : 'notre **Chef de Coalition**';
+            description += `Un salut spécial à ${chefLabel} ${leaderMentions} pour ce score impressionnant de **${leaderXpText}** ! 👑`;
+          }
+
           const localEmbed = new EmbedBuilder()
-            .setTitle(`🏆 Victoire du Clan ${winningClan.name} !`)
-            .setDescription(
-              `Félicitations à tous les membres ! Grâce à votre investissement, notre clan remporte la **Saison ${currentSeason}** ! 🎉\n\n` +
-              `Nos récompenses de vainqueurs sont désormais actives pour toute la **Saison ${nextSeason}**. ` +
-              (leaderUserId ? `Un salut spécial à notre **Chef de Coalition** <@${leaderUserId}> pour son score impressionnant de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑` : '')
-            )
+            .setTitle(title)
+            .setDescription(description)
             .setColor(0x10B981) // Green
             .setTimestamp();
 
