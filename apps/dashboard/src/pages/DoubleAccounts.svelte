@@ -897,8 +897,13 @@
 
       <div class="relative w-full aspect-[8/5] bg-surface-container-lowest/80 rounded-lg overflow-hidden border border-outline-variant/10">
         <!-- SVG container -->
+        <!-- Le deplacement des noeuds est une commodite souris ; la meme
+             information est disponible dans le tableau ci-dessous. -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <svg
           bind:this={svgElement}
+          role="img"
+          aria-label="Graphe des comptes lies"
           class="w-full h-full cursor-grab active:cursor-grabbing"
           onmousemove={handleSvgMouseMove}
           onmouseup={handleNodeDragEnd}
@@ -919,6 +924,8 @@
             {#if sourceNode && targetNode}
               {@const isHovered = hoveredLink === link}
               <line
+                role="img"
+                aria-label="Lien entre {sourceNode.label} et {targetNode.label}"
                 x1={sourceNode.x}
                 y1={sourceNode.y}
                 x2={targetNode.x}

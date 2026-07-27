@@ -13,7 +13,7 @@
   let event = $state<any>(null);
   let stats = $state<any>(null);
   let registrations = $state<any[]>([]);
-  let isFetching = $state(false);
+  const isFetching = $state(false);
   let interval: any;
 
   let activeTab = $state<'stats' | 'participants' | 'registrations'>('stats');

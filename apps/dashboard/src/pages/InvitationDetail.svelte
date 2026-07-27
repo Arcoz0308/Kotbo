@@ -6,7 +6,7 @@
     code?: string;
   }
 
-  let { code = '' }: Props = $props();
+  const { code = '' }: Props = $props();
 
   const invitationTabPaths = new Set(['sources', 'top', 'suspensions']);
 

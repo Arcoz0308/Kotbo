@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { MemberCaseResponse } from '@kotbo/contracts';
   import { channelDisplayName } from '../channelUtils';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte.ts';
@@ -27,144 +28,6 @@
     activeDays: number;
     period: number;
     dailyTrend: Array<{ dateKey: string; messages: number; voiceMinutes: number }>;
-  };
-
-  type MemberCaseResponse = {
-    profile: {
-      userId: string;
-      userTag: string | null;
-      username: string | null;
-      globalName: string | null;
-      displayName: string | null;
-      avatarUrl: string | null;
-      bannerUrl: string | null;
-      accentColor: number | null;
-      locale: string | null;
-      isBot: boolean;
-      accountCreatedAt: string | null;
-      guildJoinedAt: string | null;
-      guildLeftAt: string | null;
-      firstSeenAt: string | null;
-      lastSeenAt: string | null;
-      lastMessageAt: string | null;
-      lastMessageChannelId: string | null;
-      messageCount: number;
-      voiceSessionCount: number;
-      voiceTimeSeconds: number;
-      voiceLastChannelId: string | null;
-      voiceLastJoinedAt: string | null;
-      voiceLastLeftAt: string | null;
-      rolesSnapshot: string[];
-      presenceStatus: string | null;
-      pronouns: string | null;
-      isTutor: boolean;
-      staffGrade: string | null;
-      moderatorNote: string | null;
-      isOnServer?: boolean;
-    } | null;
-    invite: {
-      code: string | null;
-      inviterId: string | null;
-      inviterTag: string | null;
-      inviterAvatarUrl: string | null;
-      joinedAt: string | null;
-    } | null;
-    roles: Array<{ id: string; name: string; mention: string; permissions: string[]; color?: string }>;
-    effectivePermissions: string[];
-    sanctions: Array<{
-      id: string;
-      type: string;
-      status: string;
-      targetUserId: string;
-      targetTag: string;
-      moderatorUserId: string;
-      moderatorTag: string;
-      reason: string;
-      durationSeconds: number | null;
-      expiresAt: string | null;
-      createdAt: string;
-      resolvedAt: string | null;
-      resolutionNote: string | null;
-    }>;
-    logs: Array<{
-      id: string;
-      user: string;
-      action: string;
-      context: string;
-      module: string;
-      eventType: string;
-      source: 'dashboard' | 'discord';
-      details: string;
-      dateIso: string;
-      channelId: string | null;
-    }>;
-    messagesByChannel: Array<{
-      channelId: string;
-      channelName: string;
-      count: number;
-      lastMessageAt: string | null;
-      recentMessages: Array<{ id: string; channelId: string; channelName: string; content: string; dateIso: string; discordUrl?: string | null }>;
-    }>;
-    recentMessageCount: number;
-    recentLogCount: number;
-    connections: Array<{ name: string; type: string; visible: boolean }>;
-    connectionsNote: string;
-    candidatures: Array<{
-      id: string;
-      status: string;
-      notes: string;
-      createdAt: string;
-      data: any;
-      autoRejected: boolean;
-      autoRejectReason: string | null;
-      rejectionReason: string | null;
-      oralResult: string | null;
-      reapplyAfter: string | null;
-    }>;
-    sanctionReports?: Array<{
-      id: string;
-      sanctionId: string | null;
-      staffPseudo: string;
-      incidentAt: string;
-      memberPseudo: string;
-      memberReference: string;
-      sanctionType: string;
-      sanctionDurationLabel: string | null;
-      brokenRules: string;
-      detailedReason: string;
-      evidenceLinks: string[];
-      additionalNotes: string | null;
-      createdByUserId: string;
-      createdByTag: string | null;
-      createdAt: string;
-    }>;
-    linkedAccounts: Array<{
-      userId: string;
-      userTag: string | null;
-      avatarUrl: string | null;
-      type: string;
-      status: string;
-    }>;
-    isSuspectedDC: boolean;
-    crossServerSanctions?: {
-      enabled: boolean;
-      serverCount: number;
-      total: number;
-      breakdown: Record<string, number>;
-      recent: Array<{
-        type: string;
-        status: string;
-        durationSeconds: number | null;
-        reason: string;
-        createdAt: string;
-        guildId: string;
-        guildName: string;
-      }>;
-    };
-    interactionGraph: {
-      nodes: Array<{ id: string; label: string; type: 'user' | 'target'; avatar?: string | null }>;
-      edges: Array<{ from: string; to: string; type: 'mention' | 'reply' | 'reaction'; count: number }>;
-    };
   };
 
   let {
@@ -207,7 +70,7 @@
   let messageQuery = $state('');
   let messageChannelId = $state('');
   let messageIncludeDeleted = $state(true);
-  let messageLimit = $state(20);
+  const messageLimit = $state(20);
   let messageOffset = $state(0);
   let messageFrom = $state('');
   let messageTo = $state('');
@@ -555,7 +418,7 @@
 
   const sanctions = $derived(
     caseData?.sanctions
-      ? [...caseData?.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      ? [...caseData.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : []
   );
 

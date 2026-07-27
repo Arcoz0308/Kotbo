@@ -3,6 +3,8 @@ import { Client } from 'discord.js';
 import { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { cache } from '../../utils/cache.js';
+import { publicClansRateLimiter, publicClanSearchRateLimiter } from '../limiters.js';
 import {
   json,
   verifyAuth,
@@ -60,6 +62,16 @@ function guildScopedMcpBase(req: IncomingMessage, url: URL, guildId: string): st
 const publicFormLimiter = new Map<string, number[]>();
 const PUBLIC_FORM_WINDOW_MS = 60_000;
 const PUBLIC_FORM_MAX = 5;
+
+/** Gains attribués au clan entier, sans contributeur individuel. */
+const CLAN_WIDE_USER_ID = 'system_manual_points';
+/** Tête de classement envoyée au chargement de la page publique des clans. */
+const PUBLIC_CLANS_TOP_LIMIT = 25;
+const PUBLIC_CLANS_CACHE_TTL_S = 30;
+/** Bornes de la recherche publique, pour qu'une requête très large reste bon marché. */
+const SEARCH_MATCH_LIMIT = 200;
+const SEARCH_PARTICIPANT_LIMIT = 40;
+const SEARCH_POINTLESS_LIMIT = 10;
 
 function checkPublicFormRateLimit(req: IncomingMessage, res: ServerResponse): boolean {
   const ip = getClientIp(req);
@@ -664,10 +676,32 @@ export async function handlePublicRoutes(
       return true;
     }
 
+    if (!checkRateLimit(publicClansRateLimiter, getClientIp(req), 60, 60_000)) {
+      json(res, 429, { error: 'Trop de requêtes. Veuillez réessayer plus tard.' });
+      return true;
+    }
+
+    // La réponse est identique pour tous les visiteurs : un cache court suffit
+    // à ce qu'une page très consultée ne coûte qu'une lecture par intervalle.
+    // Le préfixe `guild:<id>:` est celui qu'invalide toute écriture du dashboard,
+    // donc une action d'admin est répercutée sans attendre l'expiration.
+    const cacheKey = `guild:${guildId}:public-clans`;
+    const cachedPayload = await cache.get<unknown>(cacheKey);
+    if (cachedPayload) {
+      res.setHeader('Cache-Control', `public, max-age=${PUBLIC_CLANS_CACHE_TTL_S}`);
+      json(res, 200, cachedPayload);
+      return true;
+    }
+
     try {
       const guildConfig = await prisma.guild.findUnique({
         where: { id: guildId },
-        select: { clansEnabled: true, currentClanSeason: true },
+        select: {
+          clansEnabled: true,
+          currentClanSeason: true,
+          clanSeasonStartsAt: true,
+          clanSeasonEndsAt: true,
+        },
       });
 
       const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -714,21 +748,41 @@ export async function handlePublicRoutes(
         const clanContributions = contributions.filter((c) => c.clanId === clan.id);
         const totalXp = clanContributions.reduce((sum, c) => sum + c.xp, 0);
 
-        // Top participants du clan
-        const topParticipants = clanContributions.slice(0, 10).map((c) => {
-          const profile = profileMap.get(c.userId);
-          const discordMember = discordGuild?.members.cache.get(c.userId);
+        // Seule la tête du classement est envoyée : chercher quelqu'un de plus
+        // bas passe par /clans/search, qui calcule son rang côté serveur. Servir
+        // le classement entier ferait grossir la page avec le nombre de joueurs.
+        //
+        // Les points attribués au clan entier sont stockés sous un pseudo-membre :
+        // ils comptent dans le total du clan mais ne sont pas un participant, et
+        // les laisser ici décalerait le rang de tout le monde.
+        //
+        // Les ex æquo partagent le même rang, comme dans /clans/search qui le
+        // déduit d'un comptage : sans ça, quelqu'un se verrait 5e ici et 4e en
+        // se cherchant.
+        let rank = 0;
+        let previousXp: number | null = null;
 
-          const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
-          const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+        const topParticipants = clanContributions
+          .filter((c) => c.userId !== CLAN_WIDE_USER_ID)
+          .slice(0, PUBLIC_CLANS_TOP_LIMIT)
+          .map((c, i) => {
+            const profile = profileMap.get(c.userId);
+            const discordMember = discordGuild?.members.cache.get(c.userId);
 
-          return {
-            userId: c.userId,
-            xp: c.xp,
-            displayName,
-            avatarUrl,
-          };
-        });
+            const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
+            const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+
+            if (c.xp !== previousXp) rank = i + 1;
+            previousXp = c.xp;
+
+            return {
+              userId: c.userId,
+              rank,
+              xp: c.xp,
+              displayName,
+              avatarUrl,
+            };
+          });
 
         return {
           id: clan.id,
@@ -790,6 +844,7 @@ export async function handlePublicRoutes(
             amount: e.amount,
             source: e.source, // 'XP' | 'ADMIN'
             isClan: isClanGlobal,
+            userId: isClanGlobal ? null : e.userId,
             displayName,
             avatarUrl,
             clanName: clan?.name || null,
@@ -803,18 +858,247 @@ export async function handlePublicRoutes(
         recentScores = [];
       }
 
-      json(res, 200, {
+      const payload = {
         enabled: true,
         currentClanSeason: guildConfig.currentClanSeason,
+        clanSeasonStartsAt: guildConfig.clanSeasonStartsAt?.toISOString() ?? null,
+        clanSeasonEndsAt: guildConfig.clanSeasonEndsAt?.toISOString() ?? null,
         guildName: discordGuild?.name || 'Kotbo Server',
         guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
         clans: clansData,
         recentScores,
-      });
+      };
+
+      await cache.set(cacheKey, payload, PUBLIC_CLANS_CACHE_TTL_S);
+      res.setHeader('Cache-Control', `public, max-age=${PUBLIC_CLANS_CACHE_TTL_S}`);
+      json(res, 200, payload);
     } catch (err: unknown) {
       const errMessage = err instanceof Error ? err.message : String(err);
       logger.error('PublicAPI', `Error fetching public clans for guild ${guildId}: ${errMessage}`);
       json(res, 500, { error: 'Erreur lors du chargement du classement de clans' });
+    }
+    return true;
+  }
+
+  // GET /api/public/guilds/:guildId/clans/search?q=...
+  //
+  // Recherche dédiée : le chargement de la page ne contient que la tête de
+  // chaque classement et les 20 derniers gains. Ici on retrouve n'importe quel
+  // participant, aussi bas soit-il, avec son rang réel et son historique de la
+  // saison. Le rang ne demande pas de dérouler le classement : il se déduit du
+  // nombre de contributions du même clan ayant plus de points.
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'clans' && parts[5] === 'search' && !parts[6] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+
+    if (!checkRateLimit(publicClanSearchRateLimiter, getClientIp(req), 30, 60_000)) {
+      json(res, 429, { error: 'Trop de recherches. Veuillez réessayer dans une minute.' });
+      return true;
+    }
+
+    const query = (url.searchParams.get('q') || '').trim();
+    const empty = { participants: [], scores: [], matchCounts: {} };
+    if (query.length < 2) {
+      json(res, 200, empty);
+      return true;
+    }
+
+    try {
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { clansEnabled: true, currentClanSeason: true },
+      });
+      if (!guildConfig?.clansEnabled) {
+        json(res, 200, empty);
+        return true;
+      }
+
+      const season = guildConfig.currentClanSeason;
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      const normalized = query.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+      const matches = (value: string | null | undefined) =>
+        !!value && value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').includes(normalized);
+
+      const userIds = new Set<string>();
+      if (/^\d{17,19}$/.test(query)) userIds.add(query);
+
+      // Les pseudos affichés viennent surtout du cache Discord ; la table des
+      // profils sert de repli pour les membres absents du cache.
+      if (discordGuild) {
+        for (const member of discordGuild.members.cache.values()) {
+          if (userIds.size >= SEARCH_MATCH_LIMIT) break;
+          if (matches(member.displayName) || matches(member.user?.username)) userIds.add(member.id);
+        }
+      }
+      if (userIds.size < SEARCH_MATCH_LIMIT) {
+        const profileMatches = await prisma.memberProfile.findMany({
+          where: {
+            guildId,
+            OR: [
+              { displayName: { contains: query, mode: Prisma.QueryMode.insensitive } },
+              { globalName: { contains: query, mode: Prisma.QueryMode.insensitive } },
+            ],
+          },
+          take: SEARCH_MATCH_LIMIT,
+        });
+        for (const p of profileMatches) userIds.add(p.userId);
+      }
+
+      const clans = await prisma.clan.findMany({ where: { guildId } });
+      const clanById = new Map(clans.map((c) => [c.id, c]));
+      const matchingClanIds = clans.filter((c) => matches(c.name)).map((c) => c.id);
+
+      if (userIds.size === 0 && matchingClanIds.length === 0) {
+        json(res, 200, empty);
+        return true;
+      }
+
+      const matchedUserIds = [...userIds].slice(0, SEARCH_MATCH_LIMIT);
+      const clanColor = (clan: { roleId: string } | undefined) => {
+        const role = clan ? discordGuild?.roles.cache.get(clan.roleId) : null;
+        return role?.color ? `#${role.color.toString(16).padStart(6, '0')}` : null;
+      };
+
+      // ─── Participants trouvés, avec leur rang ────────────────────────────────
+      let participants: Array<Record<string, unknown>> = [];
+      let matchCountByClanId = new Map<string, number>();
+
+      if (matchedUserIds.length > 0) {
+        const [rows, counts] = await Promise.all([
+          prisma.clanMemberContribution.findMany({
+            where: { guildId, season, userId: { in: matchedUserIds } },
+            orderBy: { xp: 'desc' },
+            take: SEARCH_PARTICIPANT_LIMIT,
+          }),
+          prisma.clanMemberContribution.groupBy({
+            by: ['clanId'],
+            where: { guildId, season, userId: { in: matchedUserIds } },
+            _count: { _all: true },
+          }),
+        ]);
+
+        matchCountByClanId = new Map(counts.map((c) => [c.clanId, c._count._all]));
+
+        const ranked = await Promise.all(
+          rows.map(async (row) => {
+            // Le pseudo-membre des points de clan n'occupe pas de place au
+            // classement : il ne doit pas décaler le rang affiché.
+            const ahead = await prisma.clanMemberContribution.count({
+              where: {
+                guildId,
+                season,
+                clanId: row.clanId,
+                xp: { gt: row.xp },
+                userId: { not: CLAN_WIDE_USER_ID },
+              },
+            });
+            return { row, rank: ahead + 1 };
+          })
+        );
+
+        const rowProfiles = await prisma.memberProfile.findMany({
+          where: { guildId, userId: { in: rows.map((r) => r.userId) } },
+        });
+        const rowProfileMap = new Map(rowProfiles.map((p) => [p.userId, p]));
+
+        participants = ranked.map(({ row, rank }) => {
+          const clan = clanById.get(row.clanId);
+          const profile = rowProfileMap.get(row.userId);
+          const discordMember = discordGuild?.members.cache.get(row.userId);
+
+          return {
+            userId: row.userId,
+            clanId: row.clanId,
+            clanName: clan?.name ?? null,
+            clanColor: clanColor(clan),
+            rank,
+            xp: row.xp,
+            displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
+            avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null,
+          };
+        });
+
+        // Membre trouvé, dans un clan, mais sans le moindre point : il n'a pas de
+        // rang. L'omettre laisserait croire que la recherche n'a rien donné.
+        const scoredUserIds = new Set(rows.map((r) => r.userId));
+        const pointless = matchedUserIds.filter((id) => !scoredUserIds.has(id) && id !== CLAN_WIDE_USER_ID);
+        for (const userId of pointless.slice(0, SEARCH_POINTLESS_LIMIT)) {
+          const discordMember = discordGuild?.members.cache.get(userId);
+          const clan = discordMember ? clans.find((c) => discordMember.roles.cache.has(c.roleId)) : undefined;
+          if (!clan) continue; // Sans clan, il n'a rien à faire dans un classement de clans.
+
+          participants.push({
+            userId,
+            clanId: clan.id,
+            clanName: clan.name,
+            clanColor: clanColor(clan),
+            rank: null,
+            xp: 0,
+            displayName: discordMember?.displayName || `Utilisateur ${userId}`,
+            avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) ?? null,
+          });
+        }
+      }
+
+      // ─── Historique des gains des personnes trouvées ─────────────────────────
+      const orConditions: Prisma.ClanContributionEventWhereInput[] = [];
+      if (matchedUserIds.length > 0) orConditions.push({ userId: { in: matchedUserIds } });
+      if (matchingClanIds.length > 0) {
+        orConditions.push({ clanId: { in: matchingClanIds }, userId: CLAN_WIDE_USER_ID });
+      }
+
+      const events = await prisma.clanContributionEvent.findMany({
+        where: { guildId, season, OR: orConditions },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+
+      const eventProfiles = await prisma.memberProfile.findMany({
+        where: { guildId, userId: { in: [...new Set(events.map((e) => e.userId))] } },
+      });
+      const profileMap = new Map(eventProfiles.map((p) => [p.userId, p]));
+
+      const scores = events.map((e) => {
+        const clan = clanById.get(e.clanId);
+        const isClanGlobal = e.userId === CLAN_WIDE_USER_ID;
+
+        let displayName: string;
+        let avatarUrl: string | null = null;
+        if (isClanGlobal) {
+          displayName = clan?.name || 'Clan';
+        } else {
+          const profile = profileMap.get(e.userId);
+          const discordMember = discordGuild?.members.cache.get(e.userId);
+          displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${e.userId}`;
+          avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+        }
+
+        return {
+          id: e.id,
+          amount: e.amount,
+          source: e.source,
+          isClan: isClanGlobal,
+          userId: isClanGlobal ? null : e.userId,
+          displayName,
+          avatarUrl,
+          clanName: clan?.name || null,
+          clanColor: clanColor(clan),
+          createdAt: e.createdAt.toISOString(),
+        };
+      });
+
+      json(res, 200, {
+        participants,
+        scores,
+        matchCounts: Object.fromEntries(matchCountByClanId),
+      });
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.warn('PublicAPI', `Recherche de clans indisponible pour ${guildId} : ${errMessage}`);
+      json(res, 200, empty);
     }
     return true;
   }

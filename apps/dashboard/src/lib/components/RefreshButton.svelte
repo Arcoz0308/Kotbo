@@ -1,10 +1,12 @@
 <script lang="ts">
-  let {
+  import { m } from '../i18n';
+
+  const {
     onClick,
     loading = false,
-    label = 'Actualiser',
+    label = m.d6_refresh(),
     iconOnly = false,
-    ariaLabel = 'Actualiser',
+    ariaLabel = m.d6_refresh(),
     className = '',
     iconClass = 'text-sm'
   } = $props();

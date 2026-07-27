@@ -40,7 +40,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { m } from '../lib/i18n';
 
-  let { moduleId } = $props();
+  const { moduleId } = $props();
 
   const module = $derived((dashboardStore.state.modules as Array<{ id: string; name: string; description: string; status: string }>).find((m) => m.id === moduleId) || { 
     name: m.ms_module_loading_name(), 
@@ -1974,7 +1974,6 @@
 
 {#if dailyAlgoApiModalOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="dailyalgo-api-title" tabindex="-1" onclick={closeDailyAlgoApiModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -2270,7 +2269,6 @@
 
 {#if createDailyAlgoProblemModalOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="dailyalgo-create-title" tabindex="-1" onclick={closeDailyAlgoProblemModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->

@@ -29,7 +29,7 @@
     hubId: string;
   }
 
-  let {
+  const {
     nodes = [],
     edges = [],
     onSelectNode = (id: string) => {}
@@ -94,7 +94,7 @@
   }
 
   // Search autocomplete results
-  let searchResults = $derived.by(() => {
+  const searchResults = $derived.by(() => {
     if (!searchQuery.trim()) return [];
     const query = searchQuery.toLowerCase();
     return nodes
@@ -103,10 +103,10 @@
   });
 
   // Selected profile details
-  let selectedNode = $derived(simNodes.find(n => n.id === selectedNodeId) || null);
+  const selectedNode = $derived(simNodes.find(n => n.id === selectedNodeId) || null);
 
   // Group edges between any two users to avoid multiple overlapping lines
-  let groupedEdges = $derived.by(() => {
+  const groupedEdges = $derived.by(() => {
     const safeEdges = edges || [];
     const pairMap = new Map<string, any>();
 
@@ -146,7 +146,7 @@
   });
 
   // Filter edges dynamically by connection type
-  let filteredEdges = $derived.by(() => {
+  const filteredEdges = $derived.by(() => {
     const allEdges = groupedEdges;
     let filtered = allEdges;
     if (selectedTypeFilter !== 'all') {
@@ -159,7 +159,7 @@
   });
 
   // Calculate coordinates for curved Bezier paths
-  let edgesWithCoords = $derived.by(() => {
+  const edgesWithCoords = $derived.by(() => {
     const activeHoveredNodeId = hoveredNodeId;
     return filteredEdges.map(edge => {
       const fromNode = simNodes.find(n => n.id === edge.from);
@@ -213,14 +213,14 @@
   });
 
   // Top 5 Connectors (Default Sidebar state)
-  let topConnectors = $derived.by(() => {
+  const topConnectors = $derived.by(() => {
     return [...simNodes]
       .sort((a, b) => b.activityCount - a.activityCount)
       .slice(0, 5);
   });
 
   // Top 5 Interactors for selected member (Selected Sidebar state)
-  let selectedTopInteractors = $derived.by(() => {
+  const selectedTopInteractors = $derived.by(() => {
     if (!selectedNodeId) return [];
     const id = selectedNodeId;
     const map = new Map<string, number>();
@@ -323,7 +323,7 @@
     });
 
     // Initialize all nodes near their hub center in a spiral
-    let tempNodes: SimNode[] = sorted.map((n, i) => {
+    const tempNodes: SimNode[] = sorted.map((n, i) => {
       const isHub = hubIds.has(n.id);
       const hubId = isHub ? n.id : (nodeHubMap.get(n.id) || '');
       const hubPos = hubPositions.get(hubId) || { x: cx, y: cy };

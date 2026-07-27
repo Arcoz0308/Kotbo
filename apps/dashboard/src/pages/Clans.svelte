@@ -22,10 +22,12 @@
     deleteClan,
     distributeClans,
     clearClans,
+    dedupeClans,
     resetClanSeason,
     resetAllClans,
     rollbackClanSeason,
     addClanPoints,
+    updateGlobalSettings,
     type ClanEntry,
     type ClansDataResult
   } from '../lib/api';
@@ -37,7 +39,6 @@
 
   // States
   let clansEnabled = $state(false);
-  let clansUnique = $state(true);
   let clanAutoAssignOnJoin = $state(false);
   let currentClanSeason = $state(1);
   let clanXpFromLevelUp = $state(false);
@@ -62,7 +63,6 @@
 
   // Saved states (for dirty checking)
   let savedClansEnabled = $state(false);
-  let savedClansUnique = $state(true);
   let savedClanAutoAssignOnJoin = $state(false);
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
@@ -101,17 +101,34 @@
   let availableChannels = $state<any[]>([]);
 
   // Points Management tab states & handlers
+  // Même borne que l'API : au-delà, c'est une faute de frappe.
+  const MAX_MANUAL_POINTS = 1_000_000;
   let selectedClanIdForPoints = $state('');
   let manualPointsAmountClan = $state(100);
   let manualPointsMemberUserId = $state('');
   let manualPointsAmountMember = $state(100);
 
+  // Les points sont des entiers positifs en base : on valide ici plutôt que de
+  // laisser l'API refuser la saisie.
+  function isValidPointsAmount(amount: number): boolean {
+    return Number.isFinite(amount) && Math.round(amount) >= 1;
+  }
+
+  function sanitizePoints(amount: number): number {
+    return Math.max(1, Math.min(MAX_MANUAL_POINTS, Math.round(amount)));
+  }
+
   async function handleAddClanPoints() {
-    if (!canManageSettings || !selectedClanIdForPoints || !manualPointsAmountClan) return;
+    if (!canManageSettings || !selectedClanIdForPoints) return;
+    // Un bouton qui ne fait rien passe pour une panne : on dit ce qui manque.
+    if (!isValidPointsAmount(manualPointsAmountClan)) {
+      actionState.setError(m.clan_err_invalid_amount());
+      return;
+    }
     await actionState.run(async () => {
       const res = await addClanPoints({
         clanId: selectedClanIdForPoints,
-        amount: manualPointsAmountClan,
+        amount: sanitizePoints(manualPointsAmountClan),
       });
       if (!res) throw new Error(m.clan_err_add_clan_points());
       await refreshData(true);
@@ -121,12 +138,16 @@
   }
 
   async function handleAddMemberPoints() {
-    if (!canManageSettings || !manualPointsMemberUserId || !manualPointsAmountMember) return;
+    if (!canManageSettings || !manualPointsMemberUserId) return;
+    if (!isValidPointsAmount(manualPointsAmountMember)) {
+      actionState.setError(m.clan_err_invalid_amount());
+      return;
+    }
     await actionState.run(async () => {
       const res = await addClanPoints({
         clanId: null,
         userId: manualPointsMemberUserId,
-        amount: manualPointsAmountMember,
+        amount: sanitizePoints(manualPointsAmountMember),
       });
       if (!res) throw new Error(m.clan_err_add_member_points());
       await refreshData(true);
@@ -138,26 +159,54 @@
 
   // Confirmation state for reset/clear/distribute/reset-all/rollback
   let confirmInput = $state('');
-  let confirmActionType = $state<'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback' | null>(null);
+  let confirmActionType = $state<'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback' | null>(null);
   let showConfirmModal = $state(false);
 
   const canManageSettings = $derived(
-    !!dashboardStore.state.featureAccess?.welcome_goodbye?.canConfigure
+    !!dashboardStore.state.featureAccess?.leveling?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
   );
 
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
-  const formatLocal = (dateStr: string | null) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return '';
-    const tzOffset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
-  };
+  // ── Pont Daily Algo → Clans ──────────────────────────────────────────────────
+  // Vue symétrique de celle de la page Daily Algo : un admin qui part des clans
+  // doit trouver le lien ici, sans deviner qu'il est rangé dans l'autre onglet.
+  // Ce panneau a sa propre sauvegarde (route /settings) et reste donc à l'écart du
+  // suivi de modifications de la page, qui passe par updateClanSettings.
+  const dailyAlgoEnabled = $derived(!!(dashboardStore.state as any).dailyAlgoEnabled);
+  const bridgeAction = createAsyncActionState();
 
-  const formSeasonStartsAt = $derived(startDate ? `${startDate}T${startTime}` : '');
-  const formSeasonEndsAt = $derived(endDate ? `${endDate}T${endTime}` : '');
+  const bridge = $state({
+    clanPointsFromDailyAlgo: false,
+    clanPointsFromDailyAlgoRate: 1,
+    clanPointsDailyAlgoTop1: 30,
+    clanPointsDailyAlgoTop2: 20,
+    clanPointsDailyAlgoTop3: 10,
+  });
+
+  function syncBridgeFromStore() {
+    const s = dashboardStore.state as any;
+    bridge.clanPointsFromDailyAlgo = s.clanPointsFromDailyAlgo ?? false;
+    bridge.clanPointsFromDailyAlgoRate = s.clanPointsFromDailyAlgoRate ?? 1;
+    bridge.clanPointsDailyAlgoTop1 = s.clanPointsDailyAlgoTop1 ?? 30;
+    bridge.clanPointsDailyAlgoTop2 = s.clanPointsDailyAlgoTop2 ?? 20;
+    bridge.clanPointsDailyAlgoTop3 = s.clanPointsDailyAlgoTop3 ?? 10;
+  }
+
+  async function saveBridgeSettings() {
+    await bridgeAction.run(async () => {
+      const ok = await updateGlobalSettings({ ...bridge });
+      if (!ok) return false;
+
+      await dashboardStore.refresh();
+      syncBridgeFromStore();
+      return true;
+    }, {
+      successMessage: m.clan_da_save_success(),
+      failureMessage: m.clan_da_save_error(),
+    });
+  }
 
   function parseDateToIso(dateVal: string, timeVal: string): string | null {
     if (!dateVal) return null;
@@ -204,7 +253,6 @@
   // Sync state changes with the unsaved changes bar
   $effect(() => {
     const dirty = clansEnabled !== savedClansEnabled
-      || clansUnique !== savedClansUnique
       || clanAutoAssignOnJoin !== savedClanAutoAssignOnJoin
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
       || clanXpPerLevelUp !== savedClanXpPerLevelUp
@@ -221,7 +269,6 @@
           onSave: () => handleSaveSettings(),
           onReset: () => {
             clansEnabled = savedClansEnabled;
-            clansUnique = savedClansUnique;
             clanAutoAssignOnJoin = savedClanAutoAssignOnJoin;
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
@@ -230,7 +277,6 @@
             clanAnnouncementChannelId = savedClanAnnouncementChannelId;
             clanRewardGiveaway = savedClanRewardGiveaway;
             clanRewardLeaderRole = savedClanRewardLeaderRole;
-            setSeasonDates(savedClanSeasonStartsAt, savedClanSeasonEndsAt);
           }
         });
       });
@@ -256,6 +302,7 @@
 
   // Polling mechanism while a background operation is active (kept as fallback)
   let pollInterval: ReturnType<typeof setInterval> | null = null;
+  let taskWasRunning = false;
   $effect(() => {
     if (taskInProgress && !pollInterval) {
       pollInterval = setInterval(() => {
@@ -265,6 +312,14 @@
       clearInterval(pollInterval);
       pollInterval = null;
     }
+
+    // « Retirer à tous » recrée les rôles de clan : sans recharger la liste des
+    // rôles Discord, la colonne Rôle afficherait un identifiant brut jusqu'au
+    // prochain rafraîchissement de la page.
+    if (taskWasRunning && !taskInProgress) {
+      void dashboardStore.refresh();
+    }
+    taskWasRunning = !!taskInProgress;
   });
 
   onDestroy(() => {
@@ -307,7 +362,6 @@
       const res = await fetchClansData();
       if (res) {
         clansEnabled = res.clansEnabled;
-        clansUnique = res.clansUnique;
         clanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
         currentClanSeason = res.currentClanSeason;
         clanXpFromLevelUp = res.clanXpFromLevelUp;
@@ -328,7 +382,6 @@
         setSeasonDates(res.clanSeasonStartsAt, res.clanSeasonEndsAt);
         
         savedClansEnabled = res.clansEnabled;
-        savedClansUnique = res.clansUnique;
         savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
         savedClanXpFromLevelUp = res.clanXpFromLevelUp;
         savedClanXpPerLevelUp = res.clanXpPerLevelUp;
@@ -350,6 +403,7 @@
   onMount(async () => {
     window.addEventListener('kotbo-ws-message', handleWsMessage);
     await dashboardStore.refresh();
+    syncBridgeFromStore();
     await refreshData();
     const channelsData = await fetchDiscordChannels().catch(() => null);
     if (channelsData) {
@@ -360,13 +414,16 @@
   // Dynamically import channels fetch
   import { fetchDiscordChannels } from '../lib/api';
 
+  // Les dates de saison ne passent volontairement pas par ici : elles ont leur
+  // propre enregistrement, avec sa validation. Les joindre à chaque sauvegarde
+  // de réglage rognait leur seconde au passage, et une plage incohérente encore
+  // en cours de saisie faisait échouer la sauvegarde d'un simple interrupteur.
   async function handleSaveSettings(): Promise<boolean> {
     if (!canManageSettings) return false;
     let success = false;
     await actionState.run(async () => {
       const res = await updateClanSettings({
         clansEnabled,
-        clansUnique,
         clanAutoAssignOnJoin,
         clanXpFromLevelUp,
         clanXpPerLevelUp,
@@ -376,14 +433,11 @@
         clanRewardGiveaway,
         clanRewardLeaderRole,
         clanRewardXpBoost,
-        clanRewardXpBoostRate,
-        clanSeasonStartsAt: parseDateToIso(startDate, startTime),
-        clanSeasonEndsAt: parseDateToIso(endDate, endTime)
+        clanRewardXpBoostRate
       });
       if (!res) throw new Error(m.clan_err_save());
-      
+
       savedClansEnabled = res.clansEnabled;
-      savedClansUnique = res.clansUnique;
       savedClanAutoAssignOnJoin = res.clanAutoAssignOnJoin;
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
@@ -392,8 +446,6 @@
       savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
       savedClanRewardGiveaway = res.clanRewardGiveaway;
       savedClanRewardLeaderRole = res.clanRewardLeaderRole;
-      savedClanSeasonStartsAt = res.clanSeasonStartsAt;
-      savedClanSeasonEndsAt = res.clanSeasonEndsAt;
       success = true;
       return true;
     }, { successMessage: m.clan_success_settings_saved() });
@@ -550,15 +602,16 @@
     }, { successMessage: m.clan_success_deleted() });
   }
 
-  function confirmWordFor(type: 'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback' | null): string {
+  function confirmWordFor(type: 'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback' | null): string {
     return type === 'clear' ? m.clan_confirm_word_clear()
       : type === 'reset' ? m.clan_confirm_word_reset()
       : type === 'distribute' ? m.clan_confirm_word_distribute()
+      : type === 'dedupe' ? m.clan_confirm_word_dedupe()
       : type === 'reset-all' ? m.clan_confirm_word_resetall()
       : m.clan_confirm_word_rollback();
   }
 
-  function openConfirmation(type: 'clear' | 'reset' | 'distribute' | 'reset-all' | 'rollback') {
+  function openConfirmation(type: 'clear' | 'reset' | 'distribute' | 'dedupe' | 'reset-all' | 'rollback') {
     confirmActionType = type;
     confirmInput = '';
     showConfirmModal = true;
@@ -590,6 +643,10 @@
         const res = await distributeClans();
         if (!res) throw new Error(m.clan_err_distribute());
         await refreshData(true);
+      } else if (confirmActionType === 'dedupe') {
+        const res = await dedupeClans();
+        if (!res) throw new Error(m.clan_err_dedupe());
+        await refreshData(true);
       } else if (confirmActionType === 'reset-all') {
         const res = await resetAllClans();
         if (!res) throw new Error(m.clan_err_reset_all());
@@ -610,6 +667,8 @@
         ? m.clan_success_season_started()
         : confirmActionType === 'distribute'
         ? m.clan_success_distribute_started()
+        : confirmActionType === 'dedupe'
+        ? m.clan_success_dedupe_started()
         : confirmActionType === 'reset-all'
         ? m.clan_success_reset_all()
         : m.clan_success_rollback()
@@ -630,7 +689,7 @@
   title={m.clan_page_title()}
   description={m.clan_page_desc()}
   icon="Shield"
-  featureKey="welcome_goodbye"
+  featureKey="leveling"
 >
   <InlineFeedback state={actionState} />
 
@@ -725,14 +784,6 @@
 
             <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
               <div>
-                <span class="text-sm font-medium text-on-surface">{m.clan_unique_title()}</span>
-                <p class="text-xs text-on-surface-variant/70">{m.clan_unique_desc()}</p>
-              </div>
-              <ToggleSwitch checked={clansUnique} onToggle={(v) => clansUnique = v} disabled={!canManageSettings} />
-            </div>
-
-            <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
-              <div>
                 <span class="text-sm font-medium text-on-surface">{m.clan_autoassign_title()}</span>
                 <p class="text-xs text-on-surface-variant/70">{m.clan_autoassign_desc()}</p>
               </div>
@@ -813,7 +864,7 @@
 
             <div class="space-y-2">
               <div class="flex justify-between text-xs font-medium text-on-surface-variant">
-                <span>{taskInProgress.type === 'distribute' ? m.clan_task_type_distribute() : m.clan_task_type_clear()}</span>
+                <span>{taskInProgress.type === 'distribute' ? m.clan_task_type_distribute() : taskInProgress.type === 'dedupe' ? m.clan_task_type_dedupe() : m.clan_task_type_clear()}</span>
                 <span>{taskInProgress.processed} / {taskInProgress.total}</span>
               </div>
               <div class="w-full bg-surface-container-high rounded-full h-2">
@@ -833,18 +884,30 @@
               {#if canManageSettings}
                 <button
                   onclick={() => openConfirmation('clear')}
-                  class="flex items-center gap-1.5 px-3 py-1.5 border border-rose-500/30 hover:bg-rose-500/10 text-rose-500 font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                  title={m.clan_clear_all_title()}
+                  disabled={!!taskInProgress}
+                  class="flex items-center gap-1.5 px-3 py-1.5 border border-rose-500/30 hover:bg-rose-500/10 text-rose-500 font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  title={taskInProgress ? m.clan_task_running_hint() : m.clan_clear_all_title()}
                 >
                   <Papicon icon="Trash" size={12} /> {m.clan_clear_all_btn()}
                 </button>
                 <button
                   onclick={handleDistribute}
-                  class="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/15 hover:bg-secondary/25 text-secondary font-bold text-xs rounded-lg transition-colors cursor-pointer"
-                  title={m.clan_distribute_title()}
+                  disabled={!!taskInProgress}
+                  class="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/15 hover:bg-secondary/25 text-secondary font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-secondary/15"
+                  title={taskInProgress ? m.clan_task_running_hint() : m.clan_distribute_title()}
                 >
                   <Papicon icon="Users" size={12} /> {m.clan_distribute_btn()}
                 </button>
+                {#if clans.length > 1}
+                  <button
+                    onclick={() => openConfirmation('dedupe')}
+                    disabled={!!taskInProgress}
+                    class="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant/30 hover:bg-surface-container-high/60 text-on-surface-variant font-bold text-xs rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    title={taskInProgress ? m.clan_task_running_hint() : m.clan_dedupe_title()}
+                  >
+                    <Papicon icon="Refresh" size={12} /> {m.clan_dedupe_btn()}
+                  </button>
+                {/if}
                 <button
                   onclick={openCreateModal}
                   class="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary font-bold text-xs rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
@@ -1128,15 +1191,15 @@
 
               <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
                 <div>
-                  <span class="text-sm font-medium text-on-surface">Gain par boost du serveur</span>
-                  <p class="text-xs text-on-surface-variant/70">Points bonus offerts au clan du membre lorsqu'il booste le serveur.</p>
+                  <span class="text-sm font-medium text-on-surface">{m.clan_boost_gain_title()}</span>
+                  <p class="text-xs text-on-surface-variant/70">{m.clan_boost_gain_desc()}</p>
                 </div>
                 <ToggleSwitch checked={clanXpFromBoost} onToggle={(v) => clanXpFromBoost = v} disabled={!canManageSettings} />
               </div>
 
               {#if clanXpFromBoost}
                 <div class="space-y-1.5 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
-                  <label for="clan-xp-boost-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">Points attribués par boost</label>
+                  <label for="clan-xp-boost-amount" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_boost_points_label()}</label>
                   <div class="flex items-center gap-2">
                     <input
                       id="clan-xp-boost-amount"
@@ -1146,11 +1209,95 @@
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                       disabled={!canManageSettings}
                     />
-                    <span class="text-xs text-on-surface-variant/60 font-semibold shrink-0">XP / boost</span>
+                    <span class="text-xs text-on-surface-variant/60 font-semibold shrink-0">{m.clan_boost_points_unit()}</span>
                   </div>
                 </div>
               {/if}
             </div>
+          </section>
+
+          <!-- Lien avec le Daily Algo : verrouillé si le module est inactif -->
+          <section class="bg-surface-container-low/40 border border-outline-variant/30 p-6 rounded-xl space-y-6">
+            <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-2 flex items-center gap-2">
+              <Papicon icon="Code" size={16} class="text-amber-500" />
+              {m.clan_da_bridge_heading()}
+            </h3>
+
+            {#if !dailyAlgoEnabled}
+              <div class="p-5 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
+                <span class="text-2xl">🔒</span>
+                <div>
+                  <h4 class="text-sm font-semibold text-on-surface">{m.clan_da_disabled_title()}</h4>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">
+                    {m.clan_da_disabled_desc()}
+                  </p>
+                </div>
+              </div>
+            {:else}
+              <InlineFeedback state={bridgeAction} />
+
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="text-sm font-medium text-on-surface">{m.clan_da_convert_title()}</span>
+                    <p class="text-xs text-on-surface-variant/70">
+                      {m.clan_da_convert_desc()}
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    checked={bridge.clanPointsFromDailyAlgo}
+                    onToggle={(v) => bridge.clanPointsFromDailyAlgo = v}
+                    disabled={!canManageSettings}
+                  />
+                </div>
+
+                {#if bridge.clanPointsFromDailyAlgo}
+                  <div class="space-y-4 pt-2 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
+                    <div class="space-y-1.5">
+                      <label for="clan-da-rate" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">{m.clan_da_rate_label()}</label>
+                      <input
+                        id="clan-da-rate"
+                        type="number"
+                        min="0.1"
+                        max="100"
+                        step="0.1"
+                        bind:value={bridge.clanPointsFromDailyAlgoRate}
+                        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
+                        disabled={!canManageSettings}
+                      />
+                      <p class="text-[10px] text-on-surface-variant/50 ml-1">
+                        {m.clan_da_rate_hint()}
+                      </p>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                      <div class="space-y-1.5">
+                        <label for="clan-da-top1" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥇 {m.clan_da_bonus_label()}</label>
+                        <input id="clan-da-top1" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop1} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
+                      </div>
+                      <div class="space-y-1.5">
+                        <label for="clan-da-top2" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥈 {m.clan_da_bonus_label()}</label>
+                        <input id="clan-da-top2" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop2} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
+                      </div>
+                      <div class="space-y-1.5">
+                        <label for="clan-da-top3" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest block ml-1">🥉 {m.clan_da_bonus_label()}</label>
+                        <input id="clan-da-top3" type="number" min="0" step="5" bind:value={bridge.clanPointsDailyAlgoTop3} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold" disabled={!canManageSettings} />
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+
+                {#if canManageSettings}
+                  <button
+                    onclick={saveBridgeSettings}
+                    disabled={bridgeAction.state.loading}
+                    class="w-full py-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[13px] font-medium transition-colors hover:bg-amber-500/20 disabled:opacity-50"
+                  >
+                    {bridgeAction.state.loading ? m.clan_da_saving_btn() : m.clan_da_save_btn()}
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </section>
         </div>
 
@@ -1181,6 +1328,9 @@
                 <input
                   id="manual-points-clan-amount"
                   type="number"
+                  step="1"
+                  min="1"
+                  max={MAX_MANUAL_POINTS}
                   bind:value={manualPointsAmountClan}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                   disabled={!canManageSettings}
@@ -1223,6 +1373,9 @@
                 <input
                   id="manual-points-member-amount"
                   type="number"
+                  step="1"
+                  min="1"
+                  max={MAX_MANUAL_POINTS}
                   bind:value={manualPointsAmountMember}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all font-bold"
                   disabled={!canManageSettings}
@@ -1429,6 +1582,8 @@
             {m.clan_confirm_desc_reset()}
           {:else if confirmActionType === 'distribute'}
             {m.clan_confirm_desc_distribute()}
+          {:else if confirmActionType === 'dedupe'}
+            {m.clan_confirm_desc_dedupe()}
           {:else if confirmActionType === 'reset-all'}
             <span class="text-rose-500 font-bold inline-flex items-center gap-1 align-[-2px]"><Papicon icon="AlertTriangle" size={13} /> {m.clan_confirm_desc_resetall_warning()}</span> {m.clan_confirm_desc_resetall()}
           {:else if confirmActionType === 'rollback'}

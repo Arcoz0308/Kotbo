@@ -16,7 +16,7 @@
     children: HierarchyTreeNode[];
   };
 
-  let { node, isRoot = false }: { node: HierarchyTreeNode; isRoot?: boolean } = $props();
+  const { node, isRoot = false }: { node: HierarchyTreeNode; isRoot?: boolean } = $props();
 
   function getMembersForRole(hierarchyMembers: HierarchyTreeNode['members'], roleName: string) {
     if (!hierarchyMembers) return [];
@@ -132,7 +132,6 @@
     <div class="children-row">
       {#each node.children as child (child.id)}
         <div class="child-wrap">
-          <!-- svelte-ignore svelte_self_deprecated -->
           <HierarchyNode node={child} />
         </div>
       {/each}

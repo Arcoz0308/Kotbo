@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tokenizeDiscordMarkdown } from '../../utils/discordMarkdown';
 
-  let { text = '' } = $props<{ text?: string }>();
+  const { text = '' } = $props<{ text?: string }>();
 
   const segments = $derived(tokenizeDiscordMarkdown(text ?? ''));
 </script>

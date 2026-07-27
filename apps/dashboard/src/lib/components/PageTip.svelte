@@ -49,9 +49,9 @@
     'archive': Archive,
   };
 
-  let tip = $derived(onboardingStore.activePageTip);
-  let dismissed = $derived(onboardingStore.pageTipDismissed);
-  let show = $derived(tip !== null && !dismissed && onboardingStore.welcomeSeen);
+  const tip = $derived(onboardingStore.activePageTip);
+  const dismissed = $derived(onboardingStore.pageTipDismissed);
+  const show = $derived(tip !== null && !dismissed && onboardingStore.welcomeSeen);
 
   function dismiss() {
     onboardingStore.dismissPageTip();

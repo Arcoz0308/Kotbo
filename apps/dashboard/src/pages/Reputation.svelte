@@ -9,7 +9,7 @@
   let loading = $state(true);
   let data: any = $state(null);
 
-  let totalRepGiven = $derived(
+  const totalRepGiven = $derived(
     data?.recentVotes?.length ?? 0
   );
 

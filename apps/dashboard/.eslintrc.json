@@ -1,0 +1,46 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "extraFileExtensions": [".svelte"]
+  },
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:svelte/recommended"
+  ],
+  "overrides": [
+    {
+      "files": ["*.svelte"],
+      "parser": "svelte-eslint-parser",
+      "parserOptions": {
+        "parser": "@typescript-eslint/parser"
+      },
+      "rules": {
+        "no-irregular-whitespace": "off"
+      }
+    },
+    {
+      "files": ["src/lib/components/Skeleton.svelte"],
+      "rules": {
+        "svelte/valid-compile": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["dist", "src/lib/paraglide", "node_modules"],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-explicit-any": "warn",
+    "prefer-const": "warn",
+    "no-empty": "warn",
+    "no-undef": "off",
+    "svelte/no-at-html-tags": "warn"
+  }
+}

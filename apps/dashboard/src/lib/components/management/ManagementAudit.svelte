@@ -2,7 +2,7 @@
   import Papicon from '../Papicon.svelte';
   import { m } from '../../i18n';
 
-  let { auditLogs = [] } = $props();
+  const { auditLogs = [] } = $props();
   let searchQuery = $state('');
   let moduleFilter = $state('');
 

@@ -19,7 +19,7 @@
     }>;
   };
 
-  let { schema }: { schema: HierarchySchema } = $props();
+  const { schema }: { schema: HierarchySchema } = $props();
 
   type HierarchyTreeNode = HierarchySchema['hierarchies'][number] & {
     children: HierarchyTreeNode[];

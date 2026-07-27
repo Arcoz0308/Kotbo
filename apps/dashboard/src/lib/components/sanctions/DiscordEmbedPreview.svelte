@@ -16,7 +16,7 @@
     footerIconUrl: string | null;
   }
 
-  let { embed } = $props<{ embed: ParsedEmbed }>();
+  const { embed } = $props<{ embed: ParsedEmbed }>();
 </script>
 
 <div class="discord-embed" style="border-left-color: {embed.color ?? '#1e1f22'}">

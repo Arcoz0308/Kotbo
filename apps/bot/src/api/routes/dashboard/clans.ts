@@ -3,7 +3,24 @@ import { Client } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
-import { clanTasks, runDistribution, runClear, handleEndSeason, buildCategoryName } from '../../../services/community/clanService.js';
+import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, buildCategoryName } from '../../../services/community/clanService.js';
+
+/** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
+const MAX_MANUAL_POINTS = 1_000_000;
+
+/**
+ * Segments d'URL qui désignent une action et non l'identifiant d'un clan : sans
+ * cette liste, un PUT sur /clans/reset-all irait chercher un clan « reset-all ».
+ */
+const RESERVED_SUBACTIONS = new Set([
+  'distribute',
+  'clear',
+  'dedupe',
+  'points',
+  'reset-season',
+  'reset-all',
+  'rollback-season',
+]);
 
 export async function handleClansRoutes(
   req: IncomingMessage,
@@ -27,7 +44,6 @@ export async function handleClansRoutes(
         where: { id: guildId },
         select: {
           clansEnabled: true,
-          clansUnique: true,
           clanAutoAssignOnJoin: true,
           currentClanSeason: true,
           clanXpFromLevelUp: true,
@@ -85,7 +101,6 @@ export async function handleClansRoutes(
 
       json(res, 200, {
         clansEnabled: guildData.clansEnabled,
-        clansUnique: guildData.clansUnique,
         clanAutoAssignOnJoin: guildData.clanAutoAssignOnJoin,
         currentClanSeason: guildData.currentClanSeason,
         clanXpFromLevelUp: guildData.clanXpFromLevelUp,
@@ -114,7 +129,6 @@ export async function handleClansRoutes(
     try {
       const body = await readJsonBody<{
         clansEnabled?: boolean;
-        clansUnique?: boolean;
         clanAutoAssignOnJoin?: boolean;
         clanXpFromLevelUp?: boolean;
         clanXpPerLevelUp?: number;
@@ -131,7 +145,6 @@ export async function handleClansRoutes(
 
       const updateData: Record<string, any> = {};
       if (body?.clansEnabled !== undefined) updateData.clansEnabled = body.clansEnabled;
-      if (body?.clansUnique !== undefined) updateData.clansUnique = body.clansUnique;
       if (body?.clanAutoAssignOnJoin !== undefined) updateData.clanAutoAssignOnJoin = body.clanAutoAssignOnJoin;
       if (body?.clanXpFromLevelUp !== undefined) updateData.clanXpFromLevelUp = body.clanXpFromLevelUp;
       if (body?.clanXpPerLevelUp !== undefined) {
@@ -161,10 +174,27 @@ export async function handleClansRoutes(
       }
       if (body?.clanRewardLeaderRole !== undefined) updateData.clanRewardLeaderRole = body.clanRewardLeaderRole;
       if (body?.clanSeasonStartsAt !== undefined) {
-        updateData.clanSeasonStartsAt = body.clanSeasonStartsAt ? new Date(body.clanSeasonStartsAt) : null;
+        const startsAt = body.clanSeasonStartsAt ? new Date(body.clanSeasonStartsAt) : null;
+        if (startsAt && Number.isNaN(startsAt.getTime())) {
+          json(res, 400, { error: 'La date de début de saison est invalide.' });
+          return true;
+        }
+        updateData.clanSeasonStartsAt = startsAt;
       }
       if (body?.clanSeasonEndsAt !== undefined) {
-        updateData.clanSeasonEndsAt = body.clanSeasonEndsAt ? new Date(body.clanSeasonEndsAt) : null;
+        const endsAt = body.clanSeasonEndsAt ? new Date(body.clanSeasonEndsAt) : null;
+        if (endsAt && Number.isNaN(endsAt.getTime())) {
+          json(res, 400, { error: 'La date de fin de saison est invalide.' });
+          return true;
+        }
+        updateData.clanSeasonEndsAt = endsAt;
+      }
+      // La durée de la saison sert de gabarit pour toutes les suivantes : une fin
+      // antérieure au début enchaînerait des saisons déjà expirées.
+      if (updateData.clanSeasonStartsAt && updateData.clanSeasonEndsAt
+        && updateData.clanSeasonEndsAt.getTime() <= updateData.clanSeasonStartsAt.getTime()) {
+        json(res, 400, { error: 'La date de fin de saison doit être postérieure à la date de début.' });
+        return true;
       }
 
       if (Object.keys(updateData).length === 0) {
@@ -183,7 +213,7 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Unique: ${updatedGuild.clansUnique}, Auto-assignation à la jointure: ${updatedGuild.clanAutoAssignOnJoin}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
+        details: `Paramètres clans mis à jour. Activé: ${updatedGuild.clansEnabled}, Auto-assignation à la jointure: ${updatedGuild.clanAutoAssignOnJoin}, XP Level Up: ${updatedGuild.clanXpFromLevelUp} (${updatedGuild.clanXpPerLevelUp} pts)`,
         channelId: null,
       });
 
@@ -191,7 +221,6 @@ export async function handleClansRoutes(
 
       json(res, 200, {
         clansEnabled: updatedGuild.clansEnabled,
-        clansUnique: updatedGuild.clansUnique,
         clanAutoAssignOnJoin: updatedGuild.clanAutoAssignOnJoin,
         clanXpFromLevelUp: updatedGuild.clanXpFromLevelUp,
         clanXpPerLevelUp: updatedGuild.clanXpPerLevelUp,
@@ -283,7 +312,7 @@ export async function handleClansRoutes(
   }
 
   // PUT /api/dashboard/guilds/:guildId/clans/:id
-  if (subAction && subAction !== 'distribute' && subAction !== 'clear' && subAction !== 'reset-season' && subAction !== 'points' && method === 'PUT') {
+  if (subAction && !RESERVED_SUBACTIONS.has(subAction) && method === 'PUT') {
     try {
       const clanId = subAction;
       const body = await readJsonBody<{
@@ -347,7 +376,7 @@ export async function handleClansRoutes(
   }
 
   // DELETE /api/dashboard/guilds/:guildId/clans/:id
-  if (subAction && subAction !== 'distribute' && subAction !== 'clear' && subAction !== 'reset-season' && subAction !== 'points' && method === 'DELETE') {
+  if (subAction && !RESERVED_SUBACTIONS.has(subAction) && method === 'DELETE') {
     try {
       const clanId = subAction;
 
@@ -382,7 +411,7 @@ export async function handleClansRoutes(
       json(res, 200, { message });
     } catch (err: any) {
       logger.error('ClansAPI', 'Error launching distribution:', err);
-      json(res, err.message.includes('déjà en cours') || err.message.includes('configurer') ? 400 : 500, { error: err.message });
+      json(res, err.message.includes('en cours') || err.message.includes('configurer') ? 400 : 500, { error: err.message });
     }
     return true;
   }
@@ -394,7 +423,19 @@ export async function handleClansRoutes(
       json(res, 200, { message });
     } catch (err: any) {
       logger.error('ClansAPI', 'Error launching clear:', err);
-      json(res, err.message.includes('déjà en cours') || err.message.includes('Aucun clan') ? 400 : 500, { error: err.message });
+      json(res, err.message.includes('en cours') || err.message.includes('Aucun clan') ? 400 : 500, { error: err.message });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/clans/dedupe (Repair members with several clans)
+  if (subAction === 'dedupe' && method === 'POST') {
+    try {
+      const message = await runDeduplicate(guildId, client, auditUser);
+      json(res, 200, { message });
+    } catch (err: any) {
+      logger.error('ClansAPI', 'Error launching dedupe:', err);
+      json(res, err.message.includes('en cours') || err.message.includes('deux clans') ? 400 : 500, { error: err.message });
     }
     return true;
   }
@@ -417,16 +458,17 @@ export async function handleClansRoutes(
       let nextStartsAt: Date | null = null;
       let nextEndsAt: Date | null = null;
 
+      // Cf. checkAndProgressClanSeasons : une durée nulle ou négative produirait
+      // une saison immédiatement expirée, reclôturée par le cron toutes les 15 min.
       if (guild.clanSeasonStartsAt && guild.clanSeasonEndsAt) {
         const durationMs = guild.clanSeasonEndsAt.getTime() - guild.clanSeasonStartsAt.getTime();
-        nextStartsAt = new Date();
-        nextEndsAt = new Date(nextStartsAt.getTime() + durationMs);
+        if (durationMs > 0) {
+          nextStartsAt = new Date();
+          nextEndsAt = new Date(nextStartsAt.getTime() + durationMs);
+        }
       }
 
-      // 1. Décerner les bonus, renommer les QG et publier les annonces de fin de saison
-      await handleEndSeason(guildId, client, auditUser, guild.currentClanSeason, nextSeason);
-
-      // 2. Mettre à jour la saison en base de données
+      // 1. Mettre à jour la saison en base de données immédiatement
       await prisma.guild.update({
         where: { id: guildId },
         data: { 
@@ -434,6 +476,11 @@ export async function handleClansRoutes(
           clanSeasonStartsAt: nextStartsAt,
           clanSeasonEndsAt: nextEndsAt,
         },
+      });
+
+      // 2. Décerner les bonus, renommer les QG et publier les annonces de fin de saison en arrière-plan
+      void handleEndSeason(guildId, client, auditUser, guild.currentClanSeason, nextSeason).catch((err) => {
+        logger.error('ClansAPI', 'Error handling end season in background:', err);
       });
 
       await pushAudit(guildId, {
@@ -459,6 +506,17 @@ export async function handleClansRoutes(
   // POST /api/dashboard/guilds/:guildId/clans/reset-all (Reset All Data)
   if (subAction === 'reset-all' && method === 'POST') {
     try {
+      // 0. Le nettoyage des QG a besoin des clans avant que la base ne soit
+      // vidée. Les rôles des membres ne sont pas touchés : un reset des données
+      // ne défait pas l'appartenance des gens à leur clan.
+      const clansToClean = await prisma.clan.findMany({
+        where: { guildId },
+        select: { generalChannelId: true },
+      });
+      void runClanArtifactCleanup(guildId, client, clansToClean, auditUser).catch((err) => {
+        logger.error('ClansAPI', 'Error cleaning up clan artifacts:', err);
+      });
+
       // 1. Supprimer toutes les contributions
       await prisma.clanMemberContribution.deleteMany({
         where: { guildId }
@@ -488,7 +546,7 @@ export async function handleClansRoutes(
         context: getGuildName(client, guildId),
         module: 'Clans',
         eventType: 'Manuel',
-        details: 'Réinitialisation totale des clans, contributions et retour à la saison 1.',
+        details: 'Réinitialisation totale des clans, contributions et retour à la saison 1. Balises de champion retirées des QG.',
         channelId: null,
       });
 
@@ -542,7 +600,7 @@ export async function handleClansRoutes(
         }
       }
 
-      // 2. Mettre à jour la guilde
+      // 2. Mettre à jour la guilde et supprimer les contributions de la saison annulée en BDD
       await prisma.guild.update({
         where: { id: guildId },
         data: {
@@ -553,23 +611,26 @@ export async function handleClansRoutes(
         }
       });
 
-      // 3. Supprimer toutes les contributions de la saison "annulée" (currentSeason)
       await prisma.clanMemberContribution.deleteMany({
         where: { guildId, season: currentSeason }
       });
+      await prisma.clanContributionEvent.deleteMany({
+        where: { guildId, season: currentSeason }
+      });
 
-      // 4. Rétablir les rôles de chefs de clan
-      const clans = await prisma.clan.findMany({ where: { guildId } });
-      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-      if (discordGuild) {
+      // 3. Rétablir les rôles de chefs et renommer les QG Discord en arrière-plan
+      (async () => {
+        const clans = await prisma.clan.findMany({ where: { guildId } });
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (!discordGuild) return;
+
         // Retirer les chefs actuels
         for (const clan of clans) {
           if (clan.leaderRoleId) {
             const role = discordGuild.roles.cache.get(clan.leaderRoleId) || await discordGuild.roles.fetch(clan.leaderRoleId).catch(() => null);
             if (role) {
-              for (const [, m] of role.members) {
-                await m.roles.remove(clan.leaderRoleId, "Annulation clôture saison").catch(() => null);
-              }
+              const members = Array.from(role.members.values());
+              await Promise.all(members.map(m => m.roles.remove(clan.leaderRoleId!, "Annulation clôture saison").catch(() => null)));
             }
           }
         }
@@ -591,28 +652,11 @@ export async function handleClansRoutes(
             }
           }
         }
+      })().catch((err) => {
+        logger.error('ClansAPI', 'Error updating Discord elements during rollback:', err);
+      });
 
-        // 5. Renommer les catégories QG pour le vainqueur rétabli
-        const { ChannelType } = await import('discord.js');
-        for (const clan of clans) {
-          if (clan.generalChannelId) {
-            const channel = discordGuild.channels.cache.get(clan.generalChannelId) || await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
-            // On renomme la catégorie parente du salon QG (même logique que la fin de saison).
-            const category = channel && 'parent' in channel && channel.parent && channel.parent.type === ChannelType.GuildCategory
-              ? channel.parent
-              : (channel && channel.type === ChannelType.GuildCategory ? channel : null);
-            if (category) {
-              const isWinner = Boolean(restoredWinningClanId && clan.id === restoredWinningClanId);
-              const targetName = buildCategoryName(category.name, isWinner);
-              if (category.name !== targetName) {
-                await category.setName(targetName, "Annulation clôture saison").catch(() => null);
-              }
-            }
-          }
-        }
-      }
-
-      // 6. Audit
+      // 4. Audit
       await pushAudit(guildId, {
         user: auditUser,
         action: 'Annulation Clôture de Saison',
@@ -647,6 +691,17 @@ export async function handleClansRoutes(
         return true;
       }
 
+      // Les points sont des entiers positifs : la base ne stocke pas de décimale,
+      // et un retrait manuel fausserait un classement déjà annoncé.
+      if (!Number.isInteger(body.amount) || body.amount <= 0) {
+        json(res, 400, { error: 'Le montant doit être un nombre entier positif (pas de décimale, pas de retrait).' });
+        return true;
+      }
+      if (body.amount > MAX_MANUAL_POINTS) {
+        json(res, 400, { error: `Le montant ne peut pas dépasser ${MAX_MANUAL_POINTS.toLocaleString('fr-FR')} points.` });
+        return true;
+      }
+
       // 1. Récupérer la saison en cours
       const guild = await prisma.guild.findUnique({
         where: { id: guildId },
@@ -664,14 +719,12 @@ export async function handleClansRoutes(
 
       if (body.userId?.trim()) {
         const userId = body.userId.trim();
-        // Vérifier si l'utilisateur existe dans la base de données (profil membre du serveur)
-        const dbMember = await prisma.memberProfile.findUnique({
-          where: { guildId_userId: { guildId, userId } }
-        });
-        if (!dbMember) {
-          json(res, 404, { error: "L'utilisateur n'existe pas dans la base de données de Kotbo (il doit interagir sur Discord d'abord)." });
-          return true;
-        }
+        // S'assurer que le profil membre existe en base de données
+        await prisma.memberProfile.upsert({
+          where: { guildId_userId: { guildId, userId } },
+          update: {},
+          create: { guildId, userId },
+        }).catch(() => null);
 
         // Récupérer le membre Discord et ses rôles
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);

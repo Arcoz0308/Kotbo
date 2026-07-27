@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from './Papicon.svelte';
+  import { m } from '../i18n';
 
   interface Props {
     open?: boolean;
@@ -16,10 +17,10 @@
 
   let {
     open = $bindable(false),
-    title = 'Confirmation requise',
+    title = m.d7_confirm_required(),
     description = '',
-    confirmLabel = 'Confirmer',
-    cancelLabel = 'Annuler',
+    confirmLabel = m.d7_confirm(),
+    cancelLabel = m.d7_cancel(),
     variant = 'default',
     requireInput = '',
     loading = false,
@@ -82,7 +83,6 @@
 
     <!-- Modal -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-lg shadow-sm shadow-black/50 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200"
       onclick={(e) => e.stopPropagation()}
@@ -105,7 +105,7 @@
       {#if requireInput}
         <div class="space-y-1.5">
           <p class="text-xs text-on-surface-variant/50 font-medium">
-            Tapez <span class="font-mono font-semibold text-on-surface">{requireInput}</span> pour confirmer
+            {m.d7_type_to_confirm_pre()} <span class="font-mono font-semibold text-on-surface">{requireInput}</span> {m.d7_type_to_confirm_post()}
           </p>
           <input
             type="text"

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
 
-  let { data = [] } = $props();
+  const { data = [] } = $props();
 
   const totalCount = $derived(data.reduce((acc: number, curr: any) => acc + curr.count, 0));
 </script>

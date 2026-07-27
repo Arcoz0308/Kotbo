@@ -2,7 +2,7 @@
   import Papicon from '../Papicon.svelte';
   import { m } from '../../i18n';
 
-  let { data = [], onOpenMember = (_id: string, _name: string) => {} } = $props();
+  const { data = [], onOpenMember = (_id: string, _name: string) => {} } = $props();
 
   const metrics = [
     { key: 'sanctionsCount', label: m.sp_metric_sanctions(), icon: 'Gavel', color: 'text-amber-500' },

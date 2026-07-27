@@ -56,9 +56,20 @@ export function registerDailyAlgoHandlers(client: Client): void {
         return;
       }
 
+      if (feedback.status === 'DISMISSED') {
+        await interaction.reply({
+          content: `🚫 Ta soumission a été jugée hors-sujet : elle ne rapporte pas de points, mais elle n'entraîne aucune sanction.${feedback.reviewFeedback ? `\n\n🗒️ **Retour du staff**\n${feedback.reviewFeedback}` : ''}`,
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+
       const details = `✅ ${feedback.scoreCorrectness ?? '-'}/5 · 💬 ${feedback.scoreComments ?? '-'}/5 · 📦 ${feedback.scoreCompactness ?? '-'}/5 · ⚡ ${feedback.scoreOptimization ?? '-'}/5 · 🧹 ${feedback.scoreReadability ?? '-'}/5`;
+      const bonusLine = (feedback.speedBonusPoints ?? 0) > 0
+        ? `\n**Bonus rapidité:** ⚡+${feedback.speedBonusPoints}`
+        : '';
       await interaction.reply({
-        content: `📊 **Pourquoi cette note ?**\n\n**Défi:** ${feedback.problemTitle}\n**Moyenne:** ${feedback.scoreFinal?.toFixed(1) ?? '-'} / 5\n**Total:** ${feedback.totalPoints?.toFixed(1) ?? '-'} pts\n\n${details}${feedback.reviewFeedback ? `\n\n🗒️ **Retour du staff**\n${feedback.reviewFeedback}` : ''}`,
+        content: `📊 **Pourquoi cette note ?**\n\n**Défi:** ${feedback.problemTitle}\n**Moyenne:** ${feedback.scoreFinal?.toFixed(1) ?? '-'} / 5\n**Total:** ${feedback.totalPoints ?? '-'} pts${bonusLine}\n\n${details}${feedback.reviewFeedback ? `\n\n🗒️ **Retour du staff**\n${feedback.reviewFeedback}` : ''}`,
         flags: [MessageFlags.Ephemeral],
       });
       return;

@@ -3,7 +3,7 @@ import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas';
 import type { LevelConfig } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { cache } from '../../utils/cache.js';
+import { cache, getCachedGuild } from '../../utils/cache.js';
 
 // Cooldown map: key is "guildId:userId", value is timestamp when cooldown expires
 const xpCooldowns = new Map<string, number>();
@@ -168,26 +168,22 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
 
   let finalAmount = amount;
   try {
-    const guildSettings = await prisma.guild.findUnique({
-      where: { id: guildId },
-      select: {
-        clanRewardXpBoost: true,
-        clanRewardXpBoostRate: true,
-        lastWinningClanId: true,
-      },
-    });
+    // Lecture mise en cache : `addXp` est appelée à chaque message, et le clan
+    // vainqueur comme son bonus ne changent qu'à la clôture d'une saison.
+    const guildSettings = await getCachedGuild(guildId);
 
     if (guildSettings?.clanRewardXpBoost && guildSettings.lastWinningClanId) {
-      const winningClan = await prisma.clan.findUnique({
-        where: { id: guildSettings.lastWinningClanId },
+      const winnerIds = guildSettings.lastWinningClanId.split(',');
+      const winningClans = await prisma.clan.findMany({
+        where: { id: { in: winnerIds } },
         select: { roleId: true },
       });
 
-      if (winningClan) {
+      if (winningClans.length > 0) {
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
         if (discordGuild) {
           const member = discordGuild.members.cache.get(userId) || await discordGuild.members.fetch(userId).catch(() => null);
-          if (member && member.roles.cache.has(winningClan.roleId)) {
+          if (member && winningClans.some((c) => member.roles.cache.has(c.roleId))) {
             finalAmount = Math.round(amount * guildSettings.clanRewardXpBoostRate);
           }
         }
@@ -219,19 +215,67 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
   const newLevel = getLevelFromXp(memberLevel.xp);
 
   if (newLevel !== previousLevel) {
-    // Mettre à jour en BDD
-    await prisma.memberLevel.update({
-      where: { guildId_userId: { guildId, userId } },
-      data: { level: newLevel },
-    });
-
     if (newLevel > previousLevel) {
-      // Montée de niveau : notification + récompenses (rôles, économie)
-      await processLevelUp(guildId, userId, newLevel, client, channelId);
+      // Le niveau et la récompense en KotboCoins doivent être commis ensemble : sinon un
+      // échec du crédit (module économie momentanément indisponible, etc.) laisserait le
+      // niveau monté sans aucune compensation.
+      const coinReward = await getLevelUpCoinReward(guildId, newLevel);
+      await prisma.$transaction(async (tx) => {
+        await tx.memberLevel.update({
+          where: { guildId_userId: { guildId, userId } },
+          data: { level: newLevel },
+        });
+        if (coinReward) {
+          await tx.rpgProfile.upsert({
+            where: { guildId_userId: { guildId, userId } },
+            update: { balance: { increment: coinReward.amount } },
+            create: {
+              guildId,
+              userId,
+              balance: coinReward.amount,
+              level: 1,
+              xp: 0,
+              health: 100,
+              maxHealth: 100,
+              energy: 100,
+              attack: 10,
+              defense: 10,
+              speed: 10,
+            },
+          });
+        }
+      });
+
+      // Notification + récompenses annexes (rôles, points de clan) : best-effort, le
+      // niveau et les pièces sont déjà garantis commis à ce stade.
+      await processLevelUp(guildId, userId, newLevel, client, channelId, coinReward);
     } else {
+      await prisma.memberLevel.update({
+        where: { guildId_userId: { guildId, userId } },
+        data: { level: newLevel },
+      });
       // Correction vers le bas : on retire les rôles attribués en trop, sans message
       await updateMemberLevelRoles(guildId, userId, newLevel, client).catch(() => null);
     }
+  }
+}
+
+/**
+ * Calcule (sans l'appliquer) la récompense en KotboCoins due pour une montée de niveau.
+ */
+async function getLevelUpCoinReward(guildId: string, newLevel: number): Promise<{ amount: number; currencyEmoji: string; currencyName: string } | null> {
+  try {
+    const { getOrCreateEconomyConfig } = await import('../features/economyService.js');
+    const econConfig = await getOrCreateEconomyConfig(guildId).catch(() => null);
+    if (!econConfig || !econConfig.enabled) return null;
+    return {
+      amount: newLevel * 20,
+      currencyEmoji: econConfig.currencyEmoji,
+      currencyName: econConfig.currencyName,
+    };
+  } catch (err) {
+    logger.error('LevelingService', "Erreur lors du calcul du bonus d'économie pour le level up :", err);
+    return null;
   }
 }
 
@@ -257,14 +301,40 @@ export async function setXp(guildId: string, userId: string, newXp: number, clie
   const newLevel = getLevelFromXp(clampedXp);
 
   if (newLevel !== previousLevel) {
-    await prisma.memberLevel.update({
-      where: { guildId_userId: { guildId, userId } },
-      data: { level: newLevel },
-    });
-
     if (newLevel > previousLevel) {
-      await processLevelUp(guildId, userId, newLevel, client, channelId);
+      // Voir addXp() : niveau et récompense en KotboCoins doivent être commis ensemble.
+      const coinReward = await getLevelUpCoinReward(guildId, newLevel);
+      await prisma.$transaction(async (tx) => {
+        await tx.memberLevel.update({
+          where: { guildId_userId: { guildId, userId } },
+          data: { level: newLevel },
+        });
+        if (coinReward) {
+          await tx.rpgProfile.upsert({
+            where: { guildId_userId: { guildId, userId } },
+            update: { balance: { increment: coinReward.amount } },
+            create: {
+              guildId,
+              userId,
+              balance: coinReward.amount,
+              level: 1,
+              xp: 0,
+              health: 100,
+              maxHealth: 100,
+              energy: 100,
+              attack: 10,
+              defense: 10,
+              speed: 10,
+            },
+          });
+        }
+      });
+      await processLevelUp(guildId, userId, newLevel, client, channelId, coinReward);
     } else {
+      await prisma.memberLevel.update({
+        where: { guildId_userId: { guildId, userId } },
+        data: { level: newLevel },
+      });
       await updateMemberLevelRoles(guildId, userId, newLevel, client).catch(() => null);
     }
   }
@@ -275,7 +345,7 @@ export async function setXp(guildId: string, userId: string, newXp: number, clie
 /**
  * Gère les notifications de level up et l'attribution des rôles récompenses
  */
-async function processLevelUp(guildId: string, userId: string, newLevel: number, client: Client, fallbackChannelId?: string) {
+async function processLevelUp(guildId: string, userId: string, newLevel: number, client: Client, fallbackChannelId?: string, coinReward?: { amount: number; currencyEmoji: string; currencyName: string } | null) {
   try {
     const config = await getOrCreateLevelConfig(guildId);
     const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -388,35 +458,11 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
       }
     }
 
-    // 1.5. Attribution des pièces d'économie pour la montée de niveau
-    let coinRewardText = '';
-    try {
-      const { getOrCreateEconomyConfig } = await import('../features/economyService.js');
-      const econConfig = await getOrCreateEconomyConfig(guildId).catch(() => null);
-      if (econConfig && econConfig.enabled) {
-        const rewardAmount = newLevel * 20;
-        await prisma.rpgProfile.upsert({
-          where: { guildId_userId: { guildId, userId } },
-          update: { balance: { increment: rewardAmount } },
-          create: {
-            guildId,
-            userId,
-            balance: rewardAmount,
-            level: 1,
-            xp: 0,
-            health: 100,
-            maxHealth: 100,
-            energy: 100,
-            attack: 10,
-            defense: 10,
-            speed: 10
-          }
-        });
-        coinRewardText = ` Tu as également gagné **${rewardAmount}** ${econConfig.currencyEmoji} **${econConfig.currencyName}** !`;
-      }
-    } catch (econErr) {
-      logger.error('LevelingService', "Erreur lors de l'attribution du bonus d'économie pour le level up :", econErr);
-    }
+    // 1.5. Le crédit des KotboCoins a déjà été commis atomiquement avec le niveau (voir
+    // addXp/setXp) ; on ne fait ici que construire le texte de notification.
+    const coinRewardText = coinReward
+      ? ` Tu as également gagné **${coinReward.amount}** ${coinReward.currencyEmoji} **${coinReward.currencyName}** !`
+      : '';
 
     // 2. Envoi du message de félicitations
     const msgTemplate = config.levelUpMessage;

@@ -61,7 +61,7 @@
   let activeTab = $state<StaffTab>('members');
 
   // États de chargement par catégorie
-  let loadingStates = $state<Record<string, boolean>>({
+  const loadingStates = $state<Record<string, boolean>>({
     members: true,
     roles: true,
     organigramme: true,
@@ -184,7 +184,7 @@
   let selectedMemberHierarchyId = $state('');
   let selectedMemberHierarchyGrade = $state('');
   let isSavingMemberHierarchyGrade = $state(false);
-  let showOnlyNoHierarchy = $state(false);
+  const showOnlyNoHierarchy = $state(false);
 
   // Checklists de tutorat (par hiérarchie / grade)
   let tutoringItems = $state<TutoringItem[]>([]);

@@ -5,7 +5,7 @@
   import { loadGoogleFont, themeBaseCss, themeStyleVars, type FormTheme } from '../lib/formTheme';
   import PrivacyNotice from '../lib/components/PrivacyNotice.svelte';
 
-  let { formId }: { formId: string } = $props();
+  const { formId }: { formId: string } = $props();
 
   // ── Types ──────────────────────────────────────────────────────────────────
   type FieldType = 'short_text'|'paragraph'|'multiple_choice'|'checkboxes'|'dropdown'

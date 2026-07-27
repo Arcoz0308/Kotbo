@@ -31,7 +31,7 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { localInitialAvatar } from '../lib/discordMedia';
 
-  let absences = $state<any[]>([]);
+  const absences = $state<any[]>([]);
   let allStaff = $state<any[]>([]);
   let allRoles = $state<any[]>([]);
   let calendarData = $state<{ absences: any[], voiceSessions: any[], meetings?: any[] }>({ absences: [], voiceSessions: [] });

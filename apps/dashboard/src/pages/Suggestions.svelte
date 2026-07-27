@@ -89,7 +89,7 @@
   let currentFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'IMPLEMENTED'>('ALL');
 
   // Response text form states mapped by suggestion ID
-  let responseDrafts = $state<Record<string, string>>({});
+  const responseDrafts = $state<Record<string, string>>({});
 
   async function loadSuggestions() {
     const res = await fetchSuggestions();

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { 
     fetchTutoringConfig, 
@@ -25,7 +26,7 @@
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
 
   let createTutoringModalOpen = $state(false);
-  let createTutoringForm = $state({
+  const createTutoringForm = $state({
     staffUserId: '',
     mentorId: '',
     plannedDurationDays: 14,

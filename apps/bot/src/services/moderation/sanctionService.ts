@@ -217,18 +217,7 @@ export function formatSanctionDurationLabel(seconds: number | null): string | nu
   return parts.length > 0 ? parts.join(' ') : `${seconds}s`;
 }
 
-async function createAutomaticReport(params: {
-  guildId: string;
-  sanctionId: string;
-  sanctionType: SanctionType;
-  targetTag: string | null;
-  targetUserId: string;
-  moderatorTag: string | null;
-  moderatorUserId: string;
-  durationSeconds?: number | null;
-  reason?: string | null;
-  evidenceLinks?: string[];
-}) {
+async function createAutomaticReport(params: SanctionReportReminderInput) {
   const staffPseudo = params.moderatorTag?.trim() || `Modérateur ${params.moderatorUserId}`;
   const memberPseudo = params.targetTag?.trim() || `Utilisateur ${params.targetUserId}`;
   const memberReference = params.targetUserId;
@@ -256,7 +245,7 @@ async function createAutomaticReport(params: {
   });
 }
 
-async function emitSanctionReportReminder(params: {
+type SanctionReportReminderInput = {
   guildId: string;
   sanctionId: string;
   sanctionType: SanctionType;
@@ -267,7 +256,34 @@ async function emitSanctionReportReminder(params: {
   durationSeconds?: number | null;
   reason?: string | null;
   evidenceLinks?: string[];
-}) {
+};
+
+/**
+ * Projette une sanction persistee vers la charge utile du rappel de rapport.
+ *
+ * Les six appels a `emitSanctionReportReminder` de ce fichier repetaient cette
+ * meme projection champ par champ. `extras` couvre les seules variations
+ * reelles entre les appels (la presence ou non de `evidenceLinks`).
+ */
+function reportReminderPayload(
+  sanction: Sanction,
+  extras: Partial<SanctionReportReminderInput> = {},
+): SanctionReportReminderInput {
+  return {
+    guildId: sanction.guildId,
+    sanctionId: sanction.id,
+    sanctionType: sanction.type,
+    targetTag: sanction.targetTag,
+    targetUserId: sanction.targetUserId,
+    moderatorTag: sanction.moderatorTag,
+    moderatorUserId: sanction.moderatorUserId,
+    durationSeconds: sanction.durationSeconds,
+    reason: sanction.reason,
+    ...extras,
+  };
+}
+
+async function emitSanctionReportReminder(params: SanctionReportReminderInput) {
   try {
     // Vérifier si le module de sanctions et les rapports sont activés
     const { getOrCreateFeatureConfigs } = await import('../core/dashboardManagementService.js');
@@ -599,18 +615,9 @@ export async function registerWarnSanction(params: {
     userTag: params.target.tag,
   }).catch(() => null);
 
-  await emitSanctionReportReminder({
-    guildId: sanction.guildId,
-    sanctionId: sanction.id,
-    sanctionType: sanction.type,
-    targetTag: sanction.targetTag,
-    targetUserId: sanction.targetUserId,
-    moderatorTag: sanction.moderatorTag,
-    moderatorUserId: sanction.moderatorUserId,
-    durationSeconds: sanction.durationSeconds,
-    reason: sanction.reason,
-    evidenceLinks: params.evidenceLinks,
-  }).catch(() => null);
+  await emitSanctionReportReminder(
+    reportReminderPayload(sanction, { evidenceLinks: params.evidenceLinks }),
+  ).catch(() => null);
 
   if (!params.isSync) {
     void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -711,18 +718,9 @@ export async function registerKickSanction(params: {
     userTag: params.target.tag,
   }).catch(() => null);
 
-  await emitSanctionReportReminder({
-    guildId: sanction.guildId,
-    sanctionId: sanction.id,
-    sanctionType: sanction.type,
-    targetTag: sanction.targetTag,
-    targetUserId: sanction.targetUserId,
-    moderatorTag: sanction.moderatorTag,
-    moderatorUserId: sanction.moderatorUserId,
-    durationSeconds: sanction.durationSeconds,
-    reason: sanction.reason,
-    evidenceLinks: params.evidenceLinks,
-  });
+  await emitSanctionReportReminder(
+    reportReminderPayload(sanction, { evidenceLinks: params.evidenceLinks }),
+  );
 
   if (!params.isSync) {
     void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -804,18 +802,9 @@ export async function registerBanSanction(params: {
     userTag: params.target.tag,
   }).catch(() => null);
 
-  await emitSanctionReportReminder({
-    guildId: sanction.guildId,
-    sanctionId: sanction.id,
-    sanctionType: sanction.type,
-    targetTag: sanction.targetTag,
-    targetUserId: sanction.targetUserId,
-    moderatorTag: sanction.moderatorTag,
-    moderatorUserId: sanction.moderatorUserId,
-    durationSeconds: sanction.durationSeconds,
-    reason: sanction.reason,
-    evidenceLinks: params.evidenceLinks,
-  });
+  await emitSanctionReportReminder(
+    reportReminderPayload(sanction, { evidenceLinks: params.evidenceLinks }),
+  );
 
   if (!params.isSync) {
     void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -889,18 +878,9 @@ export async function registerSoftbanSanction(params: {
     userTag: params.target.tag,
   }).catch(() => null);
 
-  await emitSanctionReportReminder({
-    guildId: sanction.guildId,
-    sanctionId: sanction.id,
-    sanctionType: sanction.type,
-    targetTag: sanction.targetTag,
-    targetUserId: sanction.targetUserId,
-    moderatorTag: sanction.moderatorTag,
-    moderatorUserId: sanction.moderatorUserId,
-    durationSeconds: sanction.durationSeconds,
-    reason: sanction.reason,
-    evidenceLinks: params.evidenceLinks,
-  });
+  await emitSanctionReportReminder(
+    reportReminderPayload(sanction, { evidenceLinks: params.evidenceLinks }),
+  );
 
   if (!params.isSync) {
     void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -983,18 +963,9 @@ export async function registerTimeoutSanction(params: {
     userTag: params.target.tag,
   }).catch(() => null);
 
-  await emitSanctionReportReminder({
-    guildId: sanction.guildId,
-    sanctionId: sanction.id,
-    sanctionType: sanction.type,
-    targetTag: sanction.targetTag,
-    targetUserId: sanction.targetUserId,
-    moderatorTag: sanction.moderatorTag,
-    moderatorUserId: sanction.moderatorUserId,
-    durationSeconds: sanction.durationSeconds,
-    reason: sanction.reason,
-    evidenceLinks: params.evidenceLinks,
-  });
+  await emitSanctionReportReminder(
+    reportReminderPayload(sanction, { evidenceLinks: params.evidenceLinks }),
+  );
 
   if (!params.isSync) {
     void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -1056,17 +1027,7 @@ export async function registerObservedTimeoutSanction(params: {
 
   void incrementModerationStats(params.guildId, SanctionType.TIMEOUT).catch(() => null);
 
-  await emitSanctionReportReminder({
-    guildId: sanction.guildId,
-    sanctionId: sanction.id,
-    sanctionType: sanction.type,
-    targetTag: sanction.targetTag,
-    targetUserId: sanction.targetUserId,
-    moderatorTag: sanction.moderatorTag,
-    moderatorUserId: sanction.moderatorUserId,
-    durationSeconds: sanction.durationSeconds,
-    reason: sanction.reason,
-  });
+  await emitSanctionReportReminder(reportReminderPayload(sanction));
 
   return sanction;
 }

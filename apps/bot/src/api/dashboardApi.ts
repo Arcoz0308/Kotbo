@@ -18,6 +18,8 @@ import {
   errorReportRateLimiter,
   feedbackReportRateLimiter,
   partnershipRateLimiter,
+  dashboardWriteRateLimiter,
+  dashboardSensitiveRateLimiter,
   setDashboardStateBroadcaster,
   type DashboardSanctionType,
   BunServerResponse,
@@ -139,6 +141,8 @@ export const startDashboardApi = async (client: Client) => {
     cleanLimiter(feedbackReportRateLimiter, 15 * 60 * 1000);
     cleanLimiter(partnershipRateLimiter, 60 * 60 * 1000);
     cleanLimiter(mcpRateLimiter, 60 * 1000);
+    cleanLimiter(dashboardWriteRateLimiter, 60 * 1000);
+    cleanLimiter(dashboardSensitiveRateLimiter, 60 * 1000);
   }, 10 * 60 * 1000).unref();
 
   const startServer = (listenPort: number) => Bun.serve<WebSocketData>({

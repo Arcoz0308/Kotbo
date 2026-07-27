@@ -3,7 +3,7 @@
   import { reportRuleIcon } from '../../sanctions/reportRules';
   import Papicon from '../Papicon.svelte';
 
-  let {
+  const {
     id,
     options,
     selectedIds,

@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
   import Papicon from './Papicon.svelte';
 
-  let {
+  const {
     title = '',
     description = '',
     icon = '',

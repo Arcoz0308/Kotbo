@@ -34,127 +34,6 @@
   type LogsSortField = 'date' | 'user' | 'module' | 'action' | 'type';
 
 
-  type MemberCaseResponse = {
-    profile: {
-      userId: string;
-      userTag: string | null;
-      username: string | null;
-      globalName: string | null;
-      displayName: string | null;
-      avatarUrl: string | null;
-      bannerUrl: string | null;
-      accentColor: number | null;
-      locale: string | null;
-      isBot: boolean;
-      accountCreatedAt: string | null;
-      guildJoinedAt: string | null;
-      guildLeftAt: string | null;
-      firstSeenAt: string | null;
-      lastSeenAt: string | null;
-      lastMessageAt: string | null;
-      lastMessageChannelId: string | null;
-      messageCount: number;
-      voiceSessionCount: number;
-      voiceTimeSeconds: number;
-      voiceLastChannelId: string | null;
-      voiceLastJoinedAt: string | null;
-      voiceLastLeftAt: string | null;
-      rolesSnapshot: string[];
-      presenceStatus: string | null;
-      pronouns: string | null;
-      isTutor: boolean;
-      staffGrade: string | null;
-      isSuspectedDC: boolean;
-    } | null;
-    invite: {
-      code: string | null;
-      inviterId: string | null;
-      inviterTag: string | null;
-      joinedAt: string | null;
-    } | null;
-    roles: Array<{ id: string; name: string; mention: string; permissions: string[] }>;
-    effectivePermissions: string[];
-    sanctions: Array<{
-      id: string;
-      type: string;
-      status: string;
-      targetUserId: string;
-      targetTag: string;
-      moderatorUserId: string;
-      moderatorTag: string;
-      reason: string;
-      durationSeconds: number | null;
-      expiresAt: string | null;
-      createdAt: string;
-      resolvedAt: string | null;
-      resolutionNote: string | null;
-    }>;
-    logs: Array<{
-      id: string;
-      user: string;
-      action: string;
-      context: string;
-      module: string;
-      eventType: string;
-      source: 'dashboard' | 'discord';
-      details: string;
-      dateIso: string;
-      channelId: string | null;
-    }>;
-    messagesByChannel: Array<{
-      channelId: string;
-      channelName: string;
-      count: number;
-      lastMessageAt: string | null;
-      recentMessages: Array<{ id: string; channelId: string; channelName: string; content: string; dateIso: string }>;
-    }>;
-    recentMessageCount: number;
-    recentLogCount: number;
-    connections: Array<{ name: string; type: string; visible: boolean }>;
-    connectionsNote: string;
-    candidatures: Array<{
-      id: string;
-      status: string;
-      notes: string;
-      createdAt: string;
-      data: any;
-      autoRejected: boolean;
-      autoRejectReason: string | null;
-      rejectionReason: string | null;
-      oralResult: string | null;
-      reapplyAfter: string | null;
-    }>;
-    sanctionReports?: Array<{
-      id: string;
-      sanctionId: string | null;
-      staffPseudo: string;
-      incidentAt: string;
-      memberPseudo: string;
-      memberReference: string;
-      sanctionType: string;
-      sanctionDurationLabel: string | null;
-      brokenRules: string;
-      detailedReason: string;
-      evidenceLinks: string[];
-      additionalNotes: string | null;
-      createdByUserId: string;
-      createdByTag: string | null;
-      createdAt: string;
-    }>;
-    linkedAccounts: Array<{
-      userId: string;
-      userTag: string | null;
-      avatarUrl: string | null;
-      type: string;
-      status: string;
-    }>;
-    isSuspectedDC: boolean;
-    interactionGraph: {
-      nodes: Array<{ id: string; label: string; type: 'user' | 'target'; avatar?: string | null }>;
-      edges: Array<{ from: string; to: string; type: 'mention' | 'reply' | 'reaction'; count: number }>;
-    };
-  };
-
   let searchQuery = $state('');
   let filters = $state({
     users: [] as string[],
@@ -914,7 +793,7 @@
     <div class="flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
       <div class="space-y-2 w-full lg:max-w-2xl">
         <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">{m.lg_quick_search()}</label>
-        <div class="relative">
+        <div class="relative top-1.5">
           <Papicon icon="search" size={18} class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <FormInput
             id="search"

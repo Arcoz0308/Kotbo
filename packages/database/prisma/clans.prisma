@@ -36,6 +36,9 @@ model ClanMemberContribution {
   clan  Clan  @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, clanId, userId, season])
+  // Rang d'un participant = nombre de contributions du même clan ayant plus de
+  // points. Sans cet index, la recherche publique lit la saison entière.
+  @@index([guildId, clanId, season, xp])
   @@map("clan_member_contributions")
 }
 
@@ -56,5 +59,8 @@ model ClanContributionEvent {
   clan  Clan  @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
   @@index([guildId, createdAt])
+  // Historique d'une personne dans la recherche publique : sans cet index, il
+  // faut remonter le flux global jusqu'à trouver ses gains.
+  @@index([guildId, userId, createdAt])
   @@map("clan_contribution_events")
 }

@@ -15,7 +15,7 @@ export function parseDiscordEmojisAndMarkdown(text: string | null | undefined): 
 
   // 1. Extract code blocks first to protect them from further parsing
   const codeBlocks: string[] = [];
-  let raw = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_m, lang, code) => {
+  const raw = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_m, lang, code) => {
     const idx = codeBlocks.length;
     const escapedCode = escapeHtml(code.replace(/\n$/, ''));
     codeBlocks.push(

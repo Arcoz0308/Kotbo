@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { fetchPublicClans } from '../lib/api';
-  import { m, dateLocale } from '../lib/i18n';
+  import { fetchPublicClans, searchPublicClans, type PublicClanSearchResult } from '../lib/api';
+  import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
+  import { themeStore } from '../lib/stores/theme.svelte';
+  import { userPrefs } from '../lib/stores/userPreferences.svelte';
 
   interface Props {
     serverId: string;
@@ -16,9 +18,13 @@
   let guildIcon = $state<string | null>(null);
   let enabled = $state(false);
   let currentClanSeason = $state(1);
-  
+  let seasonStartsAt = $state<string | null>(null);
+  let seasonEndsAt = $state<string | null>(null);
+
   interface Participant {
     userId: string;
+    /** `null` : trouvé par la recherche, mais aucun point marqué cette saison. */
+    rank: number | null;
     xp: number;
     displayName: string;
     avatarUrl: string | null;
@@ -38,8 +44,9 @@
   interface RecentScore {
     id: string;
     amount: number;
-    source: string; // 'XP' | 'ADMIN'
+    source: string; // 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO'
     isClan: boolean;
+    userId: string | null;
     displayName: string;
     avatarUrl: string | null;
     clanName: string | null;
@@ -47,9 +54,21 @@
     createdAt: string;
   }
 
+  const MEMBER_DISPLAY_LIMIT = 10;
+
+  function normalize(s: string): string {
+    return s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  }
+
   let clans = $state<ClanData[]>([]);
   let recentScores = $state<RecentScore[]>([]);
   let searchQuery = $state('');
+
+  const currentLocale = getLocale();
+  function switchLocale(loc: Locale) {
+    if (loc === currentLocale) return;
+    userPrefs.set('language', loc);
+  }
 
   // Grille : autant de colonnes que de clans (responsive, se replie si trop étroit)
   const clansGridStyle = $derived(
@@ -58,7 +77,7 @@
       : ''
   );
 
-  onMount(async () => {
+  async function loadClans(initial = false) {
     try {
       const res = await fetchPublicClans(serverId);
       if (res) {
@@ -66,26 +85,71 @@
         guildName = res.guildName ?? 'Kotbo Server';
         guildIcon = res.guildIcon ?? null;
         currentClanSeason = res.currentClanSeason ?? 1;
+        seasonStartsAt = res.clanSeasonStartsAt ?? null;
+        seasonEndsAt = res.clanSeasonEndsAt ?? null;
         clans = res.clans || [];
         recentScores = res.recentScores || [];
       }
     } catch (err: any) {
+      if (!initial) return;
       console.error(err);
       errorMsg = err.message || m.clan_public_error_loading();
     } finally {
-      loading = false;
+      if (initial) loading = false;
     }
+  }
+
+  onMount(() => {
+    void loadClans(true);
   });
 
-  // Filter participants in each clan based on search query
-  function getFilteredParticipants(clan: ClanData): Participant[] {
-    if (!searchQuery) return clan.topParticipants;
-    const q = searchQuery.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-    return clan.topParticipants.filter(p => {
-      const name = p.displayName.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-      return name.includes(q) || p.userId.includes(searchQuery);
-    });
+  // La page ne charge que la tête de chaque classement : dès qu'on cherche
+  // quelqu'un, c'est le serveur qui le retrouve, calcule son rang réel — même
+  // très bas au classement — et renvoie son historique de gains de la saison.
+  const searchActive = $derived(searchQuery.trim().length >= 2);
+  let searching = $state(false);
+  let searchResult = $state<PublicClanSearchResult>({ participants: [], scores: [], matchCounts: {} });
+  let searchToken = 0;
+
+  $effect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      searchResult = { participants: [], scores: [], matchCounts: {} };
+      searching = false;
+      return;
+    }
+    const token = ++searchToken;
+    searching = true;
+    const timer = setTimeout(async () => {
+      const results = await searchPublicClans(serverId, q);
+      if (token !== searchToken) return;
+      searchResult = results;
+      searching = false;
+    }, 300);
+    return () => clearTimeout(timer);
+  });
+
+  function getDisplayedParticipants(clan: ClanData): Participant[] {
+    if (!searchActive) return clan.topParticipants;
+    return searchResult.participants.filter(p => p.clanId === clan.id);
   }
+
+  // Nombre de correspondances au-delà de ce qui est affiché, pour inviter à
+  // affiner plutôt que de dérouler une liste interminable.
+  function getHiddenCount(clan: ClanData, shown: number): number {
+    if (!searchActive) return 0;
+    return Math.max(0, (searchResult.matchCounts[clan.id] ?? shown) - shown);
+  }
+
+  const displayedScores = $derived.by(() => {
+    if (!searchActive) return recentScores;
+    const q = normalize(searchQuery);
+    const local = recentScores.filter(s =>
+      normalize(s.displayName).includes(q) || (s.userId ? s.userId.includes(searchQuery) : false)
+    );
+    const seen = new Set(local.map(s => s.id));
+    return [...local, ...searchResult.scores.filter((s: RecentScore) => !seen.has(s.id))];
+  });
 
   function formatXp(xp: number): string {
     if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
@@ -112,7 +176,64 @@
     return m.clan_public_years_ago({ n: years });
   }
 
-  function getRankBadgeColor(rank: number) {
+  function formatSeasonDate(iso: string): string {
+    return new Date(iso).toLocaleDateString(dateLocale(), {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  const seasonRangeLabel = $derived.by(() => {
+    if (seasonStartsAt && seasonEndsAt) {
+      return m.clan_public_season_range({
+        start: formatSeasonDate(seasonStartsAt),
+        end: formatSeasonDate(seasonEndsAt),
+      });
+    }
+    if (seasonStartsAt) return m.clan_public_season_from({ start: formatSeasonDate(seasonStartsAt) });
+    if (seasonEndsAt) return m.clan_public_season_until({ end: formatSeasonDate(seasonEndsAt) });
+    return null;
+  });
+
+  // Le compte à rebours se rafraîchit à la minute : la page reste ouverte
+  // longtemps sur un écran de suivi.
+  let now = $state(Date.now());
+  $effect(() => {
+    const interval = setInterval(() => {
+      now = Date.now();
+      // La bascule de saison est faite par un cron côté bot (toutes les 15 min) :
+      // sans resynchronisation, la page resterait figée sur « Saison terminée »
+      // et sur l'ancien classement jusqu'à un rechargement manuel.
+      if (seasonEndsAt && now >= new Date(seasonEndsAt).getTime()) void loadClans();
+    }, 60_000);
+    return () => clearInterval(interval);
+  });
+
+  const seasonCountdown = $derived.by(() => {
+    if (seasonStartsAt) {
+      const start = new Date(seasonStartsAt).getTime();
+      if (!Number.isNaN(start) && start > now) {
+        return {
+          text: m.clan_public_season_starts_in({ n: Math.ceil((start - now) / 86_400_000) }),
+          ended: false,
+        };
+      }
+    }
+    if (!seasonEndsAt) return null;
+    const end = new Date(seasonEndsAt).getTime();
+    if (Number.isNaN(end)) return null;
+    const diff = end - now;
+    if (diff <= 0) return { text: m.clan_public_season_ended(), ended: true };
+    const days = Math.floor(diff / 86_400_000);
+    if (days >= 1) return { text: m.clan_public_season_days_left({ n: days }), ended: false };
+    const hours = Math.floor(diff / 3_600_000);
+    const minutes = Math.floor((diff % 3_600_000) / 60_000);
+    return { text: m.clan_public_season_hours_left({ h: hours, min: minutes }), ended: false };
+  });
+
+  function getRankBadgeColor(rank: number | null) {
+    if (rank === null) return 'bg-slate-100 dark:bg-slate-800 text-slate-400';
     if (rank === 1) return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
     if (rank === 2) return 'bg-slate-400/10 text-slate-400 border border-slate-400/20';
     if (rank === 3) return 'bg-amber-700/10 text-amber-700 border border-amber-700/20';
@@ -152,14 +273,62 @@
             <span class="text-amber-500"><Papicon icon="Shield" size={14} /></span>
             <span>{m.clan_public_header_subtitle({ n: currentClanSeason })}</span>
           </div>
+
+          {#if seasonRangeLabel || seasonCountdown}
+            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+              {#if seasonRangeLabel}
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  <Papicon icon="Calendar" size={12} />
+                  {seasonRangeLabel}
+                </span>
+              {/if}
+              {#if seasonCountdown}
+                <span
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border {seasonCountdown.ended
+                    ? 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+                    : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'}"
+                >
+                  <Papicon icon="Clock" size={12} />
+                  {seasonCountdown.text}
+                </span>
+              {/if}
+            </div>
+          {/if}
         </div>
       </div>
 
-      <!-- Badge "Live" -->
-      <div class="flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-        <span class="ml-2.5 uppercase tracking-wider text-[10px]">{m.clan_public_live_badge()}</span>
+      <div class="flex items-center gap-3 self-start sm:self-auto">
+        <!-- Sélecteur de langue -->
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-[10px] font-bold uppercase tracking-wider">
+          {#each locales as loc}
+            <button
+              type="button"
+              onclick={() => switchLocale(loc)}
+              class="px-2.5 py-1 rounded-full transition-colors {currentLocale === loc ? 'bg-white dark:bg-[#111a2e] text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}"
+            >{loc}</button>
+          {/each}
+        </div>
+
+        <!-- Bascule thème clair/sombre -->
+        <button
+          type="button"
+          onclick={themeStore.toggle}
+          aria-label={m.navbar_change_theme()}
+          class="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+        >
+          {#if themeStore.dark}
+            <Papicon icon="sun" size={15} class="text-amber-500" />
+          {:else}
+            <Papicon icon="moon" size={15} />
+          {/if}
+        </button>
+
+        <!-- Badge "Live" -->
+        <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
+          <span class="ml-2.5 uppercase tracking-wider text-[10px]">{m.clan_public_live_badge()}</span>
+        </div>
       </div>
     </header>
 
@@ -203,15 +372,24 @@
           type="text"
           bind:value={searchQuery}
           placeholder={m.clan_public_search_placeholder()}
-          class="w-full pl-11 pr-4 py-3 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 shadow-sm transition-all"
+          class="w-full pl-11 pr-11 py-3 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 shadow-sm transition-all"
         />
+        {#if searchQuery}
+          <button
+            type="button"
+            onclick={() => searchQuery = ''}
+            aria-label={m.clan_public_search_placeholder()}
+            class="absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-750 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all"
+          >✕</button>
+        {/if}
       </div>
 
       <!-- ─── Side-by-side Clans Column Grid (une colonne par clan) ─── -->
       <div class="grid gap-8 items-start relative z-10" style={clansGridStyle}>
         
         {#each clans as clan}
-          {@const pList = getFilteredParticipants(clan)}
+          {@const pList = getDisplayedParticipants(clan).slice(0, MEMBER_DISPLAY_LIMIT)}
+          {@const hiddenCount = getHiddenCount(clan, pList.length)}
           
           <div
             class="clean-card bg-white dark:bg-[#111a2e] border-t-4 border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 duration-300 overflow-hidden"
@@ -230,12 +408,6 @@
                 </span>
               </div>
 
-              {#if clan.description}
-                <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed italic">
-                  « {clan.description} »
-                </p>
-              {/if}
-
               <!-- Score Card -->
               <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/50 dark:bg-[#0c1322]/50 border border-slate-200/10">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.clan_public_season_xp_label()}</span>
@@ -247,19 +419,23 @@
 
             <!-- Participants list -->
             <div class="p-4">
-              {#if pList.length === 0}
+              {#if searching && pList.length === 0}
+                <div class="py-12 text-center text-xs text-slate-400 dark:text-slate-500 italic">
+                  {m.clan_public_searching()}
+                </div>
+              {:else if pList.length === 0}
                 <div class="py-12 text-center text-xs text-slate-400 dark:text-slate-500 italic">
                   {m.clan_public_no_members_found()}
                 </div>
               {:else}
                 <div class="space-y-1.5">
-                  {#each pList as p, index}
+                  {#each pList as p}
                     <div class="flex items-center justify-between p-2.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 rounded-xl transition-all duration-200 group/item">
                       <div class="flex items-center gap-3 min-w-0">
-                        
+
                         <!-- Rank Badge -->
-                        <span class="w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0 {getRankBadgeColor(index + 1)}">
-                          {index + 1}
+                        <span class="min-w-6 h-6 px-1.5 rounded-md flex items-center justify-center text-xs font-black shrink-0 tabular-nums whitespace-nowrap {getRankBadgeColor(p.rank)}">
+                          {p.rank ?? '—'}
                         </span>
 
                         <!-- User avatar -->
@@ -276,12 +452,24 @@
                         </span>
                       </div>
 
-                      <span class="text-xs font-extrabold text-amber-500 tracking-tight shrink-0 pl-2">
-                        {p.xp.toLocaleString(dateLocale())} XP
-                      </span>
+                      {#if p.rank === null}
+                        <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic shrink-0 pl-2">
+                          {m.clan_public_no_points_yet()}
+                        </span>
+                      {:else}
+                        <span class="text-xs font-extrabold text-amber-500 tracking-tight shrink-0 pl-2">
+                          {p.xp.toLocaleString(dateLocale())} XP
+                        </span>
+                      {/if}
                     </div>
                   {/each}
                 </div>
+
+                {#if hiddenCount > 0}
+                  <p class="pt-3 text-center text-[11px] text-slate-400 dark:text-slate-500 italic">
+                    {m.clan_public_more_results({ n: hiddenCount })}
+                  </p>
+                {/if}
               {/if}
             </div>
 
@@ -292,8 +480,6 @@
 
       <!-- ─── Section « Derniers Scores » ─── -->
       <section class="clean-card bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
-        <div class="tape-accent"></div>
-
         <div class="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 flex items-center gap-2">
             <span class="text-emerald-500"><Papicon icon="Activity" size={16} /></span>
@@ -302,7 +488,7 @@
           <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{m.clan_public_recent_scores_desc()}</p>
         </div>
 
-        {#if recentScores.length === 0}
+        {#if displayedScores.length === 0}
           <div class="py-14 text-center text-xs text-slate-400 dark:text-slate-500 italic">
             {m.clan_public_no_recent_scores()}
           </div>
@@ -318,7 +504,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each recentScores as s, i}
+                {#each displayedScores as s, i}
                   <tr class="text-sm {i % 2 === 0 ? 'bg-slate-50/60 dark:bg-[#0c1322]/40' : ''}">
                     <td class="px-6 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatRelativeTime(s.createdAt)}</td>
                     <td class="px-6 py-3">
@@ -339,9 +525,13 @@
                     </td>
                     <td class="px-6 py-3">
                       {#if s.source === 'ADMIN'}
-                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">Admin</span>
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 border border-violet-500/20">{m.clan_public_admin_badge()}</span>
                       {:else if s.source === 'BOOST'}
-                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">Boost du serveur</span>
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-500 border border-pink-500/20">{m.clan_public_source_boost()}</span>
+                      {:else if s.source === 'DAILY_ALGO'}
+                        <!-- Ambre : ni le violet, ni le rose, ni le bleu ciel ne sont pris,
+                             et l'orange sert déjà aux pseudos dans ce même tableau. -->
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">{m.clan_public_source_daily_algo()}</span>
                       {:else}
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20">XP</span>
                       {/if}
@@ -364,42 +554,73 @@
 </div>
 
 <style>
-  /* Accents de style Feuille Index */
+  /* Styles pour isoler le style du tableau blanc épuré */
   .whiteboard-container {
-    background-color: #f8fafc;
-    background-image: 
-      radial-gradient(#cbd5e1 0.75px, transparent 0.75px), 
-      radial-gradient(#cbd5e1 0.75px, #f8fafc 0.75px);
-    background-size: 30px 30px;
-    background-position: 0 0, 15px 15px;
-  }
-  
-  :global(.dark) .whiteboard-container {
-    background-color: #070d19;
-    background-image: 
-      radial-gradient(#1e293b 0.75px, transparent 0.75px), 
-      radial-gradient(#1e293b 0.75px, #070d19 0.75px);
-    background-size: 30px 30px;
-    background-position: 0 0, 15px 15px;
+    background-color: #faf9f6;
+    background-image:
+      radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+    background-size: 24px 24px;
+    color: #0f172a;
+    font-family: 'Outfit', sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  .tape-accent {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, #f59e0b 0%, #10b981 50%, #3b82f6 100%);
-    opacity: 0.85;
+  :global(.dark) .whiteboard-container {
+    background-color: #090d16 !important;
+    background-image: radial-gradient(#1e293b 1.2px, transparent 1.2px) !important;
+    color: #f8fafc !important;
   }
 
   .clean-card {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -2px rgba(0, 0, 0, 0.02);
   }
-  
   :global(.dark) .clean-card {
-    background-color: #0e1626;
-    border: 1px solid #1e293b;
+    background-color: #111a2e !important;
+    border-color: #1e293b !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15), 0 2px 4px -2px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .tape-accent {
+    position: absolute;
+    top: -8px;
+    right: 24px;
+    width: 80px;
+    height: 20px;
+    background-color: rgba(251, 191, 36, 0.22);
+    border-left: 1px dashed rgba(0,0,0,0.1);
+    border-right: 1px dashed rgba(0,0,0,0.1);
+    transform: rotate(3deg);
+    z-index: 10;
+  }
+  :global(.dark) .tape-accent {
+    background-color: rgba(251, 191, 36, 0.1) !important;
+    border-left: 1px dashed rgba(255,255,255,0.08) !important;
+    border-right: 1px dashed rgba(255,255,255,0.08) !important;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  :global(.dark) ::-webkit-scrollbar-track {
+    background: #0c1322;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  :global(.dark) ::-webkit-scrollbar-thumb {
+    background: #1e293b;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  :global(.dark) ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
   }
 </style>
