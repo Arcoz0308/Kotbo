@@ -1191,93 +1191,69 @@ export async function handleEndSeason(
       }
     }
 
-    // 4. Renommage des catégories QG de clan (avec gestion d'erreur robuste)
-    for (const clan of clans) {
-      if (!clan.generalChannelId) continue;
-      
-      const channel = discordGuild.channels.cache.get(clan.generalChannelId)
-        || await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
-        
-      if (channel && channel.parent && channel.parent.type === ChannelType.GuildCategory) {
-        const category = channel.parent as CategoryChannel;
-        const isWinner = Boolean(winningClan && clan.id === winningClan.id);
+    // 4. Envoyer l'annonce globale de fin de saison
+    if (guildSettings.clanAnnouncementChannelId) {
+      try {
+        const announcementChannel = discordGuild.channels.cache.get(guildSettings.clanAnnouncementChannelId)
+          || await discordGuild.channels.fetch(guildSettings.clanAnnouncementChannelId).catch(() => null);
+          
+        if (announcementChannel && announcementChannel.isTextBased()) {
+          const globalEmbed = new EmbedBuilder()
+            .setTitle(`🏁 Fin de la Saison de Clans ${currentSeason} !`)
+            .setColor(0xF59E0B) // Amber
+            .setTimestamp();
 
-        // Le gagnant est toujours marqué d'un 🏆 (avec ses bonus actifs le cas
-        // échéant) ; les perdants sont systématiquement nettoyés de toute balise.
-        const activeRewards: string[] = [];
-        if (guildSettings.clanRewardXpBoost) {
-          activeRewards.push(`+${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% XP`);
-        }
-        if (guildSettings.clanRewardGiveaway) {
-          activeRewards.push('GIVEAWAY BOOST');
-        }
+          if (winningClan) {
+            let winnerText = `Le clan **${winningClan.name}** remporte la victoire pour cette saison avec un total de **${maxClanXp.toLocaleString('fr-FR')} XP** ! 🎉\n\n`;
+            winnerText += `Ses membres bénéficient d'avantages exclusifs pour la **Saison ${nextSeason}** :\n`;
+            if (guildSettings.clanRewardXpBoost) {
+              winnerText += `- **Boost d'XP** : +${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% d'XP sur tout le serveur !\n`;
+            }
+            if (guildSettings.clanRewardGiveaway) {
+              winnerText += `- **Giveaways** : Plus de chances de remporter les tirages au sort !\n`;
+            }
+            
+            if (leaderUserId) {
+              winnerText += `\nFélicitations à <@${leaderUserId}>, couronné **Chef de Coalition** du clan avec une contribution record de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑`;
+            }
 
-        const targetName = buildCategoryName(category.name, isWinner, activeRewards);
+            globalEmbed.setDescription(winnerText);
+          } else {
+            globalEmbed.setDescription(`La saison de clans ${currentSeason} se termine. Aucun clan n'a accumulé d'XP cette saison.`);
+          }
 
-        if (category.name !== targetName) {
-          logger.info('ClanService', `Renommage du QG du clan "${clan.name}" en "${targetName}"`);
-          await category.setName(targetName, `Mise à jour QG - Fin de la Saison ${currentSeason}`).catch((err) => {
-            logger.warn('ClanService', `Permission insuffisante pour renommer la catégorie ${category.name}:`, err);
+          await announcementChannel.send({ embeds: [globalEmbed] }).catch((err) => {
+            logger.warn('ClanService', 'Impossible d\'envoyer l\'annonce globale de fin de saison:', err);
           });
         }
-      }
-    }
-
-    // 5. Envoyer l'annonce globale de fin de saison
-    if (guildSettings.clanAnnouncementChannelId) {
-      const announcementChannel = discordGuild.channels.cache.get(guildSettings.clanAnnouncementChannelId)
-        || await discordGuild.channels.fetch(guildSettings.clanAnnouncementChannelId).catch(() => null);
-        
-      if (announcementChannel && announcementChannel.isTextBased()) {
-        const globalEmbed = new EmbedBuilder()
-          .setTitle(`🏁 Fin de la Saison de Clans ${currentSeason} !`)
-          .setColor(0xF59E0B) // Amber
-          .setTimestamp();
-
-        if (winningClan) {
-          let winnerText = `Le clan **${winningClan.name}** remporte la victoire pour cette saison avec un total de **${maxClanXp.toLocaleString('fr-FR')} XP** ! 🎉\n\n`;
-          winnerText += `Ses membres bénéficient d'avantages exclusifs pour la **Saison ${nextSeason}** :\n`;
-          if (guildSettings.clanRewardXpBoost) {
-            winnerText += `- **Boost d'XP** : +${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% d'XP sur tout le serveur !\n`;
-          }
-          if (guildSettings.clanRewardGiveaway) {
-            winnerText += `- **Giveaways** : Plus de chances de remporter les tirages au sort !\n`;
-          }
-          
-          if (leaderUserId) {
-            winnerText += `\nFélicitations à <@${leaderUserId}>, couronné **Chef de Coalition** du clan avec une contribution record de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑`;
-          }
-
-          globalEmbed.setDescription(winnerText);
-        } else {
-          globalEmbed.setDescription(`La saison de clans ${currentSeason} se termine. Aucun clan n'a accumulé d'XP cette saison.`);
-        }
-
-        await announcementChannel.send({ embeds: [globalEmbed] }).catch((err) => {
-          logger.warn('ClanService', 'Impossible d\'envoyer l\'annonce globale de fin de saison:', err);
-        });
+      } catch (err) {
+        logger.error('ClanService', 'Erreur lors de l\'envoi de l\'annonce globale de saison:', err);
       }
     }
 
     // 6. Envoyer l'annonce interne dans le QG du clan vainqueur
     if (winningClan && winningClan.generalChannelId) {
-      const qgChannel = discordGuild.channels.cache.get(winningClan.generalChannelId)
-        || await discordGuild.channels.fetch(winningClan.generalChannelId).catch(() => null);
-        
-      if (qgChannel && qgChannel.isTextBased()) {
-        const localEmbed = new EmbedBuilder()
-          .setTitle(`🏆 Victoire du Clan ${winningClan.name} !`)
-          .setDescription(
-            `Félicitations à tous les membres ! Grâce à votre investissement, notre clan remporte la **Saison ${currentSeason}** ! 🎉\n\n` +
-            `Nos récompenses de vainqueurs sont désormais actives pour toute la **Saison ${nextSeason}**. ` +
-            (leaderUserId ? `Un salut spécial à notre **Chef de Coalition** <@${leaderUserId}> pour son score impressionnant de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑` : '')
-          )
-          .setColor(0x10B981) // Green
-          .setTimestamp();
+      try {
+        const qgChannel = discordGuild.channels.cache.get(winningClan.generalChannelId)
+          || await discordGuild.channels.fetch(winningClan.generalChannelId).catch(() => null);
+          
+        if (qgChannel && qgChannel.isTextBased()) {
+          const localEmbed = new EmbedBuilder()
+            .setTitle(`🏆 Victoire du Clan ${winningClan.name} !`)
+            .setDescription(
+              `Félicitations à tous les membres ! Grâce à votre investissement, notre clan remporte la **Saison ${currentSeason}** ! 🎉\n\n` +
+              `Nos récompenses de vainqueurs sont désormais actives pour toute la **Saison ${nextSeason}**. ` +
+              (leaderUserId ? `Un salut spécial à notre **Chef de Coalition** <@${leaderUserId}> pour son score impressionnant de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑` : '')
+            )
+            .setColor(0x10B981) // Green
+            .setTimestamp();
 
-        await qgChannel.send({ embeds: [localEmbed] }).catch((err) => {
-          logger.warn('ClanService', `Impossible d'envoyer l'annonce locale de victoire dans le QG de ${winningClan.name}:`, err);
-        });
+          await qgChannel.send({ embeds: [localEmbed] }).catch((err) => {
+            logger.warn('ClanService', `Impossible d'envoyer l'annonce locale de victoire dans le QG de ${winningClan.name}:`, err);
+          });
+        }
+      } catch (err) {
+        logger.error('ClanService', `Erreur lors de l'envoi de l'annonce locale QG pour le clan ${winningClan.name}:`, err);
       }
     }
   } catch (err) {
