@@ -662,7 +662,7 @@
                     <SearchableSelect 
                       id="multRole"
                       bind:value={newMultRoleId}
-                      options={availableRoles.filter(r => !Object.keys(config.xpMultipliers).includes(r.id) && !(clanRewardXpBoost && lastWinningClanId && clans.find(c => c.id === lastWinningClanId)?.roleId === r.id)).map(r => ({ id: r.id, name: `@${r.name}` }))} 
+                      options={availableRoles.filter(r => !Object.keys(config.xpMultipliers).includes(r.id) && !(clanRewardXpBoost && lastWinningClanId && lastWinningClanId.split(',').some(id => clans.find(c => c.id === id)?.roleId === r.id))).map(r => ({ id: r.id, name: `@${r.name}` }))} 
                       placeholder="Choisir un rôle" 
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg"
                       clearable={true}
@@ -705,22 +705,25 @@
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-outline-variant/5">
-                    {#if clanRewardXpBoost && lastWinningClanId && clans.find(c => c.id === lastWinningClanId)}
-                      {@const winningClan = clans.find(c => c.id === lastWinningClanId)}
-                      {#if winningClan.roleId}
-                        <tr class="bg-amber-500/10 border-l-4 border-amber-500 transition-all font-semibold">
-                          <td class="px-6 py-3.5 text-sm font-semibold flex items-center gap-2">
-                            <span>🏆 {getRoleName(winningClan.roleId)}</span>
-                            <span class="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">Clan Gagnant (Boost XP)</span>
-                          </td>
-                          <td class="px-6 py-3.5 text-sm font-semibold text-amber-500">{clanRewardXpBoostRate}x</td>
-                          {#if canManageSettings}
-                            <td class="px-6 py-3.5 text-right text-xs text-on-surface-variant/60 font-medium italic">
-                              Actif (Géré automatiquement)
+                    {#if clanRewardXpBoost && lastWinningClanId}
+                      {@const winnerIds = lastWinningClanId.split(',')}
+                      {@const winningClansList = clans.filter(c => winnerIds.includes(c.id))}
+                      {#each winningClansList as winningClan}
+                        {#if winningClan.roleId}
+                          <tr class="bg-amber-500/10 border-l-4 border-amber-500 transition-all font-semibold">
+                            <td class="px-6 py-3.5 text-sm font-semibold flex items-center gap-2">
+                              <span>🏆 {getRoleName(winningClan.roleId)}</span>
+                              <span class="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">Clan Gagnant (Boost XP)</span>
                             </td>
-                          {/if}
-                        </tr>
-                      {/if}
+                            <td class="px-6 py-3.5 text-sm font-semibold text-amber-500">{clanRewardXpBoostRate}x</td>
+                            {#if canManageSettings}
+                              <td class="px-6 py-3.5 text-right text-xs text-on-surface-variant/60 font-medium italic">
+                                Actif (Géré automatiquement)
+                              </td>
+                            {/if}
+                          </tr>
+                        {/if}
+                      {/each}
                     {/if}
 
                     {#each Object.entries(config.xpMultipliers) as [roleId, mult]}
@@ -742,7 +745,7 @@
                       </tr>
                     {/each}
 
-                    {#if Object.keys(config.xpMultipliers).length === 0 && !(clanRewardXpBoost && lastWinningClanId && clans.find(c => c.id === lastWinningClanId)?.roleId)}
+                    {#if Object.keys(config.xpMultipliers).length === 0 && !(clanRewardXpBoost && lastWinningClanId && lastWinningClanId.split(',').some(id => clans.find(c => c.id === id)?.roleId))}
                       <tr>
                         <td colspan={canManageSettings ? 3 : 2} class="px-6 py-6 text-center text-xs text-on-surface-variant/60 font-medium">Aucun multiplicateur configuré.</td>
                       </tr>
