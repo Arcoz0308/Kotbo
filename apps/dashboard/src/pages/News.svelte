@@ -125,7 +125,7 @@
 
   // Récupère l'ID du serveur depuis les articles ou le store
   const currentGuildId = $derived(
-    articles[0]?.guildId ||
+    (articles || [])[0]?.guildId ||
     guildId ||
     ''
   );
@@ -146,9 +146,12 @@
   async function loadArticles() {
     loading = true;
     try {
-      articles = isPublicView ? await fetchPublicNews(guildId) : await fetchNews();
+      // dashboardRequest renvoie null quand aucun serveur n'est sélectionné
+      const result = isPublicView ? await fetchPublicNews(guildId) : await fetchNews();
+      articles = Array.isArray(result) ? result : [];
     } catch (err) {
       console.error(err);
+      articles = [];
     } finally {
       loading = false;
     }
@@ -162,9 +165,11 @@
     }
     loadingConfigs = true;
     try {
-      categoryConfigs = await fetchNewsCategoryConfigs();
+      const result = await fetchNewsCategoryConfigs();
+      categoryConfigs = Array.isArray(result) ? result : [];
     } catch (err) {
       console.error(err);
+      categoryConfigs = [];
     } finally {
       loadingConfigs = false;
     }

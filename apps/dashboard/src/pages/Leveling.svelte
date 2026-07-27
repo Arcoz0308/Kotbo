@@ -1,5 +1,6 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
+  import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -208,7 +209,7 @@
     await saveAction.run(async () => {
       // 1. Enregistrer la configuration du leveling
       const res = await updateLevelingConfig(config);
-      if (!res) throw new Error('Erreur de sauvegarde');
+      if (!res) throw new Error(m.lv_err_save());
       config = res.config;
       savedConfig = JSON.parse(JSON.stringify(res.config));
 
@@ -218,7 +219,7 @@
           clanRewardXpBoost,
           clanRewardXpBoostRate,
         });
-        if (!clanRes) throw new Error('Erreur de sauvegarde des paramètres de clan');
+        if (!clanRes) throw new Error(m.lv_err_save_clan());
         clanRewardXpBoost = clanRes.clanRewardXpBoost;
         clanRewardXpBoostRate = clanRes.clanRewardXpBoostRate;
         savedClanRewardXpBoost = clanRes.clanRewardXpBoost;
@@ -227,7 +228,7 @@
 
       success = true;
       return true;
-    }, { successMessage: 'Configuration XP enregistrée.' });
+    }, { successMessage: m.lv_toast_saved() });
     return success;
   }
 
@@ -235,12 +236,12 @@
     if (!canManageSettings || !newRewardLevel || !newRewardRoleId) return;
     await rewardAction.run(async () => {
       const res = await addLevelingReward(newRewardLevel!, newRewardRoleId);
-      if (!res) throw new Error('Erreur d\'ajout');
+      if (!res) throw new Error(m.lv_err_add());
       rewards = [...rewards, res.reward].sort((a, b) => a.level - b.level);
       newRewardLevel = null;
       newRewardRoleId = '';
       return true;
-    }, { successMessage: 'Rôle récompense ajouté.' });
+    }, { successMessage: m.lv_toast_reward_added() });
   }
 
   async function handleDeleteReward(id: string) {
@@ -253,7 +254,7 @@
 
   function getRoleName(roleId: string) {
     const role = availableRoles.find(r => r.id === roleId);
-    return role ? `@${role.name}` : `Rôle inconnu (${roleId})`;
+    return role ? `@${role.name}` : m.lv_unknown_role({ id: roleId });
   }
 
   function handleAddMultiplier() {
@@ -324,7 +325,7 @@
     importFileError = null;
     importResults = null;
     if (!importRawJson.trim()) {
-      importFileError = 'Veuillez saisir du JSON ou glisser-déposer un fichier.';
+      importFileError = m.lv_import_err_empty();
       return;
     }
 
@@ -332,18 +333,18 @@
     try {
       parsed = JSON.parse(importRawJson);
     } catch (err) {
-      importFileError = `Format JSON invalide : ${(err as Error).message}`;
+      importFileError = m.lv_import_err_json({ message: (err as Error).message });
       return;
     }
 
     if (!Array.isArray(parsed)) {
-      importFileError = 'Le JSON doit être un tableau d\'utilisateurs (ex: [ { ... }, { ... } ]).';
+      importFileError = m.lv_import_err_not_array();
       return;
     }
 
     await importActionState.run(async () => {
       const res = await importLevelingData(parsed);
-      if (!res) throw new Error('Erreur lors de l\'importation');
+      if (!res) throw new Error(m.lv_import_err_failed());
       importResults = res;
       // Refresh leveling data after import to reflect the new leaderboard
       const updatedData = await fetchLevelingData();
@@ -351,7 +352,7 @@
         levels = updatedData.levels || [];
       }
       return true;
-    }, { successMessage: 'Importation terminée avec succès.' });
+    }, { successMessage: m.lv_import_toast_ok() });
   }
 
   function handleFileDrop(e: DragEvent) {
@@ -364,7 +365,7 @@
     if (!file) return;
 
     if (!file.name.endsWith('.json')) {
-      importFileError = 'Seuls les fichiers .json sont acceptés.';
+      importFileError = m.lv_import_err_filetype();
       return;
     }
 
@@ -376,7 +377,7 @@
       }
     };
     reader.onerror = () => {
-      importFileError = 'Erreur lors de la lecture du fichier.';
+      importFileError = m.lv_import_err_read();
     };
     reader.readAsText(file);
   }
@@ -389,7 +390,7 @@
     if (!file) return;
 
     if (!file.name.endsWith('.json')) {
-      importFileError = 'Seuls les fichiers .json sont acceptés.';
+      importFileError = m.lv_import_err_filetype();
       return;
     }
 
@@ -401,7 +402,7 @@
       }
     };
     reader.onerror = () => {
-      importFileError = 'Erreur lors de la lecture du fichier.';
+      importFileError = m.lv_import_err_read();
     };
     reader.readAsText(file);
   }
@@ -409,13 +410,13 @@
 
 <ModulePage
   title="Leveling & XP"
-  description="Configurez le gain d'expérience des membres et les rôles de récompense."
+  description={m.lv_page_description()}
   icon="trophy"
 >
   {#snippet actions()}
     {#if !loading}
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
-        <span class="text-xs font-bold text-on-surface-variant/80">Statut du module :</span>
+        <span class="text-xs font-bold text-on-surface-variant/80">{m.lv_module_status()}</span>
         <ToggleSwitch
           checked={config.enabled}
           onToggle={(v: boolean) => {
@@ -438,7 +439,7 @@
       class="tab-button {activeTab === 'config' ? 'active' : ''}"
     >
       <Papicon icon="Settings" size={16} />
-      Configuration
+      {m.lv_tab_config()}
     </button>
     <button
       id="tab-leaderboard"
@@ -446,7 +447,7 @@
       class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'leaderboard' ? 'bg-tertiary text-on-tertiary shadow-lg shadow-tertiary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
     >
       <Papicon icon="Grades" size={16} />
-      Classement
+      {m.lv_tab_leaderboard()}
       {#if levels.length > 0}
         <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-lg {activeTab === 'leaderboard' ? 'bg-on-tertiary/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
           {levels.length}
@@ -460,7 +461,7 @@
         class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'import' ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
       >
         <Papicon icon="Upload" size={16} />
-        Importer
+        {m.lv_tab_import()}
       </button>
     {/if}
   </nav>
@@ -481,12 +482,12 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Settings" size={20} class="text-primary" />
-            Paramètres d'Expérience (XP)
+            {m.lv_xp_params_title()}
           </h3>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-1.5">
-              <label for="xpMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP Minimum par message</label>
+              <label for="xpMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_min()}</label>
               <input 
                 id="xpMin"
                 type="number" 
@@ -497,7 +498,7 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="xpMax" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP Maximum par message</label>
+              <label for="xpMax" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_max()}</label>
               <input 
                 id="xpMax"
                 type="number" 
@@ -508,7 +509,7 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="cooldown" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Cooldown XP Textuelle (secondes)</label>
+              <label for="cooldown" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_cooldown()}</label>
               <input 
                 id="cooldown"
                 type="number" 
@@ -519,7 +520,7 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="vocalXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP Vocale par minute</label>
+              <label for="vocalXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_vocal_xp()}</label>
               <input 
                 id="vocalXp"
                 type="number" 
@@ -533,8 +534,8 @@
             <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="text-xs font-bold text-on-surface">Bonus d'XP selon la longueur du message</span>
-                  <p class="text-[10px] text-on-surface-variant/60 font-medium">Plus un message est long, plus il rapporte d'XP (jusqu'au multiplicateur maximum).</p>
+                  <span class="text-xs font-bold text-on-surface">{m.lv_length_bonus_title()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_length_bonus_desc()}</p>
                 </div>
                 <ToggleSwitch
                   checked={config.lengthBonusEnabled}
@@ -546,7 +547,7 @@
               {#if config.lengthBonusEnabled}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
                   <div class="space-y-1.5">
-                    <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Longueur pour le bonus max (caractères)</label>
+                    <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_threshold()}</label>
                     <input
                       id="lengthBonusThreshold"
                       type="number"
@@ -555,11 +556,11 @@
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                       disabled={!canManageSettings}
                     />
-                    <p class="text-[10px] text-on-surface-variant/50 ml-2">Un message d'au moins {config.lengthBonusThreshold} caractères touche le bonus maximum.</p>
+                    <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_threshold_hint({ count: config.lengthBonusThreshold })}</p>
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="lengthBonusMaxMultiplier" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Multiplicateur maximum (×)</label>
+                    <label for="lengthBonusMaxMultiplier" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_max()}</label>
                     <input
                       id="lengthBonusMaxMultiplier"
                       type="number"
@@ -570,12 +571,12 @@
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                       disabled={!canManageSettings}
                     />
-                    <p class="text-[10px] text-on-surface-variant/50 ml-2">Un message très court garde ×1, un message long va jusqu'à ×{config.lengthBonusMaxMultiplier}.</p>
+                    <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_max_hint({ max: config.lengthBonusMaxMultiplier })}</p>
                   </div>
                 </div>
 
                 <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
-                  💡 Le bonus augmente progressivement avec la longueur. Exemple : un message de {Math.round((config.lengthBonusThreshold || 1) / 2)} caractères applique ≈ ×{(1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2)}, un message de {config.lengthBonusThreshold}+ caractères applique ×{Number(config.lengthBonusMaxMultiplier).toFixed(2)}.
+                  {m.lv_length_bonus_example({ half: Math.round((config.lengthBonusThreshold || 1) / 2), midMult: (1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2), threshold: config.lengthBonusThreshold, maxMult: Number(config.lengthBonusMaxMultiplier).toFixed(2) })}
                 </div>
               {/if}
             </div>
@@ -583,8 +584,8 @@
             <!-- Toggle cumul récompenses -->
             <div class="space-y-1.5 flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 col-span-2 mt-2">
               <div>
-                <span class="text-xs font-bold text-on-surface">Cumuler les Rôles de Récompense</span>
-                <p class="text-[10px] text-on-surface-variant/60 font-medium">Les membres conservent tous les rôles obtenus au lieu de ne garder que le plus élevé.</p>
+                <span class="text-xs font-bold text-on-surface">{m.lv_stack_title()}</span>
+                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_stack_desc()}</p>
               </div>
               <ToggleSwitch 
                 checked={config.stackRewards} 
@@ -595,7 +596,7 @@
 
             <!-- Salons exclus -->
             <div class="space-y-2 col-span-2 pt-2 border-t border-outline-variant/10">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salons Exclus (Pas de gain d'XP)</p>
+              <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_channels()}</p>
               <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
                 {#each config.ignoredChannels as channelId}
                   {@const channel = availableChannels.find(c => c.id === channelId)}
@@ -606,7 +607,7 @@
                     {/if}
                   </span>
                 {:else}
-                  <span class="text-xs text-on-surface-variant/40 ml-2 font-medium">Aucun salon exclu. Tous les salons rapportent de l'XP.</span>
+                  <span class="text-xs text-on-surface-variant/40 ml-2 font-medium">{m.lv_no_ignored_channel()}</span>
                 {/each}
               </div>
               {#if canManageSettings}
@@ -614,7 +615,7 @@
                   <SearchableSelect 
                     bind:value={pendingIgnoreChannelId}
                     options={availableChannels.filter(c => !config.ignoredChannels.includes(c.id)).map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
-                    placeholder="Ajouter un salon à exclure..." 
+                    placeholder={m.lv_add_ignored_channel()} 
                     className="w-full"
                     clearable={false}
                   />
@@ -624,7 +625,7 @@
 
             <!-- Rôles exclus -->
             <div class="space-y-2 col-span-2 pt-2 border-t border-outline-variant/10">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôles Exclus (Pas de gain d'XP)</p>
+              <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_roles()}</p>
               <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
                 {#each config.ignoredRoles as roleId}
                   {@const role = availableRoles.find(r => r.id === roleId)}
@@ -635,7 +636,7 @@
                     {/if}
                   </span>
                 {:else}
-                  <span class="text-xs text-on-surface-variant/40 ml-2 font-medium">Aucun rôle exclu. Tous les membres gagnent de l'XP.</span>
+                  <span class="text-xs text-on-surface-variant/40 ml-2 font-medium">{m.lv_no_ignored_role()}</span>
                 {/each}
               </div>
               {#if canManageSettings}
@@ -643,7 +644,7 @@
                   <SearchableSelect 
                     bind:value={pendingIgnoreRoleId}
                     options={availableRoles.filter(r => !config.ignoredRoles.includes(r.id)).map(r => ({ id: r.id, name: `@${r.name}` }))} 
-                    placeholder="Ajouter un rôle à exclure..." 
+                    placeholder={m.lv_add_ignored_role()} 
                     className="w-full"
                     clearable={false}
                   />
@@ -653,24 +654,24 @@
 
             <!-- Multiplicateurs par rôle -->
             <div class="space-y-4 pt-4 border-t border-outline-variant/20 col-span-2">
-              <h4 class="text-sm font-bold text-on-surface-variant">Multiplicateurs d'XP par Rôle</h4>
+              <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_multipliers_title()}</h4>
               
               {#if canManageSettings}
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
                   <div class="space-y-1.5">
-                    <label for="multRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle</label>
+                    <label for="multRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_role()}</label>
                     <SearchableSelect 
                       id="multRole"
                       bind:value={newMultRoleId}
                       options={availableRoles.filter(r => !Object.keys(config.xpMultipliers).includes(r.id) && !(clanRewardXpBoost && lastWinningClanId && clans.find(c => c.id === lastWinningClanId)?.roleId === r.id)).map(r => ({ id: r.id, name: `@${r.name}` }))} 
-                      placeholder="Choisir un rôle" 
+                      placeholder={m.lv_choose_role()} 
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg"
                       clearable={true}
                     />
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="multValue" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Multiplicateur</label>
+                    <label for="multValue" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_multiplier()}</label>
                     <input 
                       id="multValue"
                       type="number" 
@@ -688,7 +689,7 @@
                     disabled={!newMultRoleId || !newMultValue}
                     class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
                   >
-                    Ajouter
+                    {m.common_add()}
                   </button>
                 </div>
               {/if}
@@ -697,10 +698,10 @@
                 <table class="w-full border-collapse text-left">
                   <thead>
                     <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
-                      <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Rôle</th>
-                      <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Multiplicateur</th>
+                      <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_role()}</th>
+                      <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_multiplier()}</th>
                       {#if canManageSettings}
-                        <th class="px-6 py-3 text-right text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Actions</th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_actions()}</th>
                       {/if}
                     </tr>
                   </thead>
@@ -711,12 +712,12 @@
                         <tr class="bg-amber-500/10 border-l-4 border-amber-500 transition-all font-semibold">
                           <td class="px-6 py-3.5 text-sm font-semibold flex items-center gap-2">
                             <span>🏆 {getRoleName(winningClan.roleId)}</span>
-                            <span class="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">Clan Gagnant (Boost XP)</span>
+                            <span class="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">{m.lv_winning_clan_badge()}</span>
                           </td>
                           <td class="px-6 py-3.5 text-sm font-semibold text-amber-500">{clanRewardXpBoostRate}x</td>
                           {#if canManageSettings}
                             <td class="px-6 py-3.5 text-right text-xs text-on-surface-variant/60 font-medium italic">
-                              Actif (Géré automatiquement)
+                              {m.lv_auto_managed()}
                             </td>
                           {/if}
                         </tr>
@@ -733,7 +734,7 @@
                               type="button"
                               onclick={() => handleRemoveMultiplier(roleId)}
                               class="p-2 text-error hover:bg-error/10 rounded-xl transition-all"
-                              title="Supprimer"
+                              title={m.common_delete()}
                             >
                               <Papicon icon="Trash" size={14} />
                             </button>
@@ -744,7 +745,7 @@
 
                     {#if Object.keys(config.xpMultipliers).length === 0 && !(clanRewardXpBoost && lastWinningClanId && clans.find(c => c.id === lastWinningClanId)?.roleId)}
                       <tr>
-                        <td colspan={canManageSettings ? 3 : 2} class="px-6 py-6 text-center text-xs text-on-surface-variant/60 font-medium">Aucun multiplicateur configuré.</td>
+                        <td colspan={canManageSettings ? 3 : 2} class="px-6 py-6 text-center text-xs text-on-surface-variant/60 font-medium">{m.lv_no_multiplier()}</td>
                       </tr>
                     {/if}
                   </tbody>
@@ -754,35 +755,35 @@
           </div>
 
           <div class="space-y-6 pt-4 border-t border-outline-variant/20">
-            <h4 class="text-sm font-bold text-on-surface-variant">Notifications de niveau supérieur</h4>
+            <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_levelup_notifs()}</h4>
             
             <div class="space-y-1.5">
-              <label for="lvlChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de Level-Up</label>
+              <label for="lvlChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_channel()}</label>
               <SearchableSelect 
                 id="lvlChannel"
                 bind:value={config.levelUpChannelId} 
                 options={[
-                  { id: '', name: '💬 Salon d\'origine du message' },
-                  { id: 'DM', name: '✉️ Message Privé (DM)' },
+                  { id: '', name: m.lv_levelup_origin_channel() },
+                  { id: 'DM', name: m.lv_levelup_dm() },
                   ...availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))
                 ]} 
-                placeholder="— Sélectionner —" 
+                placeholder={m.lv_select_placeholder()} 
                 className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                 disabled={!canManageSettings}
               />
             </div>
 
             <div class="space-y-1.5">
-              <label for="lvlMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Message de Level-Up</label>
+              <label for="lvlMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_message()}</label>
               <input 
                 id="lvlMsg"
                 type="text" 
                 bind:value={config.levelUpMessage} 
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                placeholder={"Ex: Bravo {user} ! Tu es niveau {level} !"}
+                placeholder={m.lv_levelup_message_ph({ user: '{user}', level: '{level}' })}
                 disabled={!canManageSettings}
               />
-              <p class="text-[11px] text-on-surface-variant/40 ml-2">Variables utilisables : <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> (mention), <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
+              <p class="text-[11px] text-on-surface-variant/40 ml-2">{m.lv_variables_label()} <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> {m.lv_variables_mention()}, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
             </div>
           </div>
 
@@ -793,16 +794,16 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Award" size={20} class="text-amber-500" />
-            Boost de Saison de Clan
+            {m.lv_clan_boost_title()}
           </h3>
 
           {#if !clansEnabled}
             <div class="p-6 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
               <span class="text-3xl">🔒</span>
               <div>
-                <h4 class="text-sm font-semibold text-on-surface">Les clans ne sont pas activés</h4>
+                <h4 class="text-sm font-semibold text-on-surface">{m.lv_clans_disabled_title()}</h4>
                 <p class="text-xs text-on-surface-variant/70 max-w-md mt-1">
-                  Les clans ne sont pas activés sur ce serveur. Activez-les dans l'onglet Clans pour configurer ce boost.
+                  {m.lv_clans_disabled_desc()}
                 </p>
               </div>
             </div>
@@ -810,9 +811,9 @@
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="text-sm font-medium text-on-surface">Activer le Boost d'XP automatique</span>
+                  <span class="text-sm font-medium text-on-surface">{m.lv_clan_boost_enable()}</span>
                   <p class="text-xs text-on-surface-variant/70">
-                    Attribue automatiquement un boost d'XP aux membres du clan gagnant de la dernière saison.
+                    {m.lv_clan_boost_desc()}
                   </p>
                 </div>
                 <ToggleSwitch checked={clanRewardXpBoost} onToggle={(v) => clanRewardXpBoost = v} disabled={!canManageSettings} />
@@ -821,23 +822,23 @@
               {#if clanRewardXpBoost}
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
                   <div class="space-y-1.5">
-                    <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle Discord Cible (Automatique)</span>
+                    <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_clan_target_role()}</span>
                     <div class="px-4 py-3 bg-primary/10 rounded-lg text-sm text-primary font-semibold border border-primary/20 flex items-center gap-2">
                       <span>👑</span>
                       {#if lastWinningClanId}
                         {@const winningClan = clans.find(c => c.id === lastWinningClanId)}
                         {@const targetRole = availableRoles.find(r => r.id === winningClan?.roleId)}
                         <span>
-                          {winningClan ? `${winningClan.name} (@${targetRole?.name || 'Rôle Inconnu'})` : 'Clan Gagnant'}
+                          {winningClan ? `${winningClan.name} (@${targetRole?.name || m.lv_unknown_role_short()})` : m.lv_winning_clan()}
                         </span>
                       {:else}
-                        <span class="italic text-primary/70">En attente de la fin de la première saison</span>
+                        <span class="italic text-primary/70">{m.lv_waiting_first_season()}</span>
                       {/if}
                     </div>
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="clanXpBoostRate" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Multiplicateur d'XP (ex: 1.2 = +20%)</label>
+                    <label for="clanXpBoostRate" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_clan_boost_rate()}</label>
                     <input 
                       id="clanXpBoostRate"
                       type="number" 
@@ -860,13 +861,13 @@
       <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
         <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="Award" size={20} class="text-secondary" />
-          Rôles Récompenses
+          {m.lv_rewards_title()}
         </h3>
 
         {#if canManageSettings}
           <form onsubmit={(e) => { e.preventDefault(); handleAddReward(); }} class="space-y-4 bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
             <div class="space-y-1.5">
-              <label for="rewardLvl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Niveau Requis</label>
+              <label for="rewardLvl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_reward_level()}</label>
               <input 
                 id="rewardLvl"
                 type="number" 
@@ -879,12 +880,12 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="rewardRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle à attribuer</label>
+              <label for="rewardRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_reward_role()}</label>
               <SearchableSelect 
                 id="rewardRole"
                 bind:value={newRewardRoleId} 
                 options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
-                placeholder="Choisir un rôle" 
+                placeholder={m.lv_choose_role()} 
                 className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               />
             </div>
@@ -894,7 +895,7 @@
               disabled={!newRewardLevel || !newRewardRoleId}
               class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
             >
-              Ajouter le rôle récompense
+              {m.lv_add_reward()}
             </button>
           </form>
         {/if}
@@ -903,8 +904,8 @@
           <table class="w-full border-collapse text-left">
             <thead>
               <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
-                <th class="px-5 py-4 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Niveau</th>
-                <th class="px-5 py-4 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Rôle</th>
+                <th class="px-5 py-4 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_level()}</th>
+                <th class="px-5 py-4 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_role()}</th>
                 {#if canManageSettings}
                   <th class="px-5 py-4 text-right text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">–</th>
                 {/if}
@@ -920,7 +921,7 @@
                       <button 
                         onclick={() => handleDeleteReward(reward.id)}
                         class="p-2 text-error hover:bg-error/10 rounded-xl transition-all"
-                        title="Supprimer la récompense"
+                        title={m.lv_delete_reward()}
                       >
                         <Papicon icon="Trash" size={14} />
                       </button>
@@ -929,7 +930,7 @@
                 </tr>
               {:else}
                 <tr>
-                  <td colspan={canManageSettings ? 3 : 2} class="px-5 py-8 text-center text-xs text-on-surface-variant/60 font-medium">Aucun rôle de récompense.</td>
+                  <td colspan={canManageSettings ? 3 : 2} class="px-5 py-8 text-center text-xs text-on-surface-variant/60 font-medium">{m.lv_no_reward()}</td>
                 </tr>
               {/each}
             </tbody>
@@ -950,8 +951,8 @@
             <Papicon icon="Globe" size={22} />
           </div>
           <div>
-            <p class="text-sm font-semibold text-on-surface">Page publique du classement</p>
-            <p class="text-xs text-on-surface-variant/70 font-medium">Partagez ce lien avec vos membres pour qu'ils consultent leur progression en direct.</p>
+            <p class="text-sm font-semibold text-on-surface">{m.lv_public_page_title()}</p>
+            <p class="text-xs text-on-surface-variant/70 font-medium">{m.lv_public_page_desc()}</p>
           </div>
         </div>
         <div class="flex items-center gap-3 shrink-0 relative z-10 w-full sm:w-auto">
@@ -962,7 +963,7 @@
             class="flex items-center justify-center gap-2 px-5 py-3 bg-tertiary/20 text-tertiary border border-tertiary/25 rounded-lg text-xs font-semibold hover:bg-tertiary/30 transition-all hover:scale-103 w-full sm:w-auto text-center"
           >
             <Papicon icon="ExternalLink" size={14} />
-            Voir la page
+            {m.lv_view_page()}
           </a>
           <button
             onclick={copyPublicUrl}
@@ -970,10 +971,10 @@
           >
             {#if copySuccess}
               <Papicon icon="Check" size={14} />
-              Copié !
+              {m.lv_copied()}
             {:else}
               <Papicon icon="Copy" size={14} />
-              Copier le lien
+              {m.lv_copy_link()}
             {/if}
           </button>
         </div>
@@ -984,19 +985,19 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-primary/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-primary transition-transform duration-300">{levels.length}</p>
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Membres classés</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_members()}</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-secondary/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-secondary transition-transform duration-300">{maxLevel}</p>
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Niveau max</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_maxlevel()}</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-tertiary/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-tertiary transition-transform duration-300">{avgLevel}</p>
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Niveau moyen</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_avglevel()}</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-amber-500/20 transition-all duration-300 group">
             <p class="text-2xl font-semibold text-amber-500 transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">XP Total</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_totalxp()}</p>
           </div>
         </div>
       {/if}
@@ -1006,14 +1007,14 @@
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Grades" size={20} class="text-tertiary" />
-            Classement XP — Top {levels.length}
+            {m.lv_leaderboard_title({ count: levels.length })}
           </h3>
 
           <!-- Barre de recherche -->
           <div class="relative w-full md:w-80">
             <input 
               type="text" 
-              placeholder="Rechercher un membre..." 
+              placeholder={m.lv_search_member()} 
               bind:value={searchQuery}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 pl-11 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-tertiary/30 placeholder:text-on-surface-variant/50 transition-all shadow-inner"
             />
@@ -1059,7 +1060,7 @@
                 <div class="mt-6 space-y-4">
                   <div class="space-y-0.5">
                     <p class="font-bold text-on-surface truncate group-hover:text-primary transition-colors" title={levels[1].displayName}>
-                      {levels[1].displayName || levels[1].username || 'Inconnu'}
+                      {levels[1].displayName || levels[1].username || m.lv_unknown_member()}
                     </p>
                     {#if levels[1].username && levels[1].displayName !== levels[1].username}
                       <p class="text-xs text-on-surface-variant/50 font-medium truncate">@{levels[1].username}</p>
@@ -1067,7 +1068,7 @@
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-outline-variant/5 pt-3 text-xs">
-                    <span class="text-on-surface-variant/70 font-semibold">Niveau {getLevelFromXp(levels[1].xp)}</span>
+                    <span class="text-on-surface-variant/70 font-semibold">{m.lv_level_n({ level: getLevelFromXp(levels[1].xp) })}</span>
                     <span class="text-on-surface-variant/80 font-mono font-medium">{levels[1].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
@@ -1101,7 +1102,7 @@
                 <div class="mt-6 space-y-4">
                   <div class="space-y-0.5">
                     <p class="font-semibold text-on-surface text-lg truncate group-hover:text-tertiary transition-colors" title={levels[0].displayName}>
-                      {levels[0].displayName || levels[0].username || 'Inconnu'}
+                      {levels[0].displayName || levels[0].username || m.lv_unknown_member()}
                     </p>
                     {#if levels[0].username && levels[0].displayName !== levels[0].username}
                       <p class="text-xs text-tertiary/70 font-medium truncate">@{levels[0].username}</p>
@@ -1109,7 +1110,7 @@
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-tertiary/10 pt-3 text-sm">
-                    <span class="text-tertiary font-semibold">Niveau {getLevelFromXp(levels[0].xp)}</span>
+                    <span class="text-tertiary font-semibold">{m.lv_level_n({ level: getLevelFromXp(levels[0].xp) })}</span>
                     <span class="text-tertiary/90 font-mono font-bold">{levels[0].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
@@ -1140,7 +1141,7 @@
                 <div class="mt-6 space-y-4">
                   <div class="space-y-0.5">
                     <p class="font-bold text-on-surface truncate group-hover:text-primary transition-colors" title={levels[2].displayName}>
-                      {levels[2].displayName || levels[2].username || 'Inconnu'}
+                      {levels[2].displayName || levels[2].username || m.lv_unknown_member()}
                     </p>
                     {#if levels[2].username && levels[2].displayName !== levels[2].username}
                       <p class="text-xs text-on-surface-variant/50 font-medium truncate">@{levels[2].username}</p>
@@ -1148,7 +1149,7 @@
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-outline-variant/5 pt-3 text-xs">
-                    <span class="text-on-surface-variant/70 font-semibold">Niveau {getLevelFromXp(levels[2].xp)}</span>
+                    <span class="text-on-surface-variant/70 font-semibold">{m.lv_level_n({ level: getLevelFromXp(levels[2].xp) })}</span>
                     <span class="text-on-surface-variant/80 font-mono font-medium">{levels[2].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
@@ -1189,7 +1190,7 @@
               <!-- Nom & Progression -->
               <div class="flex-1 min-w-0">
                 <div class="flex items-baseline gap-2 mb-1.5">
-                  <p class="text-sm font-semibold text-on-surface truncate">{userLvl.displayName || userLvl.username || 'Inconnu'}</p>
+                  <p class="text-sm font-semibold text-on-surface truncate">{userLvl.displayName || userLvl.username || m.lv_unknown_member()}</p>
                   {#if userLvl.username && userLvl.displayName !== userLvl.username}
                     <span class="text-[10px] text-on-surface-variant/40 truncate font-semibold font-mono">@{userLvl.username}</span>
                   {/if}
@@ -1234,10 +1235,10 @@
               </div>
               <div class="space-y-1">
                 <p class="text-sm text-on-surface font-semibold">
-                  {#if searchQuery}Aucun membre trouvé pour "{searchQuery}"{:else}Le classement est vide.{/if}
+                  {#if searchQuery}{m.lv_no_member_found({ query: searchQuery })}{:else}{m.lv_leaderboard_empty()}{/if}
                 </p>
                 {#if searchQuery}
-                  <button onclick={() => searchQuery = ''} class="text-primary text-xs font-semibold hover:underline">Effacer la recherche</button>
+                  <button onclick={() => searchQuery = ''} class="text-primary text-xs font-semibold hover:underline">{m.lv_clear_search()}</button>
                 {/if}
               </div>
             </div>
@@ -1255,9 +1256,9 @@
           <Papicon icon="Info" size={20} />
         </div>
         <div class="space-y-1">
-          <h4 class="text-sm font-semibold text-on-surface">Comment fonctionne l'importation ?</h4>
+          <h4 class="text-sm font-semibold text-on-surface">{m.lv_import_how_title()}</h4>
           <p class="text-xs text-on-surface-variant/70 leading-relaxed font-medium">
-            L'importation permet de charger une liste de membres avec leurs niveaux et XP. Le système essaiera de faire correspondre chaque membre avec un utilisateur Discord du serveur en comparant de manière insensible à la casse son <strong>nom d'utilisateur (@username)</strong>, son <strong>nom d'affichage (Display Name)</strong> ou son <strong>tag classique</strong>. Les membres non trouvés seront ignorés et listés dans un récapitulatif.
+            {m.lv_import_how_1()}<strong>{m.lv_import_how_strong_username()}</strong>{m.lv_import_how_2()}<strong>{m.lv_import_how_strong_display()}</strong>{m.lv_import_how_3()}<strong>{m.lv_import_how_strong_tag()}</strong>{m.lv_import_how_4()}
           </p>
         </div>
       </div>
@@ -1268,7 +1269,7 @@
           <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
             <h3 class="text-xl font-semibold flex items-center gap-3">
               <Papicon icon="Upload" size={20} class="text-secondary" />
-              Saisie des Données
+              {m.lv_import_input_title()}
             </h3>
 
             <!-- Glisser-déposer / Sélecteur de fichier -->
@@ -1289,13 +1290,13 @@
               <div class="w-12 h-12 bg-secondary/10 text-secondary rounded-lg flex items-center justify-center shadow-inner mb-2">
                 <Papicon icon="Upload" size={24} />
               </div>
-              <p class="text-sm font-semibold text-on-surface">Glissez-déposez un fichier `.json` ici</p>
-              <p class="text-xs text-on-surface-variant/60 font-medium">ou cliquez pour parcourir vos dossiers</p>
+              <p class="text-sm font-semibold text-on-surface">{m.lv_import_drop()}</p>
+              <p class="text-xs text-on-surface-variant/60 font-medium">{m.lv_import_browse()}</p>
             </div>
 
             <!-- Textarea alternatif -->
             <div class="space-y-2">
-              <label for="rawJsonTextarea" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Ou collez le JSON directement</label>
+              <label for="rawJsonTextarea" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_import_paste()}</label>
               <textarea
                 id="rawJsonTextarea"
                 rows="10"
@@ -1321,7 +1322,7 @@
                 onclick={() => { importRawJson = ''; importFileError = null; importResults = null; }}
                 class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-[13px] rounded-lg hover:bg-surface-container-high transition-all"
               >
-                Vider
+                {m.lv_clear()}
               </button>
               <button
                 type="button"
@@ -1329,7 +1330,7 @@
                 disabled={!importRawJson.trim()}
                 class="px-8 py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
               >
-                Lancer l'importation
+                {m.lv_run_import()}
               </button>
             </div>
           </section>
@@ -1342,8 +1343,8 @@
                   ✕
                 </div>
                 <div>
-                  <h3 class="text-base font-semibold">Membres non importés ({importResults.failedCount})</h3>
-                  <p class="text-[10px] text-on-surface-variant/60 font-semibold uppercase tracking-wider">Ces membres n'ont pas pu être fait correspondre à un utilisateur Discord</p>
+                  <h3 class="text-base font-semibold">{m.lv_import_failed_title({ count: importResults.failedCount })}</h3>
+                  <p class="text-[10px] text-on-surface-variant/60 font-semibold uppercase tracking-wider">{m.lv_import_failed_desc()}</p>
                 </div>
               </div>
 
@@ -1353,7 +1354,7 @@
                     <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
                       <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Username</th>
                       <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Display Name</th>
-                      <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Raison</th>
+                      <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_reason()}</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-outline-variant/5">
@@ -1376,11 +1377,11 @@
           <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
             <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="Info" size={18} class="text-primary" />
-              Format Attendu
+              {m.lv_expected_format()}
             </h3>
             
             <p class="text-xs text-on-surface-variant/85 leading-relaxed font-medium">
-              Les données doivent être un tableau d'objets JSON contenant au minimum le <code>username</code> ou <code>display_name</code>, ainsi que le <code>level</code> ou les <code>xp</code>.
+              {m.lv_format_1()}<code>username</code>{m.lv_format_2()}<code>display_name</code>{m.lv_format_3()}<code>level</code>{m.lv_format_4()}<code>xp</code>{m.lv_format_5()}
             </p>
 
             <div class="relative bg-surface-container-high/60 border border-outline-variant/5 p-4 rounded-lg">
@@ -1401,11 +1402,11 @@
             </div>
 
             <div class="space-y-2.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-[10px] font-semibold text-on-surface-variant/50 uppercase tracking-widest">Règles de conversion :</h4>
+              <h4 class="text-[10px] font-semibold text-on-surface-variant/50 uppercase tracking-widest">{m.lv_conversion_rules()}</h4>
               <ul class="list-disc list-inside text-[11px] text-on-surface-variant/80 space-y-1 font-medium">
-                <li>Si seul l'<strong>XP</strong> est fourni, le niveau est déduit automatiquement.</li>
-                <li>Si seul le <strong>niveau</strong> est fourni, l'XP minimum pour ce niveau est attribué.</li>
-                <li>L'importation écrase les niveaux existants des membres correspondants.</li>
+                <li>{m.lv_rule_1_a()}<strong>XP</strong>{m.lv_rule_1_b()}</li>
+                <li>{m.lv_rule_2_a()}<strong>{m.lv_rule_2_strong()}</strong>{m.lv_rule_2_b()}</li>
+                <li>{m.lv_rule_3()}</li>
               </ul>
             </div>
           </section>
@@ -1415,17 +1416,17 @@
             <section class="bg-linear-to-b from-secondary/15 to-transparent border border-secondary/20 p-8 rounded-xl space-y-4">
               <h3 class="text-base font-semibold flex items-center gap-2 text-secondary">
                 <Papicon icon="Check" size={18} />
-                Résultat de l'Import
+                {m.lv_import_result()}
               </h3>
               
               <div class="grid grid-cols-2 gap-4">
                 <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
                   <p class="text-2xl font-semibold text-green-400">{importResults.importedCount}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Succès</p>
+                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lv_success()}</p>
                 </div>
                 <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
                   <p class="text-2xl font-semibold {importResults.failedCount > 0 ? 'text-error' : 'text-on-surface-variant/40'}">{importResults.failedCount}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Échecs</p>
+                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lv_failures()}</p>
                 </div>
               </div>
             </section>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
+  import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -203,16 +204,16 @@
     if (!canManageSettings) return;
     const activating = !raidLiveState.raidModeActive;
     if (activating && !(await confirmDialog.ask({
-      title: 'Activer le mode raid ?',
-      description: 'L\'action configurée (lock/captcha/kick) sera appliquée immédiatement à toutes les nouvelles arrivées.',
-      confirmLabel: 'Activer',
+      title: m.am_confirm_raid_title(),
+      description: m.am_confirm_raid_desc(),
+      confirmLabel: m.am_confirm_activate(),
       variant: 'warning'
     }))) return;
     await actionState.run(async () => {
       const res = await setRaidMode(activating);
       if (res?.config) applyRaidLoaded(res.config);
       return true;
-    }, { successMessage: activating ? 'Mode raid activé !' : 'Mode raid désactivé.' });
+    }, { successMessage: activating ? m.am_toast_raid_on() : m.am_toast_raid_off() });
   }
 
   async function toggleJoinLock() {
@@ -221,7 +222,7 @@
       const res = await setJoinLock(!raidLiveState.joinLockEnabled);
       if (res?.config) applyRaidLoaded(res.config);
       return true;
-    }, { successMessage: raidLiveState.joinLockEnabled ? 'Join lock activé — arrivées bloquées.' : 'Join lock désactivé.' });
+    }, { successMessage: raidLiveState.joinLockEnabled ? m.am_toast_joinlock_on() : m.am_toast_joinlock_off() });
   }
 
   async function toggleDmLock() {
@@ -230,23 +231,23 @@
       const res = await setDmLock(!raidLiveState.dmLockEnabled);
       if (res?.config) applyRaidLoaded(res.config);
       return true;
-    }, { successMessage: raidLiveState.dmLockEnabled ? 'DM lock activé — MP bloqués.' : 'DM lock désactivé.' });
+    }, { successMessage: raidLiveState.dmLockEnabled ? m.am_toast_dmlock_on() : m.am_toast_dmlock_off() });
   }
 
   async function toggleInviteEmergency() {
     if (!canManageSettings) return;
     const activating = !raidLiveState.inviteEmergencyEnabled;
     if (activating && !(await confirmDialog.ask({
-      title: 'Mode urgence invitations ?',
-      description: 'TOUTES les invitations existantes seront supprimées, et toute nouvelle invitation sera supprimée automatiquement.',
-      confirmLabel: 'Tout supprimer',
+      title: m.am_confirm_invite_emergency_title(),
+      description: m.am_confirm_invite_emergency_desc(),
+      confirmLabel: m.am_confirm_delete_all(),
       variant: 'danger'
     }))) return;
     await actionState.run(async () => {
       const res = await setInviteEmergency(activating);
       if (res?.config) applyRaidLoaded(res.config);
       return true;
-    }, { successMessage: activating ? 'Mode urgence activé — invitations supprimées.' : 'Mode urgence désactivé.' });
+    }, { successMessage: activating ? m.am_toast_invite_emergency_on() : m.am_toast_invite_emergency_off() });
   }
 
   async function handleReportDecision(reportId: string, resolved: boolean) {
@@ -257,7 +258,7 @@
       if (resolved) reportStats.resolved++;
       else reportStats.dismissed++;
       return true;
-    }, { successMessage: resolved ? 'Signalement traité.' : 'Signalement rejeté.' });
+    }, { successMessage: resolved ? m.am_toast_report_resolved() : m.am_toast_report_dismissed() });
   }
 
   async function handleInviteDecision(requestId: string, approved: boolean) {
@@ -265,7 +266,7 @@
       await decideInviteRequest(requestId, approved);
       pendingInviteRequests = pendingInviteRequests.filter((r) => r.id !== requestId);
       return true;
-    }, { successMessage: approved ? 'Invitation approuvée et recréée.' : 'Invitation rejetée.' });
+    }, { successMessage: approved ? m.am_toast_invite_approved() : m.am_toast_invite_rejected() });
   }
 
   async function loadScamImages() {
@@ -277,13 +278,13 @@
   }
 
   async function handleDeleteScamImage(imageId: string) {
-    if (!(await confirmDialog.ask({ title: 'Supprimer ce hash d\'image ?', confirmLabel: 'Supprimer', variant: 'danger' }))) return;
+    if (!(await confirmDialog.ask({ title: m.am_confirm_delete_hash_title(), confirmLabel: m.common_delete(), variant: 'danger' }))) return;
     await actionState.run(async () => {
       await deleteScamImage(imageId);
       scamImages = scamImages.filter((i) => i.id !== imageId);
       scamImageCount = Math.max(0, scamImageCount - 1);
       return true;
-    }, { successMessage: 'Hash supprimé.' });
+    }, { successMessage: m.am_toast_hash_deleted() });
   }
 
   // Snapshot of last-saved state
@@ -397,7 +398,7 @@
 
       if (automodDirty) {
         const res = await updateAutoModConfig(config);
-        if (!res || !res.config) throw new Error('Erreur de sauvegarde AutoMod');
+        if (!res || !res.config) throw new Error(m.am_err_save_automod());
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
         syncWarning = res.syncWarning ?? null;
@@ -405,7 +406,7 @@
 
       if (raidDirty) {
         const raidRes = await updateRaidProtection(raidConfig);
-        if (!raidRes?.config) throw new Error('Erreur de sauvegarde Anti-Raid');
+        if (!raidRes?.config) throw new Error(m.am_err_save_raid());
         applyRaidLoaded(raidRes.config);
       }
 
@@ -414,7 +415,7 @@
         throw new Error(syncWarning);
       }
       return true;
-    }, { successMessage: 'Configuration mise à jour et synchronisée avec Discord !' });
+    }, { successMessage: m.am_toast_saved() });
     return success;
   }
 
@@ -480,7 +481,7 @@
 
 <ModulePage
   title="AutoMod"
-  description="Configurez les filtres de sécurité pour modérer automatiquement les comportements néfastes."
+  description={m.am_page_description()}
   icon="shield-alert"
   featureKey="automod"
 >
@@ -503,7 +504,7 @@
         class="tab-button {activeTab === 'bot-filters' ? 'active' : ''}"
       >
         <Papicon icon="Shield" size={14} />
-        Filtres Bot
+        {m.am_tab_bot_filters()}
       </button>
       <button
         type="button"
@@ -511,7 +512,7 @@
         class="tab-button {activeTab === 'discord-filters' ? 'active' : ''}"
       >
         <Papicon icon="MessageSquare" size={14} />
-        AutoMod Discord (Natif)
+        {m.am_tab_discord_filters()}
       </button>
       <button
         type="button"
@@ -519,7 +520,7 @@
         class="tab-button {activeTab === 'security' ? 'active' : ''}"
       >
         <Papicon icon="Lock" size={14} />
-        Sécurité & Anti-Raid
+        {m.am_tab_security()}
       </button>
       <button
         type="button"
@@ -527,7 +528,7 @@
         class="tab-button {activeTab === 'exceptions' ? 'active' : ''}"
       >
         <Papicon icon="Unlock" size={14} />
-        Exceptions
+        {m.am_tab_exceptions()}
       </button>
     </div>
 
@@ -540,7 +541,7 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Clock" size={20} class="text-primary" />
-                Filtre Anti-Spam
+                {m.am_spam_title()}
               </h3>
               <ToggleSwitch 
                 checked={config.spamEnabled} 
@@ -552,7 +553,7 @@
             {#if config.spamEnabled}
               <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="spamLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Nombre max de messages</label>
+                  <label for="spamLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_spam_max_messages()}</label>
                   <input 
                     id="spamLimit"
                     type="number" 
@@ -565,7 +566,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="spamInterval" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Intervalle de temps (sec)</label>
+                  <label for="spamInterval" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_spam_interval()}</label>
                   <input 
                     id="spamInterval"
                     type="number" 
@@ -578,15 +579,15 @@
                 </div>
 
                 <div class="col-span-2 space-y-1.5">
-                  <label for="spamAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction en cas d'infraction</label>
+                  <label for="spamAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_spam_action_label()}</label>
                   <select 
                     id="spamAction"
                     bind:value={config.spamAction}
                     class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                     disabled={!canManageSettings}
                   >
-                    <option value="WARN">Avertissement (Warn)</option>
-                    <option value="TIMEOUT">Exclusion temporaire (Mute 10 min)</option>
+                    <option value="WARN">{m.am_action_warn()}</option>
+                    <option value="TIMEOUT">{m.am_action_timeout_10()}</option>
                   </select>
                 </div>
               </div>
@@ -598,7 +599,7 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Link" size={20} class="text-secondary" />
-                Filtre Anti-Liens / Invitations
+                {m.am_links_title()}
               </h3>
               <ToggleSwitch 
                 checked={config.linksEnabled} 
@@ -610,20 +611,20 @@
             {#if config.linksEnabled}
               <div class="space-y-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="linksAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction appliquée</label>
+                  <label for="linksAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_links_action_label()}</label>
                   <select 
                     id="linksAction"
                     bind:value={config.linksAction}
                     class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                     disabled={!canManageSettings}
                   >
-                    <option value="DELETE_AND_WARN">Supprimer & Avertir le membre</option>
-                    <option value="DELETE_ONLY">Supprimer silencieusement</option>
+                    <option value="DELETE_AND_WARN">{m.am_action_delete_warn()}</option>
+                    <option value="DELETE_ONLY">{m.am_action_delete_silent()}</option>
                   </select>
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="whitelist" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Domaines autorisés (un par ligne)</label>
+                  <label for="whitelist" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_links_whitelist_label()}</label>
                   <textarea 
                     id="whitelist"
                     bind:value={whitelistInput} 
@@ -641,7 +642,7 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Font" size={20} class="text-tertiary" />
-                Filtre Majuscules Excessives
+                {m.am_caps_title()}
               </h3>
               <ToggleSwitch 
                 checked={config.capsEnabled} 
@@ -653,7 +654,7 @@
             {#if config.capsEnabled}
               <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="capsThresh" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil de MAJ (%)</label>
+                  <label for="capsThresh" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_caps_threshold()}</label>
                   <input 
                     id="capsThresh"
                     type="number" 
@@ -666,7 +667,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="capsMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Longueur minimale</label>
+                  <label for="capsMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_caps_minlength()}</label>
                   <input 
                     id="capsMin"
                     type="number" 
@@ -690,7 +691,7 @@
               <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
                   <Papicon icon="Emoji" size={18} class="text-amber-400" />
-                  Spam Émojis
+                  {m.am_emojis_title()}
                 </h3>
                 <ToggleSwitch 
                   checked={config.emojisEnabled} 
@@ -701,7 +702,7 @@
 
               {#if config.emojisEnabled}
                 <div class="space-y-1.5 animate-in fade-in duration-300">
-                  <label for="emojisLim" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Limite par message</label>
+                  <label for="emojisLim" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.am_limit_per_message()}</label>
                   <input 
                     id="emojisLim"
                     type="number" 
@@ -712,7 +713,7 @@
                   />
                 </div>
               {:else}
-                <p class="text-xs text-on-surface-variant/50">Désactivé. Autorise un nombre illimité d'émojis par message.</p>
+                <p class="text-xs text-on-surface-variant/50">{m.am_emojis_disabled()}</p>
               {/if}
             </section>
 
@@ -721,7 +722,7 @@
               <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
                   <Papicon icon="User" size={18} class="text-purple-400" />
-                  Spam Mentions
+                  {m.am_mentions_title()}
                 </h3>
                 <ToggleSwitch 
                   checked={config.mentionsEnabled} 
@@ -732,7 +733,7 @@
 
               {#if config.mentionsEnabled}
                 <div class="space-y-1.5 animate-in fade-in duration-300">
-                  <label for="mentionsLim" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Limite par message</label>
+                  <label for="mentionsLim" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.am_limit_per_message()}</label>
                   <input 
                     id="mentionsLim"
                     type="number" 
@@ -743,7 +744,7 @@
                   />
                 </div>
               {:else}
-                <p class="text-xs text-on-surface-variant/50">Désactivé. Autorise un nombre illimité de mentions par message.</p>
+                <p class="text-xs text-on-surface-variant/50">{m.am_mentions_disabled()}</p>
               {/if}
             </section>
           </div>
@@ -755,7 +756,7 @@
               <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
                   <Papicon icon="Ghost" size={18} class="text-rose-400" />
-                  Anti-Ghost Ping
+                  {m.am_ghostping_title()}
                 </h3>
                 <ToggleSwitch 
                   checked={config.ghostPingEnabled} 
@@ -765,21 +766,21 @@
               </div>
 
               <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">
-                Détecte les pings supprimés ou modifiés rapidement.
-                <span class="text-amber-500/90 font-medium block mt-1">⚠️ Cache bot requis.</span>
+                {m.am_ghostping_desc()}
+                <span class="text-amber-500/90 font-medium block mt-1">{m.am_ghostping_cache_warning()}</span>
               </p>
 
               {#if config.ghostPingEnabled}
                 <div class="space-y-1.5 animate-in fade-in duration-300">
-                  <label for="ghostPingAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Sanction</label>
+                  <label for="ghostPingAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.am_sanction_label()}</label>
                   <select 
                     id="ghostPingAction"
                     bind:value={config.ghostPingAction}
                     class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none"
                     disabled={!canManageSettings}
                   >
-                    <option value="ALERT">Simple Alerte (Message)</option>
-                    <option value="WARN">Avertissement (Warn + Alerte)</option>
+                    <option value="ALERT">{m.am_ghostping_action_alert()}</option>
+                    <option value="WARN">{m.am_ghostping_action_warn()}</option>
                   </select>
                 </div>
               {/if}
@@ -790,7 +791,7 @@
               <div class="flex items-center justify-between border-b border-outline-variant/15 pb-3">
                 <h3 class="text-sm font-semibold flex items-center gap-2">
                   <Papicon icon="ShieldAlert" size={18} class="text-red-400" />
-                  Anti-Everyone
+                  {m.am_everyone_title()}
                 </h3>
                 <ToggleSwitch 
                   checked={config.antiEveryoneEnabled} 
@@ -800,21 +801,21 @@
               </div>
 
               <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">
-                Supprime les mentions non autorisées de @everyone et @here.
+                {m.am_everyone_desc()}
               </p>
 
               {#if config.antiEveryoneEnabled}
                 <div class="space-y-1.5 animate-in fade-in duration-300">
-                  <label for="antiEveryoneAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">Sanction</label>
+                  <label for="antiEveryoneAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-1 uppercase tracking-widest">{m.am_sanction_label()}</label>
                   <select 
                     id="antiEveryoneAction"
                     bind:value={config.antiEveryoneAction}
                     class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none"
                     disabled={!canManageSettings}
                   >
-                    <option value="DELETE_ONLY">Suppression simple</option>
-                    <option value="DELETE_AND_WARN">Supprimer & Avertir</option>
-                    <option value="TIMEOUT">Exclusion (10 min)</option>
+                    <option value="DELETE_ONLY">{m.am_everyone_delete_only()}</option>
+                    <option value="DELETE_AND_WARN">{m.am_everyone_delete_warn()}</option>
+                    <option value="TIMEOUT">{m.am_everyone_timeout()}</option>
                   </select>
                 </div>
               {/if}
@@ -832,10 +833,10 @@
           </div>
           <div>
             <h2 class="text-sm font-bold text-on-surface uppercase tracking-widest flex items-center gap-2">
-              Filtres AutoMod Natifs Discord
+              {m.am_discord_native_title()}
             </h2>
             <p class="text-xs text-on-surface-variant/70 mt-1">
-              Ces filtres utilisent l'API native d'AutoMod de Discord. Ils sont appliqués directement par Discord, avant même que le bot ne reçoive le message, garantissant une modération instantanée et fiable.
+              {m.am_discord_native_desc()}
             </p>
           </div>
         </div>
@@ -846,7 +847,7 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Filter" size={20} class="text-orange-400" />
-                Mots Personnalisés
+                {m.am_customwords_title()}
               </h3>
               <ToggleSwitch
                 checked={config.customWordsEnabled}
@@ -856,28 +857,28 @@
             </div>
 
             <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-              Bloque automatiquement les messages contenant des mots ou expressions interdits. Géré nativement par Discord.
+              {m.am_customwords_desc()}
             </p>
 
             {#if config.customWordsEnabled}
               <div class="space-y-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="customWordsAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                  <label for="customWordsAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_action_label()}</label>
                   <select
                     id="customWordsAction"
                     bind:value={config.customWordsAction}
                     class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                     disabled={!canManageSettings}
                   >
-                    <option value="BLOCK">Bloquer le message</option>
-                    <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
-                    <option value="ALERT">Alerter uniquement (logs)</option>
+                    <option value="BLOCK">{m.am_action_block()}</option>
+                    <option value="TIMEOUT">{m.am_action_block_timeout()}</option>
+                    <option value="ALERT">{m.am_action_alert_only()}</option>
                   </select>
                 </div>
 
                 {#if config.customWordsAction === 'TIMEOUT'}
                   <div class="space-y-1.5">
-                    <label for="customWordsTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                    <label for="customWordsTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_timeout_duration_sec()}</label>
                     <input
                       id="customWordsTimeout"
                       type="number" min="5" max="2419200"
@@ -889,19 +890,19 @@
                 {/if}
 
                 <div class="space-y-1.5">
-                  <label for="customWords" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Mots interdits (un par ligne, max 1000)</label>
+                  <label for="customWords" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_customwords_list_label()}</label>
                   <textarea
                     id="customWords"
                     bind:value={customWordsInput}
-                    placeholder="mot1&#10;expression interdite&#10;*pattern*"
+                    placeholder={m.am_ph_words_example()}
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-32 resize-none font-mono"
                     disabled={!canManageSettings}
                   ></textarea>
-                  <p class="text-[10px] text-on-surface-variant/50 ml-2">Utilisez * comme joker : *spam* détectera « antispam », « spammer », etc.</p>
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.am_customwords_wildcard_hint()}</p>
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="customWordsAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Exceptions (mots autorisés, un par ligne)</label>
+                  <label for="customWordsAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_customwords_allow_label()}</label>
                   <textarea
                     id="customWordsAllow"
                     bind:value={customWordsAllowInput}
@@ -919,7 +920,7 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="ShieldX" size={20} class="text-red-400" />
-                Filtre Profanités
+                {m.am_profanity_title()}
               </h3>
               <ToggleSwitch
                 checked={config.profanityEnabled}
@@ -929,55 +930,55 @@
             </div>
 
             <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-              Utilise les listes de mots prédéfinies par Discord pour bloquer automatiquement les insultes, contenus sexuels et termes haineux.
+              {m.am_profanity_desc()}
             </p>
 
             {#if config.profanityEnabled}
               <div class="space-y-4 animate-in fade-in duration-300">
                 <div class="space-y-3">
-                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Catégories actives</span>
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_profanity_categories()}</span>
                   <div class="space-y-2">
                     <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
                       <input type="checkbox" bind:checked={config.profanityPresetProfanity} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
                       <div>
-                        <span class="text-sm font-medium">Insultes & Grossièretés</span>
-                        <p class="text-[10px] text-on-surface-variant/50">Liste Discord de termes vulgaires et insultants</p>
+                        <span class="text-sm font-medium">{m.am_profanity_cat_insults()}</span>
+                        <p class="text-[10px] text-on-surface-variant/50">{m.am_profanity_cat_insults_desc()}</p>
                       </div>
                     </label>
                     <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
                       <input type="checkbox" bind:checked={config.profanityPresetSexual} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
                       <div>
-                        <span class="text-sm font-medium">Contenu Sexuel</span>
-                        <p class="text-[10px] text-on-surface-variant/50">Termes à caractère sexuel explicite</p>
+                        <span class="text-sm font-medium">{m.am_profanity_cat_sexual()}</span>
+                        <p class="text-[10px] text-on-surface-variant/50">{m.am_profanity_cat_sexual_desc()}</p>
                       </div>
                     </label>
                     <label class="flex items-center gap-3 p-3 bg-surface-container-high/30 rounded-lg cursor-pointer hover:bg-surface-container-high/50 transition-colors">
                       <input type="checkbox" bind:checked={config.profanityPresetSlurs} disabled={!canManageSettings} class="rounded border-outline-variant/30" />
                       <div>
-                        <span class="text-sm font-medium">Termes Haineux & Discriminatoires</span>
-                        <p class="text-[10px] text-on-surface-variant/50">Insultes racistes, homophobes et autres slurs</p>
+                        <span class="text-sm font-medium">{m.am_profanity_cat_slurs()}</span>
+                        <p class="text-[10px] text-on-surface-variant/50">{m.am_profanity_cat_slurs_desc()}</p>
                       </div>
                     </label>
                   </div>
                 </div>
 
                 <div class="space-y-1.5">
-                  <label for="profanityAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                  <label for="profanityAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_action_label()}</label>
                   <select
                     id="profanityAction"
                     bind:value={config.profanityAction}
                     class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                     disabled={!canManageSettings}
                   >
-                    <option value="BLOCK">Bloquer le message</option>
-                    <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
-                    <option value="ALERT">Alerter uniquement (logs)</option>
+                    <option value="BLOCK">{m.am_action_block()}</option>
+                    <option value="TIMEOUT">{m.am_action_block_timeout()}</option>
+                    <option value="ALERT">{m.am_action_alert_only()}</option>
                   </select>
                 </div>
 
                 {#if config.profanityAction === 'TIMEOUT'}
                   <div class="space-y-1.5">
-                    <label for="profanityTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                    <label for="profanityTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_timeout_duration_sec()}</label>
                     <input
                       id="profanityTimeout"
                       type="number" min="5" max="2419200"
@@ -989,11 +990,11 @@
                 {/if}
 
                 <div class="space-y-1.5">
-                  <label for="profanityAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Exceptions (mots autorisés malgré tout, un par ligne)</label>
+                  <label for="profanityAllow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_profanity_allow_label()}</label>
                   <textarea
                     id="profanityAllow"
                     bind:value={profanityAllowInput}
-                    placeholder="mot autorisé&#10;expression ok"
+                    placeholder={m.am_ph_profanity_allow_example()}
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
                     disabled={!canManageSettings}
                   ></textarea>
@@ -1007,7 +1008,7 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="UserPlus" size={20} class="text-indigo-400" />
-                Filtre Invitations
+                {m.am_invitefilter_title()}
               </h3>
               <ToggleSwitch
                 checked={config.inviteFilterEnabled}
@@ -1017,28 +1018,28 @@
             </div>
 
             <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-              Bloque automatiquement les liens d'invitation Discord (discord.gg, discord.com/invite). Géré nativement par Discord pour une modération instantanée.
+              {m.am_invitefilter_desc()}
             </p>
 
             {#if config.inviteFilterEnabled}
               <div class="space-y-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="inviteFilterAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                  <label for="inviteFilterAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_action_label()}</label>
                   <select
                     id="inviteFilterAction"
                     bind:value={config.inviteFilterAction}
                     class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                     disabled={!canManageSettings}
                   >
-                    <option value="BLOCK">Bloquer le message</option>
-                    <option value="TIMEOUT">Bloquer + Exclure temporairement</option>
-                    <option value="ALERT">Alerter uniquement (logs)</option>
+                    <option value="BLOCK">{m.am_action_block()}</option>
+                    <option value="TIMEOUT">{m.am_action_block_timeout()}</option>
+                    <option value="ALERT">{m.am_action_alert_only()}</option>
                   </select>
                 </div>
 
                 {#if config.inviteFilterAction === 'TIMEOUT'}
                   <div class="space-y-1.5">
-                    <label for="inviteFilterTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée d'exclusion (secondes)</label>
+                    <label for="inviteFilterTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_timeout_duration_sec()}</label>
                     <input
                       id="inviteFilterTimeout"
                       type="number" min="5" max="2419200"
@@ -1050,15 +1051,15 @@
                 {/if}
 
                 <div class="space-y-1.5">
-                  <label for="inviteAllowed" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Codes d'invitation autorisés (un par ligne)</label>
+                  <label for="inviteAllowed" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_invitefilter_allowed_label()}</label>
                   <textarea
                     id="inviteAllowed"
                     bind:value={inviteAllowedGuildsInput}
-                    placeholder="monserveur&#10;autreCode"
+                    placeholder={m.am_ph_invite_codes_example()}
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none font-mono"
                     disabled={!canManageSettings}
                   ></textarea>
-                  <p class="text-[10px] text-on-surface-variant/50 ml-2">Entrez les codes d'invitation (ex: « monserveur » pour discord.gg/monserveur)</p>
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.am_invitefilter_allowed_hint()}</p>
                 </div>
               </div>
             {/if}
@@ -1073,7 +1074,7 @@
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
             <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="ShieldCheck" size={20} class="text-cyan-400" />
-              Mode Sécurisé (Anti-Bot)
+              {m.am_antibot_title()}
             </h3>
             <ToggleSwitch
               checked={config.antiBotEnabled}
@@ -1085,41 +1086,40 @@
           {#if !isOwner}
             <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p class="text-xs text-red-400/90 font-medium">
-                Seul le propriétaire du serveur peut activer, désactiver ou configurer le mode sécurisé anti-bot.
+                {m.am_antibot_owner_only()}
               </p>
             </div>
           {/if}
 
           <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Empêche tout membre autre que le propriétaire du serveur d'ajouter des bots.
-            Les bots ajoutés par un non-propriétaire seront automatiquement expulsés ou bannis.
+            {m.am_antibot_desc()}
           </p>
 
           {#if config.antiBotEnabled}
             <div class="space-y-5 animate-in fade-in duration-300">
               <div class="space-y-1.5">
-                <label for="antiBotAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action sur le bot non autorisé</label>
+                <label for="antiBotAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_antibot_action_label()}</label>
                 <select
                   id="antiBotAction"
                   bind:value={config.antiBotAction}
                   class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                   disabled={!isOwner}
                 >
-                  <option value="KICK">Expulser le bot</option>
-                  <option value="BAN">Bannir le bot</option>
+                  <option value="KICK">{m.am_antibot_kick()}</option>
+                  <option value="BAN">{m.am_antibot_ban()}</option>
                 </select>
               </div>
 
               <!-- Bypass users -->
               <div class="space-y-3 pt-2 border-t border-outline-variant/10">
-                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Utilisateurs autorisés à ajouter des bots</span>
-                <p class="text-xs text-on-surface-variant/50 ml-2">Ces utilisateurs peuvent ajouter des bots mais ne peuvent pas modifier cette configuration.</p>
+                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_antibot_bypass_title()}</span>
+                <p class="text-xs text-on-surface-variant/50 ml-2">{m.am_antibot_bypass_desc()}</p>
                 {#if isOwner}
                   <div class="flex gap-2">
                     <input
                       type="text"
                       bind:value={antiBotBypassInput}
-                      placeholder="ID Discord de l'utilisateur"
+                      placeholder={m.am_antibot_user_id_placeholder()}
                       class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
                       onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); addAntiBotBypassUser(); } }}
                     />
@@ -1129,7 +1129,7 @@
                       disabled={!antiBotBypassInput.trim() || !/^\d{17,20}$/.test(antiBotBypassInput.trim())}
                       class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                     >
-                      Ajouter
+                      {m.common_add()}
                     </button>
                   </div>
                 {/if}
@@ -1143,14 +1143,14 @@
                       {/if}
                     </div>
                   {:else}
-                    <span class="text-xs text-on-surface-variant/40 italic ml-2">Aucun utilisateur autorisé (seul le propriétaire peut ajouter des bots).</span>
+                    <span class="text-xs text-on-surface-variant/40 italic ml-2">{m.am_antibot_bypass_empty()}</span>
                   {/each}
                 </div>
               </div>
 
               <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <p class="text-xs text-amber-400/90 font-medium">
-                  Le bot Kotbo ne sera jamais affecté par cette protection. La personne ayant ajouté le bot recevra un message privé pour l'informer du blocage.
+                  {m.am_antibot_notice()}
                 </p>
               </div>
             </div>
@@ -1174,25 +1174,25 @@
           {#if !isOwner}
             <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p class="text-xs text-red-400/90 font-medium">
-                Seul le propriétaire du serveur peut activer, désactiver ou configurer Admin Permission Lock.
+                {m.am_adminlock_owner_only()}
               </p>
             </div>
           {/if}
 
           <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Empêche l'octroi non autorisé de la permission <strong>ADMINISTRATOR</strong>. Les actions internes sont soumises à approbation. Les modifications externes sont automatiquement détectées et annulées.
+            {m.am_adminlock_desc_before()}<strong>ADMINISTRATOR</strong>{m.am_adminlock_desc_after()}
           </p>
 
           {#if config.adminLockEnabled}
             <div class="space-y-5 animate-in fade-in duration-300">
               <a href="/admin-lock" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors">
-                <Papicon icon="inbox" size={14} /> Voir les demandes en attente
+                <Papicon icon="inbox" size={14} /> {m.am_adminlock_view_requests()}
               </a>
 
               <!-- Rôles sécurité -->
               <div class="space-y-3 pt-2 border-t border-outline-variant/10">
-                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôles « sécurité » (approbateurs)</span>
-                <p class="text-xs text-on-surface-variant/50 ml-2">En plus du propriétaire du serveur, les membres de ces rôles peuvent approuver ou rejeter les demandes.</p>
+                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_adminlock_security_roles()}</span>
+                <p class="text-xs text-on-surface-variant/50 ml-2">{m.am_adminlock_security_roles_desc()}</p>
                 {#if isOwner}
                   <div class="flex gap-2">
                     <div class="flex-1">
@@ -1200,7 +1200,7 @@
                         id="adminLockSecurityRoleSelect"
                         bind:value={selectedAdminLockSecurityRole}
                         options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                        placeholder="Ajouter un rôle sécurité"
+                        placeholder={m.am_adminlock_add_role_placeholder()}
                         className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
                       />
                     </div>
@@ -1210,7 +1210,7 @@
                       disabled={!selectedAdminLockSecurityRole}
                       class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                     >
-                      Ajouter
+                      {m.common_add()}
                     </button>
                   </div>
                 {/if}
@@ -1224,22 +1224,22 @@
                       {/if}
                     </div>
                   {:else}
-                    <span class="text-xs text-on-surface-variant/40 italic ml-2">Aucun rôle sécurité (seul le propriétaire peut approuver).</span>
+                    <span class="text-xs text-on-surface-variant/40 italic ml-2">{m.am_adminlock_roles_empty()}</span>
                   {/each}
                 </div>
               </div>
 
               <!-- Salon de notification -->
               <div class="space-y-1.5 pt-2 border-t border-outline-variant/10">
-                <label for="adminLockNotifyChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de notification</label>
-                <p class="text-xs text-on-surface-variant/50 ml-2 mb-1">Reçoit les demandes d'approbation et les alertes de blocage. Par défaut : salon de logs.</p>
+                <label for="adminLockNotifyChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_adminlock_notify_channel()}</label>
+                <p class="text-xs text-on-surface-variant/50 ml-2 mb-1">{m.am_adminlock_notify_channel_desc()}</p>
                 <select
                   id="adminLockNotifyChannel"
                   bind:value={config.adminLockNotifyChannelId}
                   class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                   disabled={!isOwner}
                 >
-                  <option value={null}>— Salon de logs par défaut —</option>
+                  <option value={null}>{m.am_adminlock_default_log_channel()}</option>
                   {#each availableChannels as c}
                     <option value={c.id}># {channelDisplayName(c)}</option>
                   {/each}
@@ -1250,9 +1250,9 @@
               <div class="space-y-4 pt-2 border-t border-outline-variant/10">
                 <div class="flex items-center justify-between">
                   <div>
-                    <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Suspension automatique (anti-rafale)</span>
+                    <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_burst_title()}</span>
                     <p class="text-xs text-on-surface-variant/50 ml-2 mt-1">
-                      Retire automatiquement les rôles ADMINISTRATOR en cas d'actions destructrices répétées en peu de temps.
+                      {m.am_burst_desc()}
                     </p>
                   </div>
                   <ToggleSwitch
@@ -1265,22 +1265,22 @@
                 {#if config.burstSuspendEnabled}
                   <div class="grid grid-cols-2 gap-4 animate-in fade-in duration-300">
                     <div class="space-y-1.5">
-                      <label for="burstFastLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil rapide</label>
+                      <label for="burstFastLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_burst_fast()}</label>
                       <div class="flex items-center gap-2">
                         <input id="burstFastLimit" type="number" min="1" max="100" bind:value={config.burstSuspendFastLimit} disabled={!isOwner}
                           class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
-                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">act /</span>
+                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">{m.am_burst_act_per()}</span>
                         <input type="number" min="1" max="3600" bind:value={config.burstSuspendFastWindowSec} disabled={!isOwner}
                           class="w-20 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
                         <span class="text-xs text-on-surface-variant/50">s</span>
                       </div>
                     </div>
                     <div class="space-y-1.5">
-                      <label for="burstSlowLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil lent</label>
+                      <label for="burstSlowLimit" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_burst_slow()}</label>
                       <div class="flex items-center gap-2">
                         <input id="burstSlowLimit" type="number" min="1" max="500" bind:value={config.burstSuspendSlowLimit} disabled={!isOwner}
                           class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
-                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">act /</span>
+                        <span class="text-xs text-on-surface-variant/50 whitespace-nowrap">{m.am_burst_act_per()}</span>
                         <input type="number" min="1" max="3600" bind:value={config.burstSuspendSlowWindowSec} disabled={!isOwner}
                           class="w-20 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-2.5 text-sm text-on-surface focus:outline-none" />
                         <span class="text-xs text-on-surface-variant/50">s</span>
@@ -1292,7 +1292,7 @@
 
               <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <p class="text-xs text-amber-400/90 font-medium">
-                  Positionnez le rôle du bot au-dessus des rôles ADMINISTRATOR pour garantir le bon fonctionnement des annulations automatiques.
+                  {m.am_adminlock_notice()}
                 </p>
               </div>
             </div>
@@ -1304,41 +1304,41 @@
       <div class="mt-8 space-y-8 animate-in fade-in duration-300">
         <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="ShieldAlert" size={20} class="text-orange-400" />
-          Anti-Raid & Urgence
+          {m.am_antiraid_section_title()}
         </h3>
 
         <!-- Panneau d'urgence -->
         <section class="bg-red-500/5 border border-red-500/20 p-8 rounded-xl space-y-5">
           <h3 class="text-lg font-semibold flex items-center gap-3 border-b border-red-500/15 pb-3">
             <Papicon icon="Siren" size={20} class="text-red-500" />
-            Panneau d'urgence
+            {m.am_emergency_title()}
           </h3>
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <div class="p-4 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold text-on-surface">Mode raid</p>
-                <p class="text-[11px] text-on-surface-variant/60">{raidLiveState.raidModeActive ? `🟠 Actif (${raidLiveState.raidModeManual ? 'manuel' : 'auto'})` : 'Inactif'}</p>
+                <p class="text-sm font-semibold text-on-surface">{m.am_raid_mode()}</p>
+                <p class="text-[11px] text-on-surface-variant/60">{raidLiveState.raidModeActive ? m.am_raid_mode_active({ mode: raidLiveState.raidModeManual ? m.am_raid_mode_manual() : m.am_raid_mode_auto() }) : m.common_inactive()}</p>
               </div>
               <ToggleSwitch checked={raidLiveState.raidModeActive} onToggle={toggleRaidMode} disabled={!canManageSettings || actionState.state.loading} />
             </div>
             <div class="p-4 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold text-on-surface">Join lock</p>
-                <p class="text-[11px] text-on-surface-variant/60">Bloque les nouvelles arrivées</p>
+                <p class="text-sm font-semibold text-on-surface">{m.am_joinlock()}</p>
+                <p class="text-[11px] text-on-surface-variant/60">{m.am_joinlock_desc()}</p>
               </div>
               <ToggleSwitch checked={raidLiveState.joinLockEnabled} onToggle={toggleJoinLock} disabled={!canManageSettings || actionState.state.loading} />
             </div>
             <div class="p-4 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold text-on-surface">DM lock</p>
-                <p class="text-[11px] text-on-surface-variant/60">Bloque les MP du serveur (permanent)</p>
+                <p class="text-sm font-semibold text-on-surface">{m.am_dmlock()}</p>
+                <p class="text-[11px] text-on-surface-variant/60">{m.am_dmlock_desc()}</p>
               </div>
               <ToggleSwitch checked={raidLiveState.dmLockEnabled} onToggle={toggleDmLock} disabled={!canManageSettings || actionState.state.loading} />
             </div>
             <div class="p-4 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-semibold text-on-surface">Urgence invitations</p>
-                <p class="text-[11px] text-on-surface-variant/60">Supprime toutes les invitations</p>
+                <p class="text-sm font-semibold text-on-surface">{m.am_invite_emergency()}</p>
+                <p class="text-[11px] text-on-surface-variant/60">{m.am_invite_emergency_desc()}</p>
               </div>
               <ToggleSwitch checked={raidLiveState.inviteEmergencyEnabled} onToggle={toggleInviteEmergency} disabled={!canManageSettings || actionState.state.loading} />
             </div>
@@ -1351,39 +1351,39 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="ScanFace" size={20} class="text-blue-500" />
-                Captcha
+                {m.am_captcha_title()}
               </h3>
               <ToggleSwitch checked={raidConfig.captchaEnabled} onToggle={(v: boolean) => raidConfig.captchaEnabled = v} disabled={!canManageSettings} />
             </div>
-            <p class="text-xs text-on-surface-variant/70 leading-relaxed">Vérification des nouveaux membres avant l'accès au serveur.</p>
+            <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.am_captcha_desc()}</p>
             {#if raidConfig.captchaEnabled}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="captchaChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de vérification</label>
-                  <SearchableSelect id="captchaChannel" bind:value={raidConfig.captchaChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Choisir un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  <label for="captchaChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_channel()}</label>
+                  <SearchableSelect id="captchaChannel" bind:value={raidConfig.captchaChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="captchaRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle non-vérifié</label>
-                  <SearchableSelect id="captchaRole" bind:value={raidConfig.captchaUnverifiedRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Choisir un rôle" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  <label for="captchaRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_role()}</label>
+                  <SearchableSelect id="captchaRole" bind:value={raidConfig.captchaUnverifiedRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.am_choose_role()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="captchaTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Délai (minutes)</label>
+                  <label for="captchaTimeout" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_delay()}</label>
                   <input id="captchaTimeout" type="number" min="2" max="60" bind:value={raidConfig.captchaTimeoutMinutes} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="captchaAttempts" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Tentatives max</label>
+                  <label for="captchaAttempts" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_attempts()}</label>
                   <input id="captchaAttempts" type="number" min="1" max="10" bind:value={raidConfig.captchaMaxAttempts} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="captchaFail" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction en cas d'échec</label>
+                  <label for="captchaFail" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_fail_action()}</label>
                   <select id="captchaFail" bind:value={raidConfig.captchaFailAction} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
-                    <option value="KICK">Expulsion (kick)</option>
-                    <option value="BAN">Bannissement</option>
+                    <option value="KICK">{m.am_captcha_fail_kick()}</option>
+                    <option value="BAN">{m.am_captcha_fail_ban()}</option>
                   </select>
                 </div>
                 <div class="space-y-1.5">
-                  <label for="captchaLog" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de logs</label>
-                  <SearchableSelect id="captchaLog" bind:value={raidConfig.captchaLogChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Optionnel" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  <label for="captchaLog" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_log_channel()}</label>
+                  <SearchableSelect id="captchaLog" bind:value={raidConfig.captchaLogChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_optional()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
               </div>
             {/if}
@@ -1394,35 +1394,35 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="ShieldAlert" size={20} class="text-orange-500" />
-                Détection des vagues d'arrivées
+                {m.am_joinwave_title()}
               </h3>
               <ToggleSwitch checked={raidConfig.antiRaidEnabled} onToggle={(v: boolean) => raidConfig.antiRaidEnabled = v} disabled={!canManageSettings} />
             </div>
             {#if raidConfig.antiRaidEnabled}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
-                  <label for="antiRaidThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil (arrivées)</label>
+                  <label for="antiRaidThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinwave_threshold()}</label>
                   <input id="antiRaidThreshold" type="number" min="3" max="100" bind:value={raidConfig.antiRaidJoinThreshold} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="antiRaidWindow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Fenêtre (secondes)</label>
+                  <label for="antiRaidWindow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinwave_window()}</label>
                   <input id="antiRaidWindow" type="number" min="10" max="600" bind:value={raidConfig.antiRaidJoinWindowSec} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="antiRaidAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action automatique</label>
+                  <label for="antiRaidAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinwave_action()}</label>
                   <select id="antiRaidAction" bind:value={raidConfig.antiRaidAction} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
-                    <option value="LOCK">Bloquer les arrivées (join lock)</option>
-                    <option value="CAPTCHA">Captcha forcé</option>
-                    <option value="KICK">Expulsion automatique</option>
+                    <option value="LOCK">{m.am_joinwave_lock()}</option>
+                    <option value="CAPTCHA">{m.am_joinwave_captcha()}</option>
+                    <option value="KICK">{m.am_joinwave_kick()}</option>
                   </select>
                 </div>
                 <div class="space-y-1.5">
-                  <label for="antiRaidAutoDisable" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Auto-désactivation (min)</label>
+                  <label for="antiRaidAutoDisable" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinwave_autodisable()}</label>
                   <input id="antiRaidAutoDisable" type="number" min="5" max="1440" bind:value={raidConfig.antiRaidAutoDisableMinutes} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5 md:col-span-2">
-                  <label for="antiRaidAlert" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des alertes</label>
-                  <SearchableSelect id="antiRaidAlert" bind:value={raidConfig.antiRaidAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Choisir un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  <label for="antiRaidAlert" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_alerts_channel()}</label>
+                  <SearchableSelect id="antiRaidAlert" bind:value={raidConfig.antiRaidAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
               </div>
             {/if}
@@ -1433,52 +1433,52 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Link" size={20} class="text-cyan-500" />
-                Contrôle des invitations
+                {m.am_inviteguard_title()}
               </h3>
               <ToggleSwitch checked={raidConfig.inviteGuardEnabled} onToggle={(v: boolean) => raidConfig.inviteGuardEnabled = v} disabled={!canManageSettings} />
             </div>
             <div class="space-y-3">
               <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-sm font-medium text-on-surface">Invitations unitaires uniquement</p>
-                  <p class="text-[11px] text-on-surface-variant/60">Supprime toute invitation ≠ 1 usage (pas de ∞)</p>
+                  <p class="text-sm font-medium text-on-surface">{m.am_invite_unitary()}</p>
+                  <p class="text-[11px] text-on-surface-variant/60">{m.am_invite_unitary_desc()}</p>
                 </div>
                 <ToggleSwitch checked={raidConfig.inviteRequireUnitary} onToggle={(v: boolean) => raidConfig.inviteRequireUnitary = v} disabled={!canManageSettings} />
               </div>
               <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-sm font-medium text-on-surface">Validation par le staff</p>
-                  <p class="text-[11px] text-on-surface-variant/60">Chaque invitation doit être approuvée avant d'être active</p>
+                  <p class="text-sm font-medium text-on-surface">{m.am_invite_staff_validation()}</p>
+                  <p class="text-[11px] text-on-surface-variant/60">{m.am_invite_staff_validation_desc()}</p>
                 </div>
                 <ToggleSwitch checked={raidConfig.inviteValidationEnabled} onToggle={(v: boolean) => raidConfig.inviteValidationEnabled = v} disabled={!canManageSettings} />
               </div>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
-                  <label for="inviteSpamThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Seuil anti-spam (créations)</label>
+                  <label for="inviteSpamThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_invite_spam_threshold()}</label>
                   <input id="inviteSpamThreshold" type="number" min="2" max="50" bind:value={raidConfig.inviteSpamThreshold} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="inviteSpamWindow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Fenêtre anti-spam (sec)</label>
+                  <label for="inviteSpamWindow" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_invite_spam_window()}</label>
                   <input id="inviteSpamWindow" type="number" min="10" max="3600" bind:value={raidConfig.inviteSpamWindowSec} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5 md:col-span-2">
-                  <label for="inviteAlertChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon alertes & validations</label>
-                  <SearchableSelect id="inviteAlertChannel" bind:value={raidConfig.inviteAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Choisir un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  <label for="inviteAlertChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_invite_alert_channel()}</label>
+                  <SearchableSelect id="inviteAlertChannel" bind:value={raidConfig.inviteAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
               </div>
             </div>
             {#if pendingInviteRequests.length > 0}
               <div class="space-y-2 pt-2 border-t border-outline-variant/15">
-                <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">Demandes en attente ({pendingInviteRequests.length})</p>
+                <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_pending_requests({ count: pendingInviteRequests.length })}</p>
                 {#each pendingInviteRequests as request (request.id)}
                   <div class="p-3 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
                     <div class="min-w-0">
-                      <p class="text-sm text-on-surface truncate">Créateur : <span class="font-mono">{request.creatorId}</span></p>
-                      <p class="text-[11px] text-on-surface-variant/60">Usages : {request.maxUses === 0 ? '∞' : request.maxUses} · Expire : {request.maxAgeSec === 0 ? 'jamais' : `${Math.round(request.maxAgeSec / 3600)}h`}</p>
+                      <p class="text-sm text-on-surface truncate">{m.am_invite_creator()} <span class="font-mono">{request.creatorId}</span></p>
+                      <p class="text-[11px] text-on-surface-variant/60">{m.am_invite_uses_expiry({ uses: request.maxUses === 0 ? '∞' : request.maxUses, expires: request.maxAgeSec === 0 ? m.am_never() : `${Math.round(request.maxAgeSec / 3600)}h` })}</p>
                     </div>
                     <div class="flex gap-2 shrink-0">
-                      <button type="button" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-medium" onclick={() => handleInviteDecision(request.id, true)} disabled={!canManageSettings}>Approuver</button>
-                      <button type="button" class="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-lg text-xs font-medium" onclick={() => handleInviteDecision(request.id, false)} disabled={!canManageSettings}>Rejeter</button>
+                      <button type="button" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-medium" onclick={() => handleInviteDecision(request.id, true)} disabled={!canManageSettings}>{m.am_approve()}</button>
+                      <button type="button" class="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-lg text-xs font-medium" onclick={() => handleInviteDecision(request.id, false)} disabled={!canManageSettings}>{m.am_reject()}</button>
                     </div>
                   </div>
                 {/each}
@@ -1491,43 +1491,43 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Fish" size={20} class="text-purple-500" />
-                Filtre anti-scam
+                {m.am_scam_title()}
               </h3>
               <ToggleSwitch checked={raidConfig.scamFilterEnabled} onToggle={(v: boolean) => raidConfig.scamFilterEnabled = v} disabled={!canManageSettings} />
             </div>
             <div class="space-y-3">
               <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-sm font-medium text-on-surface">Bloquer les images scam connues</p>
-                  <p class="text-[11px] text-on-surface-variant/60">Base alimentée par le honeypot — {scamImageCount} hash enregistrés</p>
+                  <p class="text-sm font-medium text-on-surface">{m.am_scam_images_block()}</p>
+                  <p class="text-[11px] text-on-surface-variant/60">{m.am_scam_images_desc({ count: scamImageCount })}</p>
                 </div>
                 <ToggleSwitch checked={raidConfig.scamImageFilterEnabled} onToggle={(v: boolean) => raidConfig.scamImageFilterEnabled = v} disabled={!canManageSettings} />
               </div>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
-                  <label for="scamAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action</label>
+                  <label for="scamAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_action_label()}</label>
                   <select id="scamAction" bind:value={raidConfig.scamFilterAction} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
-                    <option value="DELETE">Supprimer uniquement</option>
-                    <option value="DELETE_AND_WARN">Supprimer + avertir</option>
-                    <option value="DELETE_AND_TIMEOUT">Supprimer + timeout</option>
-                    <option value="DELETE_AND_BAN">Supprimer + bannir</option>
+                    <option value="DELETE">{m.am_scam_action_delete()}</option>
+                    <option value="DELETE_AND_WARN">{m.am_scam_action_delete_warn()}</option>
+                    <option value="DELETE_AND_TIMEOUT">{m.am_scam_action_delete_timeout()}</option>
+                    <option value="DELETE_AND_BAN">{m.am_scam_action_delete_ban()}</option>
                   </select>
                 </div>
                 <div class="space-y-1.5">
-                  <label for="scamAlert" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des alertes</label>
-                  <SearchableSelect id="scamAlert" bind:value={raidConfig.scamFilterAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Optionnel" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  <label for="scamAlert" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_alerts_channel()}</label>
+                  <SearchableSelect id="scamAlert" bind:value={raidConfig.scamFilterAlertChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_optional()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="scamDomains" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Domaines bloqués (1/ligne)</label>
+                  <label for="scamDomains" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_scam_domains()}</label>
                   <textarea id="scamDomains" rows="3" bind:value={raidCustomDomainsText} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" placeholder="evil-site.com" disabled={!canManageSettings}></textarea>
                 </div>
                 <div class="space-y-1.5">
-                  <label for="scamWhitelist" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Domaines exemptés (1/ligne)</label>
+                  <label for="scamWhitelist" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_scam_whitelist()}</label>
                   <textarea id="scamWhitelist" rows="3" bind:value={raidWhitelistText} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" placeholder="mon-site.fr" disabled={!canManageSettings}></textarea>
                 </div>
               </div>
               <button type="button" class="w-full py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 rounded-lg text-[13px] font-medium transition-all" onclick={loadScamImages}>
-                {showScamImages ? 'Masquer' : 'Voir'} la base d'images scam ({scamImageCount})
+                {showScamImages ? m.am_scam_db_hide({ count: scamImageCount }) : m.am_scam_db_show({ count: scamImageCount })}
               </button>
               {#if showScamImages}
                 <div class="space-y-2 max-h-64 overflow-y-auto">
@@ -1535,14 +1535,14 @@
                     <div class="p-3 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-between gap-3">
                       <div class="min-w-0">
                         <p class="text-xs font-mono text-on-surface truncate">{image.hash.slice(0, 24)}…</p>
-                        <p class="text-[11px] text-on-surface-variant/60">{image.filename ?? 'sans nom'} · {image.source}{image.guildId ? '' : ' · 🌐 global'}</p>
+                        <p class="text-[11px] text-on-surface-variant/60">{image.filename ?? m.am_scam_no_name()} · {image.source}{image.guildId ? '' : ' · 🌐 global'}</p>
                       </div>
                       {#if image.guildId}
-                        <button type="button" class="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-lg text-xs font-medium shrink-0" onclick={() => handleDeleteScamImage(image.id)} disabled={!canManageSettings}>Supprimer</button>
+                        <button type="button" class="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-lg text-xs font-medium shrink-0" onclick={() => handleDeleteScamImage(image.id)} disabled={!canManageSettings}>{m.common_delete()}</button>
                       {/if}
                     </div>
                   {:else}
-                    <p class="text-xs text-on-surface-variant/50 text-center py-3">Aucune image enregistrée pour le moment.</p>
+                    <p class="text-xs text-on-surface-variant/50 text-center py-3">{m.am_scam_empty()}</p>
                   {/each}
                 </div>
               {/if}
@@ -1554,21 +1554,21 @@
             <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Flag" size={20} class="text-amber-500" />
-                Signalements ({reportStats.pending} en attente · {reportStats.resolved} traités)
+                {m.am_reports_title({ pending: reportStats.pending, resolved: reportStats.resolved })}
               </h3>
               <ToggleSwitch checked={raidConfig.reportsEnabled} onToggle={(v: boolean) => raidConfig.reportsEnabled = v} disabled={!canManageSettings} />
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="space-y-1.5 md:col-span-2">
-                <label for="reportsChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon staff des signalements</label>
-                <SearchableSelect id="reportsChannel" bind:value={raidConfig.reportsChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Choisir un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                <label for="reportsChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_reports_channel()}</label>
+                <SearchableSelect id="reportsChannel" bind:value={raidConfig.reportsChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
               </div>
               <div class="space-y-1.5">
-                <label for="reportsCooldown" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Cooldown par membre (sec)</label>
+                <label for="reportsCooldown" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_reports_cooldown()}</label>
                 <input id="reportsCooldown" type="number" min="0" max="3600" bind:value={raidConfig.reportsCooldownSec} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
               </div>
               <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
-                <p class="text-sm font-medium text-on-surface">Signalements anonymes</p>
+                <p class="text-sm font-medium text-on-surface">{m.am_reports_anonymous()}</p>
                 <ToggleSwitch checked={raidConfig.reportsAnonymous} onToggle={(v: boolean) => raidConfig.reportsAnonymous = v} disabled={!canManageSettings} />
               </div>
             </div>
@@ -1577,10 +1577,10 @@
                 {#each pendingReports as report (report.id)}
                   <div class="p-3 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 space-y-2">
                     <div class="flex items-center justify-between gap-3">
-                      <p class="text-sm text-on-surface">Cible : <span class="font-mono">{report.targetId}</span></p>
+                      <p class="text-sm text-on-surface">{m.am_report_target()} <span class="font-mono">{report.targetId}</span></p>
                       <div class="flex gap-2 shrink-0">
-                        <button type="button" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-medium" onclick={() => handleReportDecision(report.id, true)} disabled={!canManageSettings}>Traité</button>
-                        <button type="button" class="px-3 py-1.5 bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant rounded-lg text-xs font-medium" onclick={() => handleReportDecision(report.id, false)} disabled={!canManageSettings}>Rejeter</button>
+                        <button type="button" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-medium" onclick={() => handleReportDecision(report.id, true)} disabled={!canManageSettings}>{m.am_report_resolve()}</button>
+                        <button type="button" class="px-3 py-1.5 bg-surface-container-highest hover:bg-surface-container-high text-on-surface-variant rounded-lg text-xs font-medium" onclick={() => handleReportDecision(report.id, false)} disabled={!canManageSettings}>{m.am_reject()}</button>
                       </div>
                     </div>
                     <p class="text-xs text-on-surface-variant/70">{report.reason}</p>
@@ -1594,17 +1594,17 @@
           <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
             <h3 class="text-lg font-semibold flex items-center gap-3 border-b border-outline-variant/15 pb-4">
               <Papicon icon="Lock" size={20} class="text-slate-400" />
-              Options du join lock
+              {m.am_joinlock_options_title()}
             </h3>
             <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between gap-3">
               <div>
-                <p class="text-sm font-medium text-on-surface">Expulser les arrivées pendant le lock</p>
-                <p class="text-[11px] text-on-surface-variant/60">Filet de sécurité au-delà de la pause des invitations Discord</p>
+                <p class="text-sm font-medium text-on-surface">{m.am_joinlock_kick()}</p>
+                <p class="text-[11px] text-on-surface-variant/60">{m.am_joinlock_kick_desc()}</p>
               </div>
               <ToggleSwitch checked={raidConfig.joinLockKick} onToggle={(v: boolean) => raidConfig.joinLockKick = v} disabled={!canManageSettings} />
             </div>
             <div class="space-y-1.5">
-              <label for="joinLockMessage" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Message envoyé en MP aux membres expulsés</label>
+              <label for="joinLockMessage" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_joinlock_message()}</label>
               <textarea id="joinLockMessage" rows="2" bind:value={raidConfig.joinLockMessage} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}></textarea>
             </div>
           </section>
@@ -1617,13 +1617,13 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3 border-b border-outline-variant/15 pb-4">
             <Papicon icon="Unlock" size={20} class="text-emerald-400" />
-            Exceptions / Salons et Rôles Ignorés
+            {m.am_exceptions_title()}
           </h3>
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Ignored roles -->
             <div class="space-y-3">
-              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôles exemptés</span>
+              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_exempt_roles()}</span>
               {#if canManageSettings}
                 <div class="flex gap-2">
                   <div class="flex-1">
@@ -1631,7 +1631,7 @@
                       id="bypassRoleSelect"
                       bind:value={selectedBypassRole} 
                       options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
-                      placeholder="Ajouter un rôle" 
+                      placeholder={m.am_add_role_placeholder()} 
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                   </div>
@@ -1641,7 +1641,7 @@
                     disabled={!selectedBypassRole}
                     class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                   >
-                    Ajouter
+                    {m.common_add()}
                   </button>
                 </div>
               {/if}
@@ -1655,14 +1655,14 @@
                     {/if}
                   </div>
                 {:else}
-                  <span class="text-xs text-on-surface-variant/40 italic ml-2">Aucun rôle exempté.</span>
+                  <span class="text-xs text-on-surface-variant/40 italic ml-2">{m.am_no_exempt_role()}</span>
                 {/each}
               </div>
             </div>
 
             <!-- Ignored channels -->
             <div class="space-y-3 lg:border-l lg:border-outline-variant/10 lg:pl-8">
-              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salons exemptés</span>
+              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_exempt_channels()}</span>
               {#if canManageSettings}
                 <div class="flex gap-2">
                   <div class="flex-1">
@@ -1670,7 +1670,7 @@
                       id="bypassChanSelect"
                       bind:value={selectedBypassChannel} 
                       options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
-                      placeholder="Ajouter un salon" 
+                      placeholder={m.am_add_channel_placeholder()} 
                       className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                   </div>
@@ -1680,7 +1680,7 @@
                     disabled={!selectedBypassChannel}
                     class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                   >
-                    Ajouter
+                    {m.common_add()}
                   </button>
                 </div>
               {/if}
@@ -1694,7 +1694,7 @@
                     {/if}
                   </div>
                 {:else}
-                  <span class="text-xs text-on-surface-variant/40 italic ml-2">Aucun salon exempté.</span>
+                  <span class="text-xs text-on-surface-variant/40 italic ml-2">{m.am_no_exempt_channel()}</span>
                 {/each}
               </div>
             </div>
