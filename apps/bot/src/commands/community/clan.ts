@@ -240,12 +240,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       });
       const totalXp = aggregate._sum.xp ?? 0;
 
-      // Top 10 contributeurs du clan pour la saison active
+      // Top 10 contributeurs du clan pour la saison active. Les points donnés au
+      // clan entier comptent dans le total mais n'ont pas de contributeur : les
+      // laisser ici afficherait un membre fantôme en tête de classement.
       const topContributions = await prisma.clanMemberContribution.findMany({
         where: {
           guildId,
           clanId: clan.id,
           season: guildConfig.currentClanSeason,
+          userId: { not: 'system_manual_points' },
         },
         orderBy: { xp: 'desc' },
         take: 10,

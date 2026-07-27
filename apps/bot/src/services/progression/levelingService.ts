@@ -3,7 +3,7 @@ import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas';
 import type { LevelConfig } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { cache } from '../../utils/cache.js';
+import { cache, getCachedGuild } from '../../utils/cache.js';
 
 // Cooldown map: key is "guildId:userId", value is timestamp when cooldown expires
 const xpCooldowns = new Map<string, number>();
@@ -168,26 +168,22 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
 
   let finalAmount = amount;
   try {
-    const guildSettings = await prisma.guild.findUnique({
-      where: { id: guildId },
-      select: {
-        clanRewardXpBoost: true,
-        clanRewardXpBoostRate: true,
-        lastWinningClanId: true,
-      },
-    });
+    // Lecture mise en cache : `addXp` est appelée à chaque message, et le clan
+    // vainqueur comme son bonus ne changent qu'à la clôture d'une saison.
+    const guildSettings = await getCachedGuild(guildId);
 
     if (guildSettings?.clanRewardXpBoost && guildSettings.lastWinningClanId) {
-      const winningClan = await prisma.clan.findUnique({
-        where: { id: guildSettings.lastWinningClanId },
+      const winnerIds = guildSettings.lastWinningClanId.split(',');
+      const winningClans = await prisma.clan.findMany({
+        where: { id: { in: winnerIds } },
         select: { roleId: true },
       });
 
-      if (winningClan) {
+      if (winningClans.length > 0) {
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
         if (discordGuild) {
           const member = discordGuild.members.cache.get(userId) || await discordGuild.members.fetch(userId).catch(() => null);
-          if (member && member.roles.cache.has(winningClan.roleId)) {
+          if (member && winningClans.some((c) => member.roles.cache.has(c.roleId))) {
             finalAmount = Math.round(amount * guildSettings.clanRewardXpBoostRate);
           }
         }

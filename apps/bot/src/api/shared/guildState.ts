@@ -122,7 +122,6 @@ export async function resolveFeatureAccessMap(
     });
   }
 
-  logger.info('DashboardAPI', `Resolved feature access for user ${userId} in guild ${guildId}`, { featureAccess });
   return featureAccess;
 }
 

@@ -17,6 +17,7 @@ const repairs = [
   "20260709000000_add_welcome_menu_page_actions",
   "20260709010000_add_verification_device_tracking",
   "20260720000000_add_welcome_exclusive_role_groups",
+  "20260721160000_add_raid_protection_tables",
 ];
 
 async function run(command: string[]) {

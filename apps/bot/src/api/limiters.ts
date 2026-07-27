@@ -1,4 +1,13 @@
 export const configRateLimiter = new Map<string, number[]>();
+
+/**
+ * Pages publiques des clans. Le classement est mis en cache et servi tel quel à
+ * tout le monde, d'où un plafond large ; la recherche, elle, tape la base à
+ * chaque appel, mais elle est déclenchée par une frappe humaine (avec un délai
+ * d'attente côté page), donc une trentaine d'appels par minute suffit largement.
+ */
+export const publicClansRateLimiter = new Map<string, number[]>();
+export const publicClanSearchRateLimiter = new Map<string, number[]>();
 export const errorReportRateLimiter = new Map<string, number[]>();
 export const feedbackReportRateLimiter = new Map<string, number[]>();
 export const partnershipRateLimiter = new Map<string, number[]>();

@@ -1,10 +1,29 @@
-import { Client, EmbedBuilder, ChannelType, CategoryChannel, type Guild, type GuildMember } from 'discord.js';
+import { Client, EmbedBuilder, ChannelType, CategoryChannel, type Guild, type GuildMember, type Role } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
 import { getClient } from '../../utils/client.js';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
+
+/**
+ * Refus d'une opération de masse quand une autre tourne déjà.
+ *
+ * Le message nomme la tâche en cours et son avancement : sans ça, un refus sec
+ * ressemble à une panne, alors qu'il suffit d'attendre.
+ */
+function busyTaskError(guildId: string): Error {
+  const task = clanTasks.get(guildId);
+  const label = task?.type === 'distribute' ? 'la distribution des clans'
+    : task?.type === 'dedupe' ? 'le nettoyage des clans multiples'
+    : 'le retrait des rôles de clan';
+  const progress = task && task.total > 0 ? ` (${task.processed}/${task.total})` : '';
+
+  return new Error(
+    `Impossible de lancer cette opération : ${label}${progress} est encore en cours sur ce serveur. `
+    + 'Sa progression est affichée sur le Dashboard, réessayez une fois terminée.'
+  );
+}
 
 // ─── Balise de champion sur la catégorie QG ──────────────────────────────────
 // Format unifié : « <nom de base> [🏆 CHAMPION · <bonus>] ». La balise est
@@ -185,7 +204,7 @@ export async function runDistribution(guildId: string, client: Client, initiator
   // administrateurs — franchissaient tous les deux le test et lançaient deux
   // distributions concurrentes sur les mêmes membres.
   if (clanTasks.has(guildId)) {
-    throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
+    throw busyTaskError(guildId);
   }
   clanTasks.set(guildId, { type: 'distribute', processed: 0, total: 0 });
 
@@ -341,19 +360,100 @@ export async function runDistribution(guildId: string, client: Client, initiator
   return `La distribution aléatoire des clans à ${targetList.length} membres a commencé en arrière-plan. Cette opération s'effectue progressivement pour respecter les limites de requêtes de Discord et peut prendre plusieurs minutes. Vous pouvez suivre l'avancement sur le Dashboard.`;
 }
 
+/**
+ * Vide un rôle de tous ses porteurs en le remplaçant par un jumeau vierge :
+ * on recrée le rôle à l'identique, on lui transfère les autorisations de salon,
+ * puis on supprime l'ancien — Discord le retire alors de tout le monde d'un coup.
+ *
+ * Retirer le rôle membre par membre coûte une requête par personne, soit des
+ * dizaines de minutes sur un gros serveur ; ici c'est une poignée de requêtes,
+ * quel que soit l'effectif. En contrepartie l'identifiant du rôle change : tout
+ * réglage extérieur qui le désigne (autre bot, permission posée à la main
+ * ailleurs qu'en salon) est à refaire.
+ *
+ * Retourne le nouveau rôle, ou `null` si l'échange n'a pas pu se faire.
+ */
+async function swapRoleForEmptyTwin(guild: Guild, roleId: string, reason: string): Promise<Role | null> {
+  const oldRole = guild.roles.cache.get(roleId) || await guild.roles.fetch(roleId).catch(() => null);
+  if (!oldRole) return null;
+
+  let twin: Role;
+  try {
+    twin = await guild.roles.create({
+      name: oldRole.name,
+      color: oldRole.color,
+      hoist: oldRole.hoist,
+      mentionable: oldRole.mentionable,
+      permissions: oldRole.permissions,
+      position: oldRole.position,
+      reason,
+    });
+  } catch (err) {
+    logger.warn('ClanService', `Impossible de recréer le rôle "${oldRole.name}" :`, err);
+    return null;
+  }
+
+  // Décorations réservées aux serveurs boostés : leur absence n'est pas un échec.
+  if (oldRole.unicodeEmoji) await twin.setUnicodeEmoji(oldRole.unicodeEmoji, reason).catch(() => null);
+  else if (oldRole.icon) await twin.setIcon(oldRole.iconURL(), reason).catch(() => null);
+
+  // Sans ce report, un QG réservé au rôle deviendrait inaccessible — ou public.
+  for (const channel of guild.channels.cache.values()) {
+    if (channel.isThread()) continue;
+
+    const overwrite = channel.permissionOverwrites.cache.get(oldRole.id);
+    if (!overwrite) continue;
+
+    const options: Record<string, boolean> = {};
+    for (const perm of overwrite.allow.toArray()) options[perm] = true;
+    for (const perm of overwrite.deny.toArray()) options[perm] = false;
+
+    await channel.permissionOverwrites.create(twin, options, { reason }).catch((err: unknown) => {
+      logger.warn('ClanService', `Autorisations non reportées sur #${channel.name} pour "${oldRole.name}" :`, err);
+    });
+  }
+
+  try {
+    await oldRole.delete(reason);
+  } catch (err) {
+    // L'ancien rôle survit : on annule le jumeau plutôt que de laisser un doublon.
+    logger.warn('ClanService', `Suppression du rôle "${oldRole.name}" refusée, échange annulé :`, err);
+    await twin.delete('Annulation de l\'échange de rôle').catch(() => null);
+    return null;
+  }
+
+  return twin;
+}
+
+/** Repli quand l'échange de rôle échoue : retrait un par un, à la cadence Discord. */
+async function removeRoleMemberByMember(guild: Guild, roleId: string, reason: string): Promise<void> {
+  await guild.members.fetch().catch(() => null);
+  const role = guild.roles.cache.get(roleId);
+  if (!role) return;
+
+  for (const member of [...role.members.values()]) {
+    await member.roles.remove(roleId, reason).catch((e) => {
+      logger.warn('ClanService', `Impossible de retirer le clan de ${member.user.tag}:`, e);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  }
+}
+
 export async function runClear(guildId: string, client: Client, initiatorName: string): Promise<string> {
   // Même verrou anticipé que pour la distribution : voir le commentaire là-bas.
   if (clanTasks.has(guildId)) {
-    throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
+    throw busyTaskError(guildId);
   }
   clanTasks.set(guildId, { type: 'clear', processed: 0, total: 0 });
 
-  let targetList: GuildMember[];
-  let clanRoleIds: string[];
+  let clans: { id: string; name: string; roleId: string }[];
   let discordGuild: Guild;
 
   try {
-    const clans = await prisma.clan.findMany({ where: { guildId } });
+    clans = await prisma.clan.findMany({
+      where: { guildId },
+      select: { id: true, name: true, roleId: true },
+    });
     if (clans.length === 0) {
       throw new Error('Aucun clan n\'est configuré sur ce serveur.');
     }
@@ -363,66 +463,49 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
       throw new Error('Serveur introuvable sur Discord.');
     }
     discordGuild = resolvedGuild;
-
-    clanRoleIds = clans.map((c) => c.roleId);
-
-    // Récupérer les membres
-    const allMembers = await discordGuild.members.fetch().catch(() => null);
-    if (!allMembers) {
-      throw new Error('Impossible de récupérer la liste des membres.');
-    }
-
-    // Filtrer les membres qui ont au moins un rôle de clan
-    const membersWithClan = allMembers.filter((member) => {
-      return member.roles.cache.some((r) => clanRoleIds.includes(r.id));
-    });
-
-    if (membersWithClan.size === 0) {
-      clanTasks.delete(guildId);
-      return 'Aucun membre ne possède de rôle de clan.';
-    }
-
-    targetList = [...membersWithClan.values()];
   } catch (err) {
     clanTasks.delete(guildId);
     throw err;
   }
 
-  clanTasks.set(guildId, { type: 'clear', processed: 0, total: targetList.length });
+  clanTasks.set(guildId, { type: 'clear', processed: 0, total: clans.length });
   broadcastDashboardStateChange(guildId, 'clans_updated');
 
   // Lancement asynchrone
   (async () => {
-    logger.info('ClanService', `Lancement du retrait de tous les clans pour ${targetList.length} membres dans "${discordGuild.name}" par ${initiatorName}`);
+    logger.info('ClanService', `Lancement du retrait de tous les clans (${clans.length} rôle(s)) dans "${discordGuild.name}" par ${initiatorName}`);
 
-    let lastProgressAt = 0;
-
-    for (let i = 0; i < targetList.length; i++) {
+    for (let i = 0; i < clans.length; i++) {
       const currentTask = clanTasks.get(guildId);
       if (!currentTask || currentTask.type !== 'clear') break;
 
-      const member = targetList[i];
-      const rolesToRemove = member.roles.cache.filter((r) => clanRoleIds.includes(r.id)).map((r) => r.id);
+      const clan = clans[i];
+      const role = discordGuild.roles.cache.get(clan.roleId);
 
-      try {
-        await member.roles.remove(rolesToRemove, 'Retrait global de tous les rôles de clan');
-      } catch (e) {
-        logger.warn('ClanService', `Impossible de retirer les clans de ${member.user.tag}:`, e);
+      // Un rôle que le bot ne peut ni supprimer ni retirer (au-dessus de lui,
+      // géré par une intégration, ou @everyone) : ni l'échange ni le retrait un
+      // par un ne passeront, autant le dire tout de suite que de marteler
+      // Discord d'un refus par membre.
+      if (role && (!role.editable || role.id === discordGuild.id)) {
+        logger.warn('ClanService', `Rôle du clan "${clan.name}" hors de portée du bot (hiérarchie, intégration ou @everyone) : clan ignoré.`);
+        clanTasks.set(guildId, { type: 'clear', processed: i + 1, total: clans.length });
+        continue;
       }
 
-      clanTasks.set(guildId, {
-        type: 'clear',
-        processed: i + 1,
-        total: targetList.length,
-      });
+      const twin = await swapRoleForEmptyTwin(discordGuild, clan.roleId, 'Retrait global de tous les rôles de clan');
 
-      const now = Date.now();
-      if (now - lastProgressAt >= CLAN_TASK_PROGRESS_INTERVAL_MS || i === targetList.length - 1) {
-        lastProgressAt = now;
-        broadcastDashboardStateChange(guildId, 'clans_updated');
+      if (twin) {
+        await prisma.clan.update({ where: { id: clan.id }, data: { roleId: twin.id } }).catch((e) => {
+          logger.error('ClanService', `Le clan "${clan.name}" pointe encore sur l'ancien rôle supprimé :`, e);
+        });
+        logger.info('ClanService', `Rôle du clan "${clan.name}" vidé par échange (${clan.roleId} → ${twin.id}).`);
+      } else {
+        logger.warn('ClanService', `Échange impossible pour "${clan.name}", retrait membre par membre.`);
+        await removeRoleMemberByMember(discordGuild, clan.roleId, 'Retrait global de tous les rôles de clan');
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 450));
+      clanTasks.set(guildId, { type: 'clear', processed: i + 1, total: clans.length });
+      broadcastDashboardStateChange(guildId, 'clans_updated');
     }
 
     logger.info('ClanService', `Retrait de tous les clans terminé pour "${discordGuild.name}"`);
@@ -440,11 +523,52 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
     context: discordGuild.name,
     module: 'Clans',
     eventType: 'Manuel',
-    details: `Retrait des clans lancé pour ${targetList.length} membres.`,
+    details: `Retrait des clans lancé sur ${clans.length} rôle(s), par recréation du rôle.`,
     channelId: null,
   }).catch(() => null);
 
-  return `Le retrait de tous les clans pour ${targetList.length} membres a commencé en arrière-plan. Cette opération s'effectue progressivement pour respecter les limites de requêtes de Discord et peut prendre plusieurs minutes. Vous pouvez suivre l'avancement sur le Dashboard.`;
+  return `Les ${clans.length} rôle(s) de clan sont en cours de remise à zéro : chacun est recréé à l'identique puis l'ancien est supprimé, ce qui le retire de tous les membres d'un coup. Les autorisations de salon sont reportées sur le nouveau rôle.`;
+}
+
+/**
+ * Retire la balise de champion des catégories QG.
+ *
+ * Utilisée par la réinitialisation totale, qui supprime les clans en base :
+ * sinon un QG reste décoré du trophée d'une saison qui n'existe plus. Les rôles
+ * des membres ne sont volontairement pas touchés — remettre les compteurs à zéro
+ * n'a pas à défaire l'appartenance des gens à leur clan. Les clans sont passés
+ * en paramètre, la base étant vidée dans la foulée.
+ */
+export async function runClanArtifactCleanup(
+  guildId: string,
+  client: Client,
+  clans: { generalChannelId: string | null }[],
+  initiatorName: string
+): Promise<void> {
+  if (clans.length === 0) return;
+
+  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (!discordGuild) return;
+
+  logger.info('ClanService', `Nettoyage des balises de champion sur "${discordGuild.name}" par ${initiatorName}`);
+
+  for (const clan of clans) {
+    if (!clan.generalChannelId) continue;
+
+    const channel = discordGuild.channels.cache.get(clan.generalChannelId)
+      || await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
+    const category = channel?.parent?.type === ChannelType.GuildCategory
+      ? channel.parent as CategoryChannel
+      : null;
+    if (!category) continue;
+
+    const targetName = stripTrophyTag(category.name);
+    if (category.name !== targetName) {
+      await category.setName(targetName, 'Réinitialisation totale des clans').catch((err) => {
+        logger.warn('ClanService', `Impossible de renommer la catégorie ${category.name}:`, err);
+      });
+    }
+  }
 }
 
 /**
@@ -462,7 +586,7 @@ export async function runClear(guildId: string, client: Client, initiatorName: s
  */
 export async function runDeduplicate(guildId: string, client: Client, initiatorName: string): Promise<string> {
   if (clanTasks.has(guildId)) {
-    throw new Error('Une opération de masse est déjà en cours sur ce serveur.');
+    throw busyTaskError(guildId);
   }
   clanTasks.set(guildId, { type: 'dedupe', processed: 0, total: 0 });
 
@@ -579,7 +703,7 @@ export async function runDeduplicate(guildId: string, client: Client, initiatorN
           counts.set(clanId, Math.max(0, (counts.get(clanId) ?? 1) - 1));
           // L'XP gagnée sous l'ancien rôle suit le membre : la retirer serait
           // le punir d'un doublon qu'il n'a pas provoqué.
-          await migrateContributions(guildId, canonicalUserId, clanId, keptClanId);
+          await migrateContributions(guildId, canonicalUserId, clanId, keptClanId, currentSeason);
         }
 
         logger.info(
@@ -637,9 +761,10 @@ export async function syncMemberClanFromDcLink(
     // 1. Vérifier si les clans sont activés
     const guildSettings = await prisma.guild.findUnique({
       where: { id: guildId },
-      select: { clansEnabled: true },
+      select: { clansEnabled: true, currentClanSeason: true },
     });
     if (!guildSettings?.clansEnabled) return;
+    const currentSeason = guildSettings.currentClanSeason;
 
     // 2. Si otherUserId n'est pas fourni, on cherche les liens validés pour userId
     let u1 = userId;
@@ -715,7 +840,7 @@ export async function syncMemberClanFromDcLink(
           await member2.roles.add(clan1.roleId, `Double compte aligné sur ${member1.user.tag} (synchro auto)`).catch(() => null);
 
           // Migrer les contributions de member2 du clan2 vers clan1
-          await migrateContributions(guildId, u2, clan2.id, clan1.id);
+          await migrateContributions(guildId, u2, clan2.id, clan1.id, currentSeason);
         }
       } else {
         targetClan = clan2;
@@ -733,7 +858,7 @@ export async function syncMemberClanFromDcLink(
           await member1.roles.add(clan2.roleId, `Double compte aligné sur ${member2.user.tag} (synchro auto)`).catch(() => null);
 
           // Migrer les contributions de member1 du clan1 vers clan2
-          await migrateContributions(guildId, u1, clan1.id, clan2.id);
+          await migrateContributions(guildId, u1, clan1.id, clan2.id, currentSeason);
         }
       }
     } else {
@@ -881,18 +1006,23 @@ export async function awardClanPointsOnBoost(guildId: string, member: GuildMembe
 }
 
 /**
- * Migre les contributions d'un utilisateur d'un clan vers un autre,
- * en fusionnant l'XP s'il existe déjà une contribution pour la même saison.
+ * Migre les contributions d'un utilisateur d'un clan vers un autre pour la
+ * saison en cours, en fusionnant l'XP s'il en avait déjà dans le clan cible.
+ *
+ * Les saisons closes ne bougent pas : leur classement a déjà été proclamé, et le
+ * rollback comme l'historique les recalculent depuis ces lignes. Déplacer une
+ * contribution passée d'un clan à l'autre réécrirait un palmarès.
  */
 async function migrateContributions(
   guildId: string,
   userId: string,
   sourceClanId: string,
-  targetClanId: string
+  targetClanId: string,
+  season: number
 ): Promise<void> {
   try {
     const sourceContribs = await prisma.clanMemberContribution.findMany({
-      where: { guildId, clanId: sourceClanId, userId },
+      where: { guildId, clanId: sourceClanId, userId, season },
     });
 
     // Utiliser une transaction pour garantir l'intégrité de la migration
@@ -962,10 +1092,7 @@ export async function handleEndSeason(
     const clans = await prisma.clan.findMany({ where: { guildId } });
     if (clans.length === 0) return;
 
-    // 2. Calculer les totaux d'XP par clan pour la saison
-    let winningClan = null;
-    let maxClanXp = -1;
-
+    // 2. Calculer les totaux d'XP par clan pour la saison et trouver TOUS les clans gagnants (ex æquo)
     const clansWithXp = await Promise.all(
       clans.map(async (clan) => {
         const aggregate = await prisma.clanMemberContribution.aggregate({
@@ -977,12 +1104,10 @@ export async function handleEndSeason(
       })
     );
 
-    for (const item of clansWithXp) {
-      if (item.totalXp > maxClanXp && item.totalXp > 0) {
-        maxClanXp = item.totalXp;
-        winningClan = item.clan;
-      }
-    }
+    const maxClanXp = Math.max(...clansWithXp.map((item) => item.totalXp), 0);
+    const winningClans = maxClanXp > 0
+      ? clansWithXp.filter((item) => item.totalXp === maxClanXp).map((item) => item.clan)
+      : [];
 
     // Récupérer le serveur Discord
     const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -997,9 +1122,11 @@ export async function handleEndSeason(
             || await discordGuild.roles.fetch(clan.leaderRoleId).catch(() => null);
           if (role) {
             const membersWithRole = Array.from(role.members.values());
-            for (const m of membersWithRole) {
-              await m.roles.remove(clan.leaderRoleId, `Clôture de la Saison ${currentSeason} - Réinitialisation des chefs`).catch(() => null);
-            }
+            await Promise.all(
+              membersWithRole.map((m) =>
+                m.roles.remove(clan.leaderRoleId!, `Clôture de la Saison ${currentSeason} - Réinitialisation des chefs`).catch(() => null)
+              )
+            );
           }
         } catch (err) {
           logger.warn('ClanService', `Erreur lors du nettoyage du rôle de chef ${clan.leaderRoleId}:`, err);
@@ -1007,145 +1134,157 @@ export async function handleEndSeason(
       }
     }
 
-    let leaderUserId: string | null = null;
-    let leaderXp = 0;
+    // Map pour stocker les chefs (éventuellement multiples par clan en cas d'ex æquo)
+    const clanLeadersMap = new Map<string, { userIds: string[]; xp: number }>();
 
-    // 3. Traiter le vainqueur s'il y en a un
-    if (winningClan) {
-      // Enregistrer le vainqueur
+    // 3. Traiter le(s) vainqueur(s)
+    if (winningClans.length > 0) {
+      const winningIdsString = winningClans.map((c) => c.id).join(',');
       await prisma.guild.update({
         where: { id: guildId },
-        data: { lastWinningClanId: winningClan.id },
+        data: { lastWinningClanId: winningIdsString },
       });
-
-      // Trouver le chef du clan gagnant pour l'annonce
-      const topWinnerContributor = await prisma.clanMemberContribution.findFirst({
-        where: { guildId, clanId: winningClan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
-        orderBy: { xp: 'desc' },
-      });
-
-      if (topWinnerContributor && topWinnerContributor.xp > 0) {
-        leaderUserId = topWinnerContributor.userId;
-        leaderXp = topWinnerContributor.xp;
-      }
     } else {
-      // Pas de vainqueur cette saison, reset lastWinningClanId
       await prisma.guild.update({
         where: { id: guildId },
         data: { lastWinningClanId: null },
       });
     }
 
-    // 4. Attribuer le rôle de chef de clan pour chaque clan si activé
-    if (guildSettings.clanRewardLeaderRole) {
-      for (const clan of clans) {
-        if (!clan.leaderRoleId) continue;
+    // 4. Attribuer les rôles de chefs pour TOUS les ex æquo de chaque clan
+    for (const clan of clans) {
+      const topContrib = await prisma.clanMemberContribution.findFirst({
+        where: { guildId, clanId: clan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
+        orderBy: { xp: 'desc' },
+      });
 
-        // Trouver le meilleur contributeur de ce clan pour la saison
-        const topContributor = await prisma.clanMemberContribution.findFirst({
-          where: { guildId, clanId: clan.id, season: currentSeason, userId: { not: 'system_manual_points' } },
-          orderBy: { xp: 'desc' },
+      if (topContrib && topContrib.xp > 0) {
+        const topContributors = await prisma.clanMemberContribution.findMany({
+          where: {
+            guildId,
+            clanId: clan.id,
+            season: currentSeason,
+            userId: { not: 'system_manual_points' },
+            xp: topContrib.xp,
+          },
         });
 
-        if (topContributor && topContributor.xp > 0) {
-          const member = discordGuild.members.cache.get(topContributor.userId) 
-            || await discordGuild.members.fetch(topContributor.userId).catch(() => null);
-          if (member) {
-            await member.roles.add(clan.leaderRoleId, `Chef du clan ${clan.name} - Fin de la Saison ${currentSeason}`).catch((err) => {
-              logger.warn('ClanService', `Impossible d'attribuer le rôle de chef du clan ${clan.name} à ${member.user.tag}:`, err);
-            });
+        const topUserIds = topContributors.map((c) => c.userId);
+        clanLeadersMap.set(clan.id, { userIds: topUserIds, xp: topContrib.xp });
+
+        if (guildSettings.clanRewardLeaderRole && clan.leaderRoleId) {
+          for (const userId of topUserIds) {
+            const member = discordGuild.members.cache.get(userId)
+              || await discordGuild.members.fetch(userId).catch(() => null);
+            if (member) {
+              await member.roles.add(clan.leaderRoleId, `Chef du clan ${clan.name} (ex æquo) - Fin de la Saison ${currentSeason}`).catch((err) => {
+                logger.warn('ClanService', `Impossible d'attribuer le rôle de chef du clan ${clan.name} à ${member.user.tag}:`, err);
+              });
+            }
           }
         }
       }
     }
 
-    // 4. Renommage des catégories QG de clan (avec gestion d'erreur robuste)
-    for (const clan of clans) {
-      if (!clan.generalChannelId) continue;
-      
-      const channel = discordGuild.channels.cache.get(clan.generalChannelId)
-        || await discordGuild.channels.fetch(clan.generalChannelId).catch(() => null);
-        
-      if (channel && channel.parent && channel.parent.type === ChannelType.GuildCategory) {
-        const category = channel.parent as CategoryChannel;
-        const isWinner = Boolean(winningClan && clan.id === winningClan.id);
+    // 5. Envoyer l'annonce globale de fin de saison (avec gestion ex æquo)
+    if (guildSettings.clanAnnouncementChannelId) {
+      try {
+        const announcementChannel = discordGuild.channels.cache.get(guildSettings.clanAnnouncementChannelId)
+          || await discordGuild.channels.fetch(guildSettings.clanAnnouncementChannelId).catch(() => null);
+          
+        if (announcementChannel && announcementChannel.isTextBased()) {
+          const isTie = winningClans.length > 1;
+          const title = isTie
+            ? `🤝 Fin de la Saison de Clans ${currentSeason} (Égalité Ex Æquo) !`
+            : `🏁 Fin de la Saison de Clans ${currentSeason} !`;
 
-        // Le gagnant est toujours marqué d'un 🏆 (avec ses bonus actifs le cas
-        // échéant) ; les perdants sont systématiquement nettoyés de toute balise.
-        const activeRewards: string[] = [];
-        if (guildSettings.clanRewardXpBoost) {
-          activeRewards.push(`+${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% XP`);
-        }
-        if (guildSettings.clanRewardGiveaway) {
-          activeRewards.push('GIVEAWAY BOOST');
-        }
+          const globalEmbed = new EmbedBuilder()
+            .setTitle(title)
+            .setColor(0xF59E0B) // Amber
+            .setTimestamp();
 
-        const targetName = buildCategoryName(category.name, isWinner, activeRewards);
+          if (winningClans.length > 0) {
+            const winnerNamesText = winningClans.map((c) => `**${c.name}**`).join(' et ');
+            let winnerText = isTie
+              ? `Les clans ${winnerNamesText} se hissent ex æquo à la première place avec **${maxClanXp.toLocaleString('fr-FR')} XP** chacun ! 🎉\n\n`
+              : `Le clan ${winnerNamesText} remporte la victoire pour cette saison avec un total de **${maxClanXp.toLocaleString('fr-FR')} XP** ! 🎉\n\n`;
 
-        if (category.name !== targetName) {
-          logger.info('ClanService', `Renommage du QG du clan "${clan.name}" en "${targetName}"`);
-          await category.setName(targetName, `Mise à jour QG - Fin de la Saison ${currentSeason}`).catch((err) => {
-            logger.warn('ClanService', `Permission insuffisante pour renommer la catégorie ${category.name}:`, err);
+            winnerText += `Ses membres bénéficient d'avantages exclusifs pour la **Saison ${nextSeason}** :\n`;
+            if (guildSettings.clanRewardXpBoost) {
+              winnerText += `- **Boost d'XP** : +${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% d'XP sur tout le serveur !\n`;
+            }
+            if (guildSettings.clanRewardGiveaway) {
+              winnerText += `- **Giveaways** : Plus de chances de remporter les tirages au sort !\n`;
+            }
+
+            const winningLeadersMentions: string[] = [];
+            for (const winClan of winningClans) {
+              const leaderData = clanLeadersMap.get(winClan.id);
+              if (leaderData && leaderData.userIds.length > 0) {
+                const mentions = leaderData.userIds.map((u) => `<@${u}>`).join(', ');
+                winningLeadersMentions.push(`${winClan.name} : ${mentions} (${leaderData.xp.toLocaleString('fr-FR')} XP)`);
+              }
+            }
+
+            if (winningLeadersMentions.length > 0) {
+              winnerText += `\nFélicitations aux **Chefs de Coalition** 👑 :\n` + winningLeadersMentions.map((m) => `• ${m}`).join('\n');
+            }
+
+            globalEmbed.setDescription(winnerText);
+          } else {
+            globalEmbed.setDescription(`La saison de clans ${currentSeason} se termine. Aucun clan n'a accumulé d'XP cette saison.`);
+          }
+
+          await announcementChannel.send({ embeds: [globalEmbed] }).catch((err) => {
+            logger.warn('ClanService', 'Impossible d\'envoyer l\'annonce globale de fin de saison:', err);
           });
         }
+      } catch (err) {
+        logger.error('ClanService', 'Erreur lors de l\'envoi de l\'annonce globale de saison:', err);
       }
     }
 
-    // 5. Envoyer l'annonce globale de fin de saison
-    if (guildSettings.clanAnnouncementChannelId) {
-      const announcementChannel = discordGuild.channels.cache.get(guildSettings.clanAnnouncementChannelId)
-        || await discordGuild.channels.fetch(guildSettings.clanAnnouncementChannelId).catch(() => null);
-        
-      if (announcementChannel && announcementChannel.isTextBased()) {
-        const globalEmbed = new EmbedBuilder()
-          .setTitle(`🏁 Fin de la Saison de Clans ${currentSeason} !`)
-          .setColor(0xF59E0B) // Amber
-          .setTimestamp();
-
-        if (winningClan) {
-          let winnerText = `Le clan **${winningClan.name}** remporte la victoire pour cette saison avec un total de **${maxClanXp.toLocaleString('fr-FR')} XP** ! 🎉\n\n`;
-          winnerText += `Ses membres bénéficient d'avantages exclusifs pour la **Saison ${nextSeason}** :\n`;
-          if (guildSettings.clanRewardXpBoost) {
-            winnerText += `- **Boost d'XP** : +${Math.round((guildSettings.clanRewardXpBoostRate - 1) * 100)}% d'XP sur tout le serveur !\n`;
-          }
-          if (guildSettings.clanRewardGiveaway) {
-            winnerText += `- **Giveaways** : Plus de chances de remporter les tirages au sort !\n`;
-          }
+    // 6. Envoyer l'annonce interne dans le QG de CHAQUE clan gagnant (ex æquo pris en compte)
+    for (const winningClan of winningClans) {
+      if (!winningClan.generalChannelId) continue;
+      try {
+        const qgChannel = discordGuild.channels.cache.get(winningClan.generalChannelId)
+          || await discordGuild.channels.fetch(winningClan.generalChannelId).catch(() => null);
           
-          if (leaderUserId) {
-            winnerText += `\nFélicitations à <@${leaderUserId}>, couronné **Chef de Coalition** du clan avec une contribution record de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑`;
+        if (qgChannel && qgChannel.isTextBased()) {
+          const isTie = winningClans.length > 1;
+          const otherWinners = winningClans.filter((c) => c.id !== winningClan.id).map((c) => `**${c.name}**`).join(' et ');
+          
+          const title = isTie
+            ? `🤝 Victoire du Clan ${winningClan.name} (Ex Æquo) !`
+            : `🏆 Victoire du Clan ${winningClan.name} !`;
+
+          const leaderData = clanLeadersMap.get(winningClan.id);
+          const leaderMentions = leaderData ? leaderData.userIds.map((u) => `<@${u}>`).join(', ') : '';
+          const leaderXpText = leaderData ? `${leaderData.xp.toLocaleString('fr-FR')} XP` : '';
+
+          let description = isTie
+            ? `Félicitations à tous les membres ! Notre clan partage la victoire de la **Saison ${currentSeason}** ex æquo avec ${otherWinners} avec un total de **${maxClanXp.toLocaleString('fr-FR')} XP** ! 🎉\n\n`
+            : `Félicitations à tous les membres ! Grâce à votre investissement, notre clan remporte la **Saison ${currentSeason}** ! 🎉\n\n`;
+
+          description += `Nos récompenses de vainqueurs sont désormais actives pour toute la **Saison ${nextSeason}**. `;
+          if (leaderMentions) {
+            const chefLabel = leaderData && leaderData.userIds.length > 1 ? 'nos **Chefs de Coalition**' : 'notre **Chef de Coalition**';
+            description += `Un salut spécial à ${chefLabel} ${leaderMentions} pour ce score impressionnant de **${leaderXpText}** ! 👑`;
           }
 
-          globalEmbed.setDescription(winnerText);
-        } else {
-          globalEmbed.setDescription(`La saison de clans ${currentSeason} se termine. Aucun clan n'a accumulé d'XP cette saison.`);
+          const localEmbed = new EmbedBuilder()
+            .setTitle(title)
+            .setDescription(description)
+            .setColor(0x10B981) // Green
+            .setTimestamp();
+
+          await qgChannel.send({ embeds: [localEmbed] }).catch((err) => {
+            logger.warn('ClanService', `Impossible d'envoyer l'annonce locale de victoire dans le QG de ${winningClan.name}:`, err);
+          });
         }
-
-        await announcementChannel.send({ embeds: [globalEmbed] }).catch((err) => {
-          logger.warn('ClanService', 'Impossible d\'envoyer l\'annonce globale de fin de saison:', err);
-        });
-      }
-    }
-
-    // 6. Envoyer l'annonce interne dans le QG du clan vainqueur
-    if (winningClan && winningClan.generalChannelId) {
-      const qgChannel = discordGuild.channels.cache.get(winningClan.generalChannelId)
-        || await discordGuild.channels.fetch(winningClan.generalChannelId).catch(() => null);
-        
-      if (qgChannel && qgChannel.isTextBased()) {
-        const localEmbed = new EmbedBuilder()
-          .setTitle(`🏆 Victoire du Clan ${winningClan.name} !`)
-          .setDescription(
-            `Félicitations à tous les membres ! Grâce à votre investissement, notre clan remporte la **Saison ${currentSeason}** ! 🎉\n\n` +
-            `Nos récompenses de vainqueurs sont désormais actives pour toute la **Saison ${nextSeason}**. ` +
-            (leaderUserId ? `Un salut spécial à notre **Chef de Coalition** <@${leaderUserId}> pour son score impressionnant de **${leaderXp.toLocaleString('fr-FR')} XP** ! 👑` : '')
-          )
-          .setColor(0x10B981) // Green
-          .setTimestamp();
-
-        await qgChannel.send({ embeds: [localEmbed] }).catch((err) => {
-          logger.warn('ClanService', `Impossible d'envoyer l'annonce locale de victoire dans le QG de ${winningClan.name}:`, err);
-        });
+      } catch (err) {
+        logger.error('ClanService', `Erreur lors de l'envoi de l'annonce locale QG pour le clan ${winningClan.name}:`, err);
       }
     }
   } catch (err) {
@@ -1187,10 +1326,17 @@ export async function checkAndProgressClanSeasons(client: Client): Promise<void>
       let nextStartsAt: Date | null = null;
       let nextEndsAt: Date | null = null;
 
+      // Une durée nulle ou négative (dates mal saisies) donnerait une saison déjà
+      // expirée : le cron la clôturerait de nouveau au passage suivant, en boucle.
+      // Dans ce cas on laisse la saison non planifiée plutôt que de la reconduire.
       if (guild.clanSeasonStartsAt && guild.clanSeasonEndsAt) {
         const durationMs = guild.clanSeasonEndsAt.getTime() - guild.clanSeasonStartsAt.getTime();
-        nextStartsAt = now;
-        nextEndsAt = new Date(now.getTime() + durationMs);
+        if (durationMs > 0) {
+          nextStartsAt = now;
+          nextEndsAt = new Date(now.getTime() + durationMs);
+        } else {
+          logger.warn('ClanService', `Durée de saison invalide pour le serveur ${guild.id} (fin <= début) : la saison ${nextSeason} démarre sans planification.`);
+        }
       }
 
       // 1. Décerner les bonus, renommer les QG et publier les annonces
