@@ -651,6 +651,7 @@ export async function handleClansRoutes(
               }
             }
           }
+        }
       })().catch((err) => {
         logger.error('ClansAPI', 'Error updating Discord elements during rollback:', err);
       });
