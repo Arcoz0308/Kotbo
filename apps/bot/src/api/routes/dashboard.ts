@@ -61,8 +61,6 @@ export async function handleDashboardRoutes(
     return false;
   }
 
-  logger.debug('DashboardRouting', `Incoming: ${method} ${url.pathname} | parts: ${JSON.stringify(parts)}`);
-
   // 2. Bypass authentication for recruitment webhook (POST /api/dashboard/guilds/:guildId/recruitment/candidatures)
   if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'recruitment' && parts[5] === 'candidatures' && method === 'POST') {
     if (await handleRecruitmentWebhookRoute(req, res, parts, client)) {
