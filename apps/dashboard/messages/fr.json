@@ -3046,5 +3046,17 @@
   "leveling_public_clear_filter": "Effacer le filtre",
   "leveling_public_footer_powered_by": "Propulsé par le bot Discord",
   "leveling_public_footer_synced": "Données synchronisées",
-  "leveling_public_footer_dashboard": "Dashboard"
+  "leveling_public_footer_dashboard": "Dashboard",
+  "inbox_page_desc": "Votre centre de communication centralisé pour toutes les activités du serveur.",
+  "inbox_mark_all_read": "Tout marquer lu",
+  "inbox_tab_all": "Tous",
+  "inbox_tab_moderation": "Modération",
+  "inbox_tab_recruitment": "Recrutement",
+  "inbox_tab_staff": "Staff",
+  "inbox_tab_system": "Système",
+  "inbox_empty_title": "Inbox impeccable",
+  "inbox_empty_desc_before": "Aucune notification dans la catégorie ",
+  "inbox_empty_desc_after": " pour le moment. Reposez-vous bien !",
+  "inbox_notification_view": "Consulter",
+  "inbox_notification_mark_read": "Marquer lu"
 }
