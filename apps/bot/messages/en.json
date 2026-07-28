@@ -1614,5 +1614,7 @@
   "access_sub_reminder_title": "Subscription: {remaining} left",
   "access_sub_reminder_desc": "This server's Kotbo subscription expires {relative}.\n\n**Deadline:** {date}\n\nWithout a renewal, the bot will deactivate automatically and the dashboard will be locked.",
   "access_sub_ended_title": "Subscription expired",
-  "access_sub_ended_desc": "The Kotbo subscription for **{guild}** has expired: the bot is now deactivated and the dashboard is locked.\n\nYour data and settings are kept. Contact the Kotbo team to renew and reactivate the server."
+  "access_sub_ended_desc": "The Kotbo subscription for **{guild}** has expired: the bot is now deactivated and the dashboard is locked.\n\nYour data and settings are kept. Contact the Kotbo team to renew and reactivate the server.",
+  "access_revoked_title": "Access revoked",
+  "access_revoked_desc": "The Kotbo access for **{guild}** has been revoked by the Kotbo team: the bot is now deactivated and the dashboard is locked.\n\nYour data and settings are kept as they are. Reactivating restores the server exactly as it was.\n\nIf you believe this is a mistake, contact the Kotbo team."
 }

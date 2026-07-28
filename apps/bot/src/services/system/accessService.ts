@@ -414,17 +414,29 @@ async function dmOwner(guild: Guild, content: NoticeContent): Promise<void> {
   }
 }
 
-/** `<t:…:F>` — Discord affiche la date dans le fuseau de chaque lecteur. */
+/**
+ * Langue des messages de cycle de vie.
+ *
+ * Ces messages partent d'un cron, sans interaction pour porter la langue : il
+ * faut donc alimenter nous-memes le deuxieme palier de la cascade avec la langue
+ * declaree du serveur Discord. Sans lui, tout serveur laisse en mode automatique
+ * (`Guild.language` a null, le defaut) retombait directement sur l'anglais.
+ */
+async function noticeLocale(guild: Guild) {
+  return resolveGuildLocale(guild.id, guild.preferredLocale);
+}
+
+/** `<t:…:F>` : Discord affiche la date dans le fuseau de chaque lecteur. */
 function discordDate(date: Date, style: 'F' | 'R' = 'F'): string {
   return `<t:${Math.floor(date.getTime() / 1000)}:${style}>`;
 }
 
 async function trialStartedContent(
-  guildId: string,
+  guild: Guild,
   expiresAt: Date,
   durationMinutes: number,
 ): Promise<NoticeContent> {
-  const locale = await resolveGuildLocale(guildId);
+  const locale = await noticeLocale(guild);
   const duration = formatDuration(durationMinutes, locale);
   return {
     color: COLORS_RAW.success,
@@ -438,12 +450,12 @@ async function trialStartedContent(
 }
 
 async function reminderContent(
-  guildId: string,
+  guild: Guild,
   type: AccessType,
   expiresAt: Date,
   minutesLeft: number,
 ): Promise<NoticeContent> {
-  const locale = await resolveGuildLocale(guildId);
+  const locale = await noticeLocale(guild);
   const remaining = formatDuration(minutesLeft, locale);
   const args = { remaining, date: discordDate(expiresAt), relative: discordDate(expiresAt, 'R') };
   return {
@@ -461,8 +473,9 @@ async function reminderContent(
   };
 }
 
-async function endedContent(guildId: string, type: AccessType, guildName: string): Promise<NoticeContent> {
-  const locale = await resolveGuildLocale(guildId);
+async function endedContent(guild: Guild, type: AccessType): Promise<NoticeContent> {
+  const locale = await noticeLocale(guild);
+  const guildName = guild.name;
   return {
     color: COLORS_RAW.danger,
     title: `${E.warning} ${
@@ -478,6 +491,33 @@ async function endedContent(guildId: string, type: AccessType, guildName: string
   };
 }
 
+async function revokedContent(guild: Guild): Promise<NoticeContent> {
+  const locale = await noticeLocale(guild);
+  return {
+    color: COLORS_RAW.danger,
+    title: `${E.warning} ${m.access_revoked_title({}, { locale })}`,
+    body: m.access_revoked_desc({ guild: guild.name }, { locale }),
+    footer: m.access_notice_footer({}, { locale }),
+  };
+}
+
+/**
+ * Prévient un serveur que son accès vient d'être retiré depuis l'administration
+ * Kotbo (code supprimé, ou désactivation manuelle).
+ *
+ * Distinct de l'expiration : ici la période n'est pas arrivée à son terme, c'est
+ * une décision humaine. Sans ce message le serveur perd tout du jour au
+ * lendemain sans la moindre explication.
+ */
+export async function announceAccessRevoked(client: Client, guildId: string): Promise<void> {
+  const guild = await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) return;
+
+  const content = await revokedContent(guild);
+  await publishNotice(guild, content);
+  await dmOwner(guild, content);
+}
+
 /**
  * Annonce publiquement le démarrage d'une période d'essai. Appelé juste après
  * l'activation par un code « essai ».
@@ -491,7 +531,7 @@ export async function announceTrialStart(
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
-  const content = await trialStartedContent(guildId, expiresAt, durationMinutes);
+  const content = await trialStartedContent(guild, expiresAt, durationMinutes);
   await publishNotice(guild, content);
 }
 
@@ -523,7 +563,7 @@ export async function expireAccess(client: Client, guildId: string): Promise<voi
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
-  const content = await endedContent(guildId, status.accessType, guild.name);
+  const content = await endedContent(guild, status.accessType);
   await publishNotice(guild, content);
   await dmOwner(guild, content);
 }
@@ -551,7 +591,7 @@ async function processReminder(client: Client, guildId: string, status: AccessSt
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
-  const content = await reminderContent(guildId, status.accessType, status.accessExpiresAt, milestone);
+  const content = await reminderContent(guild, status.accessType, status.accessExpiresAt, milestone);
   await publishNotice(guild, content);
   logger.info('Access', `Rappel « ${formatDuration(milestone)} restantes » envoyé à ${guildId}.`);
 }

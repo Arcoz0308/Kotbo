@@ -1614,5 +1614,7 @@
   "access_sub_reminder_title": "Abonnement : {remaining} restantes",
   "access_sub_reminder_desc": "L'abonnement Kotbo de ce serveur arrive à échéance {relative}.\n\n**Échéance :** {date}\n\nSans renouvellement, le bot se désactivera automatiquement et le dashboard sera verrouillé.",
   "access_sub_ended_title": "Abonnement expiré",
-  "access_sub_ended_desc": "L'abonnement Kotbo de **{guild}** a expiré : le bot est désormais désactivé et le dashboard verrouillé.\n\nVos données et vos réglages sont conservés. Contactez l'équipe Kotbo pour renouveler et réactiver le serveur."
+  "access_sub_ended_desc": "L'abonnement Kotbo de **{guild}** a expiré : le bot est désormais désactivé et le dashboard verrouillé.\n\nVos données et vos réglages sont conservés. Contactez l'équipe Kotbo pour renouveler et réactiver le serveur.",
+  "access_revoked_title": "Accès retiré",
+  "access_revoked_desc": "L'accès de **{guild}** à Kotbo a été retiré par l'équipe Kotbo : le bot est désormais désactivé et le dashboard verrouillé.\n\nVos données et vos réglages sont conservés en l'état. Une réactivation remet le serveur exactement comme il était.\n\nSi vous pensez qu'il s'agit d'une erreur, contactez l'équipe Kotbo."
 }

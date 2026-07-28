@@ -6,7 +6,7 @@ import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
-import { announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
+import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1248,6 +1248,11 @@ export async function handleAdminRoutes(
 
       if (codeRow.usedByGuildId) {
         await deactivateGuild(codeRow.usedByGuildId);
+        // Le serveur perd tout sur décision humaine : il faut le lui dire.
+        // Jamais bloquant, une notification ratée ne doit pas annuler la révocation.
+        await announceAccessRevoked(client, codeRow.usedByGuildId).catch((err) =>
+          logger.warn('AdminAPI', `Impossible de prévenir ${codeRow.usedByGuildId} de la révocation :`, err),
+        );
       }
 
       await prisma.activationCode.delete({
@@ -1297,6 +1302,9 @@ export async function handleAdminRoutes(
     const guildId = parts[3];
     try {
       await deactivateGuild(guildId);
+      await announceAccessRevoked(client, guildId).catch((err) =>
+        logger.warn('AdminAPI', `Impossible de prévenir ${guildId} de la désactivation :`, err),
+      );
       json(res, 200, { ok: true, message: 'Le serveur a été désactivé.' });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la désactivation du serveur :', err);
