@@ -181,7 +181,7 @@
             </h4>
             <div class="space-y-0.5">
               {#each data.activeLeaderboard as entry, i}
-                <div class="grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}" style="grid-template-columns: 28px 40px 1fr 80px 100px;">
+                <div class="season-leaderboard-row grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}" style="grid-template-columns: 28px 40px 1fr 80px 100px;">
                   <span class="text-base leading-none">{getMedal(i)}</span>
                   <span class="font-semibold text-on-surface-variant">#{entry.rank}</span>
                   <span class="font-mono text-xs text-on-surface-variant/60">{entry.userId}</span>

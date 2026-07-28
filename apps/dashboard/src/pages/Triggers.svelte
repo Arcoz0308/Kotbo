@@ -185,7 +185,7 @@
       }
 
       // Fetch custom forms
-      const formsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${dashboardStore.state.selectedGuildId}/custom-forms`, {
+      const formsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (formsRes.ok) {
@@ -194,7 +194,7 @@
       }
 
       // Fetch ticket configuration
-      const ticketsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${dashboardStore.state.selectedGuildId}/tickets`, {
+      const ticketsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (ticketsRes.ok) {

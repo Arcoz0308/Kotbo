@@ -97,7 +97,7 @@
     return promise;
   }
 
-  async function ensureJSCPP(): Promise<JSCPPGlobal> {
+  async function ensureJSCPP(): Promise<NonNullable<Window['JSCPP']>> {
     if (window.JSCPP?.run) return window.JSCPP;
 
     const loadErrors: string[] = [];
@@ -116,7 +116,7 @@
     throw new Error(`Impossible de charger le runtime C (JSCPP).${details}`);
   }
 
-  async function ensurePyodide(): Promise<PyodideInstance> {
+  async function ensurePyodide(): Promise<Awaited<NonNullable<Window['__kotboPyodidePromise']>>> {
     if (!window.__kotboPyodidePromise) {
       window.__kotboPyodidePromise = (async () => {
         if (!window.loadPyodide) {
@@ -132,7 +132,7 @@
     return window.__kotboPyodidePromise;
   }
 
-  async function ensureTypeScript(): Promise<TypeScriptCompiler> {
+  async function ensureTypeScript(): Promise<NonNullable<Window['ts']>> {
     if (!window.ts?.transpileModule) {
       await ensureScript(TYPESCRIPT_SCRIPT);
     }
@@ -142,7 +142,7 @@
     return window.ts;
   }
 
-  async function ensureFengari(): Promise<FengariGlobal> {
+  async function ensureFengari(): Promise<NonNullable<Window['fengari']>> {
     if (!window.fengari?.load) {
       await ensureScript(FENGARI_SCRIPT);
     }
@@ -152,7 +152,7 @@
     return window.fengari;
   }
 
-  async function ensureSqlJs(): Promise<SqlJsModule> {
+  async function ensureSqlJs(): Promise<Awaited<NonNullable<Window['__kotboSqlJsPromise']>>> {
     if (!window.__kotboSqlJsPromise) {
       window.__kotboSqlJsPromise = (async () => {
         if (!window.initSqlJs) {
@@ -330,7 +330,7 @@
         if (!name) return null;
         return { name, type };
       })
-      .filter((entry): entry is ExerciseFunctionArg => Boolean(entry));
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
   }
 
   function normalizedUnitTests(): ExerciseUnitTest[] {
@@ -352,7 +352,7 @@
           expected: candidate.expected,
         };
       })
-      .filter((entry): entry is ExerciseUnitTest => Boolean(entry));
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
   }
 
   function testFunctionSignature(): string {
@@ -1485,10 +1485,10 @@ json.dumps(results, ensure_ascii=False, default=str)
       </select>
 
       <button type="button" class="ide-btn ghost" onclick={clearTerminal}>Clear</button>
-      <button type="button" class="ide-btn ghost" onclick={runUnitTests} disabled={isRunning || isRunningTests || !hasConfiguredUnitTests() || !normalizedFunctionName() || !canRunAutomatedTests(language)}>
+      <button type="button" class="ide-btn ghost" onclick={() => runUnitTests()} disabled={isRunning || isRunningTests || !hasConfiguredUnitTests() || !normalizedFunctionName() || !canRunAutomatedTests(language)}>
         {isRunningTests ? 'Tests...' : 'Run tests'}
       </button>
-      <button type="button" class="ide-btn run" onclick={runCode} disabled={isRunning || isRunningTests}>
+      <button type="button" class="ide-btn run" onclick={() => runCode()} disabled={isRunning || isRunningTests}>
         {isRunning ? 'Execution...' : 'Run'}
       </button>
 

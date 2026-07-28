@@ -67,13 +67,6 @@
       || !!dashboardStore.state.access?.canManageSettings
   );
 
-  const tabs = $derived([
-    { id: 'invites' as Tab, label: m.iv_tab_invites(), icon: 'MailOpen', count: totalInvites },
-    { id: 'sources' as Tab, label: m.iv_tab_sources(), icon: 'Tags', count: sourceStats.length },
-    { id: 'top' as Tab, label: m.iv_tab_top(), icon: 'Crown', count: topInviters.length },
-    { id: 'suspensions' as Tab, label: m.iv_tab_suspensions(), icon: 'UserX', count: suspendedInviters.length },
-  ]);
-
   const usageMap = $derived.by(() => {
     const map = new Map<string, any>();
     inviteUsage.forEach((entry) => {
@@ -179,6 +172,12 @@
   });
 
   const totalInvites = $derived(invitations.length);
+  const tabs = $derived([
+    { id: 'invites' as Tab, label: m.iv_tab_invites(), icon: 'MailOpen', count: totalInvites },
+    { id: 'sources' as Tab, label: m.iv_tab_sources(), icon: 'Tags', count: sourceStats.length },
+    { id: 'top' as Tab, label: m.iv_tab_top(), icon: 'Crown', count: topInviters.length },
+    { id: 'suspensions' as Tab, label: m.iv_tab_suspensions(), icon: 'UserX', count: suspendedInviters.length },
+  ]);
   const totalSuspended = $derived(invitations.filter((inv) => inv.isSuspended).length);
   const totalDeleted = $derived(invitations.filter((inv) => inv.isDeleted).length);
   const totalExpired = $derived(invitations.filter((inv) => inv.expiresAt && new Date(inv.expiresAt).getTime() < Date.now()).length);

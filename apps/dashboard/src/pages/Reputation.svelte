@@ -93,7 +93,7 @@
       {:else}
         <div class="space-y-1">
           {#each data.leaderboard.entries as entry, i}
-            <div class="grid items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors hover:bg-surface-container-high/20 {i < 3 ? 'bg-surface-container-high/10' : ''}" style="grid-template-columns: 28px 36px 1fr 80px 60px">
+            <div class="reputation-leaderboard-row grid items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors hover:bg-surface-container-high/20 {i < 3 ? 'bg-surface-container-high/10' : ''}" style="grid-template-columns: 28px 36px 1fr 80px 60px">
               <span class="text-base leading-none">{getMedal(i)}</span>
               <span class="font-semibold text-on-surface-variant/60 text-xs">#{entry.rank}</span>
               <span class="font-mono text-xs text-on-surface-variant/60 truncate">{entry.userId}</span>

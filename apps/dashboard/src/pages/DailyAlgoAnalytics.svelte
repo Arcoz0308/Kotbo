@@ -19,7 +19,7 @@
     error = '';
     
     try {
-      const result = await fetchDailyAlgoAnalytics(period);
+      const result = await fetchDailyAlgoAnalytics({ days: period });
       data = result;
     } catch (e) {
       error = m.daa_load_error();

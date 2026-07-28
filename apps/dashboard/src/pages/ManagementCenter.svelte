@@ -165,10 +165,10 @@
   async function handleUpdateRoleAccess(featureKey: string, roleAccess: any[]) {
     await saveAction.run(
       async () => {
-        const result = await updateRoleAccess(featureKey, roleAccess);
-        if (!result) throw new Error('Erreur API');
+        const updated = await updateRoleAccess(featureKey, roleAccess);
+        if (!updated) throw new Error('Erreur API');
         const idx = features.findIndex(f => f.featureKey === featureKey);
-        if (idx !== -1) features[idx] = result.config;
+        if (idx !== -1) features[idx] = { ...features[idx], roleAccess };
         return true;
       },
       { successMessage: 'Accès mis à jour.' }
@@ -178,10 +178,10 @@
   async function handleUpdateNotificationTargets(featureId: string, targets: any[]) {
     await saveAction.run(
       async () => {
-        const result = await updateNotificationTargets(featureId, targets);
-        if (!result) throw new Error('Erreur API');
+        const updated = await updateNotificationTargets(featureId, targets);
+        if (!updated) throw new Error('Erreur API');
         const idx = features.findIndex(f => f.id === featureId);
-        if (idx !== -1) features[idx] = result.config;
+        if (idx !== -1) features[idx] = { ...features[idx], notificationTargets: targets };
         return true;
       },
       { successMessage: 'Cibles notifiées.' }
@@ -276,14 +276,6 @@
             <ManagementOverview 
               {features} 
               {guildSettings}
-              onSaveSettings={saveGlobalSettings}
-              onToggleFeature={(key) => {
-                const f = features.find(feat => feat.featureKey === key);
-                if (f) {
-                  f.enabled = !f.enabled;
-                  saveFeatureConfig(key);
-                }
-              }}
             />
           {:else if activeCategory === 'features'}
             <ManagementFeatures 
@@ -311,7 +303,6 @@
               {availableChannels}
               {availableRoles}
               onSave={saveFeatureConfig}
-              onUpdateTargets={handleUpdateNotificationTargets}
             />
           {:else if activeCategory === 'audit'}
             <ManagementAudit {auditLogs} />

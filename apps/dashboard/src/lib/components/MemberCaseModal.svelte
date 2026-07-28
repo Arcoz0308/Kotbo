@@ -2,8 +2,8 @@
   import type { MemberCaseResponse } from '@kotbo/contracts';
   import { channelDisplayName } from '../channelUtils';
   import FormInput from './FormInput.svelte';
-  import { dashboardStore } from '../stores/dashboard.svelte.ts';
-  import { authStore } from '../stores/auth.svelte.ts';
+  import { dashboardStore } from '../stores/dashboard.svelte';
+  import { authStore } from '../stores/auth.svelte';
   import { toast } from '../stores/toast.svelte';
   import { confirmDialog } from '../stores/confirmDialog.svelte';
   import Papicon from './Papicon.svelte';
@@ -32,7 +32,7 @@
   };
 
   let {
-    open = false,
+    open = $bindable(false),
     userName = '',
     userId = null as string | null,
     caseData = null as MemberCaseResponse | null,
@@ -2015,7 +2015,7 @@
                              <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}">
                                {link.status}
                              </span>
-                             {#if dashboardStore.state.accessLevel === 'admin'}
+                             {#if dashboardStore.state.access.level === 'admin'}
                                <button 
                                  class="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
                                  title={m.mcm_unlink_account()}
@@ -2313,6 +2313,7 @@
                  <div class="space-y-1.5">
                    <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.mcm_broken_rules()}</p>
                    <ReportRuleSelector
+                     id="member-case-report-rules"
                      options={reportRuleOptions}
                      selectedIds={editReportData.selectedRuleIds}
                      onToggle={(id, checked) => {

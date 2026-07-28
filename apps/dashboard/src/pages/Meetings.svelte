@@ -141,27 +141,29 @@
     };
   }
 
-  onMount(async () => {
+  onMount(() => {
     if (!canView) {
       // On redirige ou affiche une erreur si besoin, mais ici on laisse le ModulePage gérer le message si possible
       // ou on peut mettre une erreur locale
       return;
     }
-    loadMeetings();
-    loadStaffServerChannels();
+    let interval: ReturnType<typeof setInterval> | null = null;
+    void (async () => {
+      loadMeetings();
+      loadStaffServerChannels();
 
-    loadingConfig = true;
-    try {
-      const configs = await fetchFeatureConfigurations();
-      meetingsConfig = configs?.features?.find((c: any) => c.featureKey === 'meetings') || null;
-    } catch (err) {
-      console.error('Error fetching meetings config:', err);
-    } finally {
-      loadingConfig = false;
-    }
+      loadingConfig = true;
+      try {
+        const configs = await fetchFeatureConfigurations();
+        meetingsConfig = configs?.features?.find((c: any) => c.featureKey === 'meetings') || null;
+      } catch (err) {
+        console.error('Error fetching meetings config:', err);
+      } finally {
+        loadingConfig = false;
+      }
 
-    // Polling toutes les 10 secondes pour le "temps réel" demandé
-    const interval = setInterval(() => {
+      // Polling toutes les 10 secondes pour le "temps réel" demandé
+      interval = setInterval(() => {
       // On ne rafraîchit que si on n'est pas en train d'éditer ou de supprimer
       if (!modalOpen && !deleteModalOpen && !saving && !deleting) {
         void fetchMeetings().then(data => {
@@ -174,9 +176,12 @@
           }
         });
       }
-    }, 10000);
+      }, 10000);
+    })();
 
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   });
 
   function openCreate() {

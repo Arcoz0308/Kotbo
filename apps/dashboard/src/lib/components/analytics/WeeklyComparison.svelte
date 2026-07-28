@@ -4,7 +4,13 @@
   import { authStore } from '../../stores/auth.svelte';
   import { m, dateLocale } from '../../i18n';
 
-  const { data: initialData = null } = $props() as { data?: { thisWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }; lastWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }; changes: { messagesChange: number; voiceChange: number; joinsChange: number; leavesChange: number; sanctionsChange: number } } | null };
+  type ComparisonData = {
+    thisWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number };
+    lastWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number };
+    changes: { messagesChange: number; voiceChange: number; joinsChange: number; leavesChange: number; sanctionsChange: number };
+  };
+
+  const { data: initialData = null }: { data?: ComparisonData | null } = $props();
 
   // Period selector state
   type PeriodMode = 'week' | 'month';

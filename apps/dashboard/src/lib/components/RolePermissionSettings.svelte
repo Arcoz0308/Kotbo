@@ -123,8 +123,7 @@
     <ActionButton 
       onClick={handleSave} 
       variant="primary" 
-      label={saveAction.loading ? m.rp_saving_permissions() : m.rp_save_permissions()} 
-      loading={saveAction.loading}
+      label={saveAction.state.loading ? m.rp_saving_permissions() : m.rp_save_permissions()}
       disabled={localRoleAccess.length > 0 && localRoleAccess.some(r => !r.roleId)}
     />
   </div>
@@ -133,4 +132,3 @@
     <p class="text-xs font-bold text-emerald-600 text-right">{saveAction.state.message}</p>
   {/if}
 </div>
-

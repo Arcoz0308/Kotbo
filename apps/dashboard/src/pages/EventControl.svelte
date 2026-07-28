@@ -409,7 +409,7 @@
             </div>
             
             {#if stats}
-              {@const total = Object.values(stats.distribution).reduce((a, b) => Number(a) + Number(b), 0) || 1}
+              {@const total = (Object.values(stats.distribution) as unknown[]).reduce<number>((a, b) => a + Number(b), 0) || 1}
               {@const colors = [
                 '#6366f1', '#ec4899', '#06b6d4', '#f59e0b', '#10b981', '#8b5cf6', 
                 '#f43f5e', '#f97316', '#84cc16', '#14b8a6', '#3b82f6', '#d946ef',
@@ -438,7 +438,7 @@
                       {#each Object.entries(stats.distribution) as [idx, count], i}
                         {@const value = Number(count)}
                         {@const percentage = (value / total) * 100}
-                        {@const prevValues = Object.values(stats.distribution).slice(0, i).reduce((a, b) => Number(a) + Number(b), 0)}
+                        {@const prevValues = (Object.values(stats.distribution).slice(0, i) as unknown[]).reduce<number>((a, b) => a + Number(b), 0)}
                         {@const offset = (prevValues / total) * 100}
                         {@const isCorrect = i === currentQuestion?.correctOptionIndex}
                         

@@ -128,12 +128,15 @@
 
 <svelte:window />
 
-<header class="flex items-center justify-between px-6 bg-surface-container-lowest border-b border-outline-variant h-14 fixed top-0 right-0 z-40 transition-all duration-200 {$isMobile ? 'w-full' : collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-15rem)]'}">
-  <div class="flex items-center gap-4 server-selector-container relative">
+<header class="app-navbar flex items-center justify-between px-6 bg-surface-container-lowest border-b border-outline-variant h-14 fixed top-0 right-0 z-40 transition-all duration-200 {$isMobile ? 'w-full' : collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-15rem)]'}">
+  <div class="app-navbar__leading flex min-w-0 items-center gap-4 server-selector-container relative">
     {#if $isMobile}
       <button
         onclick={sidebarStore.toggleMobile}
-        class="flex items-center justify-center w-8 h-8 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+        class="app-navbar__menu flex items-center justify-center w-8 h-8 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+        aria-label="Ouvrir la navigation"
+        aria-controls="dashboard-sidebar"
+        aria-expanded={sidebarStore.mobileOpen}
       >
         <Papicon icon="menu" size={18} />
       </button>
@@ -141,7 +144,7 @@
     <button
       onclick={serverSwitcherStore.show}
       disabled={authStore.guilds.length <= 1}
-      class="flex items-center gap-2.5 bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg text-sm text-on-surface border border-outline-variant hover:border-outline transition-colors cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container disabled:border-outline-variant group select-none"
+      class="app-navbar__server min-w-0 flex items-center gap-2.5 bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg text-sm text-on-surface border border-outline-variant hover:border-outline transition-colors cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container disabled:border-outline-variant group select-none"
     >
       {#if guildIconUrl}
         <img
@@ -155,7 +158,7 @@
           {selectedGuild?.name?.charAt(0) || '?'}
         </div>
       {/if}
-      <span class="text-on-surface-variant font-medium text-sm transition-colors group-hover:text-on-surface">
+      <span class="app-navbar__server-name truncate text-on-surface-variant font-medium text-sm transition-colors group-hover:text-on-surface">
         {#if selectedGuild?.name}
           {selectedGuild.name}
         {:else}
@@ -171,7 +174,7 @@
       <button
         onclick={switchToPairedGuild}
         title="Basculer vers {pairedGuild.name}"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/15 transition-colors select-none"
+        class="app-navbar__paired flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/15 transition-colors select-none"
       >
         <Papicon icon="arrow-right" size={13} />
         <span class="hidden sm:inline">
@@ -181,7 +184,7 @@
     {/if}
   </div>
 
-  <div class="flex items-center gap-3">
+  <div class="app-navbar__actions flex shrink-0 items-center gap-3">
 
     {#if authStore.member?.roles}
       <div class="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container border border-outline-variant">
@@ -192,7 +195,7 @@
 
     <button
       onclick={themeStore.toggle}
-      class="w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
+      class="app-navbar__secondary-action w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
       aria-label={m.navbar_change_theme()}
       id="theme-toggle"
     >
@@ -203,7 +206,7 @@
       {/if}
     </button>
 
-    <div class="relative lang-menu-container">
+    <div class="app-navbar__secondary-action relative lang-menu-container">
       <button
         onclick={() => (langMenuOpen = !langMenuOpen)}
         class="w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container text-sm font-semibold select-none cursor-pointer"
@@ -246,7 +249,9 @@
     <div class="flex items-center gap-2 group user-menu-container relative">
       <button
         onclick={toggleUserMenu}
-        class="flex items-center gap-2 hover:bg-surface-container p-1 rounded-lg transition-colors group/avatar"
+        class="app-navbar__profile flex items-center gap-2 hover:bg-surface-container p-1 rounded-lg transition-colors group/avatar"
+        aria-label="Ouvrir le menu du profil"
+        aria-expanded={userMenuOpen}
       >
         <div class="w-8 h-8 shrink-0 rounded-md overflow-hidden ring-1 ring-outline-variant">
           {#if !authStore.user}
@@ -344,4 +349,4 @@
     </div>
   </div>
 </header>
-<div class="h-14"></div>
+<div class="app-navbar-spacer h-14"></div>

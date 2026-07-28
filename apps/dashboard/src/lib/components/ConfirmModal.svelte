@@ -71,7 +71,7 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    class="confirm-modal fixed inset-0 z-50 flex items-center justify-center p-4"
     onclick={handleCancel}
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCancel(); }}
     role="dialog"
@@ -84,7 +84,7 @@
     <!-- Modal -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-lg shadow-sm shadow-black/50 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200"
+      class="confirm-modal__panel relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-lg shadow-sm shadow-black/50 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.stopPropagation()}
     >
@@ -118,7 +118,7 @@
       {/if}
 
       <!-- Buttons -->
-      <div class="flex items-center justify-end gap-2 pt-1">
+      <div class="confirm-modal__actions flex items-center justify-end gap-2 pt-1">
         <button
           onclick={handleCancel}
           class="px-4 py-2 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-on-surface/8 border border-outline-variant/10 transition-all"

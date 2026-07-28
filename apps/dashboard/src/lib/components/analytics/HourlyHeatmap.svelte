@@ -82,14 +82,14 @@
   // Day sums for row totals
   const dayTotals = $derived.by(() => {
     return Array.from({ length: 7 }, (_, dow) =>
-      Array.from({ length: 24 }).reduce((sum, _, h) => sum + cellValue(dow, h), 0) as number
+      Array.from({ length: 24 }).reduce<number>((sum, _, h) => sum + cellValue(dow, h), 0)
     );
   });
 
   // Hour sums for column totals
   const hourTotals = $derived.by(() => {
     return Array.from({ length: 24 }, (_, h) =>
-      Array.from({ length: 7 }).reduce((sum, _, dow) => sum + cellValue(dow, h), 0) as number
+      Array.from({ length: 7 }).reduce<number>((sum, _, dow) => sum + cellValue(dow, h), 0)
     );
   });
 

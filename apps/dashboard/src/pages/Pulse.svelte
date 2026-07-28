@@ -372,7 +372,7 @@
           </h3>
           <div class="space-y-3">
             {#each subScores(displayed) as sub (sub.label)}
-              <div class="grid grid-cols-[120px_1fr_40px] items-center gap-3">
+              <div class="pulse-score-row grid grid-cols-[120px_1fr_40px] items-center gap-3">
                 <div class="flex items-center gap-2 text-sm text-on-surface-variant">
                   <Papicon icon={sub.icon} size={14} />
                   <span>{sub.label}</span>
@@ -666,7 +666,7 @@
 
           <div class="space-y-2">
             {#each subScores(displayed) as sub (sub.label)}
-              <div class="grid grid-cols-[90px_1fr_30px] items-center gap-2">
+              <div class="pulse-score-row grid grid-cols-[90px_1fr_30px] items-center gap-2">
                 <span class="text-xs text-on-surface-variant/60">{sub.label}</span>
                 <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                   <div class="h-1.5 rounded-full transition-all duration-500" style="width: {sub.value}%; background: {scoreColor(sub.value)}"></div>

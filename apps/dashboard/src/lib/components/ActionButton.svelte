@@ -4,6 +4,7 @@
 
   const {
     onClick,
+    onclick,
     type = 'button',
     variant = 'neutral',
     size = 'md',
@@ -15,6 +16,7 @@
     className = '',
   }: {
     onClick?: (event: MouseEvent) => void;
+    onclick?: (event: MouseEvent) => void;
     type?: 'button' | 'submit' | 'reset';
     variant?: ButtonVariant;
     size?: ButtonSize;
@@ -56,7 +58,7 @@
 
 <button
   {type}
-  onclick={onClick}
+  onclick={onClick ?? onclick}
   {disabled}
   {title}
   class="{baseClass} {sizeClasses[size]} {variantClasses[variant]} {fullWidth ? 'w-full' : ''} {className}"

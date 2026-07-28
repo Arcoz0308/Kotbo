@@ -56,6 +56,9 @@
   const accent = $derived(theme?.accentColor || data?.form?.structure?.headerColor || '#6366f1');
   const fields = $derived((data?.form?.structure?.fields || []).filter(f => f.type !== 'section_header' && f.type !== 'discord_connect'));
   const viewer = $derived(data?.viewer || null);
+  const blockedEligibility = $derived(
+    viewer?.eligibility.eligible === false ? viewer.eligibility : null
+  );
   const injectedCss = $derived(
     [themeBaseCss(theme), (data?.form?.customCss || '').replace(/<\/style/gi, '')].filter(Boolean).join('\n')
   );
@@ -363,9 +366,9 @@
           {/if}
         </div>
 
-      {:else if viewer && !viewer.eligibility.eligible}
+      {:else if viewer && blockedEligibility}
         <!-- Non éligible -->
-        {@const blocked = viewer.eligibility}
+        {@const blocked = blockedEligibility}
         {@const lastAppeal = viewer.latestAppeal}
         <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 shadow-sm space-y-4">
           {#if blocked.blockedBy === 'not_banned'}
