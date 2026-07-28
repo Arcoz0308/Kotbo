@@ -5179,8 +5179,31 @@
   "mar_current_bid": "Current bid: {amount} coins",
   "mar_empty_history_title": "No recent transactions",
   "mar_empty_history_desc": "Sales history will appear here.",
-  "mar_load_error": "Error loading data"
+  "mar_load_error": "Error loading data",
+  "pred_title": "Predictions & Trends",
+  "pred_subtitle": "Growth forecasts and anomaly detection",
+  "pred_days_btn": "{count}d",
+  "pred_load_error": "Error loading data",
+  "pred_loading": "Loading...",
+  "pred_growth_title": "Growth Forecast",
+  "pred_members_7d": "Members in 7 days",
+  "pred_members_30d": "Members in 30 days",
+  "pred_confidence": "Confidence",
+  "pred_seasonality_title": "Seasonality",
+  "pred_busiest_day": "Busiest day:",
+  "pred_quietest_day": "Quietest day:",
+  "pred_busiest_hour": "Peak hour:",
+  "pred_quietest_hour": "Off-peak hour:",
+  "pred_trend_members": "Members",
+  "pred_trend_messages": "Messages",
+  "pred_trend_voice": "Voice minutes",
+  "pred_tooltip_predicted": "(Predicted)",
+  "pred_legend_real": "Actual",
+  "pred_legend_predicted": "Predicted",
+  "pred_anomalies_title": "Detected Anomalies",
+  "pred_expected_range": "Expected: {min} — {max}"
 }
+
 
 
 

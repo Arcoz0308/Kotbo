@@ -5180,8 +5180,31 @@
   "mar_current_bid": "Enchère actuelle : {amount} coins",
   "mar_empty_history_title": "Aucune transaction récente",
   "mar_empty_history_desc": "L'historique des ventes apparaîtra ici.",
-  "mar_load_error": "Erreur lors du chargement"
+  "mar_load_error": "Erreur lors du chargement",
+  "pred_title": "Prédictions & Tendances",
+  "pred_subtitle": "Prévisions de croissance et détection d'anomalies",
+  "pred_days_btn": "{count}j",
+  "pred_load_error": "Erreur lors du chargement",
+  "pred_loading": "Chargement...",
+  "pred_growth_title": "Prévision de croissance",
+  "pred_members_7d": "Membres dans 7 jours",
+  "pred_members_30d": "Membres dans 30 jours",
+  "pred_confidence": "Confiance",
+  "pred_seasonality_title": "Saisonnalité",
+  "pred_busiest_day": "Jour le plus actif :",
+  "pred_quietest_day": "Jour le plus calme :",
+  "pred_busiest_hour": "Heure de pointe :",
+  "pred_quietest_hour": "Heure creuse :",
+  "pred_trend_members": "Membres",
+  "pred_trend_messages": "Messages",
+  "pred_trend_voice": "Minutes vocales",
+  "pred_tooltip_predicted": "(Prévu)",
+  "pred_legend_real": "Réel",
+  "pred_legend_predicted": "Prédit",
+  "pred_anomalies_title": "Anomalies détectées",
+  "pred_expected_range": "Attendu : {min} — {max}"
 }
+
 
 
 
