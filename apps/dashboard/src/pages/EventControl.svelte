@@ -7,6 +7,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { API_BASE_URL } from '../lib/api';
+  import { m } from '../lib/i18n';
 
   const { eventId } = $props<{ eventId: string }>();
 
@@ -79,7 +80,7 @@
   }
 
   async function removeRegistration(userId: string) {
-    if (!(await confirmDialog.danger('Retirer cette inscription ?', '', 'Retirer'))) return;
+    if (!(await confirmDialog.danger(m.evc_confirm_remove_reg_title(), '', m.evc_confirm_remove_reg_btn()))) return;
     try {
       const guildId = authStore.selectedGuildId;
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/registrations/${userId}`, {
@@ -87,7 +88,7 @@
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (res.ok) {
-        toast.success('Inscription retirée');
+        toast.success(m.evc_reg_removed_toast());
         await loadRegistrations();
       } else {
         toast.error('Erreur lors de la suppression');
@@ -107,10 +108,10 @@
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'completed') {
-          toast.success('Événement terminé !');
+          toast.success(m.evc_event_finished_toast());
           router.goto('/events');
         } else {
-          toast.success('Question suivante lancée !');
+          toast.success(m.evc_next_question_toast());
           await loadStats();
         }
       } else {
@@ -130,7 +131,7 @@
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (res.ok) {
-        toast.success('Question précédente rétablie !');
+        toast.success(m.evc_prev_question_toast());
         await loadStats();
       } else {
         const data = await res.json();
@@ -142,7 +143,7 @@
   }
 
   async function finishEvent() {
-    if (!(await confirmDialog.ask({ title: 'Terminer cet événement ?', confirmLabel: 'Terminer', variant: 'warning' }))) return;
+    if (!(await confirmDialog.ask({ title: m.evc_confirm_finish_event(), confirmLabel: m.evc_btn_finish(), variant: 'warning' }))) return;
     try {
       const guildId = authStore.selectedGuildId;
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/finish`, {
@@ -150,7 +151,7 @@
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (res.ok) {
-        toast.success('Événement terminé !');
+        toast.success(m.evc_event_finished_toast());
         router.goto('/events');
       } else {
         const data = await res.json();
@@ -163,8 +164,8 @@
 </script>
 
 <ModulePage
-  title={isCustom ? 'Gestion Événement' : 'Pilotage Événement'}
-  description={isCustom ? "Suivez les inscriptions et gérez votre événement personnalisé." : "Contrôlez le déroulement du quiz et visualisez les résultats en direct."}
+  title={isCustom ? m.evc_custom_title() : m.evc_pilot_title()}
+  description={isCustom ? m.evc_custom_desc() : m.evc_pilot_desc()}
   icon={isCustom ? 'Calendar' : 'Activity'}
   featureKey="events"
 >
@@ -174,7 +175,7 @@
         onclick={() => router.goto('/events')}
         class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
       >
-        Retour
+        {m.evc_btn_back()}
       </button>
       {#if event && !isCustom && event.type !== 'CTF'}
         <button
@@ -182,13 +183,13 @@
           class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 disabled:opacity-30"
           disabled={currentQIdx <= 1}
         >
-          <Papicon icon="SkipBack" size={12} /> Précédente
+          <Papicon icon="SkipBack" size={12} /> {m.evc_btn_prev_question()}
         </button>
         <button
           onclick={nextQuestion}
           class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-medium text-[13px] shadow-sm transition-transform flex items-center gap-2"
         >
-          <Papicon icon="SkipForward" size={12} /> {currentQIdx === totalQ ? 'Terminer Quiz' : 'Question Suivante'}
+          <Papicon icon="SkipForward" size={12} /> {currentQIdx === totalQ ? m.evc_btn_finish_quiz() : m.evc_btn_next_question()}
         </button>
       {/if}
       {#if isCustom}
@@ -196,14 +197,14 @@
           onclick={() => router.goto(`/events/edit/${eventId}`)}
           class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
         >
-          <Papicon icon="Edit3" size={12} /> Modifier
+          <Papicon icon="Edit3" size={12} /> {m.evc_btn_edit()}
         </button>
       {/if}
       <button
         onclick={finishEvent}
         class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-medium text-[13px] border border-red-500/20 hover:bg-red-500/20 transition-colors"
       >
-        Terminer
+        {m.evc_btn_finish()}
       </button>
     </div>
   {/snippet}
@@ -215,43 +216,43 @@
           <div class="flex items-center gap-8">
             <div>
               <span class="text-xs font-medium text-primary">
-                {isCustom ? 'Événement personnalisé' : 'Événement en cours'}
+                {isCustom ? m.evc_custom_event_badge() : m.evc_ongoing_event_badge()}
               </span>
               <h3 class="text-lg font-semibold text-on-surface mt-2">{event.title}</h3>
             </div>
             <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
             {#if isCustom}
               <div class="hidden md:block">
-                <span class="text-xs font-medium text-on-surface-variant/40">Statut</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">{m.evc_col_status()}</span>
                 <p class="text-2xl font-semibold mt-1 {event.status === 'PUBLISHED' ? 'text-blue-500' : event.status === 'COMPLETED' ? 'text-purple-500' : 'text-on-surface'}">
-                  {event.status === 'DRAFT' ? 'Brouillon' : event.status === 'PUBLISHED' ? 'Publié' : event.status === 'COMPLETED' ? 'Terminé' : event.status === 'CANCELLED' ? 'Annulé' : event.status}
+                  {event.status === 'DRAFT' ? m.ev_status_draft() : event.status === 'PUBLISHED' ? m.ev_status_published() : event.status === 'COMPLETED' ? m.ev_status_completed() : event.status === 'CANCELLED' ? m.ev_status_cancelled() : event.status}
                 </p>
               </div>
               <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
               <div class="hidden md:block">
-                <span class="text-xs font-medium text-on-surface-variant/40">Formulaire</span>
-                <p class="text-lg font-semibold text-on-surface mt-1">{event.customForm?.name || 'Inscription directe'}</p>
+                <span class="text-xs font-medium text-on-surface-variant/40">{m.evc_col_form()}</span>
+                <p class="text-lg font-semibold text-on-surface mt-1">{event.customForm?.name || m.evc_direct_registration()}</p>
               </div>
             {:else if event.type === 'CTF'}
               <div class="hidden md:block">
-                <span class="text-xs font-medium text-on-surface-variant/40">Type</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">{m.evc_col_type()}</span>
                 <p class="text-2xl font-semibold text-emerald-500 mt-1">Capture The Flag</p>
               </div>
               <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
               <div class="hidden md:block">
-                <span class="text-xs font-medium text-on-surface-variant/40">Défis</span>
+                <span class="text-xs font-medium text-on-surface-variant/40">{m.evc_col_challenges()}</span>
                 <p class="text-2xl font-semibold text-on-surface mt-1">{event.ctfChallenges?.length || 0}</p>
               </div>
             {:else}
               <div class="hidden md:block">
-                <span class="text-xs font-medium text-on-surface-variant/40">Progression</span>
-                <p class="text-2xl font-semibold text-on-surface mt-1">Question {currentQIdx || 1} / {totalQ}</p>
+                <span class="text-xs font-medium text-on-surface-variant/40">{m.evc_col_progression()}</span>
+                <p class="text-2xl font-semibold text-on-surface mt-1">{m.evc_progression_value({ current: currentQIdx || 1, total: totalQ })}</p>
               </div>
             {/if}
           </div>
           <div class="text-right">
             <span class="text-xs font-medium text-on-surface-variant/40">
-              {isCustom ? 'Inscrits' : 'Participants'}
+              {isCustom ? m.evc_registered_count() : m.evc_participants_count()}
             </span>
             <p class="text-lg font-semibold text-on-surface mt-1">
               {isCustom ? registrations.length : (event.participants?.length || 0)}
@@ -266,7 +267,7 @@
             onclick={() => activeTab = 'registrations'}
             class="px-6 py-2.5 rounded-xl text-xs font-medium transition-all {activeTab === 'registrations' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
           >
-            Inscriptions ({registrations.length})
+            {m.evc_tab_registrations({ count: registrations.length })}
           </button>
         </div>
       {:else}
@@ -275,13 +276,13 @@
             onclick={() => activeTab = 'stats'}
             class="px-6 py-2.5 rounded-xl text-xs font-medium transition-all {activeTab === 'stats' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
           >
-            {event.type === 'CTF' ? 'Défis' : 'Graphique'}
+            {event.type === 'CTF' ? m.evc_tab_challenges() : m.evc_tab_chart()}
           </button>
           <button
             onclick={() => activeTab = 'participants'}
             class="px-6 py-2.5 rounded-xl text-xs font-medium transition-all {activeTab === 'participants' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
           >
-            Participants
+            {m.evc_tab_participants()}
           </button>
         </div>
       {/if}
@@ -293,18 +294,18 @@
               <div class="w-16 h-16 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto mb-6 text-on-surface-variant/20">
                 <Papicon icon="Users" size={32} />
               </div>
-              <p class="text-on-surface-variant/40 font-bold italic">Aucune inscription pour le moment.</p>
+              <p class="text-on-surface-variant/40 font-bold italic">{m.evc_no_registrations()}</p>
             </div>
           {:else}
             <table class="w-full text-left">
               <thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
                 <tr>
-                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Utilisateur</th>
-                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Date d'inscription</th>
+                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.evc_col_user()}</th>
+                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.evc_col_registered_at()}</th>
                   {#if event.formId}
-                    <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Formulaire</th>
+                    <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.evc_col_form()}</th>
                   {/if}
-                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40 text-right">Actions</th>
+                  <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40 text-right">{m.evc_col_actions()}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/5">
@@ -330,7 +331,7 @@
                             {/each}
                           </div>
                         {:else}
-                          <span class="text-[10px] text-on-surface-variant/30 italic">Pas de données</span>
+                          <span class="text-[10px] text-on-surface-variant/30 italic">{m.evc_no_form_data()}</span>
                         {/if}
                       </td>
                     {/if}
@@ -339,7 +340,7 @@
                         onclick={() => removeRegistration(reg.userId)}
                         class="px-3 py-1.5 rounded-lg bg-red-500/10 text-red-500 text-xs font-medium hover:bg-red-500/20 transition-colors"
                       >
-                        Retirer
+                        {m.evc_btn_remove_reg()}
                       </button>
                     </td>
                   </tr>
@@ -369,13 +370,13 @@
                       </div>
                       <div class="text-right">
                         <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-xs font-medium">
-                          {challenge.solveCount} résolutions
+                          {m.evc_solves_count({ count: challenge.solveCount })}
                         </span>
                       </div>
                     </div>
 
                     <div class="space-y-3">
-                      <span class="text-xs font-medium text-on-surface-variant/40">Dernières résolutions</span>
+                      <span class="text-xs font-medium text-on-surface-variant/40">{m.evc_recent_solves()}</span>
                       {#if challenge.solves && challenge.solves.length > 0}
                         <div class="max-h-36 overflow-y-auto space-y-2 pr-2">
                           {#each challenge.solves as solve}
@@ -386,7 +387,7 @@
                           {/each}
                         </div>
                       {:else}
-                        <p class="text-xs text-on-surface-variant/30 italic">Aucune résolution pour le moment.</p>
+                        <p class="text-xs text-on-surface-variant/30 italic">{m.evc_no_solves()}</p>
                       {/if}
                     </div>
                   </div>
@@ -397,7 +398,7 @@
                 <div class="w-16 h-16 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto mb-6 text-on-surface-variant/20">
                   <Papicon icon="Flag" size={32} />
                 </div>
-                <p class="text-on-surface-variant/40 font-bold italic">En attente de statistiques...</p>
+                <p class="text-on-surface-variant/40 font-bold italic">{m.evc_waiting_stats()}</p>
               </div>
             {/if}
           </div>
@@ -424,7 +425,7 @@
 
               <div class="text-center mb-12">
                 <div class="flex items-center justify-center gap-3 mb-4">
-                  <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[11px] font-semibold uppercase tracking-widest">En direct</span>
+                  <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[11px] font-semibold uppercase tracking-widest">{m.evc_live_badge()}</span>
                 </div>
                 <h4 class="text-2xl font-semibold text-on-surface">{stats.questionText}</h4>
               </div>
@@ -458,7 +459,7 @@
                     </svg>
                     <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <span class="text-lg font-semibold text-on-surface">{total}</span>
-                      <span class="text-xs font-medium text-on-surface-variant/40">Réponses</span>
+                      <span class="text-xs font-medium text-on-surface-variant/40">{m.evc_responses_unit()}</span>
                     </div>
                   </div>
                 </div>
@@ -498,7 +499,7 @@
                 <div class="w-16 h-16 bg-surface-container-high rounded-xl flex items-center justify-center mx-auto mb-6 animate-pulse">
                   <Papicon icon="Activity" size={32} class="text-on-surface-variant/20" />
                 </div>
-                <p class="text-on-surface-variant/40 font-bold italic">En attente des premières réponses...</p>
+                <p class="text-on-surface-variant/40 font-bold italic">{m.evc_waiting_first_responses()}</p>
               </div>
             {/if}
           </div>
@@ -508,10 +509,10 @@
           <table class="w-full text-left">
             <thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
               <tr>
-                <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Utilisateur</th>
-                <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Score</th>
+                <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.evc_col_user()}</th>
+                <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.evc_col_score()}</th>
                 <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">
-                  {event.type === 'CTF' ? 'Dernière résolution' : 'Dernière réponse'}
+                  {event.type === 'CTF' ? m.evc_col_last_solve() : m.evc_col_last_activity()}
                 </th>
               </tr>
             </thead>
@@ -537,7 +538,7 @@
                           {new Date(p.lastSolveAt).toLocaleString()}
                         </span>
                       {:else}
-                        <span class="text-[10px] text-on-surface-variant/40">Aucune résolution</span>
+                        <span class="text-[10px] text-on-surface-variant/40">{m.evc_no_solves_yet()}</span>
                       {/if}
                     {:else}
                       {#if lastResp}
@@ -546,7 +547,7 @@
                           {respText}
                         </span>
                       {:else}
-                        <span class="text-[10px] text-on-surface-variant/40">Pas encore répondu</span>
+                        <span class="text-[10px] text-on-surface-variant/40">{m.evc_no_response_yet()}</span>
                       {/if}
                     {/if}
                   </td>
