@@ -833,7 +833,7 @@
         </div>
       </div>
       <button
-        onclick={() => router.goto('/module-catalog')}
+        onclick={() => router.goto('/modules')}
         class="px-3 py-1.5 text-xs font-medium bg-red-500/20 hover:bg-red-500/30 rounded-md transition-colors"
       >
         {m.home_repair()}
@@ -1114,7 +1114,7 @@
                 </div>
                 <h3 class="font-medium text-on-surface">{m.home_system()}</h3>
               </div>
-              <button onclick={() => router.goto('/module-catalog')} class="text-xs text-primary hover:underline cursor-pointer">{m.nav_modules()}</button>
+              <button onclick={() => router.goto('/modules')} class="text-xs text-primary hover:underline cursor-pointer">{m.nav_modules()}</button>
             </div>
 
             <div class="flex {item.colSpan >= 2 ? 'flex-row gap-6' : 'flex-col gap-4'} grow {item.colSpan < 2 ? 'justify-center' : 'items-center'}">
@@ -1442,7 +1442,7 @@
               <button onclick={() => router.goto('/planning')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
                 <Papicon icon="video" size={12} class="text-secondary" /> {m.home_meeting()}
               </button>
-              <button onclick={() => router.goto('/module-catalog')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
+              <button onclick={() => router.goto('/modules')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
                 <Papicon icon="plus-circle" size={12} class="text-tertiary" /> Module
               </button>
               <button onclick={() => router.goto('/analytics')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
