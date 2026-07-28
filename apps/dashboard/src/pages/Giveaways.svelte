@@ -173,8 +173,8 @@
 </script>
 
 <ModulePage
-  title="Giveaways"
-  description="Créez et gérez des tirages au sort interactifs avec boutons de participation."
+  title={m.giv_page_title()}
+  description={m.giv_page_desc()}
   icon="sparkles"
   featureKey="giveaways"
 >
@@ -192,7 +192,7 @@
       <div class="flex items-center justify-between gap-4 flex-wrap">
         <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="List" size={20} class="text-secondary" />
-          Liste des Concours ({giveaways.length})
+          {m.giv_list_title({ count: giveaways.length })}
         </h3>
 
         {#if canManageSettings}
@@ -201,7 +201,7 @@
             class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
-            Lancer un Concours
+            {m.giv_btn_create()}
           </button>
         {/if}
       </div>
@@ -214,7 +214,7 @@
               <!-- Status & Destination -->
               <div class="flex items-center justify-between gap-3 flex-wrap">
                 <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-xl {giveaway.ended ? 'bg-outline-variant/20 text-on-surface-variant' : 'bg-primary/10 text-primary border border-primary/20 animate-pulse'}">
-                  {giveaway.ended ? 'Terminé' : 'En cours'}
+                  {giveaway.ended ? m.giv_status_ended() : m.giv_status_active()}
                 </span>
                 <span class="text-[11px] font-bold text-on-surface-variant/70 flex items-center gap-1 bg-surface-container-high/40 px-2 py-1 rounded-lg">
                   <Papicon icon="Hash" size={11} />{getChannelName(giveaway.channelId)}
@@ -232,10 +232,10 @@
               <!-- Stats row -->
               <div class="flex flex-wrap gap-2 pt-3 border-t border-outline-variant/10">
                 <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/10">
-                  <Papicon icon="Users" size={10} />{giveaway.participants.length} participants
+                  <Papicon icon="Users" size={10} />{m.giv_participants_count({ count: giveaway.participants.length })}
                 </span>
                 <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/10">
-                  <Papicon icon="Crown" size={10} />{giveaway.winnerCount} gagnants
+                  <Papicon icon="Crown" size={10} />{m.giv_winners_count({ count: giveaway.winnerCount })}
                 </span>
               </div>
 
@@ -243,17 +243,17 @@
               {#if giveaway.ended}
                 <div class="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 space-y-1">
                   <span class="text-xs font-medium text-emerald-400 flex items-center gap-1">
-                    <Papicon icon="Crown" size={10} /> Gagnant(s)
+                    <Papicon icon="Crown" size={10} /> {m.giv_winners_header()}
                   </span>
                   <p class="text-xs font-bold text-emerald-300/95 wrap-break-word">
-                    {giveaway.winners.length > 0 ? giveaway.winners.join(', ') : 'Aucun gagnant'}
+                    {giveaway.winners.length > 0 ? giveaway.winners.join(', ') : m.giv_no_winners()}
                   </p>
                 </div>
               {:else}
                 <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-lg p-3 flex items-center gap-2 text-on-surface-variant/60">
                   <Papicon icon="Clock" size={12} class="text-primary" />
                   <span class="text-[10px] font-semibold">
-                    Fin le {formatDate(giveaway.endsAt)}
+                    {m.giv_ends_at({ date: formatDate(giveaway.endsAt) })}
                   </span>
                 </div>
               {/if}
@@ -266,25 +266,25 @@
                   <button
                     onclick={() => handleEnd(giveaway.id)}
                     class="px-3.5 py-2 bg-secondary hover:bg-secondary-hover text-on-secondary text-[10px] font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-secondary/10 cursor-pointer flex items-center gap-1.5"
-                    title="Forcer la fin et tirer au sort"
+                    title={m.giv_title_pick_winner()}
                   >
                     <Papicon icon="Sparkles" size={11} />
-                    Tirer Gagnant
+                    {m.giv_btn_pick_winner()}
                   </button>
                 {:else}
                   <button
                     onclick={() => handleReroll(giveaway.id)}
                     class="px-3.5 py-2 bg-outline-variant/20 hover:bg-outline-variant/35 text-on-surface text-[10px] font-semibold uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                    title="Effectuer un nouveau tirage"
+                    title={m.giv_title_reroll()}
                   >
                     <Papicon icon="Refresh" size={11} />
-                    Reroll
+                    {m.giv_btn_reroll()}
                   </button>
                 {/if}
                 <button
                   onclick={() => handleDelete(giveaway.id)}
                   class="p-2 text-error hover:bg-error/10 border border-transparent rounded-xl transition-all cursor-pointer"
-                  title="Supprimer du dashboard"
+                  title={m.giv_title_delete()}
                 >
                   <Papicon icon="Trash" size={16} />
                 </button>
@@ -294,13 +294,13 @@
         {:else}
           <div class="col-span-full flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
             <Papicon icon="Sparkles" size={32} class="text-on-surface-variant/20 mb-3" />
-            <p class="text-sm text-on-surface-variant/60 font-medium">Aucun concours configuré pour le moment.</p>
+            <p class="text-sm text-on-surface-variant/60 font-medium">{m.giv_empty_text()}</p>
             {#if canManageSettings}
               <button
                 onclick={openCreateModal}
                 class="mt-4 flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
               >
-                <Papicon icon="Add" size={14} /> Lancer un premier concours
+                <Papicon icon="Add" size={14} /> {m.giv_empty_btn()}
               </button>
             {/if}
           </div>
@@ -319,7 +319,7 @@
       <button
         onclick={() => showModal = false}
         class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-        title="Fermer"
+        title={m.giv_modal_close_title()}
       >
         <Papicon icon="Cross" size={20} />
       </button>
@@ -330,19 +330,19 @@
           <Papicon icon="Sparkles" size={24} />
         </div>
         <div>
-          <h3 class="text-2xl font-semibold tracking-tight">Lancer un Concours</h3>
-          <p class="text-xs text-on-surface-variant/80 font-medium">Configurez et déployez un giveaway sur Discord.</p>
+          <h3 class="text-2xl font-semibold tracking-tight">{m.giv_modal_title()}</h3>
+          <p class="text-xs text-on-surface-variant/80 font-medium">{m.giv_modal_subtitle()}</p>
         </div>
       </div>
 
       <form onsubmit={(e) => { e.preventDefault(); handleCreate(); }} class="space-y-5 pt-2">
         <div class="space-y-1.5">
-          <label for="modal-prize" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Lot / Prix</label>
+          <label for="modal-prize" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_prize_label()}</label>
           <input
             id="modal-prize"
             type="text"
             bind:value={formPrize}
-            placeholder="Ex: Nitro Boost 1 Mois 💎"
+            placeholder={m.giv_field_prize_placeholder()}
             class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
             required
             disabled={!canManageSettings}
@@ -350,11 +350,11 @@
         </div>
 
         <div class="space-y-1.5">
-          <label for="modal-desc" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Description (Optionnel)</label>
+          <label for="modal-desc" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_desc_label()}</label>
           <textarea
             id="modal-desc"
             bind:value={formDescription}
-            placeholder="Conditions ou détails supplémentaires..."
+            placeholder={m.giv_field_desc_placeholder()}
             class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"
             disabled={!canManageSettings}
           ></textarea>
@@ -362,7 +362,7 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="modal-winners" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Nb. Gagnants</label>
+            <label for="modal-winners" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_winners_label()}</label>
             <input
               id="modal-winners"
               type="number"
@@ -376,7 +376,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="modal-duration-value" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée du concours</label>
+            <label for="modal-duration-value" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_duration_label()}</label>
             <div class="flex gap-2">
               <input
                 id="modal-duration-value"
@@ -392,9 +392,9 @@
                 class="w-1/3 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
                 disabled={!canManageSettings}
               >
-                <option value="minutes">Min</option>
-                <option value="hours">Heures</option>
-                <option value="days">Jours</option>
+                <option value="minutes">{m.giv_unit_minutes()}</option>
+                <option value="hours">{m.giv_unit_hours()}</option>
+                <option value="days">{m.giv_unit_days()}</option>
               </select>
             </div>
           </div>
@@ -402,7 +402,7 @@
 
         <!-- Presets -->
         <div class="space-y-1.5">
-          <span class="text-[11px] font-bold text-on-surface-variant/50 ml-2 uppercase tracking-widest">Durées prédéfinies</span>
+          <span class="text-[11px] font-bold text-on-surface-variant/50 ml-2 uppercase tracking-widest">{m.giv_field_presets_label()}</span>
           <div class="flex flex-wrap gap-2 ml-1">
             {#each presets as preset}
               <button
@@ -418,12 +418,12 @@
         </div>
 
         <div class="space-y-1.5">
-          <label for="modal-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon d'envoi</label>
+          <label for="modal-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.giv_field_channel_label()}</label>
           <SearchableSelect
             id="modal-channel"
             bind:value={formChannelId}
             options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-            placeholder="Sélectionner le salon"
+            placeholder={m.giv_select_channel_placeholder()}
             className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
             disabled={!canManageSettings}
           />
@@ -435,14 +435,14 @@
             onclick={() => showModal = false}
             class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
           >
-            Annuler
+            {m.giv_btn_cancel()}
           </button>
           {#if canManageSettings}
             <button
               type="submit"
               class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
             >
-              Envoyer sur Discord
+              {m.giv_btn_submit_discord()}
             </button>
           {/if}
         </div>
