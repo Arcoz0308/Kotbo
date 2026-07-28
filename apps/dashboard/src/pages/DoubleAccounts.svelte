@@ -626,8 +626,8 @@
   {#if activeTab === 'links'}
     <div class="flex flex-wrap items-center gap-2 mb-6">
       {#each [
-        { key: 'ALL', label: 'Tous', color: 'text-primary' },
-        { key: 'PENDING', label: 'En attente', color: 'text-amber-500' },
+        { key: 'ALL', label: m.da_filter_all(), color: 'text-primary' },
+        { key: 'PENDING', label: m.da_filter_pending(), color: 'text-amber-500' },
         { key: 'VALIDATED', label: m.da_filter_validated(), color: 'text-emerald-500' },
         { key: 'REJECTED', label: m.da_filter_rejected(), color: 'text-rose-500' },
       ] as f (f.key)}

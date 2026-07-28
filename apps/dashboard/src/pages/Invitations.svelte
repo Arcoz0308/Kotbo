@@ -22,7 +22,7 @@
   } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
-  import { m } from '../lib/i18n';
+  import { m, dateLocale } from '../lib/i18n';
 
   type InviteStatus = 'active' | 'suspended' | 'deleted' | 'expired';
   type Tab = 'invites' | 'sources' | 'top' | 'suspensions';
@@ -222,8 +222,8 @@
   }
 
   function formatDate(value: string | null) {
-    if (!value) return 'Jamais';
-    return new Date(value).toLocaleDateString('fr-FR', {
+    if (!value) return m.iv_never();
+    return new Date(value).toLocaleDateString(dateLocale(), {
       day: '2-digit',
       month: 'short',
       year: 'numeric'
@@ -231,14 +231,14 @@
   }
 
   function formatRelative(value: string | null) {
-    if (!value) return 'Jamais';
+    if (!value) return m.iv_never();
     const diffMs = Date.now() - new Date(value).getTime();
     const minutes = Math.max(1, Math.floor(diffMs / 60000));
-    if (minutes < 60) return `il y a ${minutes} min`;
+    if (minutes < 60) return m.iv_ago_min({ n: minutes });
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `il y a ${hours} h`;
+    if (hours < 24) return m.iv_ago_hours({ n: hours });
     const days = Math.floor(hours / 24);
-    if (days < 30) return `il y a ${days} j`;
+    if (days < 30) return m.iv_ago_days({ n: days });
     return formatDate(value);
   }
 
@@ -433,7 +433,7 @@
 
   async function createSuspension() {
     if (!suspendUserId.trim()) {
-      toast.warning('ID utilisateur requis.');
+      toast.warning(m.iv_user_id_required());
       return;
     }
 
@@ -726,7 +726,7 @@
                               onclick={() => copyInvite(invite)}
                             >
                               <Papicon icon="Copy" size={14} />
-                              Copier le lien
+                              {m.iv_copy_link()}
                             </button>
                             {#if canManageInvites}
                               <button
@@ -734,7 +734,7 @@
                                 onclick={() => beginSourceEdit(invite)}
                               >
                                 <Papicon icon="Tag" size={14} />
-                                {invite.sourceLabel ? 'Renommer la source' : 'Nommer la source'}
+                                {invite.sourceLabel ? m.iv_rename_source() : m.iv_name_source()}
                               </button>
                             {/if}
                             {#if canModerate}
@@ -744,21 +744,21 @@
                                 onclick={() => toggleSuspend(invite)}
                               >
                                 <Papicon icon={invite.isSuspended ? 'Play' : 'Pause'} size={14} />
-                                {invite.isSuspended ? 'Restaurer' : 'Suspendre'}
+                                {invite.isSuspended ? m.iv_restore() : m.iv_status_suspended()}
                               </button>
                               <button
                                 class="w-full px-3 py-2 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
                                 onclick={() => purgeInvite(invite)}
                               >
                                 <Papicon icon="Trash" size={14} />
-                                Purger
+                                {m.iv_purge()}
                               </button>
                               <button
                                 class="w-full px-3 py-2 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
                                 onclick={() => deleteInvite(invite)}
                               >
                                 <Papicon icon="X" size={14} />
-                                Supprimer
+                                {m.iv_delete()}
                               </button>
                             {/if}
                           </div>
@@ -771,7 +771,7 @@
             </table>
             {#if filteredInvites.length === 0}
               <div class="text-center py-12 text-on-surface-variant/60">
-                Aucune invitation ne correspond aux filtres.
+                {m.iv_no_match_filters()}
               </div>
             {/if}
           {/if}
@@ -785,7 +785,7 @@
               <Papicon icon="Route" size={18} />
               <span class="text-[11px] font-semibold uppercase tracking-[0.18em]">{m.iv_join_attribution()}</span>
             </div>
-            <h3 class="text-xl font-semibold text-on-surface">Quel canal fait vraiment grandir le serveur&nbsp;?</h3>
+            <h3 class="text-xl font-semibold text-on-surface">{m.iv_channel_growth_question()}</h3>
             <p class="mt-2 text-sm text-on-surface-variant/60 leading-relaxed">
               {m.iv_attribution_hint()}
             </p>
@@ -804,7 +804,7 @@
         {#if editingInvite}
           <section class="source-editor" aria-label={m.iv_edit_source_aria()}>
             <div class="min-w-0">
-              <p class="text-xs font-semibold text-on-surface">Nommer <code class="text-primary">discord.gg/{editingInvite.code}</code></p>
+              <p class="text-xs font-semibold text-on-surface">{m.iv_naming_code({ code: editingInvite.code })}</p>
               <p class="text-[11px] text-on-surface-variant/50 mt-1">{m.iv_reuse_name_hint()}</p>
             </div>
             <div class="flex items-center gap-2 w-full md:w-auto">
@@ -819,7 +819,7 @@
                   if (event.key === 'Escape') cancelSourceEdit();
                 }}
               />
-              <ActionButton label={savingSource ? 'Enregistrement…' : 'Enregistrer'} icon="Check" size="md" onClick={() => saveSource(editingInvite)} disabled={savingSource} />
+              <ActionButton label={savingSource ? m.iv_saving() : m.iv_save()} icon="Check" size="md" onClick={() => saveSource(editingInvite)} disabled={savingSource} />
               <button type="button" class="source-icon-button" title={m.iv_cancel()} onclick={cancelSourceEdit}><Papicon icon="X" size={16} /></button>
             </div>
           </section>
@@ -1056,7 +1056,7 @@
                     </div>
                     {#if canModerate}
                       <div class="flex gap-2 shrink-0">
-                        <ActionButton label="Purger" icon="Trash" size="sm" variant="danger" onClick={() => purgeByInviter(inviter.userId)} />
+                        <ActionButton label={m.iv_purge()} icon="Trash" size="sm" variant="danger" onClick={() => purgeByInviter(inviter.userId)} />
                         <ActionButton label={m.iv_restore()} icon="Play" size="sm" variant="success" onClick={() => restoreSuspended(inviter.userId)} />
                       </div>
                     {/if}
