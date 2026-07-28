@@ -44,6 +44,10 @@ model Ticket {
   @@index([guildId, userId, status])
   @@index([guildId, status, inactivityAlertSent])
   @@index([guildId, transcriptId])
+  // Comptage des tickets clos sur une journée (snapshot Pulse). Les autres accès
+  // du Pulse sont déjà couverts : (guildId, status) est un préfixe de
+  // (guildId, status, createdAt), et (guildId, createdAt) existe ci-dessus.
+  @@index([guildId, closedAt])
   @@map("tickets")
 }
 

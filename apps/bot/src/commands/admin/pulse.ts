@@ -6,6 +6,7 @@ import {
 import { COLORS_RAW, kotboContainer } from '../../utils/embeds.js';
 import { E, buildProgressBar } from '../../utils/emojis.js';
 import { getPulseDashboardData } from '../../services/analytics/pulseService.js';
+import type { PulseAlert } from '../../services/analytics/pulseScoring.js';
 import { ContainerChild, separator, v2Message } from '@arcscord/components';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
@@ -35,6 +36,35 @@ const ALERT_ICONS: Record<string, string> = {
   success: E.success,
 };
 
+/**
+ * Rendu localisé d'une alerte.
+ *
+ * Les alertes sont stockées avec un `code` stable et ses paramètres ; `message`
+ * n'est qu'un rendu français figé au moment du calcul, conservé comme repli pour
+ * les snapshots écrits avant l'introduction des codes.
+ */
+function alertText(alert: PulseAlert, locale: 'fr' | 'en'): string {
+  const num = (key: string): number => {
+    const raw = alert.params?.[key];
+    return typeof raw === 'number' ? raw : Number(raw) || 0;
+  };
+
+  switch (alert.code) {
+    case 'insufficient_data': return m.c1_pulse_alert_insufficient_data({}, { locale });
+    case 'activity_critical': return m.c1_pulse_alert_activity_critical({}, { locale });
+    case 'activity_low': return m.c1_pulse_alert_activity_low({}, { locale });
+    case 'moderation_critical': return m.c1_pulse_alert_moderation_critical({ count: num('count') }, { locale });
+    case 'growth_critical': return m.c1_pulse_alert_growth_critical({ left: num('left') }, { locale });
+    case 'growth_stagnant': return m.c1_pulse_alert_growth_stagnant({}, { locale });
+    case 'growth_churn': return m.c1_pulse_alert_growth_churn({ left: num('left'), joined: num('joined') }, { locale });
+    case 'engagement_low': return m.c1_pulse_alert_engagement_low({}, { locale });
+    case 'tickets_backlog': return m.c1_pulse_alert_tickets_backlog({ count: num('count') }, { locale });
+    case 'channels_unhealthy': return m.c1_pulse_alert_channels_unhealthy({ count: num('count') }, { locale });
+    case 'excellent': return m.c1_pulse_alert_excellent({}, { locale });
+    default: return alert.message;
+  }
+}
+
 const data = new SlashCommandBuilder()
   .setName(meta.name)
   .setNameLocalizations(meta.nameLocalizations)
@@ -51,11 +81,31 @@ async function execute(interaction: ChatInputCommandInteraction) {
   const pulse = await getPulseDashboardData(guildId);
   const { current, metrics } = pulse;
 
+  // Le premier snapshot n'est produit qu'après une journée complète : mieux vaut
+  // le dire que d'afficher un score de 0 qui ressemblerait à un serveur mort.
+  if (!pulse.hasData) {
+    await interaction.editReply(v2Message(
+      kotboContainer({
+        color: COLORS_RAW.primary,
+        title: `${E.stats} ${m.c1_pulse_dashboard_title({}, { locale })}`,
+        fields: [
+          separator({ divider: true, spacing: 'small' }),
+          `**${m.c1_pulse_no_data_title({}, { locale })}**\n${m.c1_pulse_no_data_desc({}, { locale })}`,
+        ],
+        footerTitle: 'Pulse',
+      }),
+    ));
+    return;
+  }
+
   const localeTag = locale === 'fr' ? 'fr-FR' : 'en-US';
 
   const fields: ContainerChild[] = [
     separator({ divider: true, spacing: 'small' }),
     [
+      // Le score porte sur la dernière journée *terminée* : on l'affiche
+      // explicitement, sinon « métriques du jour » laisse croire à du temps réel.
+      `-# ${m.c1_pulse_day_label({ date: current.dateKey }, { locale })}`,
       `**${m.c1_pulse_global_score({}, { locale })}** · **${current.score}**/100 ${trendLabel(current.trend, current.trendDelta, locale)}`,
       '',
       scoreBar(m.c1_pulse_activity({}, { locale }), current.activityScore),
@@ -78,7 +128,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
   if (current.alerts.length > 0) {
     const alertLines = current.alerts.map((a) => {
       const icon = ALERT_ICONS[a.severity] ?? E.info;
-      return `${icon} ${a.message}`;
+      return `${icon} ${alertText(a, locale)}`;
     });
     fields.push(
       separator({ divider: true, spacing: 'small' }),
