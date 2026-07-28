@@ -308,6 +308,16 @@
             </a>
           </div>
           <div class="border-t border-outline-variant py-1">
+            <a
+              href="https://docs.kotbo.fr/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2.5 px-3 py-2 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              onclick={() => userMenuOpen = false}
+            >
+              <Papicon icon="pronote" size={16} />
+              {m.navbar_documentation()}
+            </a>
             <button
               type="button"
               class="flex items-center gap-2.5 px-3 py-2 w-full text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface cursor-pointer"
