@@ -1,6 +1,7 @@
 import { type APIEmbed, Guild, Role, ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
 import { BackupData, RoleData, ChannelData, MemberData, EmojiData, StickerData , type MessageData } from './backupService.js';
+import { fetchExternal } from '../../utils/http.js';
 
 export interface RestoreOptions {
   fullRestore: boolean;
@@ -160,7 +161,7 @@ async function restoreEmojis(guild: Guild, emojis: EmojiData[]): Promise<void> {
       }
 
       // Télécharger et créer l'emoji
-      const response = await fetch(emojiData.url);
+      const response = await fetchExternal(emojiData.url, {}, 15_000);
       const buffer = Buffer.from(await response.arrayBuffer());
 
       await guild.emojis.create({
@@ -191,7 +192,7 @@ async function restoreStickers(guild: Guild, stickers: StickerData[]): Promise<v
       }
 
       // Télécharger et créer le sticker
-      const response = await fetch(stickerData.url);
+      const response = await fetchExternal(stickerData.url, {}, 15_000);
       const buffer = Buffer.from(await response.arrayBuffer());
 
       const tagsString = stickerData.tags 

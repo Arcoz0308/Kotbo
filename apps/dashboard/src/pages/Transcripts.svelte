@@ -36,8 +36,13 @@
       loadingMore = true;
     }
     try {
-      const res = await fetchTranscripts({ q: query.trim() || undefined, limit: PAGE_SIZE, offset });
-      total = res.total;
+      const res = await fetchTranscripts({
+        q: query.trim() || undefined,
+        limit: PAGE_SIZE,
+        offset,
+        includeTotal: reset,
+      });
+      if (reset && res.total != null) total = res.total;
       transcripts = reset ? res.transcripts : [...transcripts, ...res.transcripts];
     } catch {
       if (reset) transcripts = [];

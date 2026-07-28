@@ -83,11 +83,26 @@ class DashboardLifecycleManager {
   private async prefetchFrequentRoutes() {
     if (typeof window === 'undefined') return;
 
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (
+      connection?.saveData ||
+      connection?.effectiveType === 'slow-2g' ||
+      connection?.effectiveType === '2g'
+    ) {
+      return;
+    }
+
     await waitForWindowLoad();
     await waitForBrowserIdle();
 
-    for (const path of ['/analytics', '/members', '/sanctions', '/tickets']) {
+    // Deux routes fréquentes et relativement légères seulement. Sanctions et
+    // tickets tiraient des dizaines de chunks en cache sans intention de
+    // navigation, soit plusieurs centaines de Ko après chaque accueil.
+    for (const path of ['/analytics', '/members']) {
       prefetchRoute(path);
+      await waitForBrowserIdle();
     }
   }
 

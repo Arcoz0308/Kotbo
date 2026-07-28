@@ -36,7 +36,7 @@ interface TempVoiceGuildConfig {
   tempVoiceCategoryId: string | null;
   tempVoiceNameTemplate: string;
   tempVoiceRequiredRoleId?: string | null;
-  tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string }> | null;
+  tempVoiceGenerators?: unknown;
 }
 
 function getGenerators(guildConfig: TempVoiceGuildConfig): TempVoiceGenerator[] {
@@ -54,13 +54,15 @@ function getGenerators(guildConfig: TempVoiceGuildConfig): TempVoiceGenerator[] 
 
   // Additional generators from JSON array
   if (Array.isArray(guildConfig.tempVoiceGenerators)) {
-    for (const gen of guildConfig.tempVoiceGenerators) {
-      if (gen.channelId) {
+    for (const value of guildConfig.tempVoiceGenerators) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      const gen = value as Record<string, unknown>;
+      if (typeof gen.channelId === 'string') {
         generators.push({
           channelId: gen.channelId,
-          categoryId: gen.categoryId || undefined,
-          nameTemplate: gen.nameTemplate || '🔊 Salon de {user}',
-          requiredRoleId: gen.requiredRoleId || undefined,
+          categoryId: typeof gen.categoryId === 'string' ? gen.categoryId : undefined,
+          nameTemplate: typeof gen.nameTemplate === 'string' ? gen.nameTemplate : '🔊 Salon de {user}',
+          requiredRoleId: typeof gen.requiredRoleId === 'string' ? gen.requiredRoleId : undefined,
         });
       }
     }

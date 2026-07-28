@@ -23,6 +23,7 @@
   import { isMobile } from '../stores/media.svelte';
   import { authStore } from '../stores/auth.svelte';
   import { onboardingStore } from '../stores/tutorial.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte';
 
   const { children }: { children?: Snippet } = $props();
 
@@ -53,6 +54,9 @@
   $effect(() => {
     const path = $router.path;
     const url = $router.url;
+    if (path !== '/' && authStore.isAuthenticated) {
+      void dashboardStore.ensureFullState();
+    }
     if (!onboardingStore.initialized) return;
     const qs = url.includes('?') ? url.split('?')[1] : '';
     onboardingStore.onPageVisit(path, qs);

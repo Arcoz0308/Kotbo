@@ -154,9 +154,7 @@ export async function registerCrons(client: Client): Promise<void> {
     'staff-warnings-expiration': expireStaffWarnings,
     'staff-blacklist-expiration': expireStaffBlacklist,
     'activity-10min-snapshot': async () => {
-      runActivitySnapshot(client).catch((error) => {
-        logger.error('Analytics', "Erreur lors du snapshot d'activité en arrière-plan:", error);
-      });
+      await runActivitySnapshot(client);
     },
     'missing-reports-check': async () => {
       logger.info('Cron', 'Vérification des rapports de sanction manquants...');
@@ -259,6 +257,27 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Vérification des accès à durée limitée...');
       const { runAccessLifecycleCheck } = await import('../services/system/accessService.js');
       await runAccessLifecycleCheck(client);
+    },
+    'message-logs-prune': pruneOldMessageLogs,
+    'word-stats-prune': async () => {
+      await pruneOldWordStats();
+    },
+    'ban-hygiene-scan': async () => {
+      await runBanHygieneScan(client);
+    },
+    'staff-reminders': async () => {
+      const { processDueReminders } = await import('../services/staff/reminderService.js');
+      await processDueReminders(client);
+    },
+    'raid-protection-tick': async () => {
+      const { expireOverdueCaptchaSessions } = await import('../services/moderation/captchaService.js');
+      const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');
+      await expireOverdueCaptchaSessions(client);
+      await autoDisableExpiredRaidModes(client);
+    },
+    'raid-protection-locks-renew': async () => {
+      const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
+      await renewActiveLocks(client);
     },
   });
 

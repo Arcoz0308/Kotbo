@@ -243,29 +243,39 @@ export async function handleRecruitmentFormRoutes(
   if (parts.length === 8 && parts[7] === 'responses' && method === 'GET') {
     const formId = parts[6];
     try {
-      const form = await getRecruitmentForm(formId, guildId);
+      const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 100, 1), 250);
+      const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0);
+      const form = await prisma.recruitmentForm.findFirst({
+        where: { id: formId, guildId },
+        select: { id: true },
+      });
       if (!form) {
         json(res, 404, { error: 'Formulaire introuvable' });
         return true;
       }
 
-      const responses = await prisma.recruitmentCandidature.findMany({
-        where: { formId, guildId },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          discordId: true,
-          username: true,
-          email: true,
-          status: true,
-          data: true,
-          notes: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+      const [responses, total] = await Promise.all([
+        prisma.recruitmentCandidature.findMany({
+          where: { formId, guildId },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+          select: {
+            id: true,
+            discordId: true,
+            username: true,
+            email: true,
+            status: true,
+            data: true,
+            notes: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+        prisma.recruitmentCandidature.count({ where: { formId, guildId } }),
+      ]);
 
-      json(res, 200, { responses, total: responses.length });
+      json(res, 200, { responses, total, limit, offset });
     } catch (err) {
       logger.error('RecruitmentFormAPI', 'Error fetching form responses:', err);
       json(res, 500, { error: 'Erreur lors de la récupération des réponses' });
@@ -275,4 +285,3 @@ export async function handleRecruitmentFormRoutes(
 
   return false;
 }
-

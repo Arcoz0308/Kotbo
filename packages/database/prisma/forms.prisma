@@ -59,6 +59,7 @@ model CustomFormSubmission {
   createdAt DateTime   @default(now())
 
   @@index([formId])
+  @@index([formId, createdAt(sort: Desc)])
   @@index([guildId, userId])
   @@map("custom_form_submissions")
 }

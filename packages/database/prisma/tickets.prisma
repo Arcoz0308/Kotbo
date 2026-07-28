@@ -39,6 +39,11 @@ model Ticket {
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
+  @@index([guildId, createdAt])
+  @@index([guildId, status, createdAt])
+  @@index([guildId, userId, status])
+  @@index([guildId, status, inactivityAlertSent])
+  @@index([guildId, transcriptId])
   @@map("tickets")
 }
 
@@ -54,5 +59,6 @@ model Transcript {
   endTime        DateTime?
   createdAt      DateTime  @default(now())
 
+  @@index([guildId, createdAt])
   @@map("transcripts")
 }

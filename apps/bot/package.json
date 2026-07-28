@@ -18,7 +18,7 @@
     "test:watch": "bun test --isolate --watch src/tests",
     "typecheck": "bun x tsgo -p tsconfig.json --noEmit",
     "typecheck:tsc": "bun x tsc -p tsconfig.json --noEmit",
-    "quality:gate": "bun run build:i18n && bun run lint && bun run test:unit && bun run coverage:gate",
+    "quality:gate": "bun run build:i18n && bun run typecheck && bun run lint && bun run test:unit && bun run coverage:gate",
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {

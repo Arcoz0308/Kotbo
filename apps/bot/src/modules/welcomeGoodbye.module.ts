@@ -52,7 +52,8 @@ export function registerWelcomeGoodbyeBusSubscribers(client: Client): void {
     const partialMember = {
       id: payload.userId,
       guild,
-      user: { id: payload.userId, tag: payload.userTag, bot: payload.isBot },
+      displayName: payload.userTag.split('#')[0],
+      user: { username: payload.userTag.split('#')[0] },
     };
 
     await handleGuildMemberRemove(partialMember, client);

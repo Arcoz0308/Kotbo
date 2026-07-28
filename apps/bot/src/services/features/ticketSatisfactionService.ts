@@ -1,4 +1,5 @@
 import prisma, { prismaRead } from '../../utils/db.js';
+import type { Prisma } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
 import {
   ActionRowBuilder,
@@ -23,11 +24,6 @@ type SatisfactionReview = {
   comment: string | null;
   createdAt: Date;
   ticketId: string;
-};
-
-type SatisfactionDistributionRow = {
-  rating: number;
-  _count: { rating: number };
 };
 
 type StaffSatisfactionRow = {
@@ -178,7 +174,7 @@ export async function recordSatisfaction(guildId: string, ticketId: string, user
 }
 
 export async function getStaffSatisfactionStats(guildId: string, staffId?: string, client?: Client) {
-  const where: any = { guildId };
+  const where: Prisma.TicketSatisfactionWhereInput = { guildId };
   if (staffId) where.staffId = staffId;
 
   const [stats, recentRaw] = await Promise.all([
@@ -201,7 +197,7 @@ export async function getStaffSatisfactionStats(guildId: string, staffId?: strin
     where,
     _count: { rating: true },
     orderBy: { rating: 'asc' },
-  }) as SatisfactionDistributionRow[];
+  });
 
   const people = await resolveSatisfactionPeople(
     guildId,

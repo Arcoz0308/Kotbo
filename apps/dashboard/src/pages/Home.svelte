@@ -636,13 +636,27 @@
     const visibleIds = new Set(userLayout.filter((item) => item.visible).map((item) => item.id));
     if (!guildId || visibleIds.size === 0) return;
 
-    if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
-      void loadAnalytics();
+    // L'état léger de la page d'accueil doit garder la priorité sur ces
+    // widgets secondaires. Les déclencher pendant le premier rendu mettait
+    // immédiatement 5 à 8 requêtes en concurrence avec la requête critique.
+    const loadSecondaryWidgets = () => {
+      if (authStore.selectedGuildId !== guildId) return;
+      if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
+        void loadAnalytics();
+      }
+      if (visibleIds.has('staff')) void staffStore.fetchAll();
+      if (visibleIds.has('news')) void loadChangelog();
+      if (visibleIds.has('staffServer')) void loadStaffServerLinks();
+      if (visibleIds.has('botLanguage')) void loadBotLanguage();
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(loadSecondaryWidgets, { timeout: 1_500 });
+      return () => window.cancelIdleCallback(idleId);
     }
-    if (visibleIds.has('staff')) void staffStore.fetchAll();
-    if (visibleIds.has('news')) void loadChangelog();
-    if (visibleIds.has('staffServer')) void loadStaffServerLinks();
-    if (visibleIds.has('botLanguage')) void loadBotLanguage();
+
+    const timeoutId = globalThis.setTimeout(loadSecondaryWidgets, 250);
+    return () => globalThis.clearTimeout(timeoutId);
   });
 
   const activeModulesCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'active').length);

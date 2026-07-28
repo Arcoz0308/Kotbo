@@ -355,7 +355,8 @@ export async function handleHelpInteraction(
                   commands.find(c => searchName.includes(c.data.name.toLowerCase()));
 
     if (found) {
-      await interaction.update(buildHelpView(commands, `cmd:${found.data.name}`, locale));
+      await interaction.deferUpdate();
+      await interaction.editReply(buildHelpView(commands, `cmd:${found.data.name}`, locale));
     } else {
       await interaction.reply({
         content: `${E.error} ${m.help_command_not_found({ name: searchName }, { locale })}`,

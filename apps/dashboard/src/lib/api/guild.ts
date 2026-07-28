@@ -3,7 +3,10 @@ import { authStore } from '../stores/auth.svelte';
 import { toast } from '../stores/toast.svelte';
 import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation } from './client';
 
-export async function fetchGuildState(guildId = authStore.selectedGuildId) {
+export async function fetchGuildState(
+  guildId = authStore.selectedGuildId,
+  options: { overview?: boolean } = {},
+) {
   const selectedGuildId = getGuildId(guildId);
   if (!selectedGuildId) {
     console.warn('API: Attempted to fetch guild state without a selected guild.');
@@ -11,7 +14,8 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
   }
 
   try {
-    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}`);
+    const suffix = options.overview ? '?scope=overview' : '';
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}${suffix}`);
     if (!response.ok) {
       const error = new Error(`Server error: ${response.status}`);
       (error as any).status = response.status;

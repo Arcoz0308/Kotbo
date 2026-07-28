@@ -19,6 +19,13 @@ const RoleDisplay = z.object({
   name: z.string(),
 });
 
+const PublicInvite = z.object({
+  inviteCode: z.string().nullable(),
+  inviterId:  z.string().nullable(),
+  inviterTag: z.string().nullable(),
+  joinedAt:   z.string(),
+});
+
 const PublicProfileResponse = z.object({
   userId:           z.string(),
   username:         z.string().nullable(),
@@ -30,13 +37,13 @@ const PublicProfileResponse = z.object({
   isPrivate:        z.boolean(),
   roles:            z.array(RoleDisplay),
   primaryRole:      RoleDisplay.nullable(),
-  accountCreatedAt: z.union([z.date(), z.string()]).nullable(),
-  guildJoinedAt:    z.union([z.date(), z.string()]).nullable(),
-  guildLeftAt:      z.union([z.date(), z.string()]).nullable(),
-  lastSeenAt:       z.union([z.date(), z.string()]).nullable(),
+  accountCreatedAt: z.string().nullable(),
+  guildJoinedAt:    z.string().nullable(),
+  guildLeftAt:      z.string().nullable(),
+  lastSeenAt:       z.string().nullable(),
   messageCount:     z.number().nullable(),
   voiceTimeSeconds: z.number().nullable(),
-  invite:           z.unknown().nullable(),
+  invite:           PublicInvite.nullable(),
   points:           z.number(),
   tier:             z.string(),
   streak:           z.number(),
@@ -176,13 +183,20 @@ export function createPublicProfileRouter(client: Client) {
           isPrivate:           profile.isProfilePrivate,
           roles:               roleDisplay.roles,
           primaryRole:         roleDisplay.primaryRole,
-          accountCreatedAt:    profile.accountCreatedAt,
-          guildJoinedAt:       profile.guildJoinedAt,
-          guildLeftAt:         profile.guildLeftAt,
-          lastSeenAt:          profile.lastSeenAt,
+          accountCreatedAt:    profile.accountCreatedAt?.toISOString() ?? null,
+          guildJoinedAt:       profile.guildJoinedAt?.toISOString() ?? null,
+          guildLeftAt:         profile.guildLeftAt?.toISOString() ?? null,
+          lastSeenAt:          profile.lastSeenAt?.toISOString() ?? null,
           messageCount:        profile.messageCount,
           voiceTimeSeconds:    profile.voiceTimeSeconds,
-          invite:              snapshot.invite,
+          invite:              snapshot.invite
+            ? {
+                inviteCode: snapshot.invite.inviteCode,
+                inviterId:  snapshot.invite.inviterId,
+                inviterTag: snapshot.invite.inviterTag,
+                joinedAt:   snapshot.invite.joinedAt.toISOString(),
+              }
+            : null,
           points:              snapshot.dailyAlgoProfile?.totalPoints || 0,
           tier:                snapshot.dailyAlgoProfile?.tier || 'Débutant',
           streak:              snapshot.dailyAlgoProfile?.currentStreak || 0,
@@ -201,7 +215,7 @@ export function createPublicProfileRouter(client: Client) {
             date:    entry.createdAt.toISOString(),
             score:   entry.score,
           })),
-        });
+        }, 200);
       }
 
       // Profil privé — données masquées
@@ -218,7 +232,7 @@ export function createPublicProfileRouter(client: Client) {
         primaryRole:         roleDisplay.primaryRole,
         accountCreatedAt:    null,
         guildJoinedAt:       null,
-        guildLeftAt:         profile.guildLeftAt,
+        guildLeftAt:         profile.guildLeftAt?.toISOString() ?? null,
         lastSeenAt:          null,
         messageCount:        null,
         voiceTimeSeconds:    null,
@@ -229,7 +243,7 @@ export function createPublicProfileRouter(client: Client) {
         rank:                0,
         recentAlgos:         [],
         eventParticipations: [],
-      });
+      }, 200);
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public profile for ${userId}:`, err);
       return c.json({ error: 'Erreur interne du serveur' }, 500);
@@ -311,7 +325,7 @@ export function createPublicProfileRouter(client: Client) {
       return c.json({
         ok:      true,
         profile: { bio: updatedProfile.bio, isProfilePrivate: updatedProfile.isProfilePrivate },
-      });
+      }, 200);
     } catch (err) {
       logger.error('PublicAPI', `Error updating public profile for ${userId}:`, err);
       return c.json({ error: 'Erreur lors de la mise à jour du profil' }, 500);

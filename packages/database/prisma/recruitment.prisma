@@ -64,6 +64,7 @@ model RecruitmentCandidature {
 
   @@index([guildId, status])
   @@index([guildId, discordId])
+  @@index([formId, createdAt(sort: Desc)])
   @@map("recruitment_candidatures")
 }
 
