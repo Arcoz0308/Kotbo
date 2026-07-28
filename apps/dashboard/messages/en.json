@@ -5154,6 +5154,8 @@
   "que_tpl_philanthropist_desc": "Give 5 +rep this week",
   "que_tpl_creator_name": "Creator",
   "que_tpl_creator_desc": "Create 3 threads this week",
+  "que_placeholder_name": "Daily Chatter",
+  "que_placeholder_desc": "Send 50 messages today",
   "mar_page_title": "Marketplace",
   "mar_page_desc": "Auction house — trades between players.",
   "mar_status_active": "For sale",

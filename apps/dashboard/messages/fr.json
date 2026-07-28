@@ -5154,6 +5154,8 @@
   "que_tpl_philanthropist_desc": "Donnez 5 +rep cette semaine",
   "que_tpl_creator_name": "Créateur",
   "que_tpl_creator_desc": "Créez 3 threads cette semaine",
+  "que_placeholder_name": "Bavard du jour",
+  "que_placeholder_desc": "Envoyez 50 messages aujourd'hui",
   "mar_page_title": "Marché",
   "que_load_error": "Erreur lors du chargement",
   "mar_page_desc": "Hôtel des ventes — échanges entre joueurs.",

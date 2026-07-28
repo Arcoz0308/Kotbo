@@ -181,11 +181,11 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <div class="space-y-1">
         <label for="new-quest-name" class="field-label">{m.que_field_name()}</label>
-        <input id="new-quest-name" type="text" bind:value={newQuest.name} placeholder="Bavard du jour" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
+        <input id="new-quest-name" type="text" bind:value={newQuest.name} placeholder={m.que_placeholder_name()} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
         <label for="new-quest-description" class="field-label">{m.que_field_desc()}</label>
-        <input id="new-quest-description" type="text" bind:value={newQuest.description} placeholder="Envoyez 50 messages aujourd'hui" class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
+        <input id="new-quest-description" type="text" bind:value={newQuest.description} placeholder={m.que_placeholder_desc()} class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none transition-colors" />
       </div>
       <div class="space-y-1">
         <label for="new-quest-type" class="field-label">{m.que_field_type()}</label>
