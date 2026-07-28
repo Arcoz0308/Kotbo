@@ -24,6 +24,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     updateRpgPlayer,
     resetEconomy
   } from '../lib/api';
+  import { m } from '../lib/i18n';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
@@ -100,7 +101,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         if (activeTab === 'players') await loadPlayers();
       }
       return true;
-    }, { successMessage: 'Réinitialisation effectuée avec succès !' });
+    }, { successMessage: m.eco_toast_reset_success() });
   }
 
   // Unsaved changes tracker
@@ -187,7 +188,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   async function handleSaveConfig(): Promise<boolean> {
     if (!canManageSettings) return false;
     if (config.dailyRewardMax < config.dailyRewardMin) {
-      toast.error('Le gain journalier maximal doit être supérieur ou égal au gain minimal.');
+      toast.error(m.eco_toast_daily_invalid());
       return false;
     }
 
@@ -199,7 +200,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       savedConfig = JSON.parse(JSON.stringify(res.config));
       success = true;
       return true;
-    }, { successMessage: 'Configuration de l\'économie sauvegardée avec succès !' });
+    }, { successMessage: m.eco_toast_config_saved() });
     return success;
   }
 
@@ -226,7 +227,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   async function handleSaveItem() {
     if (!editingItem.name || !editingItem.type || editingItem.price === undefined) {
-      toast.error('Champs obligatoires manquants.');
+      toast.error(m.eco_toast_missing_fields());
       return;
     }
 
@@ -237,17 +238,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         editingItem = null;
       }
       return true;
-    }, { successMessage: 'Objet sauvegardé avec succès !' });
+    }, { successMessage: m.eco_toast_item_saved() });
   }
 
   async function handleDeleteItem(itemId: string) {
-    if (!(await confirmDialog.danger('Supprimer cet objet de la boutique ?'))) return;
+    if (!(await confirmDialog.danger(m.eco_delete_item_confirm()))) return;
 
     await actionState.run(async () => {
       await deleteRpgItem(itemId);
       await loadItems();
       return true;
-    }, { successMessage: 'Objet supprimé de la boutique.' });
+    }, { successMessage: m.eco_toast_item_deleted() });
   }
 
   // Player Editing actions
@@ -272,7 +273,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         editingPlayer = null;
       }
       return true;
-    }, { successMessage: 'Profil joueur mis à jour.' });
+    }, { successMessage: m.eco_toast_player_saved() });
   }
 
   const filteredPlayers = $derived(
@@ -285,14 +286,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 </script>
 
 <ModulePage
-  title="Économie & Jeu RPG"
-  description="Gérez la monnaie locale, configurez les aventures textuelles RNG et gérez la boutique du serveur."
+  title={m.eco_page_title()}
+  description={m.eco_page_desc()}
   icon="coins"
 >
   {#snippet actions()}
     {#if !loading}
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
-        <span class="text-xs font-bold text-on-surface-variant/80">Statut du module :</span>
+        <span class="text-xs font-bold text-on-surface-variant/80">{m.eco_module_status()}</span>
         <ToggleSwitch
           checked={config.enabled}
           onToggle={(v: boolean) => {
@@ -313,21 +314,21 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       class="tab-button {activeTab === 'config' ? 'active' : ''}"
     >
       <Papicon icon="settings" size={14} />
-      Configuration
+      {m.eco_tab_config()}
     </button>
     <button
       onclick={() => gotoTab('/economy', 'items', 'config')}
       class="tab-button {activeTab === 'items' ? 'active' : ''}"
     >
       <Papicon icon="package" size={14} />
-      Objets Boutique
+      {m.eco_tab_items()}
     </button>
     <button
       onclick={() => gotoTab('/economy', 'players', 'config')}
       class="tab-button {activeTab === 'players' ? 'active' : ''}"
     >
       <Papicon icon="users" size={14} />
-      Joueurs & Classement
+      {m.eco_tab_players()}
     </button>
   </div>
 
@@ -342,14 +343,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <!-- Activation settings -->
         <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit">
-          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-4">Activation des Modules</h3>
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-4">{m.eco_activation_title()}</h3>
           
           <div class="space-y-4">
             <!-- RPG Toggle -->
             <div class="flex items-center justify-between py-2 border-b border-outline-variant/5">
               <div>
-                <h4 class="text-sm font-bold">Activer les Aventures RPG (RNG)</h4>
-                <p class="text-xs text-on-surface-variant/60 mt-0.5">Déverrouille la commande /rpg-travel et les événements aléatoires.</p>
+                <h4 class="text-sm font-bold">{m.eco_rpg_toggle_title()}</h4>
+                <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_rpg_toggle_desc()}</p>
               </div>
               <ToggleSwitch checked={config.rpgEnabled} onToggle={(v: boolean) => config.rpgEnabled = v} disabled={!canManageSettings || !config.enabled} />
             </div>
@@ -357,8 +358,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <!-- Shop Toggle -->
             <div class="flex items-center justify-between py-2 border-b border-outline-variant/5">
               <div>
-                <h4 class="text-sm font-bold">Activer la Boutique d'Objets</h4>
-                <p class="text-xs text-on-surface-variant/60 mt-0.5">Permet d'acheter du matériel, d'équiper des armes et d'utiliser des potions.</p>
+                <h4 class="text-sm font-bold">{m.eco_shop_toggle_title()}</h4>
+                <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_shop_toggle_desc()}</p>
               </div>
               <ToggleSwitch checked={config.shopEnabled} onToggle={(v: boolean) => config.shopEnabled = v} disabled={!canManageSettings || !config.enabled} />
             </div>
@@ -366,8 +367,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <!-- Guilds Toggle -->
             <div class="flex items-center justify-between py-2">
               <div>
-                <h4 class="text-sm font-bold">Activer le Système de Guildes RPG</h4>
-                <p class="text-xs text-on-surface-variant/60 mt-0.5">Permet de fonder des alliances, de coopérer et d'avoir un coffre de guilde.</p>
+                <h4 class="text-sm font-bold">{m.eco_guilds_toggle_title()}</h4>
+                <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.eco_guilds_toggle_desc()}</p>
               </div>
               <ToggleSwitch checked={config.guildsEnabled} onToggle={(v: boolean) => config.guildsEnabled = v} disabled={!canManageSettings || !config.enabled} />
             </div>
@@ -376,16 +377,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <!-- Details config -->
         <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
-          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-4">Paramètres d'Économie & RPG</h3>
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-4">{m.eco_settings_title()}</h3>
           
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="curName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Nom de la monnaie</label>
+              <label for="curName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_currency_name()}</label>
               <input id="curName" type="text" bind:value={config.currencyName} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
-              <label for="curEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Emoji de la monnaie</label>
+              <label for="curEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_currency_emoji()}</label>
               <div class="flex gap-2">
                 <input id="curEmoji" type="text" bind:value={config.currencyEmoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
                 <EmojiPicker bind:value={config.currencyEmoji} disabled={!canManageSettings || !config.enabled} />
@@ -394,7 +395,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
             <!-- Currency Image Upload -->
             <div class="col-span-2 space-y-2 pt-2 border-t border-outline-variant/10">
-              <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2 block">Image de la monnaie (Optionnelle)</span>
+              <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2 block">{m.eco_currency_icon()}</span>
               <div class="flex items-center gap-4 bg-surface-container-high/20 p-4 rounded-lg border border-outline-variant/10">
                 {#if config.currencyIcon}
                   <div class="relative w-12 h-12 rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 flex items-center justify-center shrink-0">
@@ -404,7 +405,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         type="button"
                         onclick={() => { config.currencyIcon = null; }}
                         class="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors"
-                        title="Supprimer l'image"
+                        title="Supprimer"
                       >
                         ✕
                       </button>
@@ -412,7 +413,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   </div>
                 {:else}
                   <div class="w-12 h-12 rounded-xl bg-surface-container/60 border-2 border-dashed border-outline-variant/25 flex items-center justify-center text-on-surface-variant/30 text-[10px] font-semibold shrink-0">
-                    SANS
+                    {m.eco_no_icon()}
                   </div>
                 {/if}
 
@@ -444,43 +445,43 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       class="px-4 py-2 bg-secondary text-on-secondary hover:scale-102 active:scale-98 transition-all text-xs font-bold rounded-xl shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!config.enabled}
                     >
-                      {config.currencyIcon ? 'Changer l\'image' : 'Importer une image'}
+                      {config.currencyIcon ? m.eco_change_icon() : m.eco_upload_icon()}
                     </button>
-                    <p class="text-[11px] text-on-surface-variant/40 leading-none">PNG, JPG ou SVG. S'affiche en priorité sur le dashboard.</p>
+                    <p class="text-[11px] text-on-surface-variant/40 leading-none">{m.eco_icon_hint()}</p>
                   </div>
                 {:else}
-                  <p class="text-xs text-on-surface-variant/40 italic">Lecture seule</p>
+                  <p class="text-xs text-on-surface-variant/40 italic">{m.eco_readonly()}</p>
                 {/if}
               </div>
             </div>
 
             <div class="space-y-1.5">
-              <label for="dailyMin" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Gain Daily Minimum</label>
+              <label for="dailyMin" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_daily_min()}</label>
               <input id="dailyMin" type="number" bind:value={config.dailyRewardMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
-              <label for="dailyMax" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Gain Daily Maximum</label>
+              <label for="dailyMax" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_daily_max()}</label>
               <input id="dailyMax" type="number" bind:value={config.dailyRewardMax} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
-              <label for="dailyCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Cooldown du Daily (Heures)</label>
+              <label for="dailyCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_daily_cd()}</label>
               <input id="dailyCd" type="number" bind:value={config.dailyCooldownHour} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
-              <label for="advCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Cooldown Aventure (Min)</label>
+              <label for="advCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_adv_cd()}</label>
               <input id="advCd" type="number" bind:value={config.adventureCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
-              <label for="maxEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Énergie Maximale</label>
+              <label for="maxEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_max_energy()}</label>
               <input id="maxEnergy" type="number" bind:value={config.maxEnergy} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
-              <label for="energyRecovery" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Récupération Énergie / H</label>
+              <label for="energyRecovery" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_energy_recovery()}</label>
               <input id="energyRecovery" type="number" bind:value={config.energyRecoveryPerHour} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
           </div>
@@ -492,9 +493,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="border-b border-outline-variant/15 pb-4">
               <h3 class="text-lg font-semibold text-error flex items-center gap-2.5">
                 <Papicon icon="alert-triangle" size={20} class="text-error" />
-                Réinitialisation de l'Économie / RPG
+                {m.eco_reset_section_title()}
               </h3>
-              <p class="text-xs text-on-surface-variant/60 mt-1">Actions irréversibles. Permet de réinitialiser tout ou partie de l'économie du serveur.</p>
+              <p class="text-xs text-on-surface-variant/60 mt-1">{m.eco_reset_section_desc()}</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -504,8 +505,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="users" size={14} /> Joueurs</span>
-                <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les comptes, inventaires, soldes</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="users" size={14} /> {m.eco_reset_players_btn()}</span>
+                <span class="text-[10px] text-on-surface-variant/60 font-normal">{m.eco_reset_players_desc()}</span>
               </button>
 
               <button
@@ -514,8 +515,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="package" size={14} /> Boutique</span>
-                <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les objets créés</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="package" size={14} /> {m.eco_reset_items_btn()}</span>
+                <span class="text-[10px] text-on-surface-variant/60 font-normal">{m.eco_reset_items_desc()}</span>
               </button>
 
               <button
@@ -524,8 +525,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="shield" size={14} /> Guildes</span>
-                <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les guildes RPG</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="shield" size={14} /> {m.eco_reset_guilds_btn()}</span>
+                <span class="text-[10px] text-on-surface-variant/60 font-normal">{m.eco_reset_guilds_desc()}</span>
               </button>
 
               <button
@@ -534,8 +535,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="settings" size={14} /> Configuration</span>
-                <span class="text-[10px] text-on-surface-variant/60 font-normal">Remet à zéro les multiplicateurs, cooldowns</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="settings" size={14} /> {m.eco_reset_config_btn()}</span>
+                <span class="text-[10px] text-on-surface-variant/60 font-normal">{m.eco_reset_config_desc()}</span>
               </button>
 
               <button
@@ -544,8 +545,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error text-on-error hover:bg-error-hover text-xs font-bold rounded-lg shadow-lg transition-all flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="alert-triangle" size={14} /> Reset Global</span>
-                <span class="text-[10px] text-on-error/80 font-normal">Tout supprimer (irréversible)</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="alert-triangle" size={14} /> {m.eco_reset_all_btn()}</span>
+                <span class="text-[10px] text-on-error/80 font-normal">{m.eco_reset_all_desc()}</span>
               </button>
             </div>
           </div>
@@ -557,7 +558,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     {#if activeTab === 'items'}
       <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
         <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-          <h3 class="text-lg font-semibold">Objets de la boutique RPG</h3>
+          <h3 class="text-lg font-semibold">{m.eco_shop_title()}</h3>
           {#if canManageSettings}
             <button 
               type="button" 
@@ -566,7 +567,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <Papicon icon="plus" size={14} />
-              Créer un objet
+              {m.eco_create_item_btn()}
             </button>
           {/if}
         </div>
@@ -616,7 +617,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         onclick={() => openEditItem(item)}
                         disabled={!config.enabled}
                         class="p-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        title="Modifier"
+                        title={m.eco_btn_edit()}
                       >
                         <Papicon icon="edit" size={14} />
                       </button>
@@ -625,18 +626,18 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         onclick={() => handleDeleteItem(item.id)}
                         disabled={!config.enabled}
                         class="p-2 bg-red-500/10 hover:bg-red-500/25 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        title="Supprimer"
+                        title={m.fb_delete()}
                       >
                         <Papicon icon="trash" size={14} />
                       </button>
                     </div>
                   {:else}
-                    <span class="text-[11px] font-bold text-on-surface-variant/40 italic">Global (Read-Only)</span>
+                    <span class="text-[11px] font-bold text-on-surface-variant/40 italic">{m.eco_global_readonly()}</span>
                   {/if}
                 </div>
               </div>
             {:else}
-              <p class="text-xs text-on-surface-variant/60 italic py-6">Aucun objet disponible dans la boutique.</p>
+              <p class="text-xs text-on-surface-variant/60 italic py-6">{m.eco_no_items()}</p>
             {/each}
           </div>
         {/if}
@@ -647,11 +648,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     {#if activeTab === 'players'}
       <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
-          <h3 class="text-lg font-semibold">Classement des joueurs RPG</h3>
+          <h3 class="text-lg font-semibold">{m.eco_players_title()}</h3>
           
           <input 
             type="search" 
-            placeholder="Rechercher par pseudo ou ID..." 
+            placeholder={m.eco_search_players_ph()} 
             bind:value={searchQuery}
             class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none w-full md:w-64"
           />
@@ -666,14 +667,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <table class="w-full text-left border-collapse text-xs">
               <thead>
                 <tr class="border-b border-outline-variant/10 text-on-surface-variant/55 font-bold uppercase tracking-wider text-[10px]">
-                  <th class="py-4 px-4">Rang</th>
-                  <th class="py-4 px-4">Joueur</th>
-                  <th class="py-4 px-4">Solde</th>
-                  <th class="py-4 px-4">Stats & Équipement</th>
-                  <th class="py-4 px-4">PV & Énergie</th>
-                  <th class="py-4 px-4">Localisation & Guilde</th>
+                  <th class="py-4 px-4">{m.eco_col_rank()}</th>
+                  <th class="py-4 px-4">{m.eco_col_player()}</th>
+                  <th class="py-4 px-4">{m.eco_col_balance()}</th>
+                  <th class="py-4 px-4">{m.eco_col_stats_gear()}</th>
+                  <th class="py-4 px-4">{m.eco_col_hp_energy()}</th>
+                  <th class="py-4 px-4">{m.eco_col_location_guild()}</th>
                   {#if canManageSettings}
-                    <th class="py-4 px-4 text-right">Actions</th>
+                    <th class="py-4 px-4 text-right">{m.eco_col_actions()}</th>
                   {/if}
                 </tr>
               </thead>
@@ -707,7 +708,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         {/if}
                         <span>{player.balance} {config.currencyName}</span>
                       </div>
-                      <div class="text-[10px] text-on-surface-variant/50 mt-0.5 font-normal">Niveau {player.level} • {player.xp} XP</div>
+                      <div class="text-[10px] text-on-surface-variant/50 mt-0.5 font-normal">{m.eco_player_level_xp({ level: player.level, xp: player.xp })}</div>
                     </td>
                     <td class="py-4 px-4">
                       <!-- Equipment display -->
@@ -718,7 +719,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                             <span class="truncate max-w-[120px]">{player.weapon.name} (+{player.weapon.atkBonus} ATK)</span>
                           </div>
                         {:else}
-                          <div class="text-[10px] text-on-surface-variant/30 italic">Pas d'arme équipée</div>
+                          <div class="text-[10px] text-on-surface-variant/30 italic">{m.eco_no_weapon()}</div>
                         {/if}
 
                         {#if player.armor}
@@ -727,7 +728,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                             <span class="truncate max-w-[120px]">{player.armor.name} (+{player.armor.defBonus} DEF)</span>
                           </div>
                         {:else}
-                          <div class="text-[10px] text-on-surface-variant/30 italic">Pas d'armure équipée</div>
+                          <div class="text-[10px] text-on-surface-variant/30 italic">{m.eco_no_armor()}</div>
                         {/if}
                       </div>
                     </td>
@@ -742,26 +743,26 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         <div class="w-20 bg-surface-container-high rounded-full h-2">
                           <div class="bg-purple-500 h-2 rounded-full" style="width: {player.energy}%"></div>
                         </div>
-                        <span class="font-bold text-on-surface-variant/70">{player.energy}% Énergie</span>
+                        <span class="font-bold text-on-surface-variant/70">{player.energy}{m.eco_energy_unit()}</span>
                       </div>
                     </td>
                     <td class="py-4 px-4 space-y-1">
                       <!-- Location -->
                       <div class="font-semibold text-on-surface flex items-center gap-1">
                         {#if player.isTraveling}
-                          <span>🚗 En voyage vers :</span>
+                          <span>{m.eco_traveling_to()}</span>
                           <span class="text-primary font-bold">{player.travelDestination}</span>
                         {:else}
-                          <span>📍 Position :</span>
-                          <span class="text-emerald-400 font-bold">{player.travelDestination || 'Contrée sauvage'}</span>
+                          <span>{m.eco_location_at()}</span>
+                          <span class="text-emerald-400 font-bold">{player.travelDestination || m.eco_wild_lands()}</span>
                         {/if}
                       </div>
                       <!-- Guild -->
                       <div class="text-[10px] text-on-surface-variant/60 font-medium">
                         {#if player.rpgGuild}
-                          <span>🛡️ Alliance : <strong>{player.rpgGuild.emoji} {player.rpgGuild.name}</strong></span>
+                          <span>{m.eco_alliance()} <strong>{player.rpgGuild.emoji} {player.rpgGuild.name}</strong></span>
                         {:else}
-                          <span class="italic text-on-surface-variant/30">Sans guilde</span>
+                          <span class="italic text-on-surface-variant/30">{m.eco_no_guild()}</span>
                         {/if}
                       </div>
                     </td>
@@ -773,14 +774,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                            disabled={!config.enabled}
                            class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-auto w-fit"
                         >
-                          <Papicon icon="edit" size={12} /> Modifier
+                          <Papicon icon="edit" size={12} /> {m.eco_btn_edit()}
                         </button>
                       </td>
                     {/if}
                   </tr>
                 {:else}
                   <tr>
-                    <td colspan="7" class="text-center py-8 text-on-surface-variant/50 italic">Aucun joueur trouvé.</td>
+                    <td colspan="7" class="text-center py-8 text-on-surface-variant/50 italic">{m.eco_no_players()}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -796,16 +797,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if editingItem}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
-      <h3 class="text-xl font-semibold">{editingItem.id ? 'Modifier l\'objet boutique' : 'Créer un nouvel objet'}</h3>
+      <h3 class="text-xl font-semibold">{editingItem.id ? m.eco_modal_edit_item() : m.eco_modal_create_item()}</h3>
       
       <div class="space-y-4">
         <div class="grid grid-cols-3 gap-3">
           <div class="col-span-2 space-y-1">
-            <label for="itemName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Nom de l'objet</label>
+            <label for="itemName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_name()}</label>
             <input id="itemName" type="text" bind:value={editingItem.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
           <div class="space-y-1">
-            <label for="itemEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Emoji</label>
+            <label for="itemEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_emoji()}</label>
             <div class="flex gap-2">
               <input id="itemEmoji" type="text" bind:value={editingItem.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
               <EmojiPicker bind:value={editingItem.emoji} />
@@ -814,13 +815,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
 
         <div class="space-y-1">
-          <label for="itemDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Description</label>
+          <label for="itemDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_desc()}</label>
           <textarea id="itemDesc" bind:value={editingItem.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none h-16 resize-none"></textarea>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-1">
-            <label for="itemType" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Type d'objet</label>
+            <label for="itemType" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_type()}</label>
             <select id="itemType" bind:value={editingItem.type} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
               <option value="WEAPON">🗡️ WEAPON (Arme)</option>
               <option value="ARMOR">🦺 ARMOR (Armure)</option>
@@ -829,37 +830,37 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </select>
           </div>
           <div class="space-y-1">
-            <label for="itemPrice" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Prix d'achat ({config.currencyName})</label>
+            <label for="itemPrice" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_item_price({ currency: config.currencyName })}</label>
             <input id="itemPrice" type="number" bind:value={editingItem.price} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
         </div>
 
         <!-- Dynamic inputs depending on item type -->
         <fieldset class="border border-outline-variant/10 p-4 rounded-lg space-y-3">
-          <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">Statistiques & Effets</legend>
+          <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">{m.eco_stats_effects()}</legend>
           {#if editingItem.type === 'WEAPON'}
             <div class="space-y-1">
-              <label for="itemAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Bonus d'Attaque (ATK)</label>
+              <label for="itemAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_atk_bonus()}</label>
               <input id="itemAtk" type="number" bind:value={editingItem.atkBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
             </div>
           {:else if editingItem.type === 'ARMOR'}
             <div class="space-y-1">
-              <label for="itemDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Bonus de Défense (DEF)</label>
+              <label for="itemDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_def_bonus()}</label>
               <input id="itemDef" type="number" bind:value={editingItem.defBonus} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
             </div>
           {:else if editingItem.type === 'POTION'}
             <div class="grid grid-cols-2 gap-3">
               <div class="space-y-1">
-                <label for="itemHp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Soin Points de Vie (HP)</label>
+                <label for="itemHp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_hp_heal()}</label>
                 <input id="itemHp" type="number" bind:value={editingItem.hpRestore} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
               </div>
               <div class="space-y-1">
-                <label for="itemEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Soin Énergie</label>
+                <label for="itemEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_energy_heal()}</label>
                 <input id="itemEnergy" type="number" bind:value={editingItem.energyRestore} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none" />
               </div>
             </div>
           {:else}
-            <p class="text-xs text-on-surface-variant/50 italic text-center py-2">Aucun attribut spécifique requis pour cet objet.</p>
+            <p class="text-xs text-on-surface-variant/50 italic text-center py-2">{m.eco_no_attrs_needed()}</p>
           {/if}
         </fieldset>
       </div>
@@ -870,14 +871,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onclick={() => editingItem = null}
           class="px-5 py-2.5 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-xl text-xs font-bold transition-all"
         >
-          Annuler
+          {m.eco_btn_cancel()}
         </button>
         <button 
           type="button" 
           onclick={handleSaveItem}
           class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
-          Enregistrer
+          {m.eco_btn_save()}
         </button>
       </div>
     </div>
@@ -888,46 +889,46 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if editingPlayer}
   <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
     <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
-      <h3 class="text-xl font-semibold">Modifier le profil joueur — {editingPlayer.displayName || editingPlayer.username}</h3>
+      <h3 class="text-xl font-semibold">{m.eco_modal_edit_player({ name: editingPlayer.displayName || editingPlayer.username })}</h3>
       
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1">
-          <label for="pBalance" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Solde en {config.currencyName}</label>
+          <label for="pBalance" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_balance_currency({ currency: config.currencyName })}</label>
           <input id="pBalance" type="number" bind:value={editingPlayer.balance} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
-          <label for="pLevel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Niveau RPG</label>
+          <label for="pLevel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_rpg_level()}</label>
           <input id="pLevel" type="number" bind:value={editingPlayer.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
-          <label for="pXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Expérience (XP)</label>
+          <label for="pXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_xp()}</label>
           <input id="pXp" type="number" bind:value={editingPlayer.xp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
-          <label for="pHp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Points de Vie (PV)</label>
+          <label for="pHp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_hp()}</label>
           <input id="pHp" type="number" bind:value={editingPlayer.health} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
-          <label for="pEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Énergie (%)</label>
+          <label for="pEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_energy_pct()}</label>
           <input id="pEnergy" type="number" bind:value={editingPlayer.energy} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
-          <label for="pAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Force (ATK)</label>
+          <label for="pAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_atk()}</label>
           <input id="pAtk" type="number" bind:value={editingPlayer.attack} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
-          <label for="pDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Défense (DEF)</label>
+          <label for="pDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_def()}</label>
           <input id="pDef" type="number" bind:value={editingPlayer.defense} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
-          <label for="pSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Vitesse (SPD)</label>
+          <label for="pSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">{m.eco_spd()}</label>
           <input id="pSpd" type="number" bind:value={editingPlayer.speed} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
       </div>
@@ -938,14 +939,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onclick={() => editingPlayer = null}
           class="px-5 py-2.5 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-xl text-xs font-bold transition-all"
         >
-          Annuler
+          {m.eco_btn_cancel()}
         </button>
         <button 
           type="button" 
           onclick={handleSavePlayer}
           class="px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all"
         >
-          Enregistrer
+          {m.eco_btn_save()}
         </button>
       </div>
     </div>
@@ -960,10 +961,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mb-2">
           <Papicon icon="alert-triangle" size={32} />
         </div>
-        <h3 class="text-xl font-semibold text-error">Confirmer la réinitialisation</h3>
+        <h3 class="text-xl font-semibold text-error">{m.eco_reset_modal_title()}</h3>
         <p class="text-xs text-on-surface-variant/80 leading-relaxed text-center">
-          Êtes-vous sûr de vouloir réinitialiser le composant <strong>{resetComponent}</strong> ?
-          Cette opération supprimera définitivement les données associées et est <strong>totalement irréversible</strong> !
+          {m.eco_reset_modal_desc({ component: resetComponent })}
         </p>
       </div>
 
@@ -973,14 +973,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onclick={() => resetComponent = null}
           class="px-5 py-2.5 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-xl text-xs font-bold transition-all"
         >
-          Annuler
+          {m.eco_btn_cancel()}
         </button>
         <button
           type="button"
           onclick={confirmReset}
           class="px-5 py-2.5 bg-error hover:bg-error-hover text-on-error text-[13px] font-medium rounded-lg transition-all"
         >
-          Confirmer la suppression
+          {m.eco_confirm_delete_btn()}
         </button>
       </div>
     </div>
