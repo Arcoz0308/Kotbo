@@ -1,6 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
-  import { m } from '../../i18n';
+  import { m, dateLocale } from '../../i18n';
 
   type HeatmapMetric = 'messages' | 'voice' | 'active' | 'joins' | 'leaves' | 'net';
   type HeatmapCell = { messages: number; voice: number; active: number; joins?: number; leaves?: number; net?: number };
@@ -217,14 +217,14 @@
       <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5">
         <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.d4_hm_period_total()}</p>
         <p class="text-lg font-semibold text-on-surface {metric === 'net' && totalValue < 0 ? 'text-rose-400' : metric === 'net' && totalValue > 0 ? 'text-emerald-400' : ''}">
-          {metric === 'net' && totalValue > 0 ? '+' : ''}{totalValue.toLocaleString('fr-FR')}
+          {metric === 'net' && totalValue > 0 ? '+' : ''}{totalValue.toLocaleString(dateLocale())}
           <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
         </p>
       </div>
       <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5">
         <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.d4_hm_absolute_peak()}</p>
         <p class="text-lg font-semibold text-on-surface">
-          {metric === 'net' && peakCell.val > 0 ? '+' : ''}{peakCell.val.toLocaleString('fr-FR')}
+          {metric === 'net' && peakCell.val > 0 ? '+' : ''}{peakCell.val.toLocaleString(dateLocale())}
           <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
         </p>
       </div>
@@ -299,7 +299,7 @@
                   border border-outline-variant/20 shadow-sm shadow-black/40">
                   <div class="font-semibold text-[11px]">{m.d4_hm_tooltip_range({ day: dayNamesFull[dow], start: String(hour).padStart(2, '0'), end: String(hour + 1).padStart(2, '0') })}</div>
                   <div class="text-primary font-semibold mt-0.5">
-                    {fluxMetricActive ? formatFlux(val) : val.toLocaleString('fr-FR')} {cfg.unit}
+                    {fluxMetricActive ? formatFlux(val) : val.toLocaleString(dateLocale())} {cfg.unit}
                   </div>
                   {#if maxValue > 0}
                     <div class="text-on-surface-variant/40 text-[11px] mt-0.5">{m.d4_hm_pct_of_peak({ pct: Math.round((Math.abs(val) / maxValue) * 100) })}</div>

@@ -6,6 +6,7 @@
   import { fade, slide, fly } from 'svelte/transition';
   import Papicon from '../lib/components/Papicon.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
+  import { m, dateLocale } from '../lib/i18n';
 
   const inboxTabs = ['tous', 'modération', 'recrutement', 'staff', 'système'] as const;
   let currentTab = $state('tous');
@@ -55,18 +56,28 @@
       : notificationsStore.items.filter(n => getCategory(n) === currentTab)
   );
 
+  const tabLabel = (id: string) => {
+    switch (id) {
+      case 'modération': return m.inbox_tab_moderation();
+      case 'recrutement': return m.inbox_tab_recruitment();
+      case 'staff': return m.inbox_tab_staff();
+      case 'système': return m.inbox_tab_system();
+      default: return m.inbox_tab_all();
+    }
+  };
+
   const tabs = [
-    { id: 'tous', label: 'Tous', icon: 'layers' },
-    { id: 'modération', label: 'Modération', icon: 'shield' },
-    { id: 'recrutement', label: 'Recrutement', icon: 'users' },
-    { id: 'staff', label: 'Staff', icon: 'user-check' },
-    { id: 'système', label: 'Système', icon: 'cpu' },
+    { id: 'tous', icon: 'layers' },
+    { id: 'modération', icon: 'shield' },
+    { id: 'recrutement', icon: 'users' },
+    { id: 'staff', icon: 'user-check' },
+    { id: 'système', icon: 'cpu' },
   ];
 </script>
 
 <ModulePage
-  title="Inbox"
-  description="Votre centre de communication centralisé pour toutes les activités du serveur."
+  title={m.nav_inbox()}
+  description={m.inbox_page_desc()}
   icon="inbox"
   featureKey="inbox"
 >
@@ -77,13 +88,13 @@
         class="group flex items-center gap-2 px-4 py-2 bg-primary text-white font-semibold text-sm rounded-lg active:scale-[0.98] transition-all"
       >
         <Papicon icon="check" size={16} />
-        Tout marquer lu
+        {m.inbox_mark_all_read()}
       </button>
     {/if}
     <button
       onclick={() => notificationsStore.fetchNotifications()}
       class="p-2 bg-surface-container-high text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-all border border-outline-variant/30"
-      title="Rafraîchir"
+      title={m.common_refresh()}
     >
       <Papicon icon="refresh-cw" size={18} class={notificationsStore.loading ? 'animate-spin' : ''} />
     </button>
@@ -105,7 +116,7 @@
         {/if}
         <span class="relative z-10 flex items-center gap-2.5">
           <Papicon icon={tab.icon} size={18} />
-          {tab.label}
+          {tabLabel(tab.id)}
           
           {#if tab.id === 'tous' && notificationsStore.unreadCount > 0}
             <span class="px-1.5 py-0.5 bg-white/20 text-white rounded-lg text-[10px] font-semibold">
@@ -130,9 +141,9 @@
         <div class="w-24 h-24 bg-surface-container-high rounded-[32px] flex items-center justify-center mb-8 border border-outline-variant/20 rotate-3">
           <Papicon icon="inbox" size={48} />
         </div>
-        <h2 class="text-2xl font-semibold text-on-surface">Inbox impeccable</h2>
+        <h2 class="text-2xl font-semibold text-on-surface">{m.inbox_empty_title()}</h2>
         <p class="text-sm mt-3 max-w-xs text-center font-medium opacity-60">
-          Aucune notification dans la catégorie <b>{currentTab}</b> pour le moment. Reposez-vous bien !
+          {m.inbox_empty_desc_before()}<b>{tabLabel(currentTab)}</b>{m.inbox_empty_desc_after()}
         </p>
       </div>
     {:else}
@@ -159,7 +170,7 @@
                   {/if}
                 </div>
                 <span class="text-xs font-bold text-on-surface-variant/50 whitespace-nowrap bg-surface-container-high px-3 py-1.5 rounded-full border border-outline-variant/20">
-                  {new Date(notif.createdAt).toLocaleString('fr-FR', {
+                  {new Date(notif.createdAt).toLocaleString(dateLocale(), {
                     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
                   })}
                 </span>
@@ -177,7 +188,7 @@
                       class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-semibold rounded-xl active:scale-[0.98] transition-all shadow-sm"
                     >
                       <Papicon icon="external-link" size={14} />
-                      Consulter
+                      {m.inbox_notification_view()}
                     </a>
                   {/if}
                   
@@ -187,14 +198,14 @@
                       class="inline-flex items-center gap-2 px-5 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold rounded-xl transition-all border border-outline-variant/30"
                     >
                       <Papicon icon="check" size={14} />
-                      Marquer lu
+                      {m.inbox_notification_mark_read()}
                     </button>
                   {/if}
                 </div>
 
                 <div class="hidden sm:flex items-center gap-2 text-xs font-medium text-on-surface-variant/30">
                   <span class="w-1.5 h-1.5 rounded-full bg-current opacity-30"></span>
-                  {getCategory(notif)}
+                  {tabLabel(getCategory(notif))}
                 </div>
               </div>
             </div>

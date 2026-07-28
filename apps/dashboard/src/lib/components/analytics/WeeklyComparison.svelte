@@ -2,6 +2,7 @@
   import Papicon from '../Papicon.svelte';
   import { fetchWeeklyComparison } from '../../api';
   import { authStore } from '../../stores/auth.svelte';
+  import { m, dateLocale } from '../../i18n';
 
   const { data: initialData = null } = $props() as { data?: { thisWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }; lastWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }; changes: { messagesChange: number; voiceChange: number; joinsChange: number; leavesChange: number; sanctionsChange: number } } | null };
 
@@ -15,21 +16,15 @@
   });
   let loading = $state(false);
 
-  const weekOptions = [
-    { label: 'Semaine dernière', offset: 1 },
-    { label: 'Il y a 2 semaines', offset: 2 },
-    { label: 'Il y a 3 semaines', offset: 3 },
-    { label: 'Il y a 4 semaines', offset: 4 },
-    { label: 'Il y a 5 semaines', offset: 5 },
-  ];
+  const weekOptions = $derived([1, 2, 3, 4, 5].map(offset => ({
+    offset,
+    label: offset === 1 ? m.an_wk_last_week() : m.an_wk_weeks_ago({ n: offset })
+  })));
 
-  const monthOptions = [
-    { label: 'Mois dernier', offset: 1 },
-    { label: 'Il y a 2 mois', offset: 2 },
-    { label: 'Il y a 3 mois', offset: 3 },
-    { label: 'Il y a 4 mois', offset: 4 },
-    { label: 'Il y a 5 mois', offset: 5 },
-  ];
+  const monthOptions = $derived([1, 2, 3, 4, 5].map(offset => ({
+    offset,
+    label: offset === 1 ? m.an_wk_last_month() : m.an_wk_months_ago({ n: offset })
+  })));
 
   async function loadComparison() {
     loading = true;
@@ -67,20 +62,20 @@
   };
 
   const metrics = $derived([
-    { label: 'Messages', key: 'messages', icon: 'ChatCircleDots', color: '#6366f1', accentLight: '#6366f115', change: data?.changes?.messagesChange ?? 0 },
-    { label: 'Temps vocal', key: 'voiceMinutes', icon: 'Microphone', color: '#ec4899', accentLight: '#ec489915', suffix: 'min', change: data?.changes?.voiceChange ?? 0 },
-    { label: 'Arrivées', key: 'joins', icon: 'LogIn', color: '#10b981', accentLight: '#10b98115', change: data?.changes?.joinsChange ?? 0 },
-    { label: 'Départs', key: 'leaves', icon: 'LogOut', color: '#f97316', accentLight: '#f9731615', change: data?.changes?.leavesChange ?? 0 },
-    { label: 'Sanctions', key: 'sanctions', icon: 'Hammer', color: '#ef4444', accentLight: '#ef444415', change: data?.changes?.sanctionsChange ?? 0 },
+    { label: m.an_wk_metric_messages(), key: 'messages', icon: 'ChatCircleDots', color: '#6366f1', accentLight: '#6366f115', change: data?.changes?.messagesChange ?? 0 },
+    { label: m.an_wk_metric_voice(), key: 'voiceMinutes', icon: 'Microphone', color: '#ec4899', accentLight: '#ec489915', suffix: m.an_unit_min(), change: data?.changes?.voiceChange ?? 0 },
+    { label: m.an_wk_metric_joins(), key: 'joins', icon: 'LogIn', color: '#10b981', accentLight: '#10b98115', change: data?.changes?.joinsChange ?? 0 },
+    { label: m.an_wk_metric_leaves(), key: 'leaves', icon: 'LogOut', color: '#f97316', accentLight: '#f9731615', change: data?.changes?.leavesChange ?? 0 },
+    { label: m.an_wk_metric_sanctions(), key: 'sanctions', icon: 'Hammer', color: '#ef4444', accentLight: '#ef444415', change: data?.changes?.sanctionsChange ?? 0 },
   ]);
 
   const currentPeriodLabel = $derived(
-    selectedMode === 'week' ? 'Cette semaine' : 'Ce mois'
+    selectedMode === 'week' ? m.an_wk_this_week() : m.an_wk_this_month()
   );
   const previousPeriodLabel = $derived(
     selectedMode === 'week'
-      ? weekOptions.find(w => w.offset === selectedOffset)?.label ?? 'Semaine passée'
-      : monthOptions.find(m => m.offset === selectedOffset)?.label ?? 'Mois passé'
+      ? weekOptions.find(w => w.offset === selectedOffset)?.label ?? m.an_wk_last_week()
+      : monthOptions.find(o => o.offset === selectedOffset)?.label ?? m.an_wk_last_month()
   );
   const currentOptions = $derived(selectedMode === 'week' ? weekOptions : monthOptions);
 </script>
@@ -93,8 +88,8 @@
         <Papicon icon="calendar" size={28} />
       </div>
       <div>
-        <h3 class="text-2xl font-semibold text-on-surface tracking-tight">Comparaison de Périodes</h3>
-        <p class="text-sm font-bold text-on-surface-variant/50">Comparez l'activité sur plusieurs semaines ou mois</p>
+        <h3 class="text-2xl font-semibold text-on-surface tracking-tight">{m.an_wk_title()}</h3>
+        <p class="text-sm font-bold text-on-surface-variant/50">{m.an_wk_subtitle()}</p>
       </div>
     </div>
 
@@ -107,14 +102,14 @@
           class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300 {selectedMode === 'week' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface'}"
         >
           <Papicon icon="CalendarBlank" size={12} />
-          Semaine
+          {m.an_wk_mode_week()}
         </button>
         <button
           onclick={() => setMode('month')}
           class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300 {selectedMode === 'month' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface'}"
         >
           <Papicon icon="CalendarDots" size={12} />
-          Mois
+          {m.an_wk_mode_month()}
         </button>
       </div>
 
@@ -125,7 +120,7 @@
             onclick={() => setOffset(opt.offset)}
             class="px-3 py-1.5 rounded-xl text-[11px] font-semibold uppercase tracking-widest transition-all duration-200 border {selectedOffset === opt.offset ? 'bg-primary/10 text-primary border-primary/30 shadow-inner' : 'text-on-surface-variant/50 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
           >
-            {selectedMode === 'week' ? `S-${opt.offset}` : `M-${opt.offset}`}
+            {selectedMode === 'week' ? m.an_wk_offset_week({ n: opt.offset }) : m.an_wk_offset_month({ n: opt.offset })}
           </button>
         {/each}
       </div>
@@ -146,7 +141,7 @@
     {#if loading}
       <div class="flex items-center gap-2 text-[10px] font-bold text-on-surface-variant/40">
         <div class="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-        Chargement...
+        {m.common_loading()}
       </div>
     {/if}
   </div>
@@ -185,7 +180,7 @@
               <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-widest">
                 <span class="text-primary/80">{currentPeriodLabel}</span>
                 <span class="text-on-surface font-semibold text-sm">
-                  {thisVal.toLocaleString('fr-FR')}
+                  {thisVal.toLocaleString(dateLocale())}
                   {#if metric.suffix}<span class="text-[10px] text-on-surface-variant/40 ml-0.5">{metric.suffix}</span>{/if}
                 </span>
               </div>
@@ -199,7 +194,7 @@
               <div class="flex items-center justify-between text-[11px] font-semibold uppercase tracking-widest">
                 <span class="text-on-surface-variant/40">{previousPeriodLabel}</span>
                 <span class="text-on-surface-variant/60 text-sm font-bold">
-                  {lastVal.toLocaleString('fr-FR')}
+                  {lastVal.toLocaleString(dateLocale())}
                   {#if metric.suffix}<span class="text-[10px] ml-0.5 opacity-50">{metric.suffix}</span>{/if}
                 </span>
               </div>
@@ -211,9 +206,9 @@
 
           <!-- Delta absolute -->
           <div class="relative pt-4 border-t border-outline-variant/10 flex items-center justify-between">
-            <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">Variation absolue</span>
+            <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">{m.an_wk_absolute_change()}</span>
             <span class="text-xs font-semibold {pct >= 0 ? 'text-emerald-400' : 'text-red-400'}">
-              {thisVal - lastVal >= 0 ? '+' : ''}{(thisVal - lastVal).toLocaleString('fr-FR')}
+              {thisVal - lastVal >= 0 ? '+' : ''}{(thisVal - lastVal).toLocaleString(dateLocale())}
               {#if metric.suffix}<span class="opacity-60 ml-0.5">{metric.suffix}</span>{/if}
             </span>
           </div>
@@ -225,21 +220,21 @@
         <div class="space-y-4">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-medium">
             <Papicon icon="TrendingUp" size={12} />
-            Analyse
+            {m.an_wk_analysis()}
           </div>
           <h4 class="text-2xl font-semibold text-on-surface leading-tight">
-            Progression<br/>de la communauté
+            {m.an_wk_progress_title()}
           </h4>
           <p class="text-sm font-medium text-on-surface-variant/60 leading-relaxed">
             {selectedMode === 'week'
-              ? `Comparez cette semaine avec ${previousPeriodLabel.toLowerCase()}.`
-              : `Comparez ce mois avec ${previousPeriodLabel.toLowerCase()}.`}
-            Une progression positive indique une communauté engagée.
+              ? m.an_wk_compare_week({ previous: previousPeriodLabel.toLowerCase() })
+              : m.an_wk_compare_month({ previous: previousPeriodLabel.toLowerCase() })}
+            {m.an_wk_progress_hint()}
           </p>
           {#if data.thisWeek.joins + data.thisWeek.leaves > 0}
             <div class="pt-4 border-t border-primary/10">
               <div class="flex items-center justify-between text-xs font-bold text-primary">
-                <span>Rétention estimée</span>
+                <span>{m.an_wk_estimated_retention()}</span>
                 <span>{Math.round(100 - (data.thisWeek.leaves / (data.thisWeek.joins || 1) * 100))}%</span>
               </div>
               <div class="mt-2 h-1.5 bg-primary/10 rounded-full overflow-hidden">

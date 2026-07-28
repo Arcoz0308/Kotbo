@@ -2,6 +2,7 @@
   import Papicon from '../Papicon.svelte';
   import { inviteDetailsModal } from '../../stores/inviteDetailsModal.svelte';
   import Chart from '../charts/Chart.svelte';
+  import { m, dateLocale } from '../../i18n';
 
   const { invitesData } = $props<{ 
     invitesData: any;
@@ -65,27 +66,27 @@
           <Papicon icon="MailOpen" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-semibold text-on-surface">Codes d'Invitation</h3>
-          <p class="text-xs font-bold text-on-surface-variant/40">Analyse complète des invites</p>
+          <h3 class="text-xl font-semibold text-on-surface">{m.an_inv_codes_title()}</h3>
+          <p class="text-xs font-bold text-on-surface-variant/40">{m.an_inv_codes_subtitle()}</p>
         </div>
       </div>
     </div>
 
     <div class="grid grid-cols-4 gap-4">
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Total Codes</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.an_inv_total_codes()}</p>
         <p class="text-lg font-semibold text-purple-500">{invites.length}</p>
       </div>
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Codes Actifs</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.an_inv_active_codes()}</p>
         <p class="text-lg font-semibold text-cyan-500">{activeInvites}</p>
       </div>
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Utilisations Totales</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.an_inv_total_uses()}</p>
         <p class="text-lg font-semibold text-emerald-500">{totalUses}</p>
       </div>
       <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Moy. par Code</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">{m.an_inv_avg_per_code()}</p>
         <p class="text-lg font-semibold text-orange-500">{averageUses}</p>
       </div>
     </div>
@@ -99,8 +100,8 @@
           <Papicon icon="Fire" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-semibold text-on-surface">Codes Populaires</h3>
-          <p class="text-xs font-bold text-on-surface-variant/40">Codes avec le plus d'utilisations</p>
+          <h3 class="text-xl font-semibold text-on-surface">{m.an_inv_popular_title()}</h3>
+          <p class="text-xs font-bold text-on-surface-variant/40">{m.an_inv_popular_subtitle()}</p>
         </div>
       </div>
       <button 
@@ -108,7 +109,7 @@
         class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors flex items-center gap-2"
       >
         <Papicon icon={showAllInvites ? 'ArrowsIn' : 'ArrowsOut'} size={18} />
-        {showAllInvites ? 'Réduire' : 'Voir plus'}
+        {showAllInvites ? m.an_inv_collapse() : m.an_inv_see_more()}
       </button>
     </div>
 
@@ -125,18 +126,21 @@
                       event.stopPropagation();
                       inviteDetailsModal.show(invite.code);
                     }}
-                    title="Ouvrir la vue Invitations"
+                    title={m.an_inv_open_view()}
                   >
                     {invite.code}
                   </button>
                   {#if invite.uses > 0}
                     <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[11px] font-semibold">
-                      {invite.uses} utilisations
+                      {m.an_inv_uses_badge({ count: invite.uses })}
                     </span>
                   {/if}
                 </div>
                 <p class="text-xs text-on-surface-variant/60">
-                  Créé par: {invite.createdBy || 'Inconnu'} • Expire: {invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString('fr-FR') : 'Jamais'}
+                  {m.an_inv_created_expires({
+                    author: invite.createdBy || m.an_inv_unknown_author(),
+                    expiry: invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString(dateLocale()) : m.an_inv_never()
+                  })}
                 </p>
               </div>
               <div class="flex items-center gap-4">
@@ -145,7 +149,7 @@
                 </div>
                 <div class="text-right">
                   <p class="text-2xl font-semibold text-emerald-500">{invite.uses || 0}</p>
-                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">utilisations</p>
+                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_inv_uses_label()}</p>
                 </div>
               </div>
             </div>
@@ -157,7 +161,7 @@
     {#if invites.length === 0}
       <div class="text-center py-10">
         <Papicon icon="MailOpen" size={40} class="text-on-surface-variant/20 mx-auto mb-3" />
-        <p class="text-on-surface-variant/60 font-bold text-sm">Aucun code d'invitation</p>
+        <p class="text-on-surface-variant/60 font-bold text-sm">{m.an_inv_empty()}</p>
       </div>
     {/if}
   </div>
@@ -170,8 +174,8 @@
           <Papicon icon="Warning" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-semibold text-on-surface">Codes Inactifs</h3>
-          <p class="text-xs font-bold text-on-surface-variant/40">{invites.filter((inv: any) => !inv.uses).length} codes non utilisés</p>
+          <h3 class="text-xl font-semibold text-on-surface">{m.an_inv_inactive_title()}</h3>
+          <p class="text-xs font-bold text-on-surface-variant/40">{m.an_inv_inactive_subtitle({ count: invites.filter((inv: any) => !inv.uses).length })}</p>
         </div>
       </div>
 
@@ -179,7 +183,7 @@
         {#each invites.filter((inv: any) => !inv.uses) as invite}
           <div class="p-3 rounded-xl bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between">
             <code class="text-xs font-bold text-on-surface-variant/60">{invite.code}</code>
-            <span class="text-[11px] text-on-surface-variant/40">Créé: {new Date(invite.createdAt).toLocaleDateString('fr-FR')}</span>
+            <span class="text-[11px] text-on-surface-variant/40">{m.an_inv_created_on({ date: new Date(invite.createdAt).toLocaleDateString(dateLocale()) })}</span>
           </div>
         {/each}
       </div>
@@ -194,34 +198,34 @@
         onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (inviteModalOpen = false, selectedInvite = null)}
         role="button"
         tabindex="-1"
-        aria-label="Fermer le modal"
+        aria-label={m.an_inv_close_modal()}
       ></div>
 
       <div class="relative w-full max-w-xl modal-panel modal-panel-lg">
         <div class="p-6 border-b border-outline-variant/30 flex items-center justify-between">
           <div>
-            <h3 class="text-2xl font-semibold">Détails du code: {selectedInvite.code}</h3>
-            <p class="text-sm text-on-surface-variant">Créé par: {selectedInvite.createdBy || 'Inconnu'}</p>
+            <h3 class="text-2xl font-semibold">{m.an_inv_modal_title({ code: selectedInvite.code })}</h3>
+            <p class="text-sm text-on-surface-variant">{m.an_inv_modal_author({ author: selectedInvite.createdBy || m.an_inv_unknown_author() })}</p>
           </div>
-          <button onclick={() => { inviteModalOpen = false; selectedInvite = null }} class="px-3 py-2 rounded-xl text-sm font-bold">Fermer</button>
+          <button onclick={() => { inviteModalOpen = false; selectedInvite = null }} class="px-3 py-2 rounded-xl text-sm font-bold">{m.common_close()}</button>
         </div>
 
         <div class="p-6 space-y-6">
           <div class="w-full h-64">
-            <Chart data={{ labels: (selectedInvite.trend?.labels ?? []).map((d: string) => { const parts = d.split('-'); return `${parts[2]}/${parts[1]}/${parts[0]}` }), datasets: [{ label: 'Arrivées', data: selectedInvite.trend?.counts ?? [], borderColor: 'var(--color-emerald-500)', backgroundColor: 'transparent', tension: 0.3 }] }} options={{ plugins: { tooltip: { enabled: true } }, scales: { x: { ticks: { color: 'var(--on-surface)' } }, y: { ticks: { color: 'var(--on-surface)' } } } }} height={240} />
+            <Chart data={{ labels: (selectedInvite.trend?.labels ?? []).map((d: string) => { const parts = d.split('-'); return `${parts[2]}/${parts[1]}/${parts[0]}` }), datasets: [{ label: m.an_inv_modal_joins_series(), data: selectedInvite.trend?.counts ?? [], borderColor: 'var(--color-emerald-500)', backgroundColor: 'transparent', tension: 0.3 }] }} options={{ plugins: { tooltip: { enabled: true } }, scales: { x: { ticks: { color: 'var(--on-surface)' } }, y: { ticks: { color: 'var(--on-surface)' } } } }} height={240} />
           </div>
 
           <div class="grid grid-cols-3 gap-4">
             <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-semibold">Total arrivées</p>
+              <p class="text-xs text-on-surface-variant uppercase font-semibold">{m.an_inv_modal_total_joins()}</p>
               <p class="text-2xl font-semibold text-emerald-500">{selectedInvite.trend?.totalJoined ?? 0}</p>
             </div>
             <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-semibold">Utilisations</p>
+              <p class="text-xs text-on-surface-variant uppercase font-semibold">{m.an_inv_modal_uses()}</p>
               <p class="text-2xl font-semibold text-primary">{selectedInvite.uses ?? 0}</p>
             </div>
             <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-semibold">Max utilisations</p>
+              <p class="text-xs text-on-surface-variant uppercase font-semibold">{m.an_inv_modal_max_uses()}</p>
               <p class="text-2xl font-semibold text-cyan-500">{selectedInvite.maxUses ?? '∞'}</p>
             </div>
           </div>
