@@ -142,20 +142,20 @@
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
     <div>
       <h2 class="text-lg font-semibold text-on-surface tracking-tight">Codes d'activation</h2>
-      <p class="text-sm text-on-surface-variant/50 font-medium">Gestion des jetons d'activation pour les serveurs</p>
+      <p class="text-sm text-on-surface-variant/50 font-medium">Accordez un accès permanent ou une période limitée à un serveur</p>
     </div>
   </div>
 
   {#if loading}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div class="premium-card rounded-[2.25rem] p-8 space-y-6 h-full">
-        <div class="animate-pulse space-y-4">
-          <div class="h-20 bg-surface/40 rounded-lg"></div>
-          <div class="h-20 bg-surface/40 rounded-lg"></div>
-          <div class="h-12 bg-surface/40 rounded-xl"></div>
+    <div class="space-y-8">
+      <div class="premium-card rounded-[2.25rem] p-8">
+        <div class="animate-pulse flex flex-wrap items-end gap-5">
+          <div class="h-12 w-72 bg-surface/40 rounded-xl"></div>
+          <div class="h-12 flex-1 min-w-[220px] bg-surface/40 rounded-xl"></div>
+          <div class="h-12 w-44 bg-surface/40 rounded-xl"></div>
         </div>
       </div>
-      <div class="lg:col-span-2 premium-card rounded-[2.25rem] overflow-hidden">
+      <div class="premium-card rounded-[2.25rem] overflow-hidden">
         <div class="animate-pulse space-y-4 p-8">
           <div class="h-12 bg-surface/40 rounded-xl"></div>
           <div class="h-12 bg-surface/40 rounded-xl"></div>
@@ -170,104 +170,103 @@
       <p class="text-on-error-container/70 mt-2">{error}</p>
     </div>
   {:else}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
-      <!-- Generation Sidebar -->
-      <div class="lg:col-span-1 space-y-6">
-        <h2 class="text-xl font-semibold font-headline flex items-center gap-3 px-2">
-          <Papicon icon="Lock" size={24} class="text-indigo-400" />
-          Générateur
-        </h2>
-        
-        <div class="premium-card rounded-[2.25rem] p-8 space-y-6 flex flex-col justify-between">
-          <div class="space-y-5">
-            <p class="text-sm text-on-surface-variant leading-relaxed">
-              Générez un nouveau code d'activation aléatoire unique. Ce code pourra être utilisé par les administrateurs de serveurs Discord pour activer le bot et débloquer leur accès au tableau de bord.
-            </p>
-
-            <!-- Type d'accès accordé par le code -->
-            <div class="space-y-2">
-              <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">Type d'accès</span>
-              <div class="grid grid-cols-3 gap-2">
-                {#each [{ v: 'PERMANENT', l: 'Permanent' }, { v: 'TRIAL', l: 'Essai' }, { v: 'SUBSCRIPTION', l: 'Abonnement' }] as option}
-                  <button
-                    type="button"
-                    onclick={() => (grantType = option.v as typeof grantType)}
-                    class="py-2.5 rounded-xl text-xs font-semibold border transition-all {grantType === option.v
-                      ? 'bg-primary text-on-primary border-primary'
-                      : 'bg-surface-container-high text-on-surface-variant border-outline-variant/30 hover:border-outline-variant/60'}"
-                  >
-                    {option.l}
-                  </button>
-                {/each}
-              </div>
+    <div class="space-y-8 animate-in fade-in">
+      <!-- Générateur : barre d'action pleine largeur, les champs ont enfin la
+           place de tenir sur une ligne au lieu de s'empiler dans une colonne. -->
+      <div class="premium-card rounded-[2.25rem] p-8 space-y-5">
+        <div class="flex flex-wrap items-end gap-5">
+          <!-- Type d'accès accordé par le code -->
+          <div class="space-y-2">
+            <span class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+              Type d'accès
+            </span>
+            <div role="group" aria-label="Type d'accès" class="inline-flex rounded-xl border border-outline-variant/30 bg-surface-container-high p-1 gap-1">
+              {#each [{ v: 'PERMANENT', l: 'Permanent' }, { v: 'TRIAL', l: 'Essai' }, { v: 'SUBSCRIPTION', l: 'Abonnement' }] as option}
+                <button
+                  type="button"
+                  aria-pressed={grantType === option.v}
+                  onclick={() => (grantType = option.v as typeof grantType)}
+                  class="px-4 py-2 rounded-lg text-xs font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 {grantType === option.v
+                    ? 'bg-primary text-on-primary'
+                    : 'text-on-surface-variant hover:text-on-surface'}"
+                >
+                  {option.l}
+                </button>
+              {/each}
             </div>
+          </div>
 
-            {#if grantType !== 'PERMANENT'}
-              <div class="space-y-2 animate-in fade-in">
-                <label for="grant-days" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
-                  Durée (jours)
-                </label>
-                <div class="flex gap-2">
+          {#if grantType !== 'PERMANENT'}
+            <div class="space-y-2 animate-in fade-in">
+              <label for="grant-days" class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+                Durée
+              </label>
+              <div class="flex items-center gap-2">
+                <div class="relative">
                   <input
                     id="grant-days"
                     type="number"
                     min="1"
                     max="3650"
                     bind:value={grantDays}
-                    class="flex-1 px-4 py-3 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
+                    class="w-24 pl-4 pr-9 py-2.5 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
                   />
-                  {#each [7, 15, 30] as preset}
-                    <button
-                      type="button"
-                      onclick={() => (grantDays = preset)}
-                      class="px-3 rounded-xl text-xs font-semibold bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:border-primary transition-all"
-                    >
-                      {preset}j
-                    </button>
-                  {/each}
+                  <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant/40 pointer-events-none">j</span>
                 </div>
-                <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">
-                  Le serveur reçoit un embed à l'activation, des rappels à mi-parcours puis à J-3 et J-1, et se
-                  désactive automatiquement à l'échéance.
-                </p>
+                {#each [7, 15, 30] as preset}
+                  <button
+                    type="button"
+                    onclick={() => (grantDays = preset)}
+                    class="px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 {grantDays === preset
+                      ? 'bg-primary/10 border-primary/40 text-primary'
+                      : 'bg-surface-container-high border-outline-variant/30 text-on-surface-variant hover:border-outline-variant/60'}"
+                  >
+                    {preset}j
+                  </button>
+                {/each}
               </div>
-            {/if}
-
-            <div class="space-y-2">
-              <label for="grant-label" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
-                Note interne (optionnel)
-              </label>
-              <input
-                id="grant-label"
-                type="text"
-                placeholder="Nom du client, contexte…"
-                bind:value={grantLabel}
-                class="w-full px-4 py-3 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
-              />
             </div>
+          {/if}
 
-            <div class="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 font-bold flex items-start gap-3">
-              <Papicon icon="AlertTriangle" size={18} class="shrink-0 mt-0.5" />
-              <span>Chaque code ne peut être utilisé que pour un seul serveur Discord à la fois.</span>
-            </div>
+          <div class="space-y-2 flex-1 min-w-[220px]">
+            <label for="grant-label" class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+              Note interne <span class="normal-case tracking-normal text-on-surface-variant/40">(optionnel)</span>
+            </label>
+            <input
+              id="grant-label"
+              type="text"
+              placeholder="Nom du client, contexte…"
+              bind:value={grantLabel}
+              class="w-full px-4 py-2.5 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+            />
           </div>
 
           <button
             onclick={handleGenerateCode}
             disabled={generating}
-            class="w-full py-4 rounded-xl bg-primary text-on-primary font-medium text-[13px] transition-all hover: active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+            class="shrink-0 px-6 py-2.5 rounded-xl bg-primary text-on-primary font-medium text-[13px] transition-all active:scale-95 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 flex items-center gap-2.5"
           >
             <Papicon icon="Unlock" size={16} />
             {generating ? 'Génération…' : 'Générer un code'}
           </button>
         </div>
+
+        <!-- Une seule ligne d'aide, qui décrit ce que le code choisi va réellement faire. -->
+        <p class="text-xs text-on-surface-variant/50 leading-relaxed border-t border-outline-variant/20 pt-4">
+          {#if grantType === 'PERMANENT'}
+            Accès sans expiration. Un code ne vaut que pour un seul serveur à la fois.
+          {:else}
+            Le serveur reçoit un embed à l'activation, des rappels à mi-parcours puis à J-3 et J-1, et se désactive
+            automatiquement à l'échéance. Un code ne vaut que pour un seul serveur à la fois.
+          {/if}
+        </p>
       </div>
 
       <!-- Codes List Table -->
-      <div class="lg:col-span-2 space-y-6">
+      <div class="space-y-6">
         <h2 class="text-xl font-semibold font-headline flex items-center gap-3 px-2">
           <Papicon icon="activity" size={24} class="text-purple-400" />
-          Jetons d'activation ({activationCodes.length})
+          Codes générés ({activationCodes.length})
         </h2>
 
         <div class="premium-card rounded-[2.25rem] overflow-hidden">
@@ -275,17 +274,16 @@
             <table class="w-full text-left border-collapse border-spacing-0">
               <thead class="bg-on-surface/5 text-on-surface-variant/40 text-xs font-medium">
                 <tr>
-                  <th class="px-8 py-5">Code d'activation</th>
-                  <th class="px-8 py-5">Accès</th>
-                  <th class="px-8 py-5">Statut</th>
-                  <th class="px-8 py-5">Utilisé par</th>
-                  <th class="px-8 py-5 text-right">Actions</th>
+                  <th class="px-6 py-5">Code d'activation</th>
+                  <th class="px-6 py-5">Accès</th>
+                  <th class="px-6 py-5">Serveur</th>
+                  <th class="px-6 py-5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/10">
                 {#each activationCodes as item}
                   <tr class="hover:bg-on-surface/5 transition-colors group">
-                    <td class="px-8 py-5">
+                    <td class="px-6 py-5">
                       <span class="font-mono text-sm font-semibold text-on-surface bg-surface-container-high px-3 py-1.5 rounded-lg border border-outline-variant/20 tracking-wider">
                         {item.code}
                       </span>
@@ -293,7 +291,7 @@
                         <p class="text-[11px] text-on-surface-variant/50 mt-1.5">{item.label}</p>
                       {/if}
                     </td>
-                    <td class="px-8 py-5">
+                    <td class="px-6 py-5">
                       {#if item.accessType === 'PERMANENT'}
                         <span class="text-xs text-on-surface-variant/60 font-medium">{accessLabel(item)}</span>
                       {:else}
@@ -312,32 +310,38 @@
                         {/if}
                       {/if}
                     </td>
-                    <td class="px-8 py-5">
-                      {#if item.isActive}
+                    <!-- Le serveur porte à lui seul le statut du code : un code
+                         rattaché à un serveur est utilisé, un code libre est
+                         disponible. Deux colonnes disaient la même chose. -->
+                    <td class="px-6 py-5 text-sm">
+                      {#if item.usedByGuildId}
+                        <div class="flex items-center gap-2">
+                          <p class="font-semibold text-on-surface">{item.guildName || 'Serveur inconnu'}</p>
+                          {#if item.guildActivated === false}
+                            <!-- Un essai révoqué à la main garde son code sans poser
+                                 d'échéance : sans ce marqueur, la colonne Accès
+                                 afficherait un décompte pour un serveur déjà coupé. -->
+                            <span class="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-error/10 text-error border border-error/20">
+                              Coupé
+                            </span>
+                          {/if}
+                        </div>
+                        <p class="text-[10px] text-on-surface-variant/40 font-mono tracking-tighter mt-0.5">{item.usedByGuildId}</p>
+                      {:else if item.isActive}
                         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-success/10 text-success border border-success/20">
                           <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
                           Disponible
                         </span>
                       {:else}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                          Utilisé
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-on-surface/5 text-on-surface-variant/60 border border-outline-variant/30">
+                          <span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant/40"></span>
+                          Désactivé
                         </span>
                       {/if}
                     </td>
-                    <td class="px-8 py-5 text-sm">
-                      {#if item.usedByGuildId}
-                        <div>
-                          <p class="font-bold text-on-surface">{item.guildName || 'Serveur Actif'}</p>
-                          <p class="text-[10px] text-on-surface-variant/40 font-mono tracking-tighter mt-0.5">{item.usedByGuildId}</p>
-                        </div>
-                      {:else}
-                        <span class="text-xs text-on-surface-variant/40 italic">Aucun serveur</span>
-                      {/if}
-                    </td>
-                    <td class="px-8 py-5 text-right">
-                        <button 
-                        class="w-10 h-10 inline-flex items-center justify-center hover:bg-error/10 rounded-xl text-on-surface-variant hover:text-error transition-all group-"
+                    <td class="px-6 py-5 text-right">
+                      <button
+                        class="w-10 h-10 inline-flex items-center justify-center hover:bg-error/10 rounded-xl text-on-surface-variant hover:text-error transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-error/50"
                         onclick={() => handleDeleteCode(item.id, item.code, item.guildName)}
                         title={item.usedByGuildId ? "Révoquer et désactiver le serveur" : "Supprimer ce code"}
                       >
@@ -348,8 +352,8 @@
                 {/each}
                 {#if activationCodes.length === 0}
                   <tr>
-                    <td colspan="5" class="px-8 py-10 text-center text-on-surface-variant/40 italic text-sm">
-                      Aucun code d'activation généré pour le moment.
+                    <td colspan="4" class="px-6 py-12 text-center text-sm text-on-surface-variant/50">
+                      Aucun code pour le moment. Générez-en un ci-dessus pour activer un serveur.
                     </td>
                   </tr>
                 {/if}
