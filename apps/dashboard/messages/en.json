@@ -4947,8 +4947,14 @@
   "fb_preview_title": "Form preview",
   "fb_back_to_edit": "Back to editing",
   "fb_submit": "Submit",
-  "fb_select_placeholder": "Select..."
+  "fb_select_placeholder": "Select...",
+  "ev_no_description": "No description.",
+  "ev_count_challenges": "{count} challenges",
+  "ev_count_questions": "{count} questions",
+  "ev_count_registrations": "{count} registered",
+  "ev_count_participants": "{count} participants"
 }
+
 
 
 

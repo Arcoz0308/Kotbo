@@ -303,24 +303,24 @@
                     {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
                 </div>
-                <p class="text-on-surface-variant/60 mt-1 line-clamp-1">{event.description || 'Aucune description.'}</p>
+                <p class="text-on-surface-variant/60 mt-1 line-clamp-1">{event.description || m.ev_no_description()}</p>
                 <div class="flex items-center gap-4 mt-3">
                   {#if event.type === 'CTF'}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                      <Papicon icon="Flag" size={12} /> {event._count?.ctfChallenges || 0} défis
+                      <Papicon icon="Flag" size={12} /> {m.ev_count_challenges({ count: event._count?.ctfChallenges || 0 })}
                     </span>
                   {:else if event.type === 'QUIZ'}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                      <Papicon icon="HelpCircle" size={12} /> {event._count?.questions || 0} questions
+                      <Papicon icon="HelpCircle" size={12} /> {m.ev_count_questions({ count: event._count?.questions || 0 })}
                     </span>
                   {/if}
                   {#if event.type === 'CUSTOM'}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                      <Papicon icon="UserPlus" size={12} /> {event._count?.registrations || 0} inscrits
+                      <Papicon icon="UserPlus" size={12} /> {m.ev_count_registrations({ count: event._count?.registrations || 0 })}
                     </span>
                   {:else}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                      <Papicon icon="Users" size={12} /> {event._count?.participants || 0} participants
+                      <Papicon icon="Users" size={12} /> {m.ev_count_participants({ count: event._count?.participants || 0 })}
                     </span>
                   {/if}
                 </div>
