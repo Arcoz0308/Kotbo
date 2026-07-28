@@ -5153,8 +5153,34 @@
   "que_tpl_philanthropist_name": "Philanthrope",
   "que_tpl_philanthropist_desc": "Donnez 5 +rep cette semaine",
   "que_tpl_creator_name": "Créateur",
-  "que_tpl_creator_desc": "Créez 3 threads cette semaine"
+  "que_tpl_creator_desc": "Créez 3 threads cette semaine",
+  "mar_page_title": "Marché",
+  "que_load_error": "Erreur lors du chargement",
+  "mar_page_desc": "Hôtel des ventes — échanges entre joueurs.",
+  "mar_status_active": "En vente",
+  "mar_status_sold": "Vendu",
+  "mar_status_cancelled": "Annulé",
+  "mar_status_expired": "Expiré",
+  "mar_type_auction": "Enchère",
+  "mar_type_buy_now": "Prix fixe",
+  "mar_expired": "Expiré",
+  "mar_days_left": "{days}j restants",
+  "mar_hours_left": "{hours}h restantes",
+  "mar_loading": "Chargement...",
+  "mar_active_listings_stat": "Annonces actives",
+  "mar_total_tx_stat": "Transactions totales",
+  "mar_total_volume_stat": "Volume total (coins)",
+  "mar_tab_listings": "Annonces ({count})",
+  "mar_tab_history": "Historique ({count})",
+  "mar_empty_listings_title": "Aucune annonce active",
+  "mar_empty_listings_desc": "Les joueurs peuvent créer des annonces via la commande /market.",
+  "mar_price_coins": "{price} coins",
+  "mar_current_bid": "Enchère actuelle : {amount} coins",
+  "mar_empty_history_title": "Aucune transaction récente",
+  "mar_empty_history_desc": "L'historique des ventes apparaîtra ici.",
+  "mar_load_error": "Erreur lors du chargement"
 }
+
 
 
 

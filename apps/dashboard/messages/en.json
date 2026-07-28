@@ -5153,8 +5153,33 @@
   "que_tpl_philanthropist_name": "Philanthropist",
   "que_tpl_philanthropist_desc": "Give 5 +rep this week",
   "que_tpl_creator_name": "Creator",
-  "que_tpl_creator_desc": "Create 3 threads this week"
+  "que_tpl_creator_desc": "Create 3 threads this week",
+  "mar_page_title": "Marketplace",
+  "mar_page_desc": "Auction house — trades between players.",
+  "mar_status_active": "For sale",
+  "mar_status_sold": "Sold",
+  "mar_status_cancelled": "Cancelled",
+  "mar_status_expired": "Expired",
+  "mar_type_auction": "Auction",
+  "mar_type_buy_now": "Fixed price",
+  "mar_expired": "Expired",
+  "mar_days_left": "{days}d remaining",
+  "mar_hours_left": "{hours}h remaining",
+  "mar_loading": "Loading...",
+  "mar_active_listings_stat": "Active listings",
+  "mar_total_tx_stat": "Total transactions",
+  "mar_total_volume_stat": "Total volume (coins)",
+  "mar_tab_listings": "Listings ({count})",
+  "mar_tab_history": "History ({count})",
+  "mar_empty_listings_title": "No active listings",
+  "mar_empty_listings_desc": "Players can create listings using the /market command.",
+  "mar_price_coins": "{price} coins",
+  "mar_current_bid": "Current bid: {amount} coins",
+  "mar_empty_history_title": "No recent transactions",
+  "mar_empty_history_desc": "Sales history will appear here.",
+  "mar_load_error": "Error loading data"
 }
+
 
 
 
