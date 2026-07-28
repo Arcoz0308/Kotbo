@@ -5703,5 +5703,10 @@
   "triggers_modal_filter_banned_channels": "Banned channels",
   "triggers_modal_bot_variables_hint": "Usable variables: {user} (mention), {username} (username), {server} (server name), {channel} (channel)",
   "triggers_modal_total_weight_warning": "Total appearance rate should ideally equal 100% (currently {weight}%).",
-  "triggers_modal_form_dm_warning": "A form has no origin channel: message will be sent in DM."
+  "triggers_modal_form_dm_warning": "A form has no origin channel: message will be sent in DM.",
+  "triggers_modal_act_chan_name_ph": "channel-name",
+  "triggers_modal_act_parent_cat_ph": "— None —",
+  "triggers_modal_act_select_chan_ph": "— Select a channel —",
+  "triggers_modal_act_role_name_ph": "New Role",
+  "triggers_modal_act_select_role_ph": "— Select a role —"
 }

@@ -1476,7 +1476,7 @@
                       id="create-chan-name"
                       type="text" 
                       bind:value={formActionCreateChannelName} 
-                      placeholder="nom-du-salon"
+                      placeholder={m.triggers_modal_act_chan_name_ph()}
                       class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                       disabled={!canManageSettings}
                       required
@@ -1501,7 +1501,7 @@
                       id="create-chan-cat"
                       bind:value={formActionCreateChannelCategoryId}
                       options={availableChannels.filter(c => c.type === 4 || c.type === 'category').map(c => ({ id: c.id, name: c.name }))}
-                      placeholder="— Aucune —"
+                      placeholder={m.triggers_modal_act_parent_cat_ph()}
                       className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                       disabled={!canManageSettings}
                     />
@@ -1533,7 +1533,7 @@
                     id="delete-chan-select"
                     bind:value={formActionDeleteChannelId}
                     options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-                    placeholder="— Sélectionner un salon —"
+                    placeholder={m.triggers_modal_act_select_chan_ph()}
                     className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                     disabled={!canManageSettings}
                   />
@@ -1565,7 +1565,7 @@
                       id="create-role-name"
                       type="text" 
                       bind:value={formActionCreateRoleName} 
-                      placeholder="Nouveau Rôle"
+                      placeholder={m.triggers_modal_act_role_name_ph()}
                       class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                       disabled={!canManageSettings}
                       required
@@ -1618,7 +1618,7 @@
                     id="delete-role-select"
                     bind:value={formActionDeleteRoleId}
                     options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                    placeholder="— Sélectionner un rôle —"
+                    placeholder={m.triggers_modal_act_select_role_ph()}
                     className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                     disabled={!canManageSettings}
                   />
