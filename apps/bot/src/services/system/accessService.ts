@@ -32,21 +32,22 @@ import * as m from '../../lib/paraglide/messages.js';
 
 export type AccessType = 'PERMANENT' | 'TRIAL' | 'SUBSCRIPTION';
 
-const MS_PER_DAY = 86_400_000;
+const MS_PER_MINUTE = 60_000;
 
 /** Colonnes d'accès d'une guilde, telles que manipulées par ce service. */
 export interface AccessFields {
   accessType: AccessType;
   accessExpiresAt: Date | null;
   accessExpiredAt: Date | null;
+  accessDurationMinutes: number | null;
   accessRemindersSent: number[];
 }
 
 export interface AccessStatus extends AccessFields {
   guildId: string;
   activated: boolean;
-  /** Jours restants arrondis au supérieur ; null si l'accès n'expire pas. */
-  daysLeft: number | null;
+  /** Minutes restantes arrondies au supérieur ; null si l'accès n'expire pas. */
+  minutesLeft: number | null;
   /** true si la date de fin est dépassée (que l'expiration ait été traitée ou non). */
   expired: boolean;
 }
@@ -55,27 +56,43 @@ export interface AccessStatus extends AccessFields {
 // Calculs purs (testables sans base ni client Discord)
 // ─────────────────────────────────────────────────────────────
 
-/** Date de fin d'un accès de `durationDays` jours démarré à `from`. */
-export function computeExpiry(durationDays: number, from: Date = new Date()): Date {
-  return new Date(from.getTime() + durationDays * MS_PER_DAY);
+export const MINUTES_PER_HOUR = 60;
+export const MINUTES_PER_DAY = 1440;
+
+/** Date de fin d'un accès de `durationMinutes` minutes démarré à `from`. */
+export function computeExpiry(durationMinutes: number, from: Date = new Date()): Date {
+  return new Date(from.getTime() + durationMinutes * MS_PER_MINUTE);
 }
 
-/** Jours restants avant `expiresAt`, arrondis au supérieur (0 si déjà dépassé). */
-export function daysUntil(expiresAt: Date, now: Date = new Date()): number {
-  return Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / MS_PER_DAY));
+/** Minutes restantes avant `expiresAt`, arrondies au supérieur (0 si dépassé). */
+export function minutesUntil(expiresAt: Date, now: Date = new Date()): number {
+  return Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / MS_PER_MINUTE));
 }
 
 /**
- * Paliers de rappel (exprimés en jours restants) pour une période de
- * `durationDays` jours : mi-parcours, J-3 et J-1.
- *
- * Les paliers hors de la période sont écartés, ce qui rend la cadence
- * auto-adaptative : 15 jours → [7, 3, 1], 7 jours → [3, 1], 2 jours → [1],
- * 1 jour → aucun rappel (seul le message de fin est envoyé).
+ * Palier de mi-parcours, arrondi à une unité lisible : on préfère annoncer
+ * « 7 jours » que « 7 jours 12 heures ». L'arrondi suit l'échelle de la période
+ * — au jour pour une période de plusieurs jours, à l'heure pour plusieurs
+ * heures, à la minute en dessous.
  */
-export function reminderMilestones(durationDays: number): number[] {
-  const candidates = [Math.floor(durationDays / 2), 3, 1];
-  const kept = candidates.filter((d) => d >= 1 && d < durationDays);
+function halfwayMilestone(durationMinutes: number): number {
+  const half = Math.floor(durationMinutes / 2);
+  if (durationMinutes >= 2 * MINUTES_PER_DAY) return Math.floor(half / MINUTES_PER_DAY) * MINUTES_PER_DAY;
+  if (durationMinutes >= 2 * MINUTES_PER_HOUR) return Math.floor(half / MINUTES_PER_HOUR) * MINUTES_PER_HOUR;
+  return half;
+}
+
+/**
+ * Paliers de rappel (exprimés en minutes restantes) : mi-parcours, J-3 et J-1.
+ *
+ * Les paliers qui ne tiennent pas dans la période sont écartés, ce qui rend la
+ * cadence auto-adaptative quelle que soit l'échelle : 15 jours → 7j / 3j / 1j,
+ * 7 jours → 3j / 1j, 30 minutes → 15 min. Une période d'une minute ne déclenche
+ * aucun rappel, seul le message de fin est envoyé.
+ */
+export function reminderMilestones(durationMinutes: number): number[] {
+  const candidates = [halfwayMilestone(durationMinutes), 3 * MINUTES_PER_DAY, MINUTES_PER_DAY];
+  const kept = candidates.filter((ms) => ms >= 1 && ms < durationMinutes);
   return [...new Set(kept)].sort((a, b) => b - a);
 }
 
@@ -83,24 +100,49 @@ export function reminderMilestones(durationDays: number): number[] {
  * Palier de rappel à envoyer maintenant, et paliers à marquer comme traités.
  *
  * On retient le **plus petit** palier non envoyé encore atteignable : si le bot
- * a été hors ligne plusieurs jours, on n'envoie pas un « plus que 7 jours »
- * alors qu'il n'en reste que 2 — on envoie le bon message et on classe les
- * paliers dépassés comme déjà traités.
+ * a été hors ligne un moment, on n'envoie pas un « plus que 7 jours » alors
+ * qu'il n'en reste que 2 — on envoie le bon message et on classe les paliers
+ * dépassés comme déjà traités.
  */
 export function dueReminder(
-  daysLeft: number,
+  minutesLeft: number,
   milestones: number[],
   alreadySent: number[],
 ): { milestone: number | null; sent: number[] } {
-  const reached = milestones.filter((ms) => ms >= daysLeft);
+  const reached = milestones.filter((ms) => ms >= minutesLeft);
   const pending = reached.filter((ms) => !alreadySent.includes(ms));
   const milestone = pending.length > 0 ? Math.min(...pending) : null;
   const sent = [...new Set([...alreadySent, ...reached])].sort((a, b) => b - a);
   return { milestone, sent };
 }
 
+/**
+ * Rend une durée en minutes lisible : « 15 jours », « 2 heures », « 30 minutes »,
+ * et compose deux unités quand le reste est significatif (« 1 jour 12 heures »).
+ */
+export function formatDuration(minutes: number, locale: 'fr' | 'en' = 'fr'): string {
+  const units =
+    locale === 'en'
+      ? { day: ['day', 'days'], hour: ['hour', 'hours'], minute: ['minute', 'minutes'] }
+      : { day: ['jour', 'jours'], hour: ['heure', 'heures'], minute: ['minute', 'minutes'] };
+
+  const plural = (value: number, [one, many]: string[]) => `${value} ${value > 1 ? many : one}`;
+
+  if (minutes < MINUTES_PER_HOUR) return plural(Math.max(1, minutes), units.minute);
+
+  if (minutes < MINUTES_PER_DAY) {
+    const hours = Math.floor(minutes / MINUTES_PER_HOUR);
+    const rest = minutes % MINUTES_PER_HOUR;
+    return rest === 0 ? plural(hours, units.hour) : `${plural(hours, units.hour)} ${plural(rest, units.minute)}`;
+  }
+
+  const days = Math.floor(minutes / MINUTES_PER_DAY);
+  const restHours = Math.floor((minutes % MINUTES_PER_DAY) / MINUTES_PER_HOUR);
+  return restHours === 0 ? plural(days, units.day) : `${plural(days, units.day)} ${plural(restHours, units.hour)}`;
+}
+
 /** Garde-fou : au-delà, mieux vaut un accès permanent qu'une date absurde. */
-export const MAX_ACCESS_DURATION_DAYS = 3650;
+export const MAX_ACCESS_DURATION_MINUTES = 3650 * MINUTES_PER_DAY;
 
 /**
  * Valide une demande d'accès venue de l'extérieur (API admin, futur webhook de
@@ -108,21 +150,23 @@ export const MAX_ACCESS_DURATION_DAYS = 3650;
  */
 export function normalizeAccessGrant(
   rawType: unknown,
-  rawDays: unknown,
-): { accessType: AccessType; durationDays: number | null } | { error: string } {
+  rawMinutes: unknown,
+): { accessType: AccessType; durationMinutes: number | null } | { error: string } {
   const type = typeof rawType === 'string' ? rawType.toUpperCase() : 'PERMANENT';
 
-  if (type === 'PERMANENT') return { accessType: 'PERMANENT', durationDays: null };
+  if (type === 'PERMANENT') return { accessType: 'PERMANENT', durationMinutes: null };
   if (type !== 'TRIAL' && type !== 'SUBSCRIPTION') {
     return { error: "Type d'accès invalide (PERMANENT, TRIAL ou SUBSCRIPTION attendu)." };
   }
 
-  const days = typeof rawDays === 'number' ? rawDays : Number(rawDays);
-  if (!Number.isInteger(days) || days < 1 || days > MAX_ACCESS_DURATION_DAYS) {
-    return { error: `La durée doit être un nombre entier de jours entre 1 et ${MAX_ACCESS_DURATION_DAYS}.` };
+  const minutes = typeof rawMinutes === 'number' ? rawMinutes : Number(rawMinutes);
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_ACCESS_DURATION_MINUTES) {
+    return {
+      error: `La durée doit être un nombre entier de minutes entre 1 et ${MAX_ACCESS_DURATION_MINUTES}.`,
+    };
   }
 
-  return { accessType: type, durationDays: days };
+  return { accessType: type, durationMinutes: minutes };
 }
 
 /**
@@ -131,22 +175,24 @@ export function normalizeAccessGrant(
  */
 export function buildAccessFields(
   type: AccessType,
-  durationDays: number | null | undefined,
+  durationMinutes: number | null | undefined,
   from: Date = new Date(),
 ): AccessFields {
-  if (type === 'PERMANENT' || !durationDays || durationDays <= 0) {
+  if (type === 'PERMANENT' || !durationMinutes || durationMinutes <= 0) {
     return {
       accessType: 'PERMANENT',
       accessExpiresAt: null,
       accessExpiredAt: null,
+      accessDurationMinutes: null,
       accessRemindersSent: [],
     };
   }
 
   return {
     accessType: type,
-    accessExpiresAt: computeExpiry(durationDays, from),
+    accessExpiresAt: computeExpiry(durationMinutes, from),
     accessExpiredAt: null,
+    accessDurationMinutes: durationMinutes,
     accessRemindersSent: [],
   };
 }
@@ -160,6 +206,7 @@ function toStatus(guildId: string, row: {
   accessType: string;
   accessExpiresAt: Date | null;
   accessExpiredAt: Date | null;
+  accessDurationMinutes: number | null;
   accessRemindersSent: number[];
 }, now: Date = new Date()): AccessStatus {
   return {
@@ -168,8 +215,9 @@ function toStatus(guildId: string, row: {
     accessType: row.accessType as AccessType,
     accessExpiresAt: row.accessExpiresAt,
     accessExpiredAt: row.accessExpiredAt,
+    accessDurationMinutes: row.accessDurationMinutes,
     accessRemindersSent: row.accessRemindersSent,
-    daysLeft: row.accessExpiresAt ? daysUntil(row.accessExpiresAt, now) : null,
+    minutesLeft: row.accessExpiresAt ? minutesUntil(row.accessExpiresAt, now) : null,
     expired: row.accessExpiresAt ? row.accessExpiresAt.getTime() <= now.getTime() : false,
   };
 }
@@ -183,6 +231,7 @@ export async function getAccessStatus(guildId: string): Promise<AccessStatus | n
       accessType: true,
       accessExpiresAt: true,
       accessExpiredAt: true,
+      accessDurationMinutes: true,
       accessRemindersSent: true,
     },
   });
@@ -194,14 +243,15 @@ export async function getAccessStatus(guildId: string): Promise<AccessStatus | n
  * Accorde (ou remplace) l'accès d'un serveur déjà activé.
  *
  * Point d'entrée pour les couches externes : un module de paiement appelle
- * `grantAccess(guildId, { type: 'SUBSCRIPTION', durationDays: 30 })` et tout le
- * cycle de vie (rappels, expiration, embeds) suit sans code supplémentaire.
+ * `grantAccess(guildId, { type: 'SUBSCRIPTION', durationMinutes: 30 * 1440 })`
+ * et tout le cycle de vie (rappels, expiration, embeds) suit sans code
+ * supplémentaire.
  */
 export async function grantAccess(
   guildId: string,
-  options: { type: AccessType; durationDays?: number | null; from?: Date },
+  options: { type: AccessType; durationMinutes?: number | null; from?: Date },
 ): Promise<AccessStatus> {
-  const fields = buildAccessFields(options.type, options.durationDays, options.from);
+  const fields = buildAccessFields(options.type, options.durationMinutes, options.from);
 
   const row = await prisma.guild.update({
     where: { id: guildId },
@@ -211,6 +261,7 @@ export async function grantAccess(
       accessType: true,
       accessExpiresAt: true,
       accessExpiredAt: true,
+      accessDurationMinutes: true,
       accessRemindersSent: true,
     },
   });
@@ -225,19 +276,22 @@ export async function grantAccess(
 }
 
 /**
- * Prolonge l'accès de `days` jours. La prolongation part de la date de fin
- * existante si elle est encore dans le futur (on ne perd pas les jours restants),
+ * Prolonge l'accès de `minutes` minutes. La prolongation part de la date de fin
+ * existante si elle est encore dans le futur (on ne perd pas le temps restant),
  * sinon de maintenant. Les rappels déjà envoyés sont remis à zéro pour que la
  * nouvelle période notifie à nouveau.
+ *
+ * La durée de référence des paliers devient celle de la nouvelle période, du
+ * report éventuel compris : c'est bien elle que le serveur va vivre.
  *
  * Un accès PERMANENT n'est jamais dégradé : on le laisse tel quel.
  */
 export async function extendAccess(
   guildId: string,
-  days: number,
+  minutes: number,
   options: { type?: AccessType } = {},
 ): Promise<AccessStatus | null> {
-  if (days <= 0) throw new Error('La durée de prolongation doit être positive.');
+  if (minutes <= 0) throw new Error('La durée de prolongation doit être positive.');
 
   const current = await getAccessStatus(guildId);
   if (!current) return null;
@@ -248,13 +302,15 @@ export async function extendAccess(
     current.accessExpiresAt && current.accessExpiresAt.getTime() > now.getTime()
       ? current.accessExpiresAt
       : now;
+  const expiresAt = computeExpiry(minutes, base);
 
   const row = await prisma.guild.update({
     where: { id: guildId },
     data: {
       accessType: options.type ?? current.accessType,
-      accessExpiresAt: computeExpiry(days, base),
+      accessExpiresAt: expiresAt,
       accessExpiredAt: null,
+      accessDurationMinutes: minutesUntil(expiresAt, now),
       accessRemindersSent: [],
     },
     select: {
@@ -262,11 +318,15 @@ export async function extendAccess(
       accessType: true,
       accessExpiresAt: true,
       accessExpiredAt: true,
+      accessDurationMinutes: true,
       accessRemindersSent: true,
     },
   });
 
-  logger.info('Access', `Accès de ${guildId} prolongé de ${days} jour(s) → ${row.accessExpiresAt?.toISOString()}.`);
+  logger.info(
+    'Access',
+    `Accès de ${guildId} prolongé de ${formatDuration(minutes)} → ${row.accessExpiresAt?.toISOString()}.`,
+  );
   return toStatus(guildId, row);
 }
 
@@ -359,13 +419,18 @@ function discordDate(date: Date, style: 'F' | 'R' = 'F'): string {
   return `<t:${Math.floor(date.getTime() / 1000)}:${style}>`;
 }
 
-async function trialStartedContent(guildId: string, expiresAt: Date, days: number): Promise<NoticeContent> {
+async function trialStartedContent(
+  guildId: string,
+  expiresAt: Date,
+  durationMinutes: number,
+): Promise<NoticeContent> {
   const locale = await resolveGuildLocale(guildId);
+  const duration = formatDuration(durationMinutes, locale);
   return {
     color: COLORS_RAW.success,
-    title: `${E.fire} ${m.access_trial_started_title({ days: String(days) }, { locale })}`,
+    title: `${E.fire} ${m.access_trial_started_title({ duration }, { locale })}`,
     body: m.access_trial_started_desc(
-      { days: String(days), date: discordDate(expiresAt), relative: discordDate(expiresAt, 'R') },
+      { duration, date: discordDate(expiresAt), relative: discordDate(expiresAt, 'R') },
       { locale },
     ),
     footer: m.access_notice_footer({}, { locale }),
@@ -376,16 +441,17 @@ async function reminderContent(
   guildId: string,
   type: AccessType,
   expiresAt: Date,
-  daysLeft: number,
+  minutesLeft: number,
 ): Promise<NoticeContent> {
   const locale = await resolveGuildLocale(guildId);
-  const args = { days: String(daysLeft), date: discordDate(expiresAt), relative: discordDate(expiresAt, 'R') };
+  const remaining = formatDuration(minutesLeft, locale);
+  const args = { remaining, date: discordDate(expiresAt), relative: discordDate(expiresAt, 'R') };
   return {
     color: COLORS_RAW.warning,
     title: `${E.clock} ${
       type === 'SUBSCRIPTION'
-        ? m.access_sub_reminder_title({ days: String(daysLeft) }, { locale })
-        : m.access_trial_reminder_title({ days: String(daysLeft) }, { locale })
+        ? m.access_sub_reminder_title({ remaining }, { locale })
+        : m.access_trial_reminder_title({ remaining }, { locale })
     }`,
     body:
       type === 'SUBSCRIPTION'
@@ -420,12 +486,12 @@ export async function announceTrialStart(
   client: Client,
   guildId: string,
   expiresAt: Date,
-  durationDays: number,
+  durationMinutes: number,
 ): Promise<void> {
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
-  const content = await trialStartedContent(guildId, expiresAt, durationDays);
+  const content = await trialStartedContent(guildId, expiresAt, durationMinutes);
   await publishNotice(guild, content);
 }
 
@@ -462,17 +528,17 @@ export async function expireAccess(client: Client, guildId: string): Promise<voi
   await dmOwner(guild, content);
 }
 
-async function processReminder(
-  client: Client,
-  guildId: string,
-  status: AccessStatus,
-  durationDays: number,
-): Promise<void> {
-  if (!status.accessExpiresAt || status.daysLeft === null) return;
+async function processReminder(client: Client, guildId: string, status: AccessStatus): Promise<void> {
+  if (!status.accessExpiresAt || status.minutesLeft === null) return;
+
+  // Sans durée de référence (accès posé avant l'introduction de la colonne), on
+  // se rabat sur le temps restant : les paliers restent cohérents, seul le
+  // premier rappel peut manquer.
+  const durationMinutes = status.accessDurationMinutes ?? Math.max(status.minutesLeft, 1);
 
   const { milestone, sent } = dueReminder(
-    status.daysLeft,
-    reminderMilestones(durationDays),
+    status.minutesLeft,
+    reminderMilestones(durationMinutes),
     status.accessRemindersSent,
   );
 
@@ -487,28 +553,16 @@ async function processReminder(
 
   const content = await reminderContent(guildId, status.accessType, status.accessExpiresAt, milestone);
   await publishNotice(guild, content);
-  logger.info('Access', `Rappel J-${milestone} envoyé à ${guildId}.`);
+  logger.info('Access', `Rappel « ${formatDuration(milestone)} restantes » envoyé à ${guildId}.`);
 }
 
 /**
- * Durée initiale d'une période, reconstituée depuis le code d'activation
- * consommé. Sert à choisir les paliers de rappel adaptés à la période réelle.
- */
-async function resolveDurationDays(guildId: string, status: AccessStatus): Promise<number> {
-  const code = await prisma.activationCode.findFirst({
-    where: { usedByGuildId: guildId },
-    select: { durationDays: true },
-  });
-  if (code?.durationDays && code.durationDays > 0) return code.durationDays;
-
-  // Accès accordé hors code (geste commercial, paiement) : on déduit une durée
-  // plausible du temps restant pour garder des paliers cohérents.
-  return Math.max(status.daysLeft ?? 1, 1);
-}
-
-/**
- * Balayage quotidien : envoie les rappels dus et coupe les accès arrivés à
+ * Balayage du cycle de vie : envoie les rappels dus et coupe les accès arrivés à
  * échéance. Idempotent — un double passage ne renvoie rien deux fois.
+ *
+ * Tourne à la minute : c'est la granularité de la durée d'accès, et la requête
+ * ne remonte que les serveurs ayant une échéance en cours (index partiel sur
+ * `accessExpiresAt`).
  */
 export async function runAccessLifecycleCheck(client: Client): Promise<void> {
   const now = new Date();
@@ -526,6 +580,7 @@ export async function runAccessLifecycleCheck(client: Client): Promise<void> {
       accessType: true,
       accessExpiresAt: true,
       accessExpiredAt: true,
+      accessDurationMinutes: true,
       accessRemindersSent: true,
     },
   });
@@ -541,8 +596,7 @@ export async function runAccessLifecycleCheck(client: Client): Promise<void> {
         continue;
       }
 
-      const durationDays = await resolveDurationDays(row.id, status);
-      await processReminder(client, row.id, status, durationDays);
+      await processReminder(client, row.id, status);
     } catch (err) {
       logger.error('Access', `Erreur de traitement du cycle de vie pour ${row.id}:`, err);
     }

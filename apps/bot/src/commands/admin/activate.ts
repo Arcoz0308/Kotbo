@@ -87,18 +87,19 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     // Accès à durée limitée : on annonce la période dans le salon public et on
     // détaille l'échéance dans la réponse à l'admin.
-    if (access.expiresAt && access.durationDays) {
-      const { announceTrialStart } = await import('../../services/system/accessService.js');
-      await announceTrialStart(interaction.client, guildId, access.expiresAt, access.durationDays).catch((err) =>
+    if (access.expiresAt && access.durationMinutes) {
+      const { announceTrialStart, formatDuration } = await import('../../services/system/accessService.js');
+      await announceTrialStart(interaction.client, guildId, access.expiresAt, access.durationMinutes).catch((err) =>
         console.error('Failed to announce trial start:', err)
       );
 
+      const duration = formatDuration(access.durationMinutes, locale);
       const expiresTs = Math.floor(access.expiresAt.getTime() / 1000);
       return interaction.editReply(v2Message(
         successContainer(
-          `${E.fire} ${m.c1_activate_trial_success_title({ days: String(access.durationDays) }, { locale })}`,
+          `${E.fire} ${m.c1_activate_trial_success_title({ duration }, { locale })}`,
           m.c1_activate_trial_success_desc(
-            { days: String(access.durationDays), date: `<t:${expiresTs}:F>`, relative: `<t:${expiresTs}:R>` },
+            { duration, date: `<t:${expiresTs}:F>`, relative: `<t:${expiresTs}:R>` },
             { locale },
           ),
         )

@@ -45,7 +45,7 @@ export function isGuildActivated(guildId: string): boolean {
  */
 export interface ActivationResult {
   accessType: AccessType;
-  durationDays: number | null;
+  durationMinutes: number | null;
   expiresAt: Date | null;
 }
 
@@ -59,7 +59,7 @@ export interface ActivationResult {
 export async function activateGuild(guildId: string, code: string): Promise<ActivationResult> {
   const normalizedCode = code.trim().toUpperCase();
   const activatedAt = new Date();
-  let result: ActivationResult = { accessType: 'PERMANENT', durationDays: null, expiresAt: null };
+  let result: ActivationResult = { accessType: 'PERMANENT', durationMinutes: null, expiresAt: null };
 
   await prisma.$transaction(async (tx) => {
     const activationCode = await tx.activationCode.findUnique({
@@ -72,12 +72,12 @@ export async function activateGuild(guildId: string, code: string): Promise<Acti
 
     const accessFields = buildAccessFields(
       (activationCode.accessType as AccessType) ?? 'PERMANENT',
-      activationCode.durationDays,
+      activationCode.durationMinutes,
       activatedAt,
     );
     result = {
       accessType: accessFields.accessType,
-      durationDays: accessFields.accessExpiresAt ? activationCode.durationDays : null,
+      durationMinutes: accessFields.accessExpiresAt ? activationCode.durationMinutes : null,
       expiresAt: accessFields.accessExpiresAt,
     };
 

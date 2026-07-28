@@ -6,7 +6,7 @@ import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
-import { announceTrialStart, extendAccess, normalizeAccessGrant, MAX_ACCESS_DURATION_DAYS } from '../../services/system/accessService.js';
+import { announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1204,9 +1204,9 @@ export async function handleAdminRoutes(
       // Corps optionnel : sans lui, on retombe sur un code permanent — le
       // comportement historique de cet endpoint.
       const body = isJsonRequest(req)
-        ? await readJsonBody<{ accessType?: string; durationDays?: number | null; label?: string | null }>(req)
+        ? await readJsonBody<{ accessType?: string; durationMinutes?: number | null; label?: string | null }>(req)
         : null;
-      const access = normalizeAccessGrant(body?.accessType, body?.durationDays);
+      const access = normalizeAccessGrant(body?.accessType, body?.durationMinutes);
       if ('error' in access) {
         json(res, 400, { error: access.error });
         return true;
@@ -1220,7 +1220,7 @@ export async function handleAdminRoutes(
           createdById: user.userId,
           isActive: true,
           accessType: access.accessType,
-          durationDays: access.durationDays,
+          durationMinutes: access.durationMinutes,
           label: body?.label?.trim() || null,
         }
       });
@@ -1311,9 +1311,9 @@ export async function handleAdminRoutes(
     try {
       // Corps optionnel : sans lui, l'activation reste permanente comme avant.
       const body = isJsonRequest(req)
-        ? await readJsonBody<{ accessType?: string; durationDays?: number | null }>(req)
+        ? await readJsonBody<{ accessType?: string; durationMinutes?: number | null }>(req)
         : null;
-      const access = normalizeAccessGrant(body?.accessType, body?.durationDays);
+      const access = normalizeAccessGrant(body?.accessType, body?.durationMinutes);
       if ('error' in access) {
         json(res, 400, { error: access.error });
         return true;
@@ -1327,14 +1327,14 @@ export async function handleAdminRoutes(
           createdById: user.userId,
           isActive: true,
           accessType: access.accessType,
-          durationDays: access.durationDays,
+          durationMinutes: access.durationMinutes,
         }
       });
 
       const result = await activateGuild(guildId, code);
 
-      if (result.expiresAt && result.durationDays) {
-        await announceTrialStart(client, guildId, result.expiresAt, result.durationDays).catch((err) =>
+      if (result.expiresAt && result.durationMinutes) {
+        await announceTrialStart(client, guildId, result.expiresAt, result.durationMinutes).catch((err) =>
           logger.warn('AdminAPI', `Impossible d'annoncer le démarrage de l'essai sur ${guildId} :`, err),
         );
       }
@@ -1345,7 +1345,7 @@ export async function handleAdminRoutes(
         accessType: result.accessType,
         accessExpiresAt: result.expiresAt,
         message: result.expiresAt
-          ? `Le serveur a été activé pour ${result.durationDays} jour(s).`
+          ? `Le serveur a été activé pour ${formatDuration(result.durationMinutes!)}.`
           : 'Le serveur a été activé automatiquement.',
       });
     } catch (err) {
@@ -1359,20 +1359,20 @@ export async function handleAdminRoutes(
   if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'access' && parts[5] === 'extend' && method === 'POST') {
     const guildId = parts[3];
     try {
-      const body = await readJsonBody<{ days?: number; accessType?: string }>(req);
-      const days = typeof body?.days === 'number' ? body.days : Number(body?.days);
-      if (!Number.isInteger(days) || days < 1 || days > MAX_ACCESS_DURATION_DAYS) {
-        json(res, 400, { error: `La durée doit être un nombre entier de jours entre 1 et ${MAX_ACCESS_DURATION_DAYS}.` });
+      const body = await readJsonBody<{ minutes?: number; accessType?: string }>(req);
+      const minutes = typeof body?.minutes === 'number' ? body.minutes : Number(body?.minutes);
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_ACCESS_DURATION_MINUTES) {
+        json(res, 400, { error: `La durée doit être un nombre entier de minutes entre 1 et ${MAX_ACCESS_DURATION_MINUTES}.` });
         return true;
       }
 
-      const type = body?.accessType ? normalizeAccessGrant(body.accessType, days) : null;
+      const type = body?.accessType ? normalizeAccessGrant(body.accessType, minutes) : null;
       if (type && 'error' in type) {
         json(res, 400, { error: type.error });
         return true;
       }
 
-      const status = await extendAccess(guildId, days, type ? { type: type.accessType } : {});
+      const status = await extendAccess(guildId, minutes, type ? { type: type.accessType } : {});
       if (!status) {
         json(res, 404, { error: "Ce serveur n'est pas enregistré." });
         return true;
@@ -1382,9 +1382,9 @@ export async function handleAdminRoutes(
         ok: true,
         accessType: status.accessType,
         accessExpiresAt: status.accessExpiresAt,
-        daysLeft: status.daysLeft,
+        minutesLeft: status.minutesLeft,
         message: status.accessExpiresAt
-          ? `Accès prolongé jusqu'au ${status.accessExpiresAt.toLocaleDateString('fr-FR')}.`
+          ? `Accès prolongé jusqu'au ${status.accessExpiresAt.toLocaleString('fr-FR')}.`
           : 'Ce serveur dispose déjà d\'un accès permanent.',
       });
     } catch (err) {

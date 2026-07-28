@@ -502,14 +502,16 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 5000);
   });
 
-  // 🔑 Accès à durée limitée: rappels et expiration des essais/abonnements,
-  // tous les jours à 10h (heure ouvrable : le message a des chances d'être lu).
-  cron.schedule('0 10 * * *', async () => {
+  // 🔑 Accès à durée limitée: rappels et expiration des essais/abonnements.
+  // Toutes les minutes, car c'est la granularité d'une durée d'accès : un essai
+  // court doit se couper à l'heure dite. La requête est filtrée par index partiel
+  // et ne remonte que les serveurs ayant une échéance en cours.
+  cron.schedule('* * * * *', async () => {
     await runCronJob('access-lifecycle', async () => {
       const { runAccessLifecycleCheck } = await import('../services/system/accessService.js');
       await runAccessLifecycleCheck(client);
-    }, 3000);
-  }, { timezone: 'Europe/Paris' });
+    }, 1000);
+  });
 
   // 📊 Stats: Ping all instances every 6 hours
   cron.schedule('0 */6 * * *', async () => {

@@ -13,7 +13,7 @@
     usedByGuildId: string | null;
     guildName: string | null;
     accessType: 'PERMANENT' | 'TRIAL' | 'SUBSCRIPTION';
-    durationDays: number | null;
+    durationMinutes: number | null;
     label: string | null;
     guildActivated: boolean | null;
     accessExpiresAt: string | null;
@@ -24,26 +24,60 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  // Formulaire de génération : accès permanent ou période limitée.
+  // Formulaire de génération : accès permanent ou période limitée. La durée est
+  // saisie dans l'unité qui arrange, puis convertie en minutes — l'unité que
+  // l'API et la base manipulent.
+  const UNITS = { minute: 1, hour: 60, day: 1440 } as const;
+  type Unit = keyof typeof UNITS;
+
   let grantType = $state<'PERMANENT' | 'TRIAL' | 'SUBSCRIPTION'>('PERMANENT');
-  let grantDays = $state(15);
+  let grantAmount = $state(15);
+  let grantUnit = $state<Unit>('day');
   let grantLabel = $state('');
   let generating = $state(false);
 
-  const MS_PER_DAY = 86_400_000;
+  const MS_PER_MINUTE = 60_000;
 
-  function daysLeft(expiresAt: string): number {
-    return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / MS_PER_DAY));
+  const grantMinutes = $derived(Math.round(grantAmount * UNITS[grantUnit]));
+
+  /** Raccourcis proposés selon l'unité choisie. */
+  const presets = $derived(
+    grantUnit === 'minute' ? [15, 30, 60] : grantUnit === 'hour' ? [1, 6, 24] : [7, 15, 30],
+  );
+
+  function minutesLeft(expiresAt: string): number {
+    return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / MS_PER_MINUTE));
+  }
+
+  /** Même rendu que le bot côté Discord : « 15 jours », « 2 heures », « 30 minutes ». */
+  function formatDuration(minutes: number): string {
+    const plural = (v: number, word: string) => `${v} ${word}${v > 1 ? 's' : ''}`;
+    if (minutes < 60) return plural(Math.max(1, minutes), 'minute');
+    if (minutes < 1440) {
+      const h = Math.floor(minutes / 60);
+      const rest = minutes % 60;
+      return rest === 0 ? plural(h, 'heure') : `${plural(h, 'heure')} ${plural(rest, 'minute')}`;
+    }
+    const d = Math.floor(minutes / 1440);
+    const restH = Math.floor((minutes % 1440) / 60);
+    return restH === 0 ? plural(d, 'jour') : `${plural(d, 'jour')} ${plural(restH, 'heure')}`;
   }
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(iso).toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   /** Libellé court du type d'accès porté par un code. */
   function accessLabel(item: ActivationCode): string {
-    if (item.accessType === 'TRIAL') return `Essai ${item.durationDays} j`;
-    if (item.accessType === 'SUBSCRIPTION') return `Abonnement ${item.durationDays} j`;
+    const duration = item.durationMinutes ? formatDuration(item.durationMinutes) : '';
+    if (item.accessType === 'TRIAL') return `Essai ${duration}`;
+    if (item.accessType === 'SUBSCRIPTION') return `Abonnement ${duration}`;
     return 'Permanent';
   }
 
@@ -66,8 +100,8 @@
   });
 
   async function handleGenerateCode() {
-    if (grantType !== 'PERMANENT' && (!Number.isInteger(grantDays) || grantDays < 1)) {
-      toast.error('Indiquez une durée valide (nombre entier de jours).');
+    if (grantType !== 'PERMANENT' && (!Number.isInteger(grantMinutes) || grantMinutes < 1)) {
+      toast.error('Indiquez une durée valide.');
       return;
     }
 
@@ -75,13 +109,13 @@
     try {
       const newCode = await createActivationCode({
         accessType: grantType,
-        durationDays: grantType === 'PERMANENT' ? null : grantDays,
+        durationMinutes: grantType === 'PERMANENT' ? null : grantMinutes,
         label: grantLabel.trim() || null,
       });
       toast.success(
         grantType === 'PERMANENT'
           ? `Nouveau code généré : ${newCode.code}`
-          : `Code ${grantDays} jours généré : ${newCode.code}`,
+          : `Code ${formatDuration(grantMinutes)} généré : ${newCode.code}`,
       );
       grantLabel = '';
       await loadActivationCodes();
@@ -198,30 +232,35 @@
 
           {#if grantType !== 'PERMANENT'}
             <div class="space-y-2 animate-in fade-in">
-              <label for="grant-days" class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+              <label for="grant-amount" class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
                 Durée
               </label>
               <div class="flex items-center gap-2">
-                <div class="relative">
-                  <input
-                    id="grant-days"
-                    type="number"
-                    min="1"
-                    max="3650"
-                    bind:value={grantDays}
-                    class="w-24 pl-4 pr-9 py-2.5 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
-                  />
-                  <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant/40 pointer-events-none">j</span>
-                </div>
-                {#each [7, 15, 30] as preset}
+                <input
+                  id="grant-amount"
+                  type="number"
+                  min="1"
+                  bind:value={grantAmount}
+                  class="w-20 px-4 py-2.5 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+                />
+                <select
+                  aria-label="Unité de durée"
+                  bind:value={grantUnit}
+                  class="px-3 py-2.5 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="minute">minutes</option>
+                  <option value="hour">heures</option>
+                  <option value="day">jours</option>
+                </select>
+                {#each presets as preset}
                   <button
                     type="button"
-                    onclick={() => (grantDays = preset)}
-                    class="px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 {grantDays === preset
+                    onclick={() => (grantAmount = preset)}
+                    class="px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 {grantAmount === preset
                       ? 'bg-primary/10 border-primary/40 text-primary'
                       : 'bg-surface-container-high border-outline-variant/30 text-on-surface-variant hover:border-outline-variant/60'}"
                   >
-                    {preset}j
+                    {preset}
                   </button>
                 {/each}
               </div>
@@ -256,8 +295,9 @@
           {#if grantType === 'PERMANENT'}
             Accès sans expiration. Un code ne vaut que pour un seul serveur à la fois.
           {:else}
-            Le serveur reçoit un embed à l'activation, des rappels à mi-parcours puis à J-3 et J-1, et se désactive
-            automatiquement à l'échéance. Un code ne vaut que pour un seul serveur à la fois.
+            Accès de {formatDuration(grantMinutes)}. Le serveur reçoit un embed à l'activation, un rappel à
+            mi-parcours puis à J-3 et J-1 quand la période est assez longue, et se désactive automatiquement à
+            l'échéance. Un code ne vaut que pour un seul serveur à la fois.
           {/if}
         </p>
       </div>
@@ -305,7 +345,7 @@
                           </p>
                         {:else if item.accessExpiresAt}
                           <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
-                            {daysLeft(item.accessExpiresAt)} j restant(s) · {formatDate(item.accessExpiresAt)}
+                            {formatDuration(minutesLeft(item.accessExpiresAt))} restantes · {formatDate(item.accessExpiresAt)}
                           </p>
                         {/if}
                       {/if}

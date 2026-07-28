@@ -79,7 +79,7 @@ describe('activation service', () => {
   });
 
   test('activateGuild should update DB activation code, upsert guild, and add to cache', async () => {
-    mockDb.activationCode.findUnique.mockResolvedValue({ code: 'KB-TEST-CODE', isActive: true, usedAt: null, accessType: 'PERMANENT', durationDays: null });
+    mockDb.activationCode.findUnique.mockResolvedValue({ code: 'KB-TEST-CODE', isActive: true, usedAt: null, accessType: 'PERMANENT', durationMinutes: null });
     mockDb.activationCode.update.mockResolvedValue({});
     mockDb.guild.upsert.mockResolvedValue({});
 
@@ -99,6 +99,7 @@ describe('activation service', () => {
       accessType: 'PERMANENT',
       accessExpiresAt: null,
       accessExpiredAt: null,
+      accessDurationMinutes: null,
       accessRemindersSent: [],
     };
 
@@ -121,12 +122,12 @@ describe('activation service', () => {
       }
     });
 
-    expect(result).toEqual({ accessType: 'PERMANENT', durationDays: null, expiresAt: null });
+    expect(result).toEqual({ accessType: 'PERMANENT', durationMinutes: null, expiresAt: null });
     expect(isGuildActivated('guild-123')).toBeTrue();
   });
 
   test('activateGuild should open a trial period when the code carries a duration', async () => {
-    mockDb.activationCode.findUnique.mockResolvedValue({ code: 'KB-TRIAL-CODE', isActive: true, usedAt: null, accessType: 'TRIAL', durationDays: 15 });
+    mockDb.activationCode.findUnique.mockResolvedValue({ code: 'KB-TRIAL-CODE', isActive: true, usedAt: null, accessType: 'TRIAL', durationMinutes: 15 * 1440 });
     mockDb.activationCode.update.mockResolvedValue({});
     mockDb.guild.upsert.mockResolvedValue({});
 
@@ -134,7 +135,7 @@ describe('activation service', () => {
     const result = await activateGuild('guild-trial', 'KB-TRIAL-CODE');
 
     expect(result.accessType).toBe('TRIAL');
-    expect(result.durationDays).toBe(15);
+    expect(result.durationMinutes).toBe(15 * 1440);
     expect(result.expiresAt).toBeInstanceOf(Date);
     // La date de fin tombe bien 15 jours après l'activation.
     const expected = before + 15 * 86_400_000;

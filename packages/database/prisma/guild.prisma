@@ -152,7 +152,11 @@ model Guild {
   accessExpiresAt          DateTime?
   // Date à laquelle l'accès a effectivement expiré (trace conservée après désactivation).
   accessExpiredAt          DateTime?
-  // Paliers de rappel (en jours restants) déjà notifiés, pour ne jamais renvoyer deux fois le même.
+  // Durée totale de la période en cours, en minutes. Sert à calculer des paliers
+  // de rappel proportionnels ; stockée ici pour rester juste même quand l'accès
+  // ne vient pas d'un code (geste commercial, futur paiement).
+  accessDurationMinutes    Int?
+  // Paliers de rappel (en minutes restantes) déjà notifiés, pour ne jamais renvoyer deux fois le même.
   accessRemindersSent      Int[]     @default([])
 
   createdAt DateTime @default(now())

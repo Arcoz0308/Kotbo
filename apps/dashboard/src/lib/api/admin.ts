@@ -334,9 +334,10 @@ export async function fetchActivationCodes() {
 }
 
 export interface AccessGrant {
-  /** PERMANENT : accès sans expiration. TRIAL/SUBSCRIPTION : nécessite durationDays. */
+  /** PERMANENT : accès sans expiration. TRIAL/SUBSCRIPTION : nécessite durationMinutes. */
   accessType?: 'PERMANENT' | 'TRIAL' | 'SUBSCRIPTION';
-  durationDays?: number | null;
+  /** Durée en minutes — l'unité de stockage unique, du test de 30 min à l'essai de 15 jours. */
+  durationMinutes?: number | null;
   label?: string | null;
 }
 
@@ -379,11 +380,11 @@ export async function activateAdminGuildAuto(guildId: string, grant: AccessGrant
 }
 
 /** Prolonge l'accès à durée limitée d'un serveur (geste commercial, renouvellement). */
-export async function extendAdminGuildAccess(guildId: string, days: number, accessType?: AccessGrant['accessType']) {
+export async function extendAdminGuildAccess(guildId: string, minutes: number, accessType?: AccessGrant['accessType']) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/access/extend`, {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ days, accessType }),
+    body: JSON.stringify({ minutes, accessType }),
   });
   if (!response.ok) {
     const error = await response.json().catch(() => null);
