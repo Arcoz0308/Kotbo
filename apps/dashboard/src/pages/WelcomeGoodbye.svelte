@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -56,14 +57,14 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'Accueil & Départ',
+          label: m.announcements_page_title(),
           onSave: () => handleSave(),
           onReset: () => { config = { ...savedConfig }; }
         });
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Accueil & Départ') {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.announcements_page_title()) {
           unsavedChanges.clear();
         }
       });
@@ -72,7 +73,7 @@
 
   // Clear bar when page is unmounted
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Accueil & Départ') {
+    if (unsavedChanges.pageLabel === m.announcements_page_title()) {
       unsavedChanges.clear();
     }
   });
@@ -108,7 +109,7 @@
     let success = false;
     await actionState.run(async () => {
       const res = await updateWelcomeConfig(config);
-      if (!res) throw new Error('Erreur de sauvegarde');
+      if (!res) throw new Error(m.announcements_save_error());
       const saved = {
         welcomeEnabled: res.config.welcomeEnabled ?? false,
         welcomeChannelId: res.config.welcomeChannelId ?? null,
@@ -123,7 +124,7 @@
       savedConfig = { ...saved };
       success = true;
       return true;
-    }, { successMessage: 'Configuration Accueil/Départ enregistrée !' });
+    }, { successMessage: m.announcements_config_saved_success() });
     return success;
   }
 
@@ -144,8 +145,8 @@
         <Papicon icon="DoorOpen" size={20} />
       </div>
       <div>
-        <h1 class="text-lg font-semibold tracking-tight leading-tight">Accueil & Départ</h1>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Configurez des messages automatiques lors de l'arrivée ou du départ des membres.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">{m.announcements_page_title()}</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">{m.announcements_page_desc()}</p>
       </div>
     </div>
   </header>
@@ -165,16 +166,16 @@
     <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-2">
       <h4 class="text-sm font-bold text-on-surface flex items-center gap-2">
         <Papicon icon="Info" size={16} class="text-primary" />
-        Guide des variables éligibles
+        {m.announcements_guide_variables_title()}
       </h4>
       <p class="text-xs text-on-surface-variant/80 font-medium">
-        Vous pouvez insérer les balises suivantes dans vos messages d'accueil et de départ pour les dynamiser :
+        {m.announcements_guide_variables_desc()}
       </p>
       <div class="flex flex-wrap gap-3 pt-2">
-        <span class="text-[11px] font-mono bg-surface-container-high px-2.5 py-1.5 rounded-xl border border-outline-variant/10 font-bold"><code class="text-primary dark:text-blue-300">{`{user}`}</code> : Mentionne l'utilisateur</span>
-        <span class="text-[11px] font-mono bg-surface-container-high px-2.5 py-1.5 rounded-xl border border-outline-variant/10 font-bold"><code class="text-primary dark:text-blue-300">{`{username}`}</code> : Nom simple</span>
-        <span class="text-[11px] font-mono bg-surface-container-high px-2.5 py-1.5 rounded-xl border border-outline-variant/10 font-bold"><code class="text-primary dark:text-blue-300">{`{server}`}</code> : Nom du serveur</span>
-        <span class="text-[11px] font-mono bg-surface-container-high px-2.5 py-1.5 rounded-xl border border-outline-variant/10 font-bold"><code class="text-primary dark:text-blue-300">{`{memberCount}`}</code> : Nombre total de membres</span>
+        <span class="text-[11px] font-mono bg-surface-container-high px-2.5 py-1.5 rounded-xl border border-outline-variant/10 font-bold"><code class="text-primary dark:text-blue-300">{`{user}`}</code> : {m.announcements_var_user()}</span>
+        <span class="text-[11px] font-mono bg-surface-container-high px-2.5 py-1.5 rounded-xl border border-outline-variant/10 font-bold"><code class="text-primary dark:text-blue-300">{`{username}`}</code> : {m.announcements_var_username()}</span>
+        <span class="text-[11px] font-mono bg-surface-container-high px-2.5 py-1.5 rounded-xl border border-outline-variant/10 font-bold"><code class="text-primary dark:text-blue-300">{`{server}`}</code> : {m.announcements_var_server()}</span>
+        <span class="text-[11px] font-mono bg-surface-container-high px-2.5 py-1.5 rounded-xl border border-outline-variant/10 font-bold"><code class="text-primary dark:text-blue-300">{`{memberCount}`}</code> : {m.announcements_var_member_count()}</span>
       </div>
     </section>
 
@@ -184,7 +185,7 @@
         <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Add" size={20} class="text-primary" />
-            Message de Bienvenue
+            {m.announcements_welcome_title()}
           </h3>
           <ToggleSwitch 
             checked={config.welcomeEnabled} 
@@ -196,24 +197,24 @@
         {#if config.welcomeEnabled}
           <div class="space-y-4 animate-in fade-in duration-300">
             <div class="space-y-1.5">
-              <label for="wChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de diffusion</label>
+              <label for="wChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_broadcast_channel()}</label>
               <SearchableSelect 
                 id="wChannel"
                 bind:value={config.welcomeChannelId} 
                 options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
-                placeholder="Sélectionner le salon" 
+                placeholder={m.announcements_select_channel_placeholder()} 
                 className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                 disabled={!canManageSettings}
               />
             </div>
 
             <div class="space-y-1.5">
-              <label for="wMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Contenu du message</label>
+              <label for="wMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_message_content()}</label>
               <textarea 
                 id="wMsg"
                 bind:value={config.welcomeMessage} 
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-28 resize-none"
-                placeholder="Écrivez le message de bienvenue..."
+                placeholder={m.announcements_welcome_placeholder()}
                 disabled={!canManageSettings}
               ></textarea>
             </div>
@@ -221,8 +222,8 @@
             <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-bold">Activer l'image de bienvenue</p>
-                  <p class="text-[10px] text-on-surface-variant/50">Génère un bandeau d'avatar stylisé</p>
+                  <p class="text-sm font-bold">{m.announcements_welcome_image_enable()}</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.announcements_welcome_image_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={config.welcomeImageEnabled} 
@@ -233,7 +234,7 @@
 
               {#if config.welcomeImageEnabled}
                 <div class="space-y-1.5 pt-2 animate-in fade-in duration-300">
-                  <label for="wImgUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">URL de fond d'image personnalisée (Optionnel)</label>
+                  <label for="wImgUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_welcome_image_url_label()}</label>
                   <input 
                     id="wImgUrl"
                     type="url" 
@@ -248,7 +249,7 @@
 
             <!-- Preview box -->
             <div class="space-y-1.5">
-              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Aperçu du rendu Discord</span>
+              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_discord_preview()}</span>
               <div class="p-5 rounded-lg bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
                 <div class="flex items-start gap-4">
                   <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">
@@ -258,7 +259,7 @@
                     <div class="flex items-center gap-2">
                       <span class="font-bold text-primary">Kotbo</span>
                       <span class="bg-primary/20 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                      <span class="text-[11px] text-on-surface-variant/40">Aujourd'hui à 12:00</span>
+                      <span class="text-[11px] text-on-surface-variant/40">{m.announcements_today_at({ time: '12:00' })}</span>
                     </div>
                     <div class="mt-1 text-on-surface-variant/90 leading-relaxed text-sm font-medium font-sans">
                       {previewText(config.welcomeMessage)}
@@ -270,9 +271,9 @@
                         {/if}
                         <div class="relative flex flex-col items-center gap-1.5 z-10 p-4 text-center">
                           <div class="w-12 h-12 rounded-full border border-primary/20 bg-surface-container/85 flex items-center justify-center text-sm font-semibold text-primary">JD</div>
-                          <span class="text-xs font-semibold text-white leading-none drop-shadow-sm">BIENVENUE !</span>
+                          <span class="text-xs font-semibold text-white leading-none drop-shadow-sm">{m.announcements_preview_welcome_title()}</span>
                           <span class="text-[10px] font-bold text-[#57f287] leading-none">JEANDUPONT</span>
-                          <span class="text-[11px] text-[#b8bcc8] font-medium uppercase tracking-wider">Membre #1,235 sur KOTBO SERVER</span>
+                          <span class="text-[11px] text-[#b8bcc8] font-medium uppercase tracking-wider">{m.announcements_preview_welcome_sub({ count: '1,235', server: 'KOTBO SERVER' })}</span>
                         </div>
                       </div>
                     {/if}
@@ -282,7 +283,7 @@
             </div>
           </div>
         {:else}
-          <p class="text-xs text-on-surface-variant/50 italic text-center py-6">Les messages d'accueil sont désactivés.</p>
+          <p class="text-xs text-on-surface-variant/50 italic text-center py-6">{m.announcements_welcome_disabled()}</p>
         {/if}
       </section>
 
@@ -291,7 +292,7 @@
         <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="LogOut" size={20} class="text-secondary" />
-            Message de Départ
+            {m.announcements_leave_title()}
           </h3>
           <ToggleSwitch 
             checked={config.leaveEnabled} 
@@ -303,31 +304,31 @@
         {#if config.leaveEnabled}
           <div class="space-y-4 animate-in fade-in duration-300">
             <div class="space-y-1.5">
-              <label for="lChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de diffusion</label>
+              <label for="lChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_broadcast_channel()}</label>
               <SearchableSelect 
                 id="lChannel"
                 bind:value={config.leaveChannelId} 
                 options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
-                placeholder="Sélectionner le salon" 
+                placeholder={m.announcements_select_channel_placeholder()} 
                 className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                 disabled={!canManageSettings}
               />
             </div>
 
             <div class="space-y-1.5">
-              <label for="lMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Contenu du message</label>
+              <label for="lMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_message_content()}</label>
               <textarea 
                 id="lMsg"
                 bind:value={config.leaveMessage} 
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-28 resize-none"
-                placeholder="Écrivez le message de départ..."
+                placeholder={m.announcements_leave_placeholder()}
                 disabled={!canManageSettings}
               ></textarea>
             </div>
 
             <!-- Preview box -->
             <div class="space-y-1.5 pt-4">
-              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Aperçu du rendu Discord</span>
+              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.announcements_discord_preview()}</span>
               <div class="p-5 rounded-lg bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
                 <div class="flex items-start gap-4">
                   <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">
@@ -337,7 +338,7 @@
                     <div class="flex items-center gap-2">
                       <span class="font-bold text-primary">Kotbo</span>
                       <span class="bg-primary/20 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                      <span class="text-[11px] text-on-surface-variant/40">Aujourd'hui à 12:05</span>
+                      <span class="text-[11px] text-on-surface-variant/40">{m.announcements_today_at({ time: '12:05' })}</span>
                     </div>
                     <div class="mt-1 text-on-surface-variant/90 leading-relaxed text-sm font-medium font-sans">
                       {previewText(config.leaveMessage)}
@@ -348,7 +349,7 @@
             </div>
           </div>
         {:else}
-          <p class="text-xs text-on-surface-variant/50 italic text-center py-6">Les messages de départ sont désactivés.</p>
+          <p class="text-xs text-on-surface-variant/50 italic text-center py-6">{m.announcements_leave_disabled()}</p>
         {/if}
       </section>
     </div>

@@ -492,7 +492,7 @@ export const pageTips: PageTip[] = [
   },
   {
     pageId: 'announcement',
-    routes: ['/announcement'],
+    routes: ['/welcome', '/announcement'],
     title: m.tip_announcement_title(),
     description: m.tip_announcement_desc(),
     highlights: [
