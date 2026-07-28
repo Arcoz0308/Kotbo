@@ -264,17 +264,17 @@
                 <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans">
                   <span class="flex items-center gap-2">
                     <Papicon icon="link" size={14} />
-                    Lien Public :
+                    {m.cf_public_link()}
                   </span>
                   <div class="flex items-center gap-1 min-w-0 max-w-[150px]">
                     <span class="truncate text-[10px] font-mono">{window.location.origin}/form/{form.id}</span>
                     <button
                       onclick={() => {
                         navigator.clipboard.writeText(`${window.location.origin}/form/${form.id}`);
-                        toast.success("Lien public copié !");
+                        toast.success(m.cf_copy_link_toast());
                       }}
                       class="p-1 rounded-md hover:bg-surface-container-high transition-colors shrink-0"
-                      title="Copier le lien public"
+                      title={m.cf_copy_link_title()}
                     >
                       <Papicon icon="content_copy" size={12} />
                     </button>
@@ -284,7 +284,7 @@
                 <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans">
                   <span class="flex items-center gap-2">
                     <Papicon icon="assignment_turned_in" size={14} />
-                    Soumissions :
+                    {m.cf_submissions_label()}
                   </span>
                   <span class="font-bold text-on-surface">{form._count?.submissions || 0}</span>
                 </div>
@@ -292,7 +292,7 @@
                 <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans">
                   <span class="flex items-center gap-2">
                     <Papicon icon="work" size={14} />
-                    Lien Recrutement :
+                    {m.cf_recruitment_link()}
                   </span>
                   <ToggleSwitch
                     checked={form.isRecruitment}
@@ -303,7 +303,7 @@
                 <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans">
                   <span class="flex items-center gap-2">
                     <Papicon icon="lock" size={14} />
-                    Connexion Discord requise :
+                    {m.cf_discord_auth_label()}
                   </span>
                   <ToggleSwitch
                     checked={form.isRecruitment || form.requiresDiscordAuth}
@@ -313,20 +313,20 @@
                 </div>
                 {#if form.isRecruitment}
                   <p class="text-[10px] text-on-surface-variant/40 font-sans -mt-2">
-                    Toujours activée pour les formulaires de recrutement.
+                    {m.cf_discord_auth_always()}
                   </p>
 
                   <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans gap-3">
                     <span class="flex items-center gap-2 shrink-0">
                       <Papicon icon="account_tree" size={14} />
-                      Hiérarchie visée :
+                      {m.cf_target_hierarchy()}
                     </span>
                     <select
                       value={form.hierarchyId || ''}
                       onchange={(e) => updateFormHierarchy(form.id, (e.currentTarget as HTMLSelectElement).value)}
                       class="min-w-0 max-w-40 bg-surface-container rounded-lg px-2 py-1.5 text-[11px] font-semibold outline-none border border-outline-variant/20 focus:border-primary"
                     >
-                      <option value="">Aucune (rôle le plus bas)</option>
+                      <option value="">{m.cf_hierarchy_lowest_role()}</option>
                       {#each hierarchies as h}
                         <option value={h.id}>{h.name}</option>
                       {/each}
@@ -334,7 +334,7 @@
                   </div>
                   {#if hierarchies.length > 0}
                     <p class="text-[10px] text-on-surface-variant/40 font-sans -mt-2">
-                      Détermine le rôle/grade attribué automatiquement à l'embauche depuis ce formulaire.
+                      {m.cf_hierarchy_hint()}
                     </p>
                   {/if}
                 {/if}
@@ -342,7 +342,7 @@
                 <div class="flex items-center justify-between text-xs text-on-surface-variant/60 font-sans">
                   <span class="flex items-center gap-2">
                     <Papicon icon="visibility" size={14} />
-                    Actif :
+                    {m.cf_active_label()}
                   </span>
                   <ToggleSwitch
                     checked={form.isActive}
@@ -356,23 +356,23 @@
               <button
                 onclick={() => router.goto(`/forms/builder/${form.id}`)}
                 class="flex-1 px-3 py-2.5 rounded-xl bg-primary/10 text-primary text-[13px] font-medium hover:bg-primary/20 transition-all flex items-center justify-center gap-1.5"
-                title="Modifier le formulaire"
+                title={m.cf_btn_edit()}
               >
                 <Papicon icon="edit" size={13} />
-                Modifier
+                {m.cf_btn_edit()}
               </button>
               <button
                 onclick={() => router.goto(`/forms/${form.id}/responses`)}
                 class="flex-1 px-3 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-[13px] font-medium hover:bg-surface-container-high transition-all flex items-center justify-center gap-1.5"
-                title="Voir les réponses"
+                title={m.cf_btn_responses()}
               >
                 <Papicon icon="assignment" size={13} />
-                Réponses
+                {m.cf_btn_responses()}
               </button>
               <button
                 onclick={() => deleteForm(form.id)}
                 class="px-3 py-2.5 rounded-xl bg-rose-500/10 text-rose-500 text-[13px] font-medium hover:bg-rose-500/20 transition-all"
-                title="Supprimer"
+                title={m.cf_btn_delete()}
               >
                 <Papicon icon="delete" size={14} />
               </button>
@@ -391,8 +391,8 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-200">
       <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between">
         <div>
-          <h3 class="text-xl font-semibold text-on-surface font-sans">Créer un Formulaire Autonome</h3>
-          <p class="text-on-surface-variant text-sm font-sans">Saisissez les informations de base</p>
+          <h3 class="text-xl font-semibold text-on-surface font-sans">{m.cf_create_modal_title()}</h3>
+          <p class="text-on-surface-variant text-sm font-sans">{m.cf_create_modal_subtitle()}</p>
         </div>
         <button onclick={() => showCreateModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
           <Papicon icon="close" size={20} />
@@ -401,34 +401,34 @@
       
       <div class="p-8 space-y-6">
         <div>
-          <label for="form-name" class="block text-[13px] font-medium text-on-surface-variant/60 mb-2 font-sans">Nom du formulaire</label>
+          <label for="form-name" class="block text-[13px] font-medium text-on-surface-variant/60 mb-2 font-sans">{m.cf_field_name_label()}</label>
           <FormInput 
             id="form-name"
             type="text" 
             bind:value={newFormName} 
-            placeholder="Ex: Formulaire d'Inscription Event"
+            placeholder={m.cf_field_name_ph()}
             className="w-full"
           />
         </div>
         <div>
-          <label for="form-description" class="block text-[13px] font-medium text-on-surface-variant/60 mb-2 font-sans">Description (optionnelle)</label>
+          <label for="form-description" class="block text-[13px] font-medium text-on-surface-variant/60 mb-2 font-sans">{m.cf_field_desc_label()}</label>
           <textarea 
             id="form-description"
             bind:value={newFormDescription}
-            placeholder="Description du formulaire..."
+            placeholder={m.cf_field_desc_ph()}
             class="w-full bg-surface-container rounded-lg p-4 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden border border-outline-variant/10 focus:border-primary/50 transition-all resize-none h-24 font-sans"
           ></textarea>
         </div>
       </div>
       
       <div class="p-8 bg-surface-container-low border-t border-outline-variant/20 flex gap-4">
-        <button onclick={() => showCreateModal = false} class="flex-1 py-3.5 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors font-sans">Annuler</button>
+        <button onclick={() => showCreateModal = false} class="flex-1 py-3.5 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors font-sans">{m.cf_btn_cancel()}</button>
         <button 
           onclick={createForm}
           disabled={createAction.state.loading || !newFormName.trim()}
           class="flex-1 py-3.5 rounded-xl font-semibold bg-primary text-on-primary hover: active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 font-sans"
         >
-          {createAction.state.loading ? 'Création...' : 'Créer & Continuer'}
+          {createAction.state.loading ? m.cf_btn_creating() : m.cf_btn_create_submit()}
         </button>
       </div>
     </div>
