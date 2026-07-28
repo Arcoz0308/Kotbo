@@ -4548,7 +4548,24 @@
   "ts_open": "Ouvrir",
   "ts_delete_title": "Supprimer",
   "ts_delete_aria": "Supprimer la transcription",
-  "ts_load_more": "Charger plus"
+  "ts_load_more": "Charger plus",
+  "act_page_desc": "Historique des actions de configuration pour {guildName}.",
+  "act_search_label": "Recherche",
+  "act_events_count": "{filtered} / {total} événement(s)",
+  "act_reset_filters_sort": "Réinitialiser filtres et tri",
+  "act_col_timestamp": "Horodatage",
+  "act_col_user": "Utilisateur",
+  "act_col_module_source": "Module / Source",
+  "act_col_action": "Action",
+  "act_col_details": "Détails",
+  "act_col_type": "Type",
+  "act_stat_actions": "Actions (Total)",
+  "act_stat_config": "Configuration",
+  "act_stat_modules": "Modules",
+  "act_stat_sources": "Sources",
+  "act_stat_users": "Utilisateurs",
+  "act_stat_unique": "Unique"
 }
+
 
 

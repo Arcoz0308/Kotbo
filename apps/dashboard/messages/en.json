@@ -4548,7 +4548,24 @@
   "ts_open": "Open",
   "ts_delete_title": "Delete",
   "ts_delete_aria": "Delete transcript",
-  "ts_load_more": "Load more"
+  "ts_load_more": "Load more",
+  "act_page_desc": "Configuration actions history for {guildName}.",
+  "act_search_label": "Search",
+  "act_events_count": "{filtered} / {total} event(s)",
+  "act_reset_filters_sort": "Reset filters and sort",
+  "act_col_timestamp": "Timestamp",
+  "act_col_user": "User",
+  "act_col_module_source": "Module / Source",
+  "act_col_action": "Action",
+  "act_col_details": "Details",
+  "act_col_type": "Type",
+  "act_stat_actions": "Actions (Total)",
+  "act_stat_config": "Configuration",
+  "act_stat_modules": "Modules",
+  "act_stat_sources": "Sources",
+  "act_stat_users": "Users",
+  "act_stat_unique": "Unique"
 }
+
 
 
