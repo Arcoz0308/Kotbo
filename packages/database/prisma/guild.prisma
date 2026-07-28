@@ -143,6 +143,18 @@ model Guild {
   // true si l'activation provient d'une cascade StaffServerLink (serveur staff lié à un principal activé), pas d'un code direct
   activatedViaStaffLink    Boolean   @default(false)
 
+  // ── Accès à durée limitée (essai, abonnement) ──────────────────────────────
+  // Nature de l'accès courant : PERMANENT (jamais d'expiration) | TRIAL | SUBSCRIPTION.
+  // Pensé pour être piloté par n'importe quelle couche (code d'activation, futur
+  // module de paiement) via `accessService`, jamais écrit à la main ailleurs.
+  accessType               String    @default("PERMANENT")
+  // Date d'expiration de l'accès. null quand accessType = PERMANENT.
+  accessExpiresAt          DateTime?
+  // Date à laquelle l'accès a effectivement expiré (trace conservée après désactivation).
+  accessExpiredAt          DateTime?
+  // Paliers de rappel (en jours restants) déjà notifiés, pour ne jamais renvoyer deux fois le même.
+  accessRemindersSent      Int[]     @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

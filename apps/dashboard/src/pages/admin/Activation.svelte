@@ -12,11 +12,40 @@
     isActive: boolean;
     usedByGuildId: string | null;
     guildName: string | null;
+    accessType: 'PERMANENT' | 'TRIAL' | 'SUBSCRIPTION';
+    durationDays: number | null;
+    label: string | null;
+    guildActivated: boolean | null;
+    accessExpiresAt: string | null;
+    accessExpiredAt: string | null;
   }
 
   let activationCodes = $state<ActivationCode[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
+
+  // Formulaire de génération : accès permanent ou période limitée.
+  let grantType = $state<'PERMANENT' | 'TRIAL' | 'SUBSCRIPTION'>('PERMANENT');
+  let grantDays = $state(15);
+  let grantLabel = $state('');
+  let generating = $state(false);
+
+  const MS_PER_DAY = 86_400_000;
+
+  function daysLeft(expiresAt: string): number {
+    return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / MS_PER_DAY));
+  }
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  /** Libellé court du type d'accès porté par un code. */
+  function accessLabel(item: ActivationCode): string {
+    if (item.accessType === 'TRIAL') return `Essai ${item.durationDays} j`;
+    if (item.accessType === 'SUBSCRIPTION') return `Abonnement ${item.durationDays} j`;
+    return 'Permanent';
+  }
 
   async function loadActivationCodes() {
     try {
@@ -37,12 +66,29 @@
   });
 
   async function handleGenerateCode() {
+    if (grantType !== 'PERMANENT' && (!Number.isInteger(grantDays) || grantDays < 1)) {
+      toast.error('Indiquez une durée valide (nombre entier de jours).');
+      return;
+    }
+
+    generating = true;
     try {
-      const newCode = await createActivationCode();
-      toast.success(`Nouveau code généré : ${newCode.code}`);
+      const newCode = await createActivationCode({
+        accessType: grantType,
+        durationDays: grantType === 'PERMANENT' ? null : grantDays,
+        label: grantLabel.trim() || null,
+      });
+      toast.success(
+        grantType === 'PERMANENT'
+          ? `Nouveau code généré : ${newCode.code}`
+          : `Code ${grantDays} jours généré : ${newCode.code}`,
+      );
+      grantLabel = '';
       await loadActivationCodes();
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      generating = false;
     }
   }
 
@@ -133,22 +179,86 @@
         </h2>
         
         <div class="premium-card rounded-[2.25rem] p-8 space-y-6 flex flex-col justify-between">
-          <div class="space-y-4">
+          <div class="space-y-5">
             <p class="text-sm text-on-surface-variant leading-relaxed">
               Générez un nouveau code d'activation aléatoire unique. Ce code pourra être utilisé par les administrateurs de serveurs Discord pour activer le bot et débloquer leur accès au tableau de bord.
             </p>
+
+            <!-- Type d'accès accordé par le code -->
+            <div class="space-y-2">
+              <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">Type d'accès</span>
+              <div class="grid grid-cols-3 gap-2">
+                {#each [{ v: 'PERMANENT', l: 'Permanent' }, { v: 'TRIAL', l: 'Essai' }, { v: 'SUBSCRIPTION', l: 'Abonnement' }] as option}
+                  <button
+                    type="button"
+                    onclick={() => (grantType = option.v as typeof grantType)}
+                    class="py-2.5 rounded-xl text-xs font-semibold border transition-all {grantType === option.v
+                      ? 'bg-primary text-on-primary border-primary'
+                      : 'bg-surface-container-high text-on-surface-variant border-outline-variant/30 hover:border-outline-variant/60'}"
+                  >
+                    {option.l}
+                  </button>
+                {/each}
+              </div>
+            </div>
+
+            {#if grantType !== 'PERMANENT'}
+              <div class="space-y-2 animate-in fade-in">
+                <label for="grant-days" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+                  Durée (jours)
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    id="grant-days"
+                    type="number"
+                    min="1"
+                    max="3650"
+                    bind:value={grantDays}
+                    class="flex-1 px-4 py-3 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
+                  />
+                  {#each [7, 15, 30] as preset}
+                    <button
+                      type="button"
+                      onclick={() => (grantDays = preset)}
+                      class="px-3 rounded-xl text-xs font-semibold bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:border-primary transition-all"
+                    >
+                      {preset}j
+                    </button>
+                  {/each}
+                </div>
+                <p class="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                  Le serveur reçoit un embed à l'activation, des rappels à mi-parcours puis à J-3 et J-1, et se
+                  désactive automatiquement à l'échéance.
+                </p>
+              </div>
+            {/if}
+
+            <div class="space-y-2">
+              <label for="grant-label" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/60">
+                Note interne (optionnel)
+              </label>
+              <input
+                id="grant-label"
+                type="text"
+                placeholder="Nom du client, contexte…"
+                bind:value={grantLabel}
+                class="w-full px-4 py-3 rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface text-sm focus:outline-none focus:border-primary"
+              />
+            </div>
+
             <div class="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 font-bold flex items-start gap-3">
               <Papicon icon="AlertTriangle" size={18} class="shrink-0 mt-0.5" />
               <span>Chaque code ne peut être utilisé que pour un seul serveur Discord à la fois.</span>
             </div>
           </div>
 
-          <button 
+          <button
             onclick={handleGenerateCode}
-            class="w-full py-4 rounded-xl bg-primary text-on-primary font-medium text-[13px] transition-all hover: active:scale-95 flex items-center justify-center gap-3"
+            disabled={generating}
+            class="w-full py-4 rounded-xl bg-primary text-on-primary font-medium text-[13px] transition-all hover: active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
           >
             <Papicon icon="Unlock" size={16} />
-            Générer un code
+            {generating ? 'Génération…' : 'Générer un code'}
           </button>
         </div>
       </div>
@@ -166,6 +276,7 @@
               <thead class="bg-on-surface/5 text-on-surface-variant/40 text-xs font-medium">
                 <tr>
                   <th class="px-8 py-5">Code d'activation</th>
+                  <th class="px-8 py-5">Accès</th>
                   <th class="px-8 py-5">Statut</th>
                   <th class="px-8 py-5">Utilisé par</th>
                   <th class="px-8 py-5 text-right">Actions</th>
@@ -178,6 +289,28 @@
                       <span class="font-mono text-sm font-semibold text-on-surface bg-surface-container-high px-3 py-1.5 rounded-lg border border-outline-variant/20 tracking-wider">
                         {item.code}
                       </span>
+                      {#if item.label}
+                        <p class="text-[11px] text-on-surface-variant/50 mt-1.5">{item.label}</p>
+                      {/if}
+                    </td>
+                    <td class="px-8 py-5">
+                      {#if item.accessType === 'PERMANENT'}
+                        <span class="text-xs text-on-surface-variant/60 font-medium">{accessLabel(item)}</span>
+                      {:else}
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                          <Papicon icon="Clock" size={12} />
+                          {accessLabel(item)}
+                        </span>
+                        {#if item.accessExpiredAt}
+                          <p class="text-[11px] text-error/70 mt-1.5 font-medium">
+                            Expiré le {formatDate(item.accessExpiredAt)}
+                          </p>
+                        {:else if item.accessExpiresAt}
+                          <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
+                            {daysLeft(item.accessExpiresAt)} j restant(s) · {formatDate(item.accessExpiresAt)}
+                          </p>
+                        {/if}
+                      {/if}
                     </td>
                     <td class="px-8 py-5">
                       {#if item.isActive}
@@ -215,7 +348,7 @@
                 {/each}
                 {#if activationCodes.length === 0}
                   <tr>
-                    <td colspan="4" class="px-8 py-10 text-center text-on-surface-variant/40 italic text-sm">
+                    <td colspan="5" class="px-8 py-10 text-center text-on-surface-variant/40 italic text-sm">
                       Aucun code d'activation généré pour le moment.
                     </td>
                   </tr>

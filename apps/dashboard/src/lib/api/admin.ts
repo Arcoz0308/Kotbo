@@ -333,9 +333,23 @@ export async function fetchActivationCodes() {
   return response.json();
 }
 
-export async function createActivationCode() {
-  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'POST' });
-  if (!response.ok) throw new Error("Erreur lors de la génération du code d'activation");
+export interface AccessGrant {
+  /** PERMANENT : accès sans expiration. TRIAL/SUBSCRIPTION : nécessite durationDays. */
+  accessType?: 'PERMANENT' | 'TRIAL' | 'SUBSCRIPTION';
+  durationDays?: number | null;
+  label?: string | null;
+}
+
+export async function createActivationCode(grant: AccessGrant = {}) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(grant),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.error || "Erreur lors de la génération du code d'activation");
+  }
   return response.json();
 }
 
@@ -351,9 +365,30 @@ export async function deactivateAdminGuild(guildId: string) {
   return response.json();
 }
 
-export async function activateAdminGuildAuto(guildId: string) {
-  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/activate-auto`, { method: 'POST' });
-  if (!response.ok) throw new Error("Erreur lors de l'activation automatique du serveur");
+export async function activateAdminGuildAuto(guildId: string, grant: AccessGrant = {}) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/activate-auto`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(grant),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.error || "Erreur lors de l'activation automatique du serveur");
+  }
+  return response.json();
+}
+
+/** Prolonge l'accès à durée limitée d'un serveur (geste commercial, renouvellement). */
+export async function extendAdminGuildAccess(guildId: string, days: number, accessType?: AccessGrant['accessType']) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/access/extend`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ days, accessType }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.error || "Erreur lors de la prolongation de l'accès");
+  }
   return response.json();
 }
 

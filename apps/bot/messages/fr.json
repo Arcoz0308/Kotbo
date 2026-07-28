@@ -1601,5 +1601,18 @@
   "languages_rerender_panel_reactionRoles": "Auto-rôles",
   "languages_rerender_status_updated": "✅ re-publié ({count})",
   "languages_rerender_status_skipped": "⚪ non publié sur ce serveur",
-  "languages_rerender_status_failed": "❌ échec — {error}"
+  "languages_rerender_status_failed": "❌ échec — {error}",
+  "c1_activate_trial_success_title": "Essai activé — {days} jours",
+  "c1_activate_trial_success_desc": "Kotbo est désormais actif sur votre serveur pour une période d'essai de **{days} jours**.\n\nToutes les fonctionnalités (modération, police du code, logs avancés, dashboard) sont déverrouillées, sans aucune limite pendant l'essai.\n\n**Fin de l'essai :** {date} ({relative})\n\nVous recevrez des rappels avant l'échéance. À la fin de la période, le bot se désactivera automatiquement s'il n'est pas prolongé.",
+  "access_notice_footer": "Gestion de l'accès",
+  "access_trial_started_title": "Période d'essai démarrée — {days} jours",
+  "access_trial_started_desc": "Kotbo est activé sur ce serveur pour un essai de **{days} jours**, avec l'intégralité de ses fonctionnalités.\n\n**Fin de l'essai :** {date} ({relative})\n\nÀ l'échéance, le bot se désactivera automatiquement si l'accès n'est pas prolongé.",
+  "access_trial_reminder_title": "Il reste {days} jour(s) d'essai",
+  "access_trial_reminder_desc": "Votre période d'essai de Kotbo se termine {relative}.\n\n**Échéance :** {date}\n\nPour continuer à utiliser le bot au-delà de cette date, contactez l'équipe Kotbo afin de prolonger votre accès. Sans prolongation, le bot se désactivera automatiquement et le dashboard sera verrouillé.",
+  "access_trial_ended_title": "Période d'essai terminée",
+  "access_trial_ended_desc": "L'essai de Kotbo sur **{guild}** est arrivé à son terme : le bot est désormais désactivé et le dashboard verrouillé.\n\nVos données et vos réglages sont conservés : une prolongation réactive le serveur exactement dans l'état où il était.\n\n**Pour reprendre**, contactez l'équipe Kotbo afin d'obtenir un nouveau code d'activation.",
+  "access_sub_reminder_title": "Abonnement : {days} jour(s) restant(s)",
+  "access_sub_reminder_desc": "L'abonnement Kotbo de ce serveur arrive à échéance {relative}.\n\n**Échéance :** {date}\n\nSans renouvellement, le bot se désactivera automatiquement et le dashboard sera verrouillé.",
+  "access_sub_ended_title": "Abonnement expiré",
+  "access_sub_ended_desc": "L'abonnement Kotbo de **{guild}** a expiré : le bot est désormais désactivé et le dashboard verrouillé.\n\nVos données et vos réglages sont conservés. Contactez l'équipe Kotbo pour renouveler et réactiver le serveur."
 }

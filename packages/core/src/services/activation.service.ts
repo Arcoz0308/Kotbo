@@ -72,9 +72,14 @@ export class ActivationService {
 
       await this.db.$transaction(async (tx) => {
         if (dbGuild?.activationCode) {
+          // Seuls les codes permanents repartent en circulation : un code à
+          // durée limitée est consommé définitivement, sinon il rejouerait une
+          // nouvelle période d'essai à chaque désactivation. Même règle que
+          // `apps/bot/src/utils/activation.ts`, qui est l'implémentation
+          // réellement branchée sur le bot.
           await tx.activationCode
             .updateMany({
-              where: { usedByGuildId: guildId },
+              where: { usedByGuildId: guildId, accessType: 'PERMANENT' },
               data: { usedAt: null, usedByGuildId: null, isActive: true },
             })
             .catch(() => null);
