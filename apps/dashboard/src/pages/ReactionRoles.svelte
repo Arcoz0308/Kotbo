@@ -334,62 +334,66 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
             </button>
           </div>
 
-          <div class="grid grid-cols-[110px_1.2fr_1.8fr_48px] gap-3 px-3 text-[11px] font-semibold uppercase text-on-surface-variant/50 tracking-wider select-none">
-            <div>Émoji</div>
-            <div>Libellé bouton</div>
-            <div>Rôle associé</div>
-            <div></div>
-          </div>
-
-          <div class="space-y-2.5 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+          <div class="space-y-4">
             {#each formOptions as opt, idx}
-              <div class="grid grid-cols-[110px_1.2fr_1.8fr_48px] gap-3 items-center p-2.5 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors duration-150">
-                <!-- Emoji input -->
-                <div class="flex gap-1 items-center">
-                  <input
-                    id={`modal-emoji-${idx}`}
-                    type="text"
-                    bind:value={opt.emoji}
-                    placeholder="📢"
-                    class="w-12 text-center bg-surface-container-high/45 border border-outline-variant/10 rounded-xl py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-on-surface"
-                    disabled={!canManageSettings}
-                  />
-                  <EmojiPicker bind:value={opt.emoji} disabled={!canManageSettings} />
-                </div>
-
-                <!-- Label input -->
-                <input
-                  id={`modal-label-${idx}`}
-                  type="text"
-                  bind:value={opt.label}
-                  placeholder="Annonces"
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-on-surface"
-                  required
-                  disabled={!canManageSettings}
-                />
-
-                <!-- Role Selection -->
-                <SearchableSelect
-                  id={`modal-role-${idx}`}
-                  bind:value={opt.roleId}
-                  options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                  placeholder="Choisir le rôle"
-                  className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-xl text-xs focus:ring-1 focus:ring-primary/20 transition-all"
-                  disabled={!canManageSettings}
-                />
-
-                <!-- Remove button -->
-                <div class="flex justify-center">
+              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-bold flex items-center gap-1.5">
+                    <Papicon icon="MousePointer" size={16} />
+                    Bouton {idx + 1}
+                  </p>
                   {#if formOptions.length > 1 && canManageSettings}
                     <button
                       type="button"
                       onclick={() => removeOption(idx)}
-                      class="p-2 text-error hover:bg-error/10 rounded-xl transition-all cursor-pointer"
+                      class="p-2 text-error hover:bg-error/10 rounded-lg transition-all cursor-pointer"
                       title="Retirer l'option"
                     >
                       <Papicon icon="Minus" size={16} />
                     </button>
                   {/if}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div class="space-y-1">
+                    <label for={`modal-emoji-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Émoji</label>
+                    <div class="flex gap-2 items-center">
+                      <input
+                        id={`modal-emoji-${idx}`}
+                        type="text"
+                        bind:value={opt.emoji}
+                        placeholder="📢"
+                        class="flex-1 bg-surface-container rounded-lg px-3 py-2 text-xs text-on-surface border border-outline-variant/10 focus:ring-2 focus:ring-primary/30 focus:outline-none transition-all"
+                        disabled={!canManageSettings}
+                      />
+                      <EmojiPicker bind:value={opt.emoji} disabled={!canManageSettings} />
+                    </div>
+                  </div>
+
+                  <div class="space-y-1">
+                    <label for={`modal-label-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Libellé bouton</label>
+                    <input
+                      id={`modal-label-${idx}`}
+                      type="text"
+                      bind:value={opt.label}
+                      placeholder="Annonces"
+                      class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs text-on-surface border border-outline-variant/10 focus:ring-2 focus:ring-primary/30 focus:outline-none transition-all"
+                      required
+                      disabled={!canManageSettings}
+                    />
+                  </div>
+                </div>
+
+                <div class="space-y-1">
+                  <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Rôle associé</label>
+                  <SearchableSelect
+                    id={`modal-role-${idx}`}
+                    bind:value={opt.roleId}
+                    options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
+                    placeholder="— Choisir le rôle —"
+                    className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
+                    disabled={!canManageSettings}
+                  />
                 </div>
               </div>
             {/each}
