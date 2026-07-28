@@ -4991,8 +4991,14 @@
   "rep_no_votes_desc": "Les votes de réputation entre membres apparaîtront ici.",
   "rep_recent_votes_title": "Votes récents",
   "rep_no_recent_title": "Aucun vote récent",
-  "rep_load_error": "Erreur lors du chargement"
+  "rep_load_error": "Erreur lors du chargement",
+  "notif_header_title": "Notifications",
+  "notif_mark_all_read": "Tout marquer comme lu",
+  "notif_loading": "Chargement...",
+  "notif_empty": "Aucune notification",
+  "notif_view_history": "Voir tout l'historique"
 }
+
 
 
 

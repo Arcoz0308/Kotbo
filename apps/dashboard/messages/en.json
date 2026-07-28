@@ -4991,8 +4991,14 @@
   "rep_no_votes_desc": "Reputation votes between members will appear here.",
   "rep_recent_votes_title": "Recent votes",
   "rep_no_recent_title": "No recent votes",
-  "rep_load_error": "Error loading data"
+  "rep_load_error": "Error loading data",
+  "notif_header_title": "Notifications",
+  "notif_mark_all_read": "Mark all as read",
+  "notif_loading": "Loading...",
+  "notif_empty": "No notifications",
+  "notif_view_history": "View full history"
 }
+
 
 
 
