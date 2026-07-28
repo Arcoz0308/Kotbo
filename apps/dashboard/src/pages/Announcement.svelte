@@ -29,29 +29,29 @@
   const actionState = createAsyncActionState();
   let loading = $state(false);
 
-  const welcomePresets = [
-    { label: m.e2_preset_welcome_classic(),   icon: 'DoorOpen', text: 'Bienvenue {user} sur **{server}** ! 🎉 Tu es notre **{memberCount}**ème membre !' },
-    { label: m.e2_preset_welcome_festive(),      icon: 'Sparkles', text: '🎊 Hourra ! {user} vient de rejoindre **{server}** ! Bienvenue parmi nous, tu es le membre **#{memberCount}** !' },
-    { label: m.e2_preset_welcome_immersive(),    icon: 'Shield',   text: '⚔️ Un nouveau guerrier débarque ! Bienvenue {user} sur **{server}** ! Prépare-toi à rejoindre l\'aventure !' },
-    { label: m.e2_preset_welcome_warm(),  icon: 'Users',    text: 'Hey {user} ! 👋 Toute l\'équipe de **{server}** est ravie de t\'accueillir. N\'hésite pas à te présenter !' },
-    { label: m.e2_preset_welcome_gaming(),      icon: 'Gamepad2', text: 'GG {user} ! Tu viens de rejoindre **{server}** 🎮 – le serveur ultime. Amuse-toi bien et bonne chance !' },
-  ];
+  const welcomePresets = $derived([
+    { label: m.e2_preset_welcome_classic(),   icon: 'DoorOpen', text: m.e2_preset_welcome_classic_text() },
+    { label: m.e2_preset_welcome_festive(),      icon: 'Sparkles', text: m.e2_preset_welcome_festive_text() },
+    { label: m.e2_preset_welcome_immersive(),    icon: 'Shield',   text: m.e2_preset_welcome_immersive_text() },
+    { label: m.e2_preset_welcome_warm(),  icon: 'Users',    text: m.e2_preset_welcome_warm_text() },
+    { label: m.e2_preset_welcome_gaming(),      icon: 'Gamepad2', text: m.e2_preset_welcome_gaming_text() },
+  ]);
 
-  const leavePresets = [
-    { label: m.e2_preset_leave_simple(),       icon: 'Logout',   text: '{username} vient de quitter **{server}**. 👋 On espère te revoir bientôt !' },
-    { label: m.e2_preset_leave_sad(),       icon: 'Frown',    text: 'Oh non... {username} a quitté le navire. 😢 Nous sommes maintenant **{memberCount}** membres.' },
-    { label: m.e2_preset_leave_neutral(),       icon: 'Smile',    text: '{username} a quitté **{server}**. Il nous reste **{memberCount}** membres.' },
-    { label: m.e2_preset_leave_poetic(),     icon: 'Cloud',    text: 'Et comme une vague, {username} s\'en est allé... ✨ On ne l\'oubliera pas.' },
-    { label: m.e2_preset_leave_dramatic(),   icon: 'Play',     text: '🎬 Rideau. {username} a quitté **{server}** pour de nouvelles aventures. Bon courage !' },
-  ];
+  const leavePresets = $derived([
+    { label: m.e2_preset_leave_simple(),       icon: 'Logout',   text: m.e2_preset_leave_simple_text() },
+    { label: m.e2_preset_leave_sad(),       icon: 'Frown',    text: m.e2_preset_leave_sad_text() },
+    { label: m.e2_preset_leave_neutral(),       icon: 'Smile',    text: m.e2_preset_leave_neutral_text() },
+    { label: m.e2_preset_leave_poetic(),     icon: 'Cloud',    text: m.e2_preset_leave_poetic_text() },
+    { label: m.e2_preset_leave_dramatic(),   icon: 'Play',     text: m.e2_preset_leave_dramatic_text() },
+  ]);
 
-  const boostPresets = [
-    { label: m.e2_preset_boost_standard(),      icon: 'Zap',      text: 'Merci {user} pour ton boost ! 🚀 Grâce à toi, **{server}** compte maintenant **{boostCount}** boosts !' },
-    { label: m.e2_preset_boost_premium(),       icon: 'Gem',      text: '💎 WOW ! {user} vient de booster **{server}** ! Tu es incroyable, merci énormément ! 🙏' },
-    { label: m.e2_preset_boost_epic(),      icon: 'Zap',      text: '⚡ BOOST ACTIVÉ ! {user} propulse **{server}** vers de nouveaux sommets ! On est à **{boostCount}** boosts !' },
-    { label: m.e2_preset_boost_festive(),      icon: 'Sparkles', text: '🎉 {user} a boosté le serveur ! Merci pour ton soutien, tu es une star ! ✨ ({boostCount} boosts au total)' },
-    { label: m.e2_preset_boost_heroic(),   icon: 'Trophy',   text: '🏆 Héros du jour : {user} ! Son boost porte **{server}** à **{boostCount}** boosts. Respect total !' },
-  ];
+  const boostPresets = $derived([
+    { label: m.e2_preset_boost_standard(),      icon: 'Zap',      text: m.e2_preset_boost_standard_text() },
+    { label: m.e2_preset_boost_premium(),       icon: 'Gem',      text: m.e2_preset_boost_premium_text() },
+    { label: m.e2_preset_boost_epic(),      icon: 'Zap',      text: m.e2_preset_boost_epic_text() },
+    { label: m.e2_preset_boost_festive(),      icon: 'Sparkles', text: m.e2_preset_boost_festive_text() },
+    { label: m.e2_preset_boost_heroic(),   icon: 'Trophy',   text: m.e2_preset_boost_heroic_text() },
+  ]);
 
   let showWelcomePresets = $state(false);
   let showLeavePresets   = $state(false);
@@ -77,15 +77,15 @@
   let config = $state({
     welcomeEnabled: false,
     welcomeChannelId: null as string | null,
-    welcomeMessage: 'Bienvenue {user} sur notre serveur ! 🎉',
+    welcomeMessage: m.announcements_default_welcome_msg(),
     welcomeImageEnabled: false,
     welcomeImageUrl: null as string | null,
     leaveEnabled: false,
     leaveChannelId: null as string | null,
-    leaveMessage: 'Au revoir {user}... 😢',
+    leaveMessage: m.announcements_default_leave_msg(),
     boostEnabled: false,
     boostChannelId: null as string | null,
-    boostMessage: 'Merci pour ton boost {user} ! 🚀',
+    boostMessage: m.announcements_default_boost_msg(),
     boostImageEnabled: false,
     boostImageUrl: null as string | null,
     joinRoleId: null as string | null,
@@ -98,15 +98,15 @@
   let savedConfig = $state({
     welcomeEnabled: false,
     welcomeChannelId: null as string | null,
-    welcomeMessage: 'Bienvenue {user} sur notre serveur ! 🎉',
+    welcomeMessage: m.announcements_default_welcome_msg(),
     welcomeImageEnabled: false,
     welcomeImageUrl: null as string | null,
     leaveEnabled: false,
     leaveChannelId: null as string | null,
-    leaveMessage: 'Au revoir {user}... 😢',
+    leaveMessage: m.announcements_default_leave_msg(),
     boostEnabled: false,
     boostChannelId: null as string | null,
-    boostMessage: 'Merci pour ton boost {user} ! 🚀',
+    boostMessage: m.announcements_default_boost_msg(),
     boostImageEnabled: false,
     boostImageUrl: null as string | null,
     joinRoleId: null as string | null,
