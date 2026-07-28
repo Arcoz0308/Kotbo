@@ -113,14 +113,14 @@
           'Authorization': `Bearer ${authStore.token}`
         },
         body: JSON.stringify({
-          title: `Nouveau ${type === 'CTF' ? 'CTF' : type === 'CUSTOM' ? 'Événement' : 'Quiz'}`,
+          title: type === 'CTF' ? m.ev_new_ctf() : type === 'CUSTOM' ? m.ev_new_event() : m.ev_new_quiz(),
           type,
-          description: 'Description de l\'événement...'
+          description: m.ev_default_description()
         })
       });
       const data = await res.json();
       if (data.event) {
-        toast.success('Événement créé');
+        toast.success(m.ev_created_toast());
         showTypeModal = false;
         router.goto(`/events/edit/${data.event.id}`);
       }
@@ -136,8 +136,8 @@
     if (!guildId) return;
 
     const confirmDelete = await confirmDialog.danger(
-      `Supprimer l'événement « ${title} » ?`,
-      'Cette action est irréversible : toutes les questions, réponses et participants associés seront supprimés.',
+      m.ev_delete_confirm_title({ title }),
+      m.ev_delete_confirm_desc(),
     );
     if (!confirmDelete) return;
 
@@ -149,7 +149,7 @@
         }
       });
       if (res.ok) {
-        toast.success('Événement supprimé avec succès');
+        toast.success(m.ev_deleted_toast());
         await loadEvents();
       } else {
         const data = await res.json();
