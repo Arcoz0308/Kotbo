@@ -5,6 +5,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import EmptyState from '../lib/components/EmptyState.svelte';
+  import { m } from '../lib/i18n';
 
   let loading = $state(true);
   let data: any = $state(null);
@@ -25,7 +26,7 @@
     try {
       data = await fetchReputationData();
     } catch {
-      toast.error('Erreur lors du chargement');
+      toast.error(m.rep_load_error());
     } finally {
       loading = false;
     }
@@ -35,8 +36,8 @@
 </script>
 
 <ModulePage
-  title="Réputation"
-  description="Reconnaissance communautaire par les pairs."
+  title={m.rep_page_title()}
+  description={m.rep_page_desc()}
   icon="star"
   featureKey="leveling"
 >
@@ -45,7 +46,7 @@
 {#if loading}
   <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
     <div class="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent"></div>
-    <p class="text-sm">Chargement...</p>
+    <p class="text-sm">{m.rep_loading()}</p>
   </div>
 {:else if data}
   <!-- Stats Row -->
@@ -56,7 +57,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.totalVotes}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60">Total de votes</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">{m.rep_total_votes()}</span>
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
@@ -65,7 +66,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{data.leaderboard.totalVoters}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60">Votants uniques</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">{m.rep_unique_voters()}</span>
       </div>
     </div>
     <div class="bg-surface-container-high/30 rounded-xl p-4 flex items-center gap-3">
@@ -74,7 +75,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-xl font-bold text-on-surface">{totalRepGiven}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60">Total rep donne</span>
+        <span class="text-xs font-medium text-on-surface-variant/60">{m.rep_total_rep_given()}</span>
       </div>
     </div>
   </div>
@@ -85,10 +86,10 @@
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
       <h3 class="text-base font-semibold flex items-center gap-2.5">
         <Papicon icon="Crown" size={16} />
-        Classement Reputation
+        {m.rep_ranking_title()}
       </h3>
       {#if data.leaderboard.entries.length === 0}
-        <EmptyState icon="star" title="Aucun vote pour le moment" description="Les votes de réputation entre membres apparaîtront ici." />
+        <EmptyState icon="star" title={m.rep_no_votes_title()} description={m.rep_no_votes_desc()} />
       {:else}
         <div class="space-y-1">
           {#each data.leaderboard.entries as entry, i}
@@ -113,10 +114,10 @@
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
       <h3 class="text-base font-semibold flex items-center gap-2.5">
         <Papicon icon="Clock" size={16} />
-        Votes recents
+        {m.rep_recent_votes_title()}
       </h3>
       {#if data.recentVotes.length === 0}
-        <EmptyState icon="heart" title="Aucun vote récent" />
+        <EmptyState icon="heart" title={m.rep_no_recent_title()} />
       {:else}
         <div class="space-y-2">
           {#each data.recentVotes.slice(0, 20) as vote}

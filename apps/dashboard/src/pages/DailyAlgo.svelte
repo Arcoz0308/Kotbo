@@ -198,6 +198,15 @@
   // être configuré que s'ils sont activés sur le serveur.
   let clansEnabled = $state(false);
 
+  function formatWeekLabel(label?: string) {
+    if (!label) return '';
+    const match = label.match(/du\s+(.+?)\s+au\s+(.+)/i);
+    if (match) {
+      return m.da_week_range_format({ start: match[1], end: match[2] });
+    }
+    return label;
+  }
+
   const weekSettings = $state({
     dailyAlgoTimezone: 'Europe/Paris',
     dailyAlgoParticipationPoints: 1,
@@ -542,7 +551,7 @@
 
 <ModulePage 
   title="Daily Algo" 
-  description="Gérez les défis algorithmiques quotidiens, corrigez les soumissions et gérez votre bibliothèque." 
+  description={m.da_page_desc()} 
   icon="Code"
   featureKey="daily_algo"
 >
@@ -713,7 +722,7 @@
           <h3 class="text-xl font-semibold text-on-surface">{m.da_current_week()}</h3>
           <p class="text-xs text-on-surface-variant/60 mt-1">
             {#if currentWeek}
-              {currentWeek.weekKey} · {currentWeek.label}
+              {currentWeek.weekKey} · {formatWeekLabel(currentWeek.label)}
             {:else}
               {m.da_no_open_week()}
             {/if}
@@ -781,7 +790,7 @@
                     {m.da_participants_count({ count: week.participants })}
                   </span>
                 </div>
-                <p class="text-[11px] text-on-surface-variant/50">{week.label}</p>
+                <p class="text-[11px] text-on-surface-variant/50">{formatWeekLabel(week.label)}</p>
                 {#if week.podium.length > 0}
                   <div class="space-y-1 pt-2 border-t border-outline-variant/10">
                     {#each week.podium as entry (entry.rank)}

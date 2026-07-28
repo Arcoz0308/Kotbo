@@ -113,14 +113,14 @@
           'Authorization': `Bearer ${authStore.token}`
         },
         body: JSON.stringify({
-          title: `Nouveau ${type === 'CTF' ? 'CTF' : type === 'CUSTOM' ? 'Événement' : 'Quiz'}`,
+          title: type === 'CTF' ? m.ev_new_ctf() : type === 'CUSTOM' ? m.ev_new_event() : m.ev_new_quiz(),
           type,
-          description: 'Description de l\'événement...'
+          description: m.ev_default_description()
         })
       });
       const data = await res.json();
       if (data.event) {
-        toast.success('Événement créé');
+        toast.success(m.ev_created_toast());
         showTypeModal = false;
         router.goto(`/events/edit/${data.event.id}`);
       }
@@ -136,8 +136,8 @@
     if (!guildId) return;
 
     const confirmDelete = await confirmDialog.danger(
-      `Supprimer l'événement « ${title} » ?`,
-      'Cette action est irréversible : toutes les questions, réponses et participants associés seront supprimés.',
+      m.ev_delete_confirm_title({ title }),
+      m.ev_delete_confirm_desc(),
     );
     if (!confirmDelete) return;
 
@@ -149,7 +149,7 @@
         }
       });
       if (res.ok) {
-        toast.success('Événement supprimé avec succès');
+        toast.success(m.ev_deleted_toast());
         await loadEvents();
       } else {
         const data = await res.json();
@@ -303,24 +303,24 @@
                     {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
                 </div>
-                <p class="text-on-surface-variant/60 mt-1 line-clamp-1">{event.description || 'Aucune description.'}</p>
+                <p class="text-on-surface-variant/60 mt-1 line-clamp-1">{event.description || m.ev_no_description()}</p>
                 <div class="flex items-center gap-4 mt-3">
                   {#if event.type === 'CTF'}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                      <Papicon icon="Flag" size={12} /> {event._count?.ctfChallenges || 0} défis
+                      <Papicon icon="Flag" size={12} /> {m.ev_count_challenges({ count: event._count?.ctfChallenges || 0 })}
                     </span>
                   {:else if event.type === 'QUIZ'}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                      <Papicon icon="HelpCircle" size={12} /> {event._count?.questions || 0} questions
+                      <Papicon icon="HelpCircle" size={12} /> {m.ev_count_questions({ count: event._count?.questions || 0 })}
                     </span>
                   {/if}
                   {#if event.type === 'CUSTOM'}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                      <Papicon icon="UserPlus" size={12} /> {event._count?.registrations || 0} inscrits
+                      <Papicon icon="UserPlus" size={12} /> {m.ev_count_registrations({ count: event._count?.registrations || 0 })}
                     </span>
                   {:else}
                     <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                      <Papicon icon="Users" size={12} /> {event._count?.participants || 0} participants
+                      <Papicon icon="Users" size={12} /> {m.ev_count_participants({ count: event._count?.participants || 0 })}
                     </span>
                   {/if}
                 </div>
