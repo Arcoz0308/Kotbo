@@ -1077,7 +1077,7 @@
               </div>
             {/each}
 
-            <p class="text-[9px] text-on-surface-variant/40 ml-2">Variables utilisables: <code>{`{user}`}</code> (mention), <code>{`{username}`}</code> (pseudo), <code>{`{server}`}</code> (nom du serveur), <code>{`{channel}`}</code> (salon)</p>
+            <p class="text-[9px] text-on-surface-variant/40 ml-2">{m.triggers_modal_bot_variables_hint()}</p>
 
             <button
               type="button"
@@ -1091,7 +1091,7 @@
 
             {#if formResponses.length > 1 && totalWeight !== 100}
               <p class="text-[10px] text-amber-500 font-medium ml-2 font-sans">
-                Le total des taux d'apparition devrait idéalement être de 100% (actuellement {totalWeight}%).
+                {m.triggers_modal_total_weight_warning({ weight: totalWeight })}
               </p>
             {/if}
           </div>
@@ -1129,7 +1129,7 @@
             </div>
 
             {#if formTriggerType === 'FORM' && formResponseDestination === 'CHANNEL'}
-              <p class="text-[10px] text-amber-500 ml-2">Un formulaire n'a pas de salon d'origine : le message sera envoyé en MP.</p>
+              <p class="text-[10px] text-amber-500 ml-2">{m.triggers_modal_form_dm_warning()}</p>
             {/if}
 
             {#if formResponseDestination === 'SPECIFIC_CHANNEL'}
@@ -1246,14 +1246,14 @@
           <!-- Emojis Reactions -->
           <div class="space-y-1.5 font-sans">
             <label for="modal-reactions" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans flex items-center gap-1.5">
-              <Papicon icon="emoji" size={12} /> Réactions (Optionnel)
+              <Papicon icon="emoji" size={12} /> {m.triggers_modal_reactions_label()}
             </label>
             <div class="flex gap-2 items-start">
               <input
                 id="modal-reactions"
                 type="text"
                 bind:value={formReactionsRaw}
-                placeholder="Séparées par des virgules ou espaces"
+                placeholder={m.triggers_modal_reactions_ph()}
                 class="flex-1 bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                 disabled={!canManageSettings}
               />
@@ -1264,7 +1264,7 @@
                   onclick={() => showCustomEmojiPicker = !showCustomEmojiPicker}
                   disabled={!canManageSettings || customEmojis.length === 0}
                   class="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-container-high/60 border border-outline-variant/10 hover:bg-surface-container-high hover:border-outline-variant/35 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Émojis personnalisés du serveur"
+                  title={m.triggers_modal_custom_emojis_tooltip()}
                 >
                   <Papicon icon="grid" size={18} class="text-on-surface-variant" />
                 </button>
@@ -1282,7 +1282,7 @@
                         </button>
                       {/each}
                       {#if customEmojis.length === 0}
-                        <div class="col-span-6 text-center text-[10px] text-on-surface-variant/40 italic py-4">Aucun émoji personnalisé</div>
+                        <div class="col-span-6 text-center text-[10px] text-on-surface-variant/40 italic py-4">{m.triggers_modal_no_custom_emojis()}</div>
                       {/if}
                     </div>
                   </div>
@@ -1313,12 +1313,12 @@
                 {/each}
               </div>
             {/if}
-            <p class="text-[10px] text-on-surface-variant/50 ml-2">Le bot réagira automatiquement au message avec ces émojis.</p>
+            <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.triggers_modal_reactions_desc()}</p>
           </div>
 
           <!-- Advanced actions listing -->
           <div class="space-y-4 pt-2 font-sans max-h-[40vh] overflow-y-auto pr-1">
-            <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest ml-1">Actions avancées</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest ml-1">{m.triggers_modal_adv_actions_header()}</p>
 
             <!-- Action: Create Thread -->
             <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3">
@@ -1326,9 +1326,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="message" size={16} />
-                    Créer un Fil de discussion (Thread)
+                    {m.triggers_modal_act_thread_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Crée automatiquement un fil public rattaché au message</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_thread_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionCreateThread} 
@@ -1338,16 +1338,16 @@
               </div>
               {#if formActionCreateThread}
                 <div class="space-y-1 pt-1">
-                  <label for="thread-template" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Modèle de nom du fil (Optionnel)</label>
+                  <label for="thread-template" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_thread_template_label()}</label>
                   <input 
                     id="thread-template"
                     type="text" 
                     bind:value={formActionCreateThreadTemplate} 
-                    placeholder={'Ex: Forum de {user} - {content}'}
+                    placeholder={m.triggers_modal_act_thread_template_ph()}
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                     disabled={!canManageSettings}
                   />
-                  <p class="text-[9px] text-on-surface-variant/40">Variables utilisables: <code>{`{user}`}</code> (nom d'auteur), <code>{`{content}`}</code> (début du message)</p>
+                  <p class="text-[9px] text-on-surface-variant/40">{m.triggers_modal_act_thread_variables()}</p>
                 </div>
               {/if}
             </div>
@@ -1358,9 +1358,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="message" size={16} />
-                    Envoyer un message privé (DM)
+                    {m.triggers_modal_act_dm_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Envoie un message direct à l'utilisateur qui a déclenché le trigger</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_dm_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionSendDm} 
@@ -1370,11 +1370,11 @@
               </div>
               {#if formActionSendDm}
                 <div class="space-y-1 pt-1">
-                  <label for="dm-text" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Message à envoyer</label>
+                  <label for="dm-text" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_dm_msg_label()}</label>
                   <textarea 
                     id="dm-text"
                     bind:value={formActionSendDmText} 
-                    placeholder="Votre message secret ou d'avertissement..."
+                    placeholder={m.triggers_modal_act_dm_msg_ph()}
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none h-16 resize-none font-sans"
                     disabled={!canManageSettings}
                     required
@@ -1389,9 +1389,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="block" size={16} />
-                    Exclusion Temporaire (Timeout)
+                    {m.triggers_modal_act_timeout_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Exclut (mute) temporairement le membre du serveur</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_timeout_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionTimeout} 
@@ -1402,7 +1402,7 @@
               {#if formActionTimeout}
                 <div class="space-y-1 pt-1 flex items-center gap-4">
                   <div class="flex-1">
-                    <label for="timeout-duration" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Durée du Timeout (en secondes)</label>
+                    <label for="timeout-duration" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_timeout_duration_label()}</label>
                     <input 
                       id="timeout-duration"
                       type="number" 
@@ -1414,7 +1414,7 @@
                     />
                   </div>
                   <div class="pt-4 text-xs font-semibold text-on-surface-variant/50">
-                    = {Math.round(formActionTimeoutDuration / 60)} minutes
+                    {m.triggers_modal_act_timeout_minutes({ n: Math.round(formActionTimeoutDuration / 60) })}
                   </div>
                 </div>
               {/if}
@@ -1426,9 +1426,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="add" size={16} />
-                    Attribuer des points d'XP
+                    {m.triggers_modal_act_xp_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Donne de l'XP de progression au membre</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_xp_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionAddXp} 
@@ -1438,7 +1438,7 @@
               </div>
               {#if formActionAddXp}
                 <div class="space-y-1 pt-1">
-                  <label for="xp-value" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Nombre d'XP à attribuer</label>
+                  <label for="xp-value" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_xp_amount_label()}</label>
                   <input 
                     id="xp-value"
                     type="number" 
@@ -1458,9 +1458,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="add" size={16} />
-                    Créer un salon / catégorie
+                    {m.triggers_modal_act_create_chan_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Crée un nouveau salon Discord dynamique</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_create_chan_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionCreateChannel} 
@@ -1471,7 +1471,7 @@
               {#if formActionCreateChannel}
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div class="space-y-1">
-                    <label for="create-chan-name" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Nom du salon</label>
+                    <label for="create-chan-name" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_chan_name_label()}</label>
                     <input 
                       id="create-chan-name"
                       type="text" 
@@ -1483,20 +1483,20 @@
                     />
                   </div>
                   <div class="space-y-1">
-                    <label for="create-chan-type" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Type</label>
+                    <label for="create-chan-type" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_chan_type_label()}</label>
                     <select 
                       id="create-chan-type"
                       bind:value={formActionCreateChannelType}
                       class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 focus:outline-none cursor-pointer font-sans"
                       disabled={!canManageSettings}
                     >
-                      <option value="text">Texte</option>
-                      <option value="voice">Vocal</option>
-                      <option value="category">Catégorie</option>
+                      <option value="text">{m.triggers_modal_act_chan_type_text()}</option>
+                      <option value="voice">{m.triggers_modal_act_chan_type_voice()}</option>
+                      <option value="category">{m.triggers_modal_act_chan_type_category()}</option>
                     </select>
                   </div>
                   <div class="space-y-1">
-                    <label for="create-chan-cat" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Catégorie parente</label>
+                    <label for="create-chan-cat" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_chan_parent_label()}</label>
                     <SearchableSelect 
                       id="create-chan-cat"
                       bind:value={formActionCreateChannelCategoryId}
@@ -1516,9 +1516,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="delete" size={16} />
-                    Supprimer un salon / catégorie
+                    {m.triggers_modal_act_delete_chan_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Supprime le salon ou la catégorie cible</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_delete_chan_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionDeleteChannel} 
@@ -1528,7 +1528,7 @@
               </div>
               {#if formActionDeleteChannel}
                 <div class="space-y-1 pt-1">
-                  <label for="delete-chan-select" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Salon à supprimer</label>
+                  <label for="delete-chan-select" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_delete_chan_select_label()}</label>
                   <SearchableSelect 
                     id="delete-chan-select"
                     bind:value={formActionDeleteChannelId}
@@ -1547,9 +1547,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="shield" size={16} />
-                    Créer un rôle
+                    {m.triggers_modal_act_create_role_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Crée un nouveau rôle sur le serveur</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_create_role_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionCreateRole} 
@@ -1560,7 +1560,7 @@
               {#if formActionCreateRole}
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div class="space-y-1">
-                    <label for="create-role-name" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Nom du rôle</label>
+                    <label for="create-role-name" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_role_name_label()}</label>
                     <input 
                       id="create-role-name"
                       type="text" 
@@ -1572,7 +1572,7 @@
                     />
                   </div>
                   <div class="space-y-1">
-                    <label for="create-role-color" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Couleur</label>
+                    <label for="create-role-color" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_role_color_label()}</label>
                     <div class="flex gap-2 items-center">
                       <input 
                         id="create-role-color"
@@ -1601,9 +1601,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="delete" size={16} />
-                    Supprimer un rôle
+                    {m.triggers_modal_act_delete_role_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Supprime définitivement un rôle du serveur</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_delete_role_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionDeleteRole} 
@@ -1613,7 +1613,7 @@
               </div>
               {#if formActionDeleteRole}
                 <div class="space-y-1 pt-1">
-                  <label for="delete-role-select" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Rôle à supprimer</label>
+                  <label for="delete-role-select" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_delete_role_select_label()}</label>
                   <SearchableSelect 
                     id="delete-role-select"
                     bind:value={formActionDeleteRoleId}
@@ -1630,19 +1630,19 @@
 
         {#if activeTab === 'filters'}
           <div class="space-y-4 font-sans">
-            <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest ml-1">Limiter le déclenchement aux salons/rôles spécifiques</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest ml-1">{m.triggers_modal_filters_header()}</p>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-violet-400/80 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                  <Papicon icon="shield" size={11} /> Rôles autorisés
-                  <span class="text-on-surface-variant/30 normal-case font-normal">— vide = tous</span>
+                  <Papicon icon="shield" size={11} /> {m.triggers_modal_filter_allowed_roles()}
+                  <span class="text-on-surface-variant/30 normal-case font-normal">{m.triggers_modal_filter_empty_all()}</span>
                 </label>
                 <MultiSelect
                   id="filter-allowed-roles"
                   bind:values={formAllowedRoleIds}
                   options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                  placeholder="Rechercher un rôle…"
+                  placeholder={m.triggers_modal_search_role_ph()}
                   accentClass="bg-violet-500/20 text-violet-300 border-violet-500/40"
                   disabled={!canManageSettings}
                 />
@@ -1650,13 +1650,13 @@
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-rose-400/80 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                  <Papicon icon="block" size={11} /> Rôles interdits
+                  <Papicon icon="block" size={11} /> {m.triggers_modal_filter_banned_roles()}
                 </label>
                 <MultiSelect
                   id="filter-banned-roles"
                   bind:values={formBannedRoleIds}
                   options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                  placeholder="Rechercher un rôle…"
+                  placeholder={m.triggers_modal_search_role_ph()}
                   accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
                   disabled={!canManageSettings}
                 />
@@ -1664,14 +1664,14 @@
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-sky-400/80 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                  <Papicon icon="tag" size={11} /> Salons autorisés
-                  <span class="text-on-surface-variant/30 normal-case font-normal">— vide = tous</span>
+                  <Papicon icon="tag" size={11} /> {m.triggers_modal_filter_allowed_channels()}
+                  <span class="text-on-surface-variant/30 normal-case font-normal">{m.triggers_modal_filter_empty_all()}</span>
                 </label>
                 <MultiSelect
                   id="filter-allowed-channels"
                   bind:values={formAllowedChannelIds}
                   options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-                  placeholder="Rechercher un salon…"
+                  placeholder={m.triggers_modal_search_channel_ph()}
                   accentClass="bg-sky-500/20 text-sky-300 border-sky-500/40"
                   disabled={!canManageSettings}
                 />
@@ -1679,13 +1679,13 @@
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-orange-400/80 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                  <Papicon icon="block" size={11} /> Salons interdits
+                  <Papicon icon="block" size={11} /> {m.triggers_modal_filter_banned_channels()}
                 </label>
                 <MultiSelect
                   id="filter-banned-channels"
                   bind:values={formBannedChannelIds}
                   options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-                  placeholder="Rechercher un salon…"
+                  placeholder={m.triggers_modal_search_channel_ph()}
                   accentClass="bg-orange-500/20 text-orange-300 border-orange-500/40"
                   disabled={!canManageSettings}
                 />
