@@ -6,11 +6,12 @@
   import { authStore } from '../../stores/auth.svelte.ts';
   import { toast } from '../../stores/toast.svelte';
   import { uploadEvidenceFile, deleteEvidenceFile } from '../../api';
+  import { m } from '../../i18n';
 
   let {
     links = $bindable([]),
     disabled = false,
-    placeholder = "Lien de preuve (https://...)",
+    placeholder = m.sei_link_placeholder(),
     labelId = '',
     inputIdPrefix = '',
     guildId = authStore.selectedGuildId,
@@ -102,7 +103,7 @@
       reader.readAsDataURL(file);
     } catch (err) {
       console.error(err);
-      toast.error("Une erreur est survenue lors de l'upload.");
+      toast.error(m.sei_upload_error());
       uploadBusy = false;
     } finally {
       target.value = ''; // Reset input

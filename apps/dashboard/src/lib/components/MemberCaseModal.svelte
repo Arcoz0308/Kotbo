@@ -19,6 +19,7 @@
   import { normalizeEvidenceLinks, sanitizeEvidenceLinks } from '../sanctions/evidenceLinks';
   import InteractionTree from './charts/InteractionTree.svelte';
   import Modal from './Modal.svelte';
+  import { m, dateLocale } from '../i18n';
 
   type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
 
@@ -96,14 +97,14 @@
   });
 
   const memberSeniority = $derived.by(() => {
-    if (!caseData?.profile?.guildJoinedAt) return 'Nouveau venu';
+    if (!caseData?.profile?.guildJoinedAt) return m.mcm_seniority_newcomer();
     const joined = new Date(caseData.profile.guildJoinedAt).getTime();
     const ageDays = (Date.now() - joined) / (1000 * 60 * 60 * 24);
-    if (ageDays > 365) return 'Vétéran (1 an+)';
-    if (ageDays > 180) return 'Ancien (6 mois+)';
-    if (ageDays > 30) return 'Régulier (1 mois+)';
-    if (ageDays > 7) return 'Récents (1 semaine+)';
-    return 'Nouveau venu';
+    if (ageDays > 365) return m.mcm_seniority_veteran();
+    if (ageDays > 180) return m.mcm_seniority_old();
+    if (ageDays > 30) return m.mcm_seniority_regular();
+    if (ageDays > 7) return m.mcm_seniority_recent();
+    return m.mcm_seniority_newcomer();
   });
 
   const topChannels = $derived.by(() => {
@@ -164,29 +165,29 @@
   async function executeModerationAction(action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') {
     if (!userId) return;
     
-    const reasonText = actionReason.trim() || 'Action lancée depuis le profil membre.';
+    const reasonText = actionReason.trim() || m.mcm_default_reason();
     let confirmTitle = '';
     let confirmDesc = '';
     let confirmLabel = '';
     let variant: 'danger' | 'warning' = 'warning';
     
     if (action === 'WARN') {
-      confirmTitle = `Avertir ${userName} ?`;
-      confirmDesc = `Un avertissement formel sera enregistré. Raison : "${reasonText}"`;
-      confirmLabel = 'Avertir';
+      confirmTitle = m.mcm_confirm_warn_title({ name: userName });
+      confirmDesc = m.mcm_confirm_warn_desc({ reason: reasonText });
+      confirmLabel = m.mcm_action_warn();
     } else if (action === 'TIMEOUT') {
-      confirmTitle = `Exclure temporairement ${userName} ?`;
-      confirmDesc = `Le membre sera mis en sourdine (Timeout) pendant ${actionDuration}. Raison : "${reasonText}"`;
-      confirmLabel = 'Exclure';
+      confirmTitle = m.mcm_confirm_timeout_title({ name: userName });
+      confirmDesc = m.mcm_confirm_timeout_desc({ duration: actionDuration, reason: reasonText });
+      confirmLabel = m.mcm_action_exclude();
     } else if (action === 'KICK') {
-      confirmTitle = `Expulser ${userName} ?`;
-      confirmDesc = `Le membre sera exclu du serveur Discord. Raison : "${reasonText}"`;
-      confirmLabel = 'Expulser';
+      confirmTitle = m.mcm_confirm_kick_title({ name: userName });
+      confirmDesc = m.mcm_confirm_kick_desc({ reason: reasonText });
+      confirmLabel = m.mcm_action_kick();
       variant = 'danger';
     } else if (action === 'BAN') {
-      confirmTitle = `Bannir ${userName} ?`;
-      confirmDesc = `Le membre sera banni définitivement du serveur Discord. Un message d'avis d'appel lui sera envoyé au préalable. Raison : "${reasonText}"`;
-      confirmLabel = 'Bannir';
+      confirmTitle = m.mcm_confirm_ban_title({ name: userName });
+      confirmDesc = m.mcm_confirm_ban_desc({ reason: reasonText });
+      confirmLabel = m.mcm_action_ban();
       variant = 'danger';
     }
     
@@ -214,7 +215,7 @@
       
       const res = await runMemberCaseAction(userId, action, payload);
       if (res?.ok) {
-        toast.success(`L'action ${action} a été exécutée.`);
+        toast.success(m.mcm_action_done({ action }));
         actionReason = '';
         // Recharger le dossier membre
         const updatedCase = await fetchMemberCase(userId);
@@ -222,11 +223,11 @@
           caseData = updatedCase;
         }
       } else {
-        throw new Error(res?.error || "Erreur lors de l'exécution de l'action");
+        throw new Error(res?.error || m.mcm_action_error());
       }
     } catch (err: any) {
       actionIsError = true;
-      actionFeedback = err?.message || "Une erreur est survenue lors de l'exécution.";
+      actionFeedback = err?.message || m.mcm_action_error_generic();
       toast.error(actionFeedback);
     } finally {
       actionBusy = false;
@@ -248,13 +249,13 @@
 
   async function handleRequestVerification() {
     if (!userId) return;
-    if (!(await confirmDialog.ask({ title: 'Forcer la vérification de sécurité ?', description: "L'utilisateur sera mis en timeout temporairement et recevra les instructions par message privé.", confirmLabel: 'Forcer la vérification', variant: 'warning' }))) return;
+    if (!(await confirmDialog.ask({ title: m.mcm_verif_title(), description: m.mcm_verif_desc(), confirmLabel: m.mcm_verif_confirm(), variant: 'warning' }))) return;
     requestVerificationBusy = true;
     try {
       const res = await runMemberCaseAction(userId, 'REQUEST_VERIFICATION', {
-        reason: 'Vérification de sécurité forcée par le staff.'
+        reason: m.mcm_verif_reason()
       });
-      toast.success('Demande de vérification envoyée. Le membre a été mis en Timeout.');
+      toast.success(m.mcm_verif_sent());
       const updatedCase = await fetchMemberCase(userId);
       if (updatedCase) caseData = updatedCase;
     } catch (err: any) {
@@ -285,7 +286,7 @@
       const success = await linkMemberAccount(userId!, targetAccountId, linkReason);
       if (success) {
         linkIsError = false;
-        linkFeedback = 'Comptes liés avec succès.';
+        linkFeedback = m.mcm_link_success();
         targetAccountId = '';
         linkReason = '';
         if (userId) {
@@ -296,7 +297,7 @@
         }
       } else {
         linkIsError = true;
-        linkFeedback = 'Erreur lors de la liaison. Vérifiez l\'ID ou vos permissions.';
+        linkFeedback = m.mcm_link_error();
       }
     } catch (e: any) {
       linkIsError = true;
@@ -309,7 +310,7 @@
   let unlinkingAccountId = $state<string | null>(null);
 
   async function handleUnlinkAccount(targetId: string) {
-    if (!(await confirmDialog.ask({ title: 'Séparer ces comptes ?', confirmLabel: 'Séparer', variant: 'warning' }))) return;
+    if (!(await confirmDialog.ask({ title: m.mcm_unlink_title(), confirmLabel: m.mcm_unlink_confirm(), variant: 'warning' }))) return;
     unlinkingAccountId = targetId;
 
     try {
@@ -348,7 +349,7 @@
     try {
       const result = await updateMemberNote(userId, moderatorNote);
       if (result?.ok) {
-        noteFeedback = 'Note enregistrée.';
+        noteFeedback = m.mcm_note_saved();
         if (caseData?.profile) {
           caseData.profile.moderatorNote = moderatorNote;
         }
@@ -458,34 +459,34 @@
       .filter((r): r is any => !!r)
   );
 
-  const tabs: { id: MemberCaseTab; label: string; icon: string; count?: () => number }[] = [
-    { id: 'resume', label: 'Résumé', icon: 'layout' },
-    { id: 'identite', label: 'Identité', icon: 'user' },
-    { id: 'activite', label: 'Activité', icon: 'trending-up' },
-    { id: 'analytics', label: 'Analytiques', icon: 'bar-chart-2' },
-    { id: 'messages', label: 'Messages', icon: 'message-square', count: () => caseData?.recentMessageCount ?? 0 },
-    { id: 'logs', label: 'Logs', icon: 'history', count: () => caseData?.recentLogCount ?? 0 },
-    { id: 'sanctions', label: 'Sanctions', icon: 'hammer', count: () => sanctions.length },
-    { id: 'candidatures', label: 'Candidats', icon: 'user-check', count: () => caseData?.candidatures?.length ?? 0 },
-    { id: 'invites', label: 'Invitations', icon: 'mail' },
-    { id: 'connexions', label: 'Connexions', icon: 'link' },
-    { id: 'linked_accounts', label: 'Comptes liés', icon: 'link-2', count: () => caseData?.linkedAccounts?.length ?? 0 },
-    { id: 'notes', label: 'Notes', icon: 'edit-3' },
-  ];
+  const tabs: { id: MemberCaseTab; label: string; icon: string; count?: () => number }[] = $derived([
+    { id: 'resume', label: m.mcm_tab_summary(), icon: 'layout' },
+    { id: 'identite', label: m.mcm_tab_identity(), icon: 'user' },
+    { id: 'activite', label: m.mcm_tab_activity(), icon: 'trending-up' },
+    { id: 'analytics', label: m.mcm_tab_analytics(), icon: 'bar-chart-2' },
+    { id: 'messages', label: m.mcm_tab_messages(), icon: 'message-square', count: () => caseData?.recentMessageCount ?? 0 },
+    { id: 'logs', label: m.mcm_tab_logs(), icon: 'history', count: () => caseData?.recentLogCount ?? 0 },
+    { id: 'sanctions', label: m.mcm_tab_sanctions(), icon: 'hammer', count: () => sanctions.length },
+    { id: 'candidatures', label: m.mcm_tab_candidates(), icon: 'user-check', count: () => caseData?.candidatures?.length ?? 0 },
+    { id: 'invites', label: m.mcm_tab_invites(), icon: 'mail' },
+    { id: 'connexions', label: m.mcm_tab_connections(), icon: 'link' },
+    { id: 'linked_accounts', label: m.mcm_tab_linked(), icon: 'link-2', count: () => caseData?.linkedAccounts?.length ?? 0 },
+    { id: 'notes', label: m.mcm_tab_notes(), icon: 'edit-3' },
+  ]);
 
   function formatDateTime(value: string | null | undefined) {
     if (!value) return 'Inconnu';
-    return new Date(value).toLocaleString('fr-FR');
+    return new Date(value).toLocaleString(dateLocale());
   }
 
   function formatDateShort(value: string | null | undefined) {
     if (!value) return '—';
-    return new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(value).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   function formatTimeShort(value: string | null | undefined) {
     if (!value) return '';
-    return new Date(value).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return new Date(value).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' });
   }
 
   function formatDurationFromSeconds(seconds: number | null | undefined) {
@@ -503,7 +504,7 @@
   }
 
   function formatRelative(value: string | null | undefined) {
-    if (!value) return 'Jamais';
+    if (!value) return m.mcm_never();
     const date = new Date(value);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -512,15 +513,15 @@
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (seconds < 60) return "À l'instant";
-    if (minutes < 60) return `Il y a ${minutes}m`;
-    if (hours < 24) return `Il y a ${hours}h`;
-    if (days < 7) return `Il y a ${days}j`;
-    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+    if (seconds < 60) return m.mcm_just_now();
+    if (minutes < 60) return m.mcm_ago_minutes({ n: minutes });
+    if (hours < 24) return m.mcm_ago_hours({ n: hours });
+    if (days < 7) return m.mcm_ago_days({ n: days });
+    return date.toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short' });
   }
 
   function getDurationSince(value: string | null | undefined) {
-    if (!value) return 'Inconnu';
+    if (!value) return m.mcm_unknown();
     const start = new Date(value);
     const now = new Date();
     let years = now.getFullYear() - start.getFullYear();
@@ -532,22 +533,22 @@
     }
 
     const parts: string[] = [];
-    if (years > 0) parts.push(`${years} an${years > 1 ? 's' : ''}`);
-    if (months > 0) parts.push(`${months} mois`);
-    
+    if (years > 0) parts.push(years > 1 ? m.mcm_years_other({ n: years }) : m.mcm_years_one({ n: years }));
+    if (months > 0) parts.push(m.mcm_months({ n: months }));
+
     if (parts.length === 0) {
        const days = Math.floor((now.getTime() - start.getTime()) / 86400000);
-       if (days <= 0) return "Aujourd'hui";
-       return `${days} jour${days > 1 ? 's' : ''}`;
+       if (days <= 0) return m.mcm_today();
+       return days > 1 ? m.mcm_days_other({ n: days }) : m.mcm_days_one({ n: days });
     }
     
     return parts.join(', ');
   }
 
   function formatChannelLabel(channelId: string | null | undefined) {
-    if (!channelId) return 'Non spécifié';
+    if (!channelId) return m.mcm_not_specified();
     const channel = dashboardStore.state.discordChannels.find((item) => item.id === channelId);
-    if (!channel) return 'Canal inconnu';
+    if (!channel) return m.mcm_unknown_channel();
     return channelDisplayName(channel);
   }
 
@@ -562,13 +563,13 @@
   }
 
   function getPresenceLabel(status: string | null | undefined) {
-    if (!status) return 'Hors ligne';
+    if (!status) return m.mcm_presence_offline();
     const s = status.toLowerCase();
-    if (s === 'left') return 'A quitté le serveur';
-    if (s === 'online') return 'En ligne';
-    if (s === 'idle') return 'Absent';
-    if (s === 'dnd') return 'Ne pas déranger';
-    return 'Hors ligne';
+    if (s === 'left') return m.mcm_presence_left();
+    if (s === 'online') return m.mcm_presence_online();
+    if (s === 'idle') return m.mcm_presence_idle();
+    if (s === 'dnd') return m.mcm_presence_dnd();
+    return m.mcm_presence_offline();
   }
 
   function sanitizeLogSnippet(value: string) {
@@ -600,9 +601,9 @@
 
   function getSanctionStatusLabel(status: string) {
     const s = status.toUpperCase();
-    if (s === 'ACTIVE') return 'Active';
-    if (s === 'RESOLVED') return 'Résolue';
-    if (s === 'EXPIRED') return 'Expirée';
+    if (s === 'ACTIVE') return m.mcm_status_active();
+    if (s === 'RESOLVED') return m.mcm_status_resolved();
+    if (s === 'EXPIRED') return m.mcm_status_expired();
     return status;
   }
 
@@ -698,7 +699,7 @@
           {#if caseData?.profile?.avatarUrl}
             <img
               src={caseData?.profile?.avatarUrl}
-              alt="Avatar"
+              alt={m.mcm_avatar_alt()}
               class="relative h-20 w-20 rounded-lg border-4 border-(--surface-container-lowest) object-cover shadow-sm"
             />
           {:else}
@@ -753,7 +754,7 @@
                     <span>Envoi...</span>
                   {:else}
                     <Papicon icon="shield-alert" size={14} />
-                    <span>Demander vérification</span>
+                    <span>{m.mcm_request_verification()}</span>
                   {/if}
                 </button>
                 <a
@@ -810,9 +811,9 @@
             <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 mb-6">
               <Papicon icon="alert-triangle" size={32} />
             </div>
-            <h3 class="text-xl font-semibold text-amber-600 font-headline">Utilisateur introuvable</h3>
+            <h3 class="text-xl font-semibold text-amber-600 font-headline">{m.mcm_user_not_found()}</h3>
             <p class="mt-2 text-sm text-amber-700/60 max-w-sm">
-              Impossible de relier ce log à un ID utilisateur Discord. Le dossier ne peut pas être chargé.
+              {m.mcm_user_not_found_desc()}
             </p>
           </div>
         {:else if loading}
@@ -836,9 +837,9 @@
             <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/30 mb-6">
               <Papicon icon="user-x" size={32} />
             </div>
-            <h3 class="text-xl font-semibold text-on-surface-variant font-headline">Aucune donnée</h3>
+            <h3 class="text-xl font-semibold text-on-surface-variant font-headline">{m.mcm_no_data()}</h3>
             <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm">
-              Aucun dossier détaillé n'est disponible pour ce membre.
+              {m.mcm_no_data_desc()}
             </p>
           </div>
         {:else}
@@ -852,9 +853,9 @@
                   <Papicon icon="alert-octagon" size={24} />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <h4 class="text-sm font-semibold text-rose-600 uppercase tracking-widest">Suspicion de Double Compte</h4>
+                  <h4 class="text-sm font-semibold text-rose-600 uppercase tracking-widest">{m.mcm_dc_title()}</h4>
                   <p class="text-xs font-bold text-rose-500/70 mt-1">
-                    Ce compte a été identifié comme un potentiel double compte automatique lors de son arrivée.
+                    {m.mcm_dc_desc()}
                   </p>
                 </div>
                 <div class="flex gap-2">
@@ -875,32 +876,32 @@
                          <Papicon icon="user" size={24} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Informations Compte</p>
-                         <p class="text-lg font-semibold text-on-surface">Identité & Ancienneté</p>
+                         <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_account_info()}</p>
+                         <p class="text-lg font-semibold text-on-surface">{m.mcm_identity_seniority()}</p>
                        </div>
                      </div>
                    </div>
 
                    <div class="grid grid-cols-2 gap-8">
                      <div class="space-y-1">
-                       <p class="text-xs font-medium text-on-surface-variant/40">Âge du compte</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_account_age()}</p>
                        <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.accountCreatedAt)}</p>
-                       <p class="text-[10px] font-bold text-on-surface-variant/60">Créé le {formatDateShort(caseData?.profile?.accountCreatedAt)}</p>
+                       <p class="text-[10px] font-bold text-on-surface-variant/60">{m.mcm_created_on({ date: formatDateShort(caseData?.profile?.accountCreatedAt) })}</p>
                      </div>
                      <div class="space-y-1">
-                       <p class="text-xs font-medium text-on-surface-variant/40">Présence Serveur</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_server_presence()}</p>
                        <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.guildJoinedAt)}</p>
-                       <p class="text-[10px] font-bold text-on-surface-variant/60">Arrivé le {formatDateShort(caseData?.profile?.guildJoinedAt)}</p>
+                       <p class="text-[10px] font-bold text-on-surface-variant/60">{m.mcm_joined_on({ date: formatDateShort(caseData?.profile?.guildJoinedAt) })}</p>
                      </div>
                      <div class="space-y-1">
-                       <p class="text-xs font-medium text-on-surface-variant/40">Invité par</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_invited_by()}</p>
                         {#if caseData?.invite?.inviterTag}
                           {#if caseData?.invite?.inviterId}
                             <button
                               type="button"
                               onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
                               class="flex items-center gap-2 text-left hover:text-primary transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-xl p-1 -ml-1 group/inviter w-full"
-                              title="Ouvrir la vue modérateur de l'inviteur"
+                              title={m.mcm_open_inviter()}
                             >
                               {#if caseData.invite.inviterAvatarUrl}
                                 <img
@@ -960,21 +961,21 @@
                        <Papicon icon="hammer" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-amber-500'}">Casier</p>
-                       <p class="text-lg font-semibold text-on-surface">Sanctions</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-amber-500'}">{m.mcm_record()}</p>
+                       <p class="text-lg font-semibold text-on-surface">{m.mcm_sanctions()}</p>
                      </div>
                    </div>
 
                    <div class="space-y-4">
                      <div class="flex items-end justify-between">
                         <span class="text-4xl font-semibold text-on-surface">{sanctions.length}</span>
-                        <span class="text-xs font-medium text-on-surface-variant/40 pb-1">Total</span>
+                        <span class="text-xs font-medium text-on-surface-variant/40 pb-1">{m.mcm_total()}</span>
                      </div>
                      <div class="h-2 w-full rounded-full bg-on-surface/5 overflow-hidden">
                         <div class="h-full bg-rose-500 transition-all duration-1000" style="width: {sanctions.length > 0 ? (sanctions.filter(s => s.status === 'ACTIVE').length / sanctions.length) * 100 : 0}%"></div>
                      </div>
                      <p class="text-xs font-bold {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-on-surface-variant/60'}">
-                        {sanctions.filter(s => s.status === 'ACTIVE').length} sanction(s) active(s)
+                        {m.mcm_active_sanctions({ count: sanctions.filter(s => s.status === 'ACTIVE').length })}
                      </p>
                    </div>
                 </div>
@@ -986,18 +987,18 @@
                        <Papicon icon="activity" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">Activité</p>
-                       <p class="text-lg font-semibold text-on-surface">Engagement</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{m.mcm_activity()}</p>
+                       <p class="text-lg font-semibold text-on-surface">{m.mcm_engagement()}</p>
                      </div>
                    </div>
 
                    <div class="grid grid-cols-1 gap-4">
                      <div class="flex items-center justify-between">
-                       <span class="text-xs font-bold text-on-surface-variant/60">Messages</span>
-                       <span class="text-sm font-semibold text-on-surface">{caseData?.profile?.messageCount?.toLocaleString('fr-FR') ?? 0}</span>
+                       <span class="text-xs font-bold text-on-surface-variant/60">{m.mcm_messages()}</span>
+                       <span class="text-sm font-semibold text-on-surface">{caseData?.profile?.messageCount?.toLocaleString(dateLocale()) ?? 0}</span>
                      </div>
                      <div class="flex items-center justify-between">
-                       <span class="text-xs font-bold text-on-surface-variant/60">Vocal</span>
+                       <span class="text-xs font-bold text-on-surface-variant/60">{m.mcm_voice()}</span>
                        <span class="text-sm font-semibold text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</span>
                      </div>
                      <div class="flex items-center justify-between">
@@ -1017,13 +1018,13 @@
                          </div>
                          <div>
                            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Statistiques</p>
-                           <h4 class="text-2xl font-semibold text-on-surface font-headline">Tendance d'activité (30j)</h4>
+                           <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.mcm_activity_trend()}</h4>
                          </div>
                        </div>
                        <div class="flex gap-2">
                          <div class="flex flex-col items-end">
                            <p class="text-2xl font-semibold text-primary">{analyticsData.totalMessages.toLocaleString('fr-FR')}</p>
-                           <p class="text-xs font-medium text-on-surface-variant/40">Messages totaux</p>
+                           <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_total_messages()}</p>
                          </div>
                          <div class="h-8 w-px bg-outline-variant/20 mx-4"></div>
                          <div class="flex flex-col items-end">
@@ -1038,7 +1039,7 @@
                            labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
                            datasets: [
                              {
-                               label: 'Messages',
+                               label: m.mcm_messages(),
                                data: analyticsData.dailyTrend.map(d => d.messages),
                                borderColor: '#6366f1',
                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
@@ -1084,7 +1085,7 @@
                       <Papicon icon="bar-chart-2" size={24} />
                     </div>
                     <p class="text-sm font-semibold text-on-surface-variant/40">Statistiques indisponibles</p>
-                    <p class="text-[10px] font-bold text-on-surface-variant/20 mt-1 uppercase tracking-widest">Activité insuffisante sur 30j</p>
+                    <p class="text-[10px] font-bold text-on-surface-variant/20 mt-1 uppercase tracking-widest">{m.mcm_low_activity()}</p>
                   </div>
                 {/if}
 
@@ -1099,13 +1100,13 @@
                      </div>
                      <div>
                        <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">Autorisations</p>
-                       <p class="text-lg font-semibold text-on-surface">Rôles & Accès</p>
+                       <p class="text-lg font-semibold text-on-surface">{m.mcm_roles_access()}</p>
                      </div>
                    </div>
 
                    <div class="space-y-6">
                      <div>
-                        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">Rôles Principaux</p>
+                        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">{m.mcm_main_roles()}</p>
                         <div class="flex flex-wrap gap-2">
                           {#each caseData?.roles.slice(0, 4) as role}
                             <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20 flex items-center gap-1.5">
@@ -1121,7 +1122,7 @@
                         </div>
                      </div>
                      <div>
-                        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">Permissions Clés</p>
+                        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">{m.mcm_key_permissions()}</p>
                         <div class="flex flex-wrap gap-1.5">
                           {#each caseData?.effectivePermissions.slice(0, 3) as perm}
                             <span class="text-[10px] font-semibold text-emerald-500 uppercase tracking-tighter flex items-center gap-1.5">
@@ -1142,7 +1143,7 @@
                        </div>
                        <div>
                          <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">Timeline</p>
-                         <h4 class="text-2xl font-semibold text-on-surface font-headline">Activités récentes</h4>
+                         <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.mcm_recent_activities()}</h4>
                        </div>
                     </div>
                     <button onclick={() => activeTab = 'logs'} class="group/btn inline-flex items-center gap-2 rounded-lg bg-white/5 px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-widest transition-all hover:bg-white/10 hover:text-on-surface">
@@ -1153,7 +1154,7 @@
 
                   <div class="grid gap-6 md:grid-cols-2">
                     <div class="space-y-4">
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary px-2 mb-4">Derniers Messages</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary px-2 mb-4">{m.mcm_last_messages()}</p>
                        {#each caseData?.messagesByChannel.slice(0, 3).flatMap(c => c.recentMessages.slice(0, 1)) as msg}
                          <div class="rounded-xl bg-surface-container-low/60 p-5 border border-outline-variant/5 transition-all hover:border-primary/20">
                             <div class="flex items-center justify-between mb-2">
@@ -1164,7 +1165,7 @@
                          </div>
                        {/each}
                        {#if caseData?.messagesByChannel.length === 0}
-                         <p class="text-xs text-on-surface-variant/40 px-2">Aucun message récent détecté.</p>
+                         <p class="text-xs text-on-surface-variant/40 px-2">{m.mcm_no_recent_message()}</p>
                        {/if}
                     </div>
 
@@ -1186,25 +1187,25 @@
                 <!-- Basic Profile Card -->
                 <div class="md:col-span-4 grid gap-6 md:grid-cols-2">
                   <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                    <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">Profil Discord</p>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">{m.mcm_discord_profile()}</p>
                     <dl class="space-y-4">
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom d'utilisateur</dt><dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom global</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Affichage serveur</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Langue</dt><dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Pronoms</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_username()}</dt><dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? m.mcm_unknown()}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_global_name()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? m.mcm_unknown()}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Affichage serveur</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? m.mcm_unknown()}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Langue</dt><dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_pronouns()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? m.mcm_not_specified_plural()}</dd></div>
                     </dl>
                   </div>
                   <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
                     <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">Visuels</p>
                     {#if caseData?.profile?.avatarUrl}
                       <div class="flex items-center gap-4">
-                        <img src={caseData?.profile?.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-lg object-cover shadow-lg border-2 border-surface" />
-                        <span class="text-xs font-bold text-on-surface-variant/60">Avatar personnalisé</span>
+                        <img src={caseData?.profile?.avatarUrl} alt={m.mcm_avatar_alt()} class="h-16 w-16 rounded-lg object-cover shadow-lg border-2 border-surface" />
+                        <span class="text-xs font-bold text-on-surface-variant/60">{m.mcm_custom_avatar()}</span>
                       </div>
                     {/if}
                     {#if caseData?.profile?.bannerUrl}
-                      <img src={caseData?.profile?.bannerUrl} alt="Bannière" class="w-full h-24 rounded-lg object-cover border border-outline-variant/10 shadow-sm" />
+                      <img src={caseData?.profile?.bannerUrl} alt={m.mcm_banner_alt()} class="w-full h-24 rounded-lg object-cover border border-outline-variant/10 shadow-sm" />
                     {/if}
                     {#if caseData?.profile?.accentColor}
                       <div class="flex items-center gap-3">
@@ -1225,34 +1226,34 @@
                        <Papicon icon="user" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Données Compte</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_account_data()}</p>
                        <p class="text-lg font-semibold text-on-surface">Profil Complet</p>
                      </div>
                    </div>
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">ID Discord</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_discord_id()}</dt>
                        <dd class="text-sm font-semibold text-on-surface select-all">{caseData?.profile?.userId ?? userId}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Nom d'utilisateur</dt>
-                       <dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_username()}</dt>
+                       <dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? m.mcm_unknown()}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Nom Global</dt>
-                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_global_name_cap()}</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? m.mcm_unknown()}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Surnom Serveur</dt>
-                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_server_nickname()}</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? m.mcm_unknown()}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Pronoms</dt>
-                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_pronouns()}</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? m.mcm_not_specified_plural()}</dd>
                      </div>
                      <div class="flex items-center justify-between">
                        <dt class="text-xs font-medium text-on-surface-variant/40">Langue (Locale)</dt>
-                       <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd>
+                       <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd>
                      </div>
                    </dl>
                 </div>
@@ -1265,19 +1266,19 @@
                          <Papicon icon="star" size={24} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Administration</p>
-                         <p class="text-lg font-semibold text-on-surface">Statut Staff</p>
+                         <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">{m.mcm_administration()}</p>
+                         <p class="text-lg font-semibold text-on-surface">{m.mcm_staff_status()}</p>
                        </div>
                      </div>
                      <dl class="space-y-5">
                        <div class="flex items-center justify-between border-b border-amber-500/15 pb-2">
-                         <dt class="text-xs font-medium text-on-surface-variant/40">Grade Actuel</dt>
+                         <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_current_grade()}</dt>
                          <dd class="text-sm font-semibold text-amber-600 dark:text-amber-400">{caseData?.profile?.staffGrade}</dd>
                        </div>
                        <div class="flex items-center justify-between">
-                         <dt class="text-xs font-medium text-on-surface-variant/40">Statut Tuteur</dt>
+                         <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_tutor_status()}</dt>
                          <dd class="text-sm font-semibold text-on-surface">
-                           {caseData?.profile?.isTutor ? 'Oui (Actif)' : 'Non'}
+                           {caseData?.profile?.isTutor ? m.mcm_tutor_yes() : m.mcm_tutor_no()}
                          </dd>
                        </div>
                      </dl>
@@ -1292,30 +1293,30 @@
                      </div>
                      <div>
                        <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">Chronologie</p>
-                       <p class="text-lg font-semibold text-on-surface">Dates Clés</p>
+                       <p class="text-lg font-semibold text-on-surface">{m.mcm_key_dates()}</p>
                      </div>
                    </div>
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Création Compte</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_account_creation()}</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.accountCreatedAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Arrivée Serveur</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_server_join()}</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd>
                      </div>
                      {#if caseData?.profile?.guildLeftAt}
                        <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                         <dt class="text-xs font-medium text-rose-500/60">Dernier Départ</dt>
+                         <dt class="text-xs font-medium text-rose-500/60">{m.mcm_last_leave()}</dt>
                          <dd class="text-sm font-semibold text-rose-500">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd>
                        </div>
                      {/if}
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Première Vue</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_first_seen()}</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Dernière Vue</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_last_seen()}</dt>
                        <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.lastSeenAt)}</dd>
                      </div>
                    </dl>
@@ -1329,7 +1330,7 @@
                      </div>
                      <div>
                        <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">Autorisations</p>
-                       <p class="text-lg font-semibold text-on-surface">Rôles ({caseData?.roles.length})</p>
+                       <p class="text-lg font-semibold text-on-surface">{m.mcm_roles_count({ count: caseData?.roles.length })}</p>
                      </div>
                    </div>
                    <div class="flex flex-wrap gap-3">
@@ -1343,7 +1344,7 @@
                      {/each}
                      {#if caseData?.roles.length === 0}
                         <div class="w-full py-10 text-center bg-surface-container-low rounded-xl border border-dashed border-outline-variant/20">
-                          <p class="text-sm font-semibold text-on-surface-variant/40 uppercase tracking-widest">Aucun rôle attribué</p>
+                          <p class="text-sm font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.mcm_no_role()}</p>
                         </div>
                      {/if}
                    </div>
@@ -1358,26 +1359,26 @@
                         <Papicon icon="message-square" size={20} />
                       </div>
                       <p class="text-2xl font-semibold text-on-surface">{caseData?.profile?.messageCount ?? 0}</p>
-                      <p class="text-[11px] font-semibold uppercase tracking-widest text-primary/60 mt-1">Messages</p>
+                      <p class="text-[11px] font-semibold uppercase tracking-widest text-primary/60 mt-1">{m.mcm_messages()}</p>
                     </div>
                     <div class="rounded-xl bg-secondary/5 p-6 border border-secondary/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary mx-auto mb-4">
                         <Papicon icon="mic" size={20} />
                       </div>
                       <p class="text-2xl font-semibold text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</p>
-                      <p class="text-[11px] font-semibold uppercase tracking-widest text-secondary/60 mt-1">Temps vocal</p>
+                      <p class="text-[11px] font-semibold uppercase tracking-widest text-secondary/60 mt-1">{m.mcm_voice_time()}</p>
                     </div>
                     <div class="rounded-xl bg-emerald-500/5 p-6 border border-emerald-500/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 mx-auto mb-4">
                         <Papicon icon="eye" size={20} />
                       </div>
                       <p class="text-lg font-semibold text-on-surface">{formatDateShort(caseData?.profile?.lastSeenAt)}</p>
-                      <p class="text-[11px] font-semibold uppercase tracking-widest text-emerald-500/60 mt-1">Dernière activité</p>
+                      <p class="text-[11px] font-semibold uppercase tracking-widest text-emerald-500/60 mt-1">{m.mcm_last_activity()}</p>
                     </div>
                   </div>
 
                   <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10">
-                    <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-8 px-2">Répartition par salon</p>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-8 px-2">{m.mcm_by_channel()}</p>
                     <div class="space-y-6">
                       {#each caseData?.messagesByChannel || [] as channel}
                         {@const max = Math.max(...(caseData?.messagesByChannel || []).map(c => c.count), 1)}
@@ -1410,8 +1411,8 @@
                        <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
                             <div>
-                              <p class="text-xs font-medium text-primary mb-1">Activité</p>
-                              <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Volume Messages</h4>
+                              <p class="text-xs font-medium text-primary mb-1">{m.mcm_activity()}</p>
+                              <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.mcm_message_volume()}</h4>
                             </div>
                             <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">30 derniers jours</span>
                          </div>
@@ -1419,7 +1420,7 @@
                             data={{
                               labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
                               datasets: [{
-                                label: 'Messages',
+                                label: m.mcm_messages(),
                                 data: analyticsData.dailyTrend.map(d => d.messages),
                                 borderColor: '#6366f1',
                                 backgroundColor: 'rgba(99, 102, 241, 0.1)',
@@ -1441,7 +1442,7 @@
                          <div class="flex items-center justify-between mb-8">
                             <div>
                               <p class="text-xs font-medium text-secondary mb-1">Engagement</p>
-                              <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Activité Vocal</h4>
+                              <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.mcm_voice_activity()}</h4>
                             </div>
                             <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Minutes / jour</span>
                          </div>
@@ -1473,9 +1474,9 @@
                       <div class="flex h-20 w-20 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-8">
                         <Papicon icon="bar-chart-2" size={40} />
                       </div>
-                      <h3 class="text-2xl font-semibold text-on-surface-variant font-headline">Aucune donnée analytique</h3>
+                      <h3 class="text-2xl font-semibold text-on-surface-variant font-headline">{m.mcm_no_analytics()}</h3>
                       <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm mx-auto px-6">
-                        Nous n'avons pas encore assez de données d'activité pour générer des graphiques pour ce membre sur les 30 derniers jours.
+                        {m.mcm_no_analytics_desc()}
                       </p>
                     </div>
                   {/if}
@@ -1493,7 +1494,7 @@
                         type="search"
                         bind:value={messageQuery}
                         oninput={() => { messageOffset = 0; }}
-                        placeholder="Rechercher dans les messages..."
+                        placeholder={m.mcm_search_messages()}
                         class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-10 pr-10 text-xs text-on-surface placeholder:text-on-surface-variant/30 outline-hidden transition-all focus:border-primary/30 focus:bg-surface-container-high"
                       />
                     </div>
@@ -1542,7 +1543,7 @@
                           onchange={() => { messageOffset = 0; }}
                           class="rounded border-outline-variant/30 text-primary focus:ring-primary/20 h-4 w-4 bg-surface-container-high/40"
                         />
-                        <span>Afficher supprimés</span>
+                        <span>{m.mcm_show_deleted()}</span>
                       </label>
                     </div>
                   </div>
@@ -1568,9 +1569,9 @@
                       <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-6">
                         <Papicon icon="message-square" size={32} />
                       </div>
-                      <h3 class="text-lg font-semibold text-on-surface font-headline">Aucun message trouvé</h3>
+                      <h3 class="text-lg font-semibold text-on-surface font-headline">{m.mcm_no_message_found()}</h3>
                       <p class="mt-2 text-xs text-on-surface-variant/60 max-w-sm mx-auto px-6">
-                        Aucun message enregistré pour ce membre ne correspond à vos filtres.
+                        {m.mcm_no_message_found_desc()}
                       </p>
                     </div>
                   {:else}
@@ -1586,10 +1587,10 @@
                               <span class="text-[10px] font-bold text-on-surface-variant/40">{formatDateTime(msg.createdAt)}</span>
                               
                               {#if msg.editedAt}
-                                <span class="badge bg-amber-500/10 text-amber-500 text-[9px]" title="Modifié le {formatDateTime(msg.editedAt)}">Modifié</span>
+                                <span class="badge bg-amber-500/10 text-amber-500 text-[9px]" title={m.mcm_edited_on({ date: formatDateTime(msg.editedAt) })}>{m.mcm_edited()}</span>
                               {/if}
                               {#if msg.deletedAt}
-                                <span class="badge bg-red-500/15 text-red-500 text-[9px] border border-red-500/30" title="Supprimé le {formatDateTime(msg.deletedAt)}">Supprimé</span>
+                                <span class="badge bg-red-500/15 text-red-500 text-[9px] border border-red-500/30" title={m.mcm_deleted_on({ date: formatDateTime(msg.deletedAt) })}>{m.mcm_deleted()}</span>
                               {/if}
                             </div>
                             
@@ -1607,7 +1608,7 @@
                           </div>
 
                           <p class="text-sm text-on-surface leading-relaxed whitespace-pre-wrap select-text">
-                            {msg.content || (msg.hasAttachment ? 'Message vide (contient uniquement des pièces jointes)' : 'Contenu vide')}
+                            {msg.content || (msg.hasAttachment ? m.mcm_empty_with_attachments() : m.mcm_empty_content())}
                           </p>
 
                           <!-- Rendu riche des pièces jointes -->
@@ -1693,7 +1694,7 @@
                     {#if caseData?.logs.length === 0}
                       <div class="flex flex-col items-center justify-center py-10 text-on-surface-variant/20">
                          <Papicon icon="history" size={48} />
-                         <p class="mt-4 text-sm font-semibold uppercase tracking-widest">Aucun log disponible</p>
+                         <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_log()}</p>
                       </div>
                     {/if}
                   </div>
@@ -1762,7 +1763,7 @@
                     <div class="flex items-center justify-between gap-3 px-6 py-3 border-t border-outline-variant/10 bg-surface-container-low/30">
                       <p class="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/40">
                         <Papicon icon="lock" size={12} class="shrink-0" />
-                        Même instance · modérateur non partagé
+                        {m.mcm_same_instance()}
                       </p>
                       {#if crossServer.total > crossServer.recent.length}
                         <span class="text-[11px] font-semibold text-on-surface-variant/50 shrink-0">+{crossServer.total - crossServer.recent.length} autre{crossServer.total - crossServer.recent.length > 1 ? 's' : ''}</span>
@@ -1774,10 +1775,10 @@
                   <table class="w-full text-left border-collapse">
                     <thead>
                       <tr class="bg-surface-container-high/30">
-                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Date</th>
-                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Action</th>
-                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Statut</th>
-                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Raison</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">{m.mcm_col_date()}</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">{m.mcm_col_action()}</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">{m.mcm_col_status()}</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">{m.mcm_col_reason()}</th>
                         <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Rapport</th>
                       </tr>
                     </thead>
@@ -1806,7 +1807,7 @@
                                 Voir plus
                               </button>
                             {:else}
-                              <span class="text-[10px] font-bold text-on-surface-variant/30 italic">Aucun rapport</span>
+                              <span class="text-[10px] font-bold text-on-surface-variant/30 italic">{m.mcm_no_report()}</span>
                             {/if}
                           </td>
                         </tr>
@@ -1827,7 +1828,7 @@
                      <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">Source d'invitation</p>
                      <dl class="space-y-4">
                        <div class="flex items-center justify-between">
-                         <dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt>
+                         <dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_code_used()}</dt>
                          {#if caseData?.invite?.code}
                            <button
                              type="button"
@@ -1842,7 +1843,7 @@
                          {/if}
                        </div>
                        <div class="flex items-center justify-between">
-                          <dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt>
+                          <dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_creator()}</dt>
                           <dd class="text-sm font-semibold text-on-surface">
                             {#if caseData?.invite?.inviterTag}
                               <div class="flex items-center gap-2">
@@ -1858,7 +1859,7 @@
                                     type="button"
                                     onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
                                     class="text-primary hover:underline focus:outline-none font-semibold text-left"
-                                    title="Ouvrir la vue modérateur de l'inviteur"
+                                    title={m.mcm_open_inviter()}
                                   >
                                     @{caseData.invite.inviterTag}
                                   </button>
@@ -1871,15 +1872,15 @@
                             {/if}
                           </dd>
                         </div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.invite?.joinedAt ?? caseData?.profile?.guildJoinedAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_use_date()}</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.invite?.joinedAt ?? caseData?.profile?.guildJoinedAt)}</dd></div>
                      </dl>
                    </div>
                    <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                     <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">Mouvements Serveur</p>
+                     <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">{m.mcm_server_moves()}</p>
                      <dl class="space-y-4">
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernière arrivée</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernier départ</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Première observation</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_last_join()}</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_last_leave_row()}</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_first_observation()}</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd></div>
                      </dl>
                    </div>
                 </div>
@@ -1888,7 +1889,7 @@
                 <div class="space-y-6">
                   <div class="flex items-center justify-between px-2">
                     <div>
-                      <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">Réseau Social</p>
+                      <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">{m.mcm_social_network()}</p>
                       <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Graphe d'Interactions</h4>
                     </div>
                     <div class="flex items-center gap-2">
@@ -1919,7 +1920,7 @@
                     {#if caseData?.connections.length === 0 && (caseData?.interactionGraph?.nodes || []).length === 0}
                       <div class="md:col-span-2 lg:col-span-3 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-xl">
                         <Papicon icon="link-2" size={48} />
-                        <p class="mt-4 text-sm font-semibold uppercase tracking-widest">Aucun lien externe</p>
+                        <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_external_link()}</p>
                       </div>
                     {/if}
                   </div>
@@ -1938,7 +1939,7 @@
                          </div>
                          {#if cand.oralResult}
                            <div class="flex flex-col items-end">
-                              <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">Résultat Oral</span>
+                              <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">{m.mcm_oral_result()}</span>
                               <span class="text-sm font-semibold text-on-surface">{cand.oralResult}</span>
                            </div>
                          {/if}
@@ -1966,9 +1967,9 @@
                     />
                     <FormInput 
                       id="linkReason" 
-                      label="Raison (obligatoire pour le Staff)" 
+                      label={m.mcm_link_reason_label()} 
                       bind:value={linkReason} 
-                      placeholder="Ex: Double compte confirmé par logs" 
+                      placeholder={m.mcm_link_reason_placeholder()} 
                       icon="file-text" 
                     />
                   </div>
@@ -2001,7 +2002,7 @@
                   {#each caseData?.linkedAccounts || [] as link}
                     <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group flex items-center gap-4">
                       {#if link.avatarUrl}
-                        <img src={link.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-lg object-cover shadow-lg border-2 border-surface" />
+                        <img src={link.avatarUrl} alt={m.mcm_avatar_alt()} class="h-16 w-16 rounded-lg object-cover shadow-lg border-2 border-surface" />
                       {:else}
                         <div class="flex h-16 w-16 items-center justify-center rounded-lg bg-surface-container-high text-xl font-semibold text-primary">
                           {link.userTag?.slice(0, 1).toUpperCase()}
@@ -2017,7 +2018,7 @@
                              {#if dashboardStore.state.accessLevel === 'admin'}
                                <button 
                                  class="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
-                                 title="Délier le compte"
+                                 title={m.mcm_unlink_account()}
                                  onclick={() => handleUnlinkAccount(link.userId)}
                                  disabled={unlinkingAccountId === link.userId}
                                >
@@ -2040,7 +2041,7 @@
                       <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-6">
                         <Papicon icon="user-plus" size={32} />
                       </div>
-                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">Aucun compte lié</p>
+                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_no_linked_account()}</p>
                     </div>
                   {/if}
                 </div>
@@ -2052,17 +2053,17 @@
                         <Papicon icon="edit-3" size={24} />
                       </div>
                       <div>
-                        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Modération</p>
-                        <p class="text-lg font-semibold text-on-surface">Notes Modérateur</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_moderation()}</p>
+                        <p class="text-lg font-semibold text-on-surface">{m.mcm_mod_notes()}</p>
                       </div>
                     </div>
 
                     <p class="text-sm text-on-surface-variant/70 mb-6 leading-relaxed">
-                      Ces notes sont persistantes et visibles uniquement par l'équipe de modération. Utilisez cet espace pour laisser des informations importantes sur le comportement de l'utilisateur.
+                      {m.mcm_mod_notes_desc()}
                     </p>
 
                     <div class="relative group">
-                      <label for="moderator-note-textarea" class="sr-only">Notes modérateur</label>
+                      <label for="moderator-note-textarea" class="sr-only">{m.mcm_mod_notes_sr()}</label>
                       <textarea
                         id="moderator-note-textarea"
                         bind:value={moderatorNote}
@@ -2104,7 +2105,7 @@
               <!-- 1. Carte Score de Risque & Ancienneté -->
               <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-5">
                 <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
-                  <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">Score de risque</span>
+                  <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.mcm_risk_score()}</span>
                   <span class="text-xs font-semibold text-primary">{memberSeniority}</span>
                 </div>
 
@@ -2127,15 +2128,15 @@
                   <div class="min-w-0">
                     <h5 class="text-xs font-bold text-on-surface truncate">
                       {#if moderationRiskScore < 30}
-                        Risque faible
+                        {m.mcm_risk_low()}
                       {:else if moderationRiskScore < 70}
-                        Risque élevé
+                        {m.mcm_risk_high()}
                       {:else}
-                        Risque critique
+                        {m.mcm_risk_critical()}
                       {/if}
                     </h5>
                     <p class="text-[10px] text-on-surface-variant/60 mt-0.5 leading-relaxed">
-                      Basé sur les sanctions actives/passées et suspicions de DC.
+                      {m.mcm_risk_desc()}
                     </p>
                   </div>
                 </div>
@@ -2166,11 +2167,11 @@
 
               <!-- 3. Actions de modération -->
               <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-5">
-                <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">Actions de modération</span>
+                <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">{m.mcm_mod_actions()}</span>
 
                 <!-- Raison -->
                 <div class="space-y-1.5">
-                  <label for="mod-reason" class="text-[11px] font-bold text-on-surface-variant/50 uppercase tracking-wider">Raison de la sanction</label>
+                  <label for="mod-reason" class="text-[11px] font-bold text-on-surface-variant/50 uppercase tracking-wider">{m.mcm_sanction_reason()}</label>
                   <textarea
                     id="mod-reason"
                     bind:value={actionReason}
@@ -2182,18 +2183,18 @@
 
                 <!-- Durée (pour Timeout) -->
                 <div class="space-y-1.5">
-                  <label for="mod-duration" class="text-[11px] font-bold text-on-surface-variant/50 uppercase tracking-wider">Durée (Timeout uniquement)</label>
+                  <label for="mod-duration" class="text-[11px] font-bold text-on-surface-variant/50 uppercase tracking-wider">{m.mcm_duration_timeout()}</label>
                   <div class="relative">
                     <select
                       id="mod-duration"
                       bind:value={actionDuration}
                       class="w-full appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface focus:border-primary/30 focus:outline-hidden"
                     >
-                      <option value="30m">30 Minutes</option>
-                      <option value="1h">1 Heure</option>
-                      <option value="1d">1 Jour</option>
-                      <option value="7d">7 Jours</option>
-                      <option value="28d">28 Jours (Max)</option>
+                      <option value="30m">{m.mcm_duration_30m()}</option>
+                      <option value="1h">{m.mcm_duration_1h()}</option>
+                      <option value="1d">{m.mcm_duration_1d()}</option>
+                      <option value="7d">{m.mcm_duration_7d()}</option>
+                      <option value="28d">{m.mcm_duration_28d()}</option>
                     </select>
                     <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
                       <Papicon icon="chevron-down" size={12} />
@@ -2210,7 +2211,7 @@
                     class="flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none px-3 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer"
                   >
                     <Papicon icon="alert-triangle" size={14} />
-                    Avertir
+                    {m.mcm_action_warn()}
                   </button>
 
                   <button
@@ -2220,7 +2221,7 @@
                     class="flex items-center justify-center gap-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none px-3 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer"
                   >
                     <Papicon icon="clock" size={14} />
-                    Timeout
+                    {m.mcm_action_timeout()}
                   </button>
 
                   <button
@@ -2230,7 +2231,7 @@
                     class="flex items-center justify-center gap-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 active:scale-95 disabled:opacity-50 disabled:pointer-events-none px-3 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer col-span-1"
                   >
                     <Papicon icon="log-out" size={14} />
-                    Expulser
+                    {m.mcm_action_kick()}
                   </button>
 
                   <button
@@ -2240,7 +2241,7 @@
                     class="flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 disabled:pointer-events-none px-3 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer col-span-1"
                   >
                     <Papicon icon="gavel" size={14} />
-                    Bannir
+                    {m.mcm_action_ban()}
                   </button>
                 </div>
 
@@ -2282,7 +2283,7 @@
           <div class="mb-8">
             <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">Rapport de sanction</p>
             <h4 class="text-2xl font-semibold text-on-surface font-headline">{formatTypeLabel(selectedSanctionForReport.type)}</h4>
-            <p class="text-xs text-on-surface-variant/60 mt-1">Appliquée le {formatDateTime(selectedSanctionForReport.createdAt)} par @{selectedSanctionForReport.moderatorTag}</p>
+            <p class="text-xs text-on-surface-variant/60 mt-1">{m.mcm_applied_on({ date: formatDateTime(selectedSanctionForReport.createdAt), moderator: selectedSanctionForReport.moderatorTag })}</p>
           </div>
 
           {#if selectedReport}
@@ -2291,7 +2292,7 @@
                <div class="space-y-6 animate-in fade-in duration-300">
                  <div class="grid grid-cols-2 gap-4">
                    <div class="space-y-1.5">
-                     <p class="text-xs font-medium text-on-surface-variant/40 px-1">Date de l'incident</p>
+                     <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.mcm_incident_date()}</p>
                      <input 
                        type="datetime-local" 
                        bind:value={editReportData.incidentAt} 
@@ -2299,7 +2300,7 @@
                      />
                    </div>
                    <div class="space-y-1.5">
-                     <p class="text-xs font-medium text-on-surface-variant/40 px-1">Durée appliquée</p>
+                     <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.mcm_applied_duration()}</p>
                      <input 
                        type="text" 
                        bind:value={editReportData.sanctionDurationLabel} 
@@ -2310,7 +2311,7 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Règles enfreintes</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.mcm_broken_rules()}</p>
                    <ReportRuleSelector
                      options={reportRuleOptions}
                      selectedIds={editReportData.selectedRuleIds}
@@ -2326,11 +2327,11 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Raison détaillée</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.mcm_detailed_reason()}</p>
                    <textarea 
                      bind:value={editReportData.detailedReason} 
                      rows="4"
-                     placeholder="Description précise des faits..." 
+                     placeholder={m.mcm_detailed_reason_placeholder()} 
                      class="w-full rounded-lg bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
                    ></textarea>
                  </div>
@@ -2341,11 +2342,11 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                   <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.mcm_extra_notes()}</p>
                    <textarea 
                      bind:value={editReportData.additionalNotes} 
                      rows="2"
-                     placeholder="Précisions facultatives..." 
+                     placeholder={m.mcm_extra_notes_placeholder()} 
                      class="w-full rounded-lg bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
                    ></textarea>
                  </div>
@@ -2375,18 +2376,18 @@
                     <p class="text-sm font-bold text-on-surface">{formatDateTime(selectedReport.incidentAt)}</p>
                   </div>
                   <div class="space-y-1">
-                    <p class="text-xs font-medium text-on-surface-variant/40">Durée</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_duration()}</p>
                     <p class="text-sm font-bold text-on-surface">{selectedReport.sanctionDurationLabel || 'N/A'}</p>
                   </div>
                 </div>
 
                 <div class="space-y-2">
-                  <p class="text-xs font-medium text-on-surface-variant/40">Règles enfreintes</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_broken_rules()}</p>
                   <SelectedRuleChips selectedRules={selectedReportRules} />
                 </div>
 
                 <div class="space-y-2">
-                  <p class="text-xs font-medium text-on-surface-variant/40">Raison détaillée</p>
+                  <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_detailed_reason()}</p>
                   <div class="rounded-lg bg-surface-container-high/30 p-4 text-sm text-on-surface-variant leading-relaxed italic">
                     "{selectedReport.detailedReason}"
                   </div>
@@ -2408,13 +2409,13 @@
 
                 {#if selectedReport.additionalNotes}
                   <div class="space-y-2">
-                    <p class="text-xs font-medium text-on-surface-variant/40">Notes complémentaires</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_extra_notes()}</p>
                     <p class="text-xs text-on-surface-variant/70 leading-relaxed">{selectedReport.additionalNotes}</p>
                   </div>
                 {/if}
 
                 <div class="pt-4 flex flex-col items-center gap-4 border-t border-outline-variant/10">
-                  <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">Rapport créé par @{selectedReport.createdByTag || selectedReport.createdByUserId}</p>
+                  <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">{m.mcm_report_by({ author: selectedReport.createdByTag || selectedReport.createdByUserId })}</p>
                   
                   {#if selectedReport.createdByUserId === authStore.user?.userId || authStore.isAdmin}
                     <button
@@ -2434,8 +2435,8 @@
               <div class="h-16 w-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-4">
                 <Papicon icon="alert-triangle" size={32} />
               </div>
-              <p class="text-sm font-semibold text-on-surface-variant">Rapport détaillé manquant</p>
-              <p class="text-xs text-on-surface-variant/40 mt-1 max-w-xs">La sanction a été enregistrée mais le rapport détaillé n'a pas encore été rédigé par le modérateur.</p>
+              <p class="text-sm font-semibold text-on-surface-variant">{m.mcm_report_missing()}</p>
+              <p class="text-xs text-on-surface-variant/40 mt-1 max-w-xs">{m.mcm_report_missing_desc()}</p>
             </div>
           {/if}
 
@@ -2443,7 +2444,7 @@
             onclick={() => viewingReportSanctionId = null}
             class="w-full mt-8 py-4 rounded-lg bg-on-surface/5 text-sm font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
           >
-            Fermer les détails
+            {m.mcm_close_details()}
           </button>
         </div>
       </div>

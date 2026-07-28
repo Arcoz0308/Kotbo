@@ -10,6 +10,7 @@
     UserCheck, UserPlus, BookOpen, Calendar, Package, Settings,
     Hash, Terminal, Code, Filter, Shield, Clipboard, Smile, Share2, Archive,
   } from 'lucide-svelte';
+  import { m } from '../i18n';
 
   const iconMap: Record<string, typeof LayoutGrid> = {
     'layout-grid': LayoutGrid,
@@ -83,7 +84,7 @@
               <div>
                 <div class="flex items-center gap-2 mb-1">
                   <span class="text-[10px] font-semibold uppercase tracking-wider text-primary/80 bg-primary/8 px-2 py-0.5 rounded-full">
-                    Guide
+                    {m.tip_badge()}
                   </span>
                 </div>
                 <h3 class="text-base font-semibold text-on-surface">{tip.title}</h3>
@@ -91,7 +92,7 @@
               <button
                 onclick={dismiss}
                 class="p-1.5 -mt-1 -mr-1 rounded-lg hover:bg-surface-container text-on-surface-variant/50 hover:text-on-surface transition-colors shrink-0"
-                aria-label="Fermer le guide"
+                aria-label={m.tip_close()}
               >
                 <X class="w-4 h-4" />
               </button>
@@ -121,7 +122,7 @@
             onclick={dismiss}
             class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/15 transition-colors"
           >
-            Compris
+            {m.tip_got_it()}
             <CheckCircle2 class="w-3 h-3" />
           </button>
         </div>
