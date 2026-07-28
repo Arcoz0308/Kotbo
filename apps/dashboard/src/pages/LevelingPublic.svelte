@@ -3,11 +3,20 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicLeveling } from '../lib/api';
+  import { m, getLocale, locales, type Locale } from '../lib/i18n';
+  import { themeStore } from '../lib/stores/theme.svelte';
+  import { userPrefs } from '../lib/stores/userPreferences.svelte';
 
   interface Props {
     serverId: string;
   }
   const { serverId }: Props = $props();
+
+  const currentLocale = getLocale();
+  function switchLocale(loc: Locale) {
+    if (loc === currentLocale) return;
+    userPrefs.set('language', loc);
+  }
 
   let loading = $state(true);
   let errorMsg = $state<string | null>(null);
@@ -113,11 +122,38 @@
         </div>
       </div>
 
-      <!-- Badge "Live" -->
-      <div class="flex items-center gap-2 self-start sm:self-auto px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-        <span class="ml-2.5 uppercase tracking-wider text-[10px]">Temps Réel</span>
+      <div class="flex items-center gap-3 self-start sm:self-auto">
+        <!-- Sélecteur de langue -->
+        <div class="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] p-0.5 text-[10px] font-bold uppercase tracking-wider">
+          {#each locales as loc}
+            <button
+              type="button"
+              onclick={() => switchLocale(loc)}
+              class="px-2.5 py-1 rounded-full transition-colors {currentLocale === loc ? 'bg-white dark:bg-[#111a2e] text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}"
+            >{loc}</button>
+          {/each}
+        </div>
+
+        <!-- Bascule thème clair/sombre -->
+        <button
+          type="button"
+          onclick={themeStore.toggle}
+          aria-label={m.navbar_change_theme()}
+          class="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0c1322] flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+        >
+          {#if themeStore.dark}
+            <Papicon icon="sun" size={15} class="text-amber-500" />
+          {:else}
+            <Papicon icon="moon" size={15} />
+          {/if}
+        </button>
+
+        <!-- Badge "Live" -->
+        <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
+          <span class="ml-2.5 uppercase tracking-wider text-[10px]">Temps Réel</span>
+        </div>
       </div>
     </header>
 
