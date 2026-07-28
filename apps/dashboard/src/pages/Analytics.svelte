@@ -24,6 +24,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
 import { downloadXlsx } from '../lib/xlsxExport';
 import { toast } from '../lib/stores/toast.svelte';
 import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
+import { m, dateLocale } from '../lib/i18n';
 
   let data: any = $state(null);
   let heatmapData: any = $state(null);
@@ -39,14 +40,14 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
   let endDate = $state('');
   let isCustomPeriod = $state(false);
 
-  const periodPresets = [
-    { label: '24 heures', value: 1 },
-    { label: '7 jours', value: 7 },
-    { label: '30 jours', value: 30 },
-    { label: '90 jours', value: 90 },
-    { label: '365 jours', value: 365 },
-    { label: 'Personnalisé', value: 'custom' }
-  ];
+  const periodPresets = $derived([
+    { label: m.an_period_24h(), value: 1 },
+    { label: m.an_period_7d(), value: 7 },
+    { label: m.an_period_30d(), value: 30 },
+    { label: m.an_period_90d(), value: 90 },
+    { label: m.an_period_365d(), value: 365 },
+    { label: m.an_period_custom(), value: 'custom' }
+  ]);
 
   let currentInteractionsRequestId = 0;
 
@@ -66,7 +67,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
     } catch (e: any) {
       if (requestId === currentInteractionsRequestId) {
         console.error('Error preloading interactions:', e);
-        interactionsError = e.message || 'Erreur lors de la récupération des interactions';
+        interactionsError = e.message || m.an_error_interactions();
       }
     } finally {
       if (requestId === currentInteractionsRequestId) {
@@ -98,7 +99,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       // Pre-charge/preload the heavy interactions graph in the background
       loadInteractions();
     }
-    catch (e: any) { error = e.message || 'Erreur'; }
+    catch (e: any) { error = e.message || m.an_error_generic(); }
     finally { loading = false; }
   }
 
@@ -244,7 +245,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
   function exportAllToCSV() {
     const sheets = collectExportSheets();
     if (sheets.length === 0) {
-      toast.error('Aucune donnée de graphique à exporter.');
+      toast.error(m.an_export_no_data());
       return;
     }
 
@@ -262,23 +263,23 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
 
     const datePart = new Date().toISOString().split('T')[0];
     triggerDownload(csvParts.join('\n'), `analytics_kotbo_all_${datePart}.csv`, 'text/csv;charset=utf-8');
-    toast.success('Export CSV des graphiques généré.');
+    toast.success(m.an_export_csv_done());
   }
 
   async function exportAllToXLSX() {
     const sheets = collectExportSheets();
     if (sheets.length === 0) {
-      toast.error('Aucune donnée de graphique à exporter.');
+      toast.error(m.an_export_no_data());
       return;
     }
 
     const datePart = new Date().toISOString().split('T')[0];
     const exported = await downloadXlsx(`analytics_kotbo_all_${datePart}.xlsx`, sheets);
     if (!exported) {
-      toast.error('Aucune donnée de graphique à exporter.');
+      toast.error(m.an_export_no_data());
       return;
     }
-    toast.success('Export XLSX des graphiques généré.');
+    toast.success(m.an_export_xlsx_done());
   }
 
   function sanitizeFileNamePart(value: string): string {
@@ -339,7 +340,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
   async function exportAllChartsAsImages() {
     const root = document.getElementById('analytics-export-root');
     if (!root) {
-      toast.error('Zone des graphiques introuvable.');
+      toast.error(m.an_export_root_missing());
       return;
     }
 
@@ -347,7 +348,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
     const svgs = Array.from(root.querySelectorAll('svg')).filter(isLargeGraphicElement);
 
     if (canvases.length === 0 && svgs.length === 0) {
-      toast.error('Aucun graphique visible à exporter en image.');
+      toast.error(m.an_export_no_visible_chart());
       return;
     }
 
@@ -369,59 +370,59 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
     }
 
     if (exportedCount === 0) {
-      toast.error('Impossible de générer les images de graphiques.');
+      toast.error(m.an_export_images_failed());
       return;
     }
 
-    toast.success(`${exportedCount} image(s) de graphique exportée(s).`);
+    toast.success(m.an_export_images_done({ count: exportedCount }));
   }
 
   let activeCategory = $state('overview');
   let activeTab = $state('overview');
 
-  const categories = [
-    { id: 'overview', label: 'Aperçu', icon: 'Grid', description: 'Vue générale' },
-    { id: 'engagement', label: 'Engagement', icon: 'ChatBubbles', description: 'Messages, Vocal, Membres' },
-    { id: 'community', label: 'Communauté', icon: 'Compass', description: 'Pouls, salons, social, mots' },
-    { id: 'growth', label: 'Croissance', icon: 'TrendingUp', description: 'Rétention, cohortes, churn' },
-    { id: 'moderation', label: 'Modération', icon: 'Gavel', description: 'Modération et Staff' },
-    { id: 'invitations', label: 'Invitations', icon: 'MailOpen', description: 'Analyse des invites' },
-  ];
+  const categories = $derived([
+    { id: 'overview', label: m.an_cat_overview(), icon: 'Grid', description: m.an_cat_overview_desc() },
+    { id: 'engagement', label: m.an_cat_engagement(), icon: 'ChatBubbles', description: m.an_cat_engagement_desc() },
+    { id: 'community', label: m.an_cat_community(), icon: 'Compass', description: m.an_cat_community_desc() },
+    { id: 'growth', label: m.an_cat_growth(), icon: 'TrendingUp', description: m.an_cat_growth_desc() },
+    { id: 'moderation', label: m.an_cat_moderation(), icon: 'Gavel', description: m.an_cat_moderation_desc() },
+    { id: 'invitations', label: m.an_cat_invitations(), icon: 'MailOpen', description: m.an_cat_invitations_desc() },
+  ]);
 
-  const tabsByCategory: Record<string, Array<{ id: string; label: string; icon: string; badge?: string; disabled?: boolean }>> = {
+  const tabsByCategory: Record<string, Array<{ id: string; label: string; icon: string; badge?: string; disabled?: boolean }>> = $derived({
     overview: [
-      { id: 'overview', label: 'Aperçu Global', icon: 'Grid' },
+      { id: 'overview', label: m.an_tab_overview(), icon: 'Grid' },
     ],
     engagement: [
-      { id: 'messages', label: 'Messages', icon: 'ChatCircleDots' },
-      { id: 'voice', label: 'Vocal', icon: 'Microphone' },
-      { id: 'interactions', label: 'Réseau', icon: 'Compass' },
-      { id: 'commands', label: 'Commandes', icon: 'Code' },
-      { id: 'members', label: 'Membres', icon: 'UsersFour' },
+      { id: 'messages', label: m.an_tab_messages(), icon: 'ChatCircleDots' },
+      { id: 'voice', label: m.an_tab_voice(), icon: 'Microphone' },
+      { id: 'interactions', label: m.an_tab_network(), icon: 'Compass' },
+      { id: 'commands', label: m.an_tab_commands(), icon: 'Code' },
+      { id: 'members', label: m.an_tab_members(), icon: 'UsersFour' },
     ],
     community: [
-      { id: 'pulse', label: 'Pouls', icon: 'Activity' },
-      { id: 'channels', label: 'Salons', icon: 'ChatBubbles' },
-      { id: 'social', label: 'Social', icon: 'Users' },
-      { id: 'words', label: 'Mots', icon: 'ChatCircleDots' },
+      { id: 'pulse', label: m.an_tab_pulse(), icon: 'Activity' },
+      { id: 'channels', label: m.an_tab_channels(), icon: 'ChatBubbles' },
+      { id: 'social', label: m.an_tab_social(), icon: 'Users' },
+      { id: 'words', label: m.an_tab_words(), icon: 'ChatCircleDots' },
     ],
     moderation: [
-      { id: 'moderation', label: 'Modération', icon: 'Gavel' },
-      { id: 'mod-advanced', label: 'Analyse avancée', icon: 'ChartLineUp' },
-      { id: 'staff', label: 'Annuaire Staff', icon: 'Users' },
-      { id: 'performance', label: 'Performance Staff', icon: 'TrendUp' },
+      { id: 'moderation', label: m.an_tab_moderation(), icon: 'Gavel' },
+      { id: 'mod-advanced', label: m.an_tab_mod_advanced(), icon: 'ChartLineUp' },
+      { id: 'staff', label: m.an_tab_staff_directory(), icon: 'Users' },
+      { id: 'performance', label: m.an_tab_staff_performance(), icon: 'TrendUp' },
     ],
     invitations: [
-      { id: 'invitations', label: 'Invitations', icon: 'MailOpen' },
+      { id: 'invitations', label: m.an_tab_invitations(), icon: 'MailOpen' },
     ],
     growth: [
-      { id: 'cohorts', label: 'Cohortes', icon: 'UsersFour' },
-      { id: 'churn', label: 'Churn & Risque', icon: 'Warning' },
-      { id: 'heatmap', label: 'Heatmap Horaire', icon: 'Fire' },
-      { id: 'weekly', label: 'Semaine vs Semaine', icon: 'Calendar' },
-      { id: 'algo', label: 'Daily Algo', icon: 'Code' },
+      { id: 'cohorts', label: m.an_tab_cohorts(), icon: 'UsersFour' },
+      { id: 'churn', label: m.an_tab_churn(), icon: 'Warning' },
+      { id: 'heatmap', label: m.an_tab_heatmap(), icon: 'Fire' },
+      { id: 'weekly', label: m.an_tab_weekly(), icon: 'Calendar' },
+      { id: 'algo', label: m.an_tab_algo(), icon: 'Code' },
     ],
-  };
+  });
 
   /** Onglets servis par AdvancedAnalyticsPanel (chargent leurs propres données). */
   const ADVANCED_TABS: Record<string, AdvancedAnalyticsSection> = {
@@ -434,7 +435,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
     'mod-advanced': 'moderation',
   };
 
-  const allValidTabs = Object.values(tabsByCategory).flatMap(tabs => tabs.map(t => t.id));
+  const allValidTabs = $derived(Object.values(tabsByCategory).flatMap(tabs => tabs.map(t => t.id)));
 
   function categoryForTab(tabId: string): string {
     for (const [catId, tabs] of Object.entries(tabsByCategory)) {
@@ -469,7 +470,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
 
   async function openMemberDetails(memberId: string, memberName: string) {
     selectedUserId = memberId;
-    selectedUserName = memberName || 'Membre';
+    selectedUserName = memberName || m.an_member_fallback();
     modalOpen = true;
     loadingCase = true;
     caseError = '';
@@ -479,13 +480,13 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       caseData = await fetchMemberCase(memberId, authStore.selectedGuildId);
     } catch (e: any) {
       console.error(e);
-      caseError = e.message || 'Impossible de charger le dossier';
+      caseError = e.message || m.an_case_load_error();
     } finally {
       loadingCase = false;
     }
   }
 
-  const fmt = (n: number) => n?.toLocaleString('fr-FR') ?? '0';
+  const fmt = (n: number) => n?.toLocaleString(dateLocale()) ?? '0';
   const fmtH = (mins: number) => { 
     const h = Math.floor((mins || 0) / 60); 
     const m = Math.round((mins || 0) % 60); 
@@ -495,9 +496,9 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
   const isWeeklyView = $derived(!isCustomPeriod && period > 90);
   const chartLabels = $derived(data?.dailyTrend?.map((d: any) => {
     if (isWeeklyView) {
-      // Format: "Sem. DD/MM" (dateKey is already the Monday of the week)
+      // dateKey is already the Monday of the week
       const parts = d.dateKey?.slice(5)?.split('-');
-      return { ...d, label: parts ? `Sem. ${parts[1]}/${parts[0]}` : d.dateKey?.slice(5) };
+      return { ...d, label: parts ? m.an_week_short({ date: `${parts[1]}/${parts[0]}` }) : d.dateKey?.slice(5) };
     }
     return { ...d, label: d.dateKey?.slice(5) };
   }) ?? []);
@@ -514,11 +515,11 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
           <Papicon icon="ChartLineUp" size={20} />
         </div>
         <div>
-          <span class="text-xs font-medium text-primary">Intelligence & Analytics</span>
+          <span class="text-xs font-medium text-primary">{m.an_header_eyebrow()}</span>
           <h2 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">
-            Performance <span class="text-primary">Serveur</span>
+            {m.an_header_title_lead()} <span class="text-primary">{m.an_header_title_accent()}</span>
           </h2>
-          <p class="text-on-surface-variant/60 text-sm max-w-md">Analysez la croissance, l'engagement et l'activité de votre communauté en temps réel.</p>
+          <p class="text-on-surface-variant/60 text-sm max-w-md">{m.an_header_desc()}</p>
         </div>
       </div>
 
@@ -549,7 +550,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
                   bind:value={startDate}
                   class="bg-surface-container-low border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
                 />
-                <span class="text-[10px] font-bold text-on-surface-variant/40">au</span>
+                <span class="text-[10px] font-bold text-on-surface-variant/40">{m.an_range_to()}</span>
                 <input
                   type="datetime-local"
                   bind:value={endDate}
@@ -559,7 +560,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
                   onclick={applyCustomRange}
                   class="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-xs font-medium hover:brightness-110 transition-all"
                 >
-                  Appliquer
+                  {m.an_apply()}
                 </button>
               </div>
             {/if}
@@ -569,10 +570,10 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
           <div class="flex items-center gap-3 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-3 py-1.5 rounded-lg border border-outline-variant/5">
              <div class="flex items-center gap-2">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live Feed</span>
+                <span>{m.an_live_feed()}</span>
              </div>
              <span class="w-px h-3 bg-outline-variant/20"></span>
-             <span>Dernière mise à jour: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+             <span>{m.an_last_update({ time: new Date().toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' }) })}</span>
           </div>
         {/if}
       </div>
@@ -651,7 +652,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
             <div class="absolute inset-2 rounded-full border-4 border-secondary/10 border-t-secondary animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
           </div>
           <div class="flex flex-col items-center text-center mt-2">
-            <span class="text-sm font-semibold uppercase tracking-wider text-primary animate-pulse">Chargement du Réseau...</span>
+            <span class="text-sm font-semibold uppercase tracking-wider text-primary animate-pulse">{m.an_network_loading()}</span>
             <LoadingHint context="network" />
           </div>
         </div>
@@ -660,20 +661,20 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
           <div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error mb-2">
             <Papicon icon="alert-octagon" size={24} />
           </div>
-          <span class="text-sm font-semibold uppercase tracking-wider">Impossible de charger le graphe de réseau</span>
+          <span class="text-sm font-semibold uppercase tracking-wider">{m.an_network_error()}</span>
           <span class="text-xs text-on-surface-variant/60 max-w-md">{interactionsError}</span>
           <button 
             onclick={loadInteractions}
             class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-[13px] font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
-            Réessayer
+            {m.an_retry()}
           </button>
         </div>
       {:else if interactionsData}
         <GlobalInteractionGraph 
           nodes={interactionsData.nodes || []} 
           edges={interactionsData.edges || []} 
-          onSelectNode={(userId) => openMemberDetails(userId, 'Chargement...')}
+          onSelectNode={(userId) => openMemberDetails(userId, m.an_loading_short())}
         />
       {/if}
     {:else if activeTab === 'members'}
@@ -698,9 +699,9 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
           <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Papicon icon="Code" size={26} />
           </div>
-          <h3 class="text-lg font-semibold text-on-surface">Aucune commande enregistrée sur la période</h3>
+          <h3 class="text-lg font-semibold text-on-surface">{m.an_commands_empty_title()}</h3>
           <p class="mt-2 text-sm text-on-surface-variant/70">
-            Les statistiques de commandes apparaîtront automatiquement dès qu'un membre utilisera des commandes du bot.
+            {m.an_commands_empty_desc()}
           </p>
         </div>
       {/if}
@@ -721,7 +722,7 @@ import ExportDropdown from '../lib/components/analytics/ExportDropdown.svelte';
       modalOpen = false;
     }}
     onSelectUser={(userId) => {
-      openMemberDetails(userId, 'Chargement...');
+      openMemberDetails(userId, m.an_loading_short());
     }}
   />
 </div>
