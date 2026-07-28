@@ -22,6 +22,7 @@
   } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { m } from '../lib/i18n';
 
   type InviteStatus = 'active' | 'suspended' | 'deleted' | 'expired';
   type Tab = 'invites' | 'sources' | 'top' | 'suspensions';
@@ -67,10 +68,10 @@
   );
 
   const tabs = $derived([
-    { id: 'invites' as Tab, label: 'Invitations', icon: 'MailOpen', count: totalInvites },
-    { id: 'sources' as Tab, label: 'Provenances', icon: 'Tags', count: sourceStats.length },
-    { id: 'top' as Tab, label: 'Top créateurs', icon: 'Crown', count: topInviters.length },
-    { id: 'suspensions' as Tab, label: 'Suspensions', icon: 'UserX', count: suspendedInviters.length },
+    { id: 'invites' as Tab, label: m.iv_tab_invites(), icon: 'MailOpen', count: totalInvites },
+    { id: 'sources' as Tab, label: m.iv_tab_sources(), icon: 'Tags', count: sourceStats.length },
+    { id: 'top' as Tab, label: m.iv_tab_top(), icon: 'Crown', count: topInviters.length },
+    { id: 'suspensions' as Tab, label: m.iv_tab_suspensions(), icon: 'UserX', count: suspendedInviters.length },
   ]);
 
   const usageMap = $derived.by(() => {
@@ -137,7 +138,7 @@
     return [...inviterUsage]
       .map((entry) => ({
         inviterId: entry.inviterId,
-        inviterTag: entry.inviterTag || `Utilisateur ${entry.inviterId}`,
+        inviterTag: entry.inviterTag || m.iv_user_fallback({ id: entry.inviterId }),
         avatarUrl: entry.avatarUrl || null,
         joinedCount: entry._count?._all ?? 0,
         leftCount: entry._count?.leftAt ?? 0,
@@ -214,7 +215,7 @@
       inviterUsage = data?.inviterUsage ?? [];
       summary = data?.summary ?? { totalJoined: 0, totalLeft: 0 };
     } catch (err: any) {
-      error = err?.message || 'Erreur lors du chargement des invitations.';
+      error = err?.message || m.iv_error_load();
     } finally {
       loading = false;
     }
@@ -250,10 +251,10 @@
 
   function getStatusLabel(status: InviteStatus) {
     switch (status) {
-      case 'active': return 'Actif';
-      case 'suspended': return 'Suspendu';
-      case 'deleted': return 'Supprimé';
-      case 'expired': return 'Expiré';
+      case 'active': return m.iv_status_active();
+      case 'suspended': return m.iv_status_suspended();
+      case 'deleted': return m.iv_status_deleted();
+      case 'expired': return m.iv_status_expired();
     }
   }
 
@@ -277,39 +278,39 @@
     const nextValue = !invite.isSuspended;
     try {
       await toggleInvitationSuspension(invite.code, nextValue);
-      toast.success(nextValue ? 'Invitation suspendue.' : 'Invitation restaurée.');
+      toast.success(nextValue ? m.iv_invite_suspended() : m.iv_invite_restored());
       actionMenuOpen = null;
       await loadInvitations();
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la modification.');
+      toast.error(err?.message || m.iv_error_toggle());
     }
   }
 
   async function purgeInvite(invite: any) {
     if (!canModerate) return;
-    const confirmPurge = await confirmDialog.danger(`Purger les membres invités via ${invite.code} ?`, '', 'Purger');
+    const confirmPurge = await confirmDialog.danger(m.iv_purge_confirm({ code: invite.code }), '', m.iv_purge());
     if (!confirmPurge) return;
     try {
       const result = await purgeInvitationMembers(invite.code);
-      toast.success(`Purge terminée (${result?.purgedCount ?? 0} exclus).`);
+      toast.success(m.iv_purge_done({ count: result?.purgedCount ?? 0 }));
       actionMenuOpen = null;
       await loadInvitations();
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la purge.');
+      toast.error(err?.message || m.iv_error_purge());
     }
   }
 
   async function deleteInvite(invite: any) {
     if (!canModerate) return;
-    const confirmDelete = await confirmDialog.danger(`Supprimer l'invitation ${invite.code} ?`, 'Cette suppression est définitive.');
+    const confirmDelete = await confirmDialog.danger(m.iv_delete_confirm({ code: invite.code }), m.iv_delete_confirm_desc());
     if (!confirmDelete) return;
     try {
       await deleteInvitation(invite.code);
-      toast.success('Invitation supprimée.');
+      toast.success(m.iv_invite_deleted());
       actionMenuOpen = null;
       await loadInvitations();
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la suppression.');
+      toast.error(err?.message || m.iv_error_delete());
     }
   }
 
@@ -319,10 +320,10 @@
     const link = `https://discord.gg/${invite.code}`;
     try {
       await navigator.clipboard.writeText(link);
-      toast.success('Lien copié.');
+      toast.success(m.iv_link_copied());
       actionMenuOpen = null;
     } catch {
-      toast.warning('Impossible de copier le lien.');
+      toast.warning(m.iv_copy_failed());
     }
   }
 
@@ -342,7 +343,7 @@
     if (!canManageInvites || savingSource) return;
     const nextSource = sourceDraft.trim();
     if (nextSource.length > 60) {
-      toast.warning('Le nom de provenance est limité à 60 caractères.');
+      toast.warning(m.iv_source_too_long());
       return;
     }
 
@@ -352,10 +353,10 @@
       invitations = invitations.map((item) => item.code === invite.code
         ? { ...item, sourceLabel: nextSource || null }
         : item);
-      toast.success(nextSource ? `Provenance « ${nextSource} » enregistrée.` : 'Provenance retirée.');
+      toast.success(nextSource ? m.iv_source_saved({ name: nextSource }) : m.iv_source_removed());
       cancelSourceEdit();
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la modification de la provenance.');
+      toast.error(err?.message || m.iv_error_source());
     } finally {
       savingSource = false;
     }
@@ -384,7 +385,7 @@
 
   function exportInvites() {
     if (filteredInvites.length === 0) {
-      toast.warning('Aucune donnée à exporter.');
+      toast.warning(m.iv_nothing_to_export());
       return;
     }
 
@@ -406,7 +407,7 @@
       return [
         invite.code,
         invite.sourceLabel || '',
-        invite.inviterTag || invite.inviterId || 'Inconnu',
+        invite.inviterTag || invite.inviterId || m.iv_unknown(),
         invite.createdAt ? new Date(invite.createdAt).toISOString() : '',
         invite.uses ?? 0,
         invite.joinedCount ?? 0,
@@ -443,9 +444,9 @@
         suspendReason.trim(),
         { cascade: suspendCascade }
       );
-      toast.success('Créateur suspendu.');
+      toast.success(m.iv_inviter_suspended());
       if (result?.cascade) {
-        toast.info(`Purge cascade : ${result.cascade.purgedCount ?? 0} exclus.`);
+        toast.info(m.iv_cascade_purge_toast({ count: result.cascade.purgedCount ?? 0 }));
       }
       suspendUserId = '';
       suspendUserTag = '';
@@ -453,7 +454,7 @@
       suspendCascade = false;
       await loadInvitations();
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la suspension.');
+      toast.error(err?.message || m.iv_error_suspend());
     }
   }
 
@@ -461,39 +462,39 @@
     if (!canModerate) return;
     try {
       await removeSuspendedInviter(userId);
-      toast.success('Créateur réhabilité.');
+      toast.success(m.iv_inviter_restored());
       await loadInvitations();
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la restauration.');
+      toast.error(err?.message || m.iv_error_restore());
     }
   }
 
   async function purgeByInviter(userId: string) {
     if (!canModerate) return;
-    const confirmPurge = await confirmDialog.danger('Purger en cascade ?', 'Tous les membres invités par ce créateur seront purgés.', 'Purger');
+    const confirmPurge = await confirmDialog.danger(m.iv_cascade_confirm(), m.iv_cascade_confirm_desc(), m.iv_purge());
     if (!confirmPurge) return;
     try {
       const result = await purgeInviterMembers(userId);
-      toast.success(`Purge cascade terminée (${result?.purgedCount ?? 0} exclus).`);
+      toast.success(m.iv_cascade_done({ count: result?.purgedCount ?? 0 }));
       await loadInvitations();
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la purge cascade.');
+      toast.error(err?.message || m.iv_error_cascade());
     }
   }
 
 </script>
 
 <ModulePage
-  title="Invitations"
-  description="Nommez vos liens par provenance et mesurez les canaux qui recrutent le mieux."
+  title={m.iv_page_title()}
+  description={m.iv_page_desc()}
   icon="MailOpen"
   featureKey="members"
 >
   {#snippet actions()}
     <div class="flex gap-3">
-      <RefreshButton onClick={loadInvitations} loading={loading} label="Actualiser" />
+      <RefreshButton onClick={loadInvitations} loading={loading} label={m.iv_refresh()} />
       <ActionButton
-        label="Exporter"
+        label={m.iv_export()}
         icon="Download"
         variant="muted"
         size="md"
@@ -518,23 +519,23 @@
         {/each}
       {:else}
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Invitations</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_tab_invites()}</p>
           <p class="text-2xl font-semibold text-primary">{totalInvites}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Provenances</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_sources_count()}</p>
           <p class="text-2xl font-semibold text-cyan-500">{sourceStats.length}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Joins attribués</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_attributed_joins()}</p>
           <p class="text-2xl font-semibold text-primary">{sourceCoverage}%</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Total joins</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_total_joins()}</p>
           <p class="text-2xl font-semibold text-emerald-500">{totalJoins}</p>
         </div>
         <div class="premium-card p-4 rounded-lg">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Rétention</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{m.iv_retention()}</p>
           <p class="text-2xl font-semibold text-cyan-500">{retentionRate}%</p>
         </div>
       {/if}
@@ -568,23 +569,23 @@
             </div>
           {:else}
             <FormInput
-              placeholder="Rechercher un code ou un créateur..."
+              placeholder={m.iv_search_placeholder()}
               bind:value={searchQuery}
               className="w-full lg:w-80 px-4 py-2.5 rounded-xl bg-surface-container-high/30 border border-outline-variant/20 text-sm"
             />
             <div class="flex gap-2 flex-wrap">
               <select bind:value={statusFilter} class="px-3 py-2 rounded-xl bg-surface-container-high/40 text-xs font-bold border border-outline-variant/20">
-                <option value="all">Tous les statuts</option>
-                <option value="active">Actives</option>
-                <option value="suspended">Suspendues</option>
-                <option value="expired">Expirées</option>
-                <option value="deleted">Supprimées</option>
+                <option value="all">{m.iv_all_statuses()}</option>
+                <option value="active">{m.iv_filter_active()}</option>
+                <option value="suspended">{m.iv_filter_suspended()}</option>
+                <option value="expired">{m.iv_filter_expired()}</option>
+                <option value="deleted">{m.iv_filter_deleted()}</option>
               </select>
               <select bind:value={sortBy} class="px-3 py-2 rounded-xl bg-surface-container-high/40 text-xs font-bold border border-outline-variant/20">
-                <option value="createdAt">Création</option>
-                <option value="uses">Uses</option>
-                <option value="joins">Joins</option>
-                <option value="retention">Rétention</option>
+                <option value="createdAt">{m.iv_col_creation()}</option>
+                <option value="uses">{m.iv_col_uses()}</option>
+                <option value="joins">{m.iv_col_joins()}</option>
+                <option value="retention">{m.iv_retention()}</option>
               </select>
               <button
                 class="px-3 py-2 rounded-xl bg-surface-container-high/40 text-xs font-bold border border-outline-variant/20 hover:bg-surface-container-high/60 transition-colors"
@@ -619,14 +620,14 @@
             <table class="w-full">
               <thead>
                 <tr class="text-left text-xs font-medium text-on-surface-variant/50 border-b border-outline-variant/10">
-                  <th class="pb-3 pr-4">Code</th>
-                  <th class="pb-3 pr-4">Provenance</th>
-                  <th class="pb-3 pr-4">Créateur</th>
-                  <th class="pb-3 pr-4">Statut</th>
-                  <th class="pb-3 pr-4 text-right">Joins</th>
-                  <th class="pb-3 pr-4 text-right">Uses</th>
-                  <th class="pb-3 pr-4 text-right">Rétention</th>
-                  <th class="pb-3 pr-4">Dernier join</th>
+                  <th class="pb-3 pr-4">{m.iv_col_code()}</th>
+                  <th class="pb-3 pr-4">{m.iv_col_source()}</th>
+                  <th class="pb-3 pr-4">{m.iv_col_creator()}</th>
+                  <th class="pb-3 pr-4">{m.iv_col_status()}</th>
+                  <th class="pb-3 pr-4 text-right">{m.iv_col_joins()}</th>
+                  <th class="pb-3 pr-4 text-right">{m.iv_col_uses()}</th>
+                  <th class="pb-3 pr-4 text-right">{m.iv_retention()}</th>
+                  <th class="pb-3 pr-4">{m.iv_col_last_join()}</th>
                   <th class="pb-3"></th>
                 </tr>
               </thead>
@@ -643,18 +644,18 @@
                           <input
                             bind:value={sourceDraft}
                             maxlength="60"
-                            placeholder="TikTok, Instagram…"
-                            aria-label="Nom de la provenance"
+                            placeholder={m.iv_source_placeholder()}
+                            aria-label={m.iv_source_aria()}
                             class="w-36 px-2.5 py-1.5 rounded-lg bg-surface-container-high/50 border border-primary/40 text-xs outline-none focus:ring-2 focus:ring-primary/20"
                             onkeydown={(event) => {
                               if (event.key === 'Enter') void saveSource(invite);
                               if (event.key === 'Escape') cancelSourceEdit();
                             }}
                           />
-                          <button type="button" title="Enregistrer" disabled={savingSource} class="source-icon-button text-emerald-500" onclick={() => saveSource(invite)}>
+                          <button type="button" title={m.iv_save()} disabled={savingSource} class="source-icon-button text-emerald-500" onclick={() => saveSource(invite)}>
                             <Papicon icon="Check" size={14} />
                           </button>
-                          <button type="button" title="Annuler" class="source-icon-button text-on-surface-variant" onclick={cancelSourceEdit}>
+                          <button type="button" title={m.iv_cancel()} class="source-icon-button text-on-surface-variant" onclick={cancelSourceEdit}>
                             <Papicon icon="X" size={14} />
                           </button>
                         </div>
@@ -665,15 +666,15 @@
                         </button>
                       {:else if canManageInvites}
                         <button type="button" class="text-[11px] font-semibold text-on-surface-variant/50 hover:text-primary transition-colors inline-flex items-center gap-1" onclick={() => beginSourceEdit(invite)}>
-                          <Papicon icon="Plus" size={13} /> Nommer
+                          <Papicon icon="Plus" size={13} /> {m.iv_name()}
                         </button>
                       {:else}
-                        <span class="text-xs text-on-surface-variant/30">Non attribuée</span>
+                        <span class="text-xs text-on-surface-variant/30">{m.iv_unattributed()}</span>
                       {/if}
                     </td>
                     <td class="py-3 pr-4">
                       <div class="flex flex-col">
-                        <span class="font-bold text-on-surface">{invite.inviterTag || invite.inviterId || 'Inconnu'}</span>
+                        <span class="font-bold text-on-surface">{invite.inviterTag || invite.inviterId || m.iv_unknown()}</span>
                         <span class="text-[10px] text-on-surface-variant/50">{formatDate(invite.createdAt)}</span>
                       </div>
                     </td>
@@ -683,10 +684,10 @@
                           {getStatusLabel(status)}
                         </span>
                         {#if invite.inviterSuspended}
-                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-500">Créateur suspendu</span>
+                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-500">{m.iv_inviter_suspended_badge()}</span>
                         {/if}
                         {#if isDormant(invite)}
-                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-500/10 text-on-surface-variant/60">Dormant</span>
+                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-500/10 text-on-surface-variant/60">{m.iv_dormant()}</span>
                         {/if}
                       </div>
                     </td>
@@ -718,7 +719,7 @@
                               onclick={() => { inviteDetailsModal.show(invite.code); closeActionMenu(); }}
                             >
                               <Papicon icon="TrendingUp" size={14} />
-                              Détails
+                              {m.iv_details()}
                             </button>
                             <button
                               class="w-full px-3 py-2 text-left text-xs font-bold hover:bg-surface-container-high/50 flex items-center gap-2 transition-colors"
@@ -782,36 +783,36 @@
           <div class="max-w-2xl">
             <div class="flex items-center gap-2 text-cyan-500 mb-3">
               <Papicon icon="Route" size={18} />
-              <span class="text-[11px] font-semibold uppercase tracking-[0.18em]">Attribution des arrivées</span>
+              <span class="text-[11px] font-semibold uppercase tracking-[0.18em]">{m.iv_join_attribution()}</span>
             </div>
             <h3 class="text-xl font-semibold text-on-surface">Quel canal fait vraiment grandir le serveur&nbsp;?</h3>
             <p class="mt-2 text-sm text-on-surface-variant/60 leading-relaxed">
-              Donnez le même nom à plusieurs liens pour les regrouper. « TikTok », « Instagram », une campagne ou un partenaire : tout est personnalisable.
+              {m.iv_attribution_hint()}
             </p>
           </div>
           <div class="source-overview-metric">
             {#if leadingSource}
-              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50">Meilleure provenance</span>
+              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant/50">{m.iv_best_source()}</span>
               <strong class="text-lg text-on-surface mt-1">{leadingSource.name}</strong>
-              <span class="text-xs text-emerald-500 mt-1">{leadingSource.joinedCount} arrivée{leadingSource.joinedCount > 1 ? 's' : ''}</span>
+              <span class="text-xs text-emerald-500 mt-1">{leadingSource.joinedCount > 1 ? m.iv_join_other({ count: leadingSource.joinedCount }) : m.iv_join_one({ count: leadingSource.joinedCount })}</span>
             {:else}
-              <span class="text-sm text-on-surface-variant/60">Nommez un premier lien pour commencer.</span>
+              <span class="text-sm text-on-surface-variant/60">{m.iv_name_first_link()}</span>
             {/if}
           </div>
         </section>
 
         {#if editingInvite}
-          <section class="source-editor" aria-label="Modifier une provenance">
+          <section class="source-editor" aria-label={m.iv_edit_source_aria()}>
             <div class="min-w-0">
               <p class="text-xs font-semibold text-on-surface">Nommer <code class="text-primary">discord.gg/{editingInvite.code}</code></p>
-              <p class="text-[11px] text-on-surface-variant/50 mt-1">Réutilisez exactement le même nom pour regrouper plusieurs invitations.</p>
+              <p class="text-[11px] text-on-surface-variant/50 mt-1">{m.iv_reuse_name_hint()}</p>
             </div>
             <div class="flex items-center gap-2 w-full md:w-auto">
               <input
                 bind:value={sourceDraft}
                 maxlength="60"
-                placeholder="Ex. TikTok, Instagram, Partenaire Alex…"
-                aria-label="Nom de la provenance"
+                placeholder={m.iv_source_input_placeholder()}
+                aria-label={m.iv_source_aria()}
                 class="flex-1 md:w-72 px-3 py-2.5 rounded-xl bg-surface border border-outline-variant/30 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
                 onkeydown={(event) => {
                   if (event.key === 'Enter') void saveSource(editingInvite);
@@ -819,7 +820,7 @@
                 }}
               />
               <ActionButton label={savingSource ? 'Enregistrement…' : 'Enregistrer'} icon="Check" size="md" onClick={() => saveSource(editingInvite)} disabled={savingSource} />
-              <button type="button" class="source-icon-button" title="Annuler" onclick={cancelSourceEdit}><Papicon icon="X" size={16} /></button>
+              <button type="button" class="source-icon-button" title={m.iv_cancel()} onclick={cancelSourceEdit}><Papicon icon="X" size={16} /></button>
             </div>
           </section>
         {/if}
@@ -827,10 +828,10 @@
         <section class="premium-card rounded-xl overflow-hidden">
           <div class="px-5 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4">
             <div>
-              <h3 class="text-sm font-semibold text-on-surface">Performance par provenance</h3>
-              <p class="text-xs text-on-surface-variant/50 mt-1">{trackedInvites} lien{trackedInvites > 1 ? 's' : ''} nommé{trackedInvites > 1 ? 's' : ''} · {trackedJoins} arrivées attribuées</p>
+              <h3 class="text-sm font-semibold text-on-surface">{m.iv_source_performance()}</h3>
+              <p class="text-xs text-on-surface-variant/50 mt-1">{trackedInvites > 1 ? m.iv_named_link_other({ count: trackedInvites, joins: trackedJoins }) : m.iv_named_link_one({ count: trackedInvites, joins: trackedJoins })}</p>
             </div>
-            <span class="text-xs font-semibold text-primary">{sourceCoverage}% des joins couverts</span>
+            <span class="text-xs font-semibold text-primary">{m.iv_coverage({ percent: sourceCoverage })}</span>
           </div>
 
           {#if sourceStats.length > 0}
@@ -838,11 +839,11 @@
               <table class="w-full min-w-[720px]">
                 <thead>
                   <tr class="text-left text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/45 border-b border-outline-variant/10">
-                    <th class="px-5 py-3">Provenance</th>
-                    <th class="px-4 py-3">Liens</th>
-                    <th class="px-4 py-3 text-right">Arrivées</th>
-                    <th class="px-4 py-3 text-right">Restants</th>
-                    <th class="px-5 py-3 text-right">Rétention</th>
+                    <th class="px-5 py-3">{m.iv_col_source()}</th>
+                    <th class="px-4 py-3">{m.iv_chart_links()}</th>
+                    <th class="px-4 py-3 text-right">{m.iv_chart_joins()}</th>
+                    <th class="px-4 py-3 text-right">{m.iv_chart_remaining()}</th>
+                    <th class="px-5 py-3 text-right">{m.iv_retention()}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -879,8 +880,8 @@
           {:else}
             <div class="px-6 py-12 text-center">
               <Papicon icon="Tags" size={30} class="mx-auto text-on-surface-variant/25" />
-              <p class="mt-3 text-sm font-semibold text-on-surface">Aucune provenance nommée</p>
-              <p class="mt-1 text-xs text-on-surface-variant/50">Attribuez vos liens ci-dessous pour faire apparaître le classement.</p>
+              <p class="mt-3 text-sm font-semibold text-on-surface">{m.iv_no_named_source()}</p>
+              <p class="mt-1 text-xs text-on-surface-variant/50">{m.iv_assign_hint()}</p>
             </div>
           {/if}
         </section>
@@ -889,8 +890,8 @@
           <section class="premium-card rounded-xl px-5 py-4">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 class="text-sm font-semibold text-on-surface">Liens sans provenance</h3>
-                <p class="text-xs text-on-surface-variant/50 mt-1">{untrackedInvites} invitation{untrackedInvites > 1 ? 's' : ''} à attribuer pour compléter vos statistiques.</p>
+                <h3 class="text-sm font-semibold text-on-surface">{m.iv_unnamed_links()}</h3>
+                <p class="text-xs text-on-surface-variant/50 mt-1">{untrackedInvites > 1 ? m.iv_untracked_other({ count: untrackedInvites }) : m.iv_untracked_one({ count: untrackedInvites })}</p>
               </div>
               <div class="flex flex-wrap gap-2 md:justify-end">
                 {#each invitesWithStats.filter((invite) => !invite.sourceLabel?.trim()) as invite}
@@ -911,8 +912,8 @@
             <Papicon icon="Crown" size={18} />
           </div>
           <div>
-            <h3 class="text-lg font-semibold">Top créateurs</h3>
-            <p class="text-xs text-on-surface-variant/60">Classement par nombre de joins.</p>
+            <h3 class="text-lg font-semibold">{m.iv_tab_top()}</h3>
+            <p class="text-xs text-on-surface-variant/60">{m.iv_ranking_by_joins()}</p>
           </div>
         </div>
 
@@ -949,14 +950,14 @@
                   </div>
                   <div>
                     <p class="text-sm font-semibold text-on-surface">{inviter.inviterTag}</p>
-                    <p class="text-[10px] text-on-surface-variant/50">Dernier join: {formatRelative(inviter.lastJoinedAt)}</p>
+                    <p class="text-[10px] text-on-surface-variant/50">{m.iv_last_join_short()} {formatRelative(inviter.lastJoinedAt)}</p>
                   </div>
                 </div>
                 <span class="text-lg font-semibold text-emerald-500">{inviter.joinedCount}</span>
               </div>
             {/each}
             {#if topInviters.length === 0}
-              <p class="text-xs text-on-surface-variant/60 text-center py-8">Aucune donnée disponible.</p>
+              <p class="text-xs text-on-surface-variant/60 text-center py-8">{m.iv_no_data()}</p>
             {/if}
           {/if}
         </div>
@@ -970,8 +971,8 @@
               <Papicon icon="UserMinus" size={18} />
             </div>
             <div>
-              <h3 class="text-lg font-semibold">Suspendre un créateur</h3>
-              <p class="text-xs text-on-surface-variant/60">Bloque les nouvelles invites et peut purger en cascade.</p>
+              <h3 class="text-lg font-semibold">{m.iv_suspend_inviter()}</h3>
+              <p class="text-xs text-on-surface-variant/60">{m.iv_suspend_inviter_desc()}</p>
             </div>
           </div>
 
@@ -986,26 +987,26 @@
           {:else}
             <div class="space-y-3">
               <FormInput
-                placeholder="ID utilisateur Discord"
+                placeholder={m.iv_user_id_placeholder()}
                 bind:value={suspendUserId}
                 className="w-full px-4 py-2.5 rounded-xl bg-surface-container-high/30 border border-outline-variant/20 text-sm"
               />
               <FormInput
-                placeholder="Tag utilisateur (optionnel)"
+                placeholder={m.iv_user_tag_placeholder()}
                 bind:value={suspendUserTag}
                 className="w-full px-4 py-2.5 rounded-xl bg-surface-container-high/30 border border-outline-variant/20 text-sm"
               />
               <FormInput
-                placeholder="Raison de la suspension (optionnel)"
+                placeholder={m.iv_suspend_reason_placeholder()}
                 bind:value={suspendReason}
                 className="w-full px-4 py-2.5 rounded-xl bg-surface-container-high/30 border border-outline-variant/20 text-sm"
               />
               <label class="flex items-center gap-2 text-sm font-bold text-on-surface-variant/70 cursor-pointer">
                 <input type="checkbox" bind:checked={suspendCascade} class="rounded" />
-                Purge en cascade les membres invités
+                {m.iv_cascade_purge_label()}
               </label>
               <ActionButton
-                label="Suspendre le créateur"
+                label={m.iv_suspend_button()}
                 icon="Pause"
                 variant="danger"
                 size="md"
@@ -1022,8 +1023,8 @@
               <Papicon icon="UserX" size={18} />
             </div>
             <div>
-              <h3 class="text-lg font-semibold">Créateurs suspendus</h3>
-              <p class="text-xs text-on-surface-variant/60">Gestion des suspensions actives.</p>
+              <h3 class="text-lg font-semibold">{m.iv_suspended_inviters()}</h3>
+              <p class="text-xs text-on-surface-variant/60">{m.iv_suspended_inviters_desc()}</p>
             </div>
           </div>
 
@@ -1050,20 +1051,20 @@
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex-1">
                       <p class="text-sm font-semibold text-on-surface">{inviter.userTag || inviter.userId}</p>
-                      <p class="text-[10px] text-on-surface-variant/50 mt-1">{inviter.reason || 'Aucune raison'}</p>
+                      <p class="text-[10px] text-on-surface-variant/50 mt-1">{inviter.reason || m.iv_no_reason()}</p>
                       <p class="text-[10px] text-on-surface-variant/40">{formatDate(inviter.createdAt)}</p>
                     </div>
                     {#if canModerate}
                       <div class="flex gap-2 shrink-0">
                         <ActionButton label="Purger" icon="Trash" size="sm" variant="danger" onClick={() => purgeByInviter(inviter.userId)} />
-                        <ActionButton label="Restaurer" icon="Play" size="sm" variant="success" onClick={() => restoreSuspended(inviter.userId)} />
+                        <ActionButton label={m.iv_restore()} icon="Play" size="sm" variant="success" onClick={() => restoreSuspended(inviter.userId)} />
                       </div>
                     {/if}
                   </div>
                 </div>
               {/each}
               {#if suspendedInviters.length === 0}
-                <p class="text-xs text-on-surface-variant/60 text-center py-8">Aucun créateur suspendu.</p>
+                <p class="text-xs text-on-surface-variant/60 text-center py-8">{m.iv_no_suspended_inviter()}</p>
               {/if}
             {/if}
           </div>
