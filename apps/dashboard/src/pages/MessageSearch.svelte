@@ -14,6 +14,7 @@
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import { m, dateLocale } from '../lib/i18n';
 
   const PAGE_SIZE = 50;
 
@@ -161,9 +162,9 @@
           status: (res as any).status ?? null
         } : null;
         if (enabled) {
-          toast.success('Journalisation activée — l\'indexation rétroactive démarre en arrière-plan.');
+          toast.success(m.ms_logging_enabled());
         } else {
-          toast.success('Journalisation désactivée.');
+          toast.success(m.ms_logging_disabled());
         }
       }
     } finally {
@@ -201,7 +202,7 @@
   }
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString('fr-FR', {
+    return new Date(iso).toLocaleString(dateLocale(), {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -217,8 +218,8 @@
 </script>
 
 <ModulePage
-  title="Recherche de messages"
-  description="Recherche globale dans tous les messages enregistrés par le bot"
+  title={m.ms_page_title()}
+  description={m.ms_page_desc()}
   icon="search"
   featureKey=""
 >
@@ -236,10 +237,10 @@
           </div>
           <div>
             <p class="text-sm font-semibold text-on-surface">
-              Journalisation {stats?.enabled ? 'activée' : 'désactivée'}
+              {m.ms_logging_label()} {stats?.enabled ? m.common_enabled() : m.common_disabled()}
             </p>
             <p class="text-xs text-on-surface-variant/60">
-              {stats ? `${stats.total.toLocaleString('fr-FR')} message(s) enregistré(s)` : 'Chargement…'}
+              {stats ? m.ms_messages_recorded({ count: stats.total }) : m.common_loading()}
             </p>
           </div>
         </div>
@@ -247,7 +248,7 @@
         {#if isAdmin}
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
-              <label for="retention" class="text-xs text-on-surface-variant/70">Rétention (jours)</label>
+              <label for="retention" class="text-xs text-on-surface-variant/70">{m.ms_retention_days()}</label>
               <input
                 id="retention"
                 type="number"
@@ -276,14 +277,14 @@
             <div class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></div>
           </div>
           <div class="text-sm">
-            <p class="font-semibold text-on-surface">Indexation rétroactive de l'historique en cours</p>
+            <p class="font-semibold text-on-surface">{m.ms_indexing_in_progress()}</p>
             <p class="text-on-surface-variant/80 mt-0.5">
-              Le bot récupère actuellement les anciens messages du serveur (dans la limite de {stats.retentionDays} jours de rétention). Les résultats s'enrichissent au fur et à mesure.
+              {m.ms_indexing_desc({ days: stats.retentionDays })}
             </p>
             <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-on-surface-variant/60 font-medium">
-              <span>Salon actuel : <strong>#{stats.status.currentChannelName || '...'}</strong></span>
-              <span>Salons : <strong>{stats.status.scrapedChannelsCount} / {stats.status.totalChannelsCount}</strong></span>
-              <span>Messages importés : <strong>{stats.status.scrapedMessagesCount.toLocaleString('fr-FR')}</strong></span>
+              <span>{m.ms_current_channel()} <strong>#{stats.status.currentChannelName || '...'}</strong></span>
+              <span>{m.ms_channels_scraped()} <strong>{stats.status.scrapedChannelsCount} / {stats.status.totalChannelsCount}</strong></span>
+              <span>{m.ms_messages_imported()} <strong>{stats.status.scrapedMessagesCount.toLocaleString(dateLocale())}</strong></span>
             </div>
           </div>
         </div>
@@ -293,9 +294,9 @@
             <Papicon icon="alert-circle" size={18} />
           </div>
           <div class="text-sm">
-            <p class="font-semibold text-on-surface">L'indexation de l'historique a échoué</p>
+            <p class="font-semibold text-on-surface">{m.ms_indexing_failed()}</p>
             <p class="text-on-surface-variant/80 mt-0.5">
-              Une erreur est survenue : {stats.status.error}. Les nouveaux messages continueront toutefois d'être enregistrés.
+              {m.ms_indexing_error({ error: stats.status.error || '' })}
             </p>
           </div>
         </div>
@@ -305,11 +306,9 @@
             <Papicon icon="info" size={18} />
           </div>
           <div class="text-sm">
-            <p class="font-semibold text-on-surface">La collecte des messages vient de démarrer</p>
+            <p class="font-semibold text-on-surface">{m.ms_collect_started_title()}</p>
             <p class="text-on-surface-variant/80 mt-0.5">
-              Seuls les messages envoyés <strong>à partir de maintenant</strong> sont enregistrés — l'historique
-              antérieur n'est pas disponible. Les résultats apparaîtront au fur et à mesure de l'activité du serveur,
-              revenez un peu plus tard.
+              {m.ms_collect_started_desc()}
             </p>
           </div>
         </div>
@@ -319,7 +318,7 @@
             <Papicon icon="info" size={16} />
           </div>
           <p class="text-xs text-on-surface-variant/80">
-            La journalisation est récente : peu de messages sont encore enregistrés. La base va s'enrichir avec l'activité du serveur.
+            {m.ms_logging_recent_notice()}
           </p>
         </div>
       {/if}
@@ -334,7 +333,7 @@
             type="text"
             bind:value={query}
             oninput={onQueryInput}
-            placeholder="Rechercher dans les messages…"
+            placeholder={m.ms_search_placeholder()}
             class="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary/60 transition-colors"
           />
         </div>
@@ -343,7 +342,7 @@
           class="flex items-center gap-2 px-4 py-2.5 bg-surface-container-low border border-outline-variant/30 text-on-surface rounded-lg hover:bg-surface-container transition-colors text-sm font-medium"
         >
           <Papicon icon="filter" size={16} />
-          Filtres
+          {m.ms_filters_btn()}
         </button>
       </div>
 
@@ -351,14 +350,14 @@
       {#if showFilters}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-surface-container-low/40 border border-outline-variant/20 rounded-xl">
           <div class="flex flex-col gap-1.5">
-            <label for="f-channel" class="field-label">Salon</label>
+            <label for="f-channel" class="field-label">{m.ms_filter_channel()}</label>
             <select
               id="f-channel"
               bind:value={channelId}
               onchange={() => search(true)}
               class="px-3 py-2 bg-surface-container border border-outline-variant/30 rounded-md text-sm text-on-surface focus:outline-none focus:border-primary/60"
             >
-              <option value="">Tous les salons</option>
+              <option value="">{m.ms_all_channels()}</option>
               {#each channels as c (c.channelId)}
                 <option value={c.channelId}>#{c.channelName} ({c.count})</option>
               {/each}
@@ -366,7 +365,7 @@
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label for="f-author" class="field-label">ID auteur</label>
+            <label for="f-author" class="field-label">{m.ms_author_id()}</label>
             <input
               id="f-author"
               type="text"
@@ -378,53 +377,53 @@
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label for="f-bot" class="field-label">Type d'auteur</label>
+            <label for="f-bot" class="field-label">{m.ms_author_type()}</label>
             <select
               id="f-bot"
               bind:value={botFilter}
               onchange={() => search(true)}
               class="px-3 py-2 bg-surface-container border border-outline-variant/30 rounded-md text-sm text-on-surface focus:outline-none focus:border-primary/60"
             >
-              <option value="all">Tous</option>
-              <option value="false">Humains uniquement</option>
-              <option value="true">Bots uniquement</option>
+              <option value="all">{m.ms_authors_all()}</option>
+              <option value="false">{m.ms_humans_only()}</option>
+              <option value="true">{m.ms_bots_only()}</option>
             </select>
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label for="f-order" class="field-label">Tri</label>
+            <label for="f-order" class="field-label">{m.ms_sort_label()}</label>
             <select
               id="f-order"
               bind:value={order}
               onchange={() => search(true)}
               class="px-3 py-2 bg-surface-container border border-outline-variant/30 rounded-md text-sm text-on-surface focus:outline-none focus:border-primary/60"
             >
-              <option value="desc">Plus récents d'abord</option>
-              <option value="asc">Plus anciens d'abord</option>
+              <option value="desc">{m.ms_newer_first()}</option>
+              <option value="asc">{m.ms_older_first()}</option>
             </select>
           </div>
 
           <label class="flex items-center gap-2 text-sm text-on-surface cursor-pointer self-end pb-2">
             <input type="checkbox" bind:checked={onlyAttachments} onchange={() => search(true)} class="accent-primary" />
-            Avec pièces jointes
+            {m.ms_with_attachments()}
           </label>
 
           <label class="flex items-center gap-2 text-sm text-on-surface cursor-pointer self-end pb-2">
             <input type="checkbox" bind:checked={includeDeleted} onchange={() => search(true)} class="accent-primary" />
-            Inclure les messages supprimés
+            {m.ms_include_deleted()}
           </label>
 
           <div class="sm:col-span-2 lg:col-span-3 flex justify-end">
             <button
               onclick={resetFilters}
               class="px-3 py-1.5 text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors"
-            >Réinitialiser les filtres</button>
+            >{m.ms_reset_filters()}</button>
           </div>
         </div>
       {/if}
 
       <div class="flex items-center justify-between">
-        <p class="text-sm text-on-surface-variant/70">{total.toLocaleString('fr-FR')} résultat(s)</p>
+        <p class="text-sm text-on-surface-variant/70">{m.ms_results_count({ count: total })}</p>
       </div>
 
       <!-- Results -->
@@ -437,16 +436,16 @@
           <div class="w-16 h-16 bg-surface-container-low rounded-2xl flex items-center justify-center mb-4">
             <Papicon icon="message" size={32} class="text-on-surface-variant/40" />
           </div>
-          <h3 class="text-lg font-semibold text-on-surface mb-1">Aucun message</h3>
+          <h3 class="text-lg font-semibold text-on-surface mb-1">{m.ms_no_message_title()}</h3>
           <p class="text-sm text-on-surface-variant/60 max-w-sm">
             {#if !stats?.enabled}
-              La journalisation des messages est désactivée. Activez-la pour commencer à enregistrer les messages.
+              {m.ms_empty_disabled()}
             {:else if enabledButEmpty}
-              La collecte vient de démarrer : les messages envoyés à partir de maintenant apparaîtront ici au fil de l'activité.
+              {m.ms_empty_just_started()}
             {:else if hasSearched}
-              Aucun message ne correspond à votre recherche.
+              {m.ms_empty_no_match()}
             {:else}
-              Les messages enregistrés apparaîtront ici.
+              {m.ms_empty_default()}
             {/if}
           </p>
         </div>
@@ -471,10 +470,10 @@
                   <span class="text-xs text-on-surface-variant/50">#{m.channelName}</span>
                   <span class="text-xs text-on-surface-variant/40">· {formatDate(m.createdAt)}</span>
                   {#if m.editedAt}
-                    <span class="text-xs text-on-surface-variant/40">(modifié)</span>
+                    <span class="text-xs text-on-surface-variant/40">{m.ms_edited()}</span>
                   {/if}
                   {#if m.deletedAt}
-                    <span class="px-1.5 py-0.5 text-[10px] font-bold bg-error/20 text-error rounded">SUPPRIMÉ</span>
+                    <span class="px-1.5 py-0.5 text-[10px] font-bold bg-error/20 text-error rounded">{m.ms_deleted_badge()}</span>
                   {/if}
                 </div>
 
@@ -505,18 +504,18 @@
                     <button
                       onclick={() => confirmDelete(m.id)}
                       class="px-2.5 py-1 text-xs font-medium bg-error text-white rounded-md hover:bg-error/90 transition-colors"
-                    >Supprimer</button>
+                    >{m.common_delete()}</button>
                     <button
                       onclick={() => (pendingDeleteId = null)}
                       class="px-2.5 py-1 text-xs font-medium bg-surface-container text-on-surface rounded-md hover:bg-surface-container-high transition-colors"
-                    >Annuler</button>
+                    >{m.common_cancel()}</button>
                   </div>
                 {:else}
                   <button
                     onclick={() => (pendingDeleteId = m.id)}
                     class="flex items-center justify-center w-8 h-8 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-md transition-colors shrink-0"
-                    title="Supprimer de l'historique"
-                    aria-label="Supprimer le message"
+                    title={m.ms_delete_history_title()}
+                    aria-label={m.ms_delete_aria()}
                   >
                     <Papicon icon="trash" size={15} />
                   </button>
@@ -533,7 +532,7 @@
               disabled={loadingMore}
               class="px-4 py-2 text-sm font-medium bg-surface-container-low border border-outline-variant/30 text-on-surface rounded-lg hover:bg-surface-container transition-colors disabled:opacity-50"
             >
-              {loadingMore ? 'Chargement…' : 'Charger plus'}
+              {loadingMore ? m.common_loading() : m.ms_load_more()}
             </button>
           </div>
         {/if}
