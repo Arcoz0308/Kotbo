@@ -45,6 +45,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { fetchFeatureConfigurations, updateFeatureConfiguration } from '../lib/api';
+  import { m } from '../lib/i18n';
 
   const moduleId = 'dailyalgo';
 
@@ -550,14 +551,14 @@
       <RefreshButton
         onClick={() => { loadDailyAlgoProblems(); loadTodayDailyAlgoSubmissions(); }}
         loading={isFetchingAlgo || isFetchingAlgoSubmissions}
-        label="Actualiser"
+        label={m.common_refresh()}
       />
       {#if canManageSettings}
         <button
           onclick={openDailyAlgoProblemModal}
           class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
         >
-          Nouvel Exercice
+          {m.da_btn_new_exercise()}
         </button>
       {/if}
     </div>
@@ -569,25 +570,25 @@
       class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'defis' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'defis'}
     >
-      <Papicon icon="Code" size={15} /> Défis & Notation
+      <Papicon icon="Code" size={15} /> {m.da_tab_defis()}
     </button>
     <button
       class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'semaine' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'semaine'}
     >
-      <Papicon icon="Award" size={15} /> Semaine & Podium
+      <Papicon icon="Award" size={15} /> {m.da_tab_semaine()}
     </button>
     <button
       class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'bareme' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'bareme'}
     >
-      <Papicon icon="Sparkles" size={15} /> Barème & récompenses
+      <Papicon icon="Sparkles" size={15} /> {m.da_tab_bareme()}
     </button>
     <button
       class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'admin' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'admin'}
     >
-      <Papicon icon="Settings" size={15} /> Administration
+      <Papicon icon="Settings" size={15} /> {m.da_tab_admin()}
     </button>
   </div>
 
@@ -596,7 +597,7 @@
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-xs font-medium text-on-surface-variant/40">Soumissions du jour</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">{m.da_stat_today_submissions()}</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoToday?.submissions?.length ?? 0}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">

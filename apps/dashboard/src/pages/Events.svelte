@@ -9,47 +9,48 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { API_BASE_URL } from '../lib/api';
+  import { m } from '../lib/i18n';
 
   let events = $state<any[]>([]);
   let isFetching = $state(false);
   let showTypeModal = $state(false);
   let isCreating = $state(false);
 
-  const EVENT_TYPES = [
+  const EVENT_TYPES = $derived([
     {
       type: 'QUIZ',
       label: 'Quiz',
       icon: 'HelpCircle',
-      description: 'Questions à choix multiples ou réponses libres. Idéal pour tester les connaissances de votre communauté.',
+      description: m.ev_quiz_desc(),
       color: 'from-blue-500/20 to-indigo-500/20',
       border: 'border-blue-500/30 hover:border-blue-400/60',
       iconBg: 'bg-blue-500/10 text-blue-400',
-      tag: 'Questions & Réponses',
+      tag: m.ev_quiz_tag(),
       tagColor: 'bg-blue-500/15 text-blue-400',
     },
     {
       type: 'CTF',
       label: 'Capture The Flag',
       icon: 'Flag',
-      description: 'Défis de sécurité informatique avec flags cachés. Classement en temps réel, rôles en récompense.',
+      description: m.ev_ctf_desc(),
       color: 'from-emerald-500/20 to-teal-500/20',
       border: 'border-emerald-500/30 hover:border-emerald-400/60',
       iconBg: 'bg-emerald-500/10 text-emerald-400',
-      tag: 'Hacking & Sécurité',
+      tag: m.ev_ctf_tag(),
       tagColor: 'bg-emerald-500/15 text-emerald-400',
     },
     {
       type: 'CUSTOM',
       label: 'Événement Personnalisé',
       icon: 'Calendar',
-      description: 'Création d\'un événement sur Discord, envoi d\'une annonce premium et possibilité d\'inscription via formulaire autonome.',
+      description: m.ev_custom_desc(),
       color: 'from-purple-500/20 to-pink-500/20',
       border: 'border-purple-500/30 hover:border-purple-400/60',
       iconBg: 'bg-purple-500/10 text-purple-400',
-      tag: 'Inscription & Annonce',
+      tag: m.ev_custom_tag(),
       tagColor: 'bg-purple-500/15 text-purple-400',
     },
-  ] as const;
+  ]);
 
   const canManageEvents = $derived(
     !!dashboardStore.state.featureAccess?.events?.canConfigure
@@ -80,11 +81,11 @@
 
   function getStatusLabel(status: string) {
     switch (status) {
-      case 'DRAFT': return 'Brouillon';
-      case 'PUBLISHED': return 'Publié';
-      case 'ONGOING': return 'En cours';
-      case 'COMPLETED': return 'Terminé';
-      case 'CANCELLED': return 'Annulé';
+      case 'DRAFT': return m.ev_status_draft();
+      case 'PUBLISHED': return m.ev_status_published();
+      case 'ONGOING': return m.ev_status_ongoing();
+      case 'COMPLETED': return m.ev_status_completed();
+      case 'CANCELLED': return m.ev_status_cancelled();
       default: return status;
     }
   }
@@ -185,8 +186,8 @@
       <!-- Header -->
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h2 id="modal-title" class="text-2xl font-semibold text-on-surface">Choisir un type d'événement</h2>
-          <p class="text-on-surface-variant/50 text-sm mt-1">Sélectionnez la nature de votre événement. Vous pourrez le configurer en détail ensuite.</p>
+          <h2 id="modal-title" class="text-2xl font-semibold text-on-surface">{m.ev_select_type_title()}</h2>
+          <p class="text-on-surface-variant/50 text-sm mt-1">{m.ev_select_type_desc()}</p>
         </div>
         <button
           onclick={() => showTypeModal = false}
@@ -233,7 +234,7 @@
       </div>
 
       {#if isCreating}
-        <p class="text-center text-on-surface-variant/50 text-sm animate-pulse">Création en cours…</p>
+        <p class="text-center text-on-surface-variant/50 text-sm animate-pulse">{m.ev_creating()}</p>
       {/if}
     </div>
   </div>
@@ -241,8 +242,8 @@
 
 <!-- ── Page principale ─────────────────────────────────────────────── -->
 <ModulePage 
-  title="Événements" 
-  description="Créez et gérez des événements interactifs sur votre serveur Discord (Quiz, CTF…)." 
+  title={m.ev_page_title()} 
+  description={m.ev_page_desc()} 
   icon="Zap"
   featureKey="events"
 >
@@ -251,14 +252,14 @@
       <RefreshButton
         onClick={loadEvents}
         loading={isFetching}
-        label="Actualiser"
+        label={m.common_refresh()}
       />
       {#if canManageEvents}
         <button
           onclick={() => showTypeModal = true}
           class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
         >
-          Nouvel Événement
+          {m.ev_new_event()}
         </button>
       {/if}
     </div>
@@ -267,21 +268,21 @@
   <div class="space-y-10 pb-20">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-xs font-medium text-on-surface-variant/40">Total Événements</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">{m.ev_total_events()}</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{events.length}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-xs font-medium text-on-surface-variant/40">En cours</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">{m.ev_ongoing_events()}</p>
         <p class="text-lg font-semibold text-emerald-500 mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-xs font-medium text-on-surface-variant/40">Participations / Inscriptions</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">{m.ev_participations_registrations()}</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{events.reduce((acc, e) => acc + (e._count?.participants || 0) + (e._count?.registrations || 0), 0)}</p>
       </div>
     </div>
 
     <section class="space-y-6">
-      <h3 class="text-xl font-semibold text-on-surface px-2">Liste des événements</h3>
+      <h3 class="text-xl font-semibold text-on-surface px-2">{m.ev_list_title()}</h3>
 
       <div class="grid grid-cols-1 gap-4">
         {#each events as event}
@@ -332,7 +333,7 @@
                   onclick={() => router.goto(`/events/control/${event.id}`)}
                   class="px-6 py-3 bg-emerald-500 text-white rounded-lg text-xs font-medium transition-transform flex items-center gap-2"
                 >
-                  <Papicon icon="Play" size={12} /> Piloter
+                  <Papicon icon="Play" size={12} /> {m.ev_btn_control()}
                 </button>
               {/if}
               {#if event.type === 'CUSTOM' && (event.status === 'PUBLISHED' || event.status === 'ONGOING' || event.status === 'COMPLETED')}
@@ -340,7 +341,7 @@
                   onclick={() => router.goto(`/events/control/${event.id}`)}
                   class="px-6 py-3 bg-purple-500/10 text-purple-400 rounded-lg text-xs font-medium border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex items-center gap-2"
                 >
-                  <Papicon icon="Users" size={12} /> Inscriptions
+                  <Papicon icon="Users" size={12} /> {m.ev_btn_registrations()}
                 </button>
               {/if}
               {#if event.status === 'COMPLETED' && event.type !== 'CUSTOM'}
@@ -348,21 +349,21 @@
                   onclick={() => router.goto(`/events/control/${event.id}`)}
                   class="px-4 py-2 bg-primary/10 text-primary rounded-lg text-xs font-medium border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
                 >
-                  <Papicon icon="BarChart2" size={12} /> Stats
+                  <Papicon icon="BarChart2" size={12} /> {m.ev_btn_stats()}
                 </button>
               {/if}
               <button 
                 onclick={() => router.goto(`/events/edit/${event.id}`)}
                 class="px-6 py-3 bg-surface-container-high rounded-lg text-xs font-medium border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
               >
-                <Papicon icon="Edit3" size={12} /> Éditer
+                <Papicon icon="Edit3" size={12} /> {m.ev_btn_edit()}
               </button>
               {#if canManageEvents}
                 <button 
                   onclick={() => deleteEvent(event.id, event.title)}
                   class="px-6 py-3 bg-red-500/10 text-red-500 rounded-lg text-xs font-medium border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2"
                 >
-                  <Papicon icon="Trash" size={12} /> Supprimer
+                  <Papicon icon="Trash" size={12} /> {m.ev_btn_delete()}
                 </button>
               {/if}
             </div>
@@ -372,10 +373,10 @@
             <div class="w-20 h-20 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto mb-6 text-on-surface-variant/20">
               <Papicon icon="Zap" size={40} />
             </div>
-            <p class="text-on-surface-variant/60 font-semibold text-xl">Aucun événement pour le moment.</p>
+            <p class="text-on-surface-variant/60 font-semibold text-xl">{m.ev_no_event_title()}</p>
             {#if canManageEvents}
               <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-semibold uppercase text-[10px] tracking-widest hover:underline">
-                Créer votre premier événement
+                {m.ev_create_first()}
               </button>
             {/if}
           </div>

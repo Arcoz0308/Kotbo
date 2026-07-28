@@ -11,6 +11,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
+  import { m } from '../lib/i18n';
 
   let forms = $state<any[]>([]);
   let hierarchies = $state<any[]>([]);
@@ -84,11 +85,11 @@
       // Redirect to builder
       router.goto(`/forms/builder/${createdData.form.id}`);
       return true;
-    }, { successMessage: 'Formulaire créé avec succès !' });
+    }, { successMessage: m.cf_created_success() });
   }
 
   async function deleteForm(formId: string) {
-    if (!(await confirmDialog.danger('Supprimer ce formulaire ?', 'Cette action est irréversible.'))) return;
+    if (!(await confirmDialog.danger(m.cf_delete_confirm_title(), m.cf_delete_confirm_desc()))) return;
 
     await deleteAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`, {
@@ -98,7 +99,7 @@
       if (!res.ok) throw new Error('Erreur lors de la suppression');
       await fetchForms();
       return true;
-    }, { successMessage: 'Formulaire supprimé' });
+    }, { successMessage: m.cf_delete_success() });
   }
 
   async function fetchHierarchies() {
@@ -121,10 +122,10 @@
         body: JSON.stringify({ hierarchyId: hierarchyId || null })
       });
       if (res.ok) {
-        toast.success(hierarchyId ? 'Hiérarchie associée au formulaire' : 'Hiérarchie dissociée du formulaire');
+        toast.success(hierarchyId ? m.cf_hierarchy_linked() : m.cf_hierarchy_unlinked());
         await fetchForms();
       } else {
-        toast.error('Erreur de configuration');
+        toast.error(m.cf_config_error());
       }
     } catch {
       toast.error('Erreur réseau');
@@ -142,10 +143,10 @@
         body: JSON.stringify({ isRecruitment: value })
       });
       if (res.ok) {
-        toast.success(value ? 'Formulaire relié au recrutement' : 'Formulaire dissocié du recrutement');
+        toast.success(value ? m.cf_recruitment_linked() : m.cf_recruitment_unlinked());
         await fetchForms();
       } else {
-        toast.error('Erreur de configuration');
+        toast.error(m.cf_config_error());
       }
     } catch {
       toast.error('Erreur réseau');
@@ -163,10 +164,10 @@
         body: JSON.stringify({ requiresDiscordAuth: value })
       });
       if (res.ok) {
-        toast.success(value ? 'Connexion Discord requise pour ce formulaire' : 'Connexion Discord non requise');
+        toast.success(value ? m.cf_auth_required() : m.cf_auth_not_required());
         await fetchForms();
       } else {
-        toast.error('Erreur de configuration');
+        toast.error(m.cf_config_error());
       }
     } catch {
       toast.error('Erreur réseau');
@@ -184,10 +185,10 @@
         body: JSON.stringify({ isActive: value })
       });
       if (res.ok) {
-        toast.success(value ? 'Formulaire activé' : 'Formulaire désactivé');
+        toast.success(value ? m.cf_activated() : m.cf_deactivated());
         await fetchForms();
       } else {
-        toast.error('Erreur de configuration');
+        toast.error(m.cf_config_error());
       }
     } catch {
       toast.error('Erreur réseau');
@@ -201,20 +202,20 @@
 </script>
 
 <ModulePage
-  title="Formulaires Personnalisés"
-  description="Créez des formulaires autonomes pour vos événements ou sondages. Connectables au recrutement si souhaité."
+  title={m.cf_page_title()}
+  description={m.cf_page_desc()}
   icon="description"
   featureKey="events"
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">
-      <RefreshButton onClick={fetchForms} loading={loading} label="Actualiser" />
+      <RefreshButton onClick={fetchForms} loading={loading} label={m.common_refresh()} />
       <button 
         onclick={() => showCreateModal = true}
         class="px-4 py-2 bg-primary text-white rounded-xl font-medium text-[13px] transition-transform flex items-center gap-2"
       >
         <Papicon icon="add" size={16} />
-        Nouveau Formulaire
+        {m.cf_new_form()}
       </button>
     </div>
   {/snippet}
@@ -240,9 +241,9 @@
         <div class="w-24 h-24 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner text-purple-400">
           <Papicon icon="description" size={48} />
         </div>
-        <h3 class="text-2xl font-semibold tracking-tight text-on-surface/50 font-sans">Aucun formulaire</h3>
+        <h3 class="text-2xl font-semibold tracking-tight text-on-surface/50 font-sans">{m.cf_no_form_title()}</h3>
         <p class="mt-3 text-sm max-w-sm text-center opacity-60 font-sans">
-          Créez votre premier formulaire autonome personnalisé pour commencer.
+          {m.cf_no_form_desc()}
         </p>
       </div>
     {:else}
