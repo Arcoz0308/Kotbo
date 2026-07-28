@@ -442,7 +442,7 @@
                           title="Sauvegarder la configuration"
                           class="p-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all"
                         >
-                          <Papicon icon="Gear" size={16} />
+                          <Papicon icon="Paper" size={16} />
                         </button>
                         <button
                           onclick={() => handleDeleteYoutube(follow.id)}
@@ -558,7 +558,7 @@
                           title="Sauvegarder la configuration"
                           class="p-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all"
                         >
-                          <Papicon icon="Gear" size={16} />
+                          <Papicon icon="Paper" size={16} />
                         </button>
                         <button
                           onclick={() => handleDeleteTwitch(follow.id)}
