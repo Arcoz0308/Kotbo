@@ -72,7 +72,7 @@
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('Fichier trop volumineux. La limite est de 10 Mo par fichier.');
+      toast.error(m.sei_file_too_large());
       return;
     }
 
@@ -83,7 +83,7 @@
         const result = reader.result as string;
         const base64Data = result.split(',')[1];
         if (!base64Data) {
-          toast.error("Erreur lors de la lecture du fichier.");
+          toast.error(m.sei_read_error());
           uploadBusy = false;
           return;
         }
@@ -97,7 +97,7 @@
         uploadBusy = false;
       };
       reader.onerror = () => {
-        toast.error("Erreur lors de la lecture du fichier.");
+        toast.error(m.sei_read_error());
         uploadBusy = false;
       };
       reader.readAsDataURL(file);
@@ -148,7 +148,7 @@
           type="button"
           onclick={() => removeLink(index)}
           class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant/40 hover:bg-rose-500/10 hover:text-rose-500 transition-all active:scale-95"
-          title="Supprimer ce lien"
+          title={m.sei_delete_link()}
         >
           <Papicon icon="trash-2" size={16} />
         </button>
@@ -164,7 +164,7 @@
         class="flex flex-1 min-w-[130px] items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-xs font-medium text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
       >
         <Papicon icon="plus" size={14} />
-        Ajouter un lien
+        {m.sei_add_link()}
       </button>
 
       <button
@@ -175,10 +175,10 @@
       >
         {#if uploadBusy}
           <div class="animate-spin w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full"></div>
-          Upload en cours…
+          {m.sei_uploading()}
         {:else}
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Uploader un fichier
+          {m.sei_upload_file()}
         {/if}
       </button>
 
@@ -188,7 +188,7 @@
         class="flex flex-1 min-w-[130px] items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-xs font-medium text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        Attacher transcription
+        {m.sei_attach_transcript()}
       </button>
 
       {#if sanctionId}
@@ -198,7 +198,7 @@
           class="flex flex-1 min-w-[130px] items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-xs font-medium text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
         >
           <Papicon icon="message-square" size={14} />
-          Importer depuis Discord
+          {m.sei_import_from_discord()}
         </button>
       {/if}
     </div>

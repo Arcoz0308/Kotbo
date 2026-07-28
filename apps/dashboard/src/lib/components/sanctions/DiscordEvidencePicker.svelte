@@ -409,7 +409,7 @@
             {m.sev_one_transcript_per_channel()}
           </p>
           <button type="button" onclick={() => (step = 'search')} class="rounded-lg px-5 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
-            Modifier la recherche
+            {m.sev_edit_search()}
           </button>
           <button
             type="button"
