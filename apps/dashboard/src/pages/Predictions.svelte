@@ -151,7 +151,6 @@
   .season-items { display: flex; flex-direction: column; gap: 0.5rem; }
   .season-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
 
-  .trend-card { }
   .trend-chart { display: flex; align-items: flex-end; gap: 1px; height: 100px; }
   .trend-bar { flex: 1; min-width: 3px; border-radius: 2px 2px 0 0; opacity: 0.8; transition: opacity 0.2s; position: relative; }
   .trend-bar:hover { opacity: 1; }

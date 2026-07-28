@@ -7,7 +7,13 @@
   import ToggleSwitch from '../ToggleSwitch.svelte';
   import { m } from '../../i18n';
 
-  let { features = $bindable([]), onSave = () => {} } = $props();
+  let {
+    features = $bindable([]),
+    onSave = (_key?: string) => {}
+  }: {
+    features?: any[];
+    onSave?: (key?: string) => void | Promise<void>;
+  } = $props();
 
   // Group features by category - Use $derived.by for better performance
   const groupedFeatures = $derived.by(() => {
@@ -42,7 +48,7 @@
       <h3 class="text-2xl font-semibold">{m.mf_title()}</h3>
       <p class="text-xs text-on-surface-variant/50 mt-1">{m.mf_desc()}</p>
     </div>
-    <button onclick={onSave} class="px-7 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-lg transition-transform">
+    <button onclick={() => onSave()} class="px-7 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-lg transition-transform">
       {m.common_save()}
     </button>
   </div>
@@ -120,4 +126,3 @@
     {/each}
   </div>
 </div>
-

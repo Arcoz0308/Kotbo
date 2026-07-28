@@ -142,6 +142,12 @@
     }
   }
 
+  function parseDraftValueOrThrow(raw: string): unknown {
+    const parsed = parseDraftJsonValue(raw);
+    if ('error' in parsed) throw new Error(parsed.error);
+    return parsed.value;
+  }
+
   const formAction = createAsyncActionState();
   const apiKeyAction = createAsyncActionState();
   const weekSettingsAction = createAsyncActionState();
@@ -498,8 +504,8 @@
         functionArgs: algoDraft.functionArgs.map(a => ({ name: a.name.trim(), type: a.type.trim() })),
         unitTests: algoDraft.unitTests.map(t => ({
           name: t.name.trim(),
-          args: t.argValues.map(v => parseDraftJsonValue(v).value),
-          expected: parseDraftJsonValue(t.expectedValue).value
+          args: t.argValues.map(parseDraftValueOrThrow),
+          expected: parseDraftValueOrThrow(t.expectedValue)
         })),
         allowedLanguages: algoDraft.allowedLanguages,
       };

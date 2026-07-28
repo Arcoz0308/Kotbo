@@ -51,14 +51,14 @@
   async function handleDelete(noteId: string) {
     if (!(await confirmDialog.danger('Supprimer cette note ?', 'Cette suppression est définitive.'))) return;
     try {
-      await deleteManagerNote(noteId);
+      await deleteManagerNote(userId, noteId);
       onNoteDeleted();
     } catch (err) {
       toast.error('Erreur lors de la suppression');
     }
   }
 
-  function formatDate(date: string) {
+  function formatDate(date: string | Date) {
     return new Date(date).toLocaleDateString('fr-FR', {
       day: 'numeric',
       month: 'long',

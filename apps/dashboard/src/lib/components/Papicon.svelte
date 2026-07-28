@@ -5,12 +5,18 @@
     icon = "",
     name = "",
     size = 24,
-    class: className = ""
+    class: className = "",
+    className: classNameAlias = "",
+    class_: legacyClassName = "",
+    style = ""
   }: {
     icon?: string;
     name?: string;
     size?: number;
     class?: string;
+    className?: string;
+    class_?: string;
+    style?: string;
     children?: import('svelte').Snippet;
   } = $props();
 
@@ -19,5 +25,5 @@
 </script>
 
 {#key requestedIcon}
-  <LucideComponent size={size} class={className} stroke-width={2.25} />
+  <LucideComponent size={size} class={`${className} ${classNameAlias} ${legacyClassName}`.trim()} {style} stroke-width={2.25} />
 {/key}

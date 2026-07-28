@@ -3,7 +3,7 @@
   import DiscordEvidencePicker from './DiscordEvidencePicker.svelte';
   import TranscriptAttachPicker from './TranscriptAttachPicker.svelte';
   import { normalizeEvidenceLinks } from '../../sanctions/evidenceLinks';
-  import { authStore } from '../../stores/auth.svelte.ts';
+  import { authStore } from '../../stores/auth.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { uploadEvidenceFile, deleteEvidenceFile } from '../../api';
   import { m } from '../../i18n';
@@ -221,4 +221,3 @@
   bind:open={transcriptPickerOpen}
   onAttach={attachTranscriptUrl}
 />
-

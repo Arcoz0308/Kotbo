@@ -11,6 +11,7 @@
   import MetricCard from '../lib/components/MetricCard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
+  import { isMobile } from '../lib/stores/media.svelte';
 
   interface LayoutItem {
     id: string;
@@ -554,6 +555,14 @@
     return parts.join('; ');
   }
 
+  function displayColSpan(item: LayoutItem): number {
+    return $isMobile ? 1 : item.colSpan;
+  }
+
+  function displayRowSpan(item: LayoutItem): number {
+    return $isMobile ? 1 : (item.rowSpan || 1);
+  }
+
   function getColSpanClass(colSpan: number): string {
     if (colSpan === 2) return "md:col-span-2";
     if (colSpan === 3) return "md:col-span-2 lg:col-span-3";
@@ -878,8 +887,8 @@
         ondragover={(e) => handleDragOver(e, index)}
         ondragleave={handleDragLeave}
         ondrop={(e) => handleDrop(e, index)}
-        class="section-card p-5 flex flex-col relative group transition-all duration-200 {getColSpanClass(item.colSpan)} {getRowSpanClass(item.rowSpan || 1)} {getModuleMinHeight(item.id)} {isEditing ? 'border-dashed border-primary/50 hover:shadow-lg hover:border-primary bg-surface-container-lowest/80' : ''} {isEditing && dragOverIndex === index ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface scale-[1.02]' : ''}"
-        style={isEditing ? `cursor: grab; ${getSpanStyle(item.colSpan, item.rowSpan || 1)}` : getSpanStyle(item.colSpan, item.rowSpan || 1)}
+        class="home-bento-item section-card p-5 flex flex-col relative group transition-all duration-200 {getColSpanClass(displayColSpan(item))} {getRowSpanClass(displayRowSpan(item))} {getModuleMinHeight(item.id)} {isEditing ? 'border-dashed border-primary/50 hover:shadow-lg hover:border-primary bg-surface-container-lowest/80' : ''} {isEditing && dragOverIndex === index ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface scale-[1.02]' : ''}"
+        style={isEditing ? `cursor: grab; ${getSpanStyle(displayColSpan(item), displayRowSpan(item))}` : getSpanStyle(displayColSpan(item), displayRowSpan(item))}
       >
         {#if isEditing}
           <!-- Grab handle indicator -->
@@ -1032,19 +1041,19 @@
                   {/if}
                 </div>
               </div>
-              <div class="w-full grow" style="min-height: {(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}px">
+              <div class="w-full grow" style="min-height: {displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}px">
                 {#if activityData.length > 0}
                   {#await import('../lib/components/LineChart.svelte')}
                     <div
                       class="w-full rounded-lg bg-surface-container animate-pulse"
-                      style:height={`${(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}px`}
+                      style:height={`${displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}px`}
                       aria-hidden="true"
                     ></div>
                   {:then module}
                     {@const LineChart = module.default}
                     <LineChart
                       data={activityData}
-                      height={(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}
+                      height={displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}
                       labelKey="name"
                       valueKey="value"
                       color={statConfig.color}
@@ -1131,8 +1140,8 @@
               <button onclick={() => router.goto('/modules')} class="text-xs text-primary hover:underline cursor-pointer">{m.nav_modules()}</button>
             </div>
 
-            <div class="flex {item.colSpan >= 2 ? 'flex-row gap-6' : 'flex-col gap-4'} grow {item.colSpan < 2 ? 'justify-center' : 'items-center'}">
-              <div class="flex items-center gap-4 {item.colSpan >= 2 ? '' : 'justify-center'}">
+            <div class="flex {displayColSpan(item) >= 2 ? 'flex-row gap-6' : 'flex-col gap-4'} grow {displayColSpan(item) < 2 ? 'justify-center' : 'items-center'}">
+              <div class="flex items-center gap-4 {displayColSpan(item) >= 2 ? '' : 'justify-center'}">
                 <div class="relative w-16 h-16 shrink-0">
                   <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
                     <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" class="text-surface-container-high" stroke-width="4" />
@@ -1150,10 +1159,10 @@
                 </div>
               </div>
 
-              {#if item.colSpan >= 2 || (item.rowSpan || 1) >= 2}
-                <div class="flex-1 space-y-1.5 {item.colSpan >= 2 ? 'border-l border-outline-variant pl-6' : 'border-t border-outline-variant pt-3'}">
+              {#if displayColSpan(item) >= 2 || displayRowSpan(item) >= 2}
+                <div class="flex-1 space-y-1.5 {displayColSpan(item) >= 2 ? 'border-l border-outline-variant pl-6' : 'border-t border-outline-variant pt-3'}">
                   <span class="text-[10px] text-on-surface-variant">{m.home_active_modules()}</span>
-                  {#each dashboardStore.state.modules.filter(m => m.status === 'active').slice(0, (item.rowSpan || 1) >= 2 ? 8 : 5) as mod}
+                  {#each dashboardStore.state.modules.filter(m => m.status === 'active').slice(0, displayRowSpan(item) >= 2 ? 8 : 5) as mod}
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-on-surface truncate">{mod.name}</span>
                       <span class="text-[10px] text-emerald-400 shrink-0">{m.home_active_lower()}</span>
@@ -1180,8 +1189,8 @@
             </div>
           </div>
         {:else if item.id === 'channels'}
-          {@const channelCount = getListCount(5, item.colSpan, item.rowSpan || 1)}
-          {@const channelsCols = item.colSpan >= 2 ? 2 : 1}
+          {@const channelCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
+          {@const channelsCols = displayColSpan(item) >= 2 ? 2 : 1}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1235,7 +1244,7 @@
                   <div class="h-6 animate-pulse bg-surface-container-high rounded"></div>
                 {/each}
               {:else if moderation}
-                <div class="grid {item.colSpan >= 2 ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
+                <div class="grid {displayColSpan(item) >= 2 ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
                   <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.warns}</p>
                     <p class="text-[10px] text-on-surface-variant">Warns</p>
@@ -1256,10 +1265,10 @@
                 {#if moderation.activeSanctions > 0}
                   <p class="text-[11px] text-amber-400 mt-1">{m.home_active_sanctions({ n: moderation.activeSanctions })}</p>
                 {/if}
-                {#if (item.rowSpan || 1) >= 2 && moderation.recentSanctions?.length > 0}
+                {#if displayRowSpan(item) >= 2 && moderation.recentSanctions?.length > 0}
                   <div class="border-t border-outline-variant pt-2 mt-1 space-y-1.5">
                     <span class="text-[10px] text-on-surface-variant">{m.home_recent_sanctions()}</span>
-                    {#each moderation.recentSanctions.slice(0, (item.rowSpan || 1) >= 3 ? 6 : 3) as sanction}
+                    {#each moderation.recentSanctions.slice(0, displayRowSpan(item) >= 3 ? 6 : 3) as sanction}
                       <div class="flex items-center justify-between text-xs">
                         <span class="text-on-surface truncate">{sanction.targetName || m.home_member()}</span>
                         <span class="text-[10px] text-on-surface-variant shrink-0">{sanction.type}</span>
@@ -1273,8 +1282,8 @@
             </div>
           </div>
         {:else if item.id === 'members'}
-          {@const memberCount = getListCount(5, item.colSpan, item.rowSpan || 1)}
-          {@const membersCols = item.colSpan >= 2 ? 2 : 1}
+          {@const memberCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
+          {@const membersCols = displayColSpan(item) >= 2 ? 2 : 1}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1313,8 +1322,8 @@
             </div>
           </div>
         {:else if item.id === 'notifications'}
-          {@const notifCount = getListCount(5, item.colSpan, item.rowSpan || 1)}
-          {@const notifCols = item.colSpan >= 2 ? 2 : 1}
+          {@const notifCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
+          {@const notifCols = displayColSpan(item) >= 2 ? 2 : 1}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1358,8 +1367,8 @@
             </div>
           </div>
         {:else if item.id === 'staff'}
-          {@const staffAbsCount = (item.rowSpan || 1) >= 2 ? 3 : 1}
-          {@const staffMeetCount = (item.rowSpan || 1) >= 2 ? 3 : 1}
+          {@const staffAbsCount = displayRowSpan(item) >= 2 ? 3 : 1}
+          {@const staffMeetCount = displayRowSpan(item) >= 2 ? 3 : 1}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1374,8 +1383,8 @@
               </div>
             </div>
 
-            <div class="grow flex {item.colSpan >= 2 ? 'flex-row gap-4' : 'flex-col'} justify-center">
-              <div class="{item.colSpan >= 2 ? 'flex-1' : ''} space-y-2.5">
+            <div class="grow flex {displayColSpan(item) >= 2 ? 'flex-row gap-4' : 'flex-col'} justify-center">
+              <div class="{displayColSpan(item) >= 2 ? 'flex-1' : ''} space-y-2.5">
                 {#each pendingAbsences.slice(0, staffAbsCount) as absence, i}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
                     <span class="text-[10px] text-primary block mb-1">{i === 0 ? m.home_next_absence() : m.home_absence()}</span>
@@ -1390,7 +1399,7 @@
                 {/each}
               </div>
 
-              <div class="{item.colSpan >= 2 ? 'flex-1' : ''} space-y-2.5 {item.colSpan < 2 ? 'mt-2.5' : ''}">
+              <div class="{displayColSpan(item) >= 2 ? 'flex-1' : ''} space-y-2.5 {displayColSpan(item) < 2 ? 'mt-2.5' : ''}">
                 {#each staffStore.upcomingMeetings.slice(0, staffMeetCount) as meeting, i}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
                     <span class="text-[10px] text-secondary block mb-1">{i === 0 ? m.home_next_meeting() : m.home_meeting()}</span>
@@ -1413,7 +1422,7 @@
             </a>
           </div>
         {:else if item.id === 'audit'}
-          {@const auditCount = getListCount(5, item.colSpan, item.rowSpan || 1)}
+          {@const auditCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1435,8 +1444,8 @@
                       <span class="text-[10px] text-primary truncate">{entry.module}</span>
                       <span class="text-[9px] text-on-surface-variant shrink-0">{entry.dateIso ? relativeTime(entry.dateIso) : entry.time || ''}</span>
                     </div>
-                    <p class="text-[11px] text-on-surface {item.colSpan >= 2 ? '' : 'truncate'}">{@html entry.action}</p>
-                    {#if item.colSpan >= 2 && entry.user}
+                    <p class="text-[11px] text-on-surface {displayColSpan(item) >= 2 ? '' : 'truncate'}">{@html entry.action}</p>
+                    {#if displayColSpan(item) >= 2 && entry.user}
                       <p class="text-[10px] text-on-surface-variant">{m.home_by_user({ user: entry.user })}</p>
                     {/if}
                   </div>
@@ -1552,7 +1561,7 @@
             </div>
           </div>
         {:else if item.id === 'news'}
-          {@const maxNewsItems = (item.rowSpan || 1) >= 2 ? 6 : 3}
+          {@const maxNewsItems = displayRowSpan(item) >= 2 ? 6 : 3}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1836,7 +1845,7 @@
   </div>
 
   <!-- Floating Actions -->
-  <div class="fixed bottom-6 right-6 z-100 flex items-center gap-3">
+  <div class="home-floating-actions fixed bottom-6 right-6 z-100 flex items-center gap-3">
     {#if !isEditing}
       <button
         onclick={() => isEditing = true}

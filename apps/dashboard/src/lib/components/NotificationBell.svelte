@@ -61,7 +61,9 @@
 <div class="relative notif-container">
   <button
     onclick={toggle}
-    class="relative w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
+    class="notification-trigger relative w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
+    aria-label={m.notif_header_title()}
+    aria-expanded={open}
   >
     <Papicon icon="bell" size={16} class="text-on-surface-variant" />
 
@@ -77,7 +79,7 @@
   {#if open}
     <div
       transition:slide={{ duration: 150, axis: 'y' }}
-      class="absolute right-0 top-11 w-80 max-h-[400px] bg-surface-container-lowest rounded-lg border border-outline-variant shadow-lg flex flex-col overflow-hidden z-50"
+      class="notification-panel absolute right-0 top-11 w-80 max-h-[400px] bg-surface-container-lowest rounded-lg border border-outline-variant shadow-lg flex flex-col overflow-hidden z-50"
     >
       <div class="px-3 py-2.5 border-b border-outline-variant flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2">

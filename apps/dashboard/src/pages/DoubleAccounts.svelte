@@ -126,7 +126,7 @@
   type DetectionReason = { type: string; label: string; score: number; matchedUserId?: string; detail?: string };
   type SuspectedAlt = { userId: string; username: string | null; avatarUrl: string | null };
   type DetectionItem = {
-    id: string; username: string | null; displayName: string | null; avatarUrl: string | null;
+    id: string; userId: string; username: string | null; displayName: string | null; avatarUrl: string | null;
     isBot: boolean; accountCreatedAt: string | null; guildJoinedAt: string | null;
     guildLeftAt: string | null; lastSeenAt: string | null; messageCount: number;
     isOnServer: boolean; presenceStatus: string | null; accountAgeMs: number | null; accountAgeLabel: string;

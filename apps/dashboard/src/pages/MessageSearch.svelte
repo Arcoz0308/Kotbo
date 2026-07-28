@@ -451,10 +451,10 @@
         </div>
       {:else}
         <div class="flex flex-col gap-2">
-          {#each messages as m (m.id)}
-            <div class="flex gap-3 p-4 bg-surface-container-low/60 border border-outline-variant/20 rounded-lg hover:border-outline-variant/40 transition-colors {m.deletedAt ? 'opacity-70' : ''}">
-              {#if m.authorAvatar}
-                <img src={m.authorAvatar} alt="" class="w-9 h-9 rounded-full shrink-0" />
+          {#each messages as message (message.id)}
+            <div class="flex gap-3 p-4 bg-surface-container-low/60 border border-outline-variant/20 rounded-lg hover:border-outline-variant/40 transition-colors {message.deletedAt ? 'opacity-70' : ''}">
+              {#if message.authorAvatar}
+                <img src={message.authorAvatar} alt="" class="w-9 h-9 rounded-full shrink-0" />
               {:else}
                 <div class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center shrink-0">
                   <Papicon icon="user" size={16} class="text-on-surface-variant/50" />
@@ -463,27 +463,27 @@
 
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-sm font-semibold text-on-surface">{m.authorName}</span>
-                  {#if m.isBot}
+                  <span class="text-sm font-semibold text-on-surface">{message.authorName}</span>
+                  {#if message.isBot}
                     <span class="px-1.5 py-0.5 text-[10px] font-bold bg-primary/20 text-primary rounded">BOT</span>
                   {/if}
-                  <span class="text-xs text-on-surface-variant/50">#{m.channelName}</span>
-                  <span class="text-xs text-on-surface-variant/40">· {formatDate(m.createdAt)}</span>
-                  {#if m.editedAt}
+                  <span class="text-xs text-on-surface-variant/50">#{message.channelName}</span>
+                  <span class="text-xs text-on-surface-variant/40">· {formatDate(message.createdAt)}</span>
+                  {#if message.editedAt}
                     <span class="text-xs text-on-surface-variant/40">{m.ms_edited()}</span>
                   {/if}
-                  {#if m.deletedAt}
+                  {#if message.deletedAt}
                     <span class="px-1.5 py-0.5 text-[10px] font-bold bg-error/20 text-error rounded">{m.ms_deleted_badge()}</span>
                   {/if}
                 </div>
 
-                {#if m.content}
-                  <p class="text-sm text-on-surface-variant mt-1 whitespace-pre-wrap break-words">{m.content}</p>
+                {#if message.content}
+                  <p class="text-sm text-on-surface-variant mt-1 whitespace-pre-wrap break-words">{message.content}</p>
                 {/if}
 
-                {#if m.attachments && m.attachments.length > 0}
+                {#if message.attachments && message.attachments.length > 0}
                   <div class="flex flex-wrap gap-2 mt-2">
-                    {#each m.attachments as att}
+                    {#each message.attachments as att}
                       <a
                         href={att.url}
                         target="_blank"
@@ -499,10 +499,10 @@
               </div>
 
               {#if isAdmin}
-                {#if pendingDeleteId === m.id}
+                {#if pendingDeleteId === message.id}
                   <div class="flex items-center gap-2 shrink-0">
                     <button
-                      onclick={() => confirmDelete(m.id)}
+                      onclick={() => confirmDelete(message.id)}
                       class="px-2.5 py-1 text-xs font-medium bg-error text-white rounded-md hover:bg-error/90 transition-colors"
                     >{m.common_delete()}</button>
                     <button
@@ -512,7 +512,7 @@
                   </div>
                 {:else}
                   <button
-                    onclick={() => (pendingDeleteId = m.id)}
+                    onclick={() => (pendingDeleteId = message.id)}
                     class="flex items-center justify-center w-8 h-8 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-md transition-colors shrink-0"
                     title={m.ms_delete_history_title()}
                     aria-label={m.ms_delete_aria()}

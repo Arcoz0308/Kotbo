@@ -150,7 +150,7 @@
       <div class="grid gap-4">
         {#each filteredNotifications as notif (notif.id)}
           <div 
-            class="group relative flex items-start gap-5 p-6 bg-surface-container-lowest border border-outline-variant/20 rounded-[32px] hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 {notif.isRead ? 'opacity-80' : 'after:absolute after:left-0 after:top-8 after:bottom-8 after:w-1 after:bg-primary after:rounded-full'}"
+            class="inbox-notification-card group relative flex items-start gap-5 p-6 bg-surface-container-lowest border border-outline-variant/20 rounded-[32px] hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 {notif.isRead ? 'opacity-80' : 'after:absolute after:left-0 after:top-8 after:bottom-8 after:w-1 after:bg-primary after:rounded-full'}"
             in:fly={{ y: 20, duration: 400 }}
           >
             <!-- Type Icon -->
@@ -180,8 +180,8 @@
                 {notif.message}
               </p>
               
-              <div class="flex items-center justify-between">
-                <div class="flex gap-2">
+              <div class="inbox-notification-card__footer flex items-center justify-between gap-3">
+                <div class="inbox-notification-card__actions flex flex-wrap gap-2">
                   {#if notif.link}
                     <a 
                       href={notif.link}

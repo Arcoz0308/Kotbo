@@ -203,7 +203,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {#each EVENT_TYPES as et}
           <button
-            onclick={() => createEventWithType(et.type)}
+            onclick={() => createEventWithType(et.type as 'CUSTOM' | 'QUIZ' | 'CTF')}
             disabled={isCreating}
             class="group relative flex flex-col gap-5 p-7 rounded-xl border bg-gradient-to-br text-left
  transition-all duration-200 hover: active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed

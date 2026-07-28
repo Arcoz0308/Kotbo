@@ -1,6 +1,8 @@
 // Global Window augmentations used by DailyAlgoMiniIDE.svelte
 // Declare these here so `declare global {}` is always at module top-level.
 
+export {};
+
 type JSCPPGlobal = {
   run: (code: string, input?: string, config?: { stdio?: { write?: (chunk: string) => void } }) => unknown;
 };

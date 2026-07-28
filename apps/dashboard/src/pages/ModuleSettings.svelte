@@ -677,7 +677,7 @@
       const args: unknown[] = [];
       for (let argIndex = 0; argIndex < draftTest.argValues.length; argIndex += 1) {
         const parsed = parseDraftJsonValue(draftTest.argValues[argIndex] ?? '');
-        if (!parsed.ok) {
+        if ('error' in parsed) {
           formAction.setError(m.ms_da_test_arg_parse_error({ arg: argIndex + 1, n: testIndex + 1, error: parsed.error }));
           return;
         }
@@ -685,7 +685,7 @@
       }
 
       const parsedExpected = parseDraftJsonValue(draftTest.expectedValue ?? '');
-      if (!parsedExpected.ok) {
+      if ('error' in parsedExpected) {
         formAction.setError(m.ms_da_test_expected_parse_error({ n: testIndex + 1, error: parsedExpected.error }));
         return;
       }
@@ -1412,7 +1412,9 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <RefreshButton
-                onClick={() => Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoProblems(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()])}
+                onClick={async () => {
+                  await Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoProblems(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()]);
+                }}
                 loading={isFetchingAlgoSubmissions || isFetchingAlgo || isFetchingAlgoHistory || isFetchingAlgoSchedule || isEnsuringAlgoSchedule || isFetchingApiKeys}
                 label={m.ms_refresh_all()}
                 className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"

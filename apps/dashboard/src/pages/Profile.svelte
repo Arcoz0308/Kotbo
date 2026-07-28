@@ -418,7 +418,7 @@
     return m.pf_ago_days({ n: diffDays });
   }
 
-  function getDurationSince(value: string | null | undefined) {
+  function getDurationSince(value: string | Date | null | undefined) {
     if (!value) return m.pf_unknown();
     const start = new Date(value);
     const now = new Date();

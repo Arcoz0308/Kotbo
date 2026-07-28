@@ -285,7 +285,7 @@
   <div class="space-y-4">
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
       <SectionCard title={m.an_adv_churn_tenure_title()} description={m.an_adv_churn_tenure_desc()} icon="TrendingUp">
-        {@const total = Object.values(data.churnByTenure).reduce((s: number, v: any) => s + v, 0)}
+        {@const total = (Object.values(data.churnByTenure) as number[]).reduce((s, v) => s + v, 0)}
         {#if total === 0}
           <EmptyState icon="usersFour" title={m.an_adv_churn_empty()} />
         {:else}
@@ -607,7 +607,7 @@
 
       <div class="space-y-4">
         <SectionCard title={m.an_adv_account_age_title()} description={m.an_adv_account_age_desc()} icon="Clock">
-          {@const totalAge = Object.values(data.accountAgeBuckets).reduce((s: number, v: any) => s + v, 0)}
+          {@const totalAge = (Object.values(data.accountAgeBuckets) as number[]).reduce((s, v) => s + v, 0)}
           {#if totalAge === 0}
             <EmptyState icon="clock" title={m.an_adv_mod_load_empty()} />
           {:else}
@@ -653,7 +653,7 @@
 
     <SectionCard title={m.an_adv_hot_hours_title()} description={m.an_adv_hot_hours_desc()} icon="Fire" flush>
       {@const maxHot = Math.max(1, ...data.hotHours.map((h: any) => h.count))}
-      {@const hotMap = new Map(data.hotHours.map((h: any) => [`${h.dow}-${h.hour}`, h.count]))}
+      {@const hotMap = new Map<string, number>(data.hotHours.map((h: any) => [`${h.dow}-${h.hour}`, Number(h.count)]))}
       <div class="overflow-x-auto p-5">
         <div class="min-w-150">
           <div class="grid gap-0.5" style="grid-template-columns: 2.5rem repeat(24, 1fr)">

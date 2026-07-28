@@ -504,17 +504,17 @@ import { m, dateLocale } from '../lib/i18n';
   }) ?? []);
 </script>
 
-<div id="analytics-export-root" class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
+<div id="analytics-export-root" class="analytics-page space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-0 sm:px-4 md:px-8">
   <!-- Header -->
   <div class="relative overflow-hidden bg-surface-container-low/30 p-5 md:p-6 rounded-xl border border-outline-variant/10 group">
     <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
 
     <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div class="flex items-center gap-4">
+      <div class="analytics-page__identity flex min-w-0 items-center gap-4">
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="ChartLineUp" size={20} />
         </div>
-        <div>
+        <div class="min-w-0">
           <span class="text-xs font-medium text-primary">{m.an_header_eyebrow()}</span>
           <h2 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">
             {m.an_header_title_lead()} <span class="text-primary">{m.an_header_title_accent()}</span>
@@ -523,8 +523,8 @@ import { m, dateLocale } from '../lib/i18n';
         </div>
       </div>
 
-      <div class="flex flex-col items-end gap-3 w-full md:w-auto">
-        <div class="flex flex-wrap items-center justify-end gap-2">
+      <div class="analytics-page__actions flex flex-col items-end gap-3 w-full md:w-auto">
+        <div class="flex w-full flex-wrap items-center justify-end gap-2">
           <ExportDropdown
             onExportCSV={exportAllToCSV}
             onExportXLSX={exportAllToXLSX}
@@ -544,7 +544,7 @@ import { m, dateLocale } from '../lib/i18n';
             </div>
 
             {#if isCustomPeriod}
-              <div class="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-300">
+              <div class="analytics-custom-range flex flex-wrap items-center gap-2 animate-in fade-in zoom-in-95 duration-300">
                 <input
                   type="datetime-local"
                   bind:value={startDate}
@@ -581,7 +581,7 @@ import { m, dateLocale } from '../lib/i18n';
   </div>
 
   <!-- Navigation Catégories -->
-  <div class="sticky top-4 z-40 flex justify-center">
+  <div class="analytics-category-nav sticky top-4 z-30 flex justify-center">
     <div class="flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
       {#each categories as cat}
         <button 
@@ -601,7 +601,7 @@ import { m, dateLocale } from '../lib/i18n';
   <!-- Navigation Onglets (sous-catégories) -->
   {#if currentTabs.length > 1}
     <div class="flex justify-center">
-      <div class="flex gap-1 bg-surface-container p-1.5 rounded-lg border border-outline-variant">
+      <div class="flex max-w-full gap-1 overflow-x-auto bg-surface-container p-1.5 rounded-lg border border-outline-variant no-scrollbar">
         {#each currentTabs as tab}
           <button 
             onclick={() => selectTab(tab)}
@@ -726,4 +726,3 @@ import { m, dateLocale } from '../lib/i18n';
     }}
   />
 </div>
-

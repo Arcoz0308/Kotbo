@@ -22,7 +22,7 @@
 
 <section class="section-card {flush ? 'overflow-hidden' : ''}">
   {#if title || actions}
-    <header class="flex items-start justify-between gap-4 px-5 pt-5 {flush ? 'pb-4 border-b border-outline-variant' : 'pb-1'}">
+    <header class="section-card__header flex items-start justify-between gap-4 px-5 pt-5 {flush ? 'pb-4 border-b border-outline-variant' : 'pb-1'}">
       <div class="flex items-start gap-3 min-w-0">
         {#if icon}
           <div class="w-8 h-8 rounded-lg bg-surface-container text-on-surface-variant flex items-center justify-center shrink-0 mt-0.5">
@@ -37,13 +37,13 @@
         </div>
       </div>
       {#if actions}
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="section-card__actions flex items-center gap-2 shrink-0">
           {@render actions()}
         </div>
       {/if}
     </header>
   {/if}
-  <div class={flush ? '' : 'p-5'}>
+  <div class={flush ? 'section-card__body section-card__body--flush' : 'section-card__body p-5'}>
     {@render children?.()}
   </div>
 </section>
