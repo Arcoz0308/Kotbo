@@ -539,7 +539,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'Sanctions (Configuration)',
+          label: m.sc_unsaved_label(),
           onSave: () => handleSaveSettings(),
           onReset: () => {
             guildSettings = JSON.parse(JSON.stringify(savedSettings));
@@ -548,7 +548,7 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Sanctions (Configuration)') {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.sc_unsaved_label()) {
           unsavedChanges.clear();
         }
       });
@@ -556,7 +556,7 @@
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Sanctions (Configuration)') {
+    if (unsavedChanges.pageLabel === m.sc_unsaved_label()) {
       unsavedChanges.clear();
     }
   });
@@ -1062,7 +1062,7 @@
 </script>
 
 <ModulePage 
-  title="Sanctions & Rapports" 
+  title={m.sc_page_title()} 
   description={m.sc_page_desc()} 
   icon="alert-triangle"
   featureKey="sanctions"

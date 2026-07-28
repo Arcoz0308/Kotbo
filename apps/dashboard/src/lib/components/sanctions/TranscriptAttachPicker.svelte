@@ -3,6 +3,7 @@
   import Modal from '../Modal.svelte';
   import Papicon from '../Papicon.svelte';
   import { fetchTranscripts, type TranscriptSummary } from '../../api';
+  import { m, dateLocale } from '../../i18n';
 
   let {
     open = $bindable(false),
@@ -45,7 +46,7 @@
   }
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString('fr-FR', {
+    return new Date(iso).toLocaleString(dateLocale(), {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -64,10 +65,10 @@
   });
 </script>
 
-<Modal bind:open title="Attacher une transcription existante" size="lg">
+<Modal bind:open title={m.sta_modal_title()} size="lg">
   <div class="flex flex-col gap-5 p-6">
     <div class="text-xs text-on-surface-variant/70 leading-relaxed">
-      Sélectionnez une transcription de salon précédemment enregistrée pour l'ajouter comme preuve.
+      {m.sta_intro()}
     </div>
 
     <!-- Search input -->
@@ -79,7 +80,7 @@
         type="text"
         bind:value={query}
         oninput={handleSearchInput}
-        placeholder="Rechercher par nom de salon ou ID…"
+        placeholder={m.sta_search_placeholder()}
         class="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-lg text-xs text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary/60 transition-colors"
       />
     </div>
@@ -92,7 +93,7 @@
         </div>
       {:else if transcripts.length === 0}
         <div class="text-center py-8 text-xs text-on-surface-variant/50">
-          Aucune transcription trouvée.
+          {m.sta_empty()}
         </div>
       {:else}
         {#each transcripts as t (t.id)}
@@ -103,7 +104,7 @@
                 <span>{t.channelName}</span>
               </div>
               <div class="text-[10px] text-on-surface-variant/50 mt-0.5">
-                Générée le {formatDate(t.createdAt)} · ID : <span class="font-mono">{t.id}</span>
+                {m.sta_generated_on({ date: formatDate(t.createdAt) })} <span class="font-mono">{t.id}</span>
               </div>
             </div>
             <button
@@ -111,7 +112,7 @@
               onclick={() => selectTranscript(t)}
               class="px-3.5 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary hover:text-on-primary rounded-lg transition-all active:scale-95"
             >
-              Attacher
+              {m.sta_attach()}
             </button>
           </div>
         {/each}
@@ -124,7 +125,7 @@
         onclick={() => (open = false)}
         class="px-4 py-2.5 text-xs font-medium text-on-surface-variant/60 hover:text-on-surface transition-colors"
       >
-        Annuler
+        {m.common_cancel()}
       </button>
     </div>
   </div>
