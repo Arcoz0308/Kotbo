@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { getRedis, initRedis } from '../../infra/redis.js';
 import { getCurrentInstance } from '../../utils/instanceContext.js';
+import { fetchExternal } from '../../utils/http.js';
 
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const SESSION_PREFIX = 'kotbo:dashboard-session:';
@@ -175,7 +176,7 @@ export async function getDashboardSession(sessionId: string | null): Promise<Das
     if (stored.discordTokenExpiresAt <= Date.now() + 60_000 && stored.discordRefreshToken) {
       const refreshToken = decrypt(stored.discordRefreshToken);
       const instance = getCurrentInstance();
-      const response = await fetch('https://discord.com/api/oauth2/token', {
+      const response = await fetchExternal('https://discord.com/api/oauth2/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({

@@ -12,6 +12,56 @@ import {
 } from '../shared.js';
 import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceContext.js';
 import prisma from '../../utils/db.js';
+import { fetchExternal } from '../../utils/http.js';
+
+async function mapWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+
+  const worker = async () => {
+    for (;;) {
+      const index = nextIndex++;
+      if (index >= values.length) return;
+      results[index] = await mapper(values[index]);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, values.length) }, () => worker()),
+  );
+  return results;
+}
+
+type DiscordOAuthGuild = {
+  id: string;
+  name: string;
+  icon: string | null;
+  owner: boolean;
+  permissions: string;
+};
+
+async function fetchOAuthGuilds(accessToken: string): Promise<DiscordOAuthGuild[]> {
+  const guilds: DiscordOAuthGuild[] = [];
+  let after: string | null = null;
+
+  for (;;) {
+    const params = new URLSearchParams({ limit: '200', with_counts: 'false' });
+    if (after) params.set('after', after);
+    const response = await fetchExternal(`https://discord.com/api/v10/users/@me/guilds?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) throw new Error(`Discord guilds API: ${response.status}`);
+    const page = await response.json() as DiscordOAuthGuild[];
+    guilds.push(...page);
+    if (page.length < 200) return guilds;
+    after = page[page.length - 1]?.id ?? null;
+    if (!after) return guilds;
+  }
+}
 
 export async function handleUserRoutes(
   req: IncomingMessage,
@@ -53,7 +103,20 @@ export async function handleUserRoutes(
         instanceGuildIds = new Set(boundGuilds.map(g => g.id));
       }
 
-      const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
+      const [isGlobalAdmin, staffLinks, oauthGuilds] = await Promise.all([
+        resolveAdminAccess(client, user.userId),
+        prisma.staffServerLink.findMany({
+          where: { enabled: true },
+          select: { mainGuildId: true, staffGuildId: true },
+        }),
+        user.discordToken
+          ? fetchOAuthGuilds(user.discordToken).catch((err) => {
+              logger.warn('DashboardAPI', `Discord OAuth guild list unavailable: ${String(err)}`);
+              return null;
+            })
+          : Promise.resolve(null),
+      ]);
+
       const accessibleGuildsList: Array<{
         id: string;
         name: string;
@@ -65,60 +128,70 @@ export async function handleUserRoutes(
         pairedGuildId: string | null;
       }> = [];
 
-      const staffLinks = await prisma.staffServerLink.findMany({
-        where: { enabled: true },
-        select: { mainGuildId: true, staffGuildId: true },
-      });
       const staffGuildToMain = new Map(staffLinks.map((l) => [l.staffGuildId, l.mainGuildId]));
       const mainGuildToStaff = new Map(staffLinks.map((l) => [l.mainGuildId, l.staffGuildId]));
 
-      for (const botGuild of client.guilds.cache.values()) {
-        const guildId = botGuild.id;
+      const oauthById = new Map((oauthGuilds ?? []).map((guild) => [guild.id, guild]));
+      const candidates = Array.from(client.guilds.cache.values()).filter((botGuild) => {
+        if (instanceGuildIds && !instanceGuildIds.has(botGuild.id)) return false;
+        if (!isGuildActivated(botGuild.id) && !isGlobalAdmin) return false;
+        // Un administrateur global conserve la vue de toutes les guildes. Pour
+        // les autres, l'intersection OAuth élimine immédiatement les serveurs
+        // dont ils ne sont pas membres, sans un appel REST par guilde.
+        return isGlobalAdmin || oauthGuilds === null || oauthById.has(botGuild.id);
+      });
 
-        // White-label: skip guilds not bound to this instance
-        if (instanceGuildIds && !instanceGuildIds.has(guildId)) continue;
+      const resolved = await mapWithConcurrency(candidates, 8, async (botGuild) => {
+        const oauthGuild = oauthById.get(botGuild.id);
+        let permissions = BigInt(0);
+        try {
+          permissions = oauthGuild?.permissions ? BigInt(oauthGuild.permissions) : BigInt(0);
+        } catch {
+          permissions = BigInt(0);
+        }
 
-        const activated = isGuildActivated(guildId);
-        if (!activated && !isGlobalAdmin) continue;
+        if (isGlobalAdmin || hasDashboardAdminPermission(permissions)) {
+          return { botGuild, accessLevel: 'admin' as const, owner: oauthGuild?.owner ?? botGuild.ownerId === user.userId };
+        }
 
-        const member = await botGuild.members.fetch(user.userId).catch(() => null);
-        if (!member && !isGlobalAdmin) continue;
-
-        const perms = member?.permissions.bitfield ?? BigInt(0);
-        const isAdmin = hasDashboardAdminPermission(perms);
-
-        let hasAccess = isGlobalAdmin || isAdmin;
-        let accessLevel: Exclude<DashboardAccessLevel, 'none'> = (isGlobalAdmin || isAdmin) ? 'admin' : 'moderator';
-
-        if (!hasAccess) {
-          try {
-            const access = await resolveDashboardAccess(
-              client,
-              guildId,
-              user.userId,
-              perms,
-            );
-            if (access.canViewDashboard) {
-              hasAccess = true;
-              accessLevel = access.level === 'admin' ? 'admin' : 'moderator';
-            }
-          } catch (err) {
-            logger.warn('DashboardAPI', `Failed to resolve access for guild ${guildId}:`, err);
+        // Repli lorsque Discord OAuth est momentanément indisponible : la
+        // concurrence est bornée, contrairement à l'ancienne waterfall.
+        if (!oauthGuilds) {
+          const member = await botGuild.members.fetch(user.userId).catch(() => null);
+          if (!member) return null;
+          permissions = member.permissions.bitfield;
+          if (hasDashboardAdminPermission(permissions)) {
+            return { botGuild, accessLevel: 'admin' as const, owner: botGuild.ownerId === user.userId };
           }
         }
 
-        if (hasAccess) {
-          accessibleGuildsList.push({
-            id: guildId,
-            name: botGuild.name ?? guildId,
-            icon: botGuild.icon ?? null,
-            owner: botGuild.ownerId === user.userId,
-            botPresent: true,
-            accessLevel,
-            isStaffServer: staffGuildToMain.has(guildId),
-            pairedGuildId: staffGuildToMain.get(guildId) ?? mainGuildToStaff.get(guildId) ?? null,
-          });
+        try {
+          const access = await resolveDashboardAccess(client, botGuild.id, user.userId, permissions);
+          if (!access.canViewDashboard) return null;
+          return {
+            botGuild,
+            accessLevel: access.level === 'admin' ? 'admin' as const : 'moderator' as const,
+            owner: oauthGuild?.owner ?? botGuild.ownerId === user.userId,
+          };
+        } catch (err) {
+          logger.warn('DashboardAPI', `Failed to resolve access for guild ${botGuild.id}:`, err);
+          return null;
         }
+      });
+
+      for (const entry of resolved) {
+        if (!entry) continue;
+        const { botGuild, accessLevel, owner } = entry;
+        accessibleGuildsList.push({
+          id: botGuild.id,
+          name: botGuild.name ?? botGuild.id,
+          icon: botGuild.icon ?? null,
+          owner,
+          botPresent: true,
+          accessLevel,
+          isStaffServer: staffGuildToMain.has(botGuild.id),
+          pairedGuildId: staffGuildToMain.get(botGuild.id) ?? mainGuildToStaff.get(botGuild.id) ?? null,
+        });
       }
 
       const payload = accessibleGuildsList.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'fr'));

@@ -20,13 +20,13 @@ export interface TranscriptSummary {
 
 export interface TranscriptListResult {
   transcripts: TranscriptSummary[];
-  total: number;
+  total: number | null;
   limit: number;
   offset: number;
 }
 
 export async function fetchTranscripts(
-  params: { q?: string; from?: string; to?: string; limit?: number; offset?: number } = {},
+  params: { q?: string; from?: string; to?: string; limit?: number; offset?: number; includeTotal?: boolean } = {},
   guildId = authStore.selectedGuildId,
 ): Promise<TranscriptListResult> {
   const search = new URLSearchParams();
@@ -35,6 +35,7 @@ export async function fetchTranscripts(
   if (params.to) search.set('to', params.to);
   if (params.limit != null) search.set('limit', String(params.limit));
   if (params.offset != null) search.set('offset', String(params.offset));
+  if (params.includeTotal === false) search.set('includeTotal', 'false');
   const qs = search.toString();
   const data = await dashboardRequest(`/tickets/transcripts${qs ? `?${qs}` : ''}`, {
     method: 'GET',

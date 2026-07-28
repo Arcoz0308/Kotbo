@@ -14,7 +14,7 @@ const mockDb = {
     findMany: mock(() => Promise.resolve([] as unknown[])),
     findUnique: mock(() => Promise.resolve(null as unknown)),
     update: mock(() => Promise.resolve({} as unknown)),
-    upsert: mock(() => Promise.resolve({} as unknown)),
+    upsert: mock((_args?: unknown) => Promise.resolve({} as unknown)),
   },
   staffServerLink: {
     findMany: mock(() => Promise.resolve([] as unknown[])),

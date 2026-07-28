@@ -22,6 +22,7 @@
   }
   interface Section { id:string; title:string; description?:string; }
   interface FormData { id:string; name:string; description?:string; guildId:string; requiresDiscordAuth?: boolean;
+    formType?: 'recruitment' | 'custom';
     structure:{title:string;description?:string;headerColor?:string;sections?:Section[];fields:FormField[]};
     theme?: FormTheme | null;
     customCss?: string | null;
@@ -40,7 +41,8 @@
   let currentSection = $state(0);
 
   // User answers: fieldId → value
-  let answers = $state<Record<string, string | string[] | Record<string,string>>>({});
+  type AnswerValue = string | string[] | Record<string, string | string[]>;
+  let answers = $state<Record<string, AnswerValue>>({});
 
   // Validation errors: fieldId → message
   let errors = $state<Record<string, string>>({});
@@ -68,13 +70,10 @@
   // ── Load form ──────────────────────────────────────────────────────────────
   onMount(async () => {
     try {
-      let res = await fetch(`${API_BASE_URL}/api/public/forms/${formId}`);
-      if (!res.ok) {
-        res = await fetch(`${API_BASE_URL}/api/public/custom-forms/${formId}`);
-        if (!res.ok) { notFound = true; return; }
-        isCustomForm = true;
-      }
+      const res = await fetch(`${API_BASE_URL}/api/public/forms/${formId}`);
+      if (!res.ok) { notFound = true; return; }
       form = await res.json() as FormData;
+      isCustomForm = form.formType === 'custom';
     } catch {
       notFound = true;
     } finally {

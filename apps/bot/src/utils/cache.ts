@@ -9,6 +9,31 @@ interface MemoryCacheEntry<T> {
 }
 
 const memoryCache = new Map<string, MemoryCacheEntry<unknown>>();
+const parsedMaxEntries = Number.parseInt(process.env.MEMORY_CACHE_MAX_ENTRIES ?? '10000', 10);
+const MEMORY_CACHE_MAX_ENTRIES = Number.isFinite(parsedMaxEntries) && parsedMaxEntries > 0
+  ? parsedMaxEntries
+  : 10_000;
+
+function setMemoryCache<T>(key: string, value: T, expiresAt: number): void {
+  // Map conserve l'ordre d'insertion : réinsérer une clé existante permet une
+  // éviction approximativement LRU, sans minuterie ni parcours sur chaque hit.
+  memoryCache.delete(key);
+
+  if (memoryCache.size >= MEMORY_CACHE_MAX_ENTRIES) {
+    const now = Date.now();
+    for (const [cachedKey, entry] of memoryCache) {
+      if (entry.expiresAt <= now) memoryCache.delete(cachedKey);
+    }
+  }
+
+  while (memoryCache.size >= MEMORY_CACHE_MAX_ENTRIES) {
+    const oldestKey = memoryCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    memoryCache.delete(oldestKey);
+  }
+
+  memoryCache.set(key, { value, expiresAt });
+}
 
 export const cache = {
   async get<T>(key: string): Promise<T | null> {
@@ -29,10 +54,7 @@ export const cache = {
         if (val) {
           const parsed = JSON.parse(val) as T;
           // Store in L1 memory cache for 5 seconds to buffer consecutive checks
-          memoryCache.set(key, {
-            value: parsed,
-            expiresAt: Date.now() + 5000,
-          });
+          setMemoryCache(key, parsed, Date.now() + 5000);
           return parsed;
         }
         return null;
@@ -46,10 +68,7 @@ export const cache = {
 
   async set<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
     // Store in L1 memory cache
-    memoryCache.set(key, {
-      value,
-      expiresAt: Date.now() + ttlSeconds * 1000,
-    });
+    setMemoryCache(key, value, Date.now() + ttlSeconds * 1000);
 
     // Store in Redis L2 cache
     try {

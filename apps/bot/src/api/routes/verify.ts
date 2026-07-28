@@ -3,6 +3,7 @@ import { Client } from 'discord.js';
 import jwt from 'jsonwebtoken';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { fetchExternal } from '../../utils/http.js';
 import {
   json,
   getClientIp,
@@ -126,7 +127,7 @@ export async function handleVerifyRoutes(
       }
 
       // Fetch user identity from Discord with the provided token
-      const userResponse = await fetch('https://discord.com/api/users/@me', {
+      const userResponse = await fetchExternal('https://discord.com/api/users/@me', {
         headers: { Authorization: `Bearer ${body.discordToken}` },
       });
 
@@ -141,7 +142,7 @@ export async function handleVerifyRoutes(
       let connectionsData: any = null;
       if (verification.level === 'HIGH') {
         try {
-          const connectionsResponse = await fetch('https://discord.com/api/users/@me/connections', {
+          const connectionsResponse = await fetchExternal('https://discord.com/api/users/@me/connections', {
             headers: { Authorization: `Bearer ${body.discordToken}` },
           });
           if (connectionsResponse.ok) {
@@ -156,7 +157,7 @@ export async function handleVerifyRoutes(
       let guildsData: any = null;
       if (verification.level === 'HIGH') {
         try {
-          const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
+          const guildsResponse = await fetchExternal('https://discord.com/api/users/@me/guilds', {
             headers: { Authorization: `Bearer ${body.discordToken}` },
           });
           if (guildsResponse.ok) {
@@ -228,7 +229,7 @@ export async function handleVerifyRoutes(
     const VERIFY_REDIRECT_URI = `${getApiUrl()}/api/verify/callback`;
 
     try {
-      const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+      const tokenResponse = await fetchExternal('https://discord.com/api/oauth2/token', {
         method: 'POST',
         body: new URLSearchParams({
           client_id: getDiscordClientId()!,
@@ -249,7 +250,7 @@ export async function handleVerifyRoutes(
 
       // Complete verification using the access token
       const ipAddress = getClientIp(req);
-      const userResponse = await fetch('https://discord.com/api/users/@me', {
+      const userResponse = await fetchExternal('https://discord.com/api/users/@me', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       });
 
@@ -265,7 +266,7 @@ export async function handleVerifyRoutes(
       let connectionsData: any = null;
       if (verification.level === 'HIGH') {
         try {
-          const connectionsResponse = await fetch('https://discord.com/api/users/@me/connections', {
+          const connectionsResponse = await fetchExternal('https://discord.com/api/users/@me/connections', {
             headers: { Authorization: `Bearer ${tokenData.access_token}` },
           });
           if (connectionsResponse.ok) {
@@ -280,7 +281,7 @@ export async function handleVerifyRoutes(
       let guildsData: any = null;
       if (verification.level === 'HIGH') {
         try {
-          const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
+          const guildsResponse = await fetchExternal('https://discord.com/api/users/@me/guilds', {
             headers: { Authorization: `Bearer ${tokenData.access_token}` },
           });
           if (guildsResponse.ok) {

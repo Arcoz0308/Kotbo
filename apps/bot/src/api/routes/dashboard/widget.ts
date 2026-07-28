@@ -124,7 +124,7 @@ export async function handleWidgetRoutes(
   if (parts.length === 6 && parts[5] === 'refresh-all' && method === 'POST') {
     try {
       const result = await refreshAllStaffWidgets(guildId);
-      json(res, 200, { success: true, ...result });
+      json(res, 200, result);
     } catch (err) {
       logger.error('WidgetAPI', 'Error refreshing all widgets:', err);
       json(res, 500, { error: 'Erreur lors du rafraîchissement global' });

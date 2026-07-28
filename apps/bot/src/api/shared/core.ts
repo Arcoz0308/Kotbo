@@ -1,5 +1,5 @@
 import { type IncomingMessage, ServerResponse } from 'node:http';
-import { gzipSync } from 'node:zlib';
+import { gzip } from 'node:zlib';
 
 
 import { type Client, TextChannel, Collection, GuildMember, Guild } from 'discord.js';
@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
+import { fetchExternal } from '../../utils/http.js';
 
 // Contrat partage avec le dashboard : la definition vit dans @kotbo/contracts,
 // on la re-expose ici pour que le reste du bot continue d'importer depuis
@@ -119,7 +120,7 @@ export function getDashboardOrigin(): string {
 export const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 export const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 export const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
-export let JWT_SECRET: string = FALLBACK_JWT_SECRET;
+export const JWT_SECRET: string = FALLBACK_JWT_SECRET;
 export const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 export const DASHBOARD_ORIGIN = (() => {
   try { return new URL(DASHBOARD_URL).origin; } catch { return DASHBOARD_URL.replace(/\/$/, ''); }
@@ -1317,35 +1318,46 @@ export class BunServerResponse extends ServerResponse {
     // flux ici. On se limite malgre tout au JSON : cela exclut par construction
     // les reponses `text/event-stream` du serveur MCP, qu'il ne faudrait
     // surtout pas bufferiser.
-    let responseBody = body;
     const contentType = String(headers.get('content-type') ?? '');
+    const callback = typeof encodingOrCb === 'function' ? encodingOrCb : cb;
+    const finish = (responseBody: Buffer) => {
+      // Buffer est typé avec ArrayBufferLike dans les types Node récents,
+      // alors que BodyInit exige un ArrayBuffer concret.
+      const webBody = new Uint8Array(responseBody.byteLength);
+      webBody.set(responseBody);
+      const response = new Response(webBody, {
+        status: this.statusCode,
+        headers
+      });
+      this.resolvePromise(response);
+      if (typeof callback === 'function') callback();
+    };
+
     if (
       body.byteLength >= RESPONSE_GZIP_MIN_BYTES &&
       contentType.includes('application/json') &&
       !headers.has('content-encoding') &&
       /\bgzip\b/.test(this.acceptEncoding)
     ) {
-      try {
-        responseBody = Buffer.from(gzipSync(body));
+      // La variante synchrone bloquait la boucle d'événements sur les gros
+      // états. Le pont HTTP attend déjà resolvePromise, la compression peut
+      // donc être déportée à libuv sans modifier le contrat des routes.
+      gzip(body, (err, compressed) => {
+        if (err) {
+          logger.warn('DashboardAPI', `Compression gzip impossible: ${String(err)}`);
+          finish(body);
+          return;
+        }
+        const responseBody = Buffer.from(compressed);
         headers.set('content-encoding', 'gzip');
         headers.set('content-length', String(responseBody.byteLength));
         headers.append('vary', 'Accept-Encoding');
-      } catch (err) {
-        // En cas d'echec, on sert la reponse non compressee plutot que rien.
-        logger.warn('DashboardAPI', `Compression gzip impossible: ${String(err)}`);
-        responseBody = body;
-      }
+        finish(responseBody);
+      });
+      return this;
     }
 
-    const response = new Response(responseBody, {
-      status: this.statusCode,
-      headers
-    });
-
-    this.resolvePromise(response);
-    
-    const callback = typeof encodingOrCb === 'function' ? encodingOrCb : cb;
-    if (typeof callback === 'function') callback();
+    finish(body);
     return this;
   }
 }
@@ -1664,7 +1676,7 @@ export async function fetchMemberConnections(discordToken?: string | null): Prom
   }
 
   try {
-    const response = await fetch('https://discord.com/api/users/@me/connections', {
+    const response = await fetchExternal('https://discord.com/api/users/@me/connections', {
       headers: { Authorization: `Bearer ${discordToken}` },
     });
 

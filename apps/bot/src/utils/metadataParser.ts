@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import { fetchExternal } from './http.js';
 
 export interface ArticleMetadata {
   title: string | null;
@@ -14,7 +15,7 @@ interface FetchArticleMetadataOptions {
 export async function fetchArticleMetadata(url: string, options?: FetchArticleMetadataOptions): Promise<ArticleMetadata> {
   const shouldLogErrors = options?.logErrors ?? true;
   try {
-    const response = await fetch(url, {
+    const response = await fetchExternal(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
       },

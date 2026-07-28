@@ -29,9 +29,9 @@ export async function getLinksForChannel(guildId: string, channelId: string): Pr
     },
   });
 
-  if (links.length > 0) {
-    await cache.set(key, links, 120);
-  }
+  // Le cas majoritaire est "aucun lien". Le cacher évite Redis + SQL pour
+  // chaque message publié dans un salon ordinaire.
+  await cache.set(key, links, links.length > 0 ? 120 : 30);
   return links;
 }
 

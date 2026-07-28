@@ -250,7 +250,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
       }
 
       await i.deferUpdate();
-      const [_, evId, idxStr] = i.customId.split(':');
+      const [, evId, idxStr] = i.customId.split(':');
       const idx = parseInt(idxStr, 10);
 
       try {
@@ -258,7 +258,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
         const resolutionEmbed = new EmbedBuilder()
           .setTitle(m.rpg_travel_resolution_title({ emoji: event.emoji, title: event.title }, { locale }))
-          .setDescription(m.rpg_travel_resolution_desc({ choice: resolution.choiceText, critical: resolution.criticalMessage || '' }, { locale }))
+          .setDescription(m.rpg_travel_resolution_desc({ choice: resolution.choiceText ?? '', critical: resolution.criticalMessage || '' }, { locale }))
           .addFields(
             { name: m.rpg_travel_field_hp_effect({}, { locale }), value: `${resolution.hpEffect >= 0 ? '+' : ''}${resolution.hpEffect} PV`, inline: true },
             { name: m.rpg_travel_field_coin_effect({}, { locale }), value: `${resolution.coinEffect >= 0 ? '+' : ''}${resolution.coinEffect} 🪙`, inline: true },
@@ -267,7 +267,10 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
           .setColor(resolution.hpEffect < 0 ? COLORS.danger : COLORS.success);
 
         if (resolution.levelUp) {
-          resolutionEmbed.addFields({ name: m.rpg_travel_field_levelup({}, { locale }), value: m.rpg_travel_levelup_value({ level: resolution.levelUp }, { locale }) });
+          resolutionEmbed.addFields({
+            name: m.rpg_travel_field_levelup({}, { locale }),
+            value: m.rpg_travel_levelup_value({ level: Number(resolution.levelUp) }, { locale }),
+          });
         }
 
         await interaction.editReply({

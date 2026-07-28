@@ -22,6 +22,7 @@ import {
   type Client,
   type Guild,
   type GuildMember,
+  type OverwriteResolvable,
   type TextChannel,
   type User,
 } from 'discord.js';
@@ -213,7 +214,7 @@ async function createFallbackTicket(params: {
   try {
     const category = categoryId ? guild.channels.cache.get(categoryId) : null;
 
-    const permissionOverwrites: Parameters<Guild['channels']['create']>[0]['permissionOverwrites'] = [
+    const permissionOverwrites: OverwriteResolvable[] = [
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
       {
         id: member.id,

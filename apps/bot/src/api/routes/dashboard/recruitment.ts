@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
+import { CandidatureStatus } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import {
@@ -168,12 +169,12 @@ export async function handleRecruitmentRoutes(
     try {
       if (action === 'status_update') {
         const nextStatus = body?.status;
-        if (!nextStatus || !['PENDING', 'ORAL', 'APPROVED', 'REJECTED', 'AUTO_REJECTED'].includes(nextStatus)) {
+        if (!nextStatus || !Object.values(CandidatureStatus).includes(nextStatus as CandidatureStatus)) {
           json(res, 400, { error: 'Statut candidature invalide.' });
           return true;
         }
 
-        await updateCandidatureStatus(candidatureId, nextStatus as unknown, body?.notes);
+        await updateCandidatureStatus(candidatureId, nextStatus as CandidatureStatus, body?.notes);
         json(res, 200, { ok: true });
         return true;
       }

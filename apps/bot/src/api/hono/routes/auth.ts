@@ -3,6 +3,7 @@ import type { Context } from 'hono';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../../utils/logger.js';
+import { fetchExternal } from '../../../utils/http.js';
 import {
   getMissingOAuthConfig,
   getDiscordClientId,
@@ -118,7 +119,7 @@ authRouter.get('/api/auth/discord/callback', async (c) => {
   }
 
   try {
-    const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+    const tokenResponse = await fetchExternal('https://discord.com/api/oauth2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -140,7 +141,7 @@ authRouter.get('/api/auth/discord/callback', async (c) => {
       throw new Error(`Discord token exchange failed: ${tokenData.error ?? tokenResponse.status}`);
     }
 
-    const userResponse = await fetch('https://discord.com/api/users/@me', {
+    const userResponse = await fetchExternal('https://discord.com/api/users/@me', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     const user = await userResponse.json() as {

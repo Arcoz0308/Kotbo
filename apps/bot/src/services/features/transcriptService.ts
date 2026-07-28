@@ -519,7 +519,14 @@ export async function generateTranscript(channel: TextChannel): Promise<{ id: st
 
 export async function generateTranscriptFromMessages(channel: TextChannel | NewsChannel, allMessages: Message[]): Promise<{ id: string; url: string; count: number }> {
   // 2. Build the HTML content
-  let messagesHtml = '';
+  const messagesHtmlChunks: string[] = [];
+  const timestampFormatter = new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
   
   for (const msg of allMessages) {
     const author = msg.author;
@@ -531,13 +538,7 @@ export async function generateTranscriptFromMessages(channel: TextChannel | News
       ? '#' + msg.member.roles.highest.color.toString(16).padStart(6, '0') 
       : '#f2f3f5';
 
-    const timestamp = msg.createdAt.toLocaleString('fr-FR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const timestamp = timestampFormatter.format(msg.createdAt);
 
     let bodyHtml = '';
     if (msg.content) {
@@ -673,7 +674,7 @@ export async function generateTranscriptFromMessages(channel: TextChannel | News
       bodyHtml += '</div>';
     }
 
-    messagesHtml += `
+    messagesHtmlChunks.push(`
       <div class="message-group">
         <img class="avatar" src="${avatarUrl}" alt="${escapeHtml(author.username)}" />
         <div class="message-content">
@@ -685,8 +686,13 @@ export async function generateTranscriptFromMessages(channel: TextChannel | News
           ${bodyHtml}
         </div>
       </div>
-    `;
+    `);
   }
+
+  // Un seul assemblage évite les recopies quadratiques sur les salons de
+  // plusieurs milliers de messages.
+  const messagesHtml = messagesHtmlChunks.join('');
+  const generatedAt = new Date();
 
   // Generate full HTML template
   const fullHtml = `<!DOCTYPE html>
@@ -1138,7 +1144,7 @@ export async function generateTranscriptFromMessages(channel: TextChannel | News
     </div>
 
     <div class="footer">
-      Généré avec amour par Kotbo · ${new Date().toLocaleDateString('fr-FR')} ${new Date().toLocaleTimeString('fr-FR')}
+      Généré avec amour par Kotbo · ${generatedAt.toLocaleDateString('fr-FR')} ${generatedAt.toLocaleTimeString('fr-FR')}
     </div>
   </div>
 </body>

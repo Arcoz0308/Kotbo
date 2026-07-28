@@ -3,7 +3,9 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 import prisma from '../../utils/db.js';
 import { canvasFont, ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { logger } from '../../utils/logger.js';
-import { resolvePlaceholders } from '../../utils/placeholders.js';
+import { resolvePlaceholders, type PlaceholderMember } from '../../utils/placeholders.js';
+
+type DepartedMember = PlaceholderMember & Pick<GuildMember, 'guild'>;
 
 /**
  * Récupère ou initialise la configuration d'accueil d'une guilde
@@ -33,7 +35,7 @@ export async function getOrCreateWelcomeConfig(guildId: string) {
   return config;
 }
 
-function replaceTokens(template: string, member: GuildMember): string {
+function replaceTokens(template: string, member: DepartedMember): string {
   return resolvePlaceholders(template, {
     guild: member.guild,
     member,
@@ -70,7 +72,7 @@ export async function handleGuildMemberAdd(member: GuildMember, _client: Client)
 /**
  * Gère le départ d'un membre (Leave)
  */
-export async function handleGuildMemberRemove(member: GuildMember, _client: Client) {
+export async function handleGuildMemberRemove(member: DepartedMember, _client: Client) {
   try {
     const config = await getOrCreateWelcomeConfig(member.guild.id);
     if (!config.leaveEnabled || !config.leaveChannelId) return;

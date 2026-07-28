@@ -5,6 +5,7 @@ import {
   PartialMessage,
   ChannelType,
 } from 'discord.js';
+import type { Prisma } from '@prisma/client';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { getCachedGuild } from '../utils/cache.js';
@@ -18,6 +19,58 @@ const LOGGABLE_CHANNEL_TYPES = new Set<number>([
   ChannelType.AnnouncementThread,
   ChannelType.GuildVoice,
 ]);
+const MESSAGE_LOG_BATCH_SIZE = 200;
+const MESSAGE_LOG_FLUSH_MS = 250;
+const MESSAGE_LOG_MAX_PENDING = 5_000;
+
+let pendingMessageLogs: Prisma.MessageLogCreateManyInput[] = [];
+let messageLogFlushTimer: ReturnType<typeof setTimeout> | null = null;
+let messageLogFlushPromise: Promise<void> | null = null;
+let lastMessageLogDropWarningAt = 0;
+
+function scheduleMessageLogFlush(delayMs = MESSAGE_LOG_FLUSH_MS): void {
+  if (messageLogFlushTimer || messageLogFlushPromise) return;
+  messageLogFlushTimer = setTimeout(() => {
+    messageLogFlushTimer = null;
+    void flushPendingMessageLogs();
+  }, delayMs);
+  messageLogFlushTimer.unref?.();
+}
+
+/**
+ * Regroupe les INSERT des salons très actifs. L'ancien createMany d'une seule
+ * ligne conservait le coût d'un aller-retour PostgreSQL pour chaque message.
+ */
+export async function flushPendingMessageLogs(): Promise<void> {
+  if (messageLogFlushPromise) return messageLogFlushPromise;
+  if (messageLogFlushTimer) {
+    clearTimeout(messageLogFlushTimer);
+    messageLogFlushTimer = null;
+  }
+  if (pendingMessageLogs.length === 0) return;
+
+  messageLogFlushPromise = (async () => {
+    while (pendingMessageLogs.length > 0) {
+      const batch = pendingMessageLogs.splice(0, MESSAGE_LOG_BATCH_SIZE);
+      try {
+        await prisma.messageLog.createMany({ data: batch, skipDuplicates: true });
+      } catch (err) {
+        // Conserver un lot pour une nouvelle tentative, avec une borne mémoire
+        // explicite si PostgreSQL reste indisponible.
+        pendingMessageLogs = [...batch, ...pendingMessageLogs].slice(-MESSAGE_LOG_MAX_PENDING);
+        logger.error('MessageLogging', `Impossible d'enregistrer un lot de ${batch.length} message(s):`, err);
+        break;
+      }
+    }
+  })();
+
+  try {
+    await messageLogFlushPromise;
+  } finally {
+    messageLogFlushPromise = null;
+    if (pendingMessageLogs.length > 0) scheduleMessageLogFlush(1_000);
+  }
+}
 
 /**
  * Determines whether message logging is active for a guild/channel and returns
@@ -58,32 +111,36 @@ async function logMessage(message: Message): Promise<void> {
   const channelName = 'name' in channel && channel.name ? channel.name : channel.id;
   const authorName = message.member?.displayName || author.displayName || author.username;
 
-  try {
-    // createMany + skipDuplicates → INSERT ... ON CONFLICT DO NOTHING au niveau SQL.
-    // Un même message peut être vu deux fois (backfill du scraper qui croise l'event
-    // live, ou double emission) : on l'ignore silencieusement sans erreur Prisma.
-    await prisma.messageLog.createMany({
-      data: [{
-        guildId: guild.id,
-        channelId: channel.id,
-        channelName,
-        messageId: message.id,
-        authorId: author.id,
-        authorName,
-        authorAvatar: author.displayAvatarURL({ size: 64 }),
-        isBot: author.bot,
-        content: message.content ?? '',
-        attachments: attachments.length > 0 ? attachments : undefined,
-        embedCount: message.embeds?.length ?? 0,
-        hasAttachment: attachments.length > 0,
-        mentionedUserIds: message.mentions?.users ? [...message.mentions.users.keys()] : [],
-        repliedToAuthorId: message.mentions?.repliedUser?.id ?? null,
-        createdAt: message.createdAt,
-      }],
-      skipDuplicates: true,
-    });
-  } catch (err) {
-    logger.error('MessageLogging', `Impossible d'enregistrer le message ${message.id} (${guild.id}):`, err);
+  if (pendingMessageLogs.length >= MESSAGE_LOG_MAX_PENDING) {
+    pendingMessageLogs.splice(0, pendingMessageLogs.length - MESSAGE_LOG_MAX_PENDING + 1);
+    if (Date.now() - lastMessageLogDropWarningAt > 60_000) {
+      lastMessageLogDropWarningAt = Date.now();
+      logger.warn('MessageLogging', `File d'attente saturée (${MESSAGE_LOG_MAX_PENDING}); les entrées les plus anciennes sont abandonnées.`);
+    }
+  }
+
+  pendingMessageLogs.push({
+    guildId: guild.id,
+    channelId: channel.id,
+    channelName,
+    messageId: message.id,
+    authorId: author.id,
+    authorName,
+    authorAvatar: author.displayAvatarURL({ size: 64 }),
+    isBot: author.bot,
+    content: message.content ?? '',
+    attachments: attachments.length > 0 ? attachments : undefined,
+    embedCount: message.embeds?.length ?? 0,
+    hasAttachment: attachments.length > 0,
+    mentionedUserIds: message.mentions?.users ? [...message.mentions.users.keys()] : [],
+    repliedToAuthorId: message.mentions?.repliedUser?.id ?? null,
+    createdAt: message.createdAt,
+  });
+
+  if (pendingMessageLogs.length >= MESSAGE_LOG_BATCH_SIZE) {
+    void flushPendingMessageLogs();
+  } else {
+    scheduleMessageLogFlush();
   }
 }
 
@@ -103,6 +160,9 @@ async function updateLoggedMessage(newMessage: Message | PartialMessage): Promis
   }
 
   try {
+    // Garantit qu'une édition arrivée juste après MessageCreate trouve bien sa
+    // ligne, même si celle-ci attendait encore dans le lot.
+    await flushPendingMessageLogs();
     await prisma.messageLog.updateMany({
       where: { messageId: full.id },
       data: {
@@ -119,6 +179,7 @@ async function updateLoggedMessage(newMessage: Message | PartialMessage): Promis
 async function markMessageDeleted(messageIds: string[]): Promise<void> {
   if (messageIds.length === 0) return;
   try {
+    await flushPendingMessageLogs();
     await prisma.messageLog.updateMany({
       where: { messageId: { in: messageIds }, deletedAt: null },
       data: { deletedAt: new Date() },

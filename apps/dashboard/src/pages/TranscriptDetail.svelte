@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { API_BASE_URL } from '../lib/api';
-  import { authStore } from '../lib/stores/auth.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { m } from '../lib/i18n';
 
@@ -16,17 +15,10 @@
   );
 
   onMount(async () => {
-    await authStore.initialize();
-
-    if (!authStore.isAuthenticated) {
-      needsLogin = true;
-      return;
-    }
-
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/public/transcripts/${transcriptId}/access`,
-        { headers: { Authorization: `Bearer ${authStore.token}` }, credentials: 'include' },
+        { credentials: 'include' },
       );
       if (response.status === 401) {
         needsLogin = true;
