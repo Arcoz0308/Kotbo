@@ -113,7 +113,7 @@ export async function activateGuild(guildId: string, code: string): Promise<Acti
   logger.success(
     'Activation',
     `Le serveur ${guildId} a été activé` +
-      (result.expiresAt ? ` (${result.accessType} — fin le ${result.expiresAt.toISOString()}).` : '.'),
+      (result.expiresAt ? ` (${result.accessType}, fin le ${result.expiresAt.toISOString()}).` : '.'),
   );
 
   await broadcastActivationChange(guildId, true);
@@ -275,13 +275,13 @@ export async function deactivateGuild(guildId: string, options: DeactivateOption
     // livre pas un code réutilisable. Chercher par cette empreinte ne pouvait
     // donc jamais aboutir.
     //
-    // `updateMany` ne lève pas quand aucune ligne ne correspond — cas normal
+    // `updateMany` ne lève pas quand aucune ligne ne correspond : cas normal
     // d'un serveur staff, qui hérite de l'activation du principal sans posséder
     // de code à lui.
     //
     // Seuls les codes permanents sont remis en circulation : reprendre une
     // licence pour la réattribuer ailleurs est légitime. Un code à durée limitée
-    // est consommé une fois pour toutes — sans quoi le même code rejouerait
+    // est consommé une fois pour toutes : sans quoi le même code rejouerait
     // indéfiniment une nouvelle période d'essai. Pour redonner un essai, on
     // génère un nouveau code.
     const { count } = await prisma.activationCode.updateMany({

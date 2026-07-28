@@ -336,7 +336,7 @@ export async function fetchActivationCodes() {
 export interface AccessGrant {
   /** PERMANENT : accès sans expiration. TRIAL/SUBSCRIPTION : nécessite durationMinutes. */
   accessType?: 'PERMANENT' | 'TRIAL' | 'SUBSCRIPTION';
-  /** Durée en minutes — l'unité de stockage unique, du test de 30 min à l'essai de 15 jours. */
+  /** Durée en minutes, l'unité de stockage unique, du test de 30 min à l'essai de 15 jours. */
   durationMinutes?: number | null;
   label?: string | null;
 }

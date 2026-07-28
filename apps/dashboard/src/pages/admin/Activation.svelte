@@ -25,7 +25,7 @@
   let error = $state<string | null>(null);
 
   // Formulaire de génération : accès permanent ou période limitée. La durée est
-  // saisie dans l'unité qui arrange, puis convertie en minutes — l'unité que
+  // saisie dans l'unité qui arrange, puis convertie en minutes, l'unité que
   // l'API et la base manipulent.
   const UNITS = { minute: 1, hour: 60, day: 1440 } as const;
   type Unit = keyof typeof UNITS;

@@ -7,12 +7,13 @@
  * L'activation historique (code → `guild.activated = true`) reste inchangée et
  * correspond à `accessType = 'PERMANENT'`. Ce service ajoute par-dessus une
  * couche générique : un accès porte un type, une date de fin, des rappels déjà
- * envoyés. Tout ce qui accorde du temps d'accès — code d'activation « essai »,
- * geste commercial depuis le dashboard, futur webhook de paiement — passe par
+ * envoyés. Tout ce qui accorde du temps d'accès (code d'activation « essai »,
+ * geste commercial depuis le dashboard, futur webhook de paiement) passe par
  * `grantAccess` / `extendAccess` et hérite gratuitement des rappels, de
  * l'expiration automatique et des embeds.
  *
- * Le cycle de vie est balayé une fois par jour par un cron (`access-lifecycle`).
+ * Le cycle de vie est balayé chaque minute par un cron (`access-lifecycle`),
+ * la minute étant la granularité d'une durée d'accès.
  */
 
 import {
@@ -71,8 +72,8 @@ export function minutesUntil(expiresAt: Date, now: Date = new Date()): number {
 
 /**
  * Palier de mi-parcours, arrondi à une unité lisible : on préfère annoncer
- * « 7 jours » que « 7 jours 12 heures ». L'arrondi suit l'échelle de la période
- * — au jour pour une période de plusieurs jours, à l'heure pour plusieurs
+ * « 7 jours » que « 7 jours 12 heures ». L'arrondi suit l'échelle de la période :
+ * au jour pour une période de plusieurs jours, à l'heure pour plusieurs
  * heures, à la minute en dessous.
  */
 function halfwayMilestone(durationMinutes: number): number {
@@ -101,7 +102,7 @@ export function reminderMilestones(durationMinutes: number): number[] {
  *
  * On retient le **plus petit** palier non envoyé encore atteignable : si le bot
  * a été hors ligne un moment, on n'envoie pas un « plus que 7 jours » alors
- * qu'il n'en reste que 2 — on envoie le bon message et on classe les paliers
+ * qu'il n'en reste que 2 : on envoie le bon message et on classe les paliers
  * dépassés comme déjà traités.
  */
 export function dueReminder(
@@ -598,7 +599,7 @@ async function processReminder(client: Client, guildId: string, status: AccessSt
 
 /**
  * Balayage du cycle de vie : envoie les rappels dus et coupe les accès arrivés à
- * échéance. Idempotent — un double passage ne renvoie rien deux fois.
+ * échéance. Idempotent : un double passage ne renvoie rien deux fois.
  *
  * Tourne à la minute : c'est la granularité de la durée d'accès, et la requête
  * ne remonte que les serveurs ayant une échéance en cours (index partiel sur

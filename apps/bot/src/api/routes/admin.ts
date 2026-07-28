@@ -1201,7 +1201,7 @@ export async function handleAdminRoutes(
   // POST /api/admin/activation-codes
   if (parts.length === 3 && parts[2] === 'activation-codes' && method === 'POST') {
     try {
-      // Corps optionnel : sans lui, on retombe sur un code permanent — le
+      // Corps optionnel : sans lui, on retombe sur un code permanent, le
       // comportement historique de cet endpoint.
       const body = isJsonRequest(req)
         ? await readJsonBody<{ accessType?: string; durationMinutes?: number | null; label?: string | null }>(req)
@@ -1363,7 +1363,7 @@ export async function handleAdminRoutes(
     return true;
   }
 
-  // POST /api/admin/guilds/:guildId/access/extend — prolonge un accès à durée limitée
+  // POST /api/admin/guilds/:guildId/access/extend : prolonge un accès à durée limitée
   if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'access' && parts[5] === 'extend' && method === 'POST') {
     const guildId = parts[3];
     try {
