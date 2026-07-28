@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { fade, scale } from 'svelte/transition';
@@ -11,8 +12,8 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchReactionRoleMenus, createReactionRoleMenu, deleteReactionRoleMenu } from '../lib/api';
-import EmojiPicker from '../lib/components/EmojiPicker.svelte';
-import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
+  import EmojiPicker from '../lib/components/EmojiPicker.svelte';
+  import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
@@ -80,7 +81,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
     const invalidOpt = formOptions.some(o => !o.label || !o.roleId);
     if (invalidOpt) {
-      actionState.setError('Tous les boutons doivent avoir un libellé et un rôle.');
+      actionState.setError(m.reaction_roles_all_buttons_required_error());
       return;
     }
 
@@ -91,38 +92,38 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
         options: formOptions
       });
 
-      if (!res || !res.menu) throw new Error('Erreur de déploiement');
+      if (!res || !res.menu) throw new Error(m.reaction_roles_deploy_error());
       menus = [res.menu, ...menus];
       showModal = false;
       return true;
-    }, { successMessage: 'Menu de rôles déployé sur Discord !' });
+    }, { successMessage: m.reaction_roles_deploy_success() });
   }
 
   async function handleDelete(id: string) {
     if (!canManageSettings) return;
-    if (!(await confirmDialog.danger('Supprimer ce menu de rôles ?', 'Le message Discord ne sera pas supprimé automatiquement.'))) return;
+    if (!(await confirmDialog.danger(m.reaction_roles_confirm_delete_title(), m.reaction_roles_confirm_delete_desc()))) return;
     await actionState.run(async () => {
       const ok = await deleteReactionRoleMenu(id);
-      if (!ok) throw new Error('Erreur de suppression');
+      if (!ok) throw new Error(m.reaction_roles_delete_error());
       menus = menus.filter(m => m.id !== id);
       return true;
-    }, { successMessage: 'Menu de rôles supprimé du dashboard.' });
+    }, { successMessage: m.reaction_roles_delete_success() });
   }
 
   function getChannelName(channelId: string) {
     const channel = availableChannels.find(c => c.id === channelId);
-    return channel ? channelDisplayName(channel) : `Salon inconnu (${channelId})`;
+    return channel ? channelDisplayName(channel) : m.reaction_roles_channel_unknown({ id: channelId });
   }
 
   function getRoleName(roleId: string) {
     const role = availableRoles.find(r => r.id === roleId);
-    return role ? `@${role.name}` : `Rôle inconnu (${roleId})`;
+    return role ? `@${role.name}` : m.reaction_roles_role_unknown({ id: roleId });
   }
 </script>
 
 <ModulePage
-  title="Reaction Roles"
-  description="Déployez des messages contenant des boutons interactifs pour attribuer des rôles aux membres."
+  title={m.reaction_roles_title()}
+  description={m.reaction_roles_desc()}
   icon="mouse-pointer"
   featureKey="reaction_roles"
 >
@@ -140,7 +141,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
       <div class="flex items-center justify-between gap-4 flex-wrap">
         <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="List" size={20} class="text-secondary" />
-          Panels Déployés ({menus.length})
+          {m.reaction_roles_deployed_panels({ n: menus.length })}
         </h3>
 
         {#if canManageSettings}
@@ -149,7 +150,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
             class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
-            Déployer un Panel
+            {m.reaction_roles_deploy_panel_btn()}
           </button>
         {/if}
       </div>
@@ -175,7 +176,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
                   <button
                     onclick={() => handleDelete(menu.id)}
                     class="p-2 text-error hover:bg-error/10 border border-transparent rounded-xl transition-all cursor-pointer shrink-0"
-                    title="Supprimer du dashboard"
+                    title={m.reaction_roles_delete_tooltip()}
                   >
                     <Papicon icon="Trash" size={16} />
                   </button>
@@ -195,7 +196,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
                     </div>
                   {/each}
                 {:else}
-                  <p class="text-xs text-on-surface-variant/40 italic">Options de rôles invalides ou vides.</p>
+                  <p class="text-xs text-on-surface-variant/40 italic">{m.reaction_roles_invalid_options()}</p>
                 {/if}
               </div>
             </div>
@@ -203,13 +204,13 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
         {:else}
           <div class="col-span-full flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
             <Papicon icon="MousePointer" size={32} class="text-on-surface-variant/20 mb-3" />
-            <p class="text-sm text-on-surface-variant/60 font-medium">Aucun menu de rôles déployé pour le moment.</p>
+            <p class="text-sm text-on-surface-variant/60 font-medium">{m.reaction_roles_empty_title()}</p>
             {#if canManageSettings}
               <button
                 onclick={openCreateModal}
                 class="mt-4 flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
               >
-                <Papicon icon="Add" size={14} /> Créer un premier panel
+                <Papicon icon="Add" size={14} /> {m.reaction_roles_empty_btn()}
               </button>
             {/if}
           </div>
@@ -228,7 +229,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
       <button
         onclick={() => showModal = false}
         class="absolute top-6 right-6 p-2 rounded-full bg-surface-container-high/40 hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer z-10"
-        title="Fermer"
+        title={m.reaction_roles_close()}
       >
         <Papicon icon="Cross" size={20} />
       </button>
@@ -239,20 +240,20 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
           <Papicon icon="Add" size={24} />
         </div>
         <div>
-          <h3 class="text-2xl font-semibold tracking-tight">Déployer un Panel</h3>
-          <p class="text-xs text-on-surface-variant/80 font-medium">Configurez les boutons de rôles et le salon de destination.</p>
+          <h3 class="text-2xl font-semibold tracking-tight">{m.reaction_roles_modal_title()}</h3>
+          <p class="text-xs text-on-surface-variant/80 font-medium">{m.reaction_roles_modal_desc()}</p>
         </div>
       </div>
 
       <form onsubmit={(e) => { e.preventDefault(); handleDeploy(); }} class="space-y-6 pt-2">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="modal-title" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Titre du Panel / Message</label>
+            <label for="modal-title" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_title()}</label>
             <input
               id="modal-title"
               type="text"
               bind:value={formTitle}
-              placeholder="Ex: Sélectionnez vos rôles de notification"
+              placeholder={m.reaction_roles_field_title_ph()}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
               required
               disabled={!canManageSettings}
@@ -260,12 +261,12 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
           </div>
 
           <div class="space-y-1.5">
-            <label for="modal-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de destination</label>
+            <label for="modal-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_field_channel()}</label>
             <SearchableSelect
               id="modal-channel"
               bind:value={formChannelId}
               options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-              placeholder="Sélectionner le salon"
+              placeholder={m.announcements_select_channel_placeholder()}
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
@@ -275,7 +276,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
         <!-- Live Discord Message Preview -->
         <div class="p-5 rounded-xl bg-[#36393f] border border-[#202225] text-[#dcddde] font-sans space-y-3 shadow-inner">
           <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-[#8e9297] tracking-wider select-none">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Aperçu Live (Discord)
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> {m.reaction_roles_live_preview()}
           </div>
 
           <div class="flex items-start gap-4">
@@ -289,16 +290,16 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
               <div class="flex items-center gap-2 select-none">
                 <span class="font-bold text-white text-sm hover:underline cursor-pointer">Kotbo</span>
                 <span class="bg-[#5865f2] text-white text-[11px] font-bold px-1.5 py-0.5 rounded uppercase">Bot</span>
-                <span class="text-xs text-[#72767d]">Aujourd'hui à 12:00</span>
+                <span class="text-xs text-[#72767d]">{m.announcements_today_at({ time: '12:00' })}</span>
               </div>
 
               <!-- Message Embed / Text -->
               <div class="bg-[#2f3136] border-l-4 border-[#5865f2] rounded-r p-3 max-w-[520px] space-y-1 shadow-sm">
                 <div class="text-sm font-bold text-white wrap-break-word">
-                  {@html parseDiscordEmojisAndMarkdown(formTitle || 'Sélectionnez vos rôles de notification')}
+                  {@html parseDiscordEmojisAndMarkdown(formTitle || m.reaction_roles_field_title_ph())}
                 </div>
                 <div class="text-xs text-[#b9bbbe]">
-                  Cliquez sur les boutons ci-dessous pour vous attribuer ou vous retirer les rôles.
+                  {m.reaction_roles_preview_subtitle()}
                 </div>
               </div>
 
@@ -311,7 +312,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
                       class="flex items-center gap-1.5 px-3 py-1.5 bg-[#4f545c] hover:bg-[#686d73] text-white text-xs font-semibold rounded transition-colors"
                     >
                       {#if opt.emoji}<span>{@html parseDiscordEmojisAndMarkdown(opt.emoji)}</span>{/if}
-                      <span>{opt.label || 'Bouton'}</span>
+                      <span>{opt.label || m.reaction_roles_preview_button_default()}</span>
                     </button>
                   {/if}
                 {/each}
@@ -323,14 +324,14 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
         <!-- Options / Boutons -->
         <div class="space-y-3 pt-2">
           <div class="flex items-center justify-between">
-            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Configuration des boutons ({formOptions.length})</span>
+            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.reaction_roles_buttons_config({ n: formOptions.length })}</span>
             <button
               type="button"
               onclick={addOption}
               disabled={formOptions.length >= 20 || !canManageSettings}
               class="text-xs font-bold text-primary hover:text-primary/80 transition-colors flex items-center gap-1 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
             >
-              <Papicon icon="Plus" size={14} /> Ajouter un bouton
+              <Papicon icon="Plus" size={14} /> {m.reaction_roles_add_button()}
             </button>
           </div>
 
@@ -340,14 +341,14 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
                 <div class="flex items-center justify-between">
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="MousePointer" size={16} />
-                    Bouton {idx + 1}
+                    {m.reaction_roles_button_num({ n: idx + 1 })}
                   </p>
                   {#if formOptions.length > 1 && canManageSettings}
                     <button
                       type="button"
                       onclick={() => removeOption(idx)}
                       class="p-2 text-error hover:bg-error/10 rounded-lg transition-all cursor-pointer"
-                      title="Retirer l'option"
+                      title={m.reaction_roles_remove_button_title()}
                     >
                       <Papicon icon="Minus" size={16} />
                     </button>
@@ -356,7 +357,7 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div class="space-y-1">
-                    <label for={`modal-emoji-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Émoji</label>
+                    <label for={`modal-emoji-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_emoji()}</label>
                     <div class="flex gap-2 items-center">
                       <input
                         id={`modal-emoji-${idx}`}
@@ -371,12 +372,12 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
                   </div>
 
                   <div class="space-y-1">
-                    <label for={`modal-label-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Libellé bouton</label>
+                    <label for={`modal-label-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_label()}</label>
                     <input
                       id={`modal-label-${idx}`}
                       type="text"
                       bind:value={opt.label}
-                      placeholder="Annonces"
+                      placeholder={m.reaction_roles_field_label_ph()}
                       class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs text-on-surface border border-outline-variant/10 focus:ring-2 focus:ring-primary/30 focus:outline-none transition-all"
                       required
                       disabled={!canManageSettings}
@@ -385,12 +386,12 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
                 </div>
 
                 <div class="space-y-1">
-                  <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Rôle associé</label>
+                  <label for={`modal-role-${idx}`} class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.reaction_roles_field_role()}</label>
                   <SearchableSelect
                     id={`modal-role-${idx}`}
                     bind:value={opt.roleId}
                     options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                    placeholder="— Choisir le rôle —"
+                    placeholder={m.reaction_roles_select_role_ph()}
                     className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}
                   />
@@ -406,14 +407,14 @@ import { parseDiscordEmojisAndMarkdown } from '../lib/emojiParser';
             onclick={() => showModal = false}
             class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
           >
-            Annuler
+            {m.reaction_roles_cancel()}
           </button>
           {#if canManageSettings}
             <button
               type="submit"
               class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
             >
-              Déployer le Panel
+              {m.reaction_roles_deploy_confirm()}
             </button>
           {/if}
         </div>
