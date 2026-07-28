@@ -259,7 +259,7 @@
       const updatedCase = await fetchMemberCase(userId);
       if (updatedCase) caseData = updatedCase;
     } catch (err: any) {
-      toast.error(err?.message || 'Erreur lors de la demande.');
+      toast.error(err?.message || m.mcm_error_request());
     } finally {
       requestVerificationBusy = false;
     }
@@ -274,7 +274,7 @@
   async function handleLinkAccount() {
     if (!targetAccountId.trim()) {
       linkIsError = true;
-      linkFeedback = 'L\'ID du compte est requis.';
+      linkFeedback = m.mcm_error_id_required();
       return;
     }
 
@@ -301,7 +301,7 @@
       }
     } catch (e: any) {
       linkIsError = true;
-      linkFeedback = e.message || 'Une erreur inattendue est survenue.';
+      linkFeedback = e.message || m.mcm_error_unexpected_long();
     } finally {
       linkBusy = false;
     }
@@ -323,10 +323,10 @@
           }
         }
       } else {
-        toast.error('Erreur lors de la suppression du lien.');
+        toast.error(m.mcm_error_unlink());
       }
     } catch (e: any) {
-      toast.error(e.message || 'Erreur inattendue.');
+      toast.error(e.message || m.mcm_error_unexpected());
     } finally {
       unlinkingAccountId = null;
     }
@@ -354,10 +354,10 @@
           caseData.profile.moderatorNote = moderatorNote;
         }
       } else {
-        noteFeedback = 'Erreur lors de l\'enregistrement.';
+        noteFeedback = m.mcm_error_save();
       }
     } catch (e) {
-      noteFeedback = 'Erreur lors de l\'enregistrement.';
+      noteFeedback = m.mcm_error_save();
     } finally {
       noteBusy = false;
     }
@@ -732,7 +732,7 @@
             {#if caseData?.profile?.isTutor}
               <span class="badge bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-sm animate-in zoom-in-95 duration-500">
                 <Papicon icon="shield" size={12} class="mr-1" />
-                Tuteur
+                {m.mcm_tutor_badge()}
               </span>
             {/if}
             {#if caseData?.profile?.staffGrade}
@@ -751,7 +751,7 @@
                 >
                   {#if requestVerificationBusy}
                     <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                    <span>Envoi...</span>
+                    <span>{m.mcm_sending()}</span>
                   {:else}
                     <Papicon icon="shield-alert" size={14} />
                     <span>{m.mcm_request_verification()}</span>
@@ -762,7 +762,7 @@
                   class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-[10px] font-semibold text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm"
                 >
                   <Papicon icon="external-link" size={14} />
-                  Profil
+                  {m.mcm_profile()}
                 </a>
               </div>
             {/if}
@@ -797,7 +797,7 @@
         <button
           type="button"
           onclick={onClose}
-          aria-label="Fermer le dossier"
+          aria-label={m.mcm_close_case()}
           class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-on-surface/5 text-on-surface-variant transition-colors hover:bg-on-surface/10 hover:text-on-surface"
         >
           <Papicon icon="x" size={16} />
@@ -829,7 +829,7 @@
             <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 mb-6">
               <Papicon icon="alert-circle" size={32} />
             </div>
-            <h3 class="text-xl font-semibold text-rose-600 font-headline">Erreur de chargement</h3>
+            <h3 class="text-xl font-semibold text-rose-600 font-headline">{m.mcm_load_error()}</h3>
             <p class="mt-2 text-sm text-rose-700/60 max-w-sm">{error}</p>
           </div>
         {:else if !caseData}
@@ -859,7 +859,7 @@
                   </p>
                 </div>
                 <div class="flex gap-2">
-                  <span class="badge badge-danger uppercase tracking-widest">Suspect</span>
+                  <span class="badge badge-danger uppercase tracking-widest">{m.mcm_suspect()}</span>
                 </div>
               </div>
             {/if}
@@ -933,17 +933,17 @@
                             </div>
                           {/if}
                         {:else}
-                          <p class="text-sm font-bold text-on-surface-variant/40 italic">Origine inconnue</p>
+                          <p class="text-sm font-bold text-on-surface-variant/40 italic">{m.mcm_unknown_origin()}</p>
                         {/if}
                      </div>
                      <div class="space-y-1">
-                       <p class="text-xs font-medium text-on-surface-variant/40">Code d'invitation</p>
+                       <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_invite_code()}</p>
                        {#if caseData?.invite?.code}
                          <button
                            type="button"
                            class="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-xl hover:bg-primary/20 transition-colors"
                            onclick={() => inviteDetailsModal.show(caseData.invite.code)}
-                           title="Ouvrir la vue Invitations"
+                           title={m.mcm_open_invites_view()}
                          >
                            {caseData.invite.code}
                          </button>
@@ -1002,7 +1002,7 @@
                        <span class="text-sm font-semibold text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</span>
                      </div>
                      <div class="flex items-center justify-between">
-                       <span class="text-xs font-bold text-on-surface-variant/60">Dernier passage</span>
+                       <span class="text-xs font-bold text-on-surface-variant/60">{m.mcm_last_pass()}</span>
                        <span class="text-sm font-semibold text-on-surface">{formatRelative(caseData?.profile?.lastSeenAt)}</span>
                      </div>
                    </div>
@@ -1017,7 +1017,7 @@
                            <Papicon icon="trending-up" size={28} />
                          </div>
                          <div>
-                           <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Statistiques</p>
+                           <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_statistics()}</p>
                            <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.mcm_activity_trend()}</h4>
                          </div>
                        </div>
@@ -1029,7 +1029,7 @@
                          <div class="h-8 w-px bg-outline-variant/20 mx-4"></div>
                          <div class="flex flex-col items-end">
                            <p class="text-2xl font-semibold text-secondary">{Math.round(analyticsData.totalVoiceMinutes)}m</p>
-                           <p class="text-xs font-medium text-on-surface-variant/40">Temps vocal</p>
+                           <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_voice_time()}</p>
                          </div>
                        </div>
                     </div>
@@ -1054,7 +1054,7 @@
                                }
                              },
                              {
-                               label: 'Vocal (min)',
+                               label: m.mcm_voice_min_series(),
                                data: analyticsData.dailyTrend.map(d => d.voiceMinutes || 0),
                                borderColor: '#ec4899',
                                backgroundColor: 'rgba(236, 72, 153, 0.1)',
@@ -1077,14 +1077,14 @@
                 {:else if analyticsLoading}
                   <div class="md:col-span-3 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm animate-pulse flex flex-col justify-center items-center">
                     <Papicon icon="loader" size={32} class="animate-spin text-primary/20 mb-4" />
-                    <p class="text-[13px] font-medium text-on-surface-variant/20">Calcul des stats...</p>
+                    <p class="text-[13px] font-medium text-on-surface-variant/20">{m.mcm_computing_stats()}</p>
                   </div>
                 {:else}
                   <div class="md:col-span-3 rounded-xl bg-surface-container-low/10 p-10 border border-dashed border-outline-variant/20 flex flex-col justify-center items-center text-center">
                     <div class="h-12 w-12 rounded-lg bg-on-surface/5 flex items-center justify-center text-on-surface-variant/20 mb-4">
                       <Papicon icon="bar-chart-2" size={24} />
                     </div>
-                    <p class="text-sm font-semibold text-on-surface-variant/40">Statistiques indisponibles</p>
+                    <p class="text-sm font-semibold text-on-surface-variant/40">{m.mcm_stats_unavailable()}</p>
                     <p class="text-[10px] font-bold text-on-surface-variant/20 mt-1 uppercase tracking-widest">{m.mcm_low_activity()}</p>
                   </div>
                 {/if}
@@ -1099,7 +1099,7 @@
                        <Papicon icon="shield" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">Autorisations</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">{m.mcm_permissions()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_roles_access()}</p>
                      </div>
                    </div>
@@ -1142,12 +1142,12 @@
                          <Papicon icon="history" size={28} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">Timeline</p>
+                         <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">{m.mcm_timeline()}</p>
                          <h4 class="text-2xl font-semibold text-on-surface font-headline">{m.mcm_recent_activities()}</h4>
                        </div>
                     </div>
                     <button onclick={() => activeTab = 'logs'} class="group/btn inline-flex items-center gap-2 rounded-lg bg-white/5 px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-widest transition-all hover:bg-white/10 hover:text-on-surface">
-                      Voir tous les logs
+                      {m.mcm_see_all_logs()}
                       <Papicon icon="arrow-right" size={14} class="group-hover/btn:translate-x-1 transition-transform" />
                     </button>
                   </div>
@@ -1161,7 +1161,7 @@
                                <span class="text-[10px] font-bold text-primary">#{msg.channelName}</span>
                                <span class="text-[10px] font-bold text-on-surface-variant/40">{formatRelative(msg.dateIso)}</span>
                             </div>
-                            <p class="text-sm text-on-surface line-clamp-2 leading-relaxed italic">"{msg.content || 'Contenu vide'}"</p>
+                            <p class="text-sm text-on-surface line-clamp-2 leading-relaxed italic">"{msg.content || m.mcm_empty_content()}"</p>
                          </div>
                        {/each}
                        {#if caseData?.messagesByChannel.length === 0}
@@ -1170,7 +1170,7 @@
                     </div>
 
                     <div class="space-y-4">
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary px-2 mb-4">Derniers Logs</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary px-2 mb-4">{m.mcm_last_logs()}</p>
                        <div class="space-y-3 relative pl-4 border-l border-outline-variant/20 ml-2">
                          {#each caseData?.logs.slice(0, 3) as log}
                            <div class="relative pb-6">
@@ -1191,13 +1191,13 @@
                     <dl class="space-y-4">
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_username()}</dt><dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? m.mcm_unknown()}</dd></div>
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_global_name()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? m.mcm_unknown()}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Affichage serveur</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? m.mcm_unknown()}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Langue</dt><dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_server_display()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? m.mcm_unknown()}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_language()}</dt><dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd></div>
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_pronouns()}</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? m.mcm_not_specified_plural()}</dd></div>
                     </dl>
                   </div>
                   <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
-                    <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">Visuels</p>
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">{m.mcm_visuals()}</p>
                     {#if caseData?.profile?.avatarUrl}
                       <div class="flex items-center gap-4">
                         <img src={caseData?.profile?.avatarUrl} alt={m.mcm_avatar_alt()} class="h-16 w-16 rounded-lg object-cover shadow-lg border-2 border-surface" />
@@ -1210,7 +1210,7 @@
                     {#if caseData?.profile?.accentColor}
                       <div class="flex items-center gap-3">
                         <div class="h-8 w-8 rounded-lg shadow-inner" style="background-color: #{caseData?.profile?.accentColor.toString(16).padStart(6, '0')};"></div>
-                        <span class="text-xs font-bold text-on-surface-variant/60">Couleur d'accent: #{caseData?.profile?.accentColor.toString(16).padStart(6, '0')}</span>
+                        <span class="text-xs font-bold text-on-surface-variant/60">{m.mcm_accent_color({ hex: caseData?.profile?.accentColor.toString(16).padStart(6, '0') })}</span>
                       </div>
                     {/if}
                   </div>
@@ -1227,7 +1227,7 @@
                      </div>
                      <div>
                        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">{m.mcm_account_data()}</p>
-                       <p class="text-lg font-semibold text-on-surface">Profil Complet</p>
+                       <p class="text-lg font-semibold text-on-surface">{m.mcm_full_profile()}</p>
                      </div>
                    </div>
                    <dl class="space-y-5">
@@ -1252,7 +1252,7 @@
                        <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? m.mcm_not_specified_plural()}</dd>
                      </div>
                      <div class="flex items-center justify-between">
-                       <dt class="text-xs font-medium text-on-surface-variant/40">Langue (Locale)</dt>
+                       <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_language_locale()}</dt>
                        <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd>
                      </div>
                    </dl>
@@ -1292,7 +1292,7 @@
                        <Papicon icon="calendar" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">Chronologie</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{m.mcm_chronology()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_key_dates()}</p>
                      </div>
                    </div>
@@ -1329,7 +1329,7 @@
                        <Papicon icon="shield" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">Autorisations</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">{m.mcm_permissions()}</p>
                        <p class="text-lg font-semibold text-on-surface">{m.mcm_roles_count({ count: caseData?.roles.length })}</p>
                      </div>
                    </div>
@@ -1404,7 +1404,7 @@
                         <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
                         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
                       </div>
-                      <p class="text-[13px] font-medium text-on-surface-variant/60">Analyse du comportement...</p>
+                      <p class="text-[13px] font-medium text-on-surface-variant/60">{m.mcm_analyzing_behavior()}</p>
                     </div>
                   {:else if analyticsData && analyticsData.dailyTrend && analyticsData.dailyTrend.length > 0}
                     <div class="grid gap-6 lg:grid-cols-2">
@@ -1414,7 +1414,7 @@
                               <p class="text-xs font-medium text-primary mb-1">{m.mcm_activity()}</p>
                               <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.mcm_message_volume()}</h4>
                             </div>
-                            <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">30 derniers jours</span>
+                            <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_last_30_days()}</span>
                          </div>
                           <Chart 
                             data={{
@@ -1441,16 +1441,16 @@
                        <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
                             <div>
-                              <p class="text-xs font-medium text-secondary mb-1">Engagement</p>
+                              <p class="text-xs font-medium text-secondary mb-1">{m.mcm_engagement()}</p>
                               <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.mcm_voice_activity()}</h4>
                             </div>
-                            <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Minutes / jour</span>
+                            <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_minutes_per_day()}</span>
                          </div>
                           <Chart 
                             data={{
                               labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
                               datasets: [{
-                                label: 'Vocal (min)',
+                                label: m.mcm_voice_min_series(),
                                 data: analyticsData.dailyTrend.map(d => d.voiceMinutes),
                                 borderColor: '#ec4899',
                                 backgroundColor: 'rgba(236, 72, 153, 0.1)',
@@ -1507,7 +1507,7 @@
                           onchange={() => { messageOffset = 0; }}
                           class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-high/40 py-2 pl-3 pr-8 text-xs font-bold text-on-surface-variant focus:border-primary/30 focus:outline-hidden"
                         >
-                          <option value="">Tous les salons</option>
+                          <option value="">{m.mcm_all_channels()}</option>
                           {#each messagesChannels as channel}
                             <option value={channel.channelId}>#{channel.channelName} ({channel.count})</option>
                           {/each}
@@ -1519,14 +1519,14 @@
 
                       <!-- Dates -->
                       <div class="flex items-center gap-1.5 text-xs text-on-surface-variant/60">
-                        <span>Du</span>
+                        <span>{m.mcm_date_from()}</span>
                         <input
                           type="date"
                           bind:value={messageFrom}
                           onchange={() => { messageOffset = 0; }}
                           class="rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-2 py-1.5 text-xs font-bold text-on-surface outline-hidden focus:border-primary/30"
                         />
-                        <span>au</span>
+                        <span>{m.mcm_date_to()}</span>
                         <input
                           type="date"
                           bind:value={messageTo}
@@ -1646,7 +1646,7 @@
                     {#if messagesTotalCount > messageLimit}
                       <div class="flex items-center justify-between border-t border-outline-variant/10 pt-6">
                         <span class="text-xs font-bold text-on-surface-variant/40">
-                          {messageOffset + 1} - {Math.min(messageOffset + messageLimit, messagesTotalCount)} sur {messagesTotalCount} messages
+                          {m.mcm_pagination_range({ from: messageOffset + 1, to: Math.min(messageOffset + messageLimit, messagesTotalCount), total: messagesTotalCount })}
                         </span>
 
                         <div class="flex items-center gap-2">
@@ -1709,10 +1709,10 @@
                         <Papicon icon="globe" size={22} />
                       </div>
                       <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Casier inter-serveurs</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500">{m.mcm_cross_server_record()}</p>
                         <p class="text-sm font-semibold text-on-surface">
-                          {crossServer.total} sanction{crossServer.total > 1 ? 's' : ''}
-                          <span class="text-on-surface-variant/50 font-medium">sur {crossServer.serverCount} autre{crossServer.serverCount > 1 ? 's' : ''} serveur{crossServer.serverCount > 1 ? 's' : ''}</span>
+                          {crossServer.total > 1 ? m.mcm_cross_server_count_other({ count: crossServer.total }) : m.mcm_cross_server_count_one({ count: crossServer.total })}
+                          <span class="text-on-surface-variant/50 font-medium">{crossServer.serverCount > 1 ? m.mcm_cross_server_on_other({ count: crossServer.serverCount }) : m.mcm_cross_server_on_one({ count: crossServer.serverCount })}</span>
                         </p>
                       </div>
                       <div class="hidden md:flex flex-wrap items-center justify-end gap-1.5">
@@ -1766,7 +1766,7 @@
                         {m.mcm_same_instance()}
                       </p>
                       {#if crossServer.total > crossServer.recent.length}
-                        <span class="text-[11px] font-semibold text-on-surface-variant/50 shrink-0">+{crossServer.total - crossServer.recent.length} autre{crossServer.total - crossServer.recent.length > 1 ? 's' : ''}</span>
+                        <span class="text-[11px] font-semibold text-on-surface-variant/50 shrink-0">{crossServer.total - crossServer.recent.length > 1 ? m.mcm_cross_server_more_other({ count: crossServer.total - crossServer.recent.length }) : m.mcm_cross_server_more_one({ count: crossServer.total - crossServer.recent.length })}</span>
                       {/if}
                     </div>
                   </div>
@@ -1779,7 +1779,7 @@
                         <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">{m.mcm_col_action()}</th>
                         <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">{m.mcm_col_status()}</th>
                         <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">{m.mcm_col_reason()}</th>
-                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">Rapport</th>
+                        <th class="px-6 py-4 text-xs font-medium text-on-surface-variant/40">{m.mcm_col_report()}</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/10">
@@ -1789,7 +1789,7 @@
                           <td class="px-6 py-4 text-xs font-bold text-on-surface-variant/60">{formatDateShort(sanction.createdAt)}</td>
                           <td class="px-6 py-4">
                             <span class="text-xs font-semibold text-primary uppercase tracking-widest">{formatTypeLabel(sanction.type)}</span>
-                            <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">par @{sanction.moderatorTag}</p>
+                            <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">{m.mcm_by_moderator({ moderator: sanction.moderatorTag })}</p>
                           </td>
                           <td class="px-6 py-4">
                             <span class="px-3 py-1 rounded-lg text-xs font-medium {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
@@ -1804,7 +1804,7 @@
                                 class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[10px] font-semibold text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
                               >
                                 <Papicon icon="file-text" size={12} />
-                                Voir plus
+                                {m.mcm_see_more()}
                               </button>
                             {:else}
                               <span class="text-[10px] font-bold text-on-surface-variant/30 italic">{m.mcm_no_report()}</span>
@@ -1817,7 +1817,7 @@
                   {#if sanctions.length === 0}
                     <div class="flex flex-col items-center py-20 text-on-surface-variant/30">
                       <Papicon icon="check-circle" size={48} />
-                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">Dossier vierge</p>
+                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">{m.mcm_clean_record()}</p>
                     </div>
                   {/if}
                 </div>
@@ -1825,7 +1825,7 @@
               {:else if activeTab === 'invites'}
                 <div class="grid gap-6 md:grid-cols-2">
                    <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                     <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">Source d'invitation</p>
+                     <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">{m.mcm_invite_source()}</p>
                      <dl class="space-y-4">
                        <div class="flex items-center justify-between">
                          <dt class="text-xs font-bold text-on-surface-variant/60">{m.mcm_code_used()}</dt>
@@ -1834,12 +1834,12 @@
                              type="button"
                              class="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-xl hover:bg-primary/20 transition-colors font-mono"
                              onclick={() => inviteDetailsModal.show(caseData.invite.code)}
-                             title="Ouvrir la vue Invitations"
+                             title={m.mcm_open_invites_view()}
                            >
                              {caseData.invite.code}
                            </button>
                          {:else}
-                           <dd class="text-sm font-semibold text-on-surface font-mono">Inconnu</dd>
+                           <dd class="text-sm font-semibold text-on-surface font-mono">{m.mcm_unknown()}</dd>
                          {/if}
                        </div>
                        <div class="flex items-center justify-between">
@@ -1868,7 +1868,7 @@
                                 {/if}
                               </div>
                             {:else}
-                              Inconnu
+                              {m.mcm_unknown()}
                             {/if}
                           </dd>
                         </div>
@@ -1890,10 +1890,10 @@
                   <div class="flex items-center justify-between px-2">
                     <div>
                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">{m.mcm_social_network()}</p>
-                      <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Graphe d'Interactions</h4>
+                      <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">{m.mcm_interaction_graph()}</h4>
                     </div>
                     <div class="flex items-center gap-2">
-                      <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Top {(caseData?.interactionGraph?.nodes?.length ?? 1) - 1} contacts</span>
+                      <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">{m.mcm_top_contacts({ count: (caseData?.interactionGraph?.nodes?.length ?? 1) - 1 })}</span>
                     </div>
                   </div>
                   
@@ -1955,11 +1955,11 @@
 
               {:else if activeTab === 'linked_accounts'}
                 <div class="mb-8 rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                  <h3 class="text-sm font-semibold text-on-surface mb-4 flex items-center gap-2"><Papicon icon="link-2" size={16} /> Lier un compte manuellement</h3>
+                  <h3 class="text-sm font-semibold text-on-surface mb-4 flex items-center gap-2"><Papicon icon="link-2" size={16} /> {m.mcm_link_account_manually()}</h3>
                   <div class="grid gap-4 md:grid-cols-2">
                     <FormInput 
                       id="targetAccountId" 
-                      label="ID du compte cible" 
+                      label={m.mcm_target_account_id()} 
                       bind:value={targetAccountId} 
                       placeholder="Ex: 123456789012345678" 
                       icon="user-plus" 
@@ -1989,10 +1989,10 @@
                       {#if linkBusy}
                         <div class="flex items-center gap-2">
                           <div class="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent"></div>
-                          <span>Liaison...</span>
+                          <span>{m.mcm_linking()}</span>
                         </div>
                       {:else}
-                        Lier les comptes
+                        {m.mcm_link_accounts()}
                       {/if}
                     </button>
                   </div>
@@ -2067,7 +2067,7 @@
                       <textarea
                         id="moderator-note-textarea"
                         bind:value={moderatorNote}
-                        placeholder="Ajouter une note sur cet utilisateur..."
+                        placeholder={m.mcm_add_note_placeholder()}
                         class="w-full min-h-[300px] rounded-xl bg-surface-container-high/50 p-6 text-sm text-on-surface placeholder:text-on-surface-variant/30 border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-high transition-all outline-hidden resize-none"
                       ></textarea>
                     </div>
@@ -2087,10 +2087,10 @@
                       >
                         {#if noteBusy}
                           <div class="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent"></div>
-                          <span>Enregistrement...</span>
+                          <span>{m.mcm_saving()}</span>
                         {:else}
                           <Papicon icon="save" size={18} />
-                          <span>Sauvegarder</span>
+                          <span>{m.mcm_save()}</span>
                         {/if}
                       </button>
                     </div>
@@ -2145,7 +2145,7 @@
               <!-- 2. Carte Top Salons d'Activité -->
               {#if topChannels.length > 0}
                 <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm space-y-4">
-                  <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">Top salons</span>
+                  <span class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest block border-b border-outline-variant/5 pb-3">{m.mcm_top_channels()}</span>
                   
                   <div class="space-y-3.5">
                     {#each topChannels as chan}
@@ -2176,7 +2176,7 @@
                     id="mod-reason"
                     bind:value={actionReason}
                     rows="3"
-                    placeholder="Entrez un motif obligatoire..."
+                    placeholder={m.mcm_reason_placeholder()}
                     class="w-full rounded-lg bg-surface-container-high/40 px-3 py-2 text-xs font-semibold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
                   ></textarea>
                 </div>
@@ -2281,7 +2281,7 @@
           </button>
 
           <div class="mb-8">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">Rapport de sanction</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">{m.mcm_sanction_report()}</p>
             <h4 class="text-2xl font-semibold text-on-surface font-headline">{formatTypeLabel(selectedSanctionForReport.type)}</h4>
             <p class="text-xs text-on-surface-variant/60 mt-1">{m.mcm_applied_on({ date: formatDateTime(selectedSanctionForReport.createdAt), moderator: selectedSanctionForReport.moderatorTag })}</p>
           </div>
@@ -2304,7 +2304,7 @@
                      <input 
                        type="text" 
                        bind:value={editReportData.sanctionDurationLabel} 
-                       placeholder="Ex: 2h, Permanent..." 
+                       placeholder={m.mcm_duration_placeholder()} 
                        class="w-full rounded-lg bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
                      />
                    </div>
@@ -2356,14 +2356,14 @@
                      onclick={() => isEditingReport = false}
                      class="flex-1 py-3 rounded-xl bg-on-surface/5 text-[13px] font-medium text-on-surface-variant transition-all hover:bg-on-surface/10"
                    >
-                     Annuler
+                     {m.common_cancel()}
                    </button>
                    <button
                      onclick={handleUpdateReport}
                      disabled={updateReportBusy}
                      class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-[13px] font-medium transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
                    >
-                     {updateReportBusy ? 'Enregistrement...' : 'Enregistrer'}
+                     {updateReportBusy ? m.mcm_saving() : m.common_save()}
                    </button>
                  </div>
                </div>
@@ -2372,7 +2372,7 @@
               <div class="space-y-6">
                 <div class="grid grid-cols-2 gap-4">
                   <div class="space-y-1">
-                    <p class="text-xs font-medium text-on-surface-variant/40">Incident</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_incident()}</p>
                     <p class="text-sm font-bold text-on-surface">{formatDateTime(selectedReport.incidentAt)}</p>
                   </div>
                   <div class="space-y-1">
@@ -2395,12 +2395,12 @@
 
                 {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
                   <div class="space-y-2">
-                    <p class="text-xs font-medium text-on-surface-variant/40">Preuves</p>
+                    <p class="text-xs font-medium text-on-surface-variant/40">{m.mcm_evidence()}</p>
                     <div class="flex flex-wrap gap-2">
                       {#each selectedReport.evidenceLinks as link}
                         <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-on-surface/5 px-4 py-2 text-xs font-bold text-primary transition-all hover:bg-primary/10">
                           <Papicon icon="external-link" size={14} />
-                          Lien de preuve
+                          {m.mcm_evidence_link()}
                         </a>
                       {/each}
                     </div>
@@ -2423,7 +2423,7 @@
                       class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[10px] font-semibold text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
                     >
                       <Papicon icon="edit-3" size={14} />
-                      Modifier le rapport
+                      {m.mcm_edit_report()}
                     </button>
                   {/if}
                 </div>

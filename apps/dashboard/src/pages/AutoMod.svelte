@@ -312,7 +312,7 @@
     if ((dirty || raidDirty) && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'AutoMod',
+          label: m.am_page_title(),
           onSave: () => handleSave(),
           onReset: () => {
             config = JSON.parse(JSON.stringify(savedConfig));
@@ -480,7 +480,7 @@
 </script>
 
 <ModulePage
-  title="AutoMod"
+  title={m.am_page_title()}
   description={m.am_page_description()}
   icon="shield-alert"
   featureKey="automod"
@@ -1162,7 +1162,7 @@
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
             <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="lock" size={20} class="text-rose-400" />
-              Admin Permission Lock
+              {m.am_admin_lock()}
             </h3>
             <ToggleSwitch
               checked={config.adminLockEnabled}
