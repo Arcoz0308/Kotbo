@@ -3,7 +3,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicLeveling } from '../lib/api';
-  import { m, getLocale, locales, type Locale } from '../lib/i18n';
+  import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
 
@@ -38,7 +38,7 @@
       }
     } catch (err: any) {
       console.error(err);
-      errorMsg = err.message || 'Erreur lors du chargement des données.';
+      errorMsg = err.message || m.leveling_public_error_loading();
     } finally {
       loading = false;
     }
@@ -76,7 +76,7 @@
   function formatXp(xp: number): string {
     if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
     if (xp >= 1_000) return `${(xp / 1_000).toFixed(1)}k`;
-    return xp.toLocaleString();
+    return xp.toLocaleString(dateLocale());
   }
 
   function getRankColor(index: number) {
@@ -88,8 +88,8 @@
 </script>
 
 <svelte:head>
-  <title>Classement Leveling — {guildName}</title>
-  <meta name="description" content="Classement XP et niveaux des membres de {guildName} sur Discord." />
+  <title>{m.leveling_public_page_title({ guildName })}</title>
+  <meta name="description" content={m.leveling_public_meta_desc({ guildName })} />
 </svelte:head>
 
 <div class="min-h-screen whiteboard-container relative overflow-x-hidden selection:bg-yellow-100 dark:selection:bg-slate-850 py-12 px-4 sm:px-6 z-10">
@@ -117,7 +117,7 @@
           </h1>
           <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
             <span class="text-amber-500"><Papicon icon="Trophy" size={14} /></span>
-            <span>Classement XP & Niveaux</span>
+            <span>{m.leveling_public_header_subtitle()}</span>
           </div>
         </div>
       </div>
@@ -152,7 +152,7 @@
         <div class="relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 dark:border-emerald-500/10 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 absolute"></span>
-          <span class="ml-2.5 uppercase tracking-wider text-[10px]">Temps Réel</span>
+          <span class="ml-2.5 uppercase tracking-wider text-[10px]">{m.leveling_public_live_badge()}</span>
         </div>
       </div>
     </header>
@@ -176,7 +176,7 @@
           <Papicon icon="AlertTriangle" size={20} />
         </div>
         <div class="space-y-1.5">
-          <p class="text-slate-800 dark:text-slate-100 font-semibold text-lg">Une erreur est survenue</p>
+          <p class="text-slate-800 dark:text-slate-100 font-semibold text-lg">{m.leveling_public_error_title()}</p>
           <p class="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto">{errorMsg}</p>
         </div>
       </div>
@@ -188,9 +188,9 @@
           <Papicon icon="Lock" size={24} />
         </div>
         <div class="space-y-1.5 max-w-sm">
-          <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">Classement Inactif</h2>
+          <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">{m.leveling_public_disabled_title()}</h2>
           <p class="text-slate-505 dark:text-slate-400 text-sm leading-relaxed">
-            Le module de Leveling n'est pas activé sur ce serveur ou le classement a été masqué par les administrateurs.
+            {m.leveling_public_disabled_desc()}
           </p>
         </div>
       </div>
@@ -202,19 +202,19 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{levels.length}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Membres Classés</p>
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_members()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{maxLevel}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Niveau Max</p>
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_max_level()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{avgLevel}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Niveau Moyen</p>
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_avg_level()}</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
             <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{formatXp(totalXp)}</p>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">XP Cumulé</p>
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{m.leveling_public_stat_total_xp()}</p>
           </div>
         </div>
       {/if}
@@ -224,7 +224,7 @@
         <div class="space-y-4">
           <h3 class="text-[13px] font-medium text-slate-400 dark:text-slate-550 flex items-center gap-2 ml-1">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-            <span>Le Trio de Tête</span>
+            <span>{m.leveling_public_top_trio()}</span>
           </h3>
           
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 relative z-10">
@@ -234,7 +234,7 @@
               <div class="relative clean-card border-t-2 border-slate-300 dark:border-slate-600 rounded-xl p-6 flex flex-col justify-between order-2 sm:order-1">
                 <div class="flex items-start justify-between">
                   <div class="space-y-3 w-full">
-                    <span class="text-xl font-semibold text-slate-400/80">2nd</span>
+                    <span class="text-xl font-semibold text-slate-400/80">{m.leveling_public_rank_2()}</span>
                     <div class="flex items-center gap-3">
                       <img
                         src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
@@ -243,15 +243,15 @@
                       />
                       <div class="min-w-0 flex-1">
                         <p class="font-bold text-slate-800 dark:text-slate-100 truncate text-sm" title={levels[1].displayName}>
-                          {levels[1].displayName || levels[1].username || 'Inconnu'}
+                          {levels[1].displayName || levels[1].username || m.leveling_public_unknown_member()}
                         </p>
-                        <p class="text-xs text-slate-400 dark:text-slate-500">Niveau {getLevelFromXp(levels[1].xp)}</p>
+                        <p class="text-xs text-slate-400 dark:text-slate-500">{m.leveling_public_level_n({ n: getLevelFromXp(levels[1].xp) })}</p>
                       </div>
                     </div>
                   </div>
                 </div>
                 <div class="mt-4 text-xs font-mono text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-3 flex justify-between">
-                  <span>XP Total :</span>
+                  <span>{m.leveling_public_total_xp_label()}</span>
                   <span class="font-bold text-slate-700 dark:text-slate-300">{formatXp(levels[1].xp)}</span>
                 </div>
               </div>
@@ -263,7 +263,7 @@
                 <div class="flex items-start justify-between">
                   <div class="space-y-3 w-full">
                     <span class="text-2xl font-semibold text-amber-500 flex items-center gap-1.5">
-                      <span>1st</span>
+                      <span>{m.leveling_public_rank_1()}</span>
                       <span class="text-amber-500"><Papicon icon="Crown" size={18} /></span>
                     </span>
                     <div class="flex items-center gap-3.5">
@@ -274,15 +274,15 @@
                       />
                       <div class="min-w-0 flex-1">
                         <p class="font-semibold text-slate-800 dark:text-slate-100 truncate text-base" title={levels[0].displayName}>
-                          {levels[0].displayName || levels[0].username || 'Inconnu'}
+                          {levels[0].displayName || levels[0].username || m.leveling_public_unknown_member()}
                         </p>
-                        <p class="text-xs text-amber-500 dark:text-amber-400 font-bold">Niveau {getLevelFromXp(levels[0].xp)}</p>
+                        <p class="text-xs text-amber-500 dark:text-amber-400 font-bold">{m.leveling_public_level_n({ n: getLevelFromXp(levels[0].xp) })}</p>
                       </div>
                     </div>
                   </div>
                 </div>
                 <div class="mt-4 text-xs font-mono text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-3 flex justify-between">
-                  <span>XP Total :</span>
+                  <span>{m.leveling_public_total_xp_label()}</span>
                   <span class="font-bold text-amber-500 dark:text-amber-400">{formatXp(levels[0].xp)}</span>
                 </div>
               </div>
@@ -293,7 +293,7 @@
               <div class="relative clean-card border-t-2 border-amber-600 dark:border-amber-700/80 rounded-xl p-6 flex flex-col justify-between order-3">
                 <div class="flex items-start justify-between">
                   <div class="space-y-3 w-full">
-                    <span class="text-xl font-semibold text-amber-700/80 dark:text-amber-600">3rd</span>
+                    <span class="text-xl font-semibold text-amber-700/80 dark:text-amber-600">{m.leveling_public_rank_3()}</span>
                     <div class="flex items-center gap-3">
                       <img
                         src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
@@ -302,15 +302,15 @@
                       />
                       <div class="min-w-0 flex-1">
                         <p class="font-bold text-slate-800 dark:text-slate-100 truncate text-sm" title={levels[2].displayName}>
-                          {levels[2].displayName || levels[2].username || 'Inconnu'}
+                          {levels[2].displayName || levels[2].username || m.leveling_public_unknown_member()}
                         </p>
-                        <p class="text-xs text-slate-400 dark:text-slate-500">Niveau {getLevelFromXp(levels[2].xp)}</p>
+                        <p class="text-xs text-slate-400 dark:text-slate-500">{m.leveling_public_level_n({ n: getLevelFromXp(levels[2].xp) })}</p>
                       </div>
                     </div>
                   </div>
                 </div>
                 <div class="mt-4 text-xs font-mono text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-3 flex justify-between">
-                  <span>XP Total :</span>
+                  <span>{m.leveling_public_total_xp_label()}</span>
                   <span class="font-bold text-slate-700 dark:text-slate-300">{formatXp(levels[2].xp)}</span>
                 </div>
               </div>
@@ -325,7 +325,7 @@
         
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">
-            Membres du Serveur
+            {m.leveling_public_members_title()}
           </h3>
 
           <!-- Barre de recherche -->
@@ -333,7 +333,7 @@
             <input
               type="text"
               id="leaderboard-search"
-              placeholder="Rechercher un membre..."
+              placeholder={m.leveling_public_search_placeholder()}
               bind:value={searchQuery}
               class="w-full bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 pl-10 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:bg-white dark:focus:bg-[#111a2e] focus:border-slate-300 dark:focus:border-slate-700 transition-all font-semibold"
             />
@@ -343,6 +343,7 @@
             {#if searchQuery}
               <button
                 onclick={() => searchQuery = ''}
+                aria-label={m.leveling_public_clear_search()}
                 class="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-750 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all"
               >✕</button>
             {/if}
@@ -354,11 +355,11 @@
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="bg-slate-50 dark:bg-[#0c1322] border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                <th class="px-5 py-3.5 w-16 text-center">Rang</th>
-                <th class="px-6 py-3.5">Membre</th>
-                <th class="px-6 py-3.5 w-24">Niveau</th>
-                <th class="px-6 py-3.5 w-24">XP</th>
-                <th class="px-6 py-3.5 w-48">Progression</th>
+                <th class="px-5 py-3.5 w-16 text-center">{m.leveling_public_col_rank()}</th>
+                <th class="px-6 py-3.5">{m.leveling_public_col_member()}</th>
+                <th class="px-6 py-3.5 w-24">{m.leveling_public_col_level()}</th>
+                <th class="px-6 py-3.5 w-24">{m.leveling_public_col_xp()}</th>
+                <th class="px-6 py-3.5 w-48">{m.leveling_public_col_progress()}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-[#111a2e]">
@@ -398,7 +399,7 @@
                         class="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-800"
                       />
                       <div class="min-w-0">
-                        <span class="font-bold text-slate-800 dark:text-slate-100 text-sm truncate block">{userLvl.displayName || userLvl.username || 'Inconnu'}</span>
+                        <span class="font-bold text-slate-800 dark:text-slate-100 text-sm truncate block">{userLvl.displayName || userLvl.username || m.leveling_public_unknown_member()}</span>
                         {#if userLvl.username && userLvl.displayName !== userLvl.username}
                           <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono">@{userLvl.username}</span>
                         {/if}
@@ -439,10 +440,10 @@
                     <div class="flex flex-col items-center justify-center space-y-3">
                       <div class="text-slate-400 dark:text-slate-600"><Papicon icon="Search" size={20} /></div>
                       <p class="text-slate-500 dark:text-slate-400 font-semibold text-sm">
-                        {#if searchQuery}Aucun membre trouvé pour "{searchQuery}"{:else}Le classement est vide.{/if}
+                        {#if searchQuery}{m.leveling_public_no_member_found({ query: searchQuery })}{:else}{m.leveling_public_leaderboard_empty()}{/if}
                       </p>
                       {#if searchQuery}
-                        <button onclick={() => searchQuery = ''} class="text-indigo-500 dark:text-indigo-400 text-xs font-bold underline">Effacer le filtre</button>
+                        <button onclick={() => searchQuery = ''} class="text-indigo-500 dark:text-indigo-400 text-xs font-bold underline">{m.leveling_public_clear_filter()}</button>
                       {/if}
                     </div>
                   </td>
@@ -456,13 +457,13 @@
       <!-- ─── Footer épuré ─── -->
       <footer class="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-slate-200 dark:border-slate-800 text-center relative z-10 text-xs text-slate-400 dark:text-slate-500">
         <p>
-          Propulsé par le bot Discord <span class="text-slate-700 dark:text-slate-350 font-semibold">Kotbo</span> · Données synchronisées
+          {m.leveling_public_footer_powered_by()} <span class="text-slate-700 dark:text-slate-350 font-semibold">Kotbo</span> · {m.leveling_public_footer_synced()}
         </p>
         <a
           href="/"
           class="font-bold text-slate-750 dark:text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 transition-colors uppercase tracking-wider flex items-center gap-1"
         >
-          <span>Dashboard</span>
+          <span>{m.leveling_public_footer_dashboard()}</span>
           <span>→</span>
         </a>
       </footer>
