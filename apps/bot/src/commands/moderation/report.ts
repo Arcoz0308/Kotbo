@@ -13,19 +13,34 @@ import {
 import type { SlashCommandDefinition, ContextCommandDefinition } from '../../commands.js';
 import { successEmbed, errorEmbed } from '../../utils/embeds.js';
 import { createMemberReport, type CreateReportResult } from '../../services/moderation/reportService.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b2_report');
+const contextMeta = getCommandMetadata('b2_report_context');
+
 const data = new SlashCommandBuilder()
-  .setName('report')
-  .setDescription('🚩 Signale un membre au staff du serveur')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addUserOption((opt) =>
-    opt.setName('membre').setDescription('Le membre à signaler').setRequired(true))
+    opt
+      .setName('membre')
+      .setDescription(m.b2_report_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_report_opt_membre({}, { locale: 'fr' }) })
+      .setRequired(true))
   .addStringOption((opt) =>
-    opt.setName('raison').setDescription('Raison du signalement').setRequired(true).setMaxLength(1000));
+    opt
+      .setName('raison')
+      .setDescription(m.b2_report_opt_raison({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_report_opt_raison({}, { locale: 'fr' }) })
+      .setRequired(true)
+      .setMaxLength(1000));
 
 const contextData = new ContextMenuCommandBuilder()
-  .setName('Signaler ce message')
+  .setName(contextMeta.name)
+  .setNameLocalizations(contextMeta.nameLocalizations)
   .setType(ApplicationCommandType.Message);
 
 export function describeReportError(result: Extract<CreateReportResult, { ok: false }>, locale: 'fr' | 'en' = 'fr'): string {

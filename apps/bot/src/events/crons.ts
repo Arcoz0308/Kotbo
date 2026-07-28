@@ -255,6 +255,11 @@ export async function registerCrons(client: Client): Promise<void> {
       const { pingMasterServer } = await import('../services/system/statsService.js');
       await pingMasterServer(client);
     },
+    'access-lifecycle': async () => {
+      logger.debug('Cron', 'Vérification des accès à durée limitée...');
+      const { runAccessLifecycleCheck } = await import('../services/system/accessService.js');
+      await runAccessLifecycleCheck(client);
+    },
   });
 
   logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l'enregistrement des cron schedules...");
@@ -495,6 +500,17 @@ export async function registerCrons(client: Client): Promise<void> {
         await refreshAllStaffWidgets(guildId);
       }
     }, 5000);
+  });
+
+  // 🔑 Accès à durée limitée: rappels et expiration des essais/abonnements.
+  // Toutes les minutes, car c'est la granularité d'une durée d'accès : un essai
+  // court doit se couper à l'heure dite. La requête est filtrée par index partiel
+  // et ne remonte que les serveurs ayant une échéance en cours.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('access-lifecycle', async () => {
+      const { runAccessLifecycleCheck } = await import('../services/system/accessService.js');
+      await runAccessLifecycleCheck(client);
+    }, 1000);
   });
 
   // 📊 Stats: Ping all instances every 6 hours

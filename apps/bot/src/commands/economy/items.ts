@@ -3,7 +3,7 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 interface LocalRpgItem {
@@ -22,9 +22,13 @@ interface LocalInventoryEntry {
   item: LocalRpgItem;
 }
 
+const meta = getCommandMetadata('b3_items');
+
 const data = new SlashCommandBuilder()
-  .setName('items')
-  .setDescription('🎒 Liste les objets que tu as achetés dans la boutique');
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations);
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;

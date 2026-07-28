@@ -7,24 +7,40 @@ import { getMemberRankData } from '../../services/progression/levelingService.js
 import { kotboContainer, truncate } from '../../utils/embeds.js';
 import { E, rankEmoji } from '../../utils/emojis.js';
 import { actionRow, ContainerChild, mediaGallery, separator, v2Message } from '@arcscord/components';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('c5_profile');
 
 const data = new SlashCommandBuilder()
-  .setName('profile')
-  .setDescription('👤 Affiche le profil communautaire et la progression Daily Algo')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addUserOption((option) =>
     option
       .setName('membre')
-      .setDescription('Membre à afficher (par défaut: toi)')
+      .setDescription(m.c5_profile_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c5_profile_opt_membre({}, { locale: 'fr' }) })
       .setRequired(false),
   )
   .addStringOption((option) =>
     option
       .setName('style')
-      .setDescription("Style d'affichage")
+      .setDescription(m.c5_profile_opt_style({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c5_profile_opt_style({}, { locale: 'fr' }) })
       .setRequired(false)
       .addChoices(
-        { name: 'Carte (Image)', value: 'card' },
-        { name: 'Détaillé (Texte)', value: 'detail' },
+        {
+          name: m.c5_profile_choice_card({}, { locale: 'en' }),
+          name_localizations: { fr: m.c5_profile_choice_card({}, { locale: 'fr' }) },
+          value: 'card',
+        },
+        {
+          name: m.c5_profile_choice_detail({}, { locale: 'en' }),
+          name_localizations: { fr: m.c5_profile_choice_detail({}, { locale: 'fr' }) },
+          value: 'detail',
+        },
       ),
   );
 

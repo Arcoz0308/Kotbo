@@ -19,6 +19,17 @@ model ActivationCode {
   usedByGuildId String?   @unique
   isActive      Boolean   @default(true)
 
+  // ── Accès à durée limitée ───────────────────────────────────────────────────
+  // Type d'accès accordé au serveur qui consomme le code.
+  // PERMANENT (comportement historique) | TRIAL | SUBSCRIPTION
+  accessType      String @default("PERMANENT")
+  // Durée de l'accès, en minutes. null = accès sans expiration (PERMANENT).
+  // La minute est l'unité de stockage unique : elle couvre aussi bien un essai
+  // commercial de 15 jours qu'une période de 30 minutes pour tester le flux.
+  durationMinutes Int?
+  // Note libre côté admin (nom du client, contexte commercial…).
+  label           String?
+
   @@map("activation_codes")
 }
 

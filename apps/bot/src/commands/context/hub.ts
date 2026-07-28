@@ -1,6 +1,7 @@
 import { ApplicationCommandType, ContextMenuCommandBuilder } from 'discord.js';
 import type { ContextCommandDefinition } from '../../commands.js';
 import { openMessageHub, openUserHub } from '../../services/core/contextMenuHubService.js';
+import { getCommandMetadata } from '../../utils/i18n.js';
 
 /**
  * Entrées « hub » des menus contextuels.
@@ -13,12 +14,16 @@ import { openMessageHub, openUserHub } from '../../services/core/contextMenuHubS
  * menus User et Message par leur type.
  */
 
+const hubMeta = getCommandMetadata('c6_hub_context');
+
 const userHubData = new ContextMenuCommandBuilder()
-  .setName('⚡ Actions Kotbo')
+  .setName(hubMeta.name)
+  .setNameLocalizations(hubMeta.nameLocalizations)
   .setType(ApplicationCommandType.User);
 
 const messageHubData = new ContextMenuCommandBuilder()
-  .setName('⚡ Actions Kotbo')
+  .setName(hubMeta.name)
+  .setNameLocalizations(hubMeta.nameLocalizations)
   .setType(ApplicationCommandType.Message);
 
 export const userHubContextCommand = {

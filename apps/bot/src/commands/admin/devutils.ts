@@ -8,50 +8,77 @@ import { errorContainer, kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { createHash } from 'crypto';
 import { separator, v2Message } from '@arcscord/components';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('c1_devutils');
+const jwtMeta = getCommandMetadata('c1_devutils_jwt');
+const base64Meta = getCommandMetadata('c1_devutils_base64');
+const hashMeta = getCommandMetadata('c1_devutils_hash');
 
 const data = new SlashCommandBuilder()
-  .setName('devutils')
-  .setDescription('Utilitaires pour développeurs')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addSubcommand(sub =>
     sub
-      .setName('jwt')
-      .setDescription('Décode un token JWT (sans vérifier la signature)')
+      .setName(jwtMeta.name)
+      .setNameLocalizations(jwtMeta.nameLocalizations)
+      .setDescription(jwtMeta.description)
+      .setDescriptionLocalizations(jwtMeta.descriptionLocalizations)
       .addStringOption(option =>
         option
           .setName('token')
-          .setDescription('Le token JWT à décoder')
+          .setDescription(m.c1_devutils_jwt_opt_token({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.c1_devutils_jwt_opt_token({}, { locale: 'fr' }) })
           .setRequired(true)
       )
   )
   .addSubcommand(sub =>
     sub
-      .setName('base64')
-      .setDescription('Encode ou décode une chaîne en Base64')
+      .setName(base64Meta.name)
+      .setNameLocalizations(base64Meta.nameLocalizations)
+      .setDescription(base64Meta.description)
+      .setDescriptionLocalizations(base64Meta.descriptionLocalizations)
       .addStringOption(option =>
         option
           .setName('action')
-          .setDescription('encode ou decode')
+          .setDescription(m.c1_devutils_base64_opt_action({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.c1_devutils_base64_opt_action({}, { locale: 'fr' }) })
           .setRequired(true)
           .addChoices(
-            { name: 'Encoder', value: 'encode' },
-            { name: 'Décoder', value: 'decode' }
+            {
+              name: m.c1_devutils_base64_choice_encode({}, { locale: 'en' }),
+              name_localizations: { fr: m.c1_devutils_base64_choice_encode({}, { locale: 'fr' }) },
+              value: 'encode',
+            },
+            {
+              name: m.c1_devutils_base64_choice_decode({}, { locale: 'en' }),
+              name_localizations: { fr: m.c1_devutils_base64_choice_decode({}, { locale: 'fr' }) },
+              value: 'decode',
+            }
           )
       )
       .addStringOption(option =>
         option
           .setName('content')
-          .setDescription('La chaîne à encoder/décoder')
+          .setDescription(m.c1_devutils_base64_opt_content({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.c1_devutils_base64_opt_content({}, { locale: 'fr' }) })
           .setRequired(true)
       )
   )
   .addSubcommand(sub =>
     sub
-      .setName('hash')
-      .setDescription('Génère un hash SHA-256')
+      .setName(hashMeta.name)
+      .setNameLocalizations(hashMeta.nameLocalizations)
+      .setDescription(hashMeta.description)
+      .setDescriptionLocalizations(hashMeta.descriptionLocalizations)
       .addStringOption(option =>
         option
           .setName('content')
-          .setDescription('La chaîne à hasher')
+          .setDescription(m.c1_devutils_hash_opt_content({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.c1_devutils_hash_opt_content({}, { locale: 'fr' }) })
           .setRequired(true)
       )
   );

@@ -402,8 +402,9 @@
       <LoadingHint context="config" />
     </div>
   {:else if loadError}
-    <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
-      ⚠️ {loadError}
+    <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold flex items-center gap-2">
+      <Papicon icon="alert-triangle" size={18} />
+      <span>{loadError}</span>
     </div>
   {:else}
     <div class="flex flex-col gap-8">
@@ -492,7 +493,7 @@
       {#if activeTab === 'custom'}
         {#if !checkCustom}
           <div class="p-4 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center gap-3">
-            <span class="text-tertiary text-lg">⚠️</span>
+            <span class="text-tertiary shrink-0"><Papicon icon="alert-triangle" size={20} /></span>
             <p class="text-sm text-on-surface">
               <strong class="text-tertiary">Inactif</strong> — La surveillance des mots personnalisés est désactivée dans vos paramètres d'activation.
             </p>

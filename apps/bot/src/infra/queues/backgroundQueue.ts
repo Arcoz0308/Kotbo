@@ -33,6 +33,7 @@ export type BackgroundJobName =
   | 'marketplace-expiration'
   | 'quest-expiration'
   | 'giveaways-expiration'
+  | 'access-lifecycle'
   | 'stats-ping';
 
 

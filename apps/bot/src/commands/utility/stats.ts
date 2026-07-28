@@ -5,24 +5,45 @@ import { generateMemberStatsImage } from '../../services/core/imageService.js';
 import { kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { mediaGallery, v2Message } from '@arcscord/components';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b2_stats');
+
 const data = new SlashCommandBuilder()
-  .setName('stats')
-  .setDescription("📊 Affiche les statistiques d'activité d'un membre")
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addUserOption((option) =>
-    option.setName('membre').setDescription('Membre à afficher (par défaut: toi)').setRequired(false),
+    option
+      .setName('membre')
+      .setDescription(m.b2_stats_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_stats_opt_membre({}, { locale: 'fr' }) })
+      .setRequired(false),
   )
   .addIntegerOption((option) =>
     option
       .setName('periode')
-      .setDescription('Période en jours (défaut: 30)')
+      .setDescription(m.b2_stats_opt_periode({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_stats_opt_periode({}, { locale: 'fr' }) })
       .setRequired(false)
       .addChoices(
-        { name: '7 jours', value: 7 },
-        { name: '30 jours', value: 30 },
-        { name: '90 jours', value: 90 },
+        {
+          name: m.c6_period_choice_7({}, { locale: 'en' }),
+          name_localizations: { fr: m.c6_period_choice_7({}, { locale: 'fr' }) },
+          value: 7,
+        },
+        {
+          name: m.c6_period_choice_30({}, { locale: 'en' }),
+          name_localizations: { fr: m.c6_period_choice_30({}, { locale: 'fr' }) },
+          value: 30,
+        },
+        {
+          name: m.c6_period_choice_90({}, { locale: 'en' }),
+          name_localizations: { fr: m.c6_period_choice_90({}, { locale: 'fr' }) },
+          value: 90,
+        },
       ),
   );
 

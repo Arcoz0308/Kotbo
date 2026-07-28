@@ -14,8 +14,10 @@ export async function fetchRaidProtection(guildId = authStore.selectedGuildId) {
   });
 }
 
+// Ces routes renvoient la config mise a jour : on passe par dashboardRequest
+// pour recuperer le corps JSON (dashboardMutation ne renvoie qu'un booleen).
 export async function updateRaidProtection(payload: Record<string, unknown>, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/raid-protection', {
+  return dashboardRequest('/raid-protection', {
     method: 'PATCH',
     payload,
     guildId,
@@ -24,7 +26,7 @@ export async function updateRaidProtection(payload: Record<string, unknown>, gui
 }
 
 export async function setRaidMode(active: boolean, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/raid-protection/raidmode', {
+  return dashboardRequest('/raid-protection/raidmode', {
     method: 'POST',
     payload: { active },
     guildId,
@@ -33,7 +35,7 @@ export async function setRaidMode(active: boolean, guildId = authStore.selectedG
 }
 
 export async function setJoinLock(active: boolean, hours?: number, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/raid-protection/joinlock', {
+  return dashboardRequest('/raid-protection/joinlock', {
     method: 'POST',
     payload: { active, hours },
     guildId,
@@ -42,7 +44,7 @@ export async function setJoinLock(active: boolean, hours?: number, guildId = aut
 }
 
 export async function setDmLock(active: boolean, hours?: number, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/raid-protection/dmlock', {
+  return dashboardRequest('/raid-protection/dmlock', {
     method: 'POST',
     payload: { active, hours },
     guildId,
@@ -51,7 +53,7 @@ export async function setDmLock(active: boolean, hours?: number, guildId = authS
 }
 
 export async function setInviteEmergency(active: boolean, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/raid-protection/invite-emergency', {
+  return dashboardRequest('/raid-protection/invite-emergency', {
     method: 'POST',
     payload: { active },
     guildId,

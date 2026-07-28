@@ -12,21 +12,32 @@ import prisma from '../../utils/db.js';
 import { successEmbed, errorEmbed } from '../../utils/embeds.js';
 import { generateTranscriptFromMessages } from '../../services/features/transcriptService.js';
 import { logger } from '../../utils/logger.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b4_transcript');
+const genererMeta = getCommandMetadata('b4_transcript_generer');
+const listeMeta = getCommandMetadata('b4_transcript_liste');
+const rechercherMeta = getCommandMetadata('b4_transcript_rechercher');
+const supprimerMeta = getCommandMetadata('b4_transcript_supprimer');
+
 const data = new SlashCommandBuilder()
-  .setName('transcript')
-  .setDescription('📄 Génère, liste, recherche ou supprime des transcriptions de salon')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
   .addSubcommand((sub) =>
     sub
-      .setName('generer')
-      .setDescription('📄 Génère une transcription des messages de ce salon')
+      .setName(genererMeta.name)
+      .setNameLocalizations(genererMeta.nameLocalizations)
+      .setDescription(genererMeta.description)
+      .setDescriptionLocalizations(genererMeta.descriptionLocalizations)
       .addIntegerOption((option) =>
         option
           .setName('nombre')
-          .setDescription('Nombre de messages à transcrire (par défaut 100)')
+          .setDescription(m.b4_transcript_generer_opt_nombre({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_transcript_generer_opt_nombre({}, { locale: 'fr' }) })
           .setRequired(false)
           .setMinValue(1)
           .setMaxValue(5000)
@@ -34,58 +45,71 @@ const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('temps')
-          .setDescription('Début : Durée (ex: 2h), Date (JJ/MM/AAAA-HH:MM) ou Timestamp')
+          .setDescription(m.b4_transcript_generer_opt_temps({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_transcript_generer_opt_temps({}, { locale: 'fr' }) })
           .setRequired(false)
       )
       .addStringOption((option) =>
         option
           .setName('message_id')
-          .setDescription('Début : ID du message de départ')
+          .setDescription(m.b4_transcript_generer_opt_messageid({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_transcript_generer_opt_messageid({}, { locale: 'fr' }) })
           .setRequired(false)
       )
       .addStringOption((option) =>
         option
           .setName('jusqua_message_id')
-          .setDescription("Fin : ID du message d'arrêt")
+          .setDescription(m.b4_transcript_generer_opt_jusquamessageid({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_transcript_generer_opt_jusquamessageid({}, { locale: 'fr' }) })
           .setRequired(false)
       )
       .addStringOption((option) =>
         option
           .setName('jusqua_temps')
-          .setDescription('Fin : Durée (ex: 1h), Date (JJ/MM/AAAA-HH:MM) ou Timestamp')
+          .setDescription(m.b4_transcript_generer_opt_jusquatemps({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_transcript_generer_opt_jusquatemps({}, { locale: 'fr' }) })
           .setRequired(false)
       )
   )
   .addSubcommand((sub) =>
     sub
-      .setName('liste')
-      .setDescription('📋 Liste les dernières transcriptions du serveur')
+      .setName(listeMeta.name)
+      .setNameLocalizations(listeMeta.nameLocalizations)
+      .setDescription(listeMeta.description)
+      .setDescriptionLocalizations(listeMeta.descriptionLocalizations)
       .addChannelOption((option) =>
         option
           .setName('salon')
-          .setDescription('Filtrer par salon')
+          .setDescription(m.b4_transcript_liste_opt_salon({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_transcript_liste_opt_salon({}, { locale: 'fr' }) })
           .setRequired(false)
       )
   )
   .addSubcommand((sub) =>
     sub
-      .setName('rechercher')
-      .setDescription('🔎 Recherche des transcriptions par nom de salon')
+      .setName(rechercherMeta.name)
+      .setNameLocalizations(rechercherMeta.nameLocalizations)
+      .setDescription(rechercherMeta.description)
+      .setDescriptionLocalizations(rechercherMeta.descriptionLocalizations)
       .addStringOption((option) =>
         option
           .setName('requete')
-          .setDescription('Nom (ou partie du nom) du salon à rechercher')
+          .setDescription(m.b4_transcript_rechercher_opt_requete({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_transcript_rechercher_opt_requete({}, { locale: 'fr' }) })
           .setRequired(true)
       )
   )
   .addSubcommand((sub) =>
     sub
-      .setName('supprimer')
-      .setDescription('🗑️ Supprime une transcription (administrateurs)')
+      .setName(supprimerMeta.name)
+      .setNameLocalizations(supprimerMeta.nameLocalizations)
+      .setDescription(supprimerMeta.description)
+      .setDescriptionLocalizations(supprimerMeta.descriptionLocalizations)
       .addStringOption((option) =>
         option
           .setName('id')
-          .setDescription('ID de la transcription à supprimer')
+          .setDescription(m.b4_transcript_supprimer_opt_id({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_transcript_supprimer_opt_id({}, { locale: 'fr' }) })
           .setRequired(true)
       )
   );

@@ -158,7 +158,6 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
     name?: unknown;
     roles?: unknown;
     // Presents sur les interactions uniquement.
-    isChatInput?: () => boolean;
     commandName?: unknown;
     user?: { id?: unknown } | null;
     author?: { id?: unknown } | null;
@@ -192,12 +191,15 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
   }
 
   if (guildId) {
-    if (
-      eventName === Events.InteractionCreate &&
-      typeof arg.isChatInput === 'function' &&
-      arg.isChatInput() &&
-      arg.commandName === 'activate'
-    ) {
+    // `/activate` doit franchir la garde ci-dessous, sinon un serveur non activé
+    // n'aurait aucun moyen de s'activer.
+    //
+    // On se contente de `commandName`, porté par les seules interactions de
+    // commande : dépendre d'une méthode de discord.js avait fait échouer cette
+    // exception en silence, `isChatInput` (nom v13) n'existant plus en v14 sous
+    // ce nom. La garde renvoyant `false` sans rien journaliser, la commande
+    // restait muette sans le moindre indice.
+    if (eventName === Events.InteractionCreate && arg.commandName === 'activate') {
       isActivateCommand = true;
     }
 

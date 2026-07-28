@@ -14,17 +14,29 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('b1_note');
+const contextMeta = getCommandMetadata('b1_note_context');
 
 const data = new SlashCommandBuilder()
-  .setName('note')
-  .setDescription("📝 Gère la note modérateur d'un membre")
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
   .addUserOption((option) =>
-    option.setName('membre').setDescription('Le membre pour lequel vous souhaitez modifier la note').setRequired(true),
+    option
+      .setName('membre')
+      .setDescription(m.b1_note_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b1_note_opt_membre({}, { locale: 'fr' }) })
+      .setRequired(true),
   );
 
 const contextData = new ContextMenuCommandBuilder()
-  .setName('Note Modérateur')
+  .setName(contextMeta.name)
+  .setNameLocalizations(contextMeta.nameLocalizations)
   .setType(ApplicationCommandType.User)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 

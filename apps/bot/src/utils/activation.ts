@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import prisma from './db.js';
 import { logger } from './logger.js';
 import { getClient } from './client.js';
+import { buildAccessFields, type AccessType } from '../services/system/accessService.js';
 
 function hashActivationCode(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex');
@@ -39,10 +40,26 @@ export function isGuildActivated(guildId: string): boolean {
 }
 
 /**
- * Activates a guild in the database and updates the cache.
+ * Résultat d'une activation, décrivant l'accès accordé au serveur.
+ * `expiresAt` est null pour un accès permanent (comportement historique).
  */
-export async function activateGuild(guildId: string, code: string): Promise<void> {
+export interface ActivationResult {
+  accessType: AccessType;
+  durationMinutes: number | null;
+  expiresAt: Date | null;
+}
+
+/**
+ * Activates a guild in the database and updates the cache.
+ *
+ * Le type d'accès (permanent, essai, abonnement) et sa durée sont portés par le
+ * code consommé : un code « essai 15 jours » pose directement la date de fin sur
+ * la guilde, que le cron `access-lifecycle` se chargera ensuite de faire vivre.
+ */
+export async function activateGuild(guildId: string, code: string): Promise<ActivationResult> {
   const normalizedCode = code.trim().toUpperCase();
+  const activatedAt = new Date();
+  let result: ActivationResult = { accessType: 'PERMANENT', durationMinutes: null, expiresAt: null };
 
   await prisma.$transaction(async (tx) => {
     const activationCode = await tx.activationCode.findUnique({
@@ -53,10 +70,21 @@ export async function activateGuild(guildId: string, code: string): Promise<void
       throw new Error('Code invalide, déjà utilisé ou expiré.');
     }
 
+    const accessFields = buildAccessFields(
+      (activationCode.accessType as AccessType) ?? 'PERMANENT',
+      activationCode.durationMinutes,
+      activatedAt,
+    );
+    result = {
+      accessType: accessFields.accessType,
+      durationMinutes: accessFields.accessExpiresAt ? activationCode.durationMinutes : null,
+      expiresAt: accessFields.accessExpiresAt,
+    };
+
     await tx.activationCode.update({
       where: { code: normalizedCode },
       data: {
-        usedAt: new Date(),
+        usedAt: activatedAt,
         usedByGuildId: guildId,
         isActive: false,
       },
@@ -66,26 +94,34 @@ export async function activateGuild(guildId: string, code: string): Promise<void
       where: { id: guildId },
       update: {
         activated: true,
-        activatedAt: new Date(),
+        activatedAt,
         activationCode: hashActivationCode(normalizedCode),
         activatedViaStaffLink: false,
+        ...accessFields,
       },
       create: {
         id: guildId,
         activated: true,
-        activatedAt: new Date(),
+        activatedAt,
         activationCode: hashActivationCode(normalizedCode),
         activatedViaStaffLink: false,
+        ...accessFields,
       },
     });
   });
 
-  logger.success('Activation', `Le serveur ${guildId} a été activé.`);
+  logger.success(
+    'Activation',
+    `Le serveur ${guildId} a été activé` +
+      (result.expiresAt ? ` (${result.accessType}, fin le ${result.expiresAt.toISOString()}).` : '.'),
+  );
 
   await broadcastActivationChange(guildId, true);
 
   // Ce serveur peut être le principal d'un ou plusieurs serveurs staff en attente.
   await cascadeToLinkedStaffGuilds(guildId);
+
+  return result;
 }
 
 async function broadcastActivationChange(guildId: string, activated: boolean): Promise<void> {
@@ -217,26 +253,49 @@ async function cascadeToLinkedStaffGuilds(mainGuildId: string): Promise<void> {
   }
 }
 
+export interface DeactivateOptions {
+  /**
+   * Remet le code consommé en circulation (défaut : true, comportement d'une
+   * désactivation manuelle). Mis à false quand l'accès arrive à échéance : un
+   * essai terminé ne doit jamais pouvoir être rejoué avec le même code.
+   */
+  recycleCode?: boolean;
+}
+
 /**
  * Deactivates a guild.
  */
-export async function deactivateGuild(guildId: string): Promise<void> {
-  // Find code associated with the guild
-  const dbGuild = await prisma.guild.findUnique({
-    where: { id: guildId },
-    select: { activationCode: true }
-  });
+export async function deactivateGuild(guildId: string, options: DeactivateOptions = {}): Promise<void> {
+  const { recycleCode = true } = options;
 
-  if (dbGuild?.activationCode) {
-    // Reactivate the code so it is no longer marked used
-    await prisma.activationCode.update({
-      where: { code: dbGuild.activationCode },
+  if (recycleCode) {
+    // On retrouve le code par le serveur qui l'a consommé, jamais par
+    // `guild.activationCode` : cette colonne ne contient qu'une empreinte
+    // SHA-256 du code, précisément pour qu'une lecture de la table `guilds` ne
+    // livre pas un code réutilisable. Chercher par cette empreinte ne pouvait
+    // donc jamais aboutir.
+    //
+    // `updateMany` ne lève pas quand aucune ligne ne correspond : cas normal
+    // d'un serveur staff, qui hérite de l'activation du principal sans posséder
+    // de code à lui.
+    //
+    // Seuls les codes permanents sont remis en circulation : reprendre une
+    // licence pour la réattribuer ailleurs est légitime. Un code à durée limitée
+    // est consommé une fois pour toutes : sans quoi le même code rejouerait
+    // indéfiniment une nouvelle période d'essai. Pour redonner un essai, on
+    // génère un nouveau code.
+    const { count } = await prisma.activationCode.updateMany({
+      where: { usedByGuildId: guildId, accessType: 'PERMANENT' },
       data: {
         usedAt: null,
         usedByGuildId: null,
         isActive: true
       }
-    }).catch(() => null);
+    });
+
+    if (count > 0) {
+      logger.info('Activation', `${count} code(s) permanent(s) remis en circulation après la désactivation de ${guildId}.`);
+    }
   }
 
   // Deactivate the guild

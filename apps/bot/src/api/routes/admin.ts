@@ -6,6 +6,7 @@ import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
+import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,6 +23,15 @@ import {
 } from '../../services/analytics/moduleStatsService.js';
 import { collectUserData } from '../../services/system/gdprExportService.js';
 import { buildGdprZip } from '../../services/system/gdprZip.js';
+
+/**
+ * `readJsonBody` refuse (415) toute requête sans Content-Type JSON. Les endpoints
+ * dont le corps est facultatif s'en servent pour ne le lire que s'il existe, et
+ * rester compatibles avec les appels historiques sans corps.
+ */
+function isJsonRequest(req: IncomingMessage): boolean {
+  return req.headers['content-type']?.includes('application/json') ?? false;
+}
 
 export async function handleAdminRoutes(
   req: IncomingMessage,
@@ -1155,14 +1165,29 @@ export async function handleAdminRoutes(
       const codes = await prisma.activationCode.findMany({
         orderBy: { createdAt: 'desc' }
       });
+      // État d'accès des serveurs ayant consommé un code, pour afficher
+      // l'échéance et le temps restant à côté du code.
+      const usedGuildIds = codes.map((c) => c.usedByGuildId).filter((id): id is string => !!id);
+      const accessRows = usedGuildIds.length
+        ? await prisma.guild.findMany({
+            where: { id: { in: usedGuildIds } },
+            select: { id: true, activated: true, accessType: true, accessExpiresAt: true, accessExpiredAt: true },
+          })
+        : [];
+      const accessByGuild = new Map(accessRows.map((g) => [g.id, g] as const));
+
       const enrichedCodes = await Promise.all(codes.map(async (c) => {
         let guildName = null;
         if (c.usedByGuildId) {
           guildName = guildNames.get(c.usedByGuildId) ?? getGuildName(client, c.usedByGuildId);
         }
+        const access = c.usedByGuildId ? accessByGuild.get(c.usedByGuildId) : null;
         return {
           ...c,
-          guildName
+          guildName,
+          guildActivated: access?.activated ?? null,
+          accessExpiresAt: access?.accessExpiresAt ?? null,
+          accessExpiredAt: access?.accessExpiredAt ?? null,
         };
       }));
       json(res, 200, enrichedCodes);
@@ -1176,13 +1201,27 @@ export async function handleAdminRoutes(
   // POST /api/admin/activation-codes
   if (parts.length === 3 && parts[2] === 'activation-codes' && method === 'POST') {
     try {
+      // Corps optionnel : sans lui, on retombe sur un code permanent, le
+      // comportement historique de cet endpoint.
+      const body = isJsonRequest(req)
+        ? await readJsonBody<{ accessType?: string; durationMinutes?: number | null; label?: string | null }>(req)
+        : null;
+      const access = normalizeAccessGrant(body?.accessType, body?.durationMinutes);
+      if ('error' in access) {
+        json(res, 400, { error: access.error });
+        return true;
+      }
+
       const code = `KB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-      
+
       const newCode = await prisma.activationCode.create({
         data: {
           code,
           createdById: user.userId,
-          isActive: true
+          isActive: true,
+          accessType: access.accessType,
+          durationMinutes: access.durationMinutes,
+          label: body?.label?.trim() || null,
         }
       });
 
@@ -1209,6 +1248,11 @@ export async function handleAdminRoutes(
 
       if (codeRow.usedByGuildId) {
         await deactivateGuild(codeRow.usedByGuildId);
+        // Le serveur perd tout sur décision humaine : il faut le lui dire.
+        // Jamais bloquant, une notification ratée ne doit pas annuler la révocation.
+        await announceAccessRevoked(client, codeRow.usedByGuildId).catch((err) =>
+          logger.warn('AdminAPI', `Impossible de prévenir ${codeRow.usedByGuildId} de la révocation :`, err),
+        );
       }
 
       await prisma.activationCode.delete({
@@ -1258,6 +1302,9 @@ export async function handleAdminRoutes(
     const guildId = parts[3];
     try {
       await deactivateGuild(guildId);
+      await announceAccessRevoked(client, guildId).catch((err) =>
+        logger.warn('AdminAPI', `Impossible de prévenir ${guildId} de la désactivation :`, err),
+      );
       json(res, 200, { ok: true, message: 'Le serveur a été désactivé.' });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la désactivation du serveur :', err);
@@ -1270,22 +1317,87 @@ export async function handleAdminRoutes(
   if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'activate-auto' && method === 'POST') {
     const guildId = parts[3];
     try {
+      // Corps optionnel : sans lui, l'activation reste permanente comme avant.
+      const body = isJsonRequest(req)
+        ? await readJsonBody<{ accessType?: string; durationMinutes?: number | null }>(req)
+        : null;
+      const access = normalizeAccessGrant(body?.accessType, body?.durationMinutes);
+      if ('error' in access) {
+        json(res, 400, { error: access.error });
+        return true;
+      }
+
       const code = `KB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
       await prisma.activationCode.create({
         data: {
           code,
           createdById: user.userId,
-          isActive: true
+          isActive: true,
+          accessType: access.accessType,
+          durationMinutes: access.durationMinutes,
         }
       });
 
-      await activateGuild(guildId, code);
+      const result = await activateGuild(guildId, code);
 
-      json(res, 200, { ok: true, code, message: 'Le serveur a été activé automatiquement.' });
+      if (result.expiresAt && result.durationMinutes) {
+        await announceTrialStart(client, guildId, result.expiresAt, result.durationMinutes).catch((err) =>
+          logger.warn('AdminAPI', `Impossible d'annoncer le démarrage de l'essai sur ${guildId} :`, err),
+        );
+      }
+
+      json(res, 200, {
+        ok: true,
+        code,
+        accessType: result.accessType,
+        accessExpiresAt: result.expiresAt,
+        message: result.expiresAt
+          ? `Le serveur a été activé pour ${formatDuration(result.durationMinutes!)}.`
+          : 'Le serveur a été activé automatiquement.',
+      });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la génération et affectation du code :', err);
       json(res, 500, { error: "Erreur lors de l'activation automatique du serveur." });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/access/extend : prolonge un accès à durée limitée
+  if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'access' && parts[5] === 'extend' && method === 'POST') {
+    const guildId = parts[3];
+    try {
+      const body = await readJsonBody<{ minutes?: number; accessType?: string }>(req);
+      const minutes = typeof body?.minutes === 'number' ? body.minutes : Number(body?.minutes);
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_ACCESS_DURATION_MINUTES) {
+        json(res, 400, { error: `La durée doit être un nombre entier de minutes entre 1 et ${MAX_ACCESS_DURATION_MINUTES}.` });
+        return true;
+      }
+
+      const type = body?.accessType ? normalizeAccessGrant(body.accessType, minutes) : null;
+      if (type && 'error' in type) {
+        json(res, 400, { error: type.error });
+        return true;
+      }
+
+      const status = await extendAccess(guildId, minutes, type ? { type: type.accessType } : {});
+      if (!status) {
+        json(res, 404, { error: "Ce serveur n'est pas enregistré." });
+        return true;
+      }
+
+      json(res, 200, {
+        ok: true,
+        accessType: status.accessType,
+        accessExpiresAt: status.accessExpiresAt,
+        minutesLeft: status.minutesLeft,
+        message: status.accessExpiresAt
+          ? `Accès prolongé jusqu'au ${status.accessExpiresAt.toLocaleString('fr-FR')}.`
+          : 'Ce serveur dispose déjà d\'un accès permanent.',
+      });
+    } catch (err) {
+      logger.error('AdminAPI', "Erreur lors de la prolongation de l'accès :", err);
+      json(res, 500, { error: "Erreur lors de la prolongation de l'accès." });
     }
     return true;
   }

@@ -10,29 +10,46 @@ import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { errorContainer, kotboContainer, successContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { separator, v2Message } from '@arcscord/components';
+import { getCommandMetadata } from '../../utils/i18n.js';
+
+const meta = getCommandMetadata('c5_widget');
+const activerMeta = getCommandMetadata('c5_widget_activer');
+const desactiverMeta = getCommandMetadata('c5_widget_desactiver');
+const refreshMeta = getCommandMetadata('c5_widget_refresh');
+const infoMeta = getCommandMetadata('c5_widget_info');
 
 const data = new SlashCommandBuilder()
-  .setName('widget')
-  .setDescription('Gérer ton widget de profil Discord (Social Layer)')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addSubcommand((sub) =>
     sub
-      .setName('activer')
-      .setDescription('Activer le widget sur ton profil pour ce serveur'),
+      .setName(activerMeta.name)
+      .setNameLocalizations(activerMeta.nameLocalizations)
+      .setDescription(activerMeta.description)
+      .setDescriptionLocalizations(activerMeta.descriptionLocalizations),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('desactiver')
-      .setDescription('Désactiver et supprimer le widget de ton profil'),
+      .setName(desactiverMeta.name)
+      .setNameLocalizations(desactiverMeta.nameLocalizations)
+      .setDescription(desactiverMeta.description)
+      .setDescriptionLocalizations(desactiverMeta.descriptionLocalizations),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('refresh')
-      .setDescription('Rafraîchir manuellement les données du widget'),
+      .setName(refreshMeta.name)
+      .setNameLocalizations(refreshMeta.nameLocalizations)
+      .setDescription(refreshMeta.description)
+      .setDescriptionLocalizations(refreshMeta.descriptionLocalizations),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('info')
-      .setDescription('Voir le statut de ton widget'),
+      .setName(infoMeta.name)
+      .setNameLocalizations(infoMeta.nameLocalizations)
+      .setDescription(infoMeta.description)
+      .setDescriptionLocalizations(infoMeta.descriptionLocalizations),
   );
 
 function getDashboardLoginUrl(): string {

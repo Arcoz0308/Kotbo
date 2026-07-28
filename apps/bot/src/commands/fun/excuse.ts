@@ -2,29 +2,34 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b2_excuse');
+
+const EXCUSE_CATEGORIES = [
+  'classiques', 'git_cicd', 'infra_cloud', 'frontend', 'backend',
+  'dependencies', 'management', 'ai', 'hardware', 'bad_faith',
+] as const;
+
+const categoryChoice = (key: (typeof EXCUSE_CATEGORIES)[number]) => ({
+  name: (m as any)[`b2_excuse_choice_${key}`]({}, { locale: 'en' }) as string,
+  name_localizations: { fr: (m as any)[`b2_excuse_choice_${key}`]({}, { locale: 'fr' }) as string },
+  value: key,
+});
+
 const data = new SlashCommandBuilder()
-  .setName('excuse')
-  .setDescription('😅 Génère une excuse de développeur aléatoire')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addStringOption((option) =>
     option
       .setName('catégorie')
-      .setDescription("Catégorie de l'excuse (optionnel)")
+      .setDescription(m.b2_excuse_opt_categorie({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_excuse_opt_categorie({}, { locale: 'fr' }) })
       .setRequired(false)
-      .addChoices(
-        { name: '🎯 Les classiques incontournables', value: 'classiques' },
-        { name: '🔀 Git, CI/CD & Révisions', value: 'git_cicd' },
-        { name: '☁️ Infrastructure, Docker & Cloud', value: 'infra_cloud' },
-        { name: '🎨 Front-end, CSS & Browsers', value: 'frontend' },
-        { name: '⚙️ Back-end, APIs & Data', value: 'backend' },
-        { name: '📦 Enfer des dépendances & Runtimes', value: 'dependencies' },
-        { name: '📋 Gestion de projet & Spécifications', value: 'management' },
-        { name: "🤖 L'ère de l'IA & Génération de code", value: 'ai' },
-        { name: '💻 Physique, Réseau & Hardware', value: 'hardware' },
-        { name: '🃏 Mauvaise foi pure & Facteur humain', value: 'bad_faith' },
-      ),
+      .addChoices(...EXCUSE_CATEGORIES.map(categoryChoice)),
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
