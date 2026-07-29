@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { readStatsConfig } from './services/analytics/statsConfig.js';
+import { trackGhostSignal } from './services/analytics/ghostActivityTracker.js';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -45,6 +46,7 @@ import { registerNicknameModerationListener } from './events/nicknameModeration.
 import { registerTempVoiceListener } from './events/tempVoice.js';
 import { registerHoneypotListener } from './events/honeypot.js';
 import { registerMessageLoggingListener } from './events/messageLogging.js';
+import { registerAuditEventsListener } from './events/auditEvents.js';
 import { registerAnalyticsTrackers } from './events/analyticsTrackers.js';
 import { registerStatsChannelListener } from './events/stats.js';
 import { registerFunEventsListener } from './events/funEvents.js';
@@ -68,6 +70,7 @@ import { registerRaidProtectionListener } from './events/raidProtection.js';
 import { registerClanListener } from './events/clanEvents.js';
 import { registerEventBusBridge } from './events/eventBusBridge.js';
 import { registerAnalyticsBusSubscribers } from './modules/analytics.module.js';
+import { registerWorkflowBusSubscribers } from './modules/workflow.module.js';
 import { registerLevelingBusSubscribers } from './modules/leveling.module.js';
 import { registerAutoModBusSubscribers } from './modules/autoMod.module.js';
 import { registerAdminLockModule } from './modules/adminLock.module.js';
@@ -341,6 +344,7 @@ client.once(Events.ClientReady, async (c) => {
 
   // ── Bus-based modules (decoupled, error-isolated) ─────────
   registerAnalyticsBusSubscribers(client);
+  registerWorkflowBusSubscribers(client);
   registerLevelingBusSubscribers(client);
   registerAutoModBusSubscribers(client);
   registerAdminLockModule(client);
@@ -358,6 +362,7 @@ client.once(Events.ClientReady, async (c) => {
   registerTempVoiceListener(client);
   registerHoneypotListener(client);
   registerMessageLoggingListener(client);
+  registerAuditEventsListener(client);
   registerAnalyticsTrackers(client);
   registerStatsChannelListener(client);
   registerFunEventsListener(client);
@@ -552,6 +557,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
         return;
       }
+    }
+
+    // 3. Ghost Analyzer : toute interaction prouve qu'un compte est habité,
+    //    même si son porteur n'écrit jamais dans les salons.
+    if (interaction.guildId && !interaction.user.bot) {
+      trackGhostSignal(interaction.guildId, interaction.user.id, 'interaction');
     }
 
     if (interaction.isChatInputCommand()) {

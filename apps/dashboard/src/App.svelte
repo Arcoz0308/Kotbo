@@ -527,6 +527,10 @@
               load={() => import("./pages/Logs.svelte")}
             />
             <LazyRoute
+              path="/workflows"
+              load={() => import("./pages/Workflows.svelte")}
+            />
+            <LazyRoute
               path="/sanctions/*"
               load={() => import("./pages/Sanctions.svelte")}
             />

@@ -1630,5 +1630,15 @@
   "access_sub_ended_title": "Subscription expired",
   "access_sub_ended_desc": "The Kotbo subscription for **{guild}** has expired: the bot is now deactivated and the dashboard is locked.\n\nYour data and settings are kept. Contact the Kotbo team to renew and reactivate the server.",
   "access_revoked_title": "Access revoked",
-  "access_revoked_desc": "The Kotbo access for **{guild}** has been revoked by the Kotbo team: the bot is now deactivated and the dashboard is locked.\n\nYour data and settings are kept as they are. Reactivating restores the server exactly as it was.\n\nIf you believe this is a mistake, contact the Kotbo team."
+  "access_revoked_desc": "The Kotbo access for **{guild}** has been revoked by the Kotbo team: the bot is now deactivated and the dashboard is locked.\n\nYour data and settings are kept as they are. Reactivating restores the server exactly as it was.\n\nIf you believe this is a mistake, contact the Kotbo team.",
+  "sim_name": "simulation",
+  "sim_description": "Moderator training on simulated incidents",
+  "sim_start_name": "start",
+  "sim_start_description": "Start a training session in the test channel",
+  "sim_stop_name": "stop",
+  "sim_stop_description": "Stop your running session and publish the report",
+  "sim_list_name": "list",
+  "sim_list_description": "List available scenarios",
+  "sim_scenario_option": "scenario",
+  "sim_scenario_option_desc": "Scenario to play"
 }

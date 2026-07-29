@@ -66,6 +66,7 @@ import { dashboardCommand } from './commands/utility/dashboard.js';
 import { linkCommand } from './commands/admin/link.js';
 import { staffserverCommand } from './commands/admin/staffserver.js';
 import { channelhealthCommand } from './commands/admin/channelhealth.js';
+import { simulationCommand } from './commands/admin/simulation.js';
 import { repCommand } from './commands/community/rep.js';
 import { marketCommand } from './commands/economy/market.js';
 import { questsCommand } from './commands/community/quests.js';
@@ -166,6 +167,7 @@ export const commands: SlashCommandDefinition[] = [
   linkCommand,
   staffserverCommand,
   channelhealthCommand,
+  simulationCommand,
   repCommand,
   marketCommand,
   questsCommand,

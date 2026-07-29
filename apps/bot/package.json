@@ -27,6 +27,7 @@
     "@hono/zod-openapi": "^0.19.6",
     "@kotbo/contracts": "workspace:*",
     "@kotbo/core": "workspace:*",
+    "@kotbo/shared": "workspace:*",
     "@kotbo/database": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@napi-rs/canvas": "^0.1.100",

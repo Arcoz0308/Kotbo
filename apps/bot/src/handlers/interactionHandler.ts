@@ -125,6 +125,38 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Simulateur de modération : sim:<sessionId>:<stepIndex>:<action>[:<minutes>]
+  if (customId.startsWith('sim:')) {
+    const [, sessionId, stepIndexRaw, action, minutesRaw] = customId.split(':');
+    const { recordAnswer, SimulationError } = await import('../services/staff/simulationService.js');
+
+    try {
+      const result = await recordAnswer(
+        sessionId,
+        Number.parseInt(stepIndexRaw, 10),
+        user.id,
+        action as never,
+        minutesRaw ? Number.parseInt(minutesRaw, 10) : undefined,
+      );
+
+      // Une étape déjà traitée ou une session close ne mérite qu'un accusé discret
+      await interaction.reply({
+        content: result
+          ? `${result.correct ? '✅' : '📝'} ${result.reason}`
+          : '⏳ Cette étape est déjà traitée ou la session est terminée.',
+        flags: [MessageFlags.Ephemeral],
+      });
+    } catch (err) {
+      await interaction.reply({
+        content: err instanceof SimulationError
+          ? `❌ ${err.message}`
+          : '❌ Erreur lors de l\'enregistrement de la réponse.',
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+    return;
+  }
+
   // ── Pages de présentation du thread d'accueil ───────────────────────
   if (customId.startsWith('wpage:')) {
     const { handleWelcomeMenuInteraction } = await import('../services/features/welcomeThreadService.js');

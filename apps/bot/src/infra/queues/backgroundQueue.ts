@@ -37,6 +37,8 @@ export type BackgroundJobName =
   | 'access-lifecycle'
   | 'stats-ping'
   | 'message-logs-prune'
+  | 'audit-events-prune'
+  | 'workflow-resume'
   | 'word-stats-prune'
   | 'ban-hygiene-scan'
   | 'staff-reminders'
