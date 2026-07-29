@@ -199,8 +199,8 @@
   /* On mobile, stack vertically */
   @media (max-width: 600px) {
     .unsaved-bar {
-      bottom: var(--mobile-dock-clearance);
-      padding: 0 0.75rem 0.5rem;
+      bottom: 0;
+      padding: 0 0.75rem max(0.5rem, env(safe-area-inset-bottom));
     }
 
     .unsaved-bar__inner {

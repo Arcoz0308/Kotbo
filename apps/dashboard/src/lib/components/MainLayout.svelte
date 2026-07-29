@@ -7,7 +7,6 @@
   import TutorialWelcome from './TutorialWelcome.svelte';
   import TutorialChecklist from './TutorialChecklist.svelte';
   import PageTip from './PageTip.svelte';
-  import MobileBottomNav from './MobileBottomNav.svelte';
 
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
@@ -26,6 +25,8 @@
   import { onboardingStore } from '../stores/tutorial.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { m } from '../i18n';
+  import { responsiveTables } from '../actions/responsiveTables';
+  import { getMobilePageLayout, getPageKey } from '../mobilePageContext';
 
   const { children }: { children?: Snippet } = $props();
 
@@ -77,6 +78,8 @@
 
   // Reactively calculate the status of the current page
   const pageStatus = $derived(getPageStatus($router.path, $router.url));
+  const mobilePageLayout = $derived(getMobilePageLayout($router.path));
+  const pageKey = $derived(getPageKey($router.path));
 
   // Local state to keep track of dismissed beta banners in the current session
   let dismissedBanners = $state<Record<string, boolean>>({});
@@ -142,14 +145,21 @@
 
 <svelte:window onkeydown={handleGlobalKeyDown} />
 
+<a class="skip-link" href="#main-content">Aller au contenu</a>
+
 <div class="app-shell flex min-h-screen bg-background text-on-background transition-colors duration-200">
   <Sidebar />
-  <MobileBottomNav />
 
   <div class="app-content min-w-0 flex-1 flex flex-col transition-all duration-200 {$isMobile ? 'ml-0' : (collapsed ? 'ml-18' : 'ml-60')}">
     <Navbar />
 
-    <main class="app-main px-8 py-6 pb-20 max-w-[1400px] w-full mx-auto">
+    <main
+      id="main-content"
+      use:responsiveTables
+      data-mobile-layout={mobilePageLayout}
+      data-page={pageKey}
+      class="app-main px-8 py-6 pb-20 max-w-[1400px] w-full mx-auto"
+    >
       <Breadcrumbs />
       {#if pageStatus?.wip}
         <!-- Render WIP Overlay over blurred content -->

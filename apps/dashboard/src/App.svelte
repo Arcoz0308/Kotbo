@@ -676,11 +676,6 @@
               load={() => import("./pages/CustomForms.svelte")}
             />
             <LazyRoute
-              path="/forms/builder/new"
-              load={() => import("./pages/FormBuilder.svelte")}
-              props={() => ({ formId: null })}
-            />
-            <LazyRoute
               path="/forms/builder/:formId"
               load={() => import("./pages/FormBuilder.svelte")}
               props={(meta) => ({ formId: meta.params.formId })}

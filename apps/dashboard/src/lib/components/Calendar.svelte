@@ -249,7 +249,7 @@
     return ((now.getHours() * 60 + now.getMinutes()) / (24 * 60)) * 100;
   }
 
-  function handleMouseDown(date: Date, e: MouseEvent) {
+  function handlePointerDown(date: Date, e: PointerEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
 
@@ -258,13 +258,45 @@
       minutes = Math.floor(((y / rect.height) * (24 * 60)) / 30) * 30;
     }
 
+    if (e.pointerType !== 'mouse') {
+      const pointerId = e.pointerId;
+      const startX = e.clientX;
+      const startY = e.clientY;
+
+      const cleanup = () => {
+        window.removeEventListener('pointerup', onTouchEnd);
+        window.removeEventListener('pointercancel', cleanup);
+      };
+
+      const onTouchEnd = (endEvent: PointerEvent) => {
+        if (endEvent.pointerId !== pointerId) return;
+        cleanup();
+        if (Math.hypot(endEvent.clientX - startX, endEvent.clientY - startY) > 10) return;
+
+        const tappedMinutes = isTimeView
+          ? Math.floor((((endEvent.clientY - rect.top) / rect.height) * (24 * 60)) / 30) * 30
+          : 0;
+        const start = new Date(date);
+        start.setHours(Math.floor(tappedMinutes / 60), tappedMinutes % 60, 0, 0);
+        if (isTimeView) {
+          onDateClick(start, new Date(start.getTime() + 30 * 60 * 1000));
+        } else {
+          onDateClick(start);
+        }
+      };
+
+      window.addEventListener('pointerup', onTouchEnd);
+      window.addEventListener('pointercancel', cleanup);
+      return;
+    }
+
     isSelecting = true;
     selectionStart = { date, minutes };
     selectionEnd = { date, minutes: isTimeView ? minutes + 30 : 1410 };
 
     const cellClass = isTimeView ? '.day-column' : '.month-day';
 
-    const onMove = (me: MouseEvent) => {
+    const onMove = (me: PointerEvent) => {
       if (!isSelecting || !selectionStart) return;
       const el = document.elementFromPoint(me.clientX, me.clientY);
       const cell = el?.closest(cellClass) as HTMLElement;
@@ -306,12 +338,12 @@
       isSelecting = false;
       selectionStart = null;
       selectionEnd = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     };
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }
 
   function scrollToCurrentTime() {
@@ -401,7 +433,7 @@
           {@const dayEvents = getEventsForDate(date)}
           <div
             class="month-day min-h-27.5 p-1.5 border-b border-r border-outline-variant/10 last:border-r-0 hover:bg-surface-hover/20 transition-colors group relative select-none {isCurrentMonth ? '' : 'opacity-40'}"
-            onmousedown={(e) => handleMouseDown(date, e)}
+            onpointerdown={(e) => handlePointerDown(date, e)}
             role="button"
             tabindex="0"
           >
@@ -425,7 +457,7 @@
               {#each dayEvents.slice(0, 3) as event}
                 <button
                   onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
-                  onmousedown={(e) => e.stopPropagation()}
+                  onpointerdown={(e) => e.stopPropagation()}
                   class="w-full text-left px-1.5 py-0.5 rounded text-[10px] truncate flex items-center gap-1 transition-all {getEventBg(event.type)} cursor-pointer"
                 >
                   <span class="w-1.5 h-1.5 rounded-full shrink-0 {getEventDotColor(event.type)}"></span>
@@ -438,7 +470,7 @@
               {#if dayEvents.length > 3}
                 <button
                   onclick={(e) => { e.stopPropagation(); onDateClick(date); }}
-                  onmousedown={(e) => e.stopPropagation()}
+                  onpointerdown={(e) => e.stopPropagation()}
                   class="w-full text-center py-0.5 text-[9px] font-semibold text-primary/70 hover:text-primary transition-colors"
                 >
                   +{dayEvents.length - 3} autres
@@ -486,7 +518,7 @@
               {#each allDayEvents.slice(0, 2) as event}
                 <button
                   onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
-                  onmousedown={(e) => e.stopPropagation()}
+                  onpointerdown={(e) => e.stopPropagation()}
                   class="w-full text-left px-2 py-0.5 rounded text-[10px] font-semibold truncate border-l-[3px] {getEventLeftBorder(event.type)} {getEventBg(event.type)} transition-all cursor-pointer"
                 >
                   <span class="inline-flex items-center gap-1">
@@ -524,7 +556,15 @@
               {@const dayEvents = getEventsForDate(date)}
               <div
                 class="day-column relative border-r border-outline-variant/10 last:border-r-0 h-full {isToday(date) ? 'bg-primary/2' : ''} transition-colors cursor-pointer select-none"
-                onmousedown={(e) => handleMouseDown(date, e)}
+                onpointerdown={(e) => handlePointerDown(date, e)}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    const start = new Date(date);
+                    start.setHours(9, 0, 0, 0);
+                    onDateClick(start, new Date(start.getTime() + 30 * 60 * 1000));
+                  }
+                }}
                 role="button"
                 tabindex="0"
               >
@@ -561,7 +601,7 @@
                   {@const styles = getEventStyles(event, dayEvents)}
                   <button
                     onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
-                    onmousedown={(e) => e.stopPropagation()}
+                    onpointerdown={(e) => e.stopPropagation()}
                     class="absolute rounded-sm overflow-hidden transition-all hover:z-20 hover:shadow-lg hover:shadow-black/20 cursor-pointer border-l-[3px] {getEventLeftBorder(event.type)} {getEventBg(event.type)}"
                     style="top: {styles.top}%; height: {styles.height}%; left: calc({styles.left}% + 2px); width: calc({styles.width}% - 4px); min-height: 22px;"
                   >
@@ -669,6 +709,10 @@
     .month-day button {
       padding-right: 0.25rem !important;
       padding-left: 0.25rem !important;
+    }
+
+    .day-column > button {
+      min-height: 1.75rem !important;
     }
   }
 </style>

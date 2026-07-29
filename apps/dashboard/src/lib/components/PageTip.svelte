@@ -62,17 +62,17 @@
 {#if show && tip}
   {@const Icon = iconMap[tip.icon] || Lightbulb}
   <div
-    class="mb-6"
+    class="page-tip mb-6"
     transition:fly={{ y: -12, duration: 300, easing: cubicOut }}
   >
-    <div class="relative bg-surface-container-lowest border border-primary/20 rounded-xl overflow-hidden shadow-sm">
+    <div class="page-tip__card relative bg-surface-container-lowest border border-primary/20 rounded-xl overflow-hidden shadow-sm">
       <!-- Top gradient line -->
       <div class="h-0.5 bg-gradient-to-r from-primary via-secondary to-primary/30"></div>
 
-      <div class="p-5">
-        <div class="flex items-start gap-4">
+      <div class="page-tip__inner p-5">
+        <div class="page-tip__layout flex items-start gap-4">
           <!-- Icon -->
-          <div class="shrink-0">
+          <div class="page-tip__icon shrink-0">
             <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <Icon class="w-5 h-5 text-primary" />
             </div>
@@ -98,13 +98,13 @@
               </button>
             </div>
 
-            <p class="text-sm text-on-surface-variant leading-relaxed mb-3">
+            <p class="page-tip__description text-sm text-on-surface-variant leading-relaxed mb-3">
               {tip.description}
             </p>
 
             <!-- Highlights -->
             {#if tip.highlights.length > 0}
-              <div class="space-y-1.5">
+              <div class="page-tip__highlights space-y-1.5">
                 {#each tip.highlights as highlight}
                   <div class="flex items-start gap-2">
                     <CheckCircle2 class="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
@@ -117,7 +117,7 @@
         </div>
 
         <!-- Footer -->
-        <div class="flex items-center justify-end mt-4 pt-3 border-t border-outline-variant/50">
+        <div class="page-tip__footer flex items-center justify-end mt-4 pt-3 border-t border-outline-variant/50">
           <button
             onclick={dismiss}
             class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/15 transition-colors"
@@ -130,3 +130,45 @@
     </div>
   </div>
 {/if}
+
+<style>
+  @media (max-width: 767px) {
+    .page-tip {
+      margin-bottom: 0.75rem;
+    }
+
+    .page-tip__card {
+      border-radius: 0.875rem;
+    }
+
+    .page-tip__inner {
+      padding: 0.75rem;
+    }
+
+    .page-tip__layout {
+      gap: 0.75rem;
+    }
+
+    .page-tip__icon > div {
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 0.75rem;
+    }
+
+    .page-tip__description {
+      display: -webkit-box;
+      margin: 0.25rem 0 0;
+      overflow: hidden;
+      font-size: 0.75rem;
+      line-height: 1.4;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+
+    .page-tip__highlights,
+    .page-tip__footer {
+      display: none;
+    }
+  }
+</style>
