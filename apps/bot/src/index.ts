@@ -317,7 +317,6 @@ client.once(Events.ClientReady, async (c) => {
     }
   }
 
-  await startBackgroundQueueWorker();
   await checkTranslationProviderHealth();
 
   // Load global config & blacklist into memory
@@ -378,6 +377,10 @@ client.once(Events.ClientReady, async (c) => {
   logger.info('System', 'Enregistrement des cron jobs...');
   await registerCrons(client);
   logger.info('System', 'Cron jobs enregistrés');
+
+  // Les jobs conservés dans Redis peuvent être repris dès la création du
+  // worker. Tous leurs handlers doivent donc être enregistrés auparavant.
+  await startBackgroundQueueWorker();
   
   logger.info('System', 'Début de la synchronisation des boutons DailyAlgo...');
   await syncOngoingDailyAlgoButtons(client).catch((error) =>

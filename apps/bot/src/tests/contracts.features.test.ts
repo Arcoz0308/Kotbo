@@ -75,4 +75,17 @@ describe('Contrats des features', () => {
       expect(registrySource, `Commande ${baseName} non importée dans le registre`).toContain(importPath);
     }
   });
+
+  test('Le worker BullMQ démarre après l’enregistrement de ses handlers', () => {
+    const indexPath = listSourceFiles('.').find((file) => file.replace(/\\/g, '/').endsWith('/index.ts'));
+    expect(indexPath).toBeDefined();
+    if (!indexPath) return;
+
+    const indexSource = readModuleSource(indexPath);
+    const registerCronsIndex = indexSource.indexOf('await registerCrons(client)');
+    const startWorkerIndex = indexSource.indexOf('await startBackgroundQueueWorker()');
+
+    expect(registerCronsIndex).toBeGreaterThan(-1);
+    expect(startWorkerIndex).toBeGreaterThan(registerCronsIndex);
+  });
 });
