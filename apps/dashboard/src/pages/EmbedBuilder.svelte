@@ -97,7 +97,7 @@
 
   function saveCurrentAsTemplate() {
     if (!canManageSettings) return;
-    const name = templateName.trim() || `Modèle ${new Date().toLocaleString('fr-FR')}`;
+    const name = templateName.trim() || m.embed_builder_default_template_name({ date: new Date().toLocaleDateString() });
     const entry: SavedEmbedTemplate = {
       id: crypto.randomUUID(),
       name,
@@ -268,7 +268,7 @@
                     {tpl.name}
                   </button>
                   <span class="text-[11px] text-on-surface-variant/40 shrink-0">
-                    {new Date(tpl.createdAt).toLocaleDateString('fr-FR')}
+                    {new Date(tpl.createdAt).toLocaleDateString()}
                   </span>
                   {#if canManageSettings}
                     <button

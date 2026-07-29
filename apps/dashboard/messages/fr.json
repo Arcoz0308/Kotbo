@@ -5825,5 +5825,8 @@
   "regulation_warning_modal_title": "Activer la vérification ?",
   "regulation_warning_modal_desc1": "L'activation de la vérification par règlement peut causer des conflits de permissions Discord et donner par mégarde un accès de lecture à {everyone} sur certains salons privés.",
   "regulation_warning_modal_desc2": "Assurez-vous que vos salons privés refusent explicitement l'autorisation de lire les messages pour le rôle {everyone}.",
-  "regulation_warning_modal_confirm": "Activer quand même"
+  "regulation_warning_modal_confirm": "Activer quand même",
+  "embed_builder_default_template_name": "Modèle {date}",
+  "regulation_reorder_failed": "Impossible de réordonner les articles du règlement.",
+  "regulation_reorder_success": "Ordre du règlement mis à jour."
 }

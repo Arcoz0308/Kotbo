@@ -5825,5 +5825,8 @@
   "regulation_warning_modal_title": "Enable verification?",
   "regulation_warning_modal_desc1": "Enabling rules verification can cause Discord permission conflicts and accidentally grant read access to {everyone} on certain private channels.",
   "regulation_warning_modal_desc2": "Ensure your private channels explicitly deny message read permissions for the {everyone} role.",
-  "regulation_warning_modal_confirm": "Enable anyway"
+  "regulation_warning_modal_confirm": "Enable anyway",
+  "embed_builder_default_template_name": "Template {date}",
+  "regulation_reorder_failed": "Unable to reorder rule articles.",
+  "regulation_reorder_success": "Rule order updated."
 }

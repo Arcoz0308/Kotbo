@@ -182,13 +182,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       const ok = await reorderRegulationArticles(nextRules.map((rule) => rule.id));
       if (!ok) {
         guildState.regulationRules = previousRules;
-        feedbackMessage = 'Impossible de réordonner les articles du règlement.';
+        feedbackMessage = m.regulation_reorder_failed();
         feedbackIsError = true;
         await dashboardStore.refresh();
         return;
       }
 
-      await refreshState('Ordre du règlement mis à jour.');
+      await refreshState(m.regulation_reorder_success());
     } finally {
       reordering = false;
     }
