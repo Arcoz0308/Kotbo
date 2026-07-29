@@ -46,7 +46,7 @@ import {
   Code,
   Compass,
   Copy,
-  Cross,
+  X as Cross,
   Crown,
   DollarSign,
   DoorOpen,
