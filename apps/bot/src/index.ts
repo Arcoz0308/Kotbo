@@ -805,4 +805,7 @@ process.on('unhandledRejection', (reason, promise) => {
   logErrorToDb(reason instanceof Error ? reason : new Error(String(reason)), 'unhandledRejection');
 });
 
-client.login(token);
+client.login(token).catch((error) => {
+  logger.error('Bot', 'Échec critique lors de la connexion Discord (client.login) :', error);
+  process.exit(1);
+});
