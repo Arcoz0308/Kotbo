@@ -5,6 +5,7 @@
   import Papicon from '../Papicon.svelte';
   import { dashboardStore } from '../../stores/dashboard.svelte';
   import { toast } from '../../stores/toast.svelte';
+  import { m, dateLocale } from '../../i18n';
 
   const { section }: { section: AdvancedAnalyticsSection } = $props();
 
@@ -46,7 +47,7 @@
       loadedSection = s;
     } catch (e: any) {
       if (id !== requestId) return;
-      error = e?.message || 'Erreur lors du chargement';
+      error = e?.message || m.an_adv_error_load();
     } finally {
       if (id === requestId) loading = false;
     }
@@ -61,17 +62,17 @@
 
   function fmtDuration(seconds: number | null): string {
     if (seconds == null) return '—';
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
-    if (seconds < 86400) return `${Math.round(seconds / 3600)} h`;
-    return `${Math.round(seconds / 86400)} j`;
+    if (seconds < 60) return m.an_adv_duration_seconds({ n: seconds });
+    if (seconds < 3600) return m.an_adv_duration_minutes({ n: Math.round(seconds / 60) });
+    if (seconds < 86400) return m.an_adv_duration_hours({ n: Math.round(seconds / 3600) });
+    return m.an_adv_duration_days({ n: Math.round(seconds / 86400) });
   }
 
   function fmtHours(hours: number | null): string {
     if (hours == null) return '—';
-    if (hours < 1) return '< 1 h';
-    if (hours < 48) return `${hours} h`;
-    return `${Math.round(hours / 24)} j`;
+    if (hours < 1) return m.an_adv_duration_under_hour();
+    if (hours < 48) return m.an_adv_duration_hours({ n: hours });
+    return m.an_adv_duration_days({ n: Math.round(hours / 24) });
   }
 
   function pctColor(pct: number): string {
@@ -91,17 +92,20 @@
     try {
       const ok = await updateChannelsManagementConfig({ wordStatsEnabled: true });
       if (!ok) throw new Error();
-      toast.success('Statistiques de mots activées. Les données commencent à s\'accumuler.');
+      toast.success(m.an_adv_words_enabled_toast());
       cache.delete('words');
       await load('words');
     } catch {
-      toast.error('Impossible d\'activer les statistiques de mots.');
+      toast.error(m.an_adv_words_enable_error());
     } finally {
       enablingWords = false;
     }
   }
 
-  const DOW_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const DOW_LABELS = $derived([
+    m.an_adv_dow_mon(), m.an_adv_dow_tue(), m.an_adv_dow_wed(), m.an_adv_dow_thu(),
+    m.an_adv_dow_fri(), m.an_adv_dow_sat(), m.an_adv_dow_sun(),
+  ]);
 
   function heatColor(count: number, max: number): string {
     if (count === 0 || max === 0) return 'bg-surface-container';
@@ -123,33 +127,33 @@
     {/each}
   </div>
 {:else if error}
-  <SectionCard title="Erreur" icon="Warning">
-    <EmptyState icon="warning" title="Impossible de charger cette section" description={error} />
+  <SectionCard title={m.an_adv_error_title()} icon="Warning">
+    <EmptyState icon="warning" title={m.an_adv_error_section()} description={error} />
   </SectionCard>
 
 <!-- ═══════════════ RÉTENTION ═══════════════ -->
 {:else if section === 'retention' && ready}
   <div class="space-y-4">
     <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
-      <SectionCard title="Membres de retour" description="Actifs cette semaine après 30 jours ou plus d'absence" icon="Refresh">
+      <SectionCard title={m.an_adv_returning_title()} description={m.an_adv_returning_desc()} icon="Refresh">
         <div class="flex items-baseline gap-2">
           <span class="text-4xl font-bold text-on-surface">{data.returningMembers}</span>
-          <span class="text-sm text-on-surface-variant">membres « ressuscités » sur 7 jours</span>
+          <span class="text-sm text-on-surface-variant">{m.an_adv_returning_unit()}</span>
         </div>
       </SectionCard>
-      <SectionCard title="Rétention par source" description="Taux de membres encore présents, par invitation (90 j)" icon="MailOpen" flush>
+      <SectionCard title={m.an_adv_retention_source_title()} description={m.an_adv_retention_source_desc()} icon="MailOpen" flush>
         {#if data.retentionBySource.length === 0}
-          <EmptyState icon="mailOpen" title="Pas encore de données d'invitation" />
+          <EmptyState icon="mailOpen" title={m.an_adv_retention_source_empty()} />
         {:else}
           <div class="divide-y divide-outline-variant/50">
             {#each data.retentionBySource as src}
               <div class="flex items-center justify-between px-5 py-2.5 text-sm">
                 <div class="min-w-0">
                   <span class="font-mono text-xs text-on-surface">{src.inviteCode}</span>
-                  {#if src.inviterTag}<span class="text-xs text-on-surface-variant/60 ml-2">par {src.inviterTag}</span>{/if}
+                  {#if src.inviterTag}<span class="text-xs text-on-surface-variant/60 ml-2">{m.an_adv_invited_by({ tag: src.inviterTag })}</span>{/if}
                 </div>
                 <div class="flex items-center gap-3 shrink-0">
-                  <span class="text-xs text-on-surface-variant">{src.joined} arrivés</span>
+                  <span class="text-xs text-on-surface-variant">{m.an_adv_joined_count({ count: src.joined })}</span>
                   <span class="font-semibold {pctColor(src.retentionRate)}">{src.retentionRate}%</span>
                 </div>
               </div>
@@ -159,19 +163,19 @@
       </SectionCard>
     </div>
 
-    <SectionCard title="Cohortes d'arrivée" description="Pour chaque semaine d'arrivée : % de membres encore présents après 1, 7 et 30 jours" icon="UsersFour" flush>
+    <SectionCard title={m.an_adv_cohorts_title()} description={m.an_adv_cohorts_desc()} icon="UsersFour" flush>
       {#if data.cohorts.length === 0}
-        <EmptyState icon="usersFour" title="Pas encore assez d'historique" description="Les cohortes se construisent au fil des arrivées." />
+        <EmptyState icon="usersFour" title={m.an_adv_cohorts_empty()} description={m.an_adv_cohorts_empty_desc()} />
       {:else}
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-[11px] uppercase tracking-wider text-on-surface-variant/50 border-b border-outline-variant">
-                <th class="px-5 py-3">Semaine</th>
-                <th class="px-3 py-3 text-right">Arrivées</th>
-                <th class="px-3 py-3 text-right">J+1</th>
-                <th class="px-3 py-3 text-right">J+7</th>
-                <th class="px-5 py-3 text-right">J+30</th>
+                <th class="px-5 py-3">{m.an_adv_col_week()}</th>
+                <th class="px-3 py-3 text-right">{m.an_adv_col_joins()}</th>
+                <th class="px-3 py-3 text-right">{m.an_adv_col_d1()}</th>
+                <th class="px-3 py-3 text-right">{m.an_adv_col_d7()}</th>
+                <th class="px-5 py-3 text-right">{m.an_adv_col_d30()}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant/40">
@@ -202,10 +206,10 @@
   <div class="space-y-4">
     <div class="grid gap-4 grid-cols-2 lg:grid-cols-4">
       {#each [
-        { label: 'Actifs aujourd\'hui (DAU)', value: data.dau },
-        { label: 'Actifs 7 jours (WAU)', value: data.wau },
-        { label: 'Actifs 30 jours (MAU)', value: data.mau },
-        { label: 'Assiduité (DAU/MAU)', value: `${data.stickiness}%` },
+        { label: m.an_adv_dau(), value: data.dau },
+        { label: m.an_adv_wau(), value: data.wau },
+        { label: m.an_adv_mau(), value: data.mau },
+        { label: m.an_adv_stickiness(), value: `${data.stickiness}%` },
       ] as stat}
         <div class="section-card p-5">
           <p class="text-[11px] uppercase tracking-wider text-on-surface-variant/50 font-semibold">{stat.label}</p>
@@ -215,21 +219,21 @@
     </div>
 
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
-      <SectionCard title="30 jours vs 30 jours précédents" icon="Calendar" flush>
+      <SectionCard title={m.an_adv_comparison_title()} icon="Calendar" flush>
         <div class="divide-y divide-outline-variant/40">
           {#each [
-            { label: 'Messages', d: data.comparison.messages },
-            { label: 'Minutes vocales', d: data.comparison.voiceMinutes },
-            { label: 'Arrivées', d: data.comparison.joins },
-            { label: 'Départs', d: data.comparison.leaves },
-            { label: 'Réactions', d: data.comparison.reactions },
-            { label: 'Actifs / jour (moy.)', d: data.comparison.avgActiveMembers },
+            { label: m.an_adv_row_messages(), d: data.comparison.messages },
+            { label: m.an_adv_row_voice_minutes(), d: data.comparison.voiceMinutes },
+            { label: m.an_adv_row_joins(), d: data.comparison.joins },
+            { label: m.an_adv_row_leaves(), d: data.comparison.leaves },
+            { label: m.an_adv_row_reactions(), d: data.comparison.reactions },
+            { label: m.an_adv_row_avg_active(), d: data.comparison.avgActiveMembers },
           ] as row}
             {@const badge = trendBadge(row.d.changePct)}
             <div class="flex items-center justify-between px-5 py-2.5 text-sm">
               <span class="text-on-surface-variant">{row.label}</span>
               <div class="flex items-center gap-3">
-                <span class="text-on-surface font-medium">{row.d.current.toLocaleString('fr-FR')}</span>
+                <span class="text-on-surface font-medium">{row.d.current.toLocaleString(dateLocale())}</span>
                 <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
               </div>
             </div>
@@ -238,18 +242,18 @@
       </SectionCard>
 
       <div class="space-y-4">
-        <SectionCard title="Records du serveur" icon="Fire" flush>
+        <SectionCard title={m.an_adv_records_title()} icon="Fire" flush>
           <div class="divide-y divide-outline-variant/40">
             {#each [
-              { label: 'Meilleur jour (messages)', r: data.records.messages },
-              { label: 'Record vocal simultané', r: data.records.peakVoice },
-              { label: 'Record de connectés', r: data.records.peakOnline },
+              { label: m.an_adv_record_messages(), r: data.records.messages },
+              { label: m.an_adv_record_voice(), r: data.records.peakVoice },
+              { label: m.an_adv_record_online(), r: data.records.peakOnline },
             ] as row}
               <div class="flex items-center justify-between px-5 py-2.5 text-sm">
                 <span class="text-on-surface-variant">{row.label}</span>
                 {#if row.r}
                   <div class="flex items-center gap-3">
-                    <span class="text-on-surface font-bold">{row.r.value.toLocaleString('fr-FR')}</span>
+                    <span class="text-on-surface font-bold">{row.r.value.toLocaleString(dateLocale())}</span>
                     <span class="font-mono text-[11px] text-on-surface-variant/60">{row.r.date}</span>
                   </div>
                 {:else}
@@ -260,15 +264,15 @@
           </div>
         </SectionCard>
 
-        <SectionCard title="Profondeur d'engagement" icon="ChatBubbles">
+        <SectionCard title={m.an_adv_engagement_title()} icon="ChatBubbles">
           <div class="grid grid-cols-2 gap-4">
             <div>
               <p class="text-2xl font-bold text-on-surface">{data.engagement.messagesPerActive}</p>
-              <p class="text-xs text-on-surface-variant mt-0.5">messages / membre actif (30 j)</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">{m.an_adv_messages_per_active()}</p>
             </div>
             <div>
               <p class="text-2xl font-bold text-on-surface">{data.engagement.voiceShare}%</p>
-              <p class="text-xs text-on-surface-variant mt-0.5">part du vocal dans l'activité</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">{m.an_adv_voice_share()}</p>
             </div>
           </div>
         </SectionCard>
@@ -280,17 +284,17 @@
 {:else if section === 'churn' && ready}
   <div class="space-y-4">
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
-      <SectionCard title="Départs par ancienneté" description="Ancienneté des membres au moment de leur départ (90 j)" icon="TrendingUp">
-        {@const total = Object.values(data.churnByTenure).reduce((s: number, v: any) => s + v, 0)}
+      <SectionCard title={m.an_adv_churn_tenure_title()} description={m.an_adv_churn_tenure_desc()} icon="TrendingUp">
+        {@const total = (Object.values(data.churnByTenure) as number[]).reduce((s, v) => s + v, 0)}
         {#if total === 0}
-          <EmptyState icon="usersFour" title="Aucun départ enregistré" />
+          <EmptyState icon="usersFour" title={m.an_adv_churn_empty()} />
         {:else}
           <div class="space-y-3">
             {#each Object.entries(data.churnByTenure) as [bucket, count]}
               {@const pct = total > 0 ? Math.round(((count as number) / total) * 100) : 0}
               <div>
                 <div class="flex justify-between text-xs mb-1">
-                  <span class="text-on-surface-variant">{bucket === '<7j' ? 'Moins de 7 jours' : bucket === '7-30j' ? '7 à 30 jours' : bucket === '30-90j' ? '30 à 90 jours' : 'Plus de 90 jours'}</span>
+                  <span class="text-on-surface-variant">{bucket === '<7j' ? m.an_adv_bucket_under_7d() : bucket === '7-30j' ? m.an_adv_bucket_7_30d() : bucket === '30-90j' ? m.an_adv_bucket_30_90d() : m.an_adv_bucket_over_90d()}</span>
                   <span class="text-on-surface font-medium">{count} ({pct}%)</span>
                 </div>
                 <div class="h-2 rounded-full bg-surface-container overflow-hidden">
@@ -299,46 +303,46 @@
               </div>
             {/each}
           </div>
-          <p class="text-[11px] text-on-surface-variant/60 mt-3">Beaucoup de départs « moins de 7 jours » = problème d'accueil. Des départs « 90 j+ » = lassitude des anciens.</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-3">{m.an_adv_churn_hint()}</p>
         {/if}
       </SectionCard>
 
-      <SectionCard title="Onboarding" description="Nouveaux membres des 30 derniers jours" icon="Sparkles">
+      <SectionCard title={m.an_adv_onboarding_title()} description={m.an_adv_onboarding_desc()} icon="Sparkles">
         <div class="grid grid-cols-2 gap-4">
           <div>
             <p class="text-2xl font-bold text-on-surface">{fmtHours(data.onboarding.medianFirstMessageHours)}</p>
-            <p class="text-xs text-on-surface-variant mt-0.5">délai médian avant le 1er message</p>
+            <p class="text-xs text-on-surface-variant mt-0.5">{m.an_adv_first_message_delay()}</p>
           </div>
           <div>
             <p class="text-2xl font-bold {data.onboarding.completionRate != null ? pctColor(data.onboarding.completionRate) : 'text-on-surface'}">
               {data.onboarding.completionRate != null ? `${data.onboarding.completionRate}%` : '—'}
             </p>
             <p class="text-xs text-on-surface-variant mt-0.5">
-              écran d'accueil Discord complété ({data.onboarding.completed30d}/{data.onboarding.joined30d})
+              {m.an_adv_onboarding_completion({ done: data.onboarding.completed30d, total: data.onboarding.joined30d })}
             </p>
           </div>
         </div>
       </SectionCard>
     </div>
 
-    <SectionCard title="Membres à risque de départ" description="Habituellement actifs (5 j+ d'activité sur 30 j) mais silencieux depuis plus de 7 jours" icon="Warning" flush>
+    <SectionCard title={m.an_adv_at_risk_title()} description={m.an_adv_at_risk_desc()} icon="Warning" flush>
       {#if data.atRisk.length === 0}
-        <EmptyState icon="check" title="Aucun membre à risque détecté" description="Tous les membres réguliers sont restés actifs récemment." />
+        <EmptyState icon="check" title={m.an_adv_at_risk_empty()} description={m.an_adv_at_risk_empty_desc()} />
       {:else}
         <div class="divide-y divide-outline-variant/40">
-          {#each data.atRisk as m}
+          {#each data.atRisk as member}
             <div class="flex items-center justify-between px-5 py-2.5">
               <div class="flex items-center gap-3 min-w-0">
-                {#if m.avatarUrl}
-                  <img src={m.avatarUrl} alt="" class="w-7 h-7 rounded-full shrink-0" />
+                {#if member.avatarUrl}
+                  <img src={member.avatarUrl} alt="" class="w-7 h-7 rounded-full shrink-0" />
                 {:else}
                   <div class="w-7 h-7 rounded-full bg-surface-container shrink-0"></div>
                 {/if}
-                <span class="text-sm text-on-surface truncate">{m.name}</span>
+                <span class="text-sm text-on-surface truncate">{member.name}</span>
               </div>
               <div class="flex items-center gap-4 text-xs shrink-0">
-                <span class="text-on-surface-variant">{m.activeDays30} j actifs / 30 j</span>
-                <span class="text-amber-500 font-medium">inactif depuis le {m.lastActive}</span>
+                <span class="text-on-surface-variant">{m.an_adv_active_days({ days: member.activeDays30 })}</span>
+                <span class="text-amber-500 font-medium">{m.an_adv_inactive_since({ date: member.lastActive })}</span>
               </div>
             </div>
           {/each}
@@ -351,9 +355,9 @@
 {:else if section === 'channels' && ready}
   <div class="space-y-4">
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
-      <SectionCard title="Canaux en croissance" description="15 derniers jours vs 15 précédents" icon="TrendingUp" flush>
+      <SectionCard title={m.an_adv_channels_rising_title()} description={m.an_adv_channels_trend_desc()} icon="TrendingUp" flush>
         {#if data.trends.rising.length === 0}
-          <EmptyState icon="chatBubbles" title="Pas assez d'activité" />
+          <EmptyState icon="chatBubbles" title={m.an_adv_channels_empty()} />
         {:else}
           <div class="divide-y divide-outline-variant/40">
             {#each data.trends.rising as t}
@@ -361,7 +365,7 @@
               <div class="flex items-center justify-between px-5 py-2.5 text-sm">
                 <span class="text-on-surface truncate">{channelName(t.channelId)}</span>
                 <div class="flex items-center gap-3 shrink-0">
-                  <span class="text-xs text-on-surface-variant">{t.recent.toLocaleString('fr-FR')} msg</span>
+                  <span class="text-xs text-on-surface-variant">{m.an_adv_unit_msg({ count: t.recent.toLocaleString(dateLocale()) })}</span>
                   <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
                 </div>
               </div>
@@ -370,9 +374,9 @@
         {/if}
       </SectionCard>
 
-      <SectionCard title="Canaux en déclin" description="15 derniers jours vs 15 précédents" icon="TrendingDown" flush>
+      <SectionCard title={m.an_adv_channels_falling_title()} description={m.an_adv_channels_trend_desc()} icon="TrendingDown" flush>
         {#if data.trends.falling.length === 0}
-          <EmptyState icon="chatBubbles" title="Pas assez d'activité" />
+          <EmptyState icon="chatBubbles" title={m.an_adv_channels_empty()} />
         {:else}
           <div class="divide-y divide-outline-variant/40">
             {#each data.trends.falling as t}
@@ -380,7 +384,7 @@
               <div class="flex items-center justify-between px-5 py-2.5 text-sm">
                 <span class="text-on-surface truncate">{channelName(t.channelId)}</span>
                 <div class="flex items-center gap-3 shrink-0">
-                  <span class="text-xs text-on-surface-variant">{t.recent.toLocaleString('fr-FR')} msg</span>
+                  <span class="text-xs text-on-surface-variant">{m.an_adv_unit_msg({ count: t.recent.toLocaleString(dateLocale()) })}</span>
                   <span class="text-[11px] font-bold px-2 py-0.5 rounded-md {badge.cls}">{badge.label}</span>
                 </div>
               </div>
@@ -390,11 +394,11 @@
       </SectionCard>
     </div>
 
-    <SectionCard title="Co-activation des salons" description="Nombre de membres actifs dans les deux salons à la fois (30 j)" icon="Compass" flush>
+    <SectionCard title={m.an_adv_coactivation_title()} description={m.an_adv_coactivation_desc()} icon="Compass" flush>
       {#if !data.coActivation.available}
-        <EmptyState icon="lock" title="Journalisation des messages requise" description="Active la journalisation des messages (Gestion des salons) pour débloquer cette matrice." />
+        <EmptyState icon="lock" title={m.an_adv_logging_required()} description={m.an_adv_coactivation_locked_desc()} />
       {:else if data.coActivation.channels.length === 0}
-        <EmptyState icon="compass" title="Pas encore assez de données croisées" />
+        <EmptyState icon="compass" title={m.an_adv_coactivation_empty()} />
       {:else}
         <div class="overflow-x-auto p-5">
           <table class="text-[11px]">
@@ -419,7 +423,7 @@
                       {#if i === j}
                         <div class="w-7 h-7 rounded bg-surface-container-low"></div>
                       {:else}
-                        <div class="w-7 h-7 rounded flex items-center justify-center {heatColor(v, maxVal)} {v > maxVal * 0.5 ? 'text-on-primary' : 'text-on-surface-variant'}" title="{channelName(rowC)} × {channelName(data.coActivation.channels[j])} : {v} membres">
+                        <div class="w-7 h-7 rounded flex items-center justify-center {heatColor(v, maxVal)} {v > maxVal * 0.5 ? 'text-on-primary' : 'text-on-surface-variant'}" title={m.an_adv_coactivation_cell({ a: channelName(rowC), b: channelName(data.coActivation.channels[j]), count: v })}>
                           {v > 0 ? v : ''}
                         </div>
                       {/if}
@@ -437,37 +441,37 @@
 <!-- ═══════════════ SOCIAL ═══════════════ -->
 {:else if section === 'social' && ready}
   {#if !data.available}
-    <SectionCard title="Analyse sociale" icon="Users">
-      <EmptyState icon="lock" title="Journalisation des messages requise" description="Active la journalisation des messages pour mesurer la centralité sociale et le temps de réaction aux pings." />
+    <SectionCard title={m.an_adv_social_title()} icon="Users">
+      <EmptyState icon="lock" title={m.an_adv_logging_required()} description={m.an_adv_social_locked_desc()} />
     </SectionCard>
   {:else}
     <div class="space-y-4">
       <div class="grid gap-4 grid-cols-1 md:grid-cols-3">
-        <SectionCard title="Réaction aux pings" description="Délai médian avant que le membre mentionné réponde dans le salon" icon="Bell">
+        <SectionCard title={m.an_adv_ping_title()} description={m.an_adv_ping_desc()} icon="Bell">
           <p class="text-3xl font-bold text-on-surface">{fmtDuration(data.pingReaction.medianSeconds)}</p>
-          <p class="text-xs text-on-surface-variant mt-1">sur {data.pingReaction.samples.toLocaleString('fr-FR')} mentions (30 j)</p>
+          <p class="text-xs text-on-surface-variant mt-1">{m.an_adv_ping_samples({ count: data.pingReaction.samples.toLocaleString(dateLocale()) })}</p>
         </SectionCard>
 
         <div class="md:col-span-2">
-          <SectionCard title="Centralité sociale" description="Membres recevant le plus de réponses et de mentions (30 j)" icon="Users" flush>
+          <SectionCard title={m.an_adv_centrality_title()} description={m.an_adv_centrality_desc()} icon="Users" flush>
             {#if data.centrality.length === 0}
-              <EmptyState icon="users" title="Pas encore de données" />
+              <EmptyState icon="users" title={m.an_adv_centrality_empty()} />
             {:else}
               <div class="divide-y divide-outline-variant/40">
-                {#each data.centrality as m, i}
+                {#each data.centrality as member, i}
                   <div class="flex items-center justify-between px-5 py-2.5">
                     <div class="flex items-center gap-3 min-w-0">
                       <span class="text-[11px] font-bold text-on-surface-variant/40 w-5">{i + 1}</span>
-                      {#if m.avatarUrl}
-                        <img src={m.avatarUrl} alt="" class="w-7 h-7 rounded-full shrink-0" />
+                      {#if member.avatarUrl}
+                        <img src={member.avatarUrl} alt="" class="w-7 h-7 rounded-full shrink-0" />
                       {:else}
                         <div class="w-7 h-7 rounded-full bg-surface-container shrink-0"></div>
                       {/if}
-                      <span class="text-sm text-on-surface truncate">{m.name}</span>
+                      <span class="text-sm text-on-surface truncate">{member.name}</span>
                     </div>
                     <div class="flex items-center gap-4 text-xs shrink-0 text-on-surface-variant">
-                      <span title="Réponses reçues">↩ {m.repliesReceived}</span>
-                      <span title="Mentions reçues">@ {m.mentionsReceived}</span>
+                      <span title={m.an_adv_replies_received()}>↩ {member.repliesReceived}</span>
+                      <span title={m.an_adv_mentions_received()}>@ {member.mentionsReceived}</span>
                     </div>
                   </div>
                 {/each}
@@ -481,14 +485,14 @@
 
 <!-- ═══════════════ MOTS ═══════════════ -->
 {:else if section === 'words' && ready}
-  <SectionCard title="Mots les plus fréquents" description="Agrégats anonymes sur 30 jours — aucun message ni auteur n'est conservé" icon="ChatCircleDots">
+  <SectionCard title={m.an_adv_words_title()} description={m.an_adv_words_desc()} icon="ChatCircleDots">
     {#if !data.enabled && data.topWords.length === 0}
       <EmptyState
         icon="chatCircleDots"
-        title="Statistiques de mots désactivées"
+        title={m.an_adv_words_disabled()}
         description={data.messageLoggingEnabled
-          ? "À l'activation, Kotbo indexe les messages déjà journalisés : les mots apparaissent immédiatement, sans attendre."
-          : "Active le comptage anonyme des mots pour voir les sujets qui animent ton serveur. Sans journalisation des messages, les stats démarreront à zéro."}
+          ? m.an_adv_words_disabled_logged()
+          : m.an_adv_words_disabled_unlogged()}
       >
         {#snippet action()}
           <button
@@ -496,7 +500,7 @@
             disabled={enablingWords}
             class="bg-primary text-on-primary px-4 py-2 rounded-lg text-xs font-medium hover:brightness-110 transition-all disabled:opacity-50"
           >
-            {enablingWords ? 'Activation…' : 'Activer les stats de mots'}
+            {enablingWords ? m.an_adv_words_enabling() : m.an_adv_words_enable()}
           </button>
         {/snippet}
       </EmptyState>
@@ -505,26 +509,28 @@
       {@const total = data.backfill.totalMessages ?? 0}
       {@const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0}
       <div class="py-10 px-6 text-center space-y-3">
-        <p class="text-sm font-medium text-on-surface">Indexation des messages déjà journalisés…</p>
+        <p class="text-sm font-medium text-on-surface">{m.an_adv_backfill_title()}</p>
         <p class="text-[13px] text-on-surface-variant">
-          {done.toLocaleString('fr-FR')}{total > 0 ? ` / ${total.toLocaleString('fr-FR')}` : ''} message(s) traité(s)
+          {total > 0
+            ? m.an_adv_backfill_progress_total({ done: done.toLocaleString(dateLocale()), total: total.toLocaleString(dateLocale()) })
+            : m.an_adv_backfill_progress({ done: done.toLocaleString(dateLocale()) })}
         </p>
         {#if total > 0}
           <div class="h-2 max-w-sm mx-auto rounded-full bg-surface-container overflow-hidden">
             <div class="h-full rounded-full bg-primary transition-all duration-500" style="width: {pct}%"></div>
           </div>
         {/if}
-        <p class="text-[11px] text-on-surface-variant/50">Recharge la page dans quelques instants pour voir les résultats.</p>
+        <p class="text-[11px] text-on-surface-variant/50">{m.an_adv_backfill_hint()}</p>
       </div>
     {:else if data.backfill?.status === 'FAILED'}
-      <EmptyState icon="warning" title="L'indexation a échoué" description={data.backfill.error ?? "Les nouveaux messages continuent d'être comptés."} />
+      <EmptyState icon="warning" title={m.an_adv_backfill_failed()} description={data.backfill.error ?? m.an_adv_backfill_failed_desc()} />
     {:else if data.topWords.length === 0}
       <EmptyState
         icon="hourglass"
-        title="Les données s'accumulent"
+        title={m.an_adv_words_accumulating()}
         description={data.messageLoggingEnabled
-          ? "Aucun mot exploitable dans l'historique indexé. Les nouveaux messages continueront d'alimenter les stats."
-          : "La journalisation des messages est désactivée : il n'y avait pas d'historique à indexer. Les mots apparaîtront au fil des nouveaux messages."}
+          ? m.an_adv_words_accumulating_logged()
+          : m.an_adv_words_accumulating_unlogged()}
       />
     {:else}
       {@const maxCount = data.topWords[0]?.count ?? 1}
@@ -534,7 +540,7 @@
           <span
             class="px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface cursor-default"
             style="font-size: {scale}rem; opacity: {0.55 + (w.count / maxCount) * 0.45}"
-            title="{w.count.toLocaleString('fr-FR')} occurrences"
+            title={m.an_adv_word_occurrences({ count: w.count.toLocaleString(dateLocale()) })}
           >{w.word}</span>
         {/each}
       </div>
@@ -545,53 +551,53 @@
 {:else if section === 'moderation' && ready}
   <div class="space-y-4">
     <div class="grid gap-4 grid-cols-1 md:grid-cols-3">
-      <SectionCard title="Récidive après 1er warn" icon="Gavel">
+      <SectionCard title={m.an_adv_recidivism_title()} icon="Gavel">
         <p class="text-3xl font-bold {data.recidivism.rate != null ? (data.recidivism.rate > 50 ? 'text-red-400' : data.recidivism.rate > 25 ? 'text-amber-500' : 'text-emerald-500') : 'text-on-surface'}">
           {data.recidivism.rate != null ? `${data.recidivism.rate}%` : '—'}
         </p>
         <p class="text-xs text-on-surface-variant mt-1">
-          {data.recidivism.recidivists}/{data.recidivism.firstWarned} membres re-sanctionnés
-          {#if data.recidivism.avgDaysToNext != null}· en {data.recidivism.avgDaysToNext} j en moyenne{/if}
+          {m.an_adv_recidivism_detail({ recidivists: data.recidivism.recidivists, total: data.recidivism.firstWarned })}
+          {#if data.recidivism.avgDaysToNext != null}{m.an_adv_recidivism_avg_days({ days: data.recidivism.avgDaysToNext })}{/if}
         </p>
       </SectionCard>
 
-      <SectionCard title="Pression de modération" description="Sanctions pour 1 000 messages" icon="Gavel">
+      <SectionCard title={m.an_adv_pressure_title()} description={m.an_adv_pressure_desc()} icon="Gavel">
         {#if data.pressure.length === 0}
-          <EmptyState icon="gavel" title="Pas de données" />
+          <EmptyState icon="gavel" title={m.an_adv_pressure_empty()} />
         {:else}
           {@const last = data.pressure.at(-1)}
           {@const maxP = Math.max(0.01, ...data.pressure.map((p: any) => p.per1000))}
           <p class="text-3xl font-bold text-on-surface">{last.per1000}</p>
-          <p class="text-xs text-on-surface-variant mt-1 mb-3">cette semaine, pour 1 000 messages</p>
+          <p class="text-xs text-on-surface-variant mt-1 mb-3">{m.an_adv_pressure_current()}</p>
           <div class="flex items-end gap-1 h-12">
             {#each data.pressure as p}
-              <div class="flex-1 bg-primary/50 rounded-t hover:bg-primary transition-colors" style="height: {Math.max(4, (p.per1000 / maxP) * 100)}%" title="Semaine {p.week} : {p.per1000} / 1000 msg ({p.sanctions} sanctions)"></div>
+              <div class="flex-1 bg-primary/50 rounded-t hover:bg-primary transition-colors" style="height: {Math.max(4, (p.per1000 / maxP) * 100)}%" title={m.an_adv_pressure_bar({ week: p.week, per1000: p.per1000, sanctions: p.sanctions })}></div>
             {/each}
           </div>
         {/if}
       </SectionCard>
 
-      <SectionCard title="Hygiène des bans" description="Comptes bannis supprimés par Discord" icon="Trash">
+      <SectionCard title={m.an_adv_bans_title()} description={m.an_adv_bans_desc()} icon="Trash">
         <p class="text-3xl font-bold text-on-surface">{data.cleanableBans}</p>
-        <p class="text-xs text-on-surface-variant mt-1">compte(s) nettoyable(s) — le bot notifie le staff sur Discord avec un bouton de nettoyage</p>
+        <p class="text-xs text-on-surface-variant mt-1">{m.an_adv_bans_hint()}</p>
       </SectionCard>
     </div>
 
     <div class="grid gap-4 grid-cols-1 md:grid-cols-2">
-      <SectionCard title="Charge par modérateur" description="Sanctions prononcées sur 90 jours" icon="Users" flush>
+      <SectionCard title={m.an_adv_mod_load_title()} description={m.an_adv_mod_load_desc()} icon="Users" flush>
         {#if data.moderatorLoad.length === 0}
-          <EmptyState icon="users" title="Aucune sanction sur la période" />
+          <EmptyState icon="users" title={m.an_adv_mod_load_empty()} />
         {:else}
           {@const maxLoad = data.moderatorLoad[0]?.count ?? 1}
           <div class="divide-y divide-outline-variant/40">
-            {#each data.moderatorLoad as m}
+            {#each data.moderatorLoad as mod}
               <div class="px-5 py-2.5">
                 <div class="flex items-center justify-between text-sm mb-1">
-                  <span class="text-on-surface truncate">{m.tag ?? m.userId}</span>
-                  <span class="text-on-surface-variant text-xs">{m.count}</span>
+                  <span class="text-on-surface truncate">{mod.tag ?? mod.userId}</span>
+                  <span class="text-on-surface-variant text-xs">{mod.count}</span>
                 </div>
                 <div class="h-1.5 rounded-full bg-surface-container overflow-hidden">
-                  <div class="h-full rounded-full bg-primary/60" style="width: {(m.count / maxLoad) * 100}%"></div>
+                  <div class="h-full rounded-full bg-primary/60" style="width: {(mod.count / maxLoad) * 100}%"></div>
                 </div>
               </div>
             {/each}
@@ -600,17 +606,17 @@
       </SectionCard>
 
       <div class="space-y-4">
-        <SectionCard title="Ancienneté du compte × infractions" description="Âge du compte Discord au moment de la sanction (90 j)" icon="Clock">
-          {@const totalAge = Object.values(data.accountAgeBuckets).reduce((s: number, v: any) => s + v, 0)}
+        <SectionCard title={m.an_adv_account_age_title()} description={m.an_adv_account_age_desc()} icon="Clock">
+          {@const totalAge = (Object.values(data.accountAgeBuckets) as number[]).reduce((s, v) => s + v, 0)}
           {#if totalAge === 0}
-            <EmptyState icon="clock" title="Aucune sanction sur la période" />
+            <EmptyState icon="clock" title={m.an_adv_mod_load_empty()} />
           {:else}
             <div class="space-y-2.5">
               {#each Object.entries(data.accountAgeBuckets) as [bucket, count]}
                 {@const pct = totalAge > 0 ? Math.round(((count as number) / totalAge) * 100) : 0}
                 <div>
                   <div class="flex justify-between text-xs mb-1">
-                    <span class="text-on-surface-variant">Compte de {bucket}</span>
+                    <span class="text-on-surface-variant">{m.an_adv_account_age_bucket({ bucket })}</span>
                     <span class="text-on-surface font-medium">{count} ({pct}%)</span>
                   </div>
                   <div class="h-2 rounded-full bg-surface-container overflow-hidden">
@@ -619,25 +625,25 @@
                 </div>
               {/each}
             </div>
-            <p class="text-[11px] text-on-surface-variant/60 mt-3">Une forte part de comptes « moins de 30 j » suggère des raids ou doubles comptes.</p>
+            <p class="text-[11px] text-on-surface-variant/60 mt-3">{m.an_adv_account_age_hint()}</p>
           {/if}
         </SectionCard>
 
-        <SectionCard title="Sources à risque" description="Invitations dont les membres sont le plus sanctionnés (90 j, min. 3 invités)" icon="Warning" flush>
+        <SectionCard title={m.an_adv_toxic_title()} description={m.an_adv_toxic_desc()} icon="Warning" flush>
           {#if data.toxicSources.length === 0}
-            <EmptyState icon="check" title="Aucune source problématique" />
+            <EmptyState icon="check" title={m.an_adv_toxic_empty()} />
           {:else}
             <div class="divide-y divide-outline-variant/40">
               {#each data.toxicSources.filter((t: any) => t.sanctioned > 0) as t}
                 <div class="flex items-center justify-between px-5 py-2.5 text-sm">
                   <span class="font-mono text-xs text-on-surface">{t.inviteCode}</span>
                   <div class="flex items-center gap-3 text-xs">
-                    <span class="text-on-surface-variant">{t.sanctioned}/{t.invited} sanctionnés</span>
+                    <span class="text-on-surface-variant">{m.an_adv_toxic_ratio({ sanctioned: t.sanctioned, invited: t.invited })}</span>
                     <span class="font-semibold {t.ratePct > 30 ? 'text-red-400' : t.ratePct > 10 ? 'text-amber-500' : 'text-on-surface-variant'}">{t.ratePct}%</span>
                   </div>
                 </div>
               {:else}
-                <EmptyState icon="check" title="Aucune source problématique" />
+                <EmptyState icon="check" title={m.an_adv_toxic_empty()} />
               {/each}
             </div>
           {/if}
@@ -645,9 +651,9 @@
       </div>
     </div>
 
-    <SectionCard title="Heures chaudes de modération" description="Quand les sanctions tombent (90 jours) — pour planifier les présences staff" icon="Fire" flush>
+    <SectionCard title={m.an_adv_hot_hours_title()} description={m.an_adv_hot_hours_desc()} icon="Fire" flush>
       {@const maxHot = Math.max(1, ...data.hotHours.map((h: any) => h.count))}
-      {@const hotMap = new Map(data.hotHours.map((h: any) => [`${h.dow}-${h.hour}`, h.count]))}
+      {@const hotMap = new Map<string, number>(data.hotHours.map((h: any) => [`${h.dow}-${h.hour}`, Number(h.count)]))}
       <div class="overflow-x-auto p-5">
         <div class="min-w-150">
           <div class="grid gap-0.5" style="grid-template-columns: 2.5rem repeat(24, 1fr)">
@@ -659,7 +665,7 @@
               <div class="text-[10px] text-on-surface-variant/60 flex items-center">{day}</div>
               {#each Array(24) as _, h}
                 {@const v = hotMap.get(`${d + 1}-${h}`) ?? 0}
-                <div class="aspect-square rounded-sm {heatColor(v, maxHot)}" title="{day} {h}h : {v} sanction(s)"></div>
+                <div class="aspect-square rounded-sm {heatColor(v, maxHot)}" title={m.an_adv_hot_hours_cell({ day, hour: h, count: v })}></div>
               {/each}
             {/each}
           </div>

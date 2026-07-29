@@ -310,13 +310,14 @@
 {#if !isDesktop && mobileOpen}
   <div
     role="presentation"
-    class="fixed inset-0 bg-black/30 z-40"
+    class="mobile-sidebar-backdrop fixed inset-0 bg-black/30 z-40"
     transition:fade={{ duration: 150 }}
     onclick={() => sidebarStore.closeMobile?.()}
   ></div>
 {/if}
 
 <aside
+  id="dashboard-sidebar"
   ontouchstart={onTouchStart}
   ontouchend={onTouchEnd}
   class="
@@ -324,7 +325,7 @@
     bg-surface-container-lowest
     border-r border-outline-variant
     will-change-transform transition-[transform,width] duration-200 ease-in-out
-    w-72
+    app-sidebar w-72
     {!isDesktop && mobileOpen ? 'translate-x-0 shadow-lg' : ''}
     {!isDesktop && !mobileOpen ? '-translate-x-full' : ''}
     lg:translate-x-0 lg:shadow-none

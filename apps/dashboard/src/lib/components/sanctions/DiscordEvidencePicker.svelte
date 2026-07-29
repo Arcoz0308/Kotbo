@@ -4,6 +4,7 @@
   import DiscordMarkdownText from './DiscordMarkdownText.svelte';
   import DiscordEmbedPreview from './DiscordEmbedPreview.svelte';
   import { fetchSanctionDiscordMessages, generateSanctionDiscordTranscripts } from '../../api';
+  import { m, dateLocale } from '../../i18n';
 
   interface ParsedEmbed {
     color: string | null;
@@ -130,7 +131,7 @@
       activeChannelId = 'all';
       step = 'messages';
     } catch (err: any) {
-      messagesError = err?.message || 'Impossible de récupérer les messages Discord.';
+      messagesError = err?.message || m.sev_fetch_error();
     } finally {
       loadingMessages = false;
     }
@@ -177,17 +178,19 @@
       }
 
       generateSummary = results.length > 0
-        ? `${results.length} transcription${results.length > 1 ? 's' : ''} ajoutée${results.length > 1 ? 's' : ''} aux preuves.`
+        ? (results.length > 1
+            ? m.sev_transcripts_added_other({ count: results.length })
+            : m.sev_transcripts_added_one({ count: results.length }))
         : '';
     } catch (err: any) {
-      generateErrors = [{ channelId: '', error: err?.message || 'Erreur lors de la génération des transcriptions.' }];
+      generateErrors = [{ channelId: '', error: err?.message || m.sev_generate_error() }];
     } finally {
       step = 'done';
     }
   }
 
   function formatTimestamp(iso: string) {
-    return new Date(iso).toLocaleString('fr-FR', {
+    return new Date(iso).toLocaleString(dateLocale(), {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -201,21 +204,21 @@
   }
 </script>
 
-<Modal bind:open title="Importer des messages depuis Discord" size="full">
+<Modal bind:open title={m.sev_modal_title()} size="full">
   {#if step === 'search'}
     <form class="flex flex-col gap-6 p-6 sm:p-8" onsubmit={(event) => { event.preventDefault(); loadMessages(); }}>
       <div class="max-w-2xl">
         <p class="text-sm font-semibold text-on-surface">
-          Retrouvez directement les messages de la personne sanctionnée.
+          {m.sev_intro_title()}
         </p>
         <p class="mt-1.5 text-xs leading-relaxed text-on-surface-variant/65">
-          Le bot cherche dans tous les salons textuels auxquels il a accès. Vous pourrez ensuite filtrer par salon et choisir précisément les messages à conserver.
+          {m.sev_intro_desc()}
         </p>
       </div>
 
       <div class="max-w-md rounded-xl bg-surface-container-high/25 p-5 ring-1 ring-outline-variant/10">
         <label for="evidence-message-limit" class="text-xs font-medium text-on-surface-variant/55">
-          Nombre maximum de messages
+          {m.sev_limit_label()}
         </label>
         <div class="mt-2 flex items-center gap-3">
           <input
@@ -227,18 +230,18 @@
             bind:value={messageLimit}
             class="min-w-0 flex-1 rounded-lg border border-outline-variant/15 bg-surface-container-lowest px-4 py-3 text-lg font-semibold tabular-nums text-on-surface outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
           />
-          <span class="shrink-0 text-xs font-medium text-on-surface-variant/50">max. 200</span>
+          <span class="shrink-0 text-xs font-medium text-on-surface-variant/50">{m.sev_limit_max()}</span>
         </div>
       </div>
 
       {#if loadingMessages}
-        <div class="grid gap-3 sm:grid-cols-3" aria-label="Recherche des messages en cours">
+        <div class="grid gap-3 sm:grid-cols-3" aria-label={m.sev_searching_aria()}>
           {#each Array(3) as _}
             <div class="h-20 animate-pulse rounded-xl bg-surface-container-high/35"></div>
           {/each}
         </div>
         <p class="text-xs font-medium text-on-surface-variant/60">
-          Recherche dans les salons accessibles… Cette opération peut prendre quelques secondes.
+          {m.sev_searching_hint()}
         </p>
       {/if}
 
@@ -250,7 +253,7 @@
 
       <div class="flex justify-end gap-3 pt-1">
         <button type="button" onclick={closeModal} class="rounded-lg px-6 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
-          Annuler
+          {m.common_cancel()}
         </button>
         <button
           type="submit"
@@ -258,7 +261,7 @@
           class="inline-flex items-center gap-2 rounded-lg bg-primary px-7 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Papicon icon="search" size={14} />
-          Rechercher les messages
+          {m.sev_search_submit()}
         </button>
       </div>
     </form>
@@ -268,14 +271,18 @@
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant/10 px-5 py-4">
         <div>
           <p class="text-sm font-semibold text-on-surface">
-            {totalLoadedCount} message{totalLoadedCount > 1 ? 's' : ''} de {targetTag || 'la personne sanctionnée'}
+            {totalLoadedCount > 1
+              ? m.sev_messages_from_other({ count: totalLoadedCount, target: targetTag || m.sev_target_fallback() })
+              : m.sev_messages_from_one({ count: totalLoadedCount, target: targetTag || m.sev_target_fallback() })}
           </p>
           <p class="mt-0.5 text-xs text-on-surface-variant/55">
-            {searchedChannelCount} salon{searchedChannelCount > 1 ? 's' : ''} parcouru{searchedChannelCount > 1 ? 's' : ''} · {channelResults.length} avec des messages
+            {searchedChannelCount > 1
+              ? m.sev_channels_scanned_other({ count: searchedChannelCount, withMessages: channelResults.length })
+              : m.sev_channels_scanned_one({ count: searchedChannelCount, withMessages: channelResults.length })}
           </p>
         </div>
         <div class="rounded-lg bg-primary/8 px-3 py-2 text-xs font-semibold tabular-nums text-primary">
-          {totalSelectedCount} sélectionné{totalSelectedCount > 1 ? 's' : ''}
+          {totalSelectedCount > 1 ? m.sev_selected_other({ count: totalSelectedCount }) : m.sev_selected_one({ count: totalSelectedCount })}
         </div>
       </div>
 
@@ -284,25 +291,25 @@
           <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-surface-container-high/50 text-on-surface-variant/45">
             <Papicon icon="message-square" size={22} />
           </div>
-          <p class="mt-4 text-sm font-semibold text-on-surface">Aucun message récent trouvé</p>
+          <p class="mt-4 text-sm font-semibold text-on-surface">{m.sev_no_recent_message()}</p>
           <p class="mt-1 max-w-md text-xs leading-relaxed text-on-surface-variant/55">
-            Le bot a parcouru {searchedChannelCount} salon{searchedChannelCount > 1 ? 's' : ''}. La personne n’y a peut-être pas écrit récemment ou l’historique n’est pas accessible.
+            {searchedChannelCount > 1 ? m.sev_empty_hint_other({ count: searchedChannelCount }) : m.sev_empty_hint_one({ count: searchedChannelCount })}
           </p>
           <button type="button" onclick={() => (step = 'search')} class="mt-6 rounded-lg bg-primary px-6 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-primary active:scale-[0.98]">
-            Modifier la recherche
+            {m.sev_edit_search()}
           </button>
         </div>
       {:else}
         <div class="grid min-h-0 flex-1 md:grid-cols-[14rem_minmax(0,1fr)]">
           <aside class="border-b border-outline-variant/10 bg-surface-container-high/10 p-3 md:border-b-0 md:border-r">
-            <p class="px-2 pb-2 pt-1 text-xs font-medium text-on-surface-variant/45">Filtrer par salon</p>
-            <nav class="flex gap-2 overflow-x-auto pb-1 md:max-h-[29rem] md:flex-col md:overflow-y-auto md:pr-1" aria-label="Filtres par salon">
+            <p class="px-2 pb-2 pt-1 text-xs font-medium text-on-surface-variant/45">{m.sev_filter_by_channel()}</p>
+            <nav class="flex gap-2 overflow-x-auto pb-1 md:max-h-[29rem] md:flex-col md:overflow-y-auto md:pr-1" aria-label={m.sev_channel_filters_aria()}>
               <button
                 type="button"
                 onclick={() => (activeChannelId = 'all')}
                 class="flex min-w-max items-center justify-between gap-4 rounded-lg px-3 py-2.5 text-left text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-primary {activeChannelId === 'all' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant/65 hover:bg-surface-container-high/45 hover:text-on-surface'}"
               >
-                <span>Tous les salons</span>
+                <span>{m.sev_all_channels()}</span>
                 <span class="tabular-nums opacity-65">{totalLoadedCount}</span>
               </button>
               {#each channelResults as channel (channel.channelId)}
@@ -318,13 +325,13 @@
             </nav>
           </aside>
 
-          <section class="flex min-h-0 flex-col" aria-label="Messages trouvés">
+          <section class="flex min-h-0 flex-col" aria-label={m.sev_messages_found_aria()}>
             <div class="flex items-center justify-between gap-3 border-b border-outline-variant/10 px-4 py-3">
               <p class="text-xs font-medium text-on-surface-variant/60">
-                {visibleMessages.length} message{visibleMessages.length > 1 ? 's' : ''} affiché{visibleMessages.length > 1 ? 's' : ''}
+                {visibleMessages.length > 1 ? m.sev_displayed_other({ count: visibleMessages.length }) : m.sev_displayed_one({ count: visibleMessages.length })}
               </p>
               <button type="button" onclick={toggleSelectVisible} class="rounded-md px-2 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/8 focus-visible:outline-2 focus-visible:outline-primary">
-                {allVisibleSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+                {allVisibleSelected ? m.sev_deselect_all() : m.sev_select_all()}
               </button>
             </div>
 
@@ -336,7 +343,7 @@
                     type="button"
                     role="checkbox"
                     aria-checked={isChecked}
-                    aria-label={`${isChecked ? 'Retirer' : 'Inclure'} le message du ${formatTimestamp(message.createdAt)}`}
+                    aria-label={isChecked ? m.sev_toggle_remove({ date: formatTimestamp(message.createdAt) }) : m.sev_toggle_include({ date: formatTimestamp(message.createdAt) })}
                     onclick={() => toggleMessage(message.channelId, message.id)}
                     class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-md border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary {isChecked ? 'border-primary bg-primary text-on-primary' : 'border-outline-variant/35 hover:border-primary/55'}"
                   >
@@ -352,7 +359,7 @@
                       {#if message.content}
                         <p class="discord-bubble-text"><DiscordMarkdownText text={message.content} /></p>
                       {:else if message.attachments.length === 0 && message.embeds.length === 0 && message.stickers.length === 0}
-                        <p class="discord-bubble-text discord-bubble-empty">(Pas de texte)</p>
+                        <p class="discord-bubble-text discord-bubble-empty">{m.sev_no_text()}</p>
                       {/if}
 
                       {#if message.attachments.length > 0}
@@ -391,18 +398,18 @@
 
         {#if failedChannelCount > 0 || truncatedChannelCount > 0}
           <div class="border-t border-amber-500/15 bg-amber-500/5 px-5 py-2.5 text-[10px] font-medium text-amber-700">
-            {#if failedChannelCount > 0}{failedChannelCount} salon{failedChannelCount > 1 ? 's' : ''} n’ont pas pu être parcourus.{/if}
+            {#if failedChannelCount > 0}{failedChannelCount > 1 ? m.sev_failed_channels_other({ count: failedChannelCount }) : m.sev_failed_channels_one({ count: failedChannelCount })}{/if}
             {#if failedChannelCount > 0 && truncatedChannelCount > 0} · {/if}
-            {#if truncatedChannelCount > 0}La recherche a atteint la limite de parcours dans {truncatedChannelCount} salon{truncatedChannelCount > 1 ? 's' : ''}.{/if}
+            {#if truncatedChannelCount > 0}{truncatedChannelCount > 1 ? m.sev_truncated_other({ count: truncatedChannelCount }) : m.sev_truncated_one({ count: truncatedChannelCount })}{/if}
           </div>
         {/if}
 
         <div class="flex flex-wrap justify-end gap-3 border-t border-outline-variant/10 px-5 py-4">
           <p class="mr-auto self-center text-[10px] text-on-surface-variant/50">
-            Une transcription distincte sera créée pour chaque salon retenu.
+            {m.sev_one_transcript_per_channel()}
           </p>
           <button type="button" onclick={() => (step = 'search')} class="rounded-lg px-5 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/60 transition-colors hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary">
-            Modifier la recherche
+            {m.sev_edit_search()}
           </button>
           <button
             type="button"
@@ -411,7 +418,7 @@
             class="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Papicon icon="check-circle" size={14} />
-            Ajouter à la transcription ({totalSelectedCount})
+            {m.sev_add_to_transcript({ count: totalSelectedCount })}
           </button>
         </div>
       {/if}
@@ -419,12 +426,12 @@
 
   {:else if step === 'generating'}
     <div class="flex flex-col items-center justify-center gap-4 px-6 py-20">
-      <div class="grid w-full max-w-lg gap-3" aria-label="Génération des transcriptions en cours">
+      <div class="grid w-full max-w-lg gap-3" aria-label={m.sev_generating()}>
         <div class="h-14 animate-pulse rounded-xl bg-surface-container-high/40"></div>
         <div class="h-14 animate-pulse rounded-xl bg-surface-container-high/25"></div>
       </div>
       <p class="text-[13px] font-medium text-on-surface-variant/60">
-        Génération de la transcription…
+        {m.sev_generating_transcript()}
       </p>
     </div>
 
@@ -442,7 +449,7 @@
       {/each}
       <div class="flex justify-end pt-2">
         <button type="button" onclick={closeModal} class="rounded-lg bg-primary px-7 py-3 text-[11px] font-semibold uppercase tracking-widest text-on-primary active:scale-[0.98]">
-          Terminé
+          {m.sev_done()}
         </button>
       </div>
     </div>

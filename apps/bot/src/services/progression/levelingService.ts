@@ -7,6 +7,22 @@ import { cache, getCachedGuild } from '../../utils/cache.js';
 
 // Cooldown map: key is "guildId:userId", value is timestamp when cooldown expires
 const xpCooldowns = new Map<string, number>();
+const MAX_XP_COOLDOWNS = 100_000;
+let xpCooldownChecks = 0;
+
+function maintainXpCooldowns(now: number): void {
+  xpCooldownChecks++;
+  if (xpCooldownChecks % 2_048 !== 0 && xpCooldowns.size < MAX_XP_COOLDOWNS) return;
+
+  for (const [key, cooldownEnd] of xpCooldowns) {
+    if (cooldownEnd <= now) xpCooldowns.delete(key);
+  }
+  while (xpCooldowns.size >= MAX_XP_COOLDOWNS) {
+    const oldest = xpCooldowns.keys().next().value as string | undefined;
+    if (!oldest) break;
+    xpCooldowns.delete(oldest);
+  }
+}
 
 /**
  * Calcul l'XP nécessaire pour atteindre un niveau donné.
@@ -105,6 +121,12 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
       return;
     }
 
+    const cooldownKey = `${guildId}:${userId}`;
+    const now = Date.now();
+    maintainXpCooldowns(now);
+    const cooldownEnd = xpCooldowns.get(cooldownKey) || 0;
+    if (now < cooldownEnd) return;
+
     // Récupérer le membre Discord pour valider ses rôles
     const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
     if (!discordGuild) return;
@@ -116,15 +138,8 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
       return;
     }
 
-    const cooldownKey = `${guildId}:${userId}`;
-    const now = Date.now();
-    const cooldownEnd = xpCooldowns.get(cooldownKey) || 0;
-
-    if (now < cooldownEnd) {
-      return; // Toujours sous cooldown
-    }
-
     // Définir le nouveau cooldown
+    xpCooldowns.delete(cooldownKey);
     xpCooldowns.set(cooldownKey, now + (config.cooldownSeconds * 1000));
 
     // Calculer le multiplicateur d'XP par rôle
@@ -787,4 +802,3 @@ export async function updateMemberLevelRoles(guildId: string, userId: string, le
     logger.error('LevelingService', `Erreur lors de la mise à jour des rôles de niveau pour ${userId}:`, err);
   }
 }
-

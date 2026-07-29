@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, ActivityType, PresenceStatusData } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
+import { fetchExternal } from '../../../utils/http.js';
 import {
   json,
   readJsonBody,
@@ -101,11 +102,19 @@ export async function handleCustomBotRoutes(
       }
 
       // Validate enums
-      if (updateData.botStatus && !['ONLINE', 'IDLE', 'DND', 'INVISIBLE'].includes(updateData.botStatus)) {
+      if (
+        updateData.botStatus != null
+        && (typeof updateData.botStatus !== 'string'
+          || !['ONLINE', 'IDLE', 'DND', 'INVISIBLE'].includes(updateData.botStatus))
+      ) {
         json(res, 400, { error: 'Statut invalide' });
         return true;
       }
-      if (updateData.activityType && !['NONE', 'PLAYING', 'STREAMING', 'LISTENING', 'WATCHING', 'COMPETING'].includes(updateData.activityType)) {
+      if (
+        updateData.activityType != null
+        && (typeof updateData.activityType !== 'string'
+          || !['NONE', 'PLAYING', 'STREAMING', 'LISTENING', 'WATCHING', 'COMPETING'].includes(updateData.activityType))
+      ) {
         json(res, 400, { error: 'Type d\'activité invalide' });
         return true;
       }
@@ -151,7 +160,7 @@ export async function handleCustomBotRoutes(
         return true;
       }
 
-      const response = await fetch('https://discord.com/api/v10/users/@me', {
+      const response = await fetchExternal('https://discord.com/api/v10/users/@me', {
         headers: { Authorization: `Bot ${token}` },
       });
 

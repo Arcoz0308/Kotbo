@@ -4,11 +4,11 @@
   import ExportDropdown from './ExportDropdown.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { downloadSingleSheetXlsx } from '../../xlsxExport';
-  import { m } from '../../i18n';
+  import { m, dateLocale } from '../../i18n';
 
   const { data, chartLabels } = $props<{ data: any; chartLabels: any[] }>();
 
-  const fmt = (n: number) => n?.toLocaleString('fr-FR') ?? '0';
+  const fmt = (n: number) => n?.toLocaleString(dateLocale()) ?? '0';
 
   function triggerDownload(content: BlobPart, fileName: string, mimeType: string) {
     const blob = new Blob([content], { type: mimeType });

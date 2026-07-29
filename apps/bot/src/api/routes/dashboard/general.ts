@@ -185,7 +185,9 @@ export async function handleGuildGeneralRoutes(
   // GET /api/dashboard/guilds/:guildId or /api/dashboard/guilds/:guildId/state
   if ((parts.length === 4 || (parts.length === 5 && parts[4] === 'state')) && method === 'GET') {
     try {
-      const state = await getGuildState(client, guildId, access, user.userId);
+      const state = await getGuildState(client, guildId, access, user.userId, {
+        overview: url.searchParams.get('scope') === 'overview',
+      });
       if (!state) {
         json(res, 404, { error: 'Guilde introuvable' });
         return true;

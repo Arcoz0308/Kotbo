@@ -92,7 +92,7 @@
         <!-- Preset Palette -->
         <div>
           <span class="text-xs font-medium text-on-surface-variant/40 ml-1 mb-3 block">Couleurs recommandées</span>
-          <div class="grid grid-cols-6 gap-3">
+          <div class="form-color-modal__palette grid grid-cols-6 gap-3">
             {#each presetColors as pc}
               <button
                 onclick={() => tempValue = pc}

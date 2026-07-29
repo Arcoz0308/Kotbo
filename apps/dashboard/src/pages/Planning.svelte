@@ -127,6 +127,7 @@
   let permMemberSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   let permError = $state('');
   let permSaving = $state(false);
+  const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
 
   // Meetings Feature Access & Permissions
   const meetingsFeatureAccess = $derived(dashboardStore.state.featureAccess?.meetings || {});
@@ -423,7 +424,6 @@
   let miniCalDate = $state(new Date());
 
   // Derived
-  const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
   const myStaffRecord = $derived(allStaff.find(s => s.userId === (authStore.user as any)?.id));
   const activeStaff = $derived(allStaff.filter(s => !s.blacklistEntries || s.blacklistEntries.length === 0));
 

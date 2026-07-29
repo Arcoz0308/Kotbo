@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger.js';
 import { getStaffMember } from '../staff/staffManagementService.js';
 import { getLevelFromXp } from '../progression/levelingService.js';
 import { getClient } from '../../utils/client.js';
+import { fetchExternal } from '../../utils/http.js';
 
 const TAG = 'Widget';
 const API = 'https://discord.com/api/v9';
@@ -215,7 +216,7 @@ export async function pushWidgetForUser(guildId: string, userId: string): Promis
     // Keep "0" only as a compatibility fallback for that first legacy user.
     const identityIds = [userId, '0'];
     for (const [index, identityId] of identityIds.entries()) {
-      const res = await fetch(getWidgetProfileUrl(appId, userId, identityId), {
+      const res = await fetchExternal(getWidgetProfileUrl(appId, userId, identityId), {
         method: 'PATCH',
         headers,
         body: JSON.stringify(payload),
@@ -280,7 +281,7 @@ export async function clearWidgetForUser(userId: string): Promise<{ ok: boolean;
   try {
     const identityIds = [userId, '0'];
     for (const [index, identityId] of identityIds.entries()) {
-      const res = await fetch(getWidgetProfileUrl(appId, userId, identityId), {
+      const res = await fetchExternal(getWidgetProfileUrl(appId, userId, identityId), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

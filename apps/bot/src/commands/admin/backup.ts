@@ -9,6 +9,7 @@ import { MAX_BACKUP_IMPORT_BYTES, parseBackupImport } from '../../services/syste
 import type { Prisma } from '@prisma/client';
 import { extractTrackingInfo, resolveModuleFromCommand } from '../../utils/moduleTracking.js';
 import { separator, v2Message } from '@arcscord/components';
+import { fetchExternal } from '../../utils/http.js';
 
 const MAX_BACKUPS_PER_GUILD = 3;
 
@@ -441,7 +442,7 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
   // Télécharger le fichier
   let buffer: Buffer;
   try {
-    const response = await fetch(attachment.url);
+    const response = await fetchExternal(attachment.url, {}, 15_000);
     buffer = Buffer.from(await response.arrayBuffer());
   } catch (error) {
     await interaction.editReply(v2Message(

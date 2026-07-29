@@ -1,5 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
+import { HTTPException } from 'hono/http-exception';
 import type { Client } from 'discord.js';
 import { dashboardCors } from './middleware/cors.js';
 import { createHealthRouter } from './routes/health.js';
@@ -73,8 +74,8 @@ export function createHonoApp(client: Client): OpenAPIHono {
 
   app.onError((err, c) => {
     // HTTPException : erreur intentionnelle avec status code
-    if ('status' in err && typeof err.status === 'number') {
-      return c.json({ error: err.message }, err.status as unknown);
+    if (err instanceof HTTPException) {
+      return err.getResponse();
     }
 
     logger.error('HonoAPI', 'Erreur non gérée:', err);

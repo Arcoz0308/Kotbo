@@ -363,7 +363,7 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-100 flex items-start justify-center pt-[15vh] px-4"
+    class="command-palette fixed inset-0 z-100 flex items-start justify-center pt-[15vh] px-4"
     role="dialog"
     aria-modal="true"
     aria-label="Palette de commandes"
@@ -380,7 +380,7 @@
 
     <!-- Palette panel -->
     <div
-      class="relative z-10 w-full max-w-xl bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-up duration-150"
+      class="command-palette__panel relative z-10 w-full max-w-xl bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-up duration-150"
       role="document"
     >
       <!-- Search input -->

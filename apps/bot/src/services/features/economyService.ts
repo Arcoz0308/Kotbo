@@ -1,9 +1,27 @@
-import type { RpgItem } from '@prisma/client';
+import type { Prisma, RpgItem } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
+const MAX_ACTIVITY_COOLDOWNS = 100_000;
+let activityCooldownChecks = 0;
+
+function maintainActivityCooldowns(now: number): void {
+  activityCooldownChecks++;
+  if (activityCooldownChecks % 2_048 !== 0 && messageActivityCooldown.size < MAX_ACTIVITY_COOLDOWNS) return;
+
+  // Le cooldown vocal (2 min) est le plus long : toute entrée plus ancienne
+  // est définitivement inutile.
+  for (const [key, lastReward] of messageActivityCooldown) {
+    if (now - lastReward >= 120_000) messageActivityCooldown.delete(key);
+  }
+  while (messageActivityCooldown.size >= MAX_ACTIVITY_COOLDOWNS) {
+    const oldest = messageActivityCooldown.keys().next().value as string | undefined;
+    if (!oldest) break;
+    messageActivityCooldown.delete(oldest);
+  }
+}
 
 /**
  * Gets or creates the global/local economy configuration for a guild.
@@ -214,17 +232,19 @@ export async function getOrCreateRpgProfile(guildId: string, userId: string) {
  * Handles activity balance and XP rewards on text message or vocal usage.
  */
 export async function handleUserActivity(guildId: string, userId: string, type: 'text' | 'voice') {
-  const config = await getOrCreateEconomyConfig(guildId);
-  if (!config.enabled) return;
-
   const key = `${guildId}:${userId}:${type}`;
   const now = Date.now();
+  maintainActivityCooldowns(now);
   const lastReward = messageActivityCooldown.get(key) || 0;
   
   // Cooldown to avoid spam farming: 1 min for text, 2 min for voice gains
   const cooldownMs = type === 'text' ? 60000 : 120000;
   if (now - lastReward < cooldownMs) return;
 
+  const config = await getOrCreateEconomyConfig(guildId);
+  if (!config.enabled) return;
+
+  messageActivityCooldown.delete(key);
   messageActivityCooldown.set(key, now);
 
   const amount = type === 'text' ? Math.floor(Math.random() * 4) + 1 : Math.floor(Math.random() * 8) + 3; // 1-4 coins for chat, 3-10 for voice
@@ -1298,7 +1318,7 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
   const item = inventoryEntry.item;
   const isEquipped = profile.weaponId === itemId || profile.armorId === itemId;
 
-  const updates: unknown[] = [];
+  const updates: Prisma.PrismaPromise<unknown>[] = [];
 
   if (remainingQty > 0) {
     updates.push(
@@ -1318,7 +1338,7 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
     // Stat bonuses (ATK/DEF/SPD) are all applied together on equip regardless of slot
     // (see equipInventoryItem), so all three must be reverted together here too.
     if (isEquipped) {
-      const updateData: Record<string, unknown> = {
+      const updateData: Prisma.RpgProfileUpdateInput = {
         attack: { increment: -item.atkBonus },
         defense: { increment: -item.defBonus },
         speed: { increment: -item.spdBonus }

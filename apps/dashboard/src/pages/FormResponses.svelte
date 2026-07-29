@@ -22,6 +22,8 @@
 
   let form = $state<FormInfo | null>(null);
   let responses = $state<Candidature[]>([]);
+  let responseTotal = $state(0);
+  let loadingMore = $state(false);
   let loading = $state(true);
   let error = $state('');
   let selectedResponse = $state<Candidature | null>(null);
@@ -58,30 +60,51 @@
   onMount(async () => {
     if (!authStore.selectedGuildId) return;
     try {
-      // Load form info
-      const fRes = await fetch(
-        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`,
-        { headers: { Authorization: `Bearer ${authStore.token}` } }
-      );
+      const requestHeaders = { Authorization: `Bearer ${authStore.token}` };
+      const [fRes, rRes] = await Promise.all([
+        fetch(
+          `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`,
+          { headers: requestHeaders },
+        ),
+        fetch(
+          `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}/responses?limit=100`,
+          { headers: requestHeaders },
+        ),
+      ]);
       if (fRes.ok) {
         const data = await fRes.json();
         form = data.form;
       }
 
-      // Load responses
-      const rRes = await fetch(
-        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}/responses`,
-        { headers: { Authorization: `Bearer ${authStore.token}` } }
-      );
       if (!rRes.ok) throw new Error('Impossible de charger les réponses');
       const rData = await rRes.json();
       responses = rData.responses || [];
+      responseTotal = rData.total ?? responses.length;
     } catch (e: unknown) {
       error = e instanceof Error ? e.message : 'Erreur inconnue';
     } finally {
       loading = false;
     }
   });
+
+  async function loadMore() {
+    if (!authStore.selectedGuildId || loadingMore || responses.length >= responseTotal) return;
+    loadingMore = true;
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}/responses?limit=100&offset=${responses.length}`,
+        { headers: { Authorization: `Bearer ${authStore.token}` } },
+      );
+      if (!res.ok) throw new Error('Impossible de charger les réponses suivantes');
+      const data = await res.json();
+      responses = [...responses, ...(data.responses || [])];
+      responseTotal = data.total ?? responseTotal;
+    } catch (e: unknown) {
+      error = e instanceof Error ? e.message : 'Erreur de chargement';
+    } finally {
+      loadingMore = false;
+    }
+  }
 
   function exportCsv() {
     if (!responses.length) return;
@@ -132,6 +155,12 @@
         <span class="text-xs font-semibold text-on-surface-variant/50 bg-surface-container px-3 py-1.5 rounded-full">
           {form.submissionsCount} soumission{form.submissionsCount !== 1 ? 's' : ''}
         </span>
+      {/if}
+      {#if responses.length < responseTotal}
+        <button onclick={loadMore} disabled={loadingMore}
+          class="px-3 py-1.5 rounded-xl bg-surface-container text-xs font-bold disabled:opacity-50">
+          {loadingMore ? 'Chargement…' : `Charger plus (${responses.length}/${responseTotal})`}
+        </button>
       {/if}
       <button onclick={exportCsv}
         class="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-sm font-bold transition-colors">

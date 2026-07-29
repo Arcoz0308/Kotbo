@@ -86,7 +86,7 @@ export function registerTicketsBusSubscribers(client: Client): void {
             `Le membre <@${payload.userId}> a quitté le serveur alors que ce ticket est encore actif.\n\n` +
             'Souhaitez-vous fermer ou supprimer ce ticket ?'
           )
-          .setColor(COLORS.warning as unknown)
+          .setColor(COLORS.warning)
           .setTimestamp();
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(

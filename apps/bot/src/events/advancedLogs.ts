@@ -17,7 +17,6 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { trackMessage } from '../services/analytics/analyticsService.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache } from '../utils/cache.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
@@ -895,11 +894,6 @@ export function registerAdvancedLogsListener(client: Client): void {
     // 📊 Tracking d'activité staff
     void recordStaffActivity(snapshot.guildId, message.author.id, new Date(), 1, 0).catch((error) => {
       logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
-    });
-
-    // 📊 Analytics: track channel, guild and member daily/hourly stats (buffered at service level)
-    void trackMessage(snapshot.guildId, message.channelId, message.author.id).catch((error) => {
-      logger.error('Analytics', 'Erreur lors du tracking de message :', error);
     });
 
     cleanupMessageSnapshots();

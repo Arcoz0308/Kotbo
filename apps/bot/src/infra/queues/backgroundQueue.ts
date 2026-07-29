@@ -10,6 +10,7 @@ export type BackgroundJobName =
   | 'digest'
   | 'daily-algo'
   | 'daily-algo-summary'
+  | 'daily-algo-week'
   | 'weekly-recap'
   | 'sanctions'
   | 'staff-warnings-expiration'
@@ -34,7 +35,13 @@ export type BackgroundJobName =
   | 'quest-expiration'
   | 'giveaways-expiration'
   | 'access-lifecycle'
-  | 'stats-ping';
+  | 'stats-ping'
+  | 'message-logs-prune'
+  | 'word-stats-prune'
+  | 'ban-hygiene-scan'
+  | 'staff-reminders'
+  | 'raid-protection-tick'
+  | 'raid-protection-locks-renew';
 
 
 
@@ -61,8 +68,9 @@ function getProcessor(): Processor<BackgroundJobPayload, void, BackgroundJobName
   return async (job) => {
     const handler = handlers[job.name as BackgroundJobName];
     if (!handler) {
-      logger.warn('Queue', `Aucun handler enregistré pour ${job.name}.`);
-      return;
+      // Un succès silencieux supprimait définitivement le job de BullMQ alors
+      // que le fallback local n'était plus exécuté.
+      throw new Error(`Aucun handler enregistré pour ${job.name}.`);
     }
 
     if (job.data?.jitterMs && job.data.jitterMs > 0) {

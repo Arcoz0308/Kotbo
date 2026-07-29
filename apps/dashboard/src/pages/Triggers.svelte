@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { fade, scale } from 'svelte/transition';
@@ -185,7 +186,7 @@
       }
 
       // Fetch custom forms
-      const formsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${dashboardStore.state.selectedGuildId}/custom-forms`, {
+      const formsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (formsRes.ok) {
@@ -194,12 +195,12 @@
       }
 
       // Fetch ticket configuration
-      const ticketsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${dashboardStore.state.selectedGuildId}/tickets`, {
+      const ticketsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (ticketsRes.ok) {
         const ticketsData = await ticketsRes.json();
-        ticketTypes = ticketsData.config?.ticketTypes || [];
+        ticketTypes = ticketsData.ticketTypes || [];
       }
 
       // Fetch guild's custom emojis (for the reactions picker)
@@ -214,23 +215,9 @@
     }
   });
 
-  function responsesToPayload(entries: ResponseEntry[]): string | null {
-    const valid = entries.filter(e => e.message.trim());
-    if (valid.length === 0) return null;
-    if (valid.length === 1 && valid[0].weight === 100) return valid[0].message;
-    return JSON.stringify(valid.map(e => ({ message: e.message, weight: e.weight })));
-  }
-
-  function payloadToResponses(response: string | null): ResponseEntry[] {
-    if (!response || !response.trim()) return [{ message: '', weight: 100 }];
-    try {
-      const parsed = JSON.parse(response);
-      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].message !== undefined) {
-        return parsed.map((m: any) => ({ message: m.message || '', weight: m.weight || 0 }));
-      }
-    } catch {}
-    return [{ message: response, weight: 100 }];
-  }
+  const totalWeight = $derived(
+    formResponses.reduce((acc, curr) => acc + (Number(curr.weight) || 0), 0)
+  );
 
   function addResponseEntry() {
     formResponses = [...formResponses, { message: '', weight: 0 }];
@@ -241,7 +228,28 @@
     formResponses = formResponses.filter((_, i) => i !== index);
   }
 
-  const totalWeight = $derived(formResponses.reduce((sum, r) => sum + r.weight, 0));
+  function payloadToResponses(raw: string | null): ResponseEntry[] {
+    if (!raw) return [{ message: '', weight: 100 }];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+        return parsed.map((item: any) => ({
+          message: item.message || '',
+          weight: Number(item.weight) || 0,
+        }));
+      }
+    } catch {
+      // not JSON or raw string
+    }
+    return [{ message: raw, weight: 100 }];
+  }
+
+  function responsesToPayload(entries: ResponseEntry[]): string | null {
+    const valid = entries.filter((e) => e.message.trim() !== '');
+    if (valid.length === 0) return null;
+    if (valid.length === 1 && valid[0].weight === 100) return valid[0].message;
+    return JSON.stringify(valid);
+  }
 
   function openCreateModal() {
     isEditing = false;
@@ -390,7 +398,7 @@
     const hasActions = Object.keys(finalActions).length > 0;
 
     if (!computedResponse && !formRoleIdToAdd && !formRoleIdToRemove && !formDeleteTrigger && !formCloseTicket && !formRejectForm && finalReactions.length === 0 && !hasActions) {
-      actionState.setError("Veuillez configurer au moins une action (réponse, ajout/retrait de rôle, suppression du message, fermeture de ticket, rejet de candidature, réaction, ou action avancée).");
+      actionState.setError(m.triggers_action_required_error());
       return;
     }
     
@@ -423,17 +431,17 @@
 
       if (isEditing && editingId) {
         const res = await updateAutoResponse(editingId, payload as any);
-        if (!res || !res.autoResponse) throw new Error('Erreur de modification');
+        if (!res || !res.autoResponse) throw new Error(m.triggers_save_edit_error());
         list = list.map(item => item.id === editingId ? res.autoResponse : item);
       } else {
         const res = await createAutoResponse(payload as any);
-        if (!res || !res.autoResponse) throw new Error('Erreur de création');
+        if (!res || !res.autoResponse) throw new Error(m.triggers_save_create_error());
         list = [res.autoResponse, ...list];
       }
 
       showModal = false;
       return true;
-    }, { successMessage: isEditing ? 'Déclencheur modifié avec succès !' : 'Déclencheur créé avec succès !' });
+    }, { successMessage: isEditing ? m.triggers_save_edit_success() : m.triggers_save_create_success() });
   }
 
   async function handleToggle(id: string, currentStatus: boolean) {
@@ -446,48 +454,48 @@
 
   async function handleDelete(id: string) {
     if (!canManageSettings) return;
-    if (!(await confirmDialog.danger('Supprimer ce déclencheur ?'))) return;
+    if (!(await confirmDialog.danger(m.triggers_delete_confirm_title()))) return;
     await actionState.run(async () => {
       const ok = await deleteAutoResponse(id);
-      if (!ok) throw new Error('Erreur de suppression');
+      if (!ok) throw new Error(m.triggers_delete_error());
       list = list.filter(item => item.id !== id);
       return true;
-    }, { successMessage: 'Déclencheur supprimé.' });
+    }, { successMessage: m.triggers_delete_toast() });
   }
 
   function getRoleName(roleId: string | null) {
     if (!roleId) return '';
     const role = availableRoles.find(r => r.id === roleId);
-    return role ? `@${role.name}` : `Rôle inconnu (${roleId})`;
+    return role ? `@${role.name}` : m.triggers_unknown_role({ id: roleId });
   }
 
   function getFormName(formId: string | null) {
-    if (!formId) return 'Formulaire inconnu';
+    if (!formId) return m.triggers_unknown_form();
     const form = availableForms.find(f => f.id === formId);
     return form ? form.name : `Formulaire (${formId})`;
   }
 
   function getDestinationLabel(item: typeof list[0]) {
     const destination = item.responseDestination || 'DM';
-    if (destination === 'CHANNEL') return 'Salon du déclencheur';
+    if (destination === 'CHANNEL') return m.triggers_dest_channel();
     if (destination === 'SPECIFIC_CHANNEL') {
       const channel = availableChannels.find((c) => c.id === item.responseChannelId);
-      return channel ? channelDisplayName(channel) : 'Salon spécifique';
+      return channel ? channelDisplayName(channel) : m.triggers_dest_specific_channel();
     }
-    return 'MP';
+    return m.triggers_dest_dm();
   }
 
   function getTicketTypeName(ticketTypeId: string | null) {
-    if (!ticketTypeId) return 'Tous les tickets';
+    if (!ticketTypeId) return m.triggers_all_tickets();
     const type = ticketTypes.find(t => t.id === ticketTypeId);
     return type ? type.label : `Ticket Type (${ticketTypeId})`;
   }
 
-  const matchTypeLabels: Record<string, string> = {
-    'EXACT': 'Mot Exact',
-    'CONTAINS': 'Contient',
-    'REGEX': 'Expression Régulière (Regex)'
-  };
+  const matchTypeLabels = $derived<Record<string, string>>({
+    'EXACT': m.triggers_match_exact(),
+    'CONTAINS': m.triggers_match_contains(),
+    'REGEX': m.triggers_match_regex()
+  });
 
   // Multiple selection states
   let selectedIds = $state<Set<string>>(new Set());
@@ -538,12 +546,12 @@
       selectedIds = new Set();
       lastSelectedIndex = null;
       return successCount > 0;
-    }, { successMessage: `${enabled ? 'Activation' : 'Désactivation'} effectuée sur les déclencheurs sélectionnés.` });
+    }, { successMessage: m.triggers_bulk_toggle_toast({ action: enabled ? m.triggers_bulk_enable() : m.triggers_bulk_disable() }) });
   }
 
   async function bulkDelete() {
     if (!canManageSettings || selectedIds.size === 0) return;
-    if (!(await confirmDialog.danger(`Supprimer ${selectedIds.size} déclencheurs ?`, 'Les déclencheurs sélectionnés seront supprimés définitivement.'))) return;
+    if (!(await confirmDialog.danger(m.triggers_bulk_delete_title({ n: selectedIds.size }), m.triggers_bulk_delete_desc()))) return;
     await actionState.run(async () => {
       const ids = Array.from(selectedIds);
       let successCount = 0;
@@ -557,13 +565,13 @@
       selectedIds = new Set();
       lastSelectedIndex = null;
       return successCount > 0;
-    }, { successMessage: `Suppression effectuée.` });
+    }, { successMessage: m.triggers_bulk_delete_toast() });
   }
 </script>
 
 <ModulePage
-  title="Déclencheurs d'actions (Triggers)"
-  description="Configurez des actions instantanées (envoi de messages, attribution/retrait de rôles ou modération) basées sur des mots-clés, des formulaires ou des tickets."
+  title={m.triggers_page_title()}
+  description={m.triggers_page_desc()}
   icon="message"
   featureKey="triggers"
 >
@@ -574,7 +582,7 @@
         class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-xl transition-all cursor-pointer"
       >
         <Papicon icon="add" size={16} />
-        Nouveau déclencheur
+        {m.triggers_new_btn()}
       </button>
     {/if}
   {/snippet}
@@ -598,14 +606,14 @@
           <div class="flex items-center gap-4">
             <h3 class="text-lg font-semibold flex items-center gap-3 font-headline">
               <Papicon icon="list" size={20} class="text-secondary" />
-              Liste des Déclencheurs ({list.length})
+              {m.triggers_list_title({ n: list.length })}
             </h3>
             {#if list.length > 0}
               <button 
                 onclick={toggleSelectAll}
                 class="text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high/80 border border-outline-variant/5 text-on-surface-variant transition-all cursor-pointer select-none"
               >
-                {allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+                {allSelected ? m.triggers_deselect_all() : m.triggers_select_all()}
               </button>
             {/if}
           </div>
@@ -634,21 +642,21 @@
                     </span>
 
                     {#if !item.triggerType || item.triggerType === 'MESSAGE'}
-                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">Message :</span>
+                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">{m.triggers_type_message()}</span>
                       <code class="text-sm font-semibold font-mono bg-surface-container-high/65 px-3 py-1 rounded-xl text-secondary border border-outline-variant/5">{item.trigger}</code>
                     {:else if item.triggerType === 'FORM'}
-                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">Formulaire :</span>
+                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">{m.triggers_type_form()}</span>
                       <span class="text-xs font-semibold bg-surface-container-high/65 px-3 py-1 rounded-xl text-on-surface border border-outline-variant/5">
-                        {getFormName(item.formId)} (Question: <code>{item.formQuestionLabel}</code>)
+                        {getFormName(item.formId)} ({m.triggers_question_label()} <code>{item.formQuestionLabel}</code>)
                       </span>
-                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">Réponse :</span>
+                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">{m.triggers_response_label()}</span>
                       <code class="text-sm font-semibold font-mono bg-surface-container-high/65 px-3 py-1 rounded-xl text-secondary border border-outline-variant/5">{item.trigger}</code>
                     {:else if item.triggerType === 'TICKET'}
-                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">Ticket :</span>
+                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">{m.triggers_type_ticket()}</span>
                       <span class="text-xs font-semibold bg-surface-container-high/65 px-3 py-1 rounded-xl text-on-surface border border-outline-variant/5">
-                        {getTicketTypeName(item.ticketTypeId)} (Champ: <code>{item.ticketQuestionLabel === 'description' ? 'Description' : 'Raison'}</code>)
+                        {getTicketTypeName(item.ticketTypeId)} ({m.triggers_field_label()} <code>{item.ticketQuestionLabel === 'description' ? 'Description' : 'Raison'}</code>)
                       </span>
-                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">Valeur :</span>
+                      <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">{m.triggers_value_label()}</span>
                       <code class="text-sm font-semibold font-mono bg-surface-container-high/65 px-3 py-1 rounded-xl text-secondary border border-outline-variant/5">{item.trigger}</code>
                     {/if}
                   </div>
@@ -656,7 +664,7 @@
                   <!-- Status & Card Action Buttons -->
                   <div class="flex items-center gap-4 self-end sm:self-auto">
                     <div class="flex items-center gap-2 bg-surface-container-high/40 px-3 py-1.5 rounded-lg border border-outline-variant/5">
-                      <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Actif</span>
+                      <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.triggers_status_active()}</span>
                       <ToggleSwitch 
                         checked={item.enabled} 
                         onToggle={() => handleToggle(item.id, item.enabled)} 
@@ -669,14 +677,14 @@
                         <button 
                           onclick={() => openEditModal(item)}
                           class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-xl transition-all cursor-pointer"
-                          title="Modifier"
+                          title={m.triggers_edit_tooltip()}
                         >
                           <Papicon icon="edit" size={16} />
                         </button>
                         <button 
                           onclick={() => handleDelete(item.id)}
                           class="p-2 text-error hover:bg-error/10 rounded-xl transition-all cursor-pointer"
-                          title="Supprimer"
+                          title={m.triggers_delete_tooltip()}
                         >
                           <Papicon icon="delete" size={16} />
                         </button>
@@ -690,7 +698,7 @@
                   {@const responses = payloadToResponses(item.response)}
                   <div class="space-y-1">
                     <span class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest block ml-1">
-                      {responses.length > 1 ? `Messages de réponse (${getDestinationLabel(item)}) — ${responses.length} variantes :` : `Message de réponse (${getDestinationLabel(item)}) :`}
+                      {responses.length > 1 ? m.triggers_response_multiple({ dest: getDestinationLabel(item), count: responses.length }) : m.triggers_response_single({ dest: getDestinationLabel(item) })}
                     </span>
                     {#each responses as resp, ri}
                       <div class="p-4 bg-surface-container-high/30 border border-outline-variant/5 rounded-lg text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap flex items-start gap-3">
@@ -708,57 +716,57 @@
                   {#if item.response}
                     {@const badgeResponses = payloadToResponses(item.response)}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/10">
-                      <Papicon icon="message" size={10} /> {badgeResponses.length > 1 ? `${badgeResponses.length} Messages` : 'Message'} · {getDestinationLabel(item)}
+                      <Papicon icon="message" size={10} /> {badgeResponses.length > 1 ? m.triggers_badge_msgs({ n: badgeResponses.length }) : m.triggers_badge_msg()} · {getDestinationLabel(item)}
                     </span>
                   {/if}
                   {#if item.relayToStaffServer}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/10">
-                      <Papicon icon="server" size={10} /> Relayé au staff
+                      <Papicon icon="server" size={10} /> {m.triggers_badge_relay_staff()}
                     </span>
                   {/if}
                   {#if item.roleIdToAdd}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/10">
-                      <Papicon icon="add" size={10} /> Ajouter {getRoleName(item.roleIdToAdd)}
+                      <Papicon icon="add" size={10} /> {m.triggers_badge_add_role({ role: getRoleName(item.roleIdToAdd) })}
                     </span>
                   {/if}
                   {#if item.roleIdToRemove}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-red-500/10 text-red-500 border border-red-500/10">
-                      <Papicon icon="delete" size={10} /> Retirer {getRoleName(item.roleIdToRemove)}
+                      <Papicon icon="delete" size={10} /> {m.triggers_badge_remove_role({ role: getRoleName(item.roleIdToRemove) })}
                     </span>
                   {/if}
                   {#if item.deleteTrigger && (!item.triggerType || item.triggerType === 'MESSAGE')}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/10">
-                      <Papicon icon="close" size={10} /> Supprimer le message
+                      <Papicon icon="close" size={10} /> {m.triggers_badge_delete_msg()}
                     </span>
                   {/if}
                   {#if item.closeTicket}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-purple-500/10 text-purple-500 border border-purple-500/10">
-                      <Papicon icon="close" size={10} /> Fermer le ticket
+                      <Papicon icon="close" size={10} /> {m.triggers_badge_close_ticket()}
                     </span>
                   {/if}
                   {#if item.rejectForm}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/10">
-                      <Papicon icon="block" size={10} /> Rejeter la candidature
+                      <Papicon icon="block" size={10} /> {m.triggers_badge_reject_form()}
                     </span>
                   {/if}
                   {#if item.allowedRoleIds?.length}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/10">
-                      <Papicon icon="shield" size={10} /> Rôles autorisés ({item.allowedRoleIds.length})
+                      <Papicon icon="shield" size={10} /> {m.triggers_badge_allowed_roles({ n: item.allowedRoleIds.length })}
                     </span>
                   {/if}
                   {#if item.bannedRoleIds?.length}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/10">
-                      <Papicon icon="block" size={10} /> Rôles interdits ({item.bannedRoleIds.length})
+                      <Papicon icon="block" size={10} /> {m.triggers_badge_banned_roles({ n: item.bannedRoleIds.length })}
                     </span>
                   {/if}
                   {#if item.allowedChannelIds?.length}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/10">
-                      <Papicon icon="tag" size={10} /> Salons autorisés ({item.allowedChannelIds.length})
+                      <Papicon icon="tag" size={10} /> {m.triggers_badge_allowed_channels({ n: item.allowedChannelIds.length })}
                     </span>
                   {/if}
                   {#if item.bannedChannelIds?.length}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/10">
-                      <Papicon icon="block" size={10} /> Salons interdits ({item.bannedChannelIds.length})
+                      <Papicon icon="block" size={10} /> {m.triggers_badge_banned_channels({ n: item.bannedChannelIds.length })}
                     </span>
                   {/if}
                 </div>
@@ -767,7 +775,7 @@
           {:else}
             <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
               <Papicon icon="info" size={32} class="text-on-surface-variant/20 mb-3" />
-              <p class="text-sm text-on-surface-variant/60 font-medium font-sans">Aucun déclencheur enregistré.</p>
+              <p class="text-sm text-on-surface-variant/60 font-medium font-sans">{m.triggers_empty()}</p>
             </div>
           {/each}
         </div>
@@ -775,7 +783,7 @@
         {#if selectedIds.size > 0}
           <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface-container-high/90 border border-outline-variant/30 px-6 py-4 rounded-xl shadow-sm flex items-center gap-6 animate-in slide-in-from-bottom-6 duration-300 select-none">
             <span class="text-xs font-semibold text-on-surface font-sans">
-              {selectedIds.size} sélectionné{selectedIds.size > 1 ? 's' : ''}
+              {m.triggers_bulk_selected({ n: selectedIds.size })}
             </span>
             <div class="h-6 w-px bg-outline-variant/30"></div>
             <div class="flex items-center gap-2">
@@ -783,19 +791,19 @@
                 onclick={() => bulkToggle(true)}
                 class="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 font-semibold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
               >
-                <Papicon icon="check" size={10} /> Activer
+                <Papicon icon="check" size={10} /> {m.triggers_bulk_enable()}
               </button>
               <button 
                 onclick={() => bulkToggle(false)}
                 class="flex items-center gap-1.5 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/20 text-amber-500 dark:text-amber-400 font-semibold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
               >
-                <Papicon icon="block" size={10} /> Désactiver
+                <Papicon icon="block" size={10} /> {m.triggers_bulk_disable()}
               </button>
               <button 
                 onclick={bulkDelete}
                 class="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 text-red-500 dark:text-red-400 font-semibold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
               >
-                <Papicon icon="delete" size={10} /> Supprimer
+                <Papicon icon="delete" size={10} /> {m.triggers_bulk_delete()}
               </button>
             </div>
             <div class="h-6 w-px bg-outline-variant/30"></div>
@@ -803,7 +811,7 @@
               onclick={() => { selectedIds = new Set(); lastSelectedIndex = null; }}
               class="text-[10px] text-on-surface-variant/60 hover:text-on-surface font-semibold uppercase tracking-wider transition-colors cursor-pointer font-sans"
             >
-              Annuler
+              {m.reaction_roles_cancel()}
             </button>
           </div>
         {/if}
@@ -822,7 +830,7 @@
       <button 
         onclick={() => showModal = false}
         class="absolute top-6 right-6 p-2 rounded-full hover:bg-rose-500/15 hover:text-rose-500 text-on-surface-variant transition-colors cursor-pointer"
-        title="Fermer"
+        title={m.reaction_roles_close()}
       >
         <Papicon icon="close" size={20} />
       </button>
@@ -833,8 +841,8 @@
           <Papicon icon={isEditing ? 'edit' : 'add'} size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-semibold tracking-tight font-headline">{isEditing ? 'Modifier le déclencheur' : 'Ajouter un déclencheur'}</h3>
-          <p class="text-xs text-on-surface-variant/80 font-medium font-sans">Configurez les conditions et les actions à exécuter.</p>
+          <h3 class="text-xl font-semibold tracking-tight font-headline">{isEditing ? m.triggers_modal_title_edit() : m.triggers_modal_title_add()}</h3>
+          <p class="text-xs text-on-surface-variant/80 font-medium font-sans">{m.triggers_modal_subtitle()}</p>
         </div>
       </div>
 
@@ -848,7 +856,7 @@
           >
             <span class="flex items-center justify-center gap-1.5">
               <Papicon icon="message" size={12} />
-              Déclencheur
+              {m.triggers_modal_tab_trigger()}
             </span>
           </button>
           <button
@@ -858,7 +866,7 @@
           >
             <span class="flex items-center justify-center gap-1.5">
               <Papicon icon="list" size={12} />
-              Actions de Base
+              {m.triggers_modal_tab_actions()}
             </span>
           </button>
           <button
@@ -868,7 +876,7 @@
           >
             <span class="flex items-center justify-center gap-1.5">
               <Papicon icon="add" size={12} />
-              Réactions & Avancé
+              {m.triggers_modal_tab_advanced()}
             </span>
           </button>
           <button
@@ -878,7 +886,7 @@
           >
             <span class="flex items-center justify-center gap-1.5">
               <Papicon icon="shield" size={12} />
-              Filtres
+              {m.triggers_modal_tab_filters()}
             </span>
           </button>
         </div>
@@ -886,30 +894,30 @@
         {#if activeTab === 'trigger'}
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="modal-trigger-type" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Type de déclencheur</label>
+              <label for="modal-trigger-type" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_trigger_type_label()}</label>
               <select 
                 id="modal-trigger-type"
                 bind:value={formTriggerType}
                 class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 focus:outline-none cursor-pointer font-sans"
                 disabled={!canManageSettings}
               >
-                <option value="MESSAGE">Message Discord (Mot-clé)</option>
-                <option value="FORM">Soumission de Formulaire</option>
-                <option value="TICKET">Ouverture de Ticket</option>
+                <option value="MESSAGE">{m.triggers_modal_trigger_type_msg()}</option>
+                <option value="FORM">{m.triggers_modal_trigger_type_form()}</option>
+                <option value="TICKET">{m.triggers_modal_trigger_type_ticket()}</option>
               </select>
             </div>
 
             <div class="space-y-1.5">
-              <label for="modal-matchType" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Type de correspondance</label>
+              <label for="modal-matchType" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_match_type_label()}</label>
               <select 
                 id="modal-matchType"
                 bind:value={formMatchType}
                 class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 focus:outline-none cursor-pointer font-sans"
                 disabled={!canManageSettings}
               >
-                <option value="CONTAINS">Contient le texte</option>
-                <option value="EXACT">Correspondance exacte</option>
-                <option value="REGEX">Expression régulière (Regex)</option>
+                <option value="CONTAINS">{m.triggers_modal_match_contains()}</option>
+                <option value="EXACT">{m.triggers_modal_match_exact()}</option>
+                <option value="REGEX">{m.triggers_modal_match_regex()}</option>
               </select>
             </div>
           </div>
@@ -917,12 +925,12 @@
           <!-- Si type MESSAGE -->
           {#if formTriggerType === 'MESSAGE'}
             <div class="space-y-1.5">
-              <label for="modal-trigger" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Mot-clé / Déclencheur</label>
+              <label for="modal-trigger" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_keyword_label()}</label>
               <input 
                 id="modal-trigger"
                 type="text" 
                 bind:value={formTrigger} 
-                placeholder="Ex: !ip ou bonjour"
+                placeholder={m.triggers_modal_keyword_ph()}
                 class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                 required
                 disabled={!canManageSettings}
@@ -934,7 +942,7 @@
           {#if formTriggerType === 'FORM'}
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="space-y-1.5 sm:col-span-1">
-                <label for="modal-form-select" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Formulaire</label>
+                <label for="modal-form-select" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_form_select_label()}</label>
                 <select
                   id="modal-form-select"
                   bind:value={formFormId}
@@ -942,31 +950,31 @@
                   disabled={!canManageSettings}
                   required
                 >
-                  <option value={null} disabled>— Choisir un formulaire —</option>
+                  <option value={null} disabled>{m.triggers_modal_form_select_ph()}</option>
                   {#each availableForms as f}
                     <option value={f.id}>{f.name}</option>
                   {/each}
                 </select>
               </div>
               <div class="space-y-1.5 sm:col-span-1">
-                <label for="modal-form-question" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Question (Libellé / ID)</label>
+                <label for="modal-form-question" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_question_label()}</label>
                 <input 
                   id="modal-form-question"
                   type="text" 
                   bind:value={formFormQuestionLabel} 
-                  placeholder="Ex: Nom / Pseudo ou age"
+                  placeholder={m.triggers_modal_question_ph()}
                   class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                   required
                   disabled={!canManageSettings}
                 />
               </div>
               <div class="space-y-1.5 sm:col-span-1">
-                <label for="modal-form-answer-trigger" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Valeur à faire correspondre</label>
+                <label for="modal-form-answer-trigger" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_match_val_label()}</label>
                 <input 
                   id="modal-form-answer-trigger"
                   type="text" 
                   bind:value={formTrigger} 
-                  placeholder="Ex: xavier ou Oui"
+                  placeholder={m.triggers_modal_match_val_ph()}
                   class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                   required
                   disabled={!canManageSettings}
@@ -979,38 +987,38 @@
           {#if formTriggerType === 'TICKET'}
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="space-y-1.5 sm:col-span-1">
-                <label for="modal-ticket-type" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Type de Ticket</label>
+                <label for="modal-ticket-type" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_ticket_type_label()}</label>
                 <select
                   id="modal-ticket-type"
                   bind:value={formTicketTypeId}
                   class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 focus:outline-none cursor-pointer font-sans"
                   disabled={!canManageSettings}
                 >
-                  <option value={null}>— Tous les types —</option>
+                  <option value={null}>{m.triggers_modal_ticket_type_ph()}</option>
                   {#each ticketTypes as t}
                     <option value={t.id}>{t.label}</option>
                   {/each}
                 </select>
               </div>
               <div class="space-y-1.5 sm:col-span-1">
-                <label for="modal-ticket-field" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Champ à vérifier</label>
+                <label for="modal-ticket-field" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_ticket_field_label()}</label>
                 <select
                   id="modal-ticket-field"
                   bind:value={formTicketQuestionLabel}
                   class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 focus:outline-none cursor-pointer font-sans"
                   disabled={!canManageSettings}
                 >
-                  <option value="reason">Raison (Titre)</option>
-                  <option value="description">Description (Détails)</option>
+                  <option value="reason">{m.triggers_modal_ticket_field_reason()}</option>
+                  <option value="description">{m.triggers_modal_ticket_field_desc()}</option>
                 </select>
               </div>
               <div class="space-y-1.5 sm:col-span-1">
-                <label for="modal-ticket-value-trigger" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Valeur à faire correspondre</label>
+                <label for="modal-ticket-value-trigger" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_match_val_label()}</label>
                 <input 
                   id="modal-ticket-value-trigger"
                   type="text" 
                   bind:value={formTrigger} 
-                  placeholder="Ex: plainte ou partenariat"
+                  placeholder={m.triggers_modal_ticket_val_ph()}
                   class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                   required
                   disabled={!canManageSettings}
@@ -1024,7 +1032,7 @@
           <div class="space-y-3">
             <div class="flex items-center justify-between">
               <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">
-                Réponse(s) du Bot (Optionnelle{formResponses.length > 1 ? 's' : ''})
+                {m.triggers_modal_bot_responses_label({ plural: formResponses.length > 1 ? 's' : '' })}
               </span>
               {#if formResponses.length > 1}
                 <span class="text-[10px] font-semibold px-2.5 py-1 rounded-lg {totalWeight === 100 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'} font-sans">
@@ -1038,7 +1046,7 @@
                 <div class="flex-1">
                   <textarea
                     bind:value={entry.message}
-                    placeholder="Texte envoyé par le bot..."
+                    placeholder={m.triggers_modal_bot_response_ph()}
                     class="w-full bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none h-20 resize-none font-sans"
                     disabled={!canManageSettings}
                   ></textarea>
@@ -1060,7 +1068,7 @@
                     type="button"
                     onclick={() => removeResponseEntry(i)}
                     class="mt-6 p-1.5 text-error/60 hover:text-error hover:bg-error/10 rounded-lg transition-all cursor-pointer shrink-0"
-                    title="Retirer ce message"
+                    title={m.reaction_roles_remove_button_title()}
                     disabled={!canManageSettings}
                   >
                     <Papicon icon="close" size={14} />
@@ -1069,7 +1077,7 @@
               </div>
             {/each}
 
-            <p class="text-[9px] text-on-surface-variant/40 ml-2">Variables utilisables: <code>{`{user}`}</code> (mention), <code>{`{username}`}</code> (pseudo), <code>{`{server}`}</code> (nom du serveur), <code>{`{channel}`}</code> (salon)</p>
+            <p class="text-[9px] text-on-surface-variant/40 ml-2">{m.triggers_modal_bot_variables_hint()}</p>
 
             <button
               type="button"
@@ -1078,18 +1086,18 @@
               disabled={!canManageSettings}
             >
               <Papicon icon="add" size={12} />
-              Ajouter une réponse alternative
+              {m.triggers_modal_add_alt_response()}
             </button>
 
             {#if formResponses.length > 1 && totalWeight !== 100}
               <p class="text-[10px] text-amber-500 font-medium ml-2 font-sans">
-                Le total des taux d'apparition devrait idéalement être de 100% (actuellement {totalWeight}%).
+                {m.triggers_modal_total_weight_warning({ weight: totalWeight })}
               </p>
             {/if}
           </div>
 
           <div class="space-y-2 font-sans">
-            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest block">Destination du message</span>
+            <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest block">{m.triggers_modal_destination_label()}</span>
             <div class="grid grid-cols-3 gap-2">
               <button
                 type="button"
@@ -1098,7 +1106,7 @@
                 class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all cursor-pointer disabled:cursor-not-allowed {formResponseDestination === 'DM' ? 'border-primary bg-primary/10 text-primary' : 'border-outline-variant/10 bg-surface-container-high/20 text-on-surface-variant hover:bg-surface-container-high/40'}"
               >
                 <Papicon icon="mail" size={18} />
-                <span class="text-[10px] font-semibold uppercase tracking-wide">Message Privé</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wide">{m.triggers_modal_dest_dm()}</span>
               </button>
               <button
                 type="button"
@@ -1107,7 +1115,7 @@
                 class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all cursor-pointer disabled:cursor-not-allowed {formResponseDestination === 'CHANNEL' ? 'border-primary bg-primary/10 text-primary' : 'border-outline-variant/10 bg-surface-container-high/20 text-on-surface-variant hover:bg-surface-container-high/40'}"
               >
                 <Papicon icon="hashtag" size={18} />
-                <span class="text-[10px] font-semibold uppercase tracking-wide">Salon actuel</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wide">{m.triggers_modal_dest_channel()}</span>
               </button>
               <button
                 type="button"
@@ -1116,12 +1124,12 @@
                 class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all cursor-pointer disabled:cursor-not-allowed {formResponseDestination === 'SPECIFIC_CHANNEL' ? 'border-primary bg-primary/10 text-primary' : 'border-outline-variant/10 bg-surface-container-high/20 text-on-surface-variant hover:bg-surface-container-high/40'}"
               >
                 <Papicon icon="send" size={18} />
-                <span class="text-[10px] font-semibold uppercase tracking-wide">Salon précis</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wide">{m.triggers_modal_dest_specific()}</span>
               </button>
             </div>
 
             {#if formTriggerType === 'FORM' && formResponseDestination === 'CHANNEL'}
-              <p class="text-[10px] text-amber-500 ml-2">Un formulaire n'a pas de salon d'origine : le message sera envoyé en MP.</p>
+              <p class="text-[10px] text-amber-500 ml-2">{m.triggers_modal_form_dm_warning()}</p>
             {/if}
 
             {#if formResponseDestination === 'SPECIFIC_CHANNEL'}
@@ -1129,7 +1137,7 @@
                 id="modal-response-channel"
                 bind:value={formResponseChannelId}
                 options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-                placeholder="— Choisir un salon —"
+                placeholder={m.announcements_select_channel_placeholder()}
                 className="w-full rounded-lg bg-surface-container px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                 disabled={!canManageSettings}
               />
@@ -1139,8 +1147,8 @@
               <div class="flex items-center gap-2.5">
                 <Papicon icon="server" size={16} class="text-on-surface-variant/60" />
                 <div>
-                  <p class="text-sm font-bold">Relayer sur le serveur staff</p>
-                  <p class="text-[10px] text-on-surface-variant/50">Envoie aussi une copie sur le salon de logs du serveur staff lié (si configuré)</p>
+                  <p class="text-sm font-bold">{m.triggers_modal_relay_staff_title()}</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_relay_staff_desc()}</p>
                 </div>
               </div>
               <ToggleSwitch
@@ -1153,24 +1161,24 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="modal-roleIdToAdd" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Rôle à ajouter (Optionnel)</label>
+              <label for="modal-roleIdToAdd" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_add_role_label()}</label>
               <SearchableSelect 
                 id="modal-roleIdToAdd"
                 bind:value={formRoleIdToAdd}
                 options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                placeholder="— Aucun rôle —"
+                placeholder={m.triggers_modal_add_role_ph()}
                 className="w-full rounded-lg bg-surface-container px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                 disabled={!canManageSettings}
               />
             </div>
 
             <div class="space-y-1.5">
-              <label for="modal-roleIdToRemove" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">Rôle à retirer (Optionnel)</label>
+              <label for="modal-roleIdToRemove" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans">{m.triggers_modal_remove_role_label()}</label>
               <SearchableSelect 
                 id="modal-roleIdToRemove"
                 bind:value={formRoleIdToRemove}
                 options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                placeholder="— Aucun rôle —"
+                placeholder={m.triggers_modal_remove_role_ph()}
                 className="w-full rounded-lg bg-surface-container px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                 disabled={!canManageSettings}
               />
@@ -1181,8 +1189,8 @@
             {#if !formTriggerType || formTriggerType === 'MESSAGE'}
               <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
                 <div>
-                  <p class="text-sm font-bold">Supprimer le message</p>
-                  <p class="text-[10px] text-on-surface-variant/50">Supprime le message de l'utilisateur</p>
+                  <p class="text-sm font-bold">{m.triggers_modal_delete_msg_title()}</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_delete_msg_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formDeleteTrigger} 
@@ -1195,8 +1203,8 @@
             {#if formTriggerType === 'TICKET' || formTriggerType === 'MESSAGE'}
               <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
                 <div>
-                  <p class="text-sm font-bold">Fermer le ticket</p>
-                  <p class="text-[10px] text-on-surface-variant/50">Ferme automatiquement le ticket</p>
+                  <p class="text-sm font-bold">{m.triggers_modal_close_ticket_title()}</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_close_ticket_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formCloseTicket} 
@@ -1209,8 +1217,8 @@
             {#if formTriggerType === 'FORM'}
               <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
                 <div>
-                  <p class="text-sm font-bold">Rejeter la candidature</p>
-                  <p class="text-[10px] text-on-surface-variant/50">Rejette automatiquement la candidature ou le formulaire</p>
+                  <p class="text-sm font-bold">{m.triggers_modal_reject_form_title()}</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_reject_form_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formRejectForm} 
@@ -1222,8 +1230,8 @@
 
             <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
               <div>
-                <p class="text-sm font-bold">Activer le déclencheur</p>
-                <p class="text-[10px] text-on-surface-variant/50">Actif dès l'enregistrement</p>
+                <p class="text-sm font-bold">{m.triggers_modal_enable_trigger_title()}</p>
+                <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_enable_trigger_desc()}</p>
               </div>
               <ToggleSwitch 
                 checked={formEnabled} 
@@ -1238,14 +1246,14 @@
           <!-- Emojis Reactions -->
           <div class="space-y-1.5 font-sans">
             <label for="modal-reactions" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest font-sans flex items-center gap-1.5">
-              <Papicon icon="emoji" size={12} /> Réactions (Optionnel)
+              <Papicon icon="emoji" size={12} /> {m.triggers_modal_reactions_label()}
             </label>
             <div class="flex gap-2 items-start">
               <input
                 id="modal-reactions"
                 type="text"
                 bind:value={formReactionsRaw}
-                placeholder="Séparées par des virgules ou espaces"
+                placeholder={m.triggers_modal_reactions_ph()}
                 class="flex-1 bg-surface-container rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                 disabled={!canManageSettings}
               />
@@ -1256,7 +1264,7 @@
                   onclick={() => showCustomEmojiPicker = !showCustomEmojiPicker}
                   disabled={!canManageSettings || customEmojis.length === 0}
                   class="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-container-high/60 border border-outline-variant/10 hover:bg-surface-container-high hover:border-outline-variant/35 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Émojis personnalisés du serveur"
+                  title={m.triggers_modal_custom_emojis_tooltip()}
                 >
                   <Papicon icon="grid" size={18} class="text-on-surface-variant" />
                 </button>
@@ -1274,7 +1282,7 @@
                         </button>
                       {/each}
                       {#if customEmojis.length === 0}
-                        <div class="col-span-6 text-center text-[10px] text-on-surface-variant/40 italic py-4">Aucun émoji personnalisé</div>
+                        <div class="col-span-6 text-center text-[10px] text-on-surface-variant/40 italic py-4">{m.triggers_modal_no_custom_emojis()}</div>
                       {/if}
                     </div>
                   </div>
@@ -1297,7 +1305,7 @@
                       onclick={() => removeReactionEmoji(token)}
                       disabled={!canManageSettings}
                       class="text-on-surface-variant/40 hover:text-error cursor-pointer disabled:cursor-not-allowed"
-                      title="Retirer"
+                      title={m.reaction_roles_delete_tooltip()}
                     >
                       <Papicon icon="close" size={10} />
                     </button>
@@ -1305,12 +1313,12 @@
                 {/each}
               </div>
             {/if}
-            <p class="text-[10px] text-on-surface-variant/50 ml-2">Le bot réagira automatiquement au message avec ces émojis.</p>
+            <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.triggers_modal_reactions_desc()}</p>
           </div>
 
           <!-- Advanced actions listing -->
           <div class="space-y-4 pt-2 font-sans max-h-[40vh] overflow-y-auto pr-1">
-            <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest ml-1">Actions avancées</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest ml-1">{m.triggers_modal_adv_actions_header()}</p>
 
             <!-- Action: Create Thread -->
             <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3">
@@ -1318,9 +1326,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="message" size={16} />
-                    Créer un Fil de discussion (Thread)
+                    {m.triggers_modal_act_thread_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Crée automatiquement un fil public rattaché au message</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_thread_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionCreateThread} 
@@ -1330,16 +1338,16 @@
               </div>
               {#if formActionCreateThread}
                 <div class="space-y-1 pt-1">
-                  <label for="thread-template" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Modèle de nom du fil (Optionnel)</label>
+                  <label for="thread-template" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_thread_template_label()}</label>
                   <input 
                     id="thread-template"
                     type="text" 
                     bind:value={formActionCreateThreadTemplate} 
-                    placeholder={'Ex: Forum de {user} - {content}'}
+                    placeholder={m.triggers_modal_act_thread_template_ph()}
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                     disabled={!canManageSettings}
                   />
-                  <p class="text-[9px] text-on-surface-variant/40">Variables utilisables: <code>{`{user}`}</code> (nom d'auteur), <code>{`{content}`}</code> (début du message)</p>
+                  <p class="text-[9px] text-on-surface-variant/40">{m.triggers_modal_act_thread_variables()}</p>
                 </div>
               {/if}
             </div>
@@ -1350,9 +1358,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="message" size={16} />
-                    Envoyer un message privé (DM)
+                    {m.triggers_modal_act_dm_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Envoie un message direct à l'utilisateur qui a déclenché le trigger</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_dm_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionSendDm} 
@@ -1362,11 +1370,11 @@
               </div>
               {#if formActionSendDm}
                 <div class="space-y-1 pt-1">
-                  <label for="dm-text" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Message à envoyer</label>
+                  <label for="dm-text" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_dm_msg_label()}</label>
                   <textarea 
                     id="dm-text"
                     bind:value={formActionSendDmText} 
-                    placeholder="Votre message secret ou d'avertissement..."
+                    placeholder={m.triggers_modal_act_dm_msg_ph()}
                     class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none h-16 resize-none font-sans"
                     disabled={!canManageSettings}
                     required
@@ -1381,9 +1389,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="block" size={16} />
-                    Exclusion Temporaire (Timeout)
+                    {m.triggers_modal_act_timeout_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Exclut (mute) temporairement le membre du serveur</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_timeout_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionTimeout} 
@@ -1394,7 +1402,7 @@
               {#if formActionTimeout}
                 <div class="space-y-1 pt-1 flex items-center gap-4">
                   <div class="flex-1">
-                    <label for="timeout-duration" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Durée du Timeout (en secondes)</label>
+                    <label for="timeout-duration" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_timeout_duration_label()}</label>
                     <input 
                       id="timeout-duration"
                       type="number" 
@@ -1406,7 +1414,7 @@
                     />
                   </div>
                   <div class="pt-4 text-xs font-semibold text-on-surface-variant/50">
-                    = {Math.round(formActionTimeoutDuration / 60)} minutes
+                    {m.triggers_modal_act_timeout_minutes({ n: Math.round(formActionTimeoutDuration / 60) })}
                   </div>
                 </div>
               {/if}
@@ -1418,9 +1426,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="add" size={16} />
-                    Attribuer des points d'XP
+                    {m.triggers_modal_act_xp_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Donne de l'XP de progression au membre</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_xp_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionAddXp} 
@@ -1430,7 +1438,7 @@
               </div>
               {#if formActionAddXp}
                 <div class="space-y-1 pt-1">
-                  <label for="xp-value" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Nombre d'XP à attribuer</label>
+                  <label for="xp-value" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_xp_amount_label()}</label>
                   <input 
                     id="xp-value"
                     type="number" 
@@ -1450,9 +1458,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="add" size={16} />
-                    Créer un salon / catégorie
+                    {m.triggers_modal_act_create_chan_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Crée un nouveau salon Discord dynamique</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_create_chan_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionCreateChannel} 
@@ -1463,37 +1471,37 @@
               {#if formActionCreateChannel}
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div class="space-y-1">
-                    <label for="create-chan-name" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Nom du salon</label>
+                    <label for="create-chan-name" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_chan_name_label()}</label>
                     <input 
                       id="create-chan-name"
                       type="text" 
                       bind:value={formActionCreateChannelName} 
-                      placeholder="nom-du-salon"
+                      placeholder={m.triggers_modal_act_chan_name_ph()}
                       class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                       disabled={!canManageSettings}
                       required
                     />
                   </div>
                   <div class="space-y-1">
-                    <label for="create-chan-type" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Type</label>
+                    <label for="create-chan-type" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_chan_type_label()}</label>
                     <select 
                       id="create-chan-type"
                       bind:value={formActionCreateChannelType}
                       class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 focus:outline-none cursor-pointer font-sans"
                       disabled={!canManageSettings}
                     >
-                      <option value="text">Texte</option>
-                      <option value="voice">Vocal</option>
-                      <option value="category">Catégorie</option>
+                      <option value="text">{m.triggers_modal_act_chan_type_text()}</option>
+                      <option value="voice">{m.triggers_modal_act_chan_type_voice()}</option>
+                      <option value="category">{m.triggers_modal_act_chan_type_category()}</option>
                     </select>
                   </div>
                   <div class="space-y-1">
-                    <label for="create-chan-cat" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Catégorie parente</label>
+                    <label for="create-chan-cat" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_chan_parent_label()}</label>
                     <SearchableSelect 
                       id="create-chan-cat"
                       bind:value={formActionCreateChannelCategoryId}
                       options={availableChannels.filter(c => c.type === 4 || c.type === 'category').map(c => ({ id: c.id, name: c.name }))}
-                      placeholder="— Aucune —"
+                      placeholder={m.triggers_modal_act_parent_cat_ph()}
                       className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                       disabled={!canManageSettings}
                     />
@@ -1508,9 +1516,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="delete" size={16} />
-                    Supprimer un salon / catégorie
+                    {m.triggers_modal_act_delete_chan_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Supprime le salon ou la catégorie cible</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_delete_chan_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionDeleteChannel} 
@@ -1520,12 +1528,12 @@
               </div>
               {#if formActionDeleteChannel}
                 <div class="space-y-1 pt-1">
-                  <label for="delete-chan-select" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Salon à supprimer</label>
+                  <label for="delete-chan-select" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_delete_chan_select_label()}</label>
                   <SearchableSelect 
                     id="delete-chan-select"
                     bind:value={formActionDeleteChannelId}
                     options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-                    placeholder="— Sélectionner un salon —"
+                    placeholder={m.triggers_modal_act_select_chan_ph()}
                     className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                     disabled={!canManageSettings}
                   />
@@ -1539,9 +1547,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="shield" size={16} />
-                    Créer un rôle
+                    {m.triggers_modal_act_create_role_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Crée un nouveau rôle sur le serveur</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_create_role_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionCreateRole} 
@@ -1552,19 +1560,19 @@
               {#if formActionCreateRole}
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div class="space-y-1">
-                    <label for="create-role-name" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Nom du rôle</label>
+                    <label for="create-role-name" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_role_name_label()}</label>
                     <input 
                       id="create-role-name"
                       type="text" 
                       bind:value={formActionCreateRoleName} 
-                      placeholder="Nouveau Rôle"
+                      placeholder={m.triggers_modal_act_role_name_ph()}
                       class="w-full bg-surface-container rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 border border-outline-variant/10 text-on-surface focus:outline-none font-sans"
                       disabled={!canManageSettings}
                       required
                     />
                   </div>
                   <div class="space-y-1">
-                    <label for="create-role-color" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Couleur</label>
+                    <label for="create-role-color" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_create_role_color_label()}</label>
                     <div class="flex gap-2 items-center">
                       <input 
                         id="create-role-color"
@@ -1593,9 +1601,9 @@
                 <div>
                   <p class="text-sm font-bold flex items-center gap-1.5">
                     <Papicon icon="delete" size={16} />
-                    Supprimer un rôle
+                    {m.triggers_modal_act_delete_role_title()}
                   </p>
-                  <p class="text-[10px] text-on-surface-variant/50">Supprime définitivement un rôle du serveur</p>
+                  <p class="text-[10px] text-on-surface-variant/50">{m.triggers_modal_act_delete_role_desc()}</p>
                 </div>
                 <ToggleSwitch 
                   checked={formActionDeleteRole} 
@@ -1605,12 +1613,12 @@
               </div>
               {#if formActionDeleteRole}
                 <div class="space-y-1 pt-1">
-                  <label for="delete-role-select" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">Rôle à supprimer</label>
+                  <label for="delete-role-select" class="text-[10px] font-semibold text-on-surface-variant/60 uppercase">{m.triggers_modal_act_delete_role_select_label()}</label>
                   <SearchableSelect 
                     id="delete-role-select"
                     bind:value={formActionDeleteRoleId}
                     options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                    placeholder="— Sélectionner un rôle —"
+                    placeholder={m.triggers_modal_act_select_role_ph()}
                     className="w-full rounded-lg bg-surface-container px-3 py-2 text-xs text-on-surface focus:ring-2 focus:ring-primary/30 transition-all font-sans"
                     disabled={!canManageSettings}
                   />
@@ -1622,19 +1630,19 @@
 
         {#if activeTab === 'filters'}
           <div class="space-y-4 font-sans">
-            <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest ml-1">Limiter le déclenchement aux salons/rôles spécifiques</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest ml-1">{m.triggers_modal_filters_header()}</p>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-violet-400/80 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                  <Papicon icon="shield" size={11} /> Rôles autorisés
-                  <span class="text-on-surface-variant/30 normal-case font-normal">— vide = tous</span>
+                  <Papicon icon="shield" size={11} /> {m.triggers_modal_filter_allowed_roles()}
+                  <span class="text-on-surface-variant/30 normal-case font-normal">{m.triggers_modal_filter_empty_all()}</span>
                 </label>
                 <MultiSelect
                   id="filter-allowed-roles"
                   bind:values={formAllowedRoleIds}
                   options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                  placeholder="Rechercher un rôle…"
+                  placeholder={m.triggers_modal_search_role_ph()}
                   accentClass="bg-violet-500/20 text-violet-300 border-violet-500/40"
                   disabled={!canManageSettings}
                 />
@@ -1642,13 +1650,13 @@
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-rose-400/80 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                  <Papicon icon="block" size={11} /> Rôles interdits
+                  <Papicon icon="block" size={11} /> {m.triggers_modal_filter_banned_roles()}
                 </label>
                 <MultiSelect
                   id="filter-banned-roles"
                   bind:values={formBannedRoleIds}
                   options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
-                  placeholder="Rechercher un rôle…"
+                  placeholder={m.triggers_modal_search_role_ph()}
                   accentClass="bg-rose-500/20 text-rose-300 border-rose-500/40"
                   disabled={!canManageSettings}
                 />
@@ -1656,14 +1664,14 @@
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-sky-400/80 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                  <Papicon icon="tag" size={11} /> Salons autorisés
-                  <span class="text-on-surface-variant/30 normal-case font-normal">— vide = tous</span>
+                  <Papicon icon="tag" size={11} /> {m.triggers_modal_filter_allowed_channels()}
+                  <span class="text-on-surface-variant/30 normal-case font-normal">{m.triggers_modal_filter_empty_all()}</span>
                 </label>
                 <MultiSelect
                   id="filter-allowed-channels"
                   bind:values={formAllowedChannelIds}
                   options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-                  placeholder="Rechercher un salon…"
+                  placeholder={m.triggers_modal_search_channel_ph()}
                   accentClass="bg-sky-500/20 text-sky-300 border-sky-500/40"
                   disabled={!canManageSettings}
                 />
@@ -1671,13 +1679,13 @@
 
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-orange-400/80 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                  <Papicon icon="block" size={11} /> Salons interdits
+                  <Papicon icon="block" size={11} /> {m.triggers_modal_filter_banned_channels()}
                 </label>
                 <MultiSelect
                   id="filter-banned-channels"
                   bind:values={formBannedChannelIds}
                   options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-                  placeholder="Rechercher un salon…"
+                  placeholder={m.triggers_modal_search_channel_ph()}
                   accentClass="bg-orange-500/20 text-orange-300 border-orange-500/40"
                   disabled={!canManageSettings}
                 />
@@ -1692,14 +1700,14 @@
             onclick={() => showModal = false}
             class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-[13px] font-medium rounded-lg transition-all cursor-pointer"
           >
-            Annuler
+            {m.reaction_roles_cancel()}
           </button>
           {#if canManageSettings}
             <button 
               type="submit"
               class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all cursor-pointer"
             >
-              Enregistrer
+              {m.triggers_modal_save_btn()}
             </button>
           {/if}
         </div>

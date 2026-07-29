@@ -25,6 +25,7 @@
   let selectionStart = $state<{ date: Date, minutes: number } | null>(null);
   let selectionEnd = $state<{ date: Date, minutes: number } | null>(null);
   let timeGridEl = $state<HTMLElement | undefined>(undefined);
+  let isNarrow = $state(false);
 
   const weekDaysShort = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -334,14 +335,25 @@
   });
 
   onMount(() => {
-    updateRange();
+    const narrowQuery = window.matchMedia('(max-width: 640px)');
+    const syncNarrowView = () => {
+      isNarrow = narrowQuery.matches;
+      if (isNarrow && (view === 'week' || view === 'workweek')) {
+        view = 'day';
+      }
+      updateRange();
+    };
+
+    syncNarrowView();
+    narrowQuery.addEventListener('change', syncNarrowView);
+    return () => narrowQuery.removeEventListener('change', syncNarrowView);
   });
 </script>
 
 <div class="calendar-container flex flex-col bg-surface-container-low rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm" style="height: 75vh; min-height: 600px;">
   <!-- Outlook-style Header -->
-  <header class="px-5 py-3 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest shrink-0">
-    <div class="flex items-center gap-3">
+  <header class="calendar-header px-5 py-3 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-lowest shrink-0">
+    <div class="calendar-header__leading flex items-center gap-3">
       <!-- Navigation -->
       <div class="flex items-center gap-0.5">
         <button onclick={prev} class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-surface-hover transition-colors" aria-label="Précédent">
@@ -356,17 +368,17 @@
       </button>
 
       <!-- Title -->
-      <h2 class="text-base font-semibold text-on-surface ml-1">{headerTitle}</h2>
+      <h2 class="calendar-header__title text-base font-semibold text-on-surface ml-1">{headerTitle}</h2>
     </div>
 
     <!-- View Tabs (Outlook-style) -->
-    <div class="flex bg-surface-container/50 p-0.5 rounded-lg border border-outline-variant/15">
+    <div class="calendar-view-tabs flex bg-surface-container/50 p-0.5 rounded-lg border border-outline-variant/15">
       {#each viewTabs as { key, label }}
         <button
           onclick={() => view = key}
           class="px-3 py-1.5 text-[11px] font-semibold rounded-md transition-all whitespace-nowrap {view === key ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
         >
-          {label}
+          {isNarrow && key === 'workweek' ? 'Travail' : label}
         </button>
       {/each}
     </div>
@@ -603,5 +615,60 @@
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.15);
+  }
+
+  @media (max-width: 640px) {
+    .calendar-container {
+      height: 72dvh !important;
+      min-height: 32rem !important;
+      border-radius: 1rem;
+    }
+
+    .calendar-header {
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 0.75rem;
+    }
+
+    .calendar-header__leading {
+      width: 100%;
+      gap: 0.25rem;
+    }
+
+    .calendar-header__title {
+      min-width: 0;
+      margin-left: 0.25rem;
+      overflow: hidden;
+      font-size: 0.875rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .calendar-view-tabs {
+      width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .calendar-view-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .calendar-view-tabs button {
+      min-height: 2.25rem;
+      flex: 1 0 auto;
+      padding-right: 0.75rem;
+      padding-left: 0.75rem;
+    }
+
+    .month-day {
+      min-height: 5rem !important;
+      padding: 0.25rem !important;
+    }
+
+    .month-day button {
+      padding-right: 0.25rem !important;
+      padding-left: 0.25rem !important;
+    }
   }
 </style>

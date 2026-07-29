@@ -37,18 +37,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Les bibliotheques d'icones (lucide-svelte + papicons, ce dernier
-          // entrainant React) sont resolues dynamiquement par nom dans
-          // Papicon.svelte : elles sont donc embarquees en entier et ne peuvent
-          // pas etre elaguees. Les isoler dans un chunk dedie evite au moins
-          // qu'elles soient retelechargees a chaque deploiement : leur contenu
-          // ne bouge pas, donc leur hash non plus, et le `expires 1y` de nginx
-          // les garde en cache navigateur.
-          if (
-            id.includes('node_modules/lucide-svelte') ||
-            id.includes('node_modules/@getpapillon/papicons') ||
-            id.includes('node_modules/react')
-          ) {
+          // Le registre n'importe désormais que les icônes réellement
+          // utilisées. Garder Lucide dans un chunk stable permet à nginx de le
+          // conserver un an entre deux déploiements du code applicatif.
+          if (id.includes('node_modules/lucide-svelte')) {
             return 'vendor-icons'
           }
           return undefined

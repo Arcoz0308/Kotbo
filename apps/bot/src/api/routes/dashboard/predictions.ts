@@ -20,8 +20,11 @@ export async function handlePredictionRoutes(
   // GET /api/dashboard/guilds/:guildId/predictions?days=30
   if (parts.length === 5 && method === 'GET') {
     try {
-      const days = parseInt(url.searchParams.get('days') ?? '30', 10);
-      const data = await getPredictionData(guildId, Math.min(Math.max(days, 7), 90));
+      // `getPredictionData` borne déjà la fenêtre à [7, 90] ; on se contente ici
+      // de neutraliser une valeur non numérique (`?days=abc` donnait NaN, que
+      // `Math.min/max` propageait jusqu'à la requête SQL).
+      const raw = Number.parseInt(url.searchParams.get('days') ?? '', 10);
+      const data = await getPredictionData(guildId, Number.isFinite(raw) ? raw : 30);
       json(res, 200, data);
     } catch (err) {
       logger.error('PredictionsAPI', 'Error fetching predictions:', err);

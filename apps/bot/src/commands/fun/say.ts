@@ -108,7 +108,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       const color = COLOR_MAP[colorKey] ?? COLORS.primary;
 
       const embed = new EmbedBuilder()
-        .setColor(color as unknown)
+        .setColor(color)
         .setDescription(message)
         .setTimestamp();
 

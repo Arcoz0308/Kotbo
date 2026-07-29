@@ -785,7 +785,7 @@ async function applySanction(message: Message, action: string, reason: string, c
   }
 
   // Générer la transcription pour le message de preuve
-  let evidenceLinks: string[] = [];
+  const evidenceLinks: string[] = [];
   if (action === 'WARN' || action === 'DELETE_AND_WARN' || action === 'TIMEOUT') {
     try {
       const { generateTranscriptFromMessages } = await import('../features/transcriptService.js');

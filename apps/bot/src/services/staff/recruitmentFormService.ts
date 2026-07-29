@@ -168,26 +168,19 @@ export async function getRecruitmentForms(guildId: string) {
     },
   });
 
-  // Fetch API keys separately to avoid circular relation
-  const formsWithKeys = await Promise.all(
-    forms.map(async (form: (typeof forms)[number]) => {
-      let apiKey = null;
-      if (form.apiKeyId) {
-        apiKey = await prisma.aPIKey.findUnique({
-          where: { id: form.apiKeyId },
-          select: {
-            displayKey: true,
-            isActive: true,
-            lastUsedAt: true,
-          },
-        });
-      }
-      return {
-        ...form,
-        apiKey,
-      };
-    })
-  );
+  // Une seule requête pour toutes les clés au lieu d'un N+1 par formulaire.
+  const keyIds = forms.flatMap((form) => form.apiKeyId ? [form.apiKeyId] : []);
+  const apiKeys = keyIds.length
+    ? await prisma.aPIKey.findMany({
+        where: { id: { in: keyIds } },
+        select: { id: true, displayKey: true, isActive: true, lastUsedAt: true },
+      })
+    : [];
+  const keysById = new Map(apiKeys.map((key) => [key.id, key]));
+  const formsWithKeys = forms.map((form) => ({
+    ...form,
+    apiKey: form.apiKeyId ? keysById.get(form.apiKeyId) ?? null : null,
+  }));
 
   return formsWithKeys;
 }
@@ -195,12 +188,6 @@ export async function getRecruitmentForms(guildId: string) {
 export async function getRecruitmentForm(formId: string, guildId: string) {
   const form = await prisma.recruitmentForm.findFirst({
     where: { id: formId, guildId },
-    include: {
-      candidatures: {
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      },
-    },
   });
 
   if (!form) return null;

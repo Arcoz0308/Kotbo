@@ -8,13 +8,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#001A33" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://cdn.discordapp.com" crossorigin />
+    <link rel="dns-prefetch" href="//cdn.discordapp.com" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Kotbo" />
-    <!-- Les polices sont servies localement via @fontsource (cf. src/app.css :
-         Inter 300-700 et Manrope 400-800, soit exactement les graisses que
-         demandait l'ancien lien Google Fonts). Recharger ces memes polices
+    <!-- Les polices sont servies localement via @fontsource (cf. src/app.css).
+         Recharger ces memes polices
          depuis fonts.googleapis.com ajoutait deux requetes bloquantes vers un
          tiers pour un resultat identique. Material Symbols n'etait utilise
          nulle part dans src/. -->

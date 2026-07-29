@@ -74,6 +74,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         const to = url.searchParams.get('to');
         const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 200);
         const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
+        const includeTotal = url.searchParams.get('includeTotal') !== 'false';
 
         const where: Record<string, unknown> = { guildId };
         if (q) {
@@ -108,7 +109,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
               createdAt: true
             }
           }),
-          prisma.transcript.count({ where }),
+          includeTotal ? prisma.transcript.count({ where }) : Promise.resolve(null),
         ]);
         json(res, 200, { transcripts, total, limit, offset });
       } catch (err: unknown) {
@@ -308,62 +309,101 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
     // GET /api/dashboard/guilds/:guildId/tickets
     if (parts.length === 5 && method === 'GET') {
       try {
-        const tickets = await prisma.ticket.findMany({
-          where: { guildId },
-          orderBy: { createdAt: 'desc' },
-        });
+        const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '75', 10) || 75, 1), 200);
+        const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
+        const requestedStatus = url.searchParams.get('status');
+        const status = requestedStatus === 'OPEN' || requestedStatus === 'CLAIMED' || requestedStatus === 'CLOSED'
+          ? requestedStatus
+          : null;
 
-        const fetchAvatar = async (discordId: string, size = 64): Promise<string | null> => {
+        const avatarFromCache = (discordId: string, size = 64): string | null => {
           try {
-            const u = client.users.cache.get(discordId) || await client.users.fetch(discordId);
-            return u.displayAvatarURL({ size: size as 64 | 128 });
-          } catch {
+            const cachedUser = client.users.cache.get(discordId);
+            if (cachedUser) return cachedUser.displayAvatarURL({ size: size as 64 | 128 });
+            // La liste doit rester une lecture locale et rapide. Une URL
+            // d'avatar par défaut est déterministe à partir du snowflake, sans
+            // déclencher un appel REST Discord par ligne.
             return `https://cdn.discordapp.com/embed/avatars/${(BigInt(discordId) >> 22n) % 6n}.png`;
+          } catch {
+            return null;
           }
         };
 
-        const enrichedTickets = await Promise.all(tickets.map(async (t) => {
-          const userAvatar = await fetchAvatar(t.userId);
-          const claimedByAvatar = t.claimedById ? await fetchAvatar(t.claimedById) : null;
-          return { ...t, userAvatar, claimedByAvatar };
-        }));
+        const [ticketRows, guildConfig] = await Promise.all([
+          prisma.ticket.findMany({
+            where: { guildId, ...(status ? { status } : {}) },
+            orderBy: { createdAt: 'desc' },
+            skip: offset,
+            // Une ligne supplémentaire permet de signaler la page suivante
+            // sans imposer un COUNT(*) à chaque affichage.
+            take: limit + 1,
+            select: {
+              id: true,
+              userId: true,
+              username: true,
+              reason: true,
+              status: true,
+              claimedById: true,
+              claimedByName: true,
+              transcriptId: true,
+              createdAt: true,
+            },
+          }),
+          prisma.guild.findUnique({
+            where: { id: guildId },
+            select: {
+              ticketCategoryId: true,
+              ticketLogChannelId: true,
+              ticketStaffRoleId: true,
+              ticketChannelId: true,
+              ticketEmbedTitle: true,
+              ticketEmbedDesc: true,
+              ticketEmbedButtonText: true,
+              ticketEmbedColor: true,
+              ticketEmbedType: true,
+              ticketMode: true,
+              ticketDmRelayChannelId: true,
+              ticketTypes: true,
+              ticketFormEnabled: true,
+              ticketFormCustomFields: true,
+              ticketEmbedThumbnail: true,
+              ticketEmbedImage: true,
+              ticketEmbedFooter: true,
+              ticketEmbedAuthorName: true,
+              ticketEmbedAuthorIcon: true,
+              ticketWelcomeTitle: true,
+              ticketWelcomeDesc: true,
+              ticketWelcomeColor: true,
+              ticketWelcomeThumbnail: true,
+              ticketWelcomeImage: true,
+              ticketWelcomeFooter: true,
+              ticketAllowOverclaim: true,
+              ticketOverclaimPermission: true,
+              ticketInactivityEnabled: true,
+              ticketInactivityHours: true,
+              ticketInactivityMessage: true,
+            }
+          }),
+        ]);
 
-        const guildConfig = await prisma.guild.findUnique({
-          where: { id: guildId },
-          select: {
-            ticketCategoryId: true,
-            ticketLogChannelId: true,
-            ticketStaffRoleId: true,
-            ticketChannelId: true,
-            ticketEmbedTitle: true,
-            ticketEmbedDesc: true,
-            ticketEmbedButtonText: true,
-            ticketEmbedColor: true,
-            ticketEmbedType: true,
-            ticketMode: true,
-            ticketDmRelayChannelId: true,
-            ticketTypes: true,
-            ticketFormEnabled: true,
-            ticketFormCustomFields: true,
-            ticketEmbedThumbnail: true,
-            ticketEmbedImage: true,
-            ticketEmbedFooter: true,
-            ticketEmbedAuthorName: true,
-            ticketEmbedAuthorIcon: true,
-            ticketWelcomeTitle: true,
-            ticketWelcomeDesc: true,
-            ticketWelcomeColor: true,
-            ticketWelcomeThumbnail: true,
-            ticketWelcomeImage: true,
-            ticketWelcomeFooter: true,
-            ticketAllowOverclaim: true,
-            ticketOverclaimPermission: true,
-            ticketInactivityEnabled: true,
-            ticketInactivityHours: true,
-            ticketInactivityMessage: true,
-          }
+        const hasMore = ticketRows.length > limit;
+        const tickets = hasMore ? ticketRows.slice(0, limit) : ticketRows;
+        const enrichedTickets = tickets.map((t) => {
+          const userAvatar = avatarFromCache(t.userId);
+          const claimedByAvatar = t.claimedById ? avatarFromCache(t.claimedById) : null;
+          return { ...t, userAvatar, claimedByAvatar };
         });
-        json(res, 200, { tickets: enrichedTickets, config: guildConfig || {} });
+
+        json(res, 200, {
+          tickets: enrichedTickets,
+          config: guildConfig || {},
+          pagination: {
+            limit,
+            offset,
+            hasMore,
+            nextOffset: hasMore ? offset + limit : null,
+          },
+        });
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error listing tickets: ${errorMessage(err)}`);
         json(res, 500, { error: 'Erreur lors de la récupération des tickets' });
@@ -420,8 +460,10 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             return `https://cdn.discordapp.com/embed/avatars/${(BigInt(discordId) >> 22n) % 6n}.png`;
           }
         };
-        const userAvatar = await fetchAvatarDetail(ticket.userId, 128);
-        const claimedByAvatar = ticket.claimedById ? await fetchAvatarDetail(ticket.claimedById) : null;
+        const [userAvatar, claimedByAvatar] = await Promise.all([
+          fetchAvatarDetail(ticket.userId, 128),
+          ticket.claimedById ? fetchAvatarDetail(ticket.claimedById) : Promise.resolve(null),
+        ]);
 
         json(res, 200, { ticket: { ...ticket, channelName, userAvatar, claimedByAvatar }, messages });
       } catch (err: unknown) {

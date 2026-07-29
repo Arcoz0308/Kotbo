@@ -6,6 +6,7 @@
   import DailyAlgoMiniIDE from '../lib/components/DailyAlgoMiniIDE.svelte';
   import { detectIdeLanguageFromCode, normalizeIdeLanguage, type IdeLanguage } from '../lib/dailyAlgoIde';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { m } from '../lib/i18n';
 
   type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -66,20 +67,20 @@
   function statusMeta(current: SubmissionStatus): { label: string; classes: string } {
     if (current === 'APPROVED') {
       return {
-        label: 'Validee',
+        label: m.ide_status_approved(),
         classes: 'status-approved',
       };
     }
 
     if (current === 'REJECTED') {
       return {
-        label: 'Rejetee',
+        label: m.ide_status_rejected(),
         classes: 'status-rejected',
       };
     }
 
     return {
-      label: 'En attente',
+      label: m.ide_status_pending(),
       classes: 'status-pending',
     };
   }

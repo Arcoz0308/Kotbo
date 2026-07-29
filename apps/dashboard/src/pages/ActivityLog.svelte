@@ -123,9 +123,9 @@
   );
 
   const stats = $derived([
-    { label: 'Actions (Total)', val: dashboardLogs.length, sub: 'Configuration', subClass: 'text-primary' },
-    { label: 'Modules', val: new Set(dashboardLogs.map(l => l.module)).size, sub: 'Sources', subClass: 'text-green-600' },
-    { label: 'Utilisateurs', val: new Set(dashboardLogs.map(l => l.user)).size, sub: 'Unique', subClass: 'text-purple-600' }
+    { label: m.act_stat_actions(), val: dashboardLogs.length, sub: m.act_stat_config(), subClass: 'text-primary' },
+    { label: m.act_stat_modules(), val: new Set(dashboardLogs.map(l => l.module)).size, sub: m.act_stat_sources(), subClass: 'text-green-600' },
+    { label: m.act_stat_users(), val: new Set(dashboardLogs.map(l => l.user)).size, sub: m.act_stat_unique(), subClass: 'text-purple-600' }
   ]);
 
   function extractUserIdFromText(value: string | null | undefined) {
@@ -208,7 +208,7 @@
 
 <ModulePage
   title={m.ctv_activity_log()}
-  description="Historique des actions de configuration pour {dashboardStore.state.guildName}."
+  description={m.act_page_desc({ guildName: dashboardStore.state.guildName })}
   icon="history"
   featureKey="activity"
 >
@@ -216,7 +216,7 @@
     <RefreshButton
       onClick={() => dashboardStore.refresh()}
       loading={dashboardStore.state.loading}
-      label="Actualiser"
+      label={m.common_refresh()}
       className="px-5 py-2.5 font-bold "
       iconClass="text-lg"
     />
@@ -226,7 +226,7 @@
 <div class="section-card p-6 mb-8 font-inter">
   <div class="flex flex-col md:flex-row md:items-center gap-4 justify-between">
     <div class="space-y-2 w-full md:max-w-2xl">
-      <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">Recherche</label>
+      <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">{m.act_search_label()}</label>
       <div class="relative top-1.5">
         <Papicon icon="search" size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <FormInput
@@ -240,14 +240,14 @@
     </div>
 
     <div class="flex items-center gap-3">
-      <span class="text-xs font-bold text-on-surface-variant">{filteredLogs.length} / {dashboardLogs.length} événement(s)</span>
+      <span class="text-xs font-bold text-on-surface-variant">{m.act_events_count({ filtered: filteredLogs.length, total: dashboardLogs.length })}</span>
       {#if hasActiveFiltersOrSort}
         <button
           type="button"
           onclick={resetFiltersAndSort}
           class="text-xs font-bold text-primary hover:text-primary/80 transition"
         >
-          Réinitialiser filtres et tri
+          {m.act_reset_filters_sort()}
         </button>
       {/if}
     </div>
@@ -262,14 +262,14 @@
         <tr class="bg-slate-50 dark:bg-white/5">
           <th class="px-6 py-5">
             <ColumnSortFilter
-              label="Horodatage"
+              label={m.act_col_timestamp()}
               sortDirection={sortDirectionFor('date')}
               onToggleSort={() => toggleSort('date')}
             />
           </th>
           <th class="px-6 py-5">
             <ColumnSortFilter
-              label="Utilisateur"
+              label={m.act_col_user()}
               sortDirection={sortDirectionFor('user')}
               onToggleSort={() => toggleSort('user')}
               options={userFilterOptions}
@@ -280,7 +280,7 @@
           </th>
           <th class="px-6 py-5">
             <ColumnSortFilter
-              label="Module / Source"
+              label={m.act_col_module_source()}
               sortDirection={sortDirectionFor('module')}
               onToggleSort={() => toggleSort('module')}
               options={moduleFilterOptions}
@@ -290,7 +290,7 @@
           </th>
           <th class="px-6 py-5">
             <ColumnSortFilter
-              label="Action"
+              label={m.act_col_action()}
               sortDirection={sortDirectionFor('action')}
               onToggleSort={() => toggleSort('action')}
               options={actionFilterOptions}
@@ -299,11 +299,11 @@
               searchable={true}
             />
           </th>
-          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Détails</th>
+          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{m.act_col_details()}</th>
           <th class="px-6 py-5">
             <div class="flex justify-center">
               <ColumnSortFilter
-                label="Type"
+                label={m.act_col_type()}
                 sortDirection={sortDirectionFor('type')}
                 onToggleSort={() => toggleSort('type')}
                 options={typeFilterOptions}
@@ -364,7 +364,7 @@
             <td class="px-6 py-6 text-center">
               <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-bold 
  {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
-                {entry.eventType}
+                {entry.eventType === 'Automatique' ? m.lg_type_auto() : entry.eventType}
               </span>
             </td>
           </tr>

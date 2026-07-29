@@ -23,13 +23,14 @@
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import FormColorPicker from '../lib/components/FormColorPicker.svelte';
-  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
-  import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-  import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   // Navigation & Tabs
   let activeTab = $state<'tickets' | 'transcripts' | 'satisfaction' | 'config'>('tickets');
+  const TICKETS_PAGE_SIZE = 75;
+  let ticketsOffset = $state(0);
+  let ticketsHasMore = $state(false);
+  let loadingMoreTickets = $state(false);
   let ticketFilter = $state<'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED'>('ALL');
   
   // Data State
@@ -443,17 +444,31 @@
   );
 
   // Fetch all tickets and config
-  async function loadTicketsAndConfig() {
+  async function loadTicketsAndConfig(reset = true) {
     if (!authStore.selectedGuildId) return;
-    loading = true;
+    if (reset) {
+      loading = true;
+      ticketsOffset = 0;
+    } else {
+      loadingMoreTickets = true;
+    }
     error = '';
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets`, {
+      const params = new URLSearchParams({
+        limit: String(TICKETS_PAGE_SIZE),
+        offset: String(reset ? 0 : ticketsOffset),
+      });
+      if (ticketFilter !== 'ALL') params.set('status', ticketFilter);
+
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets?${params}`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (!res.ok) throw new Error('Impossible de charger le système de tickets');
       const data = await res.json();
-      tickets = data.tickets || [];
+      const incomingTickets = data.tickets || [];
+      tickets = reset ? incomingTickets : [...tickets, ...incomingTickets];
+      ticketsHasMore = data.pagination?.hasMore === true;
+      ticketsOffset = data.pagination?.nextOffset ?? ticketsOffset;
       config = data.config || {};
       
       // Populate config bindings
@@ -519,7 +534,17 @@
       error = err.message || 'Une erreur est survenue';
     } finally {
       loading = false;
+      loadingMoreTickets = false;
     }
+  }
+
+  function changeTicketFilter(filter: 'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED') {
+    if (ticketFilter === filter) return;
+    ticketFilter = filter;
+    selectedTicketId = null;
+    selectedTicketDetail = null;
+    messages = [];
+    void loadTicketsAndConfig(true);
   }
 
   // Fetch transcripts for this guild
@@ -528,7 +553,7 @@
     loading = true;
     error = '';
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/transcripts`, {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/transcripts?includeTotal=false`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (!res.ok) throw new Error('Impossible de charger les transcriptions');
@@ -1002,7 +1027,7 @@
         <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-hide">
           {#each ['ALL', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
             <button
-              onclick={() => ticketFilter = filterType as any}
+              onclick={() => changeTicketFilter(filterType as 'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED')}
               class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
             >
               {filterType === 'ALL' ? 'Tous' : getStatusLabel(filterType)}
@@ -1071,6 +1096,16 @@
                 {/if}
               </button>
             {/each}
+            {#if ticketsHasMore}
+              <button
+                type="button"
+                onclick={() => loadTicketsAndConfig(false)}
+                disabled={loadingMoreTickets}
+                class="w-full mt-2 px-3 py-2 rounded-lg border border-outline-variant/20 bg-surface-container/40 text-xs font-medium text-on-surface-variant hover:bg-surface-container disabled:opacity-50"
+              >
+                {loadingMoreTickets ? 'Chargement…' : 'Charger plus de tickets'}
+              </button>
+            {/if}
           {/if}
         </div>
       </div>
@@ -1389,6 +1424,12 @@
 
     </div>
   {:else if activeTab === 'config'}
+    {#await Promise.all([
+      import('../lib/components/SearchableSelect.svelte'),
+      import('../lib/components/EmojiPicker.svelte')
+    ]) then configComponents}
+    {@const SearchableSelect = configComponents[0].default}
+    {@const EmojiPicker = configComponents[1].default}
     <!-- Configuration Panel — redesigned sections -->
     <div class="max-w-4xl mx-auto space-y-4">
 
@@ -1962,6 +2003,7 @@
       </div>
 
     </div>
+    {/await}
   {:else if activeTab === 'transcripts'}
     <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col min-h-[40vh]">
       <div class="mb-4">
@@ -2260,21 +2302,26 @@
 {/if}
 
 <!-- Member Case Modal -->
-<MemberCaseModal
-  open={caseModalOpen}
-  userId={selectedCaseUser?.id}
-  userName={selectedCaseUser?.name || ''}
-  caseData={selectedCaseData}
-  loading={selectedCaseLoading}
-  error={selectedCaseError}
-  actionReason={memberActionReason}
-  actionDuration={memberActionDuration}
-  actionBusy={memberActionBusy}
-  actionFeedback={memberActionFeedback}
-  actionIsError={memberActionIsError}
-  onClose={closeCaseModal}
-  onAction={executeMemberAction}
-/>
+{#if caseModalOpen}
+  {#await import('../lib/components/MemberCaseModal.svelte') then module}
+    {@const MemberCaseModal = module.default}
+    <MemberCaseModal
+      open={caseModalOpen}
+      userId={selectedCaseUser?.id}
+      userName={selectedCaseUser?.name || ''}
+      caseData={selectedCaseData}
+      loading={selectedCaseLoading}
+      error={selectedCaseError}
+      actionReason={memberActionReason}
+      actionDuration={memberActionDuration}
+      actionBusy={memberActionBusy}
+      actionFeedback={memberActionFeedback}
+      actionIsError={memberActionIsError}
+      onClose={closeCaseModal}
+      onAction={executeMemberAction}
+    />
+  {/await}
+{/if}
 
 <style>
   .scrollbar-hide::-webkit-scrollbar { display: none; }

@@ -44,7 +44,7 @@ export async function handleCustomFormRoutes(
   req: IncomingMessage,
   res: ServerResponse,
   parts: string[],
-  _url: URL,
+  url: URL,
   _client: Client,
   _user: AuthClaims,
   guildId: string,
@@ -59,7 +59,7 @@ export async function handleCustomFormRoutes(
   // GET /api/dashboard/guilds/:guildId/custom-forms - List all forms
   if (parts.length === 5 && method === 'GET') {
     try {
-      const forms = await getCustomForms(guildId);
+      const forms = await getCustomForms(guildId, url.searchParams.get('includeStructure') === 'true');
       json(res, 200, { forms });
     } catch (err) {
       logger.error('CustomFormsAPI', 'Error getting custom forms:', err);
@@ -185,8 +185,13 @@ export async function handleCustomFormRoutes(
     // GET /api/dashboard/guilds/:guildId/custom-forms/:formId/submissions - Get form submissions
     if (parts.length === 7 && parts[6] === 'submissions' && method === 'GET') {
       try {
-        const submissions = await getCustomFormSubmissions(formId, guildId);
-        json(res, 200, { submissions });
+        const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 100, 1), 250);
+        const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0);
+        const [submissions, total] = await Promise.all([
+          getCustomFormSubmissions(formId, guildId, limit, offset),
+          prisma.customFormSubmission.count({ where: { formId, guildId } }),
+        ]);
+        json(res, 200, { submissions, total, limit, offset });
       } catch (err) {
         logger.error('CustomFormsAPI', 'Error getting custom form submissions:', err);
         json(res, 500, { error: 'Erreur lors de la récupération des soumissions' });

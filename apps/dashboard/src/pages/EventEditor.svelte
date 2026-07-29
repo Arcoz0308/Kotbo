@@ -10,6 +10,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { API_BASE_URL } from '../lib/api';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import { m } from '../lib/i18n';
 
   const { eventId } = $props<{ eventId: string }>();
 
@@ -69,7 +70,7 @@
   function addQuestion() {
     if (!event.questions) event.questions = [];
     event.questions = [...event.questions, {
-      text: 'Nouvelle question',
+      text: m.eve_new_question_default(),
       options: ['Option 1', 'Option 2'],
       correctOptionIndex: 0,
       imageUrl: ''
@@ -91,7 +92,7 @@
   function addCtfChallenge() {
     if (!event.ctfChallenges) event.ctfChallenges = [];
     event.ctfChallenges = [...event.ctfChallenges, {
-      title: 'Nouveau Défi',
+      title: m.eve_new_challenge_default(),
       description: '',
       flag: 'FLAG{...}',
       points: 100,
@@ -118,10 +119,10 @@
         body: JSON.stringify(event)
       });
       if (res.ok) {
-        toast.success('Événement enregistré');
+        toast.success(m.eve_saved_toast());
         await loadEvent();
       } else {
-        toast.error('Erreur lors de l\'enregistrement');
+        toast.error(m.eve_save_error_toast());
       }
     } catch (err) {
       toast.error('Erreur réseau');
@@ -139,7 +140,7 @@
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (res.ok) {
-        toast.success('Événement publié sur Discord !');
+        toast.success(m.eve_published_toast());
         router.goto('/events');
       } else {
         const data = await res.json();
@@ -174,7 +175,7 @@
         .filter(c => c.name.startsWith('option'));
 
       if (questionCol === -1 || responseCol === -1 || optionCols.length === 0) {
-        toast.error("Format CSV invalide. Colonnes requises : 'Question', 'Option X' et 'Bonne Réponse'.");
+        toast.error(m.eve_csv_format_error());
         return;
       }
 
@@ -214,8 +215,8 @@
 </script>
 
 <ModulePage
-  title={event ? (event.type === 'CTF' ? 'Éditeur de CTF' : event.type === 'CUSTOM' ? 'Éditeur d\'Événement' : 'Éditeur de Quiz') : 'Éditeur d\'Événement'}
-  description={event?.type === 'CTF' ? "Préparez vos défis, configurez les flags et publiez l'événement sur Discord." : event?.type === 'CUSTOM' ? "Configurez votre événement, le salon d'annonce et le formulaire d'inscription." : "Préparez vos questions et publiez l'événement sur Discord."}
+  title={event ? (event.type === 'CTF' ? m.eve_ctf_editor_title() : event.type === 'CUSTOM' ? m.eve_custom_editor_title() : m.eve_quiz_editor_title()) : m.eve_custom_editor_title()}
+  description={event?.type === 'CTF' ? m.eve_ctf_editor_desc() : event?.type === 'CUSTOM' ? m.eve_custom_editor_desc() : m.eve_quiz_editor_desc()}
   icon={event?.type === 'CUSTOM' ? 'Calendar' : 'Edit3'}
   featureKey="events"
 >
@@ -225,20 +226,20 @@
         onclick={() => router.goto('/events')}
         class="px-5 py-2.5 bg-surface-container-high rounded-xl font-medium text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
       >
-        Retour
+        {m.eve_btn_back()}
       </button>
       <button
         onclick={save}
         disabled={isSaving}
         class="px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl font-medium text-[13px] border border-outline-variant/10 transition-transform"
       >
-        {isSaving ? 'Enregistrement...' : 'Enregistrer'}
+        {isSaving ? m.eve_btn_saving() : m.eve_btn_save()}
       </button>
       <button
         onclick={publish}
         class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
       >
-        Publier sur Discord
+        {m.eve_btn_publish_discord()}
       </button>
     </div>
   {/snippet}
@@ -252,27 +253,27 @@
             <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
               <Papicon icon="Settings" size={20} />
             </div>
-            <h3 class="text-xl font-semibold text-on-surface">Configuration de l'Événement</h3>
+            <h3 class="text-xl font-semibold text-on-surface">{m.eve_config_section_title()}</h3>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="event-title" class="field-label">Titre de l'événement</label>
+              <label for="event-title" class="field-label">{m.eve_field_title()}</label>
               <FormInput 
                 id="event-title"
                 bind:value={event.title} 
-                placeholder="Titre de l'événement" 
+                placeholder={m.eve_field_title()} 
                 className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
               />
             </div>
             <div class="space-y-2">
-              <label for="announcement-channel" class="field-label">Salon d'Annonce</label>
+              <label for="announcement-channel" class="field-label">{m.eve_field_announcement_channel()}</label>
               <select
                 id="announcement-channel"
                 bind:value={event.announcementChannelId}
                 class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all text-on-surface"
               >
-                <option value={null}>Aucun (Pas d'annonce)</option>
+                <option value={null}>{m.eve_channel_none()}</option>
                 {#each availableChannels.filter(c => c.type === 'text' || c.type === 'announcement') as c}
                   <option value={c.id}>#{c.name}</option>
                 {/each}
@@ -281,11 +282,11 @@
           </div>
 
           <div class="space-y-2">
-            <label for="event-description" class="field-label">Description</label>
+            <label for="event-description" class="field-label">{m.eve_field_description()}</label>
             <FormTextarea 
               id="event-description"
               bind:value={event.description} 
-              placeholder="Participez à notre événement !" 
+              placeholder={m.eve_desc_placeholder()} 
               className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface resize-none"
               rows={4}
             />
@@ -293,13 +294,13 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="linked-form" class="field-label">Formulaire d'Inscription (optionnel)</label>
+              <label for="linked-form" class="field-label">{m.eve_field_linked_form()}</label>
               <select
                 id="linked-form"
                 bind:value={event.formId}
                 class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all text-on-surface"
               >
-                <option value={null}>Aucun (Inscription directe par bouton)</option>
+                <option value={null}>{m.eve_form_none()}</option>
                 {#each customForms as form}
                   <option value={form.id}>{form.name}</option>
                 {/each}
@@ -307,7 +308,7 @@
             </div>
 
             <div class="space-y-2">
-              <label for="start-date" class="field-label">Date de début (Locale)</label>
+              <label for="start-date" class="field-label">{m.eve_field_start_date()}</label>
               <input
                 id="start-date"
                 type="datetime-local"
@@ -320,17 +321,17 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="location" class="field-label">Lieu (Location)</label>
+              <label for="location" class="field-label">{m.eve_field_location()}</label>
               <FormInput
                 id="location"
                 bind:value={event.config.location}
-                placeholder="Ex: Discord, Présentiel..."
+                placeholder={m.eve_location_ph()}
                 className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
               />
             </div>
 
             <div class="space-y-2">
-              <label for="end-date" class="field-label">Date de fin (Locale, optionnelle)</label>
+              <label for="end-date" class="field-label">{m.eve_field_end_date()}</label>
               <input
                 id="end-date"
                 type="datetime-local"
@@ -343,8 +344,8 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4">
             <div class="flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/10 rounded-lg p-5">
               <div>
-                <span class="text-sm font-bold text-on-surface font-sans">Créer l'événement sur Discord</span>
-                <p class="text-xs text-on-surface-variant/60 font-sans">Ajoute l'événement aux événements planifiés du serveur.</p>
+                <span class="text-sm font-bold text-on-surface font-sans">{m.eve_create_discord_event()}</span>
+                <p class="text-xs text-on-surface-variant/60 font-sans">{m.eve_create_discord_event_desc()}</p>
               </div>
               <ToggleSwitch
                 checked={event.config.createDiscordEvent}
@@ -354,8 +355,8 @@
 
             <div class="flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/10 rounded-lg p-5">
               <div>
-                <span class="text-sm font-bold text-on-surface font-sans">Envoyer un embed d'annonce</span>
-                <p class="text-xs text-on-surface-variant/60 font-sans">Publie un message avec embed d'annonce et bouton d'inscription.</p>
+                <span class="text-sm font-bold text-on-surface font-sans">{m.eve_send_announcement_embed()}</span>
+                <p class="text-xs text-on-surface-variant/60 font-sans">{m.eve_send_announcement_embed_desc()}</p>
               </div>
               <ToggleSwitch
                 checked={event.config.sendEmbed}
@@ -371,12 +372,12 @@
             <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
               <Papicon icon="Settings" size={20} />
             </div>
-            <h3 class="text-xl font-semibold text-on-surface">Configuration Générale</h3>
+            <h3 class="text-xl font-semibold text-on-surface">{m.eve_general_config_title()}</h3>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="event-title" class="field-label">Titre de l'événement</label>
+              <label for="event-title" class="field-label">{m.eve_field_title()}</label>
               <FormInput 
                 id="event-title"
                 bind:value={event.title} 
@@ -385,7 +386,7 @@
               />
             </div>
             <div class="space-y-2">
-              <label for="event-channel-id" class="field-label">ID du Salon Discord</label>
+              <label for="event-channel-id" class="field-label">{m.eve_field_channel_id()}</label>
               <FormInput 
                 id="event-channel-id"
                 bind:value={event.channelId} 
@@ -396,11 +397,11 @@
           </div>
 
           <div class="space-y-2">
-            <label for="event-description" class="field-label">Description</label>
+            <label for="event-description" class="field-label">{m.eve_field_description()}</label>
             <FormTextarea 
               id="event-description"
               bind:value={event.description} 
-              placeholder="Participez à notre événement !" 
+              placeholder={m.eve_desc_placeholder()} 
               className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface resize-none"
               rows={4}
             />
@@ -408,21 +409,21 @@
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4">
             <div class="space-y-2">
-              <label for="event-trigger-type" class="field-label">Déclencheur automatique (Trigger)</label>
+              <label for="event-trigger-type" class="field-label">{m.eve_field_trigger_type()}</label>
               <select
                 id="event-trigger-type"
                 bind:value={event.triggerType}
                 class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all text-on-surface"
               >
-                <option value={null}>Manuel (Pas de déclencheur)</option>
-                <option value="MEMBER_COUNT">Nombre de membres atteint</option>
-                <option value="SCHEDULED">Planifié (Date & Heure)</option>
+                <option value={null}>{m.eve_trigger_manual()}</option>
+                <option value="MEMBER_COUNT">{m.eve_trigger_member_count()}</option>
+                <option value="SCHEDULED">{m.eve_trigger_scheduled()}</option>
               </select>
             </div>
 
             {#if event.triggerType === 'MEMBER_COUNT'}
               <div class="space-y-2">
-                <label for="event-trigger-value-members" class="field-label">Nombre de membres cible</label>
+                <label for="event-trigger-value-members" class="field-label">{m.eve_field_target_members()}</label>
                 <FormInput 
                   id="event-trigger-value-members"
                   bind:value={event.triggerValue} 
@@ -434,7 +435,7 @@
 
             {#if event.triggerType === 'SCHEDULED'}
               <div class="space-y-2">
-                <label for="event-trigger-value-date" class="field-label">Date et Heure de lancement (Locale)</label>
+                <label for="event-trigger-value-date" class="field-label">{m.eve_field_trigger_date()}</label>
                 <FormInput 
                   id="event-trigger-value-date"
                   type="datetime-local"
@@ -446,16 +447,16 @@
 
             {#if event.triggerType}
               <div class="space-y-2 flex flex-col justify-end pb-3">
-                <span class="text-xs font-medium text-on-surface-variant/40 ml-4">Statut du Déclencheur</span>
+                <span class="text-xs font-medium text-on-surface-variant/40 ml-4">{m.eve_trigger_status()}</span>
                 <span class="text-sm font-bold ml-4 text-primary">
                   {#if event.triggerStatus === 'PENDING'}
-                    ⌛ En attente
+                    {m.eve_trigger_pending()}
                   {:else if event.triggerStatus === 'TRIGGERED'}
-                    ✅ Déclenché
+                    {m.eve_trigger_triggered()}
                   {:else if event.triggerStatus === 'FAILED'}
-                    ❌ Échoué
+                    {m.eve_trigger_failed()}
                   {:else}
-                    {event.triggerStatus || 'En attente'}
+                    {event.triggerStatus || m.eve_trigger_pending()}
                   {/if}
                 </span>
               </div>
@@ -467,9 +468,9 @@
       {#if event.type === 'CTF'}
         <section class="space-y-8">
           <div class="flex items-center justify-between px-2">
-            <h3 class="text-xl font-semibold text-on-surface">Défis du CTF ({event.ctfChallenges?.length || 0})</h3>
+            <h3 class="text-xl font-semibold text-on-surface">{m.eve_ctf_challenges_title({ count: event.ctfChallenges?.length || 0 })}</h3>
             <button onclick={addCtfChallenge} class="text-primary font-semibold uppercase text-[10px] tracking-widest flex items-center gap-2">
-              <Papicon icon="Plus" size={14} /> Ajouter un défi
+              <Papicon icon="Plus" size={14} /> {m.eve_btn_add_challenge()}
             </button>
           </div>
 
@@ -480,7 +481,7 @@
                 
                 <div class="flex flex-col gap-6">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium text-emerald-500">Défi #{cIdx + 1}</span>
+                    <span class="text-xs font-medium text-emerald-500">{m.eve_challenge_label({ number: cIdx + 1 })}</span>
                     <button onclick={() => removeCtfChallenge(cIdx)} class="text-rose-500 hover:text-rose-600 transition-colors">
                       <Papicon icon="Trash2" size={16} />
                     </button>
@@ -489,21 +490,21 @@
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div class="space-y-6">
                       <div class="space-y-2">
-                        <label for={`challenge-${cIdx}-title`} class="field-label">Titre du défi</label>
+                        <label for={`challenge-${cIdx}-title`} class="field-label">{m.eve_field_challenge_title()}</label>
                         <FormInput 
                           id={`challenge-${cIdx}-title`}
                           bind:value={challenge.title} 
-                          placeholder="Challenge Web / Cryptographie..." 
+                          placeholder={m.eve_challenge_title_ph()} 
                           className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
                         />
                       </div>
 
                       <div class="space-y-2">
-                        <label for={`challenge-${cIdx}-description`} class="field-label">Description / Énoncé</label>
+                        <label for={`challenge-${cIdx}-description`} class="field-label">{m.eve_field_challenge_desc()}</label>
                         <FormTextarea 
                           id={`challenge-${cIdx}-description`}
                           bind:value={challenge.description} 
-                          placeholder="Trouvez la faille..." 
+                          placeholder={m.eve_challenge_desc_ph()} 
                           className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface resize-none"
                           rows={4}
                         />
@@ -513,7 +514,7 @@
                     <div class="space-y-6">
                       <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-2">
-                          <label for={`challenge-${cIdx}-flag`} class="field-label">Flag attendu</label>
+                          <label for={`challenge-${cIdx}-flag`} class="field-label">{m.eve_field_flag()}</label>
                           <FormInput 
                             id={`challenge-${cIdx}-flag`}
                             bind:value={challenge.flag} 
@@ -523,7 +524,7 @@
                         </div>
 
                         <div class="space-y-2">
-                          <label for={`challenge-${cIdx}-points`} class="field-label">Points</label>
+                          <label for={`challenge-${cIdx}-points`} class="field-label">{m.eve_field_points()}</label>
                           <FormInput 
                             id={`challenge-${cIdx}-points`}
                             type="number"
@@ -536,7 +537,7 @@
 
                       <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-2">
-                          <label for={`challenge-${cIdx}-xp`} class="field-label">Points d'XP Récompense</label>
+                          <label for={`challenge-${cIdx}-xp`} class="field-label">{m.eve_field_xp_reward()}</label>
                           <FormInput 
                             id={`challenge-${cIdx}-xp`}
                             type="number"
@@ -547,18 +548,18 @@
                         </div>
 
                         <div class="space-y-2">
-                          <label for={`challenge-${cIdx}-role`} class="field-label">Rôle ID en récompense (optionnel)</label>
+                          <label for={`challenge-${cIdx}-role`} class="field-label">{m.eve_field_role_reward()}</label>
                           <FormInput 
                             id={`challenge-${cIdx}-role`}
                             bind:value={challenge.roleIdReward} 
-                            placeholder="ID du Rôle Discord" 
+                            placeholder={m.eve_role_reward_ph()} 
                             className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
                           />
                         </div>
                       </div>
 
                       <div class="space-y-2">
-                        <label for={`challenge-${cIdx}-image`} class="field-label">URL de l'image (optionnel)</label>
+                        <label for={`challenge-${cIdx}-image`} class="field-label">{m.eve_field_image_url()}</label>
                         <FormInput 
                           id={`challenge-${cIdx}-image`}
                           bind:value={challenge.imageUrl} 
@@ -576,7 +577,7 @@
       {:else if event.type === 'QUIZ'}
         <section class="space-y-8">
           <div class="flex items-center justify-between px-2">
-            <h3 class="text-xl font-semibold text-on-surface">Questions du Quiz ({event.questions?.length || 0})</h3>
+            <h3 class="text-xl font-semibold text-on-surface">{m.eve_quiz_questions_title({ count: event.questions?.length || 0 })}</h3>
             <div class="flex items-center gap-4">
               <input 
                 type="file" 
@@ -589,10 +590,10 @@
                 onclick={triggerImport} 
                 class="px-4 py-2 bg-surface-container-high text-on-surface-variant rounded-xl font-bold text-[13px] border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
               >
-                <Papicon icon="FileUp" size={14} /> Importer CSV
+                <Papicon icon="FileUp" size={14} /> {m.eve_btn_import_csv()}
               </button>
               <button onclick={addQuestion} class="text-primary font-semibold uppercase text-[10px] tracking-widest flex items-center gap-2">
-                <Papicon icon="Plus" size={14} /> Ajouter une question
+                <Papicon icon="Plus" size={14} /> {m.eve_btn_add_question()}
               </button>
             </div>
           </div>
@@ -605,23 +606,23 @@
                 <div class="flex flex-col md:flex-row gap-8">
                   <div class="flex-1 space-y-6">
                     <div class="flex items-center justify-between">
-                      <span class="text-xs font-medium text-primary">Question #{qIdx + 1}</span>
+                      <span class="text-xs font-medium text-primary">{m.eve_question_label({ number: qIdx + 1 })}</span>
                       <button onclick={() => removeQuestion(qIdx)} class="text-rose-500 hover:text-rose-600 transition-colors">
                         <Papicon icon="Trash2" size={16} />
                       </button>
                     </div>
                     
                     <div class="space-y-2">
-                      <label for={`question-${qIdx}-text`} class="field-label">Énoncé de la question</label>
+                      <label for={`question-${qIdx}-text`} class="field-label">{m.eve_field_question_text()}</label>
                       <FormInput 
                         id={`question-${qIdx}-text`}
                         bind:value={question.text} 
-                        placeholder="Quelle est la capitale de la France ?" 
+                        placeholder={m.eve_question_text_ph()} 
                         className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-lg px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
                       />
                     </div>
                     <div class="space-y-2">
-                      <label for={`question-${qIdx}-image-url`} class="field-label">URL de l'image (optionnel)</label>
+                      <label for={`question-${qIdx}-image-url`} class="field-label">{m.eve_field_image_url()}</label>
                       <FormInput 
                         id={`question-${qIdx}-image-url`}
                         bind:value={question.imageUrl} 
@@ -633,9 +634,9 @@
 
                   <div class="flex-1 space-y-6">
                     <div class="flex items-center justify-between">
-                      <span class="text-xs font-medium text-on-surface-variant/40">Options de réponse</span>
+                      <span class="text-xs font-medium text-on-surface-variant/40">{m.eve_options_label()}</span>
                       <button onclick={() => addOption(qIdx)} class="text-xs font-medium text-primary hover:underline">
-                        + Ajouter option
+                        {m.eve_btn_add_option()}
                       </button>
                     </div>
 
@@ -659,7 +660,7 @@
                         </div>
                       {/each}
                     </div>
-                    <p class="text-[11px] font-bold text-on-surface-variant/30 italic font-bold">Cochez le cercle à gauche de la bonne réponse.</p>
+                    <p class="text-[11px] font-bold text-on-surface-variant/30 italic font-bold">{m.eve_correct_answer_hint()}</p>
                   </div>
                 </div>
               </div>

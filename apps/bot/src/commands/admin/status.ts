@@ -10,6 +10,7 @@ import prisma from '../../utils/db.js';
 import { separator, v2Message } from '@arcscord/components';
 import { getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
+import { fetchExternal } from '../../utils/http.js';
 
 function getStatusEmoji(code: number): string {
   if (code >= 200 && code < 300) return E.success;
@@ -93,7 +94,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchExternal(url.toString(), {
       method: 'GET',
       signal: controller.signal,
       redirect: 'follow',

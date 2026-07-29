@@ -4,6 +4,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { loadGoogleFont, themeBaseCss, themeStyleVars, type FormTheme } from '../lib/formTheme';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { m, dateLocale } from '../lib/i18n';
 
   const { guildId }: { guildId: string } = $props();
 
@@ -55,6 +56,9 @@
   const accent = $derived(theme?.accentColor || data?.form?.structure?.headerColor || '#6366f1');
   const fields = $derived((data?.form?.structure?.fields || []).filter(f => f.type !== 'section_header' && f.type !== 'discord_connect'));
   const viewer = $derived(data?.viewer || null);
+  const blockedEligibility = $derived(
+    viewer?.eligibility.eligible === false ? viewer.eligibility : null
+  );
   const injectedCss = $derived(
     [themeBaseCss(theme), (data?.form?.customCss || '').replace(/<\/style/gi, '')].filter(Boolean).join('\n')
   );
@@ -94,7 +98,7 @@
     for (const field of fields) {
       const val = answers[field.id];
       if (field.required && (!val || (Array.isArray(val) && val.length === 0) || val === '')) {
-        newErrors[field.id] = 'Ce champ est obligatoire';
+        newErrors[field.id] = m.pa_field_required();
       }
     }
     errors = newErrors;
@@ -113,13 +117,13 @@
       });
       if (!res.ok) {
         const err = await res.json();
-        submitError = err.error || 'Erreur lors de la soumission';
+        submitError = err.error || m.pa_submit_error();
         return;
       }
       submitted = true;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {
-      submitError = 'Impossible de contacter le serveur.';
+      submitError = m.pa_server_unreachable();
     } finally {
       submitting = false;
     }
@@ -137,14 +141,14 @@
       });
       if (!res.ok) {
         const err = await res.json();
-        submitError = err.error || 'Erreur lors de l\'envoi';
+        submitError = err.error || m.pa_send_error();
         return;
       }
       infoResponseSent = true;
       infoResponseText = '';
       await load();
     } catch {
-      submitError = 'Impossible de contacter le serveur.';
+      submitError = m.pa_server_unreachable();
     } finally {
       submitting = false;
     }
@@ -156,25 +160,25 @@
     answers = { ...answers, [id]: current.includes(option) ? current.filter(v => v !== option) : [...current, option] };
   }
 
-  const STATUS_LABELS: Record<string, { label: string; color: string; icon: string }> = {
-    PENDING: { label: 'En cours d\'examen', color: '#f59e0b', icon: 'clock' },
-    NEEDS_INFO: { label: 'Informations demandées', color: '#3b82f6', icon: 'message-square' },
-    ACCEPTED: { label: 'Acceptée', color: '#22c55e', icon: 'check' },
-    DENIED: { label: 'Refusée', color: '#ef4444', icon: 'x' },
-    DENIED_PERMANENT: { label: 'Refusée définitivement', color: '#7f1d1d', icon: 'block' },
-  };
+  const STATUS_LABELS: Record<string, { label: string; color: string; icon: string }> = $derived({
+    PENDING: { label: m.pa_status_pending(), color: '#f59e0b', icon: 'clock' },
+    NEEDS_INFO: { label: m.pa_status_needs_info(), color: '#3b82f6', icon: 'message-square' },
+    ACCEPTED: { label: m.pa_status_accepted(), color: '#22c55e', icon: 'check' },
+    DENIED: { label: m.pa_status_denied(), color: '#ef4444', icon: 'x' },
+    DENIED_PERMANENT: { label: m.pa_status_denied_permanent(), color: '#7f1d1d', icon: 'block' },
+  });
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    return new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
   function formatDateTime(iso: string): string {
-    return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 </script>
 
 <svelte:head>
-  <title>Demande de débannissement — {data?.guildName ?? 'Kotbo'}</title>
+  <title>{m.pa_head_title({ server: data?.guildName ?? 'Kotbo' })}</title>
   <meta name="robots" content="noindex" />
 </svelte:head>
 
@@ -188,7 +192,7 @@
     <div class="flex items-center justify-center min-h-[60vh]">
       <div class="text-center">
         <div class="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto mb-4"></div>
-        <p class="text-on-surface-variant/60">Chargement…</p>
+        <p class="text-on-surface-variant/60">{m.pa_loading()}</p>
       </div>
     </div>
 
@@ -197,8 +201,8 @@
       <div class="mb-6 text-on-surface-variant/30">
         <Papicon icon="lock" size={56} />
       </div>
-      <h1 class="text-2xl font-semibold text-on-surface mb-3">Page indisponible</h1>
-      <p class="text-on-surface-variant/60 text-sm">Ce serveur n'accepte pas les demandes de débannissement, ou le lien est invalide.</p>
+      <h1 class="text-2xl font-semibold text-on-surface mb-3">{m.pa_unavailable()}</h1>
+      <p class="text-on-surface-variant/60 text-sm">{m.pa_unavailable_desc()}</p>
     </div>
 
   {:else if data}
@@ -220,7 +224,7 @@
           {/if}
           <div class="min-w-0">
             <h1 class="text-2xl font-semibold text-on-surface truncate">{data.guildName}</h1>
-            <p class="text-on-surface-variant/70 text-sm mt-1">Demande de débannissement</p>
+            <p class="text-on-surface-variant/70 text-sm mt-1">{m.pa_title()}</p>
             {#if data.welcomeText || theme?.welcomeText}
               <p class="mt-2 text-sm leading-relaxed" style="color:var(--form-color)">{data.welcomeText || theme?.welcomeText}</p>
             {/if}
@@ -234,15 +238,14 @@
           <div class="mb-4 text-on-surface-variant/30">
             <Papicon icon="lock" size={48} />
           </div>
-          <h2 class="text-lg font-semibold text-on-surface mb-2">Connexion Discord requise</h2>
+          <h2 class="text-lg font-semibold text-on-surface mb-2">{m.pa_login_required()}</h2>
           <p class="text-sm text-on-surface-variant/70 mb-6 leading-relaxed">
-            Connecte-toi avec le compte Discord banni pour que nous puissions vérifier ton bannissement.
-            Personne ne peut faire appel à ta place.
+            {m.pa_login_desc()}
           </p>
           <button onclick={loginWithDiscord}
             class="pf-submit px-6 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all "
             style="background:#5865F2">
-            Se connecter avec Discord
+            {m.pa_login_button()}
           </button>
         </div>
 
@@ -255,9 +258,9 @@
               <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--form-color)" />
             </svg>
           </div>
-          <h2 class="text-2xl font-semibold text-on-surface mb-3">Demande envoyée !</h2>
+          <h2 class="text-2xl font-semibold text-on-surface mb-3">{m.pa_sent_title()}</h2>
           <p class="text-on-surface-variant/70 text-sm leading-relaxed">
-            {theme?.confirmationText || 'Le staff va examiner ta demande. Tu recevras la décision par message privé Discord — pense à autoriser les DM. Tu peux aussi revenir sur cette page pour suivre le statut.'}
+            {theme?.confirmationText || m.pa_sent_desc()}
           </p>
         </div>
 
@@ -269,8 +272,8 @@
               <Papicon icon="message-square" size={32} />
             </span>
             <div>
-              <h2 class="font-semibold text-on-surface">Le staff a besoin de précisions</h2>
-              <p class="text-xs text-on-surface-variant/60 mt-0.5">Ta demande est en pause en attendant ta réponse.</p>
+              <h2 class="font-semibold text-on-surface">{m.pa_needs_info_title()}</h2>
+              <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.pa_needs_info_desc()}</p>
             </div>
           </div>
 
@@ -279,7 +282,7 @@
               {#each viewer.latestAppeal.messages as msg}
                 <div class="flex flex-col p-3 rounded-lg text-sm border {msg.author === 'staff' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-surface border-outline-variant/15'}">
                   <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
-                    <span>{msg.author === 'staff' ? 'Staff' : 'Toi'}</span>
+                    <span>{msg.author === 'staff' ? m.pa_staff() : m.pa_you()}</span>
                     <span>{formatDateTime(msg.createdAt)}</span>
                   </div>
                   <p class="whitespace-pre-wrap">{msg.content}</p>
@@ -293,7 +296,7 @@
           {/if}
 
           <textarea bind:value={infoResponseText} rows="5" maxlength="2000"
-            placeholder="Ta réponse…"
+            placeholder={m.pa_response_placeholder()}
             class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border-b-2 border-primary/20 focus:border-primary transition-colors resize-y"></textarea>
           {#if submitError}
             <p class="pf-error text-xs text-rose-500">{submitError}</p>
@@ -302,7 +305,7 @@
             <button onclick={sendInfoResponse} disabled={submitting || !infoResponseText.trim()}
               class="pf-submit px-6 py-2.5 rounded-xl text-white font-semibold text-sm shadow disabled:opacity-50"
               style="background:var(--form-color)">
-              {submitting ? 'Envoi…' : 'Envoyer ma réponse'}
+              {submitting ? m.pa_sending() : m.pa_send_response()}
             </button>
           </div>
         </div>
@@ -315,13 +318,13 @@
             <div class="mb-4 text-on-surface-variant/30">
               <Papicon icon="clock" size={48} />
             </div>
-            <h2 class="text-lg font-semibold text-on-surface mb-2">Demande en cours d'examen</h2>
+            <h2 class="text-lg font-semibold text-on-surface mb-2">{m.pa_pending_title()}</h2>
             <p class="text-sm text-on-surface-variant/70 leading-relaxed mb-0">
               {#if infoResponseSent}
-                Ta réponse a bien été transmise au staff.
+                {m.pa_response_forwarded()}
               {/if}
-              Ta demande {appeal ? `du ${formatDate(appeal.createdAt)}` : ''} est en attente de décision.
-              Tu seras prévenu par message privé Discord.
+              {appeal ? m.pa_pending_desc_dated({ date: formatDate(appeal.createdAt) }) : m.pa_pending_desc()}
+              {m.pa_pending_dm()}
             </p>
           </div>
 
@@ -329,14 +332,14 @@
             <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-6 shadow-sm space-y-4">
               <h3 class="font-semibold text-on-surface text-sm flex items-center gap-2">
                 <Papicon icon="message-square" size={18} />
-                Historique de la discussion
+                {m.pa_discussion_history()}
               </h3>
               <div class="space-y-3 max-h-80 overflow-y-auto pr-1">
                 {#if appeal.messages && appeal.messages.length > 0}
                   {#each appeal.messages as msg}
                     <div class="flex flex-col p-3 rounded-lg text-sm border {msg.author === 'staff' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-surface border-outline-variant/15'}">
                       <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
-                        <span>{msg.author === 'staff' ? 'Staff' : 'Toi'}</span>
+                        <span>{msg.author === 'staff' ? m.pa_staff() : m.pa_you()}</span>
                         <span>{formatDateTime(msg.createdAt)}</span>
                       </div>
                       <p class="whitespace-pre-wrap">{msg.content}</p>
@@ -345,14 +348,14 @@
                 {:else if appeal.infoRequest}
                   <div class="flex flex-col p-3 rounded-lg text-sm border bg-blue-500/5 border-blue-500/20">
                     <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
-                      <span>Staff</span>
+                      <span>{m.pa_staff()}</span>
                     </div>
                     <p class="whitespace-pre-wrap">{appeal.infoRequest}</p>
                   </div>
                   {#if appeal.infoResponse}
                     <div class="flex flex-col p-3 rounded-lg text-sm border bg-surface border-outline-variant/15">
                       <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
-                        <span>Toi</span>
+                        <span>{m.pa_you()}</span>
                       </div>
                       <p class="whitespace-pre-wrap">{appeal.infoResponse}</p>
                     </div>
@@ -363,9 +366,9 @@
           {/if}
         </div>
 
-      {:else if viewer && !viewer.eligibility.eligible}
+      {:else if viewer && blockedEligibility}
         <!-- Non éligible -->
-        {@const blocked = viewer.eligibility}
+        {@const blocked = blockedEligibility}
         {@const lastAppeal = viewer.latestAppeal}
         <div class="pf-card rounded-xl bg-surface border border-outline-variant/20 p-8 shadow-sm space-y-4">
           {#if blocked.blockedBy === 'not_banned'}
@@ -373,11 +376,11 @@
               <div class="mb-4 text-on-surface-variant/30">
                 <Papicon icon="check" size={48} />
               </div>
-              <h2 class="text-lg font-semibold text-on-surface mb-2">Tu n'es pas banni de ce serveur</h2>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">{m.pa_not_banned()}</h2>
               <p class="text-sm text-on-surface-variant/70">
-                Le compte <span class="font-semibold">{viewer.username || viewer.userId}</span> n'apparaît pas dans la liste des bannissements.
+                Le compte <span class="font-semibold">{viewer.username || viewer.userId}</span> {m.pa_not_banned_desc()}
                 {#if lastAppeal && lastAppeal.status === 'ACCEPTED'}
-                  Ta demande a été acceptée le {lastAppeal.decidedAt ? formatDate(lastAppeal.decidedAt) : ''} — bon retour !
+                  {m.pa_accepted_on({ date: lastAppeal.decidedAt ? formatDate(lastAppeal.decidedAt) : '' })}
                 {/if}
               </p>
             </div>
@@ -386,12 +389,12 @@
               <div class="mb-4 text-on-surface-variant/30">
                 <Papicon icon="block" size={48} />
               </div>
-              <h2 class="text-lg font-semibold text-on-surface mb-2">Appel non autorisé</h2>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">{m.pa_not_allowed()}</h2>
               <p class="text-sm text-on-surface-variant/70">
-                Le staff a indiqué que les demandes de débannissement ne sont plus acceptées pour ce compte.
+                {m.pa_not_allowed_desc()}
               </p>
               {#if lastAppeal?.decisionReason}
-                <p class="mt-3 text-xs text-on-surface-variant/50">Raison : {lastAppeal.decisionReason}</p>
+                <p class="mt-3 text-xs text-on-surface-variant/50">{m.pa_reason({ reason: lastAppeal.decisionReason })}</p>
               {/if}
             </div>
           {:else if blocked.blockedBy === 'cooldown'}
@@ -399,11 +402,11 @@
               <div class="mb-4 text-on-surface-variant/30">
                 <Papicon icon="clock" size={48} />
               </div>
-              <h2 class="text-lg font-semibold text-on-surface mb-2">Demande refusée récemment</h2>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">{m.pa_denied_recently()}</h2>
               <p class="text-sm text-on-surface-variant/70 leading-relaxed">
-                Ta dernière demande a été refusée{lastAppeal?.decisionReason ? ` (« ${lastAppeal.decisionReason} »)` : ''}.
+                {lastAppeal?.decisionReason ? m.pa_denied_recently_desc_reason({ reason: lastAppeal.decisionReason }) : m.pa_denied_recently_desc()}
                 {#if blocked.cooldownEndsAt}
-                  Tu pourras soumettre une nouvelle demande à partir du
+                  {m.pa_cooldown_until()}
                   <span class="font-semibold" style="color:var(--form-color)">{formatDate(blocked.cooldownEndsAt)}</span>.
                 {/if}
               </p>
@@ -413,8 +416,8 @@
               <div class="mb-4 text-on-surface-variant/30">
                 <Papicon icon="clock" size={48} />
               </div>
-              <h2 class="text-lg font-semibold text-on-surface mb-2">Demande déjà en cours</h2>
-              <p class="text-sm text-on-surface-variant/70">Ta demande est en attente de décision du staff.</p>
+              <h2 class="text-lg font-semibold text-on-surface mb-2">{m.pa_already_pending()}</h2>
+              <p class="text-sm text-on-surface-variant/70">{m.pa_already_pending_desc()}</p>
             </div>
           {/if}
         </div>
@@ -426,14 +429,14 @@
             src={authStore.user?.avatar ? `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png` : ''}
             alt="" class="w-10 h-10 rounded-full border border-outline-variant/30 {authStore.user?.avatar ? '' : 'hidden'}" />
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-on-surface">Connecté en tant que {viewer.username || authStore.user?.username}</p>
+            <p class="text-sm font-semibold text-on-surface">{m.pa_logged_in_as({ name: viewer.username || authStore.user?.username })}</p>
             <p class="text-xs text-on-surface-variant/60 mt-0.5">
-              Ban confirmé{viewer.eligibility.banReason ? ` — raison : ${viewer.eligibility.banReason}` : ''}
+              {viewer.eligibility.banReason ? m.pa_ban_confirmed_reason({ reason: viewer.eligibility.banReason }) : m.pa_ban_confirmed()}
             </p>
           </div>
           <button onclick={() => authStore.logout()}
             class="px-3 py-1.5 border border-outline-variant/35 text-on-surface-variant rounded-lg text-xs font-semibold shrink-0">
-            Changer de compte
+            {m.pa_switch_account()}
           </button>
         </div>
 
@@ -476,7 +479,7 @@
               <select id={field.id} value={(answers[field.id] as string) || ''}
                 onchange={(e) => setAnswer(field.id, (e.target as HTMLSelectElement).value)}
                 class="w-full bg-surface-container rounded-xl px-4 py-3 text-sm outline-none border border-outline-variant/30">
-                <option value="" disabled>Sélectionner…</option>
+                <option value="" disabled>{m.pa_select()}</option>
                 {#each field.options || [] as opt}<option value={opt}>{opt}</option>{/each}
               </select>
             {:else if field.type === 'date'}
@@ -507,7 +510,7 @@
           <button onclick={submit} disabled={submitting}
             class="pf-submit px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all active:scale-[0.98] disabled:opacity-60 disabled:scale-100"
             style="background:var(--form-color)">
-            {submitting ? 'Envoi…' : 'Envoyer ma demande ✓'}
+            {submitting ? m.pa_sending() : m.pa_submit()}
           </button>
         </div>
 
@@ -517,12 +520,12 @@
           <div class="mb-4 text-on-surface-variant/30">
             <Papicon icon="settings" size={48} />
           </div>
-          <p class="text-sm text-on-surface-variant/70">Le formulaire d'appel n'est pas encore configuré sur ce serveur.</p>
+          <p class="text-sm text-on-surface-variant/70">{m.pa_no_form()}</p>
         </div>
       {/if}
 
       <div class="text-center pb-4 text-xs text-on-surface-variant/30">
-        Propulsé par <span class="font-bold" style="color:var(--form-color)">Kotbo</span>
+        {m.pa_powered_by()} <span class="font-bold" style="color:var(--form-color)">Kotbo</span>
       </div>
     </div>
   {/if}

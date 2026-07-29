@@ -166,7 +166,7 @@
         fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
           headers: { 'Authorization': `Bearer ${authStore.token}` }
         }).catch(() => null),
-        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
+        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms?includeStructure=true`, {
           headers: { 'Authorization': `Bearer ${authStore.token}` }
         }).catch(() => null)
       ]);
@@ -1237,4 +1237,3 @@
 </style>
 
 </ModulePage>
-

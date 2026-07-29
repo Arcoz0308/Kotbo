@@ -198,13 +198,44 @@
 
   /* On mobile, stack vertically */
   @media (max-width: 600px) {
+    .unsaved-bar {
+      bottom: var(--mobile-dock-clearance);
+      padding: 0 0.75rem 0.5rem;
+    }
+
     .unsaved-bar__inner {
-      flex-direction: column;
-      align-items: stretch;
+      gap: 0.75rem;
+      padding: 0.625rem;
+      border-radius: 1rem;
+    }
+
+    .unsaved-bar__icon {
+      display: none;
+    }
+
+    .unsaved-bar__subtitle {
+      display: none;
     }
 
     .unsaved-bar__actions {
       justify-content: flex-end;
+      gap: 0.375rem;
+    }
+
+    .unsaved-bar__btn {
+      min-height: 2.5rem;
+      padding: 0.5rem 0.75rem;
+    }
+
+    .unsaved-bar__btn--save {
+      flex: 1 1 auto;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .unsaved-bar__title {
+      max-width: 5.5rem;
+      font-size: 0.75rem;
     }
   }
 </style>

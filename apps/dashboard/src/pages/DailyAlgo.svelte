@@ -45,6 +45,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { fetchFeatureConfigurations, updateFeatureConfiguration } from '../lib/api';
+  import { m } from '../lib/i18n';
 
   const moduleId = 'dailyalgo';
 
@@ -141,6 +142,12 @@
     }
   }
 
+  function parseDraftValueOrThrow(raw: string): unknown {
+    const parsed = parseDraftJsonValue(raw);
+    if ('error' in parsed) throw new Error(parsed.error);
+    return parsed.value;
+  }
+
   const formAction = createAsyncActionState();
   const apiKeyAction = createAsyncActionState();
   const weekSettingsAction = createAsyncActionState();
@@ -196,6 +203,15 @@
   // Les clans sont un module indépendant : le pont Daily Algo → Clans ne peut
   // être configuré que s'ils sont activés sur le serveur.
   let clansEnabled = $state(false);
+
+  function formatWeekLabel(label?: string) {
+    if (!label) return '';
+    const match = label.match(/du\s+(.+?)\s+au\s+(.+)/i);
+    if (match) {
+      return m.da_week_range_format({ start: match[1], end: match[2] });
+    }
+    return label;
+  }
 
   const weekSettings = $state({
     dailyAlgoTimezone: 'Europe/Paris',
@@ -488,8 +504,8 @@
         functionArgs: algoDraft.functionArgs.map(a => ({ name: a.name.trim(), type: a.type.trim() })),
         unitTests: algoDraft.unitTests.map(t => ({
           name: t.name.trim(),
-          args: t.argValues.map(v => parseDraftJsonValue(v).value),
-          expected: parseDraftJsonValue(t.expectedValue).value
+          args: t.argValues.map(parseDraftValueOrThrow),
+          expected: parseDraftValueOrThrow(t.expectedValue)
         })),
         allowedLanguages: algoDraft.allowedLanguages,
       };
@@ -541,7 +557,7 @@
 
 <ModulePage 
   title="Daily Algo" 
-  description="Gérez les défis algorithmiques quotidiens, corrigez les soumissions et gérez votre bibliothèque." 
+  description={m.da_page_desc()} 
   icon="Code"
   featureKey="daily_algo"
 >
@@ -550,14 +566,14 @@
       <RefreshButton
         onClick={() => { loadDailyAlgoProblems(); loadTodayDailyAlgoSubmissions(); }}
         loading={isFetchingAlgo || isFetchingAlgoSubmissions}
-        label="Actualiser"
+        label={m.common_refresh()}
       />
       {#if canManageSettings}
         <button
           onclick={openDailyAlgoProblemModal}
           class="px-4 py-2 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform"
         >
-          Nouvel Exercice
+          {m.da_btn_new_exercise()}
         </button>
       {/if}
     </div>
@@ -569,25 +585,25 @@
       class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'defis' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'defis'}
     >
-      <Papicon icon="Code" size={15} /> Défis & Notation
+      <Papicon icon="Code" size={15} /> {m.da_tab_defis()}
     </button>
     <button
       class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'semaine' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'semaine'}
     >
-      <Papicon icon="Award" size={15} /> Semaine & Podium
+      <Papicon icon="Award" size={15} /> {m.da_tab_semaine()}
     </button>
     <button
       class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'bareme' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'bareme'}
     >
-      <Papicon icon="Sparkles" size={15} /> Barème & récompenses
+      <Papicon icon="Sparkles" size={15} /> {m.da_tab_bareme()}
     </button>
     <button
       class="px-5 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer inline-flex items-center gap-2 {activeTab === 'admin' ? 'border-primary text-primary font-bold bg-primary/5 rounded-t-lg' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low/30'}"
       onclick={() => activeTab = 'admin'}
     >
-      <Papicon icon="Settings" size={15} /> Administration
+      <Papicon icon="Settings" size={15} /> {m.da_tab_admin()}
     </button>
   </div>
 
@@ -596,11 +612,11 @@
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-xs font-medium text-on-surface-variant/40">Soumissions du jour</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">{m.da_stat_today_submissions()}</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoToday?.submissions?.length ?? 0}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-xs font-medium text-on-surface-variant/40">Bibliothèque</p>
+        <p class="text-xs font-medium text-on-surface-variant/40">{m.da_stat_library()}</p>
         <p class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoProblems.length}</p>
       </div>
       <button 
@@ -608,12 +624,12 @@
         class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10 text-left hover:bg-surface-container-high/60 transition-colors group"
       >
         <div class="flex items-center justify-between">
-          <p class="text-xs font-medium text-on-surface-variant/40">Planning</p>
+          <p class="text-xs font-medium text-on-surface-variant/40">{m.da_stat_schedule()}</p>
           <Papicon icon="Calendar" size={14} class="text-on-surface-variant/20 group-hover:text-primary transition-colors" />
         </div>
-        <p class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoSchedule.length} jours</p>
+        <p class="text-lg font-semibold text-on-surface mt-2">{m.da_days_count({ count: dailyAlgoSchedule.length })}</p>
         <p class="text-[10px] font-bold text-primary mt-4 flex items-center gap-2">
-          Voir le programme <Papicon icon="ArrowRight" size={10} />
+          {m.da_view_schedule()} <Papicon icon="ArrowRight" size={10} />
         </p>
       </button>
     </div>
@@ -624,14 +640,14 @@
         <div>
           <div class="flex items-center gap-3">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="text-xs font-medium text-primary">Défi en cours</span>
+            <span class="text-xs font-medium text-primary">{m.da_current_challenge()}</span>
           </div>
-          <h3 class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoToday?.run?.problem?.title ?? 'Aucun défi actif'}</h3>
-          <p class="text-on-surface-variant/60 mt-2 max-w-2xl line-clamp-2">{dailyAlgoToday?.run?.problem?.description ?? 'Planifiez un défi pour commencer.'}</p>
+          <h3 class="text-lg font-semibold text-on-surface mt-2">{dailyAlgoToday?.run?.problem?.title ?? m.da_no_active_challenge()}</h3>
+          <p class="text-on-surface-variant/60 mt-2 max-w-2xl line-clamp-2">{dailyAlgoToday?.run?.problem?.description ?? m.da_plan_to_start()}</p>
         </div>
         {#if canManageSettings}
           <button class="px-6 py-3 bg-surface-container-high rounded-lg text-xs font-medium border border-outline-variant/10 hover:bg-surface-container-highest transition-colors">
-            Changer le défi
+            {m.da_change_challenge()}
           </button>
         {/if}
       </div>
@@ -640,14 +656,14 @@
     <!-- Submissions Table -->
     <section class="space-y-6">
       <div class="flex items-center justify-between px-2">
-        <h3 class="text-xl font-semibold text-on-surface">Soumissions Récentes</h3>
+        <h3 class="text-xl font-semibold text-on-surface">{m.da_recent_submissions()}</h3>
         <div class="flex gap-2">
           {#each ['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as f}
             <button 
               onclick={() => dailyAlgoSubmissionStatusFilter = f as any}
               class="px-4 py-2 rounded-xl text-[11px] font-semibold uppercase tracking-widest border border-outline-variant/10 {dailyAlgoSubmissionStatusFilter === f ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant/60 hover:bg-surface-container-high'}"
             >
-              {f === 'ALL' ? 'Tout' : f}
+              {f === 'ALL' ? m.da_filter_all_caps() : f === 'PENDING' ? m.da_filter_pending() : f === 'APPROVED' ? m.da_filter_validated() : m.da_filter_rejected()}
             </button>
           {/each}
         </div>
@@ -657,10 +673,10 @@
         <table class="w-full text-left">
           <thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
             <tr>
-              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Auteur</th>
-              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Statut</th>
-              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Date</th>
-              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">Actions</th>
+              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.da_col_author()}</th>
+              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.da_col_status()}</th>
+              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.da_col_date()}</th>
+              <th class="px-8 py-5 text-xs font-medium text-on-surface-variant/40">{m.da_col_actions()}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant/5">
@@ -672,7 +688,7 @@
                 </td>
                 <td class="px-8 py-5">
                   <span class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-widest {sub.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-600' : sub.status === 'PENDING' ? 'bg-amber-500/10 text-amber-600' : 'bg-red-500/10 text-red-600'}">
-                    {sub.status}
+                    {sub.status === 'APPROVED' ? m.da_filter_validated() : sub.status === 'PENDING' ? m.da_filter_pending() : m.da_filter_rejected()}
                   </span>
                 </td>
                 <td class="px-8 py-5 text-xs text-on-surface-variant">{formatDate(sub.submittedAt)}</td>
@@ -694,7 +710,7 @@
     <!-- Configuration Section -->
     {#if canManageSettings && featureConfig}
       <section class="bg-surface-container-low/30 rounded-xl p-10 border border-outline-variant/10 animate-in fade-in duration-500">
-        <h3 class="text-xl font-semibold text-on-surface mb-8">Configuration & Permissions</h3>
+        <h3 class="text-xl font-semibold text-on-surface mb-8">{m.da_config_permissions_title()}</h3>
         <RolePermissionSettings 
           featureKey="daily_algo" 
           roleAccess={featureConfig.roleAccessByRole} 
@@ -709,16 +725,16 @@
     <div class="space-y-10 pb-20">
       <div class="flex items-center justify-between px-2">
         <div>
-          <h3 class="text-xl font-semibold text-on-surface">Semaine en cours</h3>
+          <h3 class="text-xl font-semibold text-on-surface">{m.da_current_week()}</h3>
           <p class="text-xs text-on-surface-variant/60 mt-1">
             {#if currentWeek}
-              {currentWeek.weekKey} · {currentWeek.label}
+              {currentWeek.weekKey} · {formatWeekLabel(currentWeek.label)}
             {:else}
-              Aucune semaine ouverte pour le moment.
+              {m.da_no_open_week()}
             {/if}
           </p>
         </div>
-        <RefreshButton onClick={loadWeekData} loading={isFetchingWeek} label="Actualiser" />
+        <RefreshButton onClick={loadWeekData} loading={isFetchingWeek} label={m.common_refresh()} />
       </div>
 
       {#if isFetchingWeek && !currentWeek}
@@ -726,10 +742,9 @@
       {:else if !currentWeek || currentWeek.ranking.length === 0}
         <section class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 text-center">
           <Papicon icon="Calendar" size={24} class="text-on-surface-variant/40" />
-          <h4 class="text-sm font-semibold text-on-surface mt-3">Aucune participation cette semaine</h4>
+          <h4 class="text-sm font-semibold text-on-surface mt-3">{m.da_no_participations_week()}</h4>
           <p class="text-xs text-on-surface-variant/60 mt-1 max-w-md mx-auto">
-            Le classement se remplit à mesure que le staff note les soumissions. Toute
-            participation validée rapporte au moins le plancher de points.
+            {m.da_ranking_hint()}
           </p>
         </section>
       {:else}
@@ -738,11 +753,11 @@
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest border-b border-outline-variant/10">
-                  <th class="px-6 py-4">#</th>
-                  <th class="px-6 py-4">Membre</th>
-                  <th class="px-6 py-4 text-right">Défis validés</th>
-                  <th class="px-6 py-4 text-right">Bonus manuels</th>
-                  <th class="px-6 py-4 text-right">Points</th>
+                  <th class="px-6 py-4">{m.da_col_rank_symbol()}</th>
+                  <th class="px-6 py-4">{m.da_col_member()}</th>
+                  <th class="px-6 py-4 text-right">{m.da_col_validated_challenges()}</th>
+                  <th class="px-6 py-4 text-right">{m.da_col_manual_bonuses()}</th>
+                  <th class="px-6 py-4 text-right">{m.da_col_points()}</th>
                 </tr>
               </thead>
               <tbody>
@@ -766,11 +781,10 @@
       {/if}
 
       <section class="space-y-4">
-        <h3 class="text-xl font-semibold text-on-surface px-2">Semaines clôturées</h3>
+        <h3 class="text-xl font-semibold text-on-surface px-2">{m.da_closed_weeks()}</h3>
         {#if weekHistory.length === 0}
           <p class="text-xs text-on-surface-variant/50 italic px-2">
-            Aucune semaine clôturée pour l'instant. La première clôture a lieu le lundi
-            suivant, ou immédiatement via l'onglet Administration.
+            {m.da_no_closed_weeks()}
           </p>
         {:else}
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -779,10 +793,10 @@
                 <div class="flex items-center justify-between">
                   <span class="text-sm font-bold text-on-surface">{week.weekKey}</span>
                   <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                    {week.participants} participant{week.participants > 1 ? 's' : ''}
+                    {m.da_participants_count({ count: week.participants })}
                   </span>
                 </div>
-                <p class="text-[11px] text-on-surface-variant/50">{week.label}</p>
+                <p class="text-[11px] text-on-surface-variant/50">{formatWeekLabel(week.label)}</p>
                 {#if week.podium.length > 0}
                   <div class="space-y-1 pt-2 border-t border-outline-variant/10">
                     {#each week.podium as entry (entry.rank)}
@@ -794,7 +808,7 @@
                   </div>
                 {/if}
                 {#if week.closedById}
-                  <p class="text-[10px] text-on-surface-variant/40 italic">Clôturée manuellement</p>
+                  <p class="text-[10px] text-on-surface-variant/40 italic">{m.da_closed_manually()}</p>
                 {/if}
               </div>
             {/each}
@@ -812,9 +826,9 @@
       {#if !canManageSettings}
         <section class="bg-surface-container-high/20 rounded-xl border border-outline-variant/10 p-10 flex flex-col items-center text-center gap-3">
           <Papicon icon="Lock" size={24} class="text-on-surface-variant/40" />
-          <h4 class="text-sm font-semibold text-on-surface">Réservé aux administrateurs</h4>
+          <h4 class="text-sm font-semibold text-on-surface">{m.da_admin_only_title()}</h4>
           <p class="text-xs text-on-surface-variant/70 max-w-md">
-            Vous n'avez pas la permission de configurer le barème de ce module.
+            {m.da_admin_only_bareme_desc()}
           </p>
         </section>
       {:else}
@@ -822,30 +836,26 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Sparkles" size={20} class="text-primary" />
-            Barème & points
+            {m.da_bareme_points_title()}
           </h3>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div class="space-y-1.5">
-              <label for="daPartPoints" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Plancher de participation (pts)</label>
+              <label for="daPartPoints" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_part_floor_pts()}</label>
               <input id="daPartPoints" type="number" min="0" max="50" step="1" bind:value={weekSettings.dailyAlgoParticipationPoints} disabled={!canManageSettings} class={numberFieldClass} />
             </div>
             <div class="space-y-1.5">
-              <label for="daWeekendMult" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Multiplicateur du week-end</label>
+              <label for="daWeekendMult" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_weekend_multiplier()}</label>
               <input id="daWeekendMult" type="number" min="1" max="10" step="0.1" bind:value={weekSettings.dailyAlgoWeekendMultiplier} disabled={!canManageSettings} class={numberFieldClass} />
             </div>
             <div class="space-y-1.5">
-              <label for="daTimezone" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Fuseau horaire (IANA)</label>
+              <label for="daTimezone" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_timezone_label()}</label>
               <input id="daTimezone" type="text" placeholder="Europe/Paris" bind:value={weekSettings.dailyAlgoTimezone} disabled={!canManageSettings} class={numberFieldClass} />
             </div>
           </div>
 
           <div class="p-4 bg-primary/5 border border-primary/10 rounded-lg text-xs text-on-surface-variant/80">
-            <strong class="text-on-surface">Aperçu :</strong> un participant moyen (moyenne 3,4/5,
-            hors podium de rapidité) gagne <strong>{scorePreview.weekday} pts</strong> en semaine,
-            <strong>{scorePreview.weekend} pts</strong> le week-end, soit environ
-            <strong>{scorePreview.week} pts</strong> sur une semaine complète.
-            Les points sont toujours des entiers, arrondis à l'unité supérieure.
+            {m.da_score_preview_note({ weekday: scorePreview.weekday, weekend: scorePreview.weekend, week: scorePreview.week })}
           </div>
         </section>
 
@@ -853,15 +863,14 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Award" size={20} class="text-secondary" />
-            Semaine & podium
+            {m.da_weekly_rewards_title()}
           </h3>
 
           <div class="flex items-center justify-between">
             <div>
-              <span class="text-sm font-medium text-on-surface">Activer les récompenses hebdomadaires</span>
+              <span class="text-sm font-medium text-on-surface">{m.da_enable_weekly_rewards()}</span>
               <p class="text-xs text-on-surface-variant/70">
-                Verse XP et rôles à la clôture du lundi. Désactivé, le classement est
-                quand même figé et archivé.
+                {m.da_weekly_rewards_desc()}
               </p>
             </div>
             <ToggleSwitch
@@ -874,37 +883,36 @@
           {#if weekSettings.dailyAlgoWeeklyRewardsEnabled}
             <div class="space-y-6 pt-4 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
               <p class="text-[11px] text-on-surface-variant/60">
-                Les trois rôles sont <strong>facultatifs</strong> : laisser un champ vide
-                signifie « pas de rôle », et le reste des récompenses est versé quand même.
+                {m.da_roles_optional_note()}
               </p>
 
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div class="space-y-1.5">
-                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle 1er</span>
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_role_1st()}</span>
                   <SearchableSelect
                     bind:value={weekSettings.dailyAlgoWeekRole1Id}
                     options={roleOptions}
-                    placeholder="Aucun rôle"
+                    placeholder={m.da_no_role()}
                     disabled={!canManageSettings}
                     className={selectFieldClass}
                   />
                 </div>
                 <div class="space-y-1.5">
-                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle 2e</span>
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_role_2nd()}</span>
                   <SearchableSelect
                     bind:value={weekSettings.dailyAlgoWeekRole2Id}
                     options={roleOptions}
-                    placeholder="Aucun rôle"
+                    placeholder={m.da_no_role()}
                     disabled={!canManageSettings}
                     className={selectFieldClass}
                   />
                 </div>
                 <div class="space-y-1.5">
-                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle 3e</span>
+                  <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_role_3rd()}</span>
                   <SearchableSelect
                     bind:value={weekSettings.dailyAlgoWeekRole3Id}
                     options={roleOptions}
-                    placeholder="Aucun rôle"
+                    placeholder={m.da_no_role()}
                     disabled={!canManageSettings}
                     className={selectFieldClass}
                   />
@@ -913,10 +921,9 @@
 
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="text-sm font-medium text-on-surface">Rôles tournants</span>
+                  <span class="text-sm font-medium text-on-surface">{m.da_rotating_roles()}</span>
                   <p class="text-xs text-on-surface-variant/70">
-                    Retire les rôles du podium précédent à chaque clôture. Sans rotation,
-                    un rôle de champion s'accumule et perd son sens.
+                    {m.da_rotating_roles_desc()}
                   </p>
                 </div>
                 <ToggleSwitch
@@ -928,33 +935,32 @@
 
               <div class="grid grid-cols-1 sm:grid-cols-4 gap-6">
                 <div class="space-y-1.5">
-                  <label for="daXp1" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP 1er</label>
+                  <label for="daXp1" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_xp_1st()}</label>
                   <input id="daXp1" type="number" min="0" step="10" bind:value={weekSettings.dailyAlgoWeekXp1} disabled={!canManageSettings} class={numberFieldClass} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="daXp2" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP 2e</label>
+                  <label for="daXp2" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_xp_2nd()}</label>
                   <input id="daXp2" type="number" min="0" step="10" bind:value={weekSettings.dailyAlgoWeekXp2} disabled={!canManageSettings} class={numberFieldClass} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="daXp3" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP 3e</label>
+                  <label for="daXp3" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_xp_3rd()}</label>
                   <input id="daXp3" type="number" min="0" step="10" bind:value={weekSettings.dailyAlgoWeekXp3} disabled={!canManageSettings} class={numberFieldClass} />
                 </div>
                 <div class="space-y-1.5">
-                  <label for="daXpPart" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">XP participation</label>
+                  <label for="daXpPart" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_xp_participation()}</label>
                   <input id="daXpPart" type="number" min="0" step="10" bind:value={weekSettings.dailyAlgoWeekParticipationXp} disabled={!canManageSettings} class={numberFieldClass} />
                 </div>
               </div>
               <p class="text-[11px] text-on-surface-variant/50">
-                Le podium reçoit son XP dédiée <strong>à la place</strong> de l'XP de
-                participation, pas en plus.
+                {m.da_podium_xp_note()}
               </p>
 
               <div class="space-y-1.5">
-                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon d'annonce</span>
+                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_announcement_channel()}</span>
                 <SearchableSelect
                   bind:value={weekSettings.dailyAlgoWeekAnnouncementChannelId}
                   options={channelOptions}
-                  placeholder="Par défaut : le salon du Daily Algo"
+                  placeholder={m.da_announcement_channel_ph()}
                   disabled={!canManageSettings}
                   className={selectFieldClass}
                 />
@@ -967,17 +973,16 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Shield" size={20} class="text-tertiary" />
-            Points de clan
+            {m.da_clan_points_title()}
           </h3>
 
           {#if !clansEnabled}
             <div class="p-6 bg-surface-container-high/20 rounded-xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3">
               <Papicon icon="Lock" size={24} class="text-on-surface-variant/40" />
               <div>
-                <h4 class="text-sm font-semibold text-on-surface">Les clans ne sont pas activés</h4>
+                <h4 class="text-sm font-semibold text-on-surface">{m.da_clans_not_enabled_title()}</h4>
                 <p class="text-xs text-on-surface-variant/70 max-w-md mt-1">
-                  Les clans ne sont pas activés sur ce serveur. Activez-les dans l'onglet
-                  Clans pour configurer ce lien. Le Daily Algo fonctionne parfaitement sans.
+                  {m.da_clans_not_enabled_desc()}
                 </p>
               </div>
             </div>
@@ -985,10 +990,9 @@
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <span class="text-sm font-medium text-on-surface">Convertir les points en points de clan</span>
+                  <span class="text-sm font-medium text-on-surface">{m.da_convert_clan_points()}</span>
                   <p class="text-xs text-on-surface-variant/70">
-                    À la clôture, chaque participant convertit ses points de la semaine en
-                    points de clan. Sans ce réglage, les deux modules tournent sans lien.
+                    {m.da_convert_clan_points_desc()}
                   </p>
                 </div>
                 <ToggleSwitch
@@ -1001,26 +1005,24 @@
               {#if weekSettings.clanPointsFromDailyAlgo}
                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-4 border-t border-outline-variant/10 animate-in slide-in-from-top-2 duration-200">
                   <div class="space-y-1.5">
-                    <label for="daClanRate" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Taux de conversion</label>
+                    <label for="daClanRate" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_conversion_rate()}</label>
                     <input id="daClanRate" type="number" min="0.1" max="100" step="0.1" bind:value={weekSettings.clanPointsFromDailyAlgoRate} disabled={!canManageSettings} class={numberFieldClass} />
                   </div>
                   <div class="space-y-1.5">
-                    <label for="daClanTop1" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Bonus clan 1er</label>
+                    <label for="daClanTop1" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_clan_bonus_1st()}</label>
                     <input id="daClanTop1" type="number" min="0" step="5" bind:value={weekSettings.clanPointsDailyAlgoTop1} disabled={!canManageSettings} class={numberFieldClass} />
                   </div>
                   <div class="space-y-1.5">
-                    <label for="daClanTop2" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Bonus clan 2e</label>
+                    <label for="daClanTop2" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_clan_bonus_2nd()}</label>
                     <input id="daClanTop2" type="number" min="0" step="5" bind:value={weekSettings.clanPointsDailyAlgoTop2} disabled={!canManageSettings} class={numberFieldClass} />
                   </div>
                   <div class="space-y-1.5">
-                    <label for="daClanTop3" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Bonus clan 3e</label>
+                    <label for="daClanTop3" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_clan_bonus_3rd()}</label>
                     <input id="daClanTop3" type="number" min="0" step="5" bind:value={weekSettings.clanPointsDailyAlgoTop3} disabled={!canManageSettings} class={numberFieldClass} />
                   </div>
                 </div>
                 <p class="text-[11px] text-on-surface-variant/50">
-                  Taux 1 = 1 point de Daily Algo donne 1 point de clan. Un participant assidu
-                  pèse alors environ 70 points de clan par semaine, soit un peu plus qu'un
-                  passage de niveau.
+                  {m.da_clan_rate_note()}
                 </p>
               {/if}
             </div>
@@ -1033,7 +1035,7 @@
             disabled={weekSettingsAction.state.loading}
             class="px-8 py-3 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform disabled:opacity-50"
           >
-            {weekSettingsAction.state.loading ? 'Enregistrement…' : 'Enregistrer les réglages'}
+            {weekSettingsAction.state.loading ? m.da_btn_saving() : m.da_btn_save_settings()}
           </button>
         </div>
       {/if}
@@ -1048,9 +1050,9 @@
       {#if !canManageSettings}
         <section class="bg-surface-container-high/20 rounded-xl border border-outline-variant/10 p-10 flex flex-col items-center text-center gap-3">
           <Papicon icon="Lock" size={24} class="text-on-surface-variant/40" />
-          <h4 class="text-sm font-semibold text-on-surface">Réservé aux administrateurs</h4>
+          <h4 class="text-sm font-semibold text-on-surface">{m.da_admin_only_title()}</h4>
           <p class="text-xs text-on-surface-variant/70 max-w-md">
-            Vous n'avez pas la permission de configurer ce module.
+            {m.da_admin_only_module_desc()}
           </p>
         </section>
       {:else}
@@ -1058,28 +1060,23 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Award" size={20} class="text-amber-500" />
-            Clôturer la semaine maintenant
+            {m.da_close_week_now()}
           </h3>
           <p class="text-xs text-on-surface-variant/70 max-w-2xl">
-            Déclenche immédiatement ce que fait le cron du lundi : le classement est figé,
-            les récompenses versées, les rôles du podium attribués et l'annonce publiée.
-            Utile pour tester le cycle complet sans attendre sept jours.
-            <strong class="text-on-surface">Cette action ne s'annule pas.</strong>
+            {m.da_close_week_desc()}
           </p>
 
           {#if currentWeek?.status === 'CLOSED'}
             <div class="p-4 bg-surface-container-high/20 rounded-lg border border-outline-variant/10 text-xs text-on-surface-variant/70 space-y-3">
               <p>
-                La semaine <strong>{currentWeek.weekKey}</strong> est déjà clôturée.
-                Les participations arrivées depuis seront rattrapées par le cron du
-                lundi, ou tout de suite avec le bouton ci-dessous.
+                {m.da_week_already_closed({ weekKey: currentWeek.weekKey })}
               </p>
               <button
                 onclick={confirmCloseWeek}
                 disabled={isClosingWeek}
                 class="px-5 py-2.5 bg-surface-container-high rounded-lg text-[13px] font-medium border border-outline-variant/10 disabled:opacity-50"
               >
-                {isClosingWeek ? 'Rattrapage en cours…' : 'Rattraper les points de la semaine'}
+                {isClosingWeek ? m.da_catchup_in_progress() : m.da_catchup_points()}
               </button>
             </div>
           {:else if !closeWeekConfirmOpen}
@@ -1088,32 +1085,31 @@
               disabled={!currentWeek}
               class="px-6 py-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[13px] font-medium transition-colors hover:bg-amber-500/20 disabled:opacity-50"
             >
-              Clôturer la semaine {currentWeek?.weekKey ?? ''}
+              {m.da_close_week_btn({ weekKey: currentWeek?.weekKey ?? '' })}
             </button>
           {:else}
             <div class="p-6 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-4">
               <p class="text-sm font-semibold text-on-surface">
-                Confirmer la clôture de {currentWeek?.weekKey} ?
+                {m.da_confirm_close_title({ weekKey: currentWeek?.weekKey ?? '' })}
               </p>
               <ul class="text-xs text-on-surface-variant/70 space-y-1 list-disc list-inside">
-                <li>{currentWeek?.ranking?.length ?? 0} participant(s) seront récompensés</li>
+                <li>{m.da_confirm_close_part_count({ count: currentWeek?.ranking?.length ?? 0 })}</li>
                 <li>
                   {#if weekSettings.dailyAlgoWeeklyRewardsEnabled}
-                    XP et rôles du podium attribués
+                    {m.da_confirm_close_rewards_enabled()}
                   {:else}
-                    Récompenses désactivées : le classement sera seulement archivé
+                    {m.da_confirm_close_rewards_disabled()}
                   {/if}
                 </li>
                 <li>
                   {#if clansEnabled && weekSettings.clanPointsFromDailyAlgo}
-                    Les points de la semaine seront convertis en points de clan
+                    {m.da_confirm_close_clan_enabled()}
                   {:else}
-                    Aucun point de clan ne sera versé
+                    {m.da_confirm_close_clan_disabled()}
                   {/if}
                 </li>
                 <li>
-                  Les participations qui arriveront d'ici dimanche seront rattrapées
-                  par le cron du lundi — rien ne sera perdu
+                  {m.da_confirm_close_catchup_note()}
                 </li>
               </ul>
               <div class="flex gap-3">
@@ -1122,14 +1118,14 @@
                   disabled={isClosingWeek}
                   class="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-[13px] font-medium disabled:opacity-50"
                 >
-                  {isClosingWeek ? 'Clôture en cours…' : 'Oui, clôturer'}
+                  {isClosingWeek ? m.da_closing_in_progress() : m.da_yes_close()}
                 </button>
                 <button
                   onclick={() => closeWeekConfirmOpen = false}
                   disabled={isClosingWeek}
                   class="px-5 py-2.5 bg-surface-container-high rounded-lg text-[13px] font-medium border border-outline-variant/10 disabled:opacity-50"
                 >
-                  Annuler
+                  {m.da_btn_cancel()}
                 </button>
               </div>
             </div>
@@ -1140,31 +1136,30 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Shield" size={20} class="text-red-500" />
-            Sanctions
+            {m.da_sanctions_title()}
           </h3>
           <p class="text-xs text-on-surface-variant/70 max-w-2xl">
-            Applique à la sanction déclenchée depuis le message de validation, en cas de
-            dérapage dans une soumission.
+            {m.da_sanctions_desc()}
           </p>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div class="space-y-1.5">
-              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Type de sanction</span>
+              <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_sanction_type()}</span>
               <select
                 bind:value={weekSettings.dailyAlgoSanctionType}
                 disabled={!canManageSettings}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
               >
-                <option value="WARN">Avertissement</option>
-                <option value="TIMEOUT">Exclusion temporaire</option>
+                <option value="WARN">{m.da_sanction_warn()}</option>
+                <option value="TIMEOUT">{m.da_sanction_timeout()}</option>
               </select>
             </div>
             <div class="space-y-1.5">
-              <label for="daSanctionWeight" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Poids de l'avertissement (1-3)</label>
+              <label for="daSanctionWeight" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_sanction_weight()}</label>
               <input id="daSanctionWeight" type="number" min="1" max="3" step="1" bind:value={weekSettings.dailyAlgoSanctionWeight} disabled={!canManageSettings} class={numberFieldClass} />
             </div>
             <div class="space-y-1.5">
-              <label for="daSanctionDuration" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Durée du timeout (minutes)</label>
+              <label for="daSanctionDuration" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.da_timeout_duration_min()}</label>
               <input id="daSanctionDuration" type="number" min="1" max="40320" step="5" bind:value={weekSettings.dailyAlgoSanctionDurationMinutes} disabled={!canManageSettings} class={numberFieldClass} />
             </div>
           </div>
@@ -1176,7 +1171,7 @@
             disabled={weekSettingsAction.state.loading}
             class="px-8 py-3 bg-primary text-on-primary rounded-xl font-medium text-[13px] transition-transform disabled:opacity-50"
           >
-            {weekSettingsAction.state.loading ? 'Enregistrement…' : 'Enregistrer les réglages'}
+            {weekSettingsAction.state.loading ? m.da_btn_saving() : m.da_btn_save_settings()}
           </button>
         </div>
       {/if}
@@ -1188,8 +1183,8 @@
       <div class="bg-surface-container-low border border-outline-variant/10 w-full max-w-2xl rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[85vh]">
         <header class="p-10 border-b border-outline-variant/5 flex items-center justify-between">
           <div>
-            <h2 class="text-lg font-semibold text-on-surface tracking-tight">Programme Daily Algo</h2>
-            <p class="text-on-surface-variant/60 mt-1 font-medium">Les prochains défis prévus pour la guilde.</p>
+            <h2 class="text-lg font-semibold text-on-surface tracking-tight">{m.da_schedule_modal_title()}</h2>
+            <p class="text-on-surface-variant/60 mt-1 font-medium">{m.da_schedule_modal_desc()}</p>
           </div>
           <button onclick={() => dailyAlgoScheduleModalOpen = false} class="p-3 rounded-lg bg-on-surface/5 hover:bg-on-surface/10 transition-colors">
             <Papicon icon="X" size={20} />
@@ -1206,12 +1201,12 @@
               <div class="w-16 h-16 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto mb-4 text-on-surface-variant/20">
                 <Papicon icon="Calendar" size={32} />
               </div>
-              <p class="text-on-surface-variant/60 font-bold">Aucun programme généré pour l'instant.</p>
+              <p class="text-on-surface-variant/60 font-bold">{m.da_no_schedule()}</p>
               <button 
                 onclick={() => ensureDailyAlgoSchedule(21).then(refreshDailyAlgoScheduleView)}
                 class="mt-6 px-4 py-2 bg-primary text-on-primary rounded-lg font-medium text-[13px]"
               >
-                Générer le planning
+                {m.da_generate_schedule()}
               </button>
             </div>
           {:else}
@@ -1233,14 +1228,14 @@
                         {run.problem?.difficulty ?? 'normal'}
                       </span>
                       <span class="text-[10px] font-bold text-on-surface-variant/40">
-                        {run.submissionsCount ?? 0} soumissions
+                        {m.da_submissions_count({ count: run.submissionsCount ?? 0 })}
                       </span>
                     </div>
                   </div>
                 </div>
                 
                 {#if run.dateKey === new Date().toISOString().split('T')[0]}
-                  <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-xs font-medium border border-emerald-500/20">Aujourd'hui</span>
+                  <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-xs font-medium border border-emerald-500/20">{m.da_today()}</span>
                 {/if}
               </div>
             {/each}
@@ -1254,7 +1249,7 @@
               class="w-full py-4 bg-primary text-on-primary rounded-xl font-medium text-[13px] shadow-sm shadow-primary/20 hover: transition-transform flex items-center justify-center gap-3"
             >
               <Papicon icon="RefreshCw" size={14} />
-              Étendre le planning de 3 semaines
+              {m.da_extend_schedule_3w()}
             </button>
           </footer>
         {/if}

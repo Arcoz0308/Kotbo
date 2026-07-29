@@ -1,4 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
+import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
 import { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
@@ -27,6 +29,10 @@ import {
 } from '../mcp/mcpServer.js';
 import { generateRssXml } from '../../services/core/newsService.js';
 import { handleFormTrigger } from '../../services/features/autoResponseService.js';
+import { submitCustomForm } from '../../services/features/customFormService.js';
+import { sanitizeCustomCss, sanitizeFormTheme } from '../../utils/formCustomization.js';
+
+const gzipAsync = promisify(gzip);
 
 function mcpBaseFromResource(resource: string | null): string | null {
   if (!resource) return null;
@@ -62,6 +68,8 @@ function guildScopedMcpBase(req: IncomingMessage, url: URL, guildId: string): st
 const publicFormLimiter = new Map<string, number[]>();
 const PUBLIC_FORM_WINDOW_MS = 60_000;
 const PUBLIC_FORM_MAX = 5;
+const PUBLIC_FORM_MAX_IPS = 10_000;
+let publicFormChecks = 0;
 
 /** Gains attribués au clan entier, sans contributeur individuel. */
 const CLAN_WIDE_USER_ID = 'system_manual_points';
@@ -76,6 +84,19 @@ const SEARCH_POINTLESS_LIMIT = 10;
 function checkPublicFormRateLimit(req: IncomingMessage, res: ServerResponse): boolean {
   const ip = getClientIp(req);
   const now = Date.now();
+  publicFormChecks++;
+  if (publicFormChecks % 256 === 0 || publicFormLimiter.size >= PUBLIC_FORM_MAX_IPS) {
+    for (const [key, values] of publicFormLimiter) {
+      if (!values.some((timestamp) => now - timestamp < PUBLIC_FORM_WINDOW_MS)) {
+        publicFormLimiter.delete(key);
+      }
+    }
+    while (publicFormLimiter.size >= PUBLIC_FORM_MAX_IPS) {
+      const oldest = publicFormLimiter.keys().next().value as string | undefined;
+      if (!oldest) break;
+      publicFormLimiter.delete(oldest);
+    }
+  }
   const timestamps = publicFormLimiter.get(ip) ?? [];
   const valid = timestamps.filter((t) => now - t < PUBLIC_FORM_WINDOW_MS);
   if (valid.length >= PUBLIC_FORM_MAX) {
@@ -83,6 +104,7 @@ function checkPublicFormRateLimit(req: IncomingMessage, res: ServerResponse): bo
     return false;
   }
   valid.push(now);
+  publicFormLimiter.delete(ip);
   publicFormLimiter.set(ip, valid);
   return true;
 }
@@ -1125,9 +1147,20 @@ export async function handlePublicRoutes(
       return true;
     }
 
+    const etag = `"transcript-${transcriptId}"`;
+    const maxAge = Math.max(0, Math.min(3600, parseInt(expires, 10) - Math.floor(Date.now() / 1000)));
+    if (req.headers['if-none-match'] === etag) {
+      res.statusCode = 304;
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', `private, max-age=${maxAge}`);
+      res.end();
+      return true;
+    }
+
     try {
       const transcript = await prisma.transcript.findUnique({
-        where: { id: transcriptId }
+        where: { id: transcriptId },
+        select: { html: true },
       });
 
       if (!transcript) {
@@ -1149,8 +1182,22 @@ export async function handlePublicRoutes(
         ].join('; ')
       );
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', `private, max-age=${maxAge}`);
+      res.setHeader('ETag', etag);
       res.statusCode = 200;
-      res.end(transcript.html);
+
+      // Les transcriptions peuvent contenir plusieurs Mo de HTML. La
+      // compression générique du pont HTTP ne concernait que le JSON ; on
+      // compresse ici de façon asynchrone pour ne pas bloquer l'event loop.
+      if (/\bgzip\b/.test(String(req.headers['accept-encoding'] ?? ''))) {
+        const compressed = await gzipAsync(Buffer.from(transcript.html));
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Content-Length', String(compressed.byteLength));
+        res.setHeader('Vary', 'Accept-Encoding');
+        res.end(compressed);
+      } else {
+        res.end(transcript.html);
+      }
     } catch (err: unknown) {
       const errMessage = err instanceof Error ? err.message : String(err);
       logger.error('PublicAPI', `Error fetching public transcript ${transcriptId}: ${errMessage}`);
@@ -1231,19 +1278,54 @@ export async function handlePublicRoutes(
         },
       });
 
-      if (!form) {
+      if (form) {
+        res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
+        json(res, 200, {
+          id: form.id,
+          name: form.name,
+          description: form.description,
+          structure: form.structure,
+          guildId: form.guildId,
+          formType: 'recruitment',
+          // Les formulaires de recrutement (legacy) exigent systématiquement une connexion Discord.
+          requiresDiscordAuth: true,
+        });
+        return true;
+      }
+
+      // Un identifiant public ne contient pas son type. Résoudre les deux
+      // familles dans cet endpoint supprime un second aller-retour HTTP.
+      const customForm = await prisma.customForm.findFirst({
+        where: { id: formId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          structure: true,
+          guildId: true,
+          isRecruitment: true,
+          requiresDiscordAuth: true,
+          theme: true,
+          customCss: true,
+        },
+      });
+
+      if (!customForm) {
         json(res, 404, { error: 'Formulaire introuvable ou inactif' });
         return true;
       }
 
+      res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
       json(res, 200, {
-        id: form.id,
-        name: form.name,
-        description: form.description,
-        structure: form.structure,
-        guildId: form.guildId,
-        // Les formulaires de recrutement (legacy) exigent systématiquement une connexion Discord.
-        requiresDiscordAuth: true,
+        id: customForm.id,
+        name: customForm.name,
+        description: customForm.description,
+        structure: customForm.structure,
+        guildId: customForm.guildId,
+        formType: 'custom',
+        theme: sanitizeFormTheme(customForm.theme),
+        customCss: sanitizeCustomCss(customForm.customCss),
+        requiresDiscordAuth: Boolean(customForm.isRecruitment || customForm.requiresDiscordAuth),
       });
     } catch (err) {
       logger.error('PublicAPI', `Error fetching public form ${parts[3]}:`, err);
@@ -1288,59 +1370,62 @@ export async function handlePublicRoutes(
       body.discordId = auth.userId;
       body.username = auth.username || body.username;
 
-      // Create the candidature
-      const candidature = await prisma.recruitmentCandidature.create({
-        data: {
-          guildId: form.guildId,
-          formId: form.id,
-          discordId: body.discordId || null,
-          email: body.email || null,
-          username: body.username || null,
-          data: body.data as Prisma.JsonObject,
-          status: 'PENDING',
-        },
-      });
+      const [candidature] = await prisma.$transaction([
+        prisma.recruitmentCandidature.create({
+          data: {
+            guildId: form.guildId,
+            formId: form.id,
+            discordId: body.discordId || null,
+            email: body.email || null,
+            username: body.username || null,
+            data: body.data as Prisma.JsonObject,
+            status: 'PENDING',
+          },
+        }),
+        prisma.recruitmentForm.update({
+          where: { id: formId },
+          data: { submissionsCount: { increment: 1 } },
+        }),
+      ]);
 
-      // Increment submission counter
-      await prisma.recruitmentForm.update({
-        where: { id: formId },
-        data: { submissionsCount: { increment: 1 } },
-      });
+      // La sauvegarde est terminée : rendre la main immédiatement au navigateur.
+      json(res, 201, { ok: true, id: candidature.id });
 
-      // Trigger Discord notification if a webhook channel is configured
-      try {
-        const guildConfig = await prisma.guild.findUnique({
-          where: { id: form.guildId },
-          select: { recruitmentLogChannelId: true },
-        });
-        if (guildConfig?.recruitmentLogChannelId) {
-          const discordGuild = client.guilds.cache.get(form.guildId) || await client.guilds.fetch(form.guildId).catch(() => null);
-          const channel = discordGuild?.channels.cache.get(guildConfig.recruitmentLogChannelId);
-          if (channel?.isSendable()) {
-            await channel.send({
-              embeds: [{
-                title: '📋 Nouvelle candidature reçue',
-                description: `Formulaire: **${form.name}**\n\nDiscord: ${body.discordId ? `<@${body.discordId}>` : 'Non renseigné'}\nEmail: ${body.email || 'Non renseigné'}`,
-                color: 0x6366f1,
-                timestamp: new Date().toISOString(),
-                footer: { text: `Candidature ID: ${candidature.id}` },
-              }],
+      queueMicrotask(() => {
+        void (async () => {
+          try {
+            const guildConfig = await prisma.guild.findUnique({
+              where: { id: form.guildId },
+              select: { recruitmentLogChannelId: true },
+            });
+            if (guildConfig?.recruitmentLogChannelId) {
+              const discordGuild = client.guilds.cache.get(form.guildId)
+                || await client.guilds.fetch(form.guildId).catch(() => null);
+              const channel = discordGuild?.channels.cache.get(guildConfig.recruitmentLogChannelId);
+              if (channel?.isSendable()) {
+                await channel.send({
+                  embeds: [{
+                    title: '📋 Nouvelle candidature reçue',
+                    description: `Formulaire: **${form.name}**\n\nDiscord: ${body.discordId ? `<@${body.discordId}>` : 'Non renseigné'}\nEmail: ${body.email || 'Non renseigné'}`,
+                    color: 0x6366f1,
+                    timestamp: new Date().toISOString(),
+                    footer: { text: `Candidature ID: ${candidature.id}` },
+                  }],
+                });
+              }
+            }
+          } catch (notifErr) {
+            logger.warn('PublicAPI', 'Could not send Discord notification for form submission:', notifErr);
+          }
+
+          if (body.discordId) {
+            await handleFormTrigger(form.guildId, body.discordId, formId, body.data as Record<string, string>, client).catch((err) => {
+              logger.error('PublicAPI', `Error executing form trigger for submission ${candidature.id}:`, err);
             });
           }
-        }
-      } catch (notifErr) {
-        logger.warn('PublicAPI', 'Could not send Discord notification for form submission:', notifErr);
-      }
-
+        })();
+      });
       logger.success('PublicAPI', `Form submission for ${formId} from ${body.discordId || 'unknown'}`);
-
-      if (body.discordId) {
-        await handleFormTrigger(form.guildId, body.discordId, formId, body.data as Record<string, string>, client).catch(err => {
-          logger.error('PublicAPI', `Error executing form trigger for submission ${candidature.id}:`, err);
-        });
-      }
-
-      json(res, 201, { ok: true, id: candidature.id });
     } catch (err) {
       logger.error('PublicAPI', `Error submitting form ${parts[3]}:`, err);
       json(res, 500, { error: 'Erreur lors de la soumission du formulaire' });
@@ -1374,8 +1459,7 @@ export async function handlePublicRoutes(
 
       // Défense en profondeur : le CSS est déjà sanitizé à la sauvegarde,
       // on le repasse au sanitizer avant de le servir.
-      const { sanitizeCustomCss, sanitizeFormTheme } = await import('../../utils/formCustomization.js');
-
+      res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
       json(res, 200, {
         id: form.id,
         name: form.name,
@@ -1428,7 +1512,6 @@ export async function handlePublicRoutes(
         return true;
       }
 
-      const { submitCustomForm } = await import('../../services/features/customFormService.js');
       const submission = await submitCustomForm(
         formId,
         form.guildId,
@@ -1463,8 +1546,6 @@ export async function handlePublicRoutes(
         getAppealConfig,
         getAppealEligibility,
       } = await import('../../services/moderation/banAppealService.js');
-      const { sanitizeCustomCss, sanitizeFormTheme } = await import('../../utils/formCustomization.js');
-
       const config = await getAppealConfig(guildId);
       if (!config?.enabled) {
         json(res, 404, { error: "Ce serveur n'accepte pas les demandes de débannissement" });

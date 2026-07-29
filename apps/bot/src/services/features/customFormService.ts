@@ -57,7 +57,28 @@ export async function createCustomForm(
   });
 }
 
-export async function getCustomForms(guildId: string) {
+export async function getCustomForms(guildId: string, includeStructure = false) {
+  if (!includeStructure) {
+    return prisma.customForm.findMany({
+      where: { guildId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        guildId: true,
+        name: true,
+        description: true,
+        isActive: true,
+        isRecruitment: true,
+        requiresDiscordAuth: true,
+        hierarchyId: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { submissions: true, events: true } },
+        hierarchy: { select: { id: true, name: true, color: true, icon: true } },
+      },
+    });
+  }
+
   return prisma.customForm.findMany({
     where: { guildId },
     orderBy: { createdAt: 'desc' },
@@ -132,6 +153,24 @@ export async function submitCustomForm(
     },
   });
 
+  // Les notifications Discord, la candidature liée et les triggers peuvent
+  // nécessiter plusieurs appels DB/réseau. La réponse HTTP ne doit pas attendre
+  // ces traitements une fois la soumission durablement enregistrée.
+  queueMicrotask(() => {
+    void processCustomFormSubmissionSideEffects(formId, guildId, userId, username, data, client);
+  });
+
+  return submission;
+}
+
+async function processCustomFormSubmissionSideEffects(
+  formId: string,
+  guildId: string,
+  userId: string,
+  username: string | undefined,
+  data: Record<string, string>,
+  client?: Client,
+): Promise<void> {
   // Si le formulaire autonome est lié au recrutement, on crée également une candidature
   try {
     const form = await prisma.customForm.findUnique({
@@ -179,16 +218,18 @@ export async function submitCustomForm(
   }
 
   if (client) {
-    await handleFormTrigger(guildId, userId, formId, data, client);
+    await handleFormTrigger(guildId, userId, formId, data, client).catch((err) => {
+      logger.error('CustomFormService', `Error executing trigger for form ${formId}:`, err);
+    });
   }
-
-  return submission;
 }
 
-export async function getCustomFormSubmissions(formId: string, guildId: string) {
+export async function getCustomFormSubmissions(formId: string, guildId: string, limit = 100, offset = 0) {
   return prisma.customFormSubmission.findMany({
     where: { formId, guildId },
     orderBy: { createdAt: 'desc' },
+    take: Math.min(Math.max(limit, 1), 250),
+    skip: Math.max(offset, 0),
   });
 }
 

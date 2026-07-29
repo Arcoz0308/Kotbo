@@ -7,7 +7,7 @@
     context = 'default',
     class: className = '',
   }: {
-    context?: 'data' | 'analytics' | 'network' | 'config' | 'members' | 'default';
+    context?: 'data' | 'analytics' | 'network' | 'config' | 'members' | 'clans' | 'default';
     class?: string;
   } = $props();
 

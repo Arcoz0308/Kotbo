@@ -6,6 +6,7 @@
  */
 
 const timestampsByKey = new Map<string, number[]>();
+const MAX_TRACKED_BURSTS = 50_000;
 
 export type BurstWindow = { limit: number; windowMs: number };
 
@@ -22,7 +23,13 @@ export function recordAndCheckBurst(key: string, now: number, windows: BurstWind
   const times = timestampsByKey.get(key) || [];
   const recentTimes = times.filter((t) => t > now - maxWindowMs);
   recentTimes.push(now);
+  timestampsByKey.delete(key);
   timestampsByKey.set(key, recentTimes);
+  while (timestampsByKey.size > MAX_TRACKED_BURSTS) {
+    const oldest = timestampsByKey.keys().next().value as string | undefined;
+    if (!oldest) break;
+    timestampsByKey.delete(oldest);
+  }
 
   return windows.some((w) => recentTimes.filter((t) => t > now - w.windowMs).length > w.limit);
 }
