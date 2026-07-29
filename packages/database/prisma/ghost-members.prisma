@@ -1,0 +1,79 @@
+// ── Ghost Members Analyzer (audit de présence silencieuse) ───────────────────
+// Distingue les comptes réellement abandonnés des « membres spectateurs » qui
+// lisent, écoutent en vocal ou réagissent sans jamais écrire. Les données
+// d'activité brutes vivent sur MemberProfile (guild.prisma) et MemberDailyStat
+// (analytics.prisma) : ce fichier n'ajoute que la configuration de
+// classification et la traçabilité des prunages.
+
+model GhostAnalyzerConfig {
+  guildId String @id
+
+  enabled Boolean @default(false)
+
+  // ── Seuils de classification ───────────────────────────────────────────────
+  // Aucune activité (texte, vocal, réaction, dashboard) depuis N jours → INACTIVE
+  inactiveDays Int @default(60)
+  // 0 message texte mais vocal/réaction dans les N derniers jours → SPECTATOR
+  spectatorWindowDays Int @default(30)
+  // Période de grâce : un membre arrivé depuis moins de N jours reste NEW
+  gracePeriodDays Int @default(30)
+
+  // ── Garde-fous de prunage ──────────────────────────────────────────────────
+  // Un membre protégé n'apparaît jamais comme éligible à l'expulsion, quel que
+  // soit son statut d'activité.
+  protectStaff     Boolean  @default(true) // rôles staff + permissions de modération
+  protectBoosters  Boolean  @default(true) // premiumSince non nul
+  protectedRoleIds String[] @default([]) // VIP, partenaires, donateurs…
+
+  // Nombre maximum de membres expulsables en un seul run (sécurité anti-dérapage)
+  maxPruneBatch Int @default(50)
+
+  // Motif par défaut inscrit dans l'audit log Discord lors d'un prunage
+  pruneReason String @default("Nettoyage des membres inactifs")
+
+  lastComputedAt DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ghost_analyzer_configs")
+}
+
+// Journal d'exécution d'un prunage : qui, quand, sur quels critères, et la
+// liste exacte des membres expulsés. Conservé pour audit a posteriori.
+model GhostPruneRun {
+  id      String @id @default(cuid())
+  guildId String
+
+  executedById   String
+  executedByName String
+
+  status String @default("RUNNING") // RUNNING | COMPLETED | PARTIAL | FAILED
+
+  // Statut d'activité visé par le run (INACTIVE, SPECTATOR…)
+  targetStatuses String[] @default([])
+
+  totalTargeted Int @default(0)
+  successCount  Int @default(0)
+  failureCount  Int @default(0)
+
+  // Liste complète des membres effectivement expulsés
+  kickedUserIds String[] @default([])
+  // [{ userId, username, error }] pour les échecs (permissions, membre parti…)
+  failures Json?
+
+  reason String?
+  // Snapshot de GhostAnalyzerConfig au moment du run, pour comprendre plus tard
+  // sur quels seuils la décision a été prise.
+  criteria Json?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, startedAt])
+  @@map("ghost_prune_runs")
+}

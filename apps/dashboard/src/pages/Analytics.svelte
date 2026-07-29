@@ -7,6 +7,7 @@ import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions, type AdvancedAnalyticsSection } from '../lib/api';
 import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
+import GhostMembersPanel from '../lib/components/analytics/GhostMembersPanel.svelte';
 import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
 import LoadingHint from '../lib/components/LoadingHint.svelte';
 import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
@@ -405,6 +406,7 @@ import { m, dateLocale } from '../lib/i18n';
       { id: 'channels', label: m.an_tab_channels(), icon: 'ChatBubbles' },
       { id: 'social', label: m.an_tab_social(), icon: 'Users' },
       { id: 'words', label: m.an_tab_words(), icon: 'ChatCircleDots' },
+      { id: 'ghosts', label: m.ghost_tab(), icon: 'Ghost' },
     ],
     moderation: [
       { id: 'moderation', label: m.an_tab_moderation(), icon: 'Gavel' },
@@ -625,7 +627,10 @@ import { m, dateLocale } from '../lib/i18n';
   {/if}
 
 
-  {#if ADVANCED_TABS[activeTab]}
+  {#if activeTab === 'ghosts'}
+    <!-- Audit de présence silencieuse : autonome, charge ses propres données -->
+    <GhostMembersPanel />
+  {:else if ADVANCED_TABS[activeTab]}
     <!-- Sections avancées : autonomes, elles chargent et cachent leurs propres données -->
     <AdvancedAnalyticsPanel section={ADVANCED_TABS[activeTab]} />
   {:else if loading}
