@@ -3,31 +3,16 @@
   import { router } from 'tinro';
   import Papicon from './Papicon.svelte';
   import { authStore } from '../stores/auth.svelte';
-  import { dashboardStore } from '../stores/dashboard.svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
   import { sidebarStore } from '../stores/sidebar.svelte';
-  import { updateSidebarFavorites } from '../api';
+  import { navigationStore, isActiveNavItem as matchNavItem, type NavGroup } from '../stores/navigation.svelte';
   import { prefetchRoute } from '../lazyRoutes';
   import { portal } from '../actions/portal';
-  import {
-    generalItems,
-    moderationItems,
-    levelingItems,
-    economyItems,
-    communityItems,
-    staffItems,
-    crossServerItems,
-    configItems,
-    isPageBeta,
-    isPageWip,
-    type PageConfig,
-  } from '../config/pages';
+  import { lockBodyScroll, unlockBodyScroll } from '../scrollLock';
+  import { isPageBeta, isPageWip, type PageConfig } from '../config/pages';
   import { resolveGuildIconSrc, resolveUserAvatarSrc } from '../discordMedia';
-  import { unsavedChanges } from '../stores/unsavedChanges.svelte';
   import { m } from '../i18n';
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
-
-  type NavGroup = { key: string; label: string; items: PageConfig[] };
 
   let isDesktop = $state(
     typeof window !== 'undefined'
@@ -47,10 +32,12 @@
   const mobileOpen = $derived(sidebarStore.mobileOpen ?? false);
   const isCollapsed = $derived(collapsed && isDesktop);
 
+  // Shared counter rather than a bare class toggle: a modal opened from the
+  // drawer must not release the page when only one of the two closes.
   $effect(() => {
-    if (typeof document === 'undefined') return;
-    document.body.classList.toggle('overflow-hidden', !isDesktop && mobileOpen);
-    return () => document.body.classList.remove('overflow-hidden');
+    if (isDesktop || !mobileOpen) return;
+    lockBodyScroll();
+    return unlockBodyScroll;
   });
 
   $effect(() => {
@@ -70,87 +57,15 @@
 
   $effect(() => { if (!isCollapsed) activeTooltip = null; });
 
-  const featureAccess = $derived(dashboardStore.state.featureAccess ?? {});
-  const currentGuild  = $derived(
+  const currentGuild = $derived(
     authStore.guilds.find((g) => g.id === authStore.selectedGuildId),
   );
 
-  const canViewFeature = (featureKey?: string): boolean => {
-    if (!featureKey) return true;
-    const feature = (featureAccess as Record<string, any>)[featureKey];
-    if (feature?.canView !== undefined) return feature.canView;
-    return currentGuild?.accessLevel !== 'none';
-  };
-
-  const isModuleDisabled = (featureKey?: string): boolean => {
-    if (!featureKey) return false;
-    if (featureKey === 'economy') return !dashboardStore.state.economyEnabled;
-    if (featureKey === 'leveling') return !dashboardStore.state.levelingEnabled;
-    if (featureKey === 'fun') return !dashboardStore.state.funEnabled;
-    if (featureKey === 'daily_algo') return !dashboardStore.state.dailyAlgoEnabled;
-    if (featureKey === 'auto_thread') return !dashboardStore.state.autoThreadEnabled;
-    if (featureKey === 'translation') return !dashboardStore.state.translationEnabled;
-    if (featureKey === 'codepolice') return !dashboardStore.state.codePoliceEnabled;
-    return false;
-  };
-
-  const isAdmin      = $derived(currentGuild?.accessLevel === 'admin');
-  const isModerator  = $derived(currentGuild?.accessLevel === 'moderator');
-  const isTutor      = $derived(dashboardStore.state.isTutor);
-  const isApprentice = $derived(!!dashboardStore.state.apprenticeProgress);
-  const isStaff      = $derived(!!authStore.member);
-
-  const isStaffServerGuild = $derived(!!dashboardStore.state.isStaffServer);
-  const isAdminLockEnabled = $derived(!!dashboardStore.state.adminLockEnabled);
-
-  const visibleGeneral    = $derived(generalItems.filter((i) => canViewFeature(i.featureKey)));
-  const visibleLeveling   = $derived(isStaffServerGuild ? [] : levelingItems.filter((i) => canViewFeature(i.featureKey)));
-  const visibleEconomy    = $derived(isStaffServerGuild ? [] : economyItems.filter((i) => canViewFeature(i.featureKey)));
-  const visibleCommunity  = $derived(isStaffServerGuild ? [] : communityItems.filter((i) => canViewFeature(i.featureKey)));
-  const visibleModeration = $derived(
-    isStaff || isModerator || isAdmin
-      ? moderationItems
-          // Admin Permission Lock : masqué tant que le module n'est pas activé
-          .filter((i) => i.href !== '/admin-lock' || isAdminLockEnabled)
-          .filter((i) => canViewFeature(i.featureKey))
-      : [],
-  );
-  const visibleConfig = $derived(
-    isAdmin ? configItems.filter((i) => canViewFeature(i.featureKey)) : [],
-  );
-  const visibleCrossServer = $derived(
-    isAdmin ? crossServerItems.filter((i) => canViewFeature(i.featureKey)) : [],
-  );
-
-  const visibleStaff = $derived.by((): PageConfig[] => {
-    if (isAdmin) return staffItems.filter((i) => canViewFeature(i.featureKey));
-    return staffItems
-      .filter(({ href }) => {
-        if (href === '/tutoring') return isTutor || isApprentice || isModerator;
-        if (['/planning', '/absences', '/meetings', '/tickets', '/recruitment', '/evaluations'].includes(href)) {
-          return isStaff || isModerator;
-        }
-        return false;
-      })
-      .filter((i) => canViewFeature(i.featureKey));
-  });
-
-  const navGroups = $derived.by((): NavGroup[] => {
-    const general    = { key: 'general',    label: m.nav_group_general(),       items: visibleGeneral    };
-    const moderation = { key: 'moderation', label: m.nav_group_moderation(),     items: visibleModeration };
-    const leveling   = { key: 'leveling',   label: m.nav_group_xp(),  items: visibleLeveling   };
-    const economy    = { key: 'economy',    label: m.nav_group_economy(),items: visibleEconomy    };
-    const community  = { key: 'community',  label: m.nav_group_community(),     items: visibleCommunity  };
-    const staff      = { key: 'staff',      label: m.nav_group_staff(),          items: visibleStaff      };
-    const crossserver= { key: 'crossserver',label: m.nav_group_crossserver(),  items: visibleCrossServer };
-    const config      = { key: 'config',     label: m.nav_group_config(),  items: visibleConfig     };
-
-    const ordered: NavGroup[] = isStaffServerGuild
-      ? [general, staff, moderation, leveling, economy, community, crossserver, config]
-      : [general, moderation, leveling, economy, community, staff, crossserver, config];
-
-    return ordered.filter((g) => g.items.length > 0);
-  });
+  // Permissions, grouping and favourites live in navigationStore so the mobile
+  // navigation sheet renders exactly the same set of pages.
+  const isModuleDisabled = navigationStore.isModuleDisabled;
+  const isStaffServerGuild = $derived(navigationStore.isStaffServer);
+  const navGroups = $derived(navigationStore.groups);
 
   const itemLabel = (item: PageConfig): string => {
     if (isPageWip(item))  return `${item.name} (WIP)`;
@@ -187,73 +102,12 @@
   let searchQuery       = $state('');
   let showOnlyFavorites = $state(false);
 
-  const sanitizeFavorites = (entries: unknown): string[] => {
-    if (!Array.isArray(entries)) return [];
-    return [
-      ...new Set(
-        entries
-          .filter((e): e is string => typeof e === 'string' && e.startsWith('/'))
-          .map((e) => e.trim())
-          .filter(Boolean),
-      ),
-    ].slice(0, 80);
-  };
-
-  const readLegacyFavorites = (): string[] => {
-    try {
-      const s = typeof localStorage !== 'undefined' && localStorage.getItem('sidebar_favorites');
-      return sanitizeFavorites(s ? JSON.parse(s) : []);
-    } catch { return []; }
-  };
-
-  let favorites         = $state<string[]>([]);
-  let favoritesHydrated = $state(false);
-  let hydratedGuildId   = $state<string | null>(null);
-  let persistTimer: ReturnType<typeof setTimeout> | null = null;
-
-  $effect(() => {
-    const guildId    = authStore.selectedGuildId ?? null;
-    const serverFavs = sanitizeFavorites((dashboardStore.state as any).sidebarFavorites ?? []);
-
-    if (hydratedGuildId !== guildId) {
-      hydratedGuildId   = guildId;
-      favoritesHydrated = false;
-    }
-
-    if (!favoritesHydrated) {
-      const legacy = readLegacyFavorites();
-      favorites    = serverFavs.length > 0 ? serverFavs : legacy;
-      if (legacy.length > 0 && !serverFavs.length && guildId) void persistFavorites(legacy);
-      favoritesHydrated = true;
-      return;
-    }
-
-    if (JSON.stringify(serverFavs) !== JSON.stringify(favorites)) {
-      favorites = serverFavs;
-    }
-  });
-
-  async function persistFavorites(next: string[]): Promise<void> {
-    const guildId = authStore.selectedGuildId;
-    if (!guildId) return;
-    const sanitized = sanitizeFavorites(next);
-    (dashboardStore.state as any).sidebarFavorites = sanitized;
-    try { localStorage.setItem('sidebar_favorites', JSON.stringify(sanitized)); } catch {}
-    await updateSidebarFavorites(sanitized, guildId);
-  }
-
-  function queuePersist(next: string[]): void {
-    if (persistTimer) clearTimeout(persistTimer);
-    persistTimer = setTimeout(() => void persistFavorites(next), 250);
-  }
+  const favorites = $derived(navigationStore.favorites);
 
   function toggleFavorite(href: string, e: Event): void {
     e.preventDefault();
     e.stopPropagation();
-    favorites = favorites.includes(href)
-      ? favorites.filter((h) => h !== href)
-      : [...favorites, href];
-    queuePersist(favorites);
+    navigationStore.toggleFavorite(href);
   }
 
   const filteredGroups = $derived.by((): NavGroup[] => {
@@ -272,13 +126,7 @@
   });
 
   function isActiveNavItem(href: string): boolean {
-    const r = $router;
-    if (href === '/') return r.path === '/';
-
-    const [path, query] = href.split('?');
-    if (query) return r.path === path && r.url.includes(query);
-
-    return r.path === path || r.path.startsWith(`${path}/`);
+    return matchNavItem(href, $router.path, $router.url);
   }
 
   let swipeStartX = 0;

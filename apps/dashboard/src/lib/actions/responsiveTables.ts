@@ -87,26 +87,82 @@ function enhanceTable(table: HTMLTableElement): void {
  * Progressive enhancement for the many data tables in the dashboard.
  * Simple tables become labelled cards on narrow screens. Complex tables keep
  * their native structure and receive a safe horizontal scrolling container.
+ *
+ * The work is skipped entirely above the phone breakpoint: desktop tables are
+ * already fine, and walking every cell of a thousand-row table on each render
+ * is not free.
  */
 export function responsiveTables(node: HTMLElement) {
-  let frame = 0;
+  const phone = window.matchMedia('(max-width: 767px)');
 
-  const scan = () => {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      node.querySelectorAll('table').forEach((table) => {
-        if (table instanceof HTMLTableElement) enhanceTable(table);
-      });
-    });
+  let frame = 0;
+  /** Tables touched by the mutations seen since the last scan. */
+  let pending: Set<HTMLTableElement> | null = new Set();
+
+  const run = () => {
+    frame = 0;
+    const targets = pending;
+    pending = new Set();
+
+    if (!phone.matches) return;
+
+    // A null set means "everything changed" (first run, or a breakpoint flip).
+    const tables = targets
+      ? [...targets].filter((table) => table.isConnected)
+      : [...node.querySelectorAll('table')].filter(
+          (table): table is HTMLTableElement => table instanceof HTMLTableElement,
+        );
+
+    for (const table of tables) enhanceTable(table);
   };
 
-  const observer = new MutationObserver(scan);
+  const schedule = () => {
+    if (frame) return;
+    frame = requestAnimationFrame(run);
+  };
+
+  const scanAll = () => {
+    pending = null;
+    schedule();
+  };
+
+  const observer = new MutationObserver((records) => {
+    if (pending === null) {
+      schedule();
+      return;
+    }
+
+    for (const record of records) {
+      // Only childList is observed, so the class and data-label writes this
+      // action performs cannot feed back into it.
+      const target = record.target instanceof Element ? record.target : null;
+      const table = target?.closest('table');
+      if (table instanceof HTMLTableElement) {
+        pending.add(table);
+        continue;
+      }
+
+      // A subtree was swapped out: collect whatever tables it now contains.
+      for (const added of record.addedNodes) {
+        if (!(added instanceof Element)) continue;
+        if (added instanceof HTMLTableElement) pending.add(added);
+        added.querySelectorAll('table').forEach((found) => {
+          if (found instanceof HTMLTableElement) pending!.add(found);
+        });
+      }
+    }
+
+    if (pending.size > 0) schedule();
+  });
+
   observer.observe(node, { childList: true, subtree: true });
-  scan();
+  phone.addEventListener('change', scanAll);
+  scanAll();
 
   return {
     destroy() {
-      cancelAnimationFrame(frame);
+      if (frame) cancelAnimationFrame(frame);
+      phone.removeEventListener('change', scanAll);
       observer.disconnect();
     },
   };

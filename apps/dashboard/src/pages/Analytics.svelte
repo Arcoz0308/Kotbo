@@ -731,3 +731,77 @@ import { m, dateLocale } from '../lib/i18n';
     }}
   />
 </div>
+
+<style>
+  @media (max-width: 767px) {
+    .analytics-page__identity {
+      align-items: flex-start;
+    }
+
+    .analytics-page__actions {
+      align-items: stretch;
+    }
+
+    .analytics-custom-range > input {
+      min-width: min(100%, 12rem);
+      flex: 1 1 12rem;
+    }
+
+    .analytics-custom-range > button {
+      min-height: 2.75rem;
+      flex: 1 1 100%;
+    }
+
+    .analytics-category-nav {
+      top: calc(var(--mobile-topbar-height) + env(safe-area-inset-top) + 0.5rem);
+      margin-right: -0.5rem;
+      margin-left: -0.5rem;
+    }
+
+    /* A horizontal scroller hides how many categories exist. Wrapping them into
+       a grid shows the whole set at once, which matters more than compactness
+       when the user is hunting for one report. */
+    .analytics-period-presets,
+    .analytics-category-list {
+      display: grid;
+      width: 100%;
+      overflow: visible;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .analytics-period-presets > button {
+      min-width: 0;
+      padding-right: 0.5rem;
+      padding-left: 0.5rem;
+      white-space: normal;
+    }
+
+    .analytics-category-list > button {
+      min-width: 0;
+      justify-content: center;
+      gap: 0.25rem;
+      padding: 0.75rem 0.35rem;
+      font-size: 0.6875rem;
+      white-space: normal;
+    }
+
+    .analytics-category-list > button > div {
+      display: none;
+    }
+
+    .analytics-subcategory-list {
+      display: grid;
+      width: 100%;
+      overflow: visible;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .analytics-subcategory-list > button {
+      min-width: 0;
+      justify-content: center;
+      padding-right: 0.5rem;
+      padding-left: 0.5rem;
+      white-space: normal;
+    }
+  }
+</style>

@@ -93,7 +93,7 @@
       {:else}
         <div class="space-y-1">
           {#each data.leaderboard.entries as entry, i}
-            <div class="reputation-leaderboard-row grid items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors hover:bg-surface-container-high/20 {i < 3 ? 'bg-surface-container-high/10' : ''}" style="grid-template-columns: 28px 36px 1fr 80px 60px">
+            <div class="reputation-leaderboard-row grid items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors hover:bg-surface-container-high/20 {i < 3 ? 'bg-surface-container-high/10' : ''}">
               <span class="text-base leading-none">{getMedal(i)}</span>
               <span class="font-semibold text-on-surface-variant/60 text-xs">#{entry.rank}</span>
               <span class="font-mono text-xs text-on-surface-variant/60 truncate">{entry.userId}</span>
@@ -148,3 +148,28 @@
   </div>
 {/if}
 </ModulePage>
+
+<style>
+  .reputation-leaderboard-row {
+    grid-template-columns: 28px 36px 1fr 80px 60px;
+  }
+
+  /* The progress bar is the first thing to go: the number next to it already
+     carries the value. */
+  @media (max-width: 767px) {
+    .reputation-leaderboard-row {
+      gap: 0.375rem;
+      grid-template-columns: 1.5rem 2rem minmax(0, 1fr) auto;
+    }
+
+    .reputation-leaderboard-row > :nth-child(3) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .reputation-leaderboard-row > :nth-child(4) {
+      display: none;
+    }
+  }
+</style>

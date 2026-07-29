@@ -239,6 +239,8 @@
     display: none;
   }
 
+  /* A row of tabs cannot hold every notification category on a phone, so the
+     same filter becomes a native select the OS renders full screen. */
   @media (max-width: 767px) {
     .inbox-tabs {
       display: none;
@@ -246,6 +248,49 @@
 
     .inbox-mobile-filter {
       display: grid;
+      gap: 0.4rem;
+      color: var(--on-surface-variant);
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .inbox-mobile-filter select {
+      width: 100%;
+      border: 1px solid var(--outline-variant);
+      border-radius: 0.875rem;
+      background: var(--surface-container-lowest);
+      color: var(--on-surface);
+      font-weight: 650;
+    }
+
+    .inbox-notification-card {
+      gap: 0.875rem;
+      border-radius: 1.125rem;
+    }
+
+    .inbox-notification-card > :first-child {
+      width: 2.75rem;
+      height: 2.75rem;
+    }
+
+    .inbox-notification-card__title {
+      overflow-wrap: anywhere;
+      line-height: 1.25;
+    }
+
+    .inbox-notification-card__footer {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .inbox-notification-card__actions {
+      width: 100%;
+    }
+
+    .inbox-notification-card__actions > :where(a, button) {
+      min-height: 2.625rem;
+      flex: 1 1 auto;
+      justify-content: center;
     }
   }
 

@@ -743,3 +743,14 @@
     </div>
   {/if}
 </ModulePage>
+
+<style>
+  /* The label column is sized for desktop wording; narrow it and let the
+     meter keep whatever is left. */
+  @media (max-width: 767px) {
+    .pulse-score-row {
+      gap: 0.5rem;
+      grid-template-columns: minmax(5rem, auto) minmax(3rem, 1fr) 2rem;
+    }
+  }
+</style>
