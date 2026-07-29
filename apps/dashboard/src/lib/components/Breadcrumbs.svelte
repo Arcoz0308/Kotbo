@@ -70,25 +70,35 @@
 </script>
 
 {#if crumbs.length > 0}
-  <nav class="flex items-center gap-1.5 text-xs text-on-surface-variant mb-5 select-none">
-    {#each crumbs as crumb, i}
-      {#if i > 0}
-        <span class="text-on-surface-variant/30">/</span>
-      {/if}
+  <nav class="breadcrumbs text-xs text-on-surface-variant mb-5 select-none" aria-label="Fil d’Ariane">
+    <div class="breadcrumbs__desktop items-center gap-1.5">
+      {#each crumbs as crumb, i}
+        {#if i > 0}
+          <span class="text-on-surface-variant/30">/</span>
+        {/if}
 
-      {#if i === crumbs.length - 1}
-        <span class="text-on-surface font-medium">{crumb.name}</span>
-      {:else}
-        <a
-          href={crumb.href}
-          class="hover:text-on-surface transition-colors flex items-center gap-1"
-        >
-          {#if i === 0}
-            <Papicon icon="Home" size={12} />
-          {/if}
-          {crumb.name}
-        </a>
-      {/if}
-    {/each}
+        {#if i === crumbs.length - 1}
+          <span class="text-on-surface font-medium">{crumb.name}</span>
+        {:else}
+          <a
+            href={crumb.href}
+            class="hover:text-on-surface transition-colors flex items-center gap-1"
+          >
+            {#if i === 0}
+              <Papicon icon="Home" size={12} />
+            {/if}
+            {crumb.name}
+          </a>
+        {/if}
+      {/each}
+    </div>
+
+    {#if crumbs.length > 2}
+      {@const parent = crumbs[crumbs.length - 2]}
+      <a class="breadcrumbs__mobile" href={parent.href} aria-label={`Revenir à ${parent.name}`}>
+        <Papicon icon="arrow-left" size={16} />
+        <span>{parent.name}</span>
+      </a>
+    {/if}
   </nav>
 {/if}

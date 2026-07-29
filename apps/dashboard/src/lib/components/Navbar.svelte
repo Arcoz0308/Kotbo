@@ -1,6 +1,7 @@
 <script lang="ts">
   import { m } from '../i18n';
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
   import { authStore } from '../stores/auth.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { themeStore } from '../stores/theme.svelte';
@@ -14,6 +15,7 @@
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { isMobile } from '../stores/media.svelte';
   import { userPrefs } from '../stores/userPreferences.svelte';
+  import { getPageStatus } from '../config/pages';
 
   const collapsed = $derived(sidebarStore.collapsed);
 
@@ -29,6 +31,9 @@
 
   const currentLanguage = $derived(
     languages.find((lang) => lang.code === userPrefs.prefs.language) ?? languages[0]
+  );
+  const currentPageTitle = $derived(
+    getPageStatus($router.path, $router.url)?.name ?? m.nav_home()
   );
 
   onMount(() => {
@@ -124,6 +129,11 @@
     onboardingStore.restart();
     userMenuOpen = false;
   }
+
+  function openMobileServerSwitcher() {
+    sidebarStore.closeMobile();
+    serverSwitcherStore.show();
+  }
 </script>
 
 <svelte:window />
@@ -140,35 +150,57 @@
       >
         <Papicon icon="menu" size={18} />
       </button>
+
+      <button
+        type="button"
+        onclick={openMobileServerSwitcher}
+        disabled={authStore.guilds.length <= 1}
+        class="app-navbar__mobile-context min-w-0 text-left disabled:cursor-default"
+        aria-label={authStore.guilds.length > 1
+          ? `Changer de serveur, serveur actuel ${selectedGuild?.name ?? ''}`
+          : `Serveur ${selectedGuild?.name ?? ''}`}
+      >
+        <span class="app-navbar__mobile-title">{currentPageTitle}</span>
+        <span class="app-navbar__mobile-server">
+          {selectedGuild?.name ?? 'Serveur'}
+          {#if authStore.guilds.length > 1}
+            <Papicon icon="chevron-down" size={10} />
+          {/if}
+        </span>
+      </button>
     {/if}
-    <button
-      onclick={serverSwitcherStore.show}
-      disabled={authStore.guilds.length <= 1}
-      class="app-navbar__server min-w-0 flex items-center gap-2.5 bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg text-sm text-on-surface border border-outline-variant hover:border-outline transition-colors cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container disabled:border-outline-variant group select-none"
-    >
-      {#if guildIconUrl}
-        <img
-          src={guildIconUrl}
-          alt="Server Logo"
-          referrerpolicy="no-referrer"
-          class="w-5 h-5 rounded object-cover"
-        >
-      {:else}
-        <div class="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-[10px] font-medium text-primary">
-          {selectedGuild?.name?.charAt(0) || '?'}
-        </div>
-      {/if}
-      <span class="app-navbar__server-name truncate text-on-surface-variant font-medium text-sm transition-colors group-hover:text-on-surface">
-        {#if selectedGuild?.name}
-          {selectedGuild.name}
+    {#if !$isMobile}
+      <button
+        onclick={serverSwitcherStore.show}
+        disabled={authStore.guilds.length <= 1}
+        class="app-navbar__server min-w-0 flex items-center gap-2.5 bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg text-sm text-on-surface border border-outline-variant hover:border-outline transition-colors cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container disabled:border-outline-variant group select-none"
+      >
+        {#if guildIconUrl}
+          <img
+            src={guildIconUrl}
+            alt=""
+            width="20"
+            height="20"
+            referrerpolicy="no-referrer"
+            class="w-5 h-5 rounded object-cover"
+          >
         {:else}
-          <div class="h-4 w-20 bg-surface-container-high rounded animate-pulse inline-block align-middle"></div>
+          <div class="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-[10px] font-medium text-primary">
+            {selectedGuild?.name?.charAt(0) || '?'}
+          </div>
         {/if}
-      </span>
-      {#if authStore.guilds.length > 1}
-        <Papicon icon="chevron-down" size={12} class="text-on-surface-variant/40" />
-      {/if}
-    </button>
+        <span class="app-navbar__server-name truncate text-on-surface-variant font-medium text-sm transition-colors group-hover:text-on-surface">
+          {#if selectedGuild?.name}
+            {selectedGuild.name}
+          {:else}
+            <span class="h-4 w-20 bg-surface-container-high rounded animate-pulse inline-block align-middle"></span>
+          {/if}
+        </span>
+        {#if authStore.guilds.length > 1}
+          <Papicon icon="chevron-down" size={12} class="text-on-surface-variant/40" />
+        {/if}
+      </button>
+    {/if}
 
     {#if pairedGuild}
       <button

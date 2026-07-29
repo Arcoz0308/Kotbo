@@ -76,7 +76,7 @@
 
 
 :root {
-  --mobile-dock-clearance: calc(5.75rem + env(safe-area-inset-bottom));
+  --mobile-bottom-safe: max(1rem, env(safe-area-inset-bottom));
   --background: #ffffff;
   --surface: #ffffff;
   --on-background: #111827;
@@ -646,6 +646,33 @@
   isolation: isolate;
 }
 
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1000;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.625rem;
+  background: var(--primary-color);
+  color: var(--on-primary-color);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  transform: translateY(-150%);
+  transition: transform 150ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.breadcrumbs__desktop {
+  display: flex;
+}
+
+.breadcrumbs__mobile {
+  display: none;
+}
+
 .mobile-sidebar-backdrop {
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
@@ -663,7 +690,7 @@
 @media (max-width: 1023px) {
   .app-main {
     padding-right: max(1rem, env(safe-area-inset-right)) !important;
-    padding-bottom: calc(var(--mobile-dock-clearance) + 1rem) !important;
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom)) !important;
     padding-left: max(1rem, env(safe-area-inset-left)) !important;
   }
 
@@ -684,11 +711,24 @@
     padding-bottom: 0.625rem;
     font-size: 0.875rem;
   }
+
+  .app-sidebar button {
+    min-height: 2.75rem;
+  }
+
+  .app-sidebar button[aria-label] {
+    min-width: 2.75rem;
+  }
+
+  .app-sidebar button[aria-label="Filtrer par favoris"] {
+    min-width: 2.75rem;
+  }
 }
 
 @media (max-width: 767px) {
   .app-navbar {
-    height: 4rem !important;
+    height: calc(3.5rem + env(safe-area-inset-top)) !important;
+    padding-top: env(safe-area-inset-top);
     gap: 0.5rem;
     padding-right: max(0.75rem, env(safe-area-inset-right)) !important;
     padding-left: max(0.75rem, env(safe-area-inset-left)) !important;
@@ -698,7 +738,7 @@
   }
 
   .app-navbar-spacer {
-    height: 4rem !important;
+    height: calc(3.5rem + env(safe-area-inset-top)) !important;
   }
 
   .app-navbar__leading,
@@ -709,25 +749,50 @@
   .app-navbar__menu,
   .app-navbar__profile,
   .notification-trigger {
-    min-width: 2.5rem !important;
-    height: 2.5rem !important;
-    border-radius: 0.75rem !important;
+    min-width: 2.75rem !important;
+    height: 2.75rem !important;
+    border-radius: 0.875rem !important;
   }
 
-  .app-navbar__server {
-    min-height: 2.5rem;
-    max-width: min(42vw, 12rem);
-    padding-right: 0.625rem !important;
-    padding-left: 0.625rem !important;
-    border-radius: 0.75rem !important;
+  .app-navbar__mobile-context {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0.125rem 0;
   }
 
-  .app-navbar__server-name {
-    max-width: 7.5rem;
-    font-size: 0.8125rem !important;
+  .app-navbar__mobile-title {
+    overflow: hidden;
+    color: var(--on-surface);
+    font-family: var(--font-headline);
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-navbar__mobile-server {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.2rem;
+    overflow: hidden;
+    color: var(--on-surface-variant);
+    font-size: 0.625rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .app-navbar__secondary-action {
+    display: none !important;
+  }
+
+  .app-navbar__paired {
     display: none !important;
   }
 
@@ -738,7 +803,7 @@
 
   .notification-panel {
     position: fixed !important;
-    top: 4.5rem !important;
+    top: calc(4rem + env(safe-area-inset-top)) !important;
     right: max(0.75rem, env(safe-area-inset-right)) !important;
     left: max(0.75rem, env(safe-area-inset-left)) !important;
     width: auto !important;
@@ -750,7 +815,7 @@
   .command-palette,
   .server-switcher-modal {
     align-items: flex-start !important;
-    padding: 4.75rem 0.75rem var(--mobile-dock-clearance) !important;
+    padding: calc(4rem + env(safe-area-inset-top)) 0.75rem var(--mobile-bottom-safe) !important;
   }
 
   .command-palette__panel,
@@ -876,7 +941,7 @@
 
   .home-floating-actions {
     right: 1rem !important;
-    bottom: calc(var(--mobile-dock-clearance) + 0.5rem) !important;
+    bottom: var(--mobile-bottom-safe) !important;
     max-width: calc(100vw - 2rem);
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -884,7 +949,7 @@
 
   .toast-container {
     right: 0.75rem !important;
-    bottom: var(--mobile-dock-clearance) !important;
+    bottom: var(--mobile-bottom-safe) !important;
     left: 0.75rem;
     width: auto !important;
     max-width: none !important;
@@ -892,7 +957,7 @@
 
   .tutorial-checklist {
     right: 0.75rem !important;
-    bottom: var(--mobile-dock-clearance) !important;
+    bottom: var(--mobile-bottom-safe) !important;
     left: 0.75rem;
   }
 
@@ -924,7 +989,7 @@
   }
 
   .analytics-category-nav {
-    top: 4.5rem !important;
+    top: calc(4rem + env(safe-area-inset-top)) !important;
     margin-right: -0.5rem;
     margin-left: -0.5rem;
   }
@@ -936,10 +1001,19 @@
   }
 
   .app-main :where(.btn, .tab-button, [role="tab"]) {
-    min-height: 2.625rem;
+    min-height: 2.75rem;
   }
 
-  .app-main :where(table) {
+  .app-main :where(button, a[role="button"]):not(.calendar-container button) {
+    min-height: 2.75rem;
+  }
+
+  .app-main :where(button, a)[aria-label] {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .app-main :where(.mobile-scroll-table) {
     display: block;
     width: 100%;
     max-width: 100%;
@@ -949,15 +1023,96 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .app-main :where(table) th,
-  .app-main :where(table) td {
+  .app-main :where(.mobile-scroll-table) th,
+  .app-main :where(.mobile-scroll-table) td {
     min-width: 6rem;
     padding: 0.75rem !important;
     white-space: nowrap;
   }
 
-  .app-main :where(table) td :where(p, span):not(.badge) {
+  .app-main :where(.mobile-scroll-table) td :where(p, span):not(.badge) {
     white-space: normal;
+  }
+
+  .app-main :where(.mobile-scroll-table) :where(th, td):first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface-container-lowest);
+    box-shadow: 1px 0 0 var(--outline-variant);
+  }
+
+  .app-main :where(.mobile-scroll-table) th:first-child {
+    z-index: 2;
+    background: var(--surface-container);
+  }
+
+  .app-main .mobile-card-table {
+    display: block;
+    width: 100%;
+    border-collapse: separate;
+  }
+
+  .app-main .mobile-card-table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .app-main .mobile-card-table > tbody {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .app-main .mobile-card-table > tbody > tr {
+    display: grid;
+    gap: 0;
+    overflow: visible;
+    border: 1px solid var(--outline-variant) !important;
+    border-radius: 0.875rem;
+    background: var(--surface-container-lowest);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+
+  .app-main .mobile-card-table > tbody > tr:hover {
+    background: var(--surface-container-lowest);
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td {
+    display: grid;
+    min-width: 0 !important;
+    grid-template-columns: minmax(5.5rem, 38%) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem !important;
+    border-bottom: 1px solid var(--outline-variant);
+    text-align: right;
+    white-space: normal !important;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td:last-child {
+    border-bottom: 0;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td::before {
+    align-self: start;
+    color: var(--on-surface-variant);
+    content: attr(data-label);
+    font-family: var(--font-label);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-align: left;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td > :where(div, span, p) {
+    min-width: 0;
+    justify-self: end;
   }
 
   .table-wrap {
@@ -987,6 +1142,27 @@
 
   .page-header {
     margin-bottom: 1.25rem;
+  }
+
+  .breadcrumbs {
+    margin-bottom: 0.75rem;
+  }
+
+  .breadcrumbs__desktop {
+    display: none;
+  }
+
+  .breadcrumbs__mobile {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: -0.5rem;
+    padding: 0 0.5rem;
+    border-radius: 0.625rem;
+    color: var(--on-surface-variant);
+    font-size: 0.75rem;
+    font-weight: 650;
   }
 
   .page-header h1,
@@ -1023,6 +1199,21 @@
 
   .section-card__actions > :where(button, a) {
     flex: 1 1 auto;
+  }
+
+  .section-card__actions > :where(button, a),
+  .module-page__actions > :where(button, a) {
+    min-height: 2.75rem;
+    justify-content: center;
+  }
+
+  .app-main > :where(div, section) > header {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .app-main :where(.justify-between) {
+    row-gap: 0.75rem;
   }
 
   .section-card__body {
@@ -1062,6 +1253,10 @@
     margin-top: 0.2rem;
     font-size: 0.75rem !important;
     line-height: 1.45;
+  }
+
+  .module-page__identity {
+    width: 100%;
   }
 
   .module-page__actions {
@@ -1115,13 +1310,76 @@
     margin-top: 1.25rem !important;
   }
 
-  .app-main nav[aria-label="Fil d'Ariane"],
-  .app-main > nav:first-child {
-    max-width: 100%;
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
+  .app-main[data-mobile-layout="directory"] :where(.sticky) {
+    scroll-margin-top: calc(4rem + env(safe-area-inset-top));
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-container {
+    height: calc(100dvh - 8.25rem) !important;
+    min-height: 32rem !important;
+    border-radius: 0.875rem;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.75rem !important;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-header__leading {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-header__title {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0.25rem 0 0 !important;
+    overflow: hidden;
+    font-size: 0.875rem;
+    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-view-tabs {
+    width: 100%;
+    overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-view-tabs > button {
+    min-height: 2.5rem;
+    flex: 1 0 auto;
+  }
+
+  .app-main[data-mobile-layout="planner"] aside {
+    display: flex;
+    width: 100% !important;
+    max-width: 100%;
+    max-height: 12rem;
+    flex-direction: row !important;
+    gap: 0.75rem !important;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .app-main[data-mobile-layout="planner"] aside::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-main[data-mobile-layout="planner"] aside > * {
+    min-width: min(78vw, 19rem);
+    max-height: 12rem;
+    flex: 0 0 auto;
+    overflow-y: auto;
+    scroll-snap-align: start;
+  }
+
+  .app-main[data-mobile-layout="editor"] :where(form) {
+    scroll-margin-top: calc(4rem + env(safe-area-inset-top));
   }
 
   .modal-backdrop {
@@ -1202,19 +1460,12 @@
     padding-left: max(0.75rem, env(safe-area-inset-left)) !important;
   }
 
-  .app-navbar__server {
-    max-width: 38vw;
+  .app-navbar__actions {
+    gap: 0.25rem !important;
   }
 
-  .app-navbar__paired {
-    display: none !important;
-  }
-
-  .app-navbar__server-name {
-    max-width: 5.5rem;
-  }
-
-  .app-main :where(form, [role="dialog"]) :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6) {
+  .app-main[data-mobile-layout="settings"] :where(form, [role="dialog"]) :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6),
+  .app-main[data-mobile-layout="editor"] :where(form, [role="dialog"]) :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6) {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
@@ -1227,6 +1478,15 @@
     max-width: 58%;
     overflow-wrap: anywhere;
     text-align: right;
+  }
+
+  .app-main > :where(div, section) > header {
+    align-items: stretch !important;
+    flex-direction: column;
+  }
+
+  .app-sidebar nav button[aria-pressed] {
+    opacity: 1 !important;
   }
 }
 

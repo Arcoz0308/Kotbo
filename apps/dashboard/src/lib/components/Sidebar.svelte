@@ -22,9 +22,10 @@
     isPageWip,
     type PageConfig,
   } from '../config/pages';
-  import { resolveUserAvatarSrc } from '../discordMedia';
+  import { resolveGuildIconSrc, resolveUserAvatarSrc } from '../discordMedia';
   import { unsavedChanges } from '../stores/unsavedChanges.svelte';
   import { m } from '../i18n';
+  import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
 
   type NavGroup = { key: string; label: string; items: PageConfig[] };
 
@@ -302,6 +303,9 @@
   const userAvatar = $derived(
     resolveUserAvatarSrc(authStore.user?.id, authStore.user?.avatar),
   );
+  const currentGuildIcon = $derived(
+    currentGuild ? resolveGuildIconSrc(currentGuild.id, currentGuild.icon) : null,
+  );
 
   import { brandingStore } from '../stores/branding.svelte';
   const LOGO_URL = $derived(brandingStore.logoUrl || '/favicon.svg');
@@ -318,6 +322,8 @@
 
 <aside
   id="dashboard-sidebar"
+  inert={!isDesktop && !mobileOpen}
+  aria-hidden={!isDesktop && !mobileOpen}
   ontouchstart={onTouchStart}
   ontouchend={onTouchEnd}
   class="
@@ -379,6 +385,36 @@
       </button>
     {/if}
   </div>
+
+  {#if !isDesktop && !isCollapsed}
+    <button
+      type="button"
+      onclick={() => {
+        sidebarStore.closeMobile();
+        serverSwitcherStore.show();
+      }}
+      disabled={authStore.guilds.length <= 1}
+      class="mx-3 mb-3 flex min-h-12 items-center gap-3 rounded-xl border border-outline-variant bg-surface-container px-3 text-left transition-colors hover:bg-surface-container-high disabled:cursor-default"
+      aria-label={authStore.guilds.length > 1 ? 'Changer de serveur' : 'Serveur actuel'}
+    >
+      {#if currentGuildIcon}
+        <img src={currentGuildIcon} alt="" width="32" height="32" class="h-8 w-8 shrink-0 rounded-lg object-cover" />
+      {:else}
+        <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
+          {currentGuild?.name?.charAt(0) ?? '?'}
+        </span>
+      {/if}
+      <span class="min-w-0 flex-1">
+        <span class="block truncate text-sm font-semibold text-on-surface">{currentGuild?.name ?? 'Serveur'}</span>
+        <span class="block text-[11px] text-on-surface-variant">
+          {authStore.guilds.length > 1 ? 'Toucher pour changer' : 'Serveur actuel'}
+        </span>
+      </span>
+      {#if authStore.guilds.length > 1}
+        <Papicon icon="chevron-right" size={16} class="shrink-0 text-on-surface-variant/60" />
+      {/if}
+    </button>
+  {/if}
 
   {#if !isCollapsed}
     <div class="px-3 pb-2 flex items-center gap-1.5">

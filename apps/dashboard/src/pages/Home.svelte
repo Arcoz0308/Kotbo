@@ -881,7 +881,7 @@
     {#each userLayout.filter(item => item.visible) as item, index (item.id)}
       <div
         role="listitem"
-        draggable={isEditing}
+        draggable={isEditing && !$isMobile}
         ondragstart={(e) => handleDragStart(e, index)}
         ondragend={handleDragEnd}
         ondragover={(e) => handleDragOver(e, index)}
@@ -911,6 +911,7 @@
               onclick={() => moveModule(index, -1)}
               disabled={index === 0}
               title={m.home_move_up()}
+              aria-label={m.home_move_up()}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             >
               <Papicon icon="arrow-up" size={12} />
@@ -919,56 +920,63 @@
               onclick={() => moveModule(index, 1)}
               disabled={index === userLayout.length - 1}
               title={m.home_move_down()}
+              aria-label={m.home_move_down()}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             >
               <Papicon icon="arrow-down" size={12} />
             </button>
-            <button
-              onclick={() => toggleSize(item.id)}
-              title={m.home_width_cols({ n: item.colSpan })}
-              class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
-            >
-              {item.colSpan}c
-            </button>
-            <button
-              onclick={() => toggleRowSize(item.id)}
-              title={m.home_height_rows({ n: item.rowSpan || 1 })}
-              class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
-            >
-              {item.rowSpan || 1}r
-            </button>
+            {#if !$isMobile}
+              <button
+                onclick={() => toggleSize(item.id)}
+                title={m.home_width_cols({ n: item.colSpan })}
+                aria-label={m.home_width_cols({ n: item.colSpan })}
+                class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
+              >
+                {item.colSpan}c
+              </button>
+              <button
+                onclick={() => toggleRowSize(item.id)}
+                title={m.home_height_rows({ n: item.rowSpan || 1 })}
+                aria-label={m.home_height_rows({ n: item.rowSpan || 1 })}
+                class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
+              >
+                {item.rowSpan || 1}r
+              </button>
+            {/if}
             <button
               onclick={() => hideModule(item.id)}
               title={m.home_hide_module()}
+              aria-label={m.home_hide_module()}
               class="p-1 rounded text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
             >
               <Papicon icon="trash" size={12} />
             </button>
           </div>
 
-          <!-- Right resize handle (colSpan) -->
-          <div
-            role="button"
-            tabindex="-1"
-            aria-label={m.home_resize_width()}
-            onmousedown={(e) => handleResizeStart(e, item.id, 'col')}
-            class="absolute top-0 right-0 w-2 h-full cursor-col-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-r-lg"
-            title={m.home_resize_width()}
-          >
-            <div class="absolute top-1/2 right-0.5 -translate-y-1/2 w-0.5 h-8 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
-          </div>
+          {#if !$isMobile}
+            <!-- Desktop-only precision resize handles -->
+            <div
+              role="button"
+              tabindex="-1"
+              aria-label={m.home_resize_width()}
+              onmousedown={(e) => handleResizeStart(e, item.id, 'col')}
+              class="absolute top-0 right-0 w-2 h-full cursor-col-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-r-lg"
+              title={m.home_resize_width()}
+            >
+              <div class="absolute top-1/2 right-0.5 -translate-y-1/2 w-0.5 h-8 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
+            </div>
 
-          <!-- Bottom resize handle (rowSpan) -->
-          <div
-            role="button"
-            tabindex="-1"
-            aria-label={m.home_resize_height()}
-            onmousedown={(e) => handleResizeStart(e, item.id, 'row')}
-            class="absolute bottom-0 left-0 w-full h-2 cursor-row-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-b-lg"
-            title={m.home_resize_height()}
-          >
-            <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
-          </div>
+            <div
+              role="button"
+              tabindex="-1"
+              aria-label={m.home_resize_height()}
+              onmousedown={(e) => handleResizeStart(e, item.id, 'row')}
+              class="absolute bottom-0 left-0 w-full h-2 cursor-row-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-b-lg"
+              title={m.home_resize_height()}
+            >
+              <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
+            </div>
+          {/if}
         {/if}
 
         {#if item.id === 'liveStats'}

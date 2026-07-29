@@ -7,6 +7,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { ALLOWED_FONTS, loadGoogleFont, themeStyleVars, type FormTheme } from '../lib/formTheme';
   import { m } from '../lib/i18n';
+  import { isMobile } from '../lib/stores/media.svelte';
 
   // ── Props ──────────────────────────────────────────────────────────────────
   const { formId = null }: { formId?: string | null } = $props();
@@ -70,6 +71,7 @@
   let theme = $state<FormTheme>({});
   let customCss = $state('');
   let showAppearance = $state(false);
+  let showMobileTools = $state(false);
 
   const PALETTE = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#0ea5e9','#1d4ed8','#374151'];
 
@@ -93,7 +95,9 @@
   const isCustomFormMode = $derived(window.location.pathname.startsWith('/forms'));
   const activeField = $derived(fields.find(f => f.id === activeFieldId) ?? null);
   const sectionFields = $derived((sIdx: number) => fields.filter(f => f.sectionIndex === sIdx));
-  const publicUrl = $derived(formId ? `${window.location.origin}/form/${formId}` : null);
+  const publicUrl = $derived(
+    formId && formId !== 'new' ? `${window.location.origin}/form/${formId}` : null,
+  );
 
   // ── Load ───────────────────────────────────────────────────────────────────
   onMount(async () => {
@@ -154,6 +158,9 @@
     };
     fields = [...fields, newField];
     activeFieldId = newField.id;
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      showMobileTools = false;
+    }
   }
 
   function duplicateField(field: FormField) {
@@ -162,6 +169,22 @@
     const idx = fields.findIndex(f => f.id === field.id);
     fields = [...fields.slice(0, idx + 1), copy, ...fields.slice(idx + 1)];
     activeFieldId = copy.id;
+  }
+
+  function moveField(id: string, direction: -1 | 1) {
+    const index = fields.findIndex((field) => field.id === id);
+    if (index < 0) return;
+
+    const sameSection = fields
+      .map((field, fieldIndex) => ({ field, fieldIndex }))
+      .filter(({ field }) => field.sectionIndex === fields[index].sectionIndex);
+    const position = sameSection.findIndex(({ field }) => field.id === id);
+    const target = sameSection[position + direction];
+    if (!target) return;
+
+    const next = [...fields];
+    [next[index], next[target.fieldIndex]] = [next[target.fieldIndex], next[index]];
+    fields = next;
   }
 
   function removeField(id: string) {
@@ -460,18 +483,29 @@
   <div class="flex flex-col min-h-screen bg-surface">
 
     <!-- Top bar -->
-    <div class="sticky top-0 z-10 bg-surface/95 border-b border-outline-variant/20 px-4 py-2 flex items-center gap-3">
+    <div class="form-builder-toolbar sticky top-0 z-10 bg-surface/95 border-b border-outline-variant/20 px-4 py-2 flex items-center gap-3">
       <button onclick={() => router.goto(isCustomFormMode ? '/forms' : '/recruitment-forms')}
-        class="p-2 rounded-xl hover:bg-surface-container transition-colors">
+        class="p-2 rounded-xl hover:bg-surface-container transition-colors"
+        aria-label="Revenir à la liste des formulaires">
         <Papicon icon="arrow_back" size={20} />
       </button>
-      <div class="flex-1 min-w-0">
+      <div class="form-builder-toolbar-title flex-1 min-w-0">
         <input bind:value={formName}
           class="w-full bg-transparent text-lg font-semibold text-on-surface outline-none focus:border-b-2 focus:border-primary"
           placeholder="Titre du formulaire" />
       </div>
 
       <div class="flex items-center gap-2 ml-auto shrink-0">
+        <button
+          type="button"
+          onclick={() => showMobileTools = true}
+          class="form-builder-tools-trigger hidden items-center gap-1.5 rounded-xl bg-surface-container px-3 py-1.5 text-xs font-bold"
+          aria-expanded={showMobileTools}
+          aria-controls="form-builder-tools"
+        >
+          <Papicon icon="tune" size={16} />
+          <span>Outils</span>
+        </button>
         {#if publicUrl}
           <button onclick={copyPublicUrl}
             class="px-3 py-1.5 rounded-xl bg-surface-container text-xs font-bold flex items-center gap-1.5 hover:bg-surface-container-high transition-colors"
@@ -498,10 +532,32 @@
       </div>
     </div>
 
-    <div class="flex flex-1 overflow-hidden">
+    <div class="form-builder-workspace flex flex-1 overflow-hidden">
+
+      {#if showMobileTools}
+        <button
+          type="button"
+          class="form-builder-tools-backdrop"
+          onclick={() => showMobileTools = false}
+          aria-label="Fermer les outils"
+        ></button>
+      {/if}
 
       <!-- ── LEFT SIDEBAR: sections + question types ───────────────────────── -->
-      <aside class="w-72 shrink-0 border-r border-outline-variant/20 flex flex-col bg-surface-container-low/40 overflow-y-auto">
+      <aside
+        id="form-builder-tools"
+        class:mobile-open={showMobileTools}
+        class="form-builder-sidebar w-72 shrink-0 border-r border-outline-variant/20 flex flex-col bg-surface-container-low/40 overflow-y-auto"
+      >
+        <div class="form-builder-tools-mobile-header">
+          <div>
+            <p class="text-sm font-semibold text-on-surface">Outils du formulaire</p>
+            <p class="text-xs text-on-surface-variant">Sections, champs et apparence</p>
+          </div>
+          <button type="button" onclick={() => showMobileTools = false} aria-label="Fermer les outils">
+            <Papicon icon="x" size={18} />
+          </button>
+        </div>
 
         <!-- Header color picker -->
         <div class="p-4 border-b border-outline-variant/10">
@@ -654,7 +710,7 @@
       </aside>
 
       <!-- ── CENTER: canvas ────────────────────────────────────────────────── -->
-      <main class="flex-1 overflow-y-auto bg-surface/50 p-6">
+      <main class="form-builder-canvas flex-1 overflow-y-auto bg-surface/50 p-6">
         <div class="max-w-2xl mx-auto space-y-3">
 
           <!-- Form header card -->
@@ -688,7 +744,7 @@
             <div
               role="button"
               tabindex="0"
-              draggable="true"
+              draggable={!$isMobile}
               ondragstart={(e) => onDragStart(e, field.id)}
               ondragover={(e) => onDragOver(e, field.id)}
               ondrop={(e) => onDrop(e, field.id)}
@@ -706,12 +762,20 @@
                   {FIELD_TYPES.find(t => t.type === field.type)?.label ?? field.type}
                 </span>
                 <div class="ml-auto flex gap-1">
+                  <button onclick={(e) => { e.stopPropagation(); moveField(field.id, -1); }}
+                    class="p-1.5 rounded-lg hover:bg-surface-container transition-colors" title="Déplacer vers le haut" aria-label="Déplacer vers le haut">
+                    <Papicon icon="arrow-up" size={14} />
+                  </button>
+                  <button onclick={(e) => { e.stopPropagation(); moveField(field.id, 1); }}
+                    class="p-1.5 rounded-lg hover:bg-surface-container transition-colors" title="Déplacer vers le bas" aria-label="Déplacer vers le bas">
+                    <Papicon icon="arrow-down" size={14} />
+                  </button>
                   <button onclick={(e) => { e.stopPropagation(); duplicateField(field); }}
-                    class="p-1.5 rounded-lg hover:bg-surface-container transition-colors" title={m.fb_duplicate()}>
+                    class="p-1.5 rounded-lg hover:bg-surface-container transition-colors" title={m.fb_duplicate()} aria-label={m.fb_duplicate()}>
                     <Papicon icon="content_copy" size={14} />
                   </button>
                   <button onclick={(e) => { e.stopPropagation(); removeField(field.id); }}
-                    class="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors" title={m.fb_delete()}>
+                    class="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors" title={m.fb_delete()} aria-label={m.fb_delete()}>
                     <Papicon icon="delete" size={14} />
                   </button>
                 </div>
@@ -880,3 +944,109 @@
     </div>
   </div>
 {/if}
+
+<style>
+  .form-builder-tools-mobile-header,
+  .form-builder-tools-backdrop {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .form-builder-toolbar {
+      top: calc(3.5rem + env(safe-area-inset-top));
+      z-index: 30;
+      min-height: 3.5rem;
+      padding: 0.375rem 0.5rem;
+    }
+
+    .form-builder-toolbar-title {
+      display: none;
+    }
+
+    .form-builder-tools-trigger {
+      display: inline-flex;
+      min-height: 2.75rem;
+    }
+
+    .form-builder-workspace {
+      min-height: 0;
+      overflow: visible;
+    }
+
+    .form-builder-canvas {
+      width: 100%;
+      padding: 0.75rem;
+      overflow: visible;
+    }
+
+    .form-builder-sidebar {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 70;
+      width: 100% !important;
+      max-height: min(84dvh, 48rem);
+      padding-bottom: env(safe-area-inset-bottom);
+      border: 1px solid var(--outline-variant);
+      border-bottom: 0;
+      border-radius: 1.25rem 1.25rem 0 0;
+      background: var(--surface-container-lowest);
+      box-shadow: 0 -24px 70px rgba(0, 0, 0, 0.28);
+      transform: translateY(105%);
+      transition: transform 200ms ease;
+    }
+
+    .form-builder-sidebar.mobile-open {
+      transform: translateY(0);
+    }
+
+    .form-builder-tools-mobile-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      min-height: 4rem;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--outline-variant);
+      background: var(--surface-container-lowest);
+    }
+
+    .form-builder-tools-mobile-header button {
+      display: grid;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      place-items: center;
+      border-radius: 0.75rem;
+      background: var(--surface-container);
+    }
+
+    .form-builder-tools-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(3px);
+    }
+
+    .form-builder-sidebar :global(button) {
+      min-height: 2.75rem;
+    }
+
+    .form-builder-canvas :global([draggable="true"]) {
+      cursor: default;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .form-builder-sidebar {
+      transition: none;
+    }
+  }
+</style>
