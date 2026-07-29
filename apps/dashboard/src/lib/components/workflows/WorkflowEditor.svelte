@@ -92,6 +92,13 @@
     };
   }
 
+  function updateConfigForNode(nodeId: string, key: string, value: unknown): void {
+    nodes = nodes.map((n) => (n.id === nodeId
+      ? { ...n, data: { ...(n.data as Record<string, unknown>), config: { ...((n.data as { config?: Record<string, unknown> }).config ?? {}), [key]: value } } }
+      : n));
+    revalidate();
+  }
+
   /** Injecte dans chaque nœud le contexte dont son rendu a besoin. */
   function decorate(current: WorkflowGraph, currentIssues: ValidationIssue[]): void {
     const errored = new Set(currentIssues.filter((i) => i.severity === 'error').map((i) => i.nodeId));
@@ -114,6 +121,9 @@
             hasError: errored.has(n.id),
             replayOrder: replay?.order ?? null,
             replayStatus: replay?.status ?? null,
+            availableRoles,
+            availableChannels,
+            onUpdateConfig: (key: string, value: unknown) => updateConfigForNode(n.id, key, value),
           },
         };
       });
@@ -129,6 +139,15 @@
     lastLoadedGraph = current;
     onChange?.(current, issues);
   }
+
+  // Mettre à jour les données des nœuds lorsque les rôles/salons sont chargés
+  $effect(() => {
+    void availableRoles;
+    void availableChannels;
+    untrack(() => {
+      decorate(toGraph(), issues);
+    });
+  });
 
   // Chargement initial : conversion du graphe métier vers l'état du canvas
   $effect(() => {
@@ -426,6 +445,21 @@
           </div>
         {/each}
       </div>
+    {:else}
+      <div class="p-3 rounded-xl bg-surface-container-highest/40 border border-outline-variant/15 space-y-2">
+        <h3 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
+          <Papicon icon="Info" size={13} />
+          <span>Configuration des nœuds</span>
+        </h3>
+        <p class="text-[11px] text-on-surface-variant/80 leading-relaxed">
+          Pour choisir un <strong>Rôle</strong>, un <strong>Salon</strong> ou régler une valeur :
+        </p>
+        <ul class="text-[10px] text-on-surface-variant/70 space-y-1.5 list-disc pl-3">
+          <li><strong>Directement sur le nœud :</strong> Utilisez les menus déroulants intégrés au nœud sur le canevas.</li>
+          <li><strong>Dans ce panneau :</strong> Cliquez sur un nœud pour afficher ses paramètres ici.</li>
+          <li><strong>Relier les nœuds :</strong> Glissez un fil du port de sortie (ex: <em>Rôle</em>) vers le port d'entrée d'une action (ex: <em>Ajouter un rôle</em>).</li>
+        </ul>
+      </div>
     {/if}
 
     <!-- Problèmes de validation -->
@@ -481,6 +515,17 @@
   :global(.svelte-flow__controls-button svg) {
     fill: currentColor !important;
     stroke: currentColor !important;
+  }
+
+  :global(.svelte-flow__handle) {
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+    z-index: 10 !important;
+  }
+
+  :global(.svelte-flow__handle:hover) {
+    transform: translateY(-50%) scale(1.3) !important;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.6) !important;
+    z-index: 20 !important;
   }
 
   :global(.svelte-flow__edge-path) {

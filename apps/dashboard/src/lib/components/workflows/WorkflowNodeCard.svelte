@@ -19,6 +19,9 @@
       /** Rang d'exécution lors d'un rejeu, null hors rejeu */
       replayOrder?: number | null;
       replayStatus?: 'OK' | 'ERROR' | 'SKIPPED' | null;
+      availableRoles?: { id: string; name: string }[];
+      availableChannels?: { id: string; name: string }[];
+      onUpdateConfig?: (key: string, value: unknown) => void;
     };
     selected?: boolean;
   } = $props();
@@ -28,10 +31,10 @@
     def ? resolveNodeOutputs({ id, type: data.nodeType, position: { x: 0, y: 0 }, config: data.config }, data.graph) : [],
   );
 
-  const execInputs = $derived(def?.inputs.filter((p) => p.type === 'Exec') ?? []);
-  const dataInputs = $derived(def?.inputs.filter((p) => p.type !== 'Exec') ?? []);
-  const execOutputs = $derived(outputs.filter((p) => p.type === 'Exec'));
-  const dataOutputs = $derived(outputs.filter((p) => p.type !== 'Exec'));
+  const execInputs = $derived(def?.inputs.filter((p: PortDef) => p.type === 'Exec') ?? []);
+  const dataInputs = $derived(def?.inputs.filter((p: PortDef) => p.type !== 'Exec') ?? []);
+  const execOutputs = $derived(outputs.filter((p: PortDef) => p.type === 'Exec'));
+  const dataOutputs = $derived(outputs.filter((p: PortDef) => p.type !== 'Exec'));
 
   const CATEGORY_ACCENT: Record<string, string> = {
     trigger: '#ef4444',
@@ -42,10 +45,21 @@
   };
 
   const accent = $derived(CATEGORY_ACCENT[def?.category ?? 'action'] ?? '#64748b');
+  const maxExecRows = $derived(Math.max(execInputs.length, execOutputs.length));
   const maxDataRows = $derived(Math.max(dataInputs.length, dataOutputs.length));
 
-  function label(port: PortDef): string {
-    return port.label || (port.type === 'Exec' ? '' : port.id);
+  function getExecInputLabel(port: PortDef): string {
+    return port.label || 'Entrée';
+  }
+
+  function getExecOutputLabel(port: PortDef): string {
+    if (port.label) return port.label;
+    if (def?.category === 'trigger') return 'Déclencher';
+    return 'Suivant';
+  }
+
+  function getDataPortLabel(port: PortDef): string {
+    return port.label || port.id;
   }
 </script>
 
@@ -70,29 +84,138 @@
   <!-- Corps des ports -->
   <div class="p-3 space-y-2 text-xs text-slate-200">
     <!-- Ports d'exécution (Exec) -->
-    {#if execInputs.length > 0 || execOutputs.length > 0}
+    {#if maxExecRows > 0}
       <div class="space-y-1.5 pb-2 border-b border-outline-variant/15">
-        {#each execInputs as port}
-          <div class="relative flex items-center h-6">
-            <Handle
-              type="target"
-              position={Position.Left}
-              id={port.id}
-              style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.5);"
-            />
-            <span class="font-bold text-white/90">{label(port)}</span>
+        {#each Array(maxExecRows) as _, i}
+          {@const inPort = execInputs[i]}
+          {@const outPort = execOutputs[i]}
+          <div class="flex items-center justify-between h-6 gap-3">
+            <!-- Port d'entrée d'exécution (Gauche) -->
+            <div class="relative flex items-center min-w-0 h-6">
+              {#if inPort}
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={inPort.id}
+                  style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid rgba(15, 23, 42, 0.8);"
+                />
+                <span class="truncate font-semibold text-white/90 text-xs flex items-center gap-1">
+                  <span class="text-[9px] opacity-50">►</span>
+                  {getExecInputLabel(inPort)}
+                </span>
+              {/if}
+            </div>
+
+            <!-- Port de sortie d'exécution (Droite) -->
+            <div class="relative flex items-center justify-end min-w-0 ml-auto h-6">
+              {#if outPort}
+                <span class="truncate font-semibold text-white/90 text-xs text-right flex items-center gap-1">
+                  {getExecOutputLabel(outPort)}
+                  <span class="text-[9px] opacity-50">►</span>
+                </span>
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id={outPort.id}
+                  style="right: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid rgba(15, 23, 42, 0.8);"
+                />
+              {/if}
+            </div>
           </div>
         {/each}
+      </div>
+    {/if}
 
-        {#each execOutputs as port}
-          <div class="relative flex items-center justify-end h-6">
-            <span class="font-bold text-white/90 text-right">{label(port)}</span>
-            <Handle
-              type="source"
-              position={Position.Right}
-              id={port.id}
-              style="right: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.5);"
-            />
+    <!-- Configuration intégrée directement dans le nœud -->
+    {#if def?.config && def.config.length > 0}
+      <div class="px-2 py-2 my-1 rounded-lg bg-surface-container-highest/40 border border-outline-variant/15 space-y-1.5 nodrag">
+        {#each def.config as field}
+          <div class="space-y-1">
+            <label for="node-cfg-{id}-{field.key}" class="text-[9px] font-bold text-on-surface-variant/80 uppercase tracking-wider block">
+              {field.label}
+            </label>
+
+            {#if field.type === 'role'}
+              <select
+                id="node-cfg-{id}-{field.key}"
+                value={String(data.config?.[field.key] ?? '')}
+                onchange={(e) => data.onUpdateConfig?.(field.key, e.currentTarget.value)}
+                class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
+              >
+                <option value="">— Choisir un rôle —</option>
+                {#each (data.availableRoles ?? []) as role}
+                  <option value={role.id}>@{role.name}</option>
+                {/each}
+              </select>
+
+            {:else if field.type === 'channel'}
+              <select
+                id="node-cfg-{id}-{field.key}"
+                value={String(data.config?.[field.key] ?? '')}
+                onchange={(e) => data.onUpdateConfig?.(field.key, e.currentTarget.value)}
+                class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
+              >
+                <option value="">— Choisir un salon —</option>
+                {#each (data.availableChannels ?? []) as channel}
+                  <option value={channel.id}>#{channel.name}</option>
+                {/each}
+              </select>
+
+            {:else if field.type === 'select'}
+              <select
+                id="node-cfg-{id}-{field.key}"
+                value={String(data.config?.[field.key] ?? field.defaultValue ?? '')}
+                onchange={(e) => data.onUpdateConfig?.(field.key, e.currentTarget.value)}
+                class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
+              >
+                {#each field.options ?? [] as option}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+
+            {:else if field.type === 'number'}
+              <input
+                id="node-cfg-{id}-{field.key}"
+                type="number"
+                min={field.min}
+                max={field.max}
+                value={Number(data.config?.[field.key] ?? field.defaultValue ?? 0)}
+                oninput={(e) => data.onUpdateConfig?.(field.key, Number(e.currentTarget.value))}
+                class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none"
+              />
+
+            {:else if field.type === 'boolean'}
+              <label class="flex items-center gap-2 cursor-pointer nodrag py-0.5">
+                <input
+                  id="node-cfg-{id}-{field.key}"
+                  type="checkbox"
+                  checked={Boolean(data.config?.[field.key] ?? field.defaultValue ?? false)}
+                  onchange={(e) => data.onUpdateConfig?.(field.key, e.currentTarget.checked)}
+                  class="w-3.5 h-3.5 rounded accent-primary cursor-pointer"
+                />
+                <span class="text-xs text-on-surface font-medium">{field.label}</span>
+              </label>
+
+            {:else if field.type === 'textarea'}
+              <textarea
+                id="node-cfg-{id}-{field.key}"
+                rows="2"
+                value={String(data.config?.[field.key] ?? '')}
+                oninput={(e) => data.onUpdateConfig?.(field.key, e.currentTarget.value)}
+                placeholder={field.placeholder || 'Saisir du texte...'}
+                class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none resize-none"
+              ></textarea>
+
+            {:else if field.type === 'text'}
+              <input
+                id="node-cfg-{id}-{field.key}"
+                type="text"
+                value={String(data.config?.[field.key] ?? '')}
+                oninput={(e) => data.onUpdateConfig?.(field.key, e.currentTarget.value)}
+                placeholder={field.placeholder || 'Saisir du texte...'}
+                class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none"
+              />
+            {/if}
           </div>
         {/each}
       </div>
@@ -104,7 +227,7 @@
         {#each Array(maxDataRows) as _, i}
           {@const inputPort = dataInputs[i]}
           {@const outputPort = dataOutputs[i]}
-          <div class="flex items-center justify-between h-6 gap-4">
+          <div class="flex items-center justify-between h-6 gap-3">
             <!-- Port d'entrée (Gauche) -->
             <div class="relative flex items-center min-w-0 h-6">
               {#if inputPort}
@@ -112,21 +235,21 @@
                   type="target"
                   position={Position.Left}
                   id={inputPort.id}
-                  style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[inputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5);"
+                  style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[inputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
-                <span class="truncate font-medium text-slate-200">{label(inputPort)}</span>
+                <span class="truncate font-medium text-slate-200 text-xs">{getDataPortLabel(inputPort)}</span>
               {/if}
             </div>
 
             <!-- Port de sortie (Droite) -->
             <div class="relative flex items-center justify-end min-w-0 ml-auto h-6">
               {#if outputPort}
-                <span class="truncate text-right font-medium text-slate-200">{label(outputPort)}</span>
+                <span class="truncate text-right font-medium text-slate-200 text-xs">{getDataPortLabel(outputPort)}</span>
                 <Handle
                   type="source"
                   position={Position.Right}
                   id={outputPort.id}
-                  style="right: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[outputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5);"
+                  style="right: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[outputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
               {/if}
             </div>
