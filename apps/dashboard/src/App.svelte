@@ -95,7 +95,7 @@
     if (path.startsWith("/giveaways")) return "giveaways";
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
-    if (path.startsWith("/triggers")) return "auto_responses";
+    if (path.startsWith("/triggers") || path.startsWith("/workflows")) return "workflows";
     if (path.startsWith("/automod")) return "automod";
     if (path.startsWith("/admin-lock")) return "automod";
     if (path.startsWith("/suggestions")) return "suggestions";
