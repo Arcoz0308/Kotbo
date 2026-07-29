@@ -225,7 +225,7 @@ const icons = {
   Code,
   Compass,
   Copy,
-  X as Cross,
+  Cross,
   Crown,
   DollarSign,
   DoorOpen,
