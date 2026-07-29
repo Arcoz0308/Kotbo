@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -136,7 +137,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'Restrictions des commandes',
+          label: m.commands_unsaved_label(),
           onSave: () => saveCommandAccess(),
           onReset: () => {
             dashboardStore.state.commandRestrictions = JSON.parse(JSON.stringify(savedRestrictions));
@@ -148,7 +149,7 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Restrictions des commandes') {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.commands_unsaved_label()) {
           unsavedChanges.clear();
         }
       });
@@ -156,7 +157,7 @@
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Restrictions des commandes') {
+    if (unsavedChanges.pageLabel === m.commands_unsaved_label()) {
       unsavedChanges.clear();
     }
   });
@@ -196,9 +197,9 @@
   }
 
   function defaultAccessLabel(access: string) {
-    if (access === 'administration') return 'Admin';
-    if (access === 'modération') return 'Mod';
-    return 'Tous';
+    if (access === 'administration') return m.common_admin();
+    if (access === 'modération') return m.common_mod();
+    return m.common_all();
   }
 
   function defaultAccessBadgeClass(access: string) {
@@ -358,7 +359,7 @@
 
   async function saveCommandAccess(): Promise<boolean> {
     if (!canManageSettings) {
-      saveAction.setError('Seuls les administrateurs peuvent modifier ces paramètres.');
+      saveAction.setError(m.commands_err_admin_only());
       return false;
     }
 
@@ -376,8 +377,8 @@
         return true;
       },
       {
-        successMessage: 'Restrictions de commande enregistrées.',
-        failureMessage: 'Impossible d\u2019enregistrer les restrictions pour le moment.'
+        successMessage: m.commands_saved_toast(),
+        failureMessage: m.commands_save_failed_toast()
       }
     );
     return success;
@@ -470,15 +471,15 @@
     return counts;
   });
 
-  const categories = [
-    { id: 'all', name: 'Toutes', icon: 'terminal' },
-    { id: 'Administration', name: 'Administration', icon: 'lock' },
-    { id: 'Modération', name: 'Modération', icon: 'shield' },
-    { id: 'Économie', name: 'Économie', icon: 'Coins' },
-    { id: 'Utilitaire', name: 'Utilitaire', icon: 'Gears' },
-    { id: 'Communauté', name: 'Communauté', icon: 'users' },
-    { id: 'Fun', name: 'Fun', icon: 'Star' }
-  ];
+  const categories = $derived([
+    { id: 'all', name: m.commands_cat_all(), icon: 'terminal' },
+    { id: 'Administration', name: m.commands_cat_admin(), icon: 'lock' },
+    { id: 'Modération', name: m.commands_cat_moderation(), icon: 'shield' },
+    { id: 'Économie', name: m.commands_cat_economy(), icon: 'Coins' },
+    { id: 'Utilitaire', name: m.commands_cat_utility(), icon: 'Gears' },
+    { id: 'Communauté', name: m.commands_cat_community(), icon: 'users' },
+    { id: 'Fun', name: m.commands_cat_fun(), icon: 'Star' }
+  ]);
 
   $effect(() => {
     if (!selectedCommandName && commandCatalog.length > 0) {
@@ -492,18 +493,18 @@
 
   function getOptionTypeLabel(type: number): string {
     switch (type) {
-      case 1: return 'Sous-commande';
-      case 2: return 'Groupe';
-      case 3: return 'Texte';
-      case 4: return 'Nombre entier';
-      case 5: return 'Vrai/Faux';
-      case 6: return 'Membre';
-      case 7: return 'Salon';
-      case 8: return 'Rôle';
-      case 9: return 'Mention';
-      case 10: return 'Nombre';
-      case 11: return 'Fichier';
-      default: return 'Option';
+      case 1: return m.commands_type_subcommand();
+      case 2: return m.commands_type_group();
+      case 3: return m.commands_type_string();
+      case 4: return m.commands_type_integer();
+      case 5: return m.commands_type_boolean();
+      case 6: return m.commands_type_user();
+      case 7: return m.commands_type_channel();
+      case 8: return m.commands_type_role();
+      case 9: return m.commands_type_mentionable();
+      case 10: return m.commands_type_number();
+      case 11: return m.commands_type_attachment();
+      default: return m.commands_type_option();
     }
   }
 
@@ -542,8 +543,8 @@
 </script>
 
 <ModulePage
-  title="Commandes"
-  description="Gérez les permissions d'accès et consultez la structure de vos commandes."
+  title={m.commands_page_title()}
+  description={m.commands_page_desc()}
   icon="terminal"
   featureKey="commands"
 >
@@ -552,14 +553,14 @@
       <div class="stat-kpi flex items-center gap-2.5 !py-1.5 !px-3">
         <Papicon icon="Code" size={14} class="text-on-surface-variant" />
         <div class="flex flex-col">
-          <span class="section-label !text-[9px]">Commandes</span>
+          <span class="section-label !text-[9px]">{m.commands_kpi_total()}</span>
           <span class="text-sm font-semibold text-on-surface">{commandCatalog.length}</span>
         </div>
       </div>
       <div class="stat-kpi flex items-center gap-2.5 !py-1.5 !px-3 !border-primary/20">
         <Papicon icon="Lock" size={14} class="text-primary" />
         <div class="flex flex-col">
-          <span class="section-label !text-[9px] !text-primary/70">Restrictions</span>
+          <span class="section-label !text-[9px] !text-primary/70">{m.commands_kpi_restrictions()}</span>
           <span class="text-sm font-semibold text-primary">{activeRestrictionCount}</span>
         </div>
       </div>
@@ -574,7 +575,7 @@
 
       <!-- Category filters -->
       <div class="section-card p-4">
-        <p class="section-label mb-3 px-1">Catégories</p>
+        <p class="section-label mb-3 px-1">{m.commands_heading_categories()}</p>
         <div class="flex flex-col gap-0.5">
           {#each categories as cat}
             <button
@@ -601,7 +602,7 @@
           >
             <span class="flex items-center gap-2.5">
               <span class="w-2 h-2 rounded-full bg-emerald-500 {catalogFilter === 'active' ? '' : 'opacity-60'}"></span>
-              <span>Avec restrictions</span>
+              <span>{m.commands_filter_active()}</span>
             </span>
             <span class="cmd-cat-count {catalogFilter === 'active' ? 'cmd-cat-count--active' : ''}">
               {categoryCounts.active}
@@ -614,7 +615,7 @@
           >
             <span class="flex items-center gap-2.5">
               <span class="w-2 h-2 rounded-full bg-on-surface-variant/30"></span>
-              <span>Sans restriction</span>
+              <span>{m.commands_filter_no_rules()}</span>
             </span>
             <span class="cmd-cat-count {catalogFilter === 'no-rules' ? 'cmd-cat-count--active' : ''}">
               {categoryCounts['no-rules']}
@@ -626,7 +627,7 @@
       <!-- Search + Command list -->
       <div class="section-card p-4 flex flex-col gap-3">
         <div class="flex items-center justify-between">
-          <p class="section-label px-1">Commandes</p>
+          <p class="section-label px-1">{m.commands_heading_list()}</p>
           <span class="badge badge-neutral text-[10px]">{filteredCommandCatalog.length}</span>
         </div>
 
@@ -637,14 +638,14 @@
             id="command-search"
             type="text"
             bind:value={commandSearch}
-            placeholder="Rechercher une commande..."
+            placeholder={m.commands_search_ph()}
             class="cmd-search-input"
           />
           {#if commandSearch}
             <button
               type="button"
               onclick={() => { commandSearch = ''; }}
-              aria-label="Effacer"
+              aria-label={m.common_clear()}
               class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40 hover:text-on-surface transition-colors"
             >
               <Papicon icon="x" size={14} />
@@ -657,7 +658,7 @@
           {#if filteredCommandCatalog.length === 0}
             <div class="flex flex-col items-center justify-center py-10 text-center">
               <Papicon icon="Search" size={28} class="text-on-surface-variant/30 mb-2" />
-              <p class="text-sm text-on-surface-variant/60">Aucune commande trouvée</p>
+              <p class="text-sm text-on-surface-variant/60">{m.commands_no_results()}</p>
             </div>
           {:else}
             {#each filteredCommandCatalog as command}
@@ -699,8 +700,8 @@
           <div class="w-14 h-14 rounded-xl bg-surface-container flex items-center justify-center mb-4">
             <Papicon icon="terminal" size={28} class="text-on-surface-variant/40" />
           </div>
-          <h4 class="text-base font-semibold text-on-surface">Sélectionnez une commande</h4>
-          <p class="text-sm text-on-surface-variant/60 mt-1.5 max-w-xs">Choisissez une commande dans la liste pour afficher sa documentation et configurer ses permissions d'accès.</p>
+          <h4 class="text-base font-semibold text-on-surface">{m.commands_empty_select_title()}</h4>
+          <p class="text-sm text-on-surface-variant/60 mt-1.5 max-w-xs">{m.commands_empty_select_desc()}</p>
         </div>
       {:else}
         <div class="section-card p-5 xl:p-6 flex flex-col gap-5">
@@ -716,13 +717,13 @@
                   <span class="badge badge-neutral !text-[9px]">{selectedCatalogEntry.category}</span>
                 {/if}
               </div>
-              <p class="text-sm text-on-surface-variant/70 mt-1">{selectedCatalogEntry.description || 'Aucune description disponible.'}</p>
+              <p class="text-sm text-on-surface-variant/70 mt-1">{selectedCatalogEntry.description || m.commands_no_desc()}</p>
             </div>
             <div class="flex items-center gap-2 shrink-0">
               {#if hasSelectedRestriction}
                 <span class="badge badge-success !text-[9px] !font-semibold">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  Filtres actifs
+                  {m.commands_badge_active_filters()}
                 </span>
               {/if}
               <span class="badge {defaultAccessBadgeClass(selectedCatalogEntry.defaultAccess)} !text-[9px] !font-semibold">
@@ -739,7 +740,7 @@
               class="tab-button {activeTab === 'doc' ? 'active' : ''}"
             >
               <Papicon icon="Paper" size={14} />
-              Structure
+              {m.commands_tab_structure()}
             </button>
             <button
               type="button"
@@ -747,7 +748,7 @@
               class="tab-button {activeTab === 'permissions' ? 'active' : ''}"
             >
               <Papicon icon="Lock" size={14} />
-              Permissions
+              {m.commands_tab_permissions()}
               {#if hasSelectedRestriction}
                 <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
               {/if}
@@ -784,7 +785,7 @@
               <!-- Subcommands accordion or direct params -->
               {#if hasSubcommands}
                 <div class="flex flex-col gap-2">
-                  <p class="section-label px-1">Sous-commandes</p>
+                  <p class="section-label px-1">{m.commands_heading_subcommands()}</p>
                   {#each selectedCatalogEntry.options.filter((opt: any) => opt.type === 1 || opt.type === 2) as sub}
                     <div class="cmd-accordion section-card !rounded-lg overflow-hidden">
                       <button
@@ -798,7 +799,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                           {#if sub.options && sub.options.length > 0}
-                            <span class="badge badge-neutral !text-[9px]">{sub.options.length} param.</span>
+                            <span class="badge badge-neutral !text-[9px]">{m.commands_params_count({ count: sub.options.length })}</span>
                           {/if}
                           <Papicon
                             icon="ChevronDown"
@@ -810,16 +811,16 @@
 
                       {#if expandedSubs.has(sub.name)}
                         <div class="cmd-accordion-body animate-in fade-in slide-up duration-200">
-                          <p class="text-xs text-on-surface-variant mb-3">{sub.description || 'Aucune description fournie.'}</p>
+                          <p class="text-xs text-on-surface-variant mb-3">{sub.description || m.commands_no_desc()}</p>
                           
                           {#if sub.options && sub.options.length > 0}
                             <table class="data-table">
                               <thead>
                                 <tr>
-                                  <th>Paramètre</th>
-                                  <th>Type</th>
-                                  <th>Statut</th>
-                                  <th>Description</th>
+                                  <th>{m.commands_th_param()}</th>
+                                  <th>{m.commands_th_type()}</th>
+                                  <th>{m.commands_th_status()}</th>
+                                  <th>{m.commands_th_description()}</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -829,9 +830,9 @@
                                     <td><span class="badge {getOptionTypeBadgeClass(opt.type)} !text-[9px]">{getOptionTypeLabel(opt.type)}</span></td>
                                     <td>
                                       {#if opt.required}
-                                        <span class="text-error font-semibold text-xs">Requis</span>
+                                        <span class="text-error font-semibold text-xs">{m.commands_required()}</span>
                                       {:else}
-                                        <span class="text-on-surface-variant/50 text-xs">Optionnel</span>
+                                        <span class="text-on-surface-variant/50 text-xs">{m.commands_optional()}</span>
                                       {/if}
                                     </td>
                                     <td class="text-on-surface-variant text-xs">{opt.description || '—'}</td>
@@ -840,7 +841,7 @@
                               </tbody>
                             </table>
                           {:else}
-                            <p class="text-xs text-on-surface-variant/50 italic">Aucun paramètre.</p>
+                            <p class="text-xs text-on-surface-variant/50 italic">{m.commands_no_params()}</p>
                           {/if}
                         </div>
                       {/if}
@@ -849,15 +850,15 @@
                 </div>
               {:else if selectedCatalogEntry.options && selectedCatalogEntry.options.length > 0}
                 <div class="flex flex-col gap-2">
-                  <p class="section-label px-1">Paramètres</p>
+                  <p class="section-label px-1">{m.commands_heading_params()}</p>
                   <div class="section-card !rounded-lg overflow-hidden">
                     <table class="data-table">
                       <thead>
                         <tr>
-                          <th>Paramètre</th>
-                          <th>Type</th>
-                          <th>Statut</th>
-                          <th>Description</th>
+                          <th>{m.commands_th_param()}</th>
+                          <th>{m.commands_th_type()}</th>
+                          <th>{m.commands_th_status()}</th>
+                          <th>{m.commands_th_description()}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -867,9 +868,9 @@
                             <td><span class="badge {getOptionTypeBadgeClass(opt.type)} !text-[9px]">{getOptionTypeLabel(opt.type)}</span></td>
                             <td>
                               {#if opt.required}
-                                <span class="text-error font-semibold text-xs">Requis</span>
+                                <span class="text-error font-semibold text-xs">{m.commands_required()}</span>
                               {:else}
-                                <span class="text-on-surface-variant/50 text-xs">Optionnel</span>
+                                <span class="text-on-surface-variant/50 text-xs">{m.commands_optional()}</span>
                               {/if}
                             </td>
                             <td class="text-on-surface-variant text-xs">{opt.description || '—'}</td>
@@ -881,7 +882,7 @@
                 </div>
               {:else}
                 <div class="section-card !rounded-lg flex items-center justify-center p-8 text-center">
-                  <p class="text-sm text-on-surface-variant/50 italic">Cette commande ne possède aucun paramètre ni sous-commande.</p>
+                  <p class="text-sm text-on-surface-variant/50 italic">{m.commands_no_params_or_subs()}</p>
                 </div>
               {/if}
             </div>
@@ -894,15 +895,15 @@
                 <div class="cmd-conflict-banner">
                   <Papicon icon="alert-triangle" size={18} class="text-amber-500 shrink-0 mt-0.5" />
                   <div class="flex-1">
-                    <p class="font-semibold text-sm text-on-surface">Conflits détectés</p>
-                    <p class="text-xs text-on-surface-variant mt-0.5">Certains éléments sont simultanément autorisés et bloqués.</p>
+                    <p class="font-semibold text-sm text-on-surface">{m.commands_conflict_title()}</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">{m.commands_conflict_desc()}</p>
                     <button
                       type="button"
                       onclick={resolveDraftConflicts}
                       disabled={!canManageSettings || !selectedCommandName}
                       class="mt-2 px-3 py-1 rounded-md bg-amber-600 text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-amber-700 transition-colors disabled:opacity-50"
                     >
-                      Résoudre automatiquement
+                      {m.commands_resolve_conflicts_btn()}
                     </button>
                   </div>
                 </div>
@@ -910,12 +911,12 @@
 
               <!-- Quick actions bar -->
               <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-lg bg-surface-container/60 border border-outline-variant/30">
-                <span class="section-label">Actions rapides</span>
+                <span class="section-label">{m.commands_quick_actions()}</span>
                 <div class="flex flex-wrap gap-1.5">
-                  <button type="button" onclick={clearChannels} disabled={!canManageSettings} class="cmd-quick-btn">Vider salons</button>
-                  <button type="button" onclick={clearRoles} disabled={!canManageSettings} class="cmd-quick-btn">Vider rôles</button>
-                  <button type="button" onclick={clearUsers} disabled={!canManageSettings} class="cmd-quick-btn">Vider membres</button>
-                  <button type="button" onclick={clearAllRules} disabled={!canManageSettings} class="cmd-quick-btn cmd-quick-btn--danger">Tout supprimer</button>
+                  <button type="button" onclick={clearChannels} disabled={!canManageSettings} class="cmd-quick-btn">{m.commands_clear_channels()}</button>
+                  <button type="button" onclick={clearRoles} disabled={!canManageSettings} class="cmd-quick-btn">{m.commands_clear_roles()}</button>
+                  <button type="button" onclick={clearUsers} disabled={!canManageSettings} class="cmd-quick-btn">{m.commands_clear_members()}</button>
+                  <button type="button" onclick={clearAllRules} disabled={!canManageSettings} class="cmd-quick-btn cmd-quick-btn--danger">{m.commands_clear_all()}</button>
                 </div>
               </div>
 
@@ -927,10 +928,10 @@
                   <div class="flex items-center justify-between gap-2 mb-3">
                     <div class="flex items-center gap-2">
                       <Papicon icon="TextBubble" size={14} class="text-on-surface-variant/60" />
-                      <span class="section-label">Salons</span>
+                      <span class="section-label">{m.commands_sec_channels()}</span>
                     </div>
                     <div class="tab-group !p-0.5 !gap-px">
-                      <button type="button" onclick={() => setChannelMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {channelMode === 'neutral' ? 'active' : ''}">Tous</button>
+                      <button type="button" onclick={() => setChannelMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {channelMode === 'neutral' ? 'active' : ''}">{m.common_all()}</button>
                       <button type="button" onclick={() => setChannelMode('allowedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-allow {channelMode === 'allowedOnly' ? 'active cmd-mode-allow--active' : ''}">✓</button>
                       <button type="button" onclick={() => setChannelMode('blockedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-block {channelMode === 'blockedOnly' ? 'active cmd-mode-block--active' : ''}">✕</button>
                     </div>
@@ -941,15 +942,15 @@
                     options={channelOptions}
                     selectedIds={selectedChannelIds}
                     disabled={channelSelectionDisabled}
-                    placeholder={channelMode === 'neutral' ? 'Tous les salons' : channelMode === 'allowedOnly' ? 'Salons autorisés...' : 'Salons bloqués...'}
+                    placeholder={channelMode === 'neutral' ? m.commands_ph_all_channels() : channelMode === 'allowedOnly' ? m.commands_ph_allowed_channels() : m.commands_ph_blocked_channels()}
                     onToggle={toggleChannelSelection}
                   />
 
                   <p class="text-[11px] text-on-surface-variant/50 mt-2 leading-relaxed">
                     {#if channelMode === 'neutral'}
-                      Exécutable partout.
+                      {m.commands_help_channels_neutral()}
                     {:else}
-                      {channelMode === 'allowedOnly' ? 'Limitée aux' : 'Interdite dans les'} salons configurés.
+                      {channelMode === 'allowedOnly' ? m.commands_help_channels_allow() : m.commands_help_channels_block()}
                     {/if}
                   </p>
                 </div>
@@ -959,10 +960,10 @@
                   <div class="flex items-center justify-between gap-2 mb-3">
                     <div class="flex items-center gap-2">
                       <Papicon icon="User" size={14} class="text-on-surface-variant/60" />
-                      <span class="section-label">Rôles</span>
+                      <span class="section-label">{m.commands_sec_roles()}</span>
                     </div>
                     <div class="tab-group !p-0.5 !gap-px">
-                      <button type="button" onclick={() => setRoleMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {roleMode === 'neutral' ? 'active' : ''}">Tous</button>
+                      <button type="button" onclick={() => setRoleMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {roleMode === 'neutral' ? 'active' : ''}">{m.common_all()}</button>
                       <button type="button" onclick={() => setRoleMode('allowedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-allow {roleMode === 'allowedOnly' ? 'active cmd-mode-allow--active' : ''}">✓</button>
                       <button type="button" onclick={() => setRoleMode('blockedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-block {roleMode === 'blockedOnly' ? 'active cmd-mode-block--active' : ''}">✕</button>
                     </div>
@@ -973,15 +974,17 @@
                     options={roleOptions}
                     selectedIds={selectedRoleIds}
                     disabled={roleSelectionDisabled}
-                    placeholder={roleMode === 'neutral' ? 'Tous les rôles' : roleMode === 'allowedOnly' ? 'Rôles autorisés...' : 'Rôles bloqués...'}
+                    placeholder={roleMode === 'neutral' ? m.commands_ph_all_roles() : roleMode === 'allowedOnly' ? m.commands_ph_allowed_roles() : m.commands_ph_blocked_roles()}
                     onToggle={toggleRoleSelection}
                   />
 
                   <p class="text-[11px] text-on-surface-variant/50 mt-2 leading-relaxed">
                     {#if roleMode === 'neutral'}
-                      Accessible à tous.
+                      {m.commands_help_roles_neutral()}
+                    {:else if roleMode === 'allowedOnly'}
+                      {m.commands_help_roles_allowed({ count: selectedRoleIds.length })}
                     {:else}
-                      Rôles {roleMode === 'allowedOnly' ? 'autorisés' : 'bloqués'} : {selectedRoleIds.length}.
+                      {m.commands_help_roles_blocked({ count: selectedRoleIds.length })}
                     {/if}
                   </p>
                 </div>
@@ -991,10 +994,10 @@
                   <div class="flex items-center justify-between gap-2 mb-3">
                     <div class="flex items-center gap-2">
                       <Papicon icon="user" size={14} class="text-on-surface-variant/60" />
-                      <span class="section-label">Membres</span>
+                      <span class="section-label">{m.commands_sec_members()}</span>
                     </div>
                     <div class="tab-group !p-0.5 !gap-px">
-                      <button type="button" onclick={() => setUserMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {userMode === 'neutral' ? 'active' : ''}">Tous</button>
+                      <button type="button" onclick={() => setUserMode('neutral')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] {userMode === 'neutral' ? 'active' : ''}">{m.common_all()}</button>
                       <button type="button" onclick={() => setUserMode('allowedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-allow {userMode === 'allowedOnly' ? 'active cmd-mode-allow--active' : ''}">✓</button>
                       <button type="button" onclick={() => setUserMode('blockedOnly')} disabled={!canManageSettings} class="tab-button !px-2 !py-0.5 !text-[10px] cmd-mode-block {userMode === 'blockedOnly' ? 'active cmd-mode-block--active' : ''}">✕</button>
                     </div>
@@ -1005,7 +1008,7 @@
                       <input
                         type="text"
                         bind:value={userIdInput}
-                        placeholder="ID Discord..."
+                        placeholder={m.commands_ph_user_id()}
                         disabled={userSelectionDisabled}
                         class="cmd-user-input"
                       />
@@ -1022,7 +1025,7 @@
                     <div class="max-h-24 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar">
                       {#if selectedUserIds.length === 0}
                         <p class="text-[10px] text-on-surface-variant/40 italic py-1.5">
-                          {userMode === 'neutral' ? 'Aucune restriction.' : 'Aucun membre configuré.'}
+                          {userMode === 'neutral' ? m.commands_empty_users_neutral() : m.commands_empty_users_configured()}
                         </p>
                       {:else}
                         {#each selectedUserIds as uId}
@@ -1044,9 +1047,11 @@
 
                   <p class="text-[11px] text-on-surface-variant/50 mt-2 leading-relaxed">
                     {#if userMode === 'neutral'}
-                      Aucun ciblage individuel.
+                      {m.commands_help_users_neutral()}
+                    {:else if userMode === 'allowedOnly'}
+                      {m.commands_help_users_allowed({ count: selectedUserIds.length })}
                     {:else}
-                      Membres {userMode === 'allowedOnly' ? 'autorisés' : 'bloqués'} : {selectedUserIds.length}.
+                      {m.commands_help_users_blocked({ count: selectedUserIds.length })}
                     {/if}
                   </p>
                 </div>
@@ -1056,31 +1061,31 @@
               <div class="glass-panel rounded-lg p-4">
                 <div class="flex items-center gap-2 mb-3">
                   <Papicon icon="Paper" size={14} class="text-primary" />
-                  <span class="text-xs font-semibold text-on-surface">Résumé de la règle</span>
+                  <span class="text-xs font-semibold text-on-surface">{m.commands_summary_heading()}</span>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] text-on-surface-variant">
                   <div>
-                    <span class="font-semibold text-on-surface/80">Salons :</span>
+                    <span class="font-semibold text-on-surface/80">{m.commands_summary_channels()}</span>
                     {#if channelMode === 'neutral'}
-                      Tous
+                      {m.common_all()}
                     {:else}
-                      {channelMode === 'allowedOnly' ? 'Uniquement' : 'Bloqués :'} {selectedChannelIds.length}
+                      {channelMode === 'allowedOnly' ? m.commands_summary_only({ count: selectedChannelIds.length }) : m.commands_summary_blocked({ count: selectedChannelIds.length })}
                     {/if}
                   </div>
                   <div>
-                    <span class="font-semibold text-on-surface/80">Rôles :</span>
+                    <span class="font-semibold text-on-surface/80">{m.commands_summary_roles()}</span>
                     {#if roleMode === 'neutral'}
-                      Tous
+                      {m.common_all()}
                     {:else}
-                      {roleMode === 'allowedOnly' ? 'Uniquement' : 'Bloqués :'} {selectedRoleIds.length}
+                      {roleMode === 'allowedOnly' ? m.commands_summary_only({ count: selectedRoleIds.length }) : m.commands_summary_blocked({ count: selectedRoleIds.length })}
                     {/if}
                   </div>
                   <div>
-                    <span class="font-semibold text-on-surface/80">Membres :</span>
+                    <span class="font-semibold text-on-surface/80">{m.commands_summary_members()}</span>
                     {#if userMode === 'neutral'}
-                      Tous
+                      {m.common_all()}
                     {:else}
-                      {userMode === 'allowedOnly' ? 'Uniquement' : 'Bloqués :'} {selectedUserIds.length}
+                      {userMode === 'allowedOnly' ? m.commands_summary_only({ count: selectedUserIds.length }) : m.commands_summary_blocked({ count: selectedUserIds.length })}
                     {/if}
                   </div>
                 </div>
@@ -1093,7 +1098,7 @@
             <InlineFeedback
               message={saveAction.state.message}
               error={saveAction.state.error}
-              idleText="Les modifications sont appliquées après enregistrement."
+              idleText={m.commands_footer_idle_text()}
             />
           </div>
         </div>

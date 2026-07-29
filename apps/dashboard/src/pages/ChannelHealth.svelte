@@ -1,4 +1,5 @@
 <script lang="ts">
+import { m } from '../lib/i18n';
 import { onMount } from 'svelte';
 import { router } from 'tinro';
 import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -30,26 +31,26 @@ $effect(() => {
   activeTab = resolveTabFromUrl('/channel-health', healthTabs, 'overview') as typeof activeTab;
 });
 
-const statusLabels: Record<string, { label: string; color: string; icon: string }> = {
-  HEALTHY:    { label: 'Sain',          color: '#57f287', icon: 'check-circle' },
-  OVERLOADED: { label: 'Surchargé',     color: '#ed4245', icon: 'alert-triangle' },
-  UNDERUSED:  { label: 'Sous-utilisé',  color: '#fee75c', icon: 'alert-circle' },
-  DEAD:       { label: 'Mort',          color: '#747f8d', icon: 'x-circle' },
+const statusLabels: Record<string, { label: () => string; color: string; icon: string }> = {
+  HEALTHY:    { label: () => m.channel_health_status_healthy(),    color: '#57f287', icon: 'check-circle' },
+  OVERLOADED: { label: () => m.channel_health_status_overloaded(), color: '#ed4245', icon: 'alert-triangle' },
+  UNDERUSED:  { label: () => m.channel_health_status_underused(),  color: '#fee75c', icon: 'alert-circle' },
+  DEAD:       { label: () => m.channel_health_status_dead(),       color: '#747f8d', icon: 'x-circle' },
 };
 
-const alertTypeLabels: Record<string, string> = {
-  SPLIT_SUGGESTED: 'Split suggéré',
-  SPLIT_AUTO: 'Split automatique',
-  ARCHIVE_SUGGESTED: 'Archivage suggéré',
-  ARCHIVE_AUTO: 'Archivage automatique',
-  MERGE_SUGGESTED: 'Fusion suggérée',
+const alertTypeLabels: Record<string, () => string> = {
+  SPLIT_SUGGESTED: () => m.channel_health_alert_split_suggested(),
+  SPLIT_AUTO: () => m.channel_health_alert_split_auto(),
+  ARCHIVE_SUGGESTED: () => m.channel_health_alert_archive_suggested(),
+  ARCHIVE_AUTO: () => m.channel_health_alert_archive_auto(),
+  MERGE_SUGGESTED: () => m.channel_health_alert_merge_suggested(),
 };
 
-const alertStatusLabels: Record<string, { label: string; color: string }> = {
-  PENDING: { label: 'En attente', color: '#fee75c' },
-  APPLIED: { label: 'Appliqué', color: '#57f287' },
-  DISMISSED: { label: 'Ignoré', color: '#747f8d' },
-  EXPIRED: { label: 'Expiré', color: '#747f8d' },
+const alertStatusLabels: Record<string, { label: () => string; color: string }> = {
+  PENDING: { label: () => m.channel_health_alert_status_pending(), color: '#fee75c' },
+  APPLIED: { label: () => m.channel_health_alert_status_applied(), color: '#57f287' },
+  DISMISSED: { label: () => m.channel_health_alert_status_dismissed(), color: '#747f8d' },
+  EXPIRED: { label: () => m.channel_health_alert_status_expired(), color: '#747f8d' },
 };
 
 async function load() {
@@ -61,7 +62,7 @@ async function load() {
       configDraft = { ...data.config };
     }
   } catch (e: any) {
-    error = e.message || 'Erreur lors du chargement';
+    error = e.message || m.channel_health_err_load();
   } finally {
     loading = false;
   }
@@ -72,7 +73,7 @@ async function runAnalysis() {
   try {
     analysis = await fetchChannelHealthAnalysis();
   } catch (e: any) {
-    toast.error(e.message || "Erreur lors de l'analyse");
+    toast.error(e.message || m.channel_health_err_analysis());
   } finally {
     analysisLoading = false;
   }
@@ -84,11 +85,11 @@ async function saveConfig() {
   try {
     const result = await updateChannelHealthConfig(configDraft);
     if (result) {
-      toast.success('Configuration sauvegardée');
+      toast.success(m.channel_health_config_saved_toast());
       data.config = result;
     }
   } catch (e: any) {
-    toast.error(e.message || 'Erreur lors de la sauvegarde');
+    toast.error(e.message || m.channel_health_err_save());
   } finally {
     savingConfig = false;
   }
@@ -97,10 +98,10 @@ async function saveConfig() {
 async function handleResolve(alertId: string, action: 'APPLIED' | 'DISMISSED') {
   try {
     await resolveChannelHealthAlert(alertId, action);
-    toast.success(action === 'APPLIED' ? 'Alerte appliquée' : 'Alerte ignorée');
+    toast.success(action === 'APPLIED' ? m.channel_health_alert_applied_toast() : m.channel_health_alert_dismissed_toast());
     await load();
   } catch (e: any) {
-    toast.error(e.message || 'Erreur');
+    toast.error(e.message || m.common_error());
   }
 }
 
@@ -108,11 +109,11 @@ async function handleSplit(channelId: string) {
   try {
     const result = await splitChannel(channelId);
     if (result?.ok) {
-      toast.success('Salon créé avec succès');
+      toast.success(m.channel_health_channel_created_toast());
       await load();
     }
   } catch (e: any) {
-    toast.error(e.message || 'Erreur lors du split');
+    toast.error(e.message || m.channel_health_err_split());
   }
 }
 
@@ -120,11 +121,11 @@ async function handleArchive(channelId: string) {
   try {
     const result = await archiveChannel(channelId);
     if (result?.ok) {
-      toast.success('Salon archivé avec succès');
+      toast.success(m.channel_health_channel_archived_toast());
       await load();
     }
   } catch (e: any) {
-    toast.error(e.message || "Erreur lors de l'archivage");
+    toast.error(e.message || m.channel_health_err_archive());
   }
 }
 
@@ -132,8 +133,8 @@ onMount(load);
 </script>
 
 <ModulePage
-  title="Santé des Salons"
-  description="Analyse automatique de l'activité et alertes sur vos salons."
+  title={m.channel_health_page_title()}
+  description={m.channel_health_page_desc()}
   icon="activity"
   featureKey="channel_health"
 >
@@ -144,7 +145,7 @@ onMount(load);
       disabled={analysisLoading}
     >
       <Papicon icon="refresh-cw" size={16} />
-      {analysisLoading ? 'Analyse…' : 'Lancer une analyse'}
+      {analysisLoading ? m.channel_health_analyzing() : m.channel_health_run_analysis_btn()}
     </button>
   {/snippet}
 
@@ -154,13 +155,13 @@ onMount(load);
     class="tab-button {activeTab === 'overview' ? 'active' : ''}"
     onclick={() => gotoTab('/channel-health', 'overview', 'overview')}
   >
-    <Papicon icon="pie-chart" size={15} /> Vue d'ensemble
+    <Papicon icon="pie-chart" size={15} /> {m.channel_health_tab_overview()}
   </button>
   <button
     class="tab-button {activeTab === 'alerts' ? 'active' : ''}"
     onclick={() => gotoTab('/channel-health', 'alerts', 'overview')}
   >
-    <Papicon icon="bell" size={15} /> Alertes
+    <Papicon icon="bell" size={15} /> {m.channel_health_tab_alerts()}
     {#if data?.pendingAlerts?.length > 0}
       <span class="px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">{data.pendingAlerts.length}</span>
     {/if}
@@ -169,7 +170,7 @@ onMount(load);
     class="tab-button {activeTab === 'config' ? 'active' : ''}"
     onclick={() => gotoTab('/channel-health', 'config', 'overview')}
   >
-    <Papicon icon="settings" size={15} /> Configuration
+    <Papicon icon="settings" size={15} /> {m.channel_health_tab_config()}
   </button>
 </div>
 
@@ -177,13 +178,13 @@ onMount(load);
 {#if loading}
   <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    <p class="text-sm">Chargement...</p>
+    <p class="text-sm">{m.common_loading()}</p>
   </div>
 {:else if error}
   <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
     <Papicon icon="alert-circle" size={32} />
     <p class="text-sm">{error}</p>
-    <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={load}>Réessayer</button>
+    <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={load}>{m.common_retry()}</button>
   </div>
 {:else}
 
@@ -193,13 +194,13 @@ onMount(load);
       <!-- Disabled state -->
       <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
         <Papicon icon="activity" size={48} />
-        <h3 class="text-base font-semibold text-on-surface">Moniteur de santé désactivé</h3>
-        <p class="text-sm text-on-surface-variant/60 max-w-md">Activez le moniteur pour analyser automatiquement l'activité de vos salons et recevoir des recommandations.</p>
+        <h3 class="text-base font-semibold text-on-surface">{m.channel_health_monitor_disabled_title()}</h3>
+        <p class="text-sm text-on-surface-variant/60 max-w-md">{m.channel_health_monitor_disabled_desc()}</p>
         <button
           class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
           onclick={() => { gotoTab('/channel-health', 'config', 'overview'); if (configDraft) configDraft.enabled = true; }}
         >
-          Activer le moniteur
+          {m.channel_health_enable_monitor_btn()}
         </button>
       </div>
     {:else if analysis}
@@ -213,7 +214,7 @@ onMount(load);
             </div>
             <div>
               <span class="text-2xl font-bold text-on-surface block">{count}</span>
-              <span class="text-xs font-medium text-on-surface-variant/60">{info.label}</span>
+              <span class="text-xs font-medium text-on-surface-variant/60">{info.label()}</span>
             </div>
           </div>
         {/each}
@@ -223,20 +224,20 @@ onMount(load);
       <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
         <h3 class="text-base font-semibold flex items-center gap-2.5">
           <Papicon icon="hash" size={18} />
-          Tous les salons analysés
+          {m.channel_health_all_channels_heading()}
         </h3>
         <div class="overflow-x-auto">
           <table class="w-full">
             <thead>
               <tr class="border-b border-outline-variant/10">
-                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Salon</th>
-                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Statut</th>
-                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Msg/jour</th>
-                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Users</th>
-                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Total msgs</th>
-                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Tendance</th>
-                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Confiance</th>
-                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Actions</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_channel()}</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_status()}</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_msg_day()}</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_users()}</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_total_msgs()}</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_trend()}</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_confidence()}</th>
+                <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_actions()}</th>
               </tr>
             </thead>
             <tbody>
@@ -245,7 +246,7 @@ onMount(load);
                 <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
                   <td class="px-3 py-2.5 text-sm font-semibold">#{ch.channelName}</td>
                   <td class="px-3 py-2.5 text-sm">
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {info.color} 15%, transparent); color: {info.color}">{info.label}</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {info.color} 15%, transparent); color: {info.color}">{info.label()}</span>
                   </td>
                   <td class="px-3 py-2.5 text-sm">{ch.avgMsgPerDay.toFixed(1)}</td>
                   <td class="px-3 py-2.5 text-sm">{ch.uniqueUsersAvg.toFixed(0)}</td>
@@ -259,9 +260,9 @@ onMount(load);
                   <td class="px-3 py-2.5 text-sm">{ch.confidence}%</td>
                   <td class="px-3 py-2.5 text-sm whitespace-nowrap">
                     {#if ch.status === 'OVERLOADED'}
-                      <button class="px-3 py-1.5 bg-amber-500/10 text-amber-500 rounded-lg text-xs font-bold hover:bg-amber-500/20 transition-all" onclick={() => handleSplit(ch.channelId)}>Split</button>
+                      <button class="px-3 py-1.5 bg-amber-500/10 text-amber-500 rounded-lg text-xs font-bold hover:bg-amber-500/20 transition-all" onclick={() => handleSplit(ch.channelId)}>{m.channel_health_action_split()}</button>
                     {:else if ch.status === 'DEAD'}
-                      <button class="px-3 py-1.5 bg-surface-container-high/40 text-on-surface-variant rounded-lg text-xs font-bold hover:bg-surface-container-high/60 transition-all" onclick={() => handleArchive(ch.channelId)}>Archiver</button>
+                      <button class="px-3 py-1.5 bg-surface-container-high/40 text-on-surface-variant rounded-lg text-xs font-bold hover:bg-surface-container-high/60 transition-all" onclick={() => handleArchive(ch.channelId)}>{m.channel_health_action_archive()}</button>
                     {/if}
                   </td>
                 </tr>
@@ -274,8 +275,8 @@ onMount(load);
       <!-- No analysis yet -->
       <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
         <Papicon icon="bar-chart" size={48} />
-        <h3 class="text-base font-semibold text-on-surface">Aucune analyse disponible</h3>
-        <p class="text-sm text-on-surface-variant/60 max-w-md">Cliquez sur "Lancer une analyse" pour évaluer la santé de vos salons.</p>
+        <h3 class="text-base font-semibold text-on-surface">{m.channel_health_no_analysis_title()}</h3>
+        <p class="text-sm text-on-surface-variant/60 max-w-md">{m.channel_health_no_analysis_desc()}</p>
       </div>
     {/if}
   {/if}
@@ -285,35 +286,35 @@ onMount(load);
     {#if data?.pendingAlerts?.length === 0 && data?.history?.length === 0}
       <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4">
         <Papicon icon="check-circle" size={48} />
-        <h3 class="text-base font-semibold text-on-surface">Aucune alerte</h3>
-        <p class="text-sm text-on-surface-variant/60 max-w-md">Tous vos salons sont en bonne santé. Les alertes apparaîtront ici lorsque des recommandations seront détectées.</p>
+        <h3 class="text-base font-semibold text-on-surface">{m.channel_health_no_alerts_title()}</h3>
+        <p class="text-sm text-on-surface-variant/60 max-w-md">{m.channel_health_no_alerts_desc()}</p>
       </div>
     {:else}
       {#if data?.pendingAlerts?.length > 0}
         <h3 class="text-base font-semibold flex items-center gap-2.5 mb-4">
           <Papicon icon="bell" size={18} />
-          Alertes en attente ({data.pendingAlerts.length})
+          {m.channel_health_pending_alerts_heading({ count: data.pendingAlerts.length })}
         </h3>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
           {#each data.pendingAlerts as alert}
             <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 space-y-3 border-l-[3px]" style="border-left-color: #fee75c">
               <div class="flex justify-between items-center">
-                <span class="text-xs font-medium text-amber-400">{alertTypeLabels[alert.type] ?? alert.type}</span>
+                <span class="text-xs font-medium text-amber-400">{alertTypeLabels[alert.type]?.() ?? alert.type}</span>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">{alert.confidence}%</span>
               </div>
               <h4 class="text-sm font-semibold text-on-surface">#{alert.channelName ?? alert.channelId}</h4>
               <p class="text-xs text-on-surface-variant/60">{alert.reason}</p>
               <div class="flex gap-4 text-xs font-medium text-on-surface-variant/60">
-                <span>{alert.avgMsgPerDay?.toFixed(1)} msg/jour</span>
-                <span>{alert.uniqueUsersAvg?.toFixed(0)} users</span>
-                <span>{alert.analysisPeriod}j d'analyse</span>
+                <span>{m.channel_health_msg_per_day({ count: alert.avgMsgPerDay?.toFixed(1) })}</span>
+                <span>{m.channel_health_users_avg({ count: alert.uniqueUsersAvg?.toFixed(0) })}</span>
+                <span>{m.channel_health_analysis_period({ days: alert.analysisPeriod })}</span>
               </div>
               <div class="flex gap-2 pt-1">
                 <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'APPLIED')}>
-                  Appliquer
+                  {m.channel_health_alert_apply()}
                 </button>
                 <button class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all flex items-center gap-2" onclick={() => handleResolve(alert.id, 'DISMISSED')}>
-                  Ignorer
+                  {m.channel_health_alert_dismiss()}
                 </button>
               </div>
             </div>
@@ -324,29 +325,29 @@ onMount(load);
       {#if data?.history?.length > 0}
         <h3 class="text-base font-semibold flex items-center gap-2.5 mb-4 mt-8">
           <Papicon icon="clock" size={18} />
-          Historique
+          {m.channel_health_history_heading()}
         </h3>
         <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6">
           <div class="overflow-x-auto">
             <table class="w-full">
               <thead>
                 <tr class="border-b border-outline-variant/10">
-                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Date</th>
-                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Salon</th>
-                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Type</th>
-                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Statut</th>
-                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">Confiance</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_date()}</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_channel()}</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_type()}</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_status()}</th>
+                  <th class="px-3 py-2.5 text-left text-xs font-medium text-on-surface-variant/60">{m.channel_health_th_confidence()}</th>
                 </tr>
               </thead>
               <tbody>
                 {#each data.history as alert}
-                  {@const statusInfo = alertStatusLabels[alert.status] ?? { label: alert.status, color: '#747f8d' }}
+                  {@const statusInfo = alertStatusLabels[alert.status] ?? { label: () => alert.status, color: '#747f8d' }}
                   <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/10 transition-colors">
                     <td class="px-3 py-2.5 text-sm">{new Date(alert.createdAt).toLocaleDateString('fr-FR')}</td>
                     <td class="px-3 py-2.5 text-sm">#{alert.channelName ?? alert.channelId}</td>
-                    <td class="px-3 py-2.5 text-sm">{alertTypeLabels[alert.type] ?? alert.type}</td>
+                    <td class="px-3 py-2.5 text-sm">{alertTypeLabels[alert.type]?.() ?? alert.type}</td>
                     <td class="px-3 py-2.5 text-sm">
-                      <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {statusInfo.color} 15%, transparent); color: {statusInfo.color}">{statusInfo.label}</span>
+                      <span class="px-2.5 py-0.5 rounded-full text-xs font-medium" style="background: color-mix(in srgb, {statusInfo.color} 15%, transparent); color: {statusInfo.color}">{statusInfo.label()}</span>
                     </td>
                     <td class="px-3 py-2.5 text-sm">{alert.confidence}%</td>
                   </tr>
@@ -364,34 +365,34 @@ onMount(load);
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-6">
       <h3 class="text-base font-semibold flex items-center gap-2.5">
         <Papicon icon="settings" size={18} />
-        Configuration du moniteur
+        {m.channel_health_config_heading()}
       </h3>
 
       <div class="space-y-5">
         <!-- General -->
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" class="w-[18px] h-[18px] accent-primary" bind:checked={configDraft.enabled} />
-          <span class="text-sm text-on-surface">Moniteur activé</span>
+          <span class="text-sm text-on-surface">{m.channel_health_field_enabled()}</span>
         </label>
 
         <div class="space-y-1.5">
-          <label for="analysis-period" class="field-label">Période d'analyse (jours)</label>
+          <label for="analysis-period" class="field-label">{m.channel_health_field_period()}</label>
           <input id="analysis-period" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.analysisPeriodDays} min={7} max={90} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="split-mode" class="field-label">Mode surcharge (split)</label>
+          <label for="split-mode" class="field-label">{m.channel_health_field_split_mode()}</label>
           <select id="split-mode" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.splitMode}>
-            <option value="NOTIFY">Notification seulement</option>
-            <option value="AUTO">Automatique</option>
+            <option value="NOTIFY">{m.channel_health_mode_notify_only()}</option>
+            <option value="AUTO">{m.channel_health_mode_auto()}</option>
           </select>
         </div>
 
         <div class="space-y-1.5">
-          <label for="archive-mode" class="field-label">Mode inactivité (archivage)</label>
+          <label for="archive-mode" class="field-label">{m.channel_health_field_archive_mode()}</label>
           <select id="archive-mode" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.archiveMode}>
-            <option value="NOTIFY">Notification seulement</option>
-            <option value="AUTO">Automatique</option>
+            <option value="NOTIFY">{m.channel_health_mode_notify_only()}</option>
+            <option value="AUTO">{m.channel_health_mode_auto()}</option>
           </select>
         </div>
 
@@ -400,16 +401,16 @@ onMount(load);
 
         <h4 class="text-sm font-semibold text-on-surface flex items-center gap-2">
           <Papicon icon="alert-triangle" size={16} />
-          Seuils de surcharge
+          {m.channel_health_section_overload()}
         </h4>
 
         <div class="space-y-1.5">
-          <label for="overload-msg-hour" class="field-label">Messages/heure (moyenne)</label>
+          <label for="overload-msg-hour" class="field-label">{m.channel_health_field_overload_msg_hour()}</label>
           <input id="overload-msg-hour" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.overloadMsgPerHour} min={10} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="overload-unique-users" class="field-label">Utilisateurs uniques (moyenne)</label>
+          <label for="overload-unique-users" class="field-label">{m.channel_health_field_overload_unique_users()}</label>
           <input id="overload-unique-users" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.overloadUniqueUsers} min={5} />
         </div>
 
@@ -418,21 +419,21 @@ onMount(load);
 
         <h4 class="text-sm font-semibold text-on-surface flex items-center gap-2">
           <Papicon icon="alert-circle" size={16} />
-          Seuils de sous-utilisation
+          {m.channel_health_section_underuse()}
         </h4>
 
         <div class="space-y-1.5">
-          <label for="underused-msg-day" class="field-label">Messages/jour (max pour sous-utilisé)</label>
+          <label for="underused-msg-day" class="field-label">{m.channel_health_field_underused_msg_day()}</label>
           <input id="underused-msg-day" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.underusedMsgPerDay} min={1} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="underused-unique-users" class="field-label">Utilisateurs uniques (max)</label>
+          <label for="underused-unique-users" class="field-label">{m.channel_health_field_underused_unique_users()}</label>
           <input id="underused-unique-users" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.underusedUniqueUsers} min={1} />
         </div>
 
         <div class="space-y-1.5">
-          <label for="dead-msg-week" class="field-label">Messages/semaine (max pour mort)</label>
+          <label for="dead-msg-week" class="field-label">{m.channel_health_field_dead_msg_week()}</label>
           <input id="dead-msg-week" type="number" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm focus:border-primary focus:outline-none" bind:value={configDraft.deadMsgPerWeek} min={0} />
         </div>
 
@@ -441,31 +442,31 @@ onMount(load);
 
         <h4 class="text-sm font-semibold text-on-surface flex items-center gap-2">
           <Papicon icon="mail" size={16} />
-          Digest hebdomadaire
+          {m.channel_health_section_digest()}
         </h4>
 
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" class="w-[18px] h-[18px] accent-primary" bind:checked={configDraft.weeklyDigestEnabled} />
-          <span class="text-sm text-on-surface">Rapport hebdomadaire activé</span>
+          <span class="text-sm text-on-surface">{m.channel_health_field_digest_enabled()}</span>
         </label>
 
         <div class="space-y-1.5">
-          <label for="weekly-digest-day" class="field-label">Jour du rapport</label>
+          <label for="weekly-digest-day" class="field-label">{m.channel_health_field_digest_day()}</label>
           <select id="weekly-digest-day" class="w-full max-w-[300px] px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm" bind:value={configDraft.weeklyDigestDay}>
-            <option value={0}>Dimanche</option>
-            <option value={1}>Lundi</option>
-            <option value={2}>Mardi</option>
-            <option value={3}>Mercredi</option>
-            <option value={4}>Jeudi</option>
-            <option value={5}>Vendredi</option>
-            <option value={6}>Samedi</option>
+            <option value={0}>{m.channel_health_day_sunday()}</option>
+            <option value={1}>{m.channel_health_day_monday()}</option>
+            <option value={2}>{m.channel_health_day_tuesday()}</option>
+            <option value={3}>{m.channel_health_day_wednesday()}</option>
+            <option value={4}>{m.channel_health_day_thursday()}</option>
+            <option value={5}>{m.channel_health_day_friday()}</option>
+            <option value={6}>{m.channel_health_day_saturday()}</option>
           </select>
         </div>
       </div>
 
       <div class="flex justify-end pt-2">
         <button class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2" onclick={saveConfig} disabled={savingConfig}>
-          {savingConfig ? 'Sauvegarde...' : 'Sauvegarder'}
+          {savingConfig ? m.channel_health_saving() : m.common_save()}
         </button>
       </div>
     </div>
@@ -473,14 +474,14 @@ onMount(load);
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4">
       <h3 class="text-base font-semibold flex items-center gap-2.5">
         <Papicon icon="settings" size={18} />
-        Configuration du moniteur
+        {m.channel_health_config_heading()}
       </h3>
-      <p class="text-sm text-on-surface-variant/60">Le moniteur n'est pas encore configuré pour ce serveur.</p>
+      <p class="text-sm text-on-surface-variant/60">{m.channel_health_not_configured_desc()}</p>
       <button
         class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={() => { configDraft = { enabled: true, analysisPeriodDays: 14, splitMode: 'NOTIFY', archiveMode: 'NOTIFY', overloadMsgPerHour: 120, overloadUniqueUsers: 80, underusedMsgPerDay: 5, underusedUniqueUsers: 3, deadMsgPerWeek: 2, weeklyDigestEnabled: true, weeklyDigestDay: 1 }; }}
       >
-        Initialiser la configuration
+        {m.channel_health_init_config_btn()}
       </button>
     </div>
   {/if}
