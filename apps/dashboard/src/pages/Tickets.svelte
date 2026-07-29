@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { m } from '../lib/i18n';
+  import { m, dateLocale } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -375,7 +375,7 @@
       ticketType.formCustomFields = [];
     }
     if (ticketType.formCustomFields.length >= 5) {
-      toast.error("Discord limite les formulaires (Modals) à 5 champs maximum.");
+      toast.error(m.e1_tickets_err_max_fields());
       return;
     }
     const newId = 'field_' + Math.random().toString(36).substring(2, 10);
@@ -463,7 +463,7 @@
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets?${params}`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Impossible de charger le système de tickets');
+      if (!res.ok) throw new Error(m.e1_tickets_err_load_system());
       const data = await res.json();
       const incomingTickets = data.tickets || [];
       tickets = reset ? incomingTickets : [...tickets, ...incomingTickets];
@@ -487,15 +487,15 @@
       ticketOverclaimPermission = config.ticketOverclaimPermission || 'ANY';
       ticketInactivityEnabled = config.ticketInactivityEnabled !== undefined ? config.ticketInactivityEnabled : false;
       ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
-      ticketInactivityMessage = config.ticketInactivityMessage || "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !";
+      ticketInactivityMessage = config.ticketInactivityMessage || m.e1_tickets_default_inactivity_message({ user: '{user}' });
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
       ticketEmbedFooter = config.ticketEmbedFooter || '';
       ticketEmbedAuthorName = config.ticketEmbedAuthorName || '';
       ticketEmbedAuthorIcon = config.ticketEmbedAuthorIcon || '';
-      ticketWelcomeTitle = config.ticketWelcomeTitle || "🎫 Ticket d'Assistance · {type_label}";
-      ticketWelcomeDesc = config.ticketWelcomeDesc || "Bonjour {user} !\nLe personnel {staff_mention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n{description}";
+      ticketWelcomeTitle = config.ticketWelcomeTitle || m.e1_tickets_default_welcome_title({ type_label: '{type_label}' });
+      ticketWelcomeDesc = config.ticketWelcomeDesc || m.e1_tickets_default_welcome_desc({ user: '{user}', staff_mention: '{staff_mention}', description: '{description}' });
       ticketWelcomeColor = config.ticketWelcomeColor || '#5865F2';
       ticketWelcomeThumbnail = config.ticketWelcomeThumbnail || '';
       ticketWelcomeImage = config.ticketWelcomeImage || '';
@@ -556,7 +556,7 @@
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/transcripts?includeTotal=false`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Impossible de charger les transcriptions');
+      if (!res.ok) throw new Error(m.e1_tickets_err_load_transcripts());
       const data = await res.json();
       transcripts = data.transcripts || [];
     } catch (err: any) {
@@ -584,7 +584,7 @@
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${ticketId}`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Impossible de charger le détail du ticket');
+      if (!res.ok) throw new Error(m.e1_tickets_err_load_detail());
       const data = await res.json();
       selectedTicketDetail = data.ticket;
       messages = data.messages || [];
@@ -653,11 +653,11 @@
         },
         body: JSON.stringify({ content: textToSend })
       });
-      if (!res.ok) throw new Error('Impossible d\'envoyer le message');
+      if (!res.ok) throw new Error(m.e1_tickets_err_send_message());
       // Reload actual messages
       await loadTicketDetail(selectedTicketId, false);
     } catch (err: any) {
-      toast.error(err.message || 'Une erreur est survenue');
+      toast.error(err.message || m.e1_tickets_err_generic());
     }
   }
 
@@ -669,7 +669,7 @@
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Erreur lors du claim');
+      if (!res.ok) throw new Error(m.e1_tickets_err_claim());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
     } catch (err: any) {
@@ -689,7 +689,7 @@
         },
         body: JSON.stringify({ reason: closeReason })
       });
-      if (!res.ok) throw new Error('Erreur de fermeture');
+      if (!res.ok) throw new Error(m.e1_tickets_err_close());
       showCloseModal = false;
       closeReason = '';
       await loadTicketDetail(selectedTicketId, false);
@@ -712,7 +712,7 @@
         },
         body: JSON.stringify({ name: ticketRenameName.trim() })
       });
-      if (!res.ok) throw new Error('Erreur de renommage');
+      if (!res.ok) throw new Error(m.e1_tickets_err_rename());
       const data = await res.json().catch(() => null);
       if (data?.channelName) {
         ticketRenameName = data.channelName;
@@ -720,7 +720,7 @@
       await loadTicketDetail(ticketId, false);
       await loadTicketsAndConfig();
       return true;
-    }, { successMessage: 'Ticket renommé avec succès !' });
+    }, { successMessage: m.e1_tickets_renamed_toast() });
   }
 
   // Reopen Ticket
@@ -731,7 +731,7 @@
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Erreur de réouverture');
+      if (!res.ok) throw new Error(m.e1_tickets_err_reopen());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
     } catch (err: any) {
@@ -753,10 +753,10 @@
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Erreur de restauration');
+        throw new Error(data.error || m.e1_tickets_err_restore());
       }
       showRestoreModal = false;
-      toast.success('Ticket restauré avec succès ! Le salon a été recréé avec l\'historique.');
+      toast.success(m.e1_tickets_restored_toast());
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
     } catch (err: any) {
@@ -774,7 +774,7 @@
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Erreur de suppression');
+      if (!res.ok) throw new Error(m.e1_tickets_err_delete());
       showDeleteConfirmModal = false;
       selectedTicketId = null;
       selectedTicketDetail = null;
@@ -827,26 +827,26 @@
           ticketWelcomeFooter
         })
       });
-      if (!res.ok) throw new Error('Erreur lors de la sauvegarde');
+      if (!res.ok) throw new Error(m.e1_tickets_err_save());
       await dashboardStore.refresh();
       await loadTicketsAndConfig();
       success = true;
       return true;
-    }, { successMessage: 'Configuration enregistrée avec succès !' });
+    }, { successMessage: m.e1_tickets_config_saved() });
     return success;
   }
 
   // Send Panel to Discord
   async function sendEmbedPanel() {
-    if (!(await confirmDialog.ask({ title: 'Envoyer le panel de tickets ?', description: 'Le panel d\'ouverture de ticket sera publié dans le salon configuré.', confirmLabel: 'Envoyer' }))) return;
+    if (!(await confirmDialog.ask({ title: m.e1_tickets_confirm_panel_title(), description: m.e1_tickets_confirm_panel_desc(), confirmLabel: m.e1_tickets_confirm_panel_btn() }))) return;
     await sendEmbedAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config/send-embed`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Erreur d\'envoi du panel');
+      if (!res.ok) throw new Error(m.e1_tickets_err_send_panel());
       return true;
-    }, { successMessage: 'Panel de tickets envoyé avec succès !' });
+    }, { successMessage: m.e1_tickets_panel_sent() });
   }
 
   // Member Case Logic
@@ -856,7 +856,7 @@
     try {
       selectedCaseData = await fetchMemberCase(userId);
     } catch (err: any) {
-      selectedCaseError = err.message || 'Impossible de charger le dossier membre.';
+      selectedCaseError = err.message || m.e1_tickets_err_load_case();
       selectedCaseData = null;
     } finally {
       selectedCaseLoading = false;
@@ -867,7 +867,7 @@
     selectedCaseUser = { name: userName, id: userId };
     selectedCaseData = null;
     selectedCaseError = '';
-    memberActionReason = 'Action lancée depuis le panel de Tickets.';
+    memberActionReason = m.e1_tickets_member_action_default_reason();
     memberActionDuration = '30m';
     memberActionFeedback = '';
     memberActionIsError = false;
@@ -892,14 +892,14 @@
     try {
       const durationMs = action === 'TIMEOUT' ? 30 * 60 * 1000 : null;
       await runMemberCaseAction(selectedCaseUser.id, action, {
-        reason: memberActionReason.trim() || 'Action lancée depuis Tickets.',
+        reason: memberActionReason.trim() || m.e1_tickets_action_reason_short(),
         durationMs: durationMs ?? undefined
       });
-      memberActionFeedback = 'Action appliquée avec succès.';
+      memberActionFeedback = m.e1_tickets_action_success();
       await loadMemberCaseDetails(selectedCaseUser.id);
     } catch (err: any) {
       memberActionIsError = true;
-      memberActionFeedback = err.message || 'L’action a échoué.';
+      memberActionFeedback = err.message || m.e1_tickets_action_failed();
     } finally {
       memberActionBusy = false;
     }
@@ -907,9 +907,9 @@
 
   function getStatusLabel(status: string) {
     switch (status) {
-      case 'OPEN': return 'Ouvert';
-      case 'CLAIMED': return 'Pris en charge';
-      case 'CLOSED': return 'Fermé';
+      case 'OPEN': return m.e1_tickets_status_open();
+      case 'CLAIMED': return m.e1_tickets_status_claimed();
+      case 'CLOSED': return m.e1_tickets_status_closed();
       default: return status;
     }
   }
@@ -980,18 +980,19 @@
 </script>
 
 <ModulePage 
-  title="Système de Tickets" 
-  description="Gérez les tickets de support en temps réel, communiquez avec les utilisateurs et gérez la configuration." 
+  title={m.e1_tickets_page_title()}
+  description={m.e1_tickets_page_desc()}
+
   icon="message-square"
   featureKey="tickets"
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">
-      <RefreshButton onClick={handleRefresh} loading={loading} label="Actualiser" />
+      <RefreshButton onClick={handleRefresh} loading={loading} label={m.e1_tickets_refresh()} />
       <button 
       onclick={() => changeTab(activeTab === 'config' ? 'tickets' : 'config')}
         class="p-3 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
-        title="Paramètres de configuration"
+        title={m.e1_tickets_settings_tooltip()}
       >
         <Papicon icon="settings" size={20} />
       </button>
@@ -1001,10 +1002,10 @@
   <!-- Tab Switcher -->
   <div class="flex border-b border-outline-variant/10 mb-6 overflow-x-auto scrollbar-hide">
     {#each [
-      { key: 'tickets', label: 'Tickets' },
-      { key: 'transcripts', label: 'Transcriptions' },
-      { key: 'satisfaction', label: 'Satisfaction' },
-      { key: 'config', label: 'Configuration' }
+      { key: 'tickets', label: m.e1_tickets_tab_tickets() },
+      { key: 'transcripts', label: m.e1_tickets_tab_transcripts() },
+      { key: 'satisfaction', label: m.e1_tickets_tab_satisfaction() },
+      { key: 'config', label: m.e1_tickets_tab_config() }
     ] as tab}
       <button
         onclick={() => changeTab(tab.key as any)}
@@ -1030,7 +1031,7 @@
               onclick={() => changeTicketFilter(filterType as 'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED')}
               class="px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
             >
-              {filterType === 'ALL' ? 'Tous' : getStatusLabel(filterType)}
+              {filterType === 'ALL' ? m.e1_tickets_filter_all() : getStatusLabel(filterType)}
             </button>
           {/each}
         </div>
@@ -1055,7 +1056,7 @@
           {:else if filteredTickets.length === 0}
             <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
               <Papicon icon="inbox" size={28} class="opacity-50 mb-2" />
-              <p class="text-xs font-bold">Aucun ticket trouvé</p>
+              <p class="text-xs font-bold">{m.e1_tickets_empty_list()}</p>
             </div>
           {:else}
             {#each filteredTickets as ticket (ticket.id)}
@@ -1073,7 +1074,7 @@
                   {/if}
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between gap-2">
-                      <p class="text-sm font-semibold text-on-surface truncate">@{ticket.username || 'Anonyme'}</p>
+                      <p class="text-sm font-semibold text-on-surface truncate">@{ticket.username || m.e1_tickets_anonymous()}</p>
                       <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border shrink-0 {getStatusColor(ticket.status)}">
                         {getStatusLabel(ticket.status)}
                       </span>
@@ -1081,7 +1082,7 @@
                     {#if ticket.reason}
                       <p class="text-[11px] text-on-surface-variant/70 mt-0.5 truncate">{ticket.reason}</p>
                     {/if}
-                    <p class="text-[10px] text-on-surface-variant/40 mt-0.5">{new Date(ticket.createdAt).toLocaleDateString('fr-FR')}</p>
+                    <p class="text-[10px] text-on-surface-variant/40 mt-0.5">{new Date(ticket.createdAt).toLocaleDateString(dateLocale())}</p>
                   </div>
                 </div>
                 {#if ticket.claimedByName}
@@ -1103,7 +1104,7 @@
                 disabled={loadingMoreTickets}
                 class="w-full mt-2 px-3 py-2 rounded-lg border border-outline-variant/20 bg-surface-container/40 text-xs font-medium text-on-surface-variant hover:bg-surface-container disabled:opacity-50"
               >
-                {loadingMoreTickets ? 'Chargement…' : 'Charger plus de tickets'}
+                {loadingMoreTickets ? m.e1_tickets_loading_more() : m.e1_tickets_load_more()}
               </button>
             {/if}
           {/if}
@@ -1117,8 +1118,8 @@
             <div class="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center mb-4 shadow-inner">
               <Papicon icon="message-square" size={32} />
             </div>
-            <h3 class="text-lg font-semibold text-on-surface/40">Aucun ticket sélectionné</h3>
-            <p class="text-xs opacity-60 mt-1">Sélectionnez un ticket pour démarrer.</p>
+            <h3 class="text-lg font-semibold text-on-surface/40">{m.e1_tickets_no_selection_title()}</h3>
+            <p class="text-xs opacity-60 mt-1">{m.e1_tickets_no_selection_desc()}</p>
           </div>
         {:else}
           <!-- Chat Header -->
@@ -1137,13 +1138,13 @@
               {/if}
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <h3 class="text-sm lg:text-base font-semibold text-on-surface truncate">@{selectedTicketDetail?.username || 'Utilisateur'}</h3>
+                  <h3 class="text-sm lg:text-base font-semibold text-on-surface truncate">@{selectedTicketDetail?.username || m.e1_tickets_user_fallback()}</h3>
                   <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border {getStatusColor(selectedTicketDetail?.status)}">
                     {getStatusLabel(selectedTicketDetail?.status)}
                   </span>
                   {#if selectedTicketDetail?.mode && selectedTicketDetail.mode !== 'CHANNEL'}
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                      {selectedTicketDetail.mode === 'DM' ? 'MP' : 'Thread'}
+                      {selectedTicketDetail.mode === 'DM' ? m.e1_tickets_mode_dm() : m.e1_tickets_mode_thread()}
                     </span>
                   {/if}
                 </div>
@@ -1152,7 +1153,7 @@
                     {#if selectedTicketDetail.claimedByAvatar}
                       <img src={selectedTicketDetail.claimedByAvatar} alt={selectedTicketDetail.claimedByName} class="w-4 h-4 rounded-full object-cover" />
                     {/if}
-                    Assigné à @{selectedTicketDetail.claimedByName}
+                    {m.e1_tickets_assigned_to({ name: selectedTicketDetail.claimedByName })}
                   </div>
                 {/if}
               </div>
@@ -1164,7 +1165,7 @@
                 onclick={() => openMemberCase(selectedTicketDetail.userId, selectedTicketDetail.username)}
                 class="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
               >
-                <Papicon icon="shield" size={12} /> Casier
+                <Papicon icon="shield" size={12} /> {m.e1_tickets_btn_case()}
               </button>
 
               {#if selectedTicketDetail?.status === 'OPEN'}
@@ -1172,13 +1173,13 @@
                   <button onclick={claimTicket}
                     class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
-                    <Papicon icon="user-check" size={12} /> S'assigner
+                    <Papicon icon="user-check" size={12} /> {m.e1_tickets_btn_claim()}
                   </button>
                 {/if}
                 <button onclick={() => showCloseModal = true}
                   class="px-3 py-1.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
-                  <Papicon icon="x-circle" size={12} /> Fermer
+                  <Papicon icon="x-circle" size={12} /> {m.e1_tickets_btn_close()}
                 </button>
               {/if}
 
@@ -1186,7 +1187,7 @@
                 <button onclick={claimTicket}
                   class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
-                  <Papicon icon="user-check" size={12} /> Sur-revendiquer
+                  <Papicon icon="user-check" size={12} /> {m.e1_tickets_btn_overclaim()}
                 </button>
               {/if}
 
@@ -1195,12 +1196,12 @@
                   <button onclick={reopenTicket}
                     class="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
-                    <Papicon icon="refresh" size={12} /> Réouvrir
+                    <Papicon icon="refresh" size={12} /> {m.e1_tickets_btn_reopen()}
                   </button>
                   <button onclick={() => showDeleteConfirmModal = true}
                     class="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-all flex items-center gap-1.5 shrink-0"
                   >
-                    <Papicon icon="delete" size={12} /> Supprimer
+                    <Papicon icon="delete" size={12} /> {m.e1_tickets_btn_delete()}
                   </button>
                 {/if}
                 {#if selectedTicketDetail?.transcriptId}
@@ -1208,10 +1209,10 @@
                   <button
                     onclick={() => { if (restoresLeft > 0) showRestoreModal = true; }}
                     disabled={restoresLeft <= 0}
-                    title={restoresLeft <= 0 ? 'Limite de restauration atteinte (3/3). Ce ticket ne peut plus être restauré.' : `${restoresLeft} restauration${restoresLeft > 1 ? 's' : ''} restante${restoresLeft > 1 ? 's' : ''}`}
+                    title={restoresLeft <= 0 ? m.e1_tickets_restore_limit_tooltip() : m.e1_tickets_restore_left_tooltip({ count: restoresLeft })}
                     class="px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all {restoresLeft > 0 ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500 hover:text-white cursor-pointer' : 'bg-surface-container text-on-surface-variant/30 border border-outline-variant/10 cursor-not-allowed'}"
                   >
-                    <Papicon icon="refresh-ccw" size={12} /> Restaurer ({restoresLeft}/3)
+                    <Papicon icon="refresh-ccw" size={12} /> {m.e1_tickets_btn_restore({ left: restoresLeft })}
                   </button>
                 {/if}
               {/if}
@@ -1220,19 +1221,19 @@
                 <a href="/transcripts/{selectedTicketDetail.transcriptId}" target="_blank"
                   class="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
-                  <Papicon icon="external-link" size={12} /> Transcription originale
+                  <Papicon icon="external-link" size={12} /> {m.e1_tickets_original_transcript()}
                 </a>
               {/if}
             </div>
 
             {#if selectedTicketDetail?.channelId && selectedTicketDetail?.mode !== 'DM'}
               <div class="mt-3 flex gap-2 items-center">
-                <FormInput type="text" bind:value={ticketRenameName} placeholder="ticket-nouveau-nom" className="flex-1" />
+                <FormInput type="text" bind:value={ticketRenameName} placeholder={m.e1_tickets_rename_ph()} className="flex-1" />
                 <button onclick={renameTicket} disabled={renameAction.state.loading || !ticketRenameName.trim()}
                   class="px-3 py-2.5 bg-primary text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5 shrink-0"
                 >
                   <Papicon icon="edit" size={12} />
-                  {renameAction.state.loading ? '...' : 'Renommer'}
+                  {renameAction.state.loading ? '...' : m.e1_tickets_rename_btn()}
                 </button>
               </div>
             {/if}
@@ -1254,13 +1255,13 @@
               {#if selectedTicketDetail?.transcriptId && signedTranscriptUrl}
                 <iframe
                   src={signedTranscriptUrl}
-                  title="Transcription du Ticket"
+                  title={m.e1_tickets_transcript_iframe_title()}
                   class="w-full h-full border-none bg-[#313338]"
                 ></iframe>
               {:else}
                 <div class="flex flex-col items-center justify-center text-white/30 h-full">
                   <Papicon icon="forum" size={28} class="opacity-50 mb-2" />
-                  <p class="text-xs">Aucun message dans ce ticket.</p>
+                  <p class="text-xs">{m.e1_tickets_no_message()}</p>
                 </div>
               {/if}
             {:else}
@@ -1277,9 +1278,9 @@
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-baseline gap-1.5 flex-wrap">
-                      <span class="text-xs lg:text-sm font-bold text-white">{msg.authorName || 'Anonyme'}</span>
+                      <span class="text-xs lg:text-sm font-bold text-white">{msg.authorName || m.e1_tickets_anonymous()}</span>
                       {#if msg.isStaff}
-                        <span class="bg-[#5865F2] text-white text-[9px] lg:text-[11px] font-semibold uppercase px-1 py-0.5 rounded tracking-wider leading-none">Staff</span>
+                        <span class="bg-[#5865F2] text-white text-[9px] lg:text-[11px] font-semibold uppercase px-1 py-0.5 rounded tracking-wider leading-none">{m.e1_tickets_staff_badge()}</span>
                       {/if}
                       <span class="text-[9px] lg:text-[10px] text-white/40">{new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
@@ -1384,7 +1385,7 @@
                             <audio src={att.url} controls class="max-w-[80%] lg:max-w-md"></audio>
                           {:else}
                             <a href={att.url} target="_blank" class="flex items-center gap-2 p-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-white hover:bg-white/10 transition-colors w-fit">
-                              <Papicon icon="file" size={14} /> Pièce jointe
+                              <Papicon icon="file" size={14} /> {m.e1_tickets_attachment()}
                             </a>
                           {/if}
                         {/each}
@@ -1403,7 +1404,7 @@
                 type="text"
                 bind:value={chatInput}
                 onkeydown={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Écrire un message..."
+                placeholder={m.e1_tickets_message_ph()}
                 class="flex-1 bg-surface-container rounded-lg px-4 py-3 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm"
               />
               <button
@@ -1416,7 +1417,7 @@
             </div>
           {:else}
             <div class="p-3 lg:p-4 border-t border-outline-variant/10 bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-medium gap-2">
-              <Papicon icon="lock" size={14} /> Ticket fermé
+              <Papicon icon="lock" size={14} /> {m.e1_tickets_closed_banner()}
             </div>
           {/if}
         {/if}
@@ -1436,8 +1437,8 @@
       <!-- Header actions -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2">
         <div>
-          <h3 class="text-lg font-semibold text-on-surface">Configuration des Tickets</h3>
-          <p class="text-on-surface-variant text-xs mt-0.5">Mode de fonctionnement, salons, embed et types de tickets.</p>
+          <h3 class="text-lg font-semibold text-on-surface">{m.e1_tickets_config_title()}</h3>
+          <p class="text-on-surface-variant text-xs mt-0.5">{m.e1_tickets_config_desc()}</p>
         </div>
         <button
           onclick={sendEmbedPanel}
@@ -1457,8 +1458,8 @@
               <Papicon icon="hash" size={18} />
             </div>
             <div>
-              <p class="text-sm font-semibold text-on-surface">Salons & Rôles</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Catégorie par défaut, logs, relais MP, rôle staff et sur-revendication</p>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_channels_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_channels_desc()}</p>
             </div>
           </div>
           <Papicon icon={expandedConfigSection === 'channels' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1467,24 +1468,24 @@
           <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Catégorie des tickets par défaut</span>
-                <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_category()}</span>
+                <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon du panel d'ouverture</span>
-                <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_panel_channel()}</span>
+                <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon des logs / transcripts</span>
-                <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_log_channel()}</span>
+                <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle Staff Support par défaut</span>
-                <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_staff_role()}</span>
+                <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
               </label>
               <label class="block col-span-1 md:col-span-2">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon de relais des messages privés (Mode MP)</span>
-                <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="Sélectionner un salon" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_dm_relay()}</span>
+                <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_channel_ph()} className="w-full" />
               </label>
             </div>
 
@@ -1492,16 +1493,16 @@
               <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
                 <input type="checkbox" bind:checked={ticketAllowOverclaim} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
                 <div>
-                  <span class="text-xs font-bold text-on-surface">Autoriser la sur-revendication</span>
-                  <p class="text-[10px] text-on-surface-variant/60">Un staff peut reprendre un ticket déjà revendiqué.</p>
+                  <span class="text-xs font-bold text-on-surface">{m.e1_tickets_overclaim_label()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_overclaim_desc()}</p>
                 </div>
               </label>
               {#if ticketAllowOverclaim}
                 <label class="block ml-7">
-                  <span class="text-xs font-bold text-on-surface-variant/80 mb-2 block">Qui peut sur-revendiquer ?</span>
+                  <span class="text-xs font-bold text-on-surface-variant/80 mb-2 block">{m.e1_tickets_overclaim_who()}</span>
                   <FormSelect bind:value={ticketOverclaimPermission} className="w-full">
-                    <option value="ANY">Tout le staff</option>
-                    <option value="SUPERIOR_OR_EQUAL">Grade supérieur ou égal</option>
+                    <option value="ANY">{m.e1_tickets_overclaim_any()}</option>
+                    <option value="SUPERIOR_OR_EQUAL">{m.e1_tickets_overclaim_superior()}</option>
                   </FormSelect>
                 </label>
               {/if}
@@ -1518,8 +1519,8 @@
               <Papicon icon="palette" size={18} />
             </div>
             <div>
-              <p class="text-sm font-semibold text-on-surface">Personnalisation de l'Embed</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Titre, description, couleur et texte du bouton</p>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_embed_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_embed_desc()}</p>
             </div>
           </div>
           <Papicon icon={expandedConfigSection === 'embed' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1528,55 +1529,55 @@
           <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Titre</span>
-                <FormInput type="text" bind:value={ticketEmbedTitle} placeholder="Support Client" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_title()}</span>
+                <FormInput type="text" bind:value={ticketEmbedTitle} placeholder={m.e1_tickets_embed_title_ph()} className="w-full" />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte du bouton</span>
-                <FormInput type="text" bind:value={ticketEmbedButtonText} placeholder="Ouvrir un ticket" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_button_text()}</span>
+                <FormInput type="text" bind:value={ticketEmbedButtonText} placeholder={m.e1_tickets_embed_button_ph()} className="w-full" />
               </label>
             </div>
             <label class="block">
-              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description</span>
-              <FormTextarea bind:value={ticketEmbedDesc} placeholder="Cliquez pour obtenir de l'aide..." className="w-full h-20" />
+              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_description()}</span>
+              <FormTextarea bind:value={ticketEmbedDesc} placeholder={m.e1_tickets_embed_desc_ph()} className="w-full h-20" />
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Miniature (Thumbnail URL)</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_thumbnail()}</span>
                 <FormInput type="text" bind:value={ticketEmbedThumbnail} placeholder="https://..." className="w-full" />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Grande Image (Image URL)</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_image()}</span>
                 <FormInput type="text" bind:value={ticketEmbedImage} placeholder="https://..." className="w-full" />
               </label>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Auteur - Nom</span>
-                <FormInput type="text" bind:value={ticketEmbedAuthorName} placeholder="Kotbo Support" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_author_name()}</span>
+                <FormInput type="text" bind:value={ticketEmbedAuthorName} placeholder={m.e1_tickets_embed_author_ph()} className="w-full" />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Auteur - Icône (URL)</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_author_icon()}</span>
                 <FormInput type="text" bind:value={ticketEmbedAuthorIcon} placeholder="https://..." className="w-full" />
               </label>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_color()}</span>
                 <FormColorPicker bind:value={ticketEmbedColor} />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte de bas de page (Footer)</span>
-                <FormInput type="text" bind:value={ticketEmbedFooter} placeholder="Kotbo • Système de tickets" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_footer()}</span>
+                <FormInput type="text" bind:value={ticketEmbedFooter} placeholder={m.e1_tickets_embed_footer_ph()} className="w-full" />
               </label>
             </div>
 
             <div class="border-t border-outline-variant/10 pt-4">
-              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-3 block">Type d'interaction</span>
+              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-3 block">{m.e1_tickets_interaction_type()}</span>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {#each [
-                  { value: 'BUTTONS', label: 'Boutons', icon: 'mouse-pointer', desc: 'Un bouton par type de ticket, directement dans l\'embed' },
-                  { value: 'DROPDOWN', label: 'Menu déroulant', icon: 'list', desc: 'Un menu déroulant unique avec tous les types de tickets' }
+                  { value: 'BUTTONS', label: m.e1_tickets_interaction_buttons(), icon: 'mouse-pointer', desc: m.e1_tickets_interaction_buttons_desc() },
+                  { value: 'DROPDOWN', label: m.e1_tickets_interaction_dropdown(), icon: 'list', desc: m.e1_tickets_interaction_dropdown_desc() }
                 ] as typeOption}
                   <button
                     onclick={() => ticketEmbedType = typeOption.value as any}
@@ -1607,8 +1608,8 @@
               <Papicon icon="message-square" size={18} />
             </div>
             <div>
-              <p class="text-sm font-semibold text-on-surface">Message d'accueil dans le ticket</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Personnaliser l'embed/container envoyé lors de la création du ticket</p>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_welcome_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_welcome_desc()}</p>
             </div>
           </div>
           <Papicon icon={expandedConfigSection === 'welcome' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1618,31 +1619,31 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block col-span-1 md:col-span-2">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Titre (Placeholders : {'{type_label}'})</span>
-                <FormInput type="text" bind:value={ticketWelcomeTitle} placeholder="🎫 Ticket d'Assistance · {'{type_label}'}" className="w-full" />
+                <FormInput type="text" bind:value={ticketWelcomeTitle} placeholder={m.e1_tickets_welcome_title_ph({ type_label: '{type_label}' })} className="w-full" />
               </label>
             </div>
             <label class="block">
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description (Placeholders : {'{user}'}, {'{staff_mention}'}, {'{reason}'}, {'{description}'})</span>
-              <FormTextarea bind:value={ticketWelcomeDesc} placeholder="Bonjour {'{user}'} !\nLe personnel {'{staff_mention}'} va prendre en charge..." className="w-full h-32" />
+              <FormTextarea bind:value={ticketWelcomeDesc} placeholder={m.e1_tickets_welcome_desc_ph({ user: '{user}', staff_mention: '{staff_mention}' })} className="w-full h-32" />
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Miniature (Thumbnail URL)</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_thumbnail()}</span>
                 <FormInput type="text" bind:value={ticketWelcomeThumbnail} placeholder="https://..." className="w-full" />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Grande Image (Image URL)</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_image()}</span>
                 <FormInput type="text" bind:value={ticketWelcomeImage} placeholder="https://..." className="w-full" />
               </label>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur de l'embed</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_embed_color()}</span>
                 <FormColorPicker bind:value={ticketWelcomeColor} />
               </label>
               <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte de bas de page (Footer)</span>
-                <FormInput type="text" bind:value={ticketWelcomeFooter} placeholder="Kotbo · Ticket ID: {'{ticket_id}'}" className="w-full" />
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_footer()}</span>
+                <FormInput type="text" bind:value={ticketWelcomeFooter} placeholder={m.e1_tickets_welcome_footer_ph({ ticket_id: '{ticket_id}' })} className="w-full" />
               </label>
             </div>
           </div>
@@ -1657,13 +1658,13 @@
               <Papicon icon="clock" size={18} />
             </div>
             <div>
-              <p class="text-sm font-semibold text-on-surface">Inactivité</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Rappel automatique si le créateur ne répond pas</p>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_inactivity_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_inactivity_desc()}</p>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
             {#if ticketInactivityEnabled}
-              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Actif</span>
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{m.e1_tickets_active_badge()}</span>
             {/if}
             <Papicon icon={expandedConfigSection === 'inactivity' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
           </div>
@@ -1673,19 +1674,19 @@
             <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
               <input type="checkbox" bind:checked={ticketInactivityEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
               <div>
-                <span class="text-xs font-bold text-on-surface">Activer les rappels</span>
-                <p class="text-[10px] text-on-surface-variant/60">Message automatique après inactivité du créateur.</p>
+                <span class="text-xs font-bold text-on-surface">{m.e1_tickets_enable_reminders()}</span>
+                <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_reminders_desc()}</p>
               </div>
             </label>
             {#if ticketInactivityEnabled}
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <label class="block">
-                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Délai (heures)</span>
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_delay_hours()}</span>
                   <input type="number" bind:value={ticketInactivityHours} min={1} max={168} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
                 </label>
                 <label class="block sm:col-span-2">
                   <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Message ({'{user}'} = mention)</span>
-                  <FormTextarea bind:value={ticketInactivityMessage} placeholder="Bonjour {'{user}'}, votre ticket est inactif..." className="w-full h-20" />
+                  <FormTextarea bind:value={ticketInactivityMessage} placeholder={m.e1_tickets_inactivity_ph({ user: '{user}' })} className="w-full h-20" />
                 </label>
               </div>
             {/if}
@@ -1701,8 +1702,8 @@
               <Papicon icon="layers" size={18} />
             </div>
             <div>
-              <p class="text-sm font-semibold text-on-surface">Types de tickets</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{ticketTypes.length} type{ticketTypes.length > 1 ? 's' : ''} — configurez les boutons, salons, rôles et formulaires par type de ticket</p>
+              <p class="text-sm font-semibold text-on-surface">{m.e1_tickets_sec_types_title()}</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{m.e1_tickets_sec_types_desc({ count: ticketTypes.length })}</p>
             </div>
           </div>
           <Papicon icon={expandedConfigSection === 'types' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
@@ -1713,7 +1714,7 @@
               <button onclick={addTicketType}
                 class="px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform flex items-center gap-1.5"
               >
-                <Papicon icon="plus" size={13} /> Ajouter un type
+                <Papicon icon="plus" size={13} /> {m.e1_tickets_add_type()}
               </button>
             </div>
 
@@ -1736,13 +1737,13 @@
                         <div class="flex flex-wrap items-center gap-1.5 mt-1">
                           <!-- Mode badge -->
                           {#if ticketType.mode === 'CHANNEL'}
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-blue-500/10 text-blue-400 border border-blue-500/15">Salon</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-blue-500/10 text-blue-400 border border-blue-500/15">{m.e1_tickets_badge_channel()}</span>
                           {:else if ticketType.mode === 'DM'}
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-purple-500/10 text-purple-400 border border-purple-500/15">Message Privé</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-purple-500/10 text-purple-400 border border-purple-500/15">{m.e1_tickets_badge_dm()}</span>
                           {:else if ticketType.mode === 'THREAD'}
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-amber-500/10 text-amber-400 border border-amber-500/15">Thread</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-amber-500/10 text-amber-400 border border-amber-500/15">{m.e1_tickets_badge_thread()}</span>
                           {:else}
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-surface-container-high text-on-surface-variant/60 border border-outline-variant/10">Mode global</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider uppercase bg-surface-container-high text-on-surface-variant/60 border border-outline-variant/10">{m.e1_tickets_badge_global_mode()}</span>
                           {/if}
 
                           <!-- Staff Role Badge -->
@@ -1750,14 +1751,14 @@
                             {@const role = discordRoles.find(r => r.id === ticketType.staffRoleId)}
                             <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">Staff: @{role?.name || 'Inconnu'}</span>
                           {:else}
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">Staff hérité</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">{m.e1_tickets_badge_inherited_staff()}</span>
                           {/if}
 
                           <!-- Form Enabled Badge -->
                           {#if ticketType.formEnabled}
                             <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/15">Avec Formulaire ({(ticketType.formCustomFields || []).length} question{(ticketType.formCustomFields || []).length > 1 ? 's' : ''})</span>
                           {:else}
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">Création Directe</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">{m.e1_tickets_badge_direct_creation()}</span>
                           {/if}
                         </div>
                       </div>
@@ -1770,7 +1771,7 @@
                         onclick={() => moveTicketType(index, 'UP')}
                         disabled={index === 0}
                         class="p-1.5 rounded-lg border border-outline-variant/10 text-on-surface-variant hover:bg-white/5 disabled:opacity-30 transition-colors"
-                        title="Monter"
+                        title={m.e1_tickets_move_up()}
                       >
                         <Papicon icon="arrow-up" size={13} />
                       </button>
@@ -1778,7 +1779,7 @@
                         onclick={() => moveTicketType(index, 'DOWN')}
                         disabled={index === ticketTypes.length - 1}
                         class="p-1.5 rounded-lg border border-outline-variant/10 text-on-surface-variant hover:bg-white/5 disabled:opacity-30 transition-colors"
-                        title="Descendre"
+                        title={m.e1_tickets_move_down()}
                       >
                         <Papicon icon="arrow-down" size={13} />
                       </button>
@@ -1790,14 +1791,14 @@
                         onclick={() => expandedTicketTypeIndex = isExpanded ? null : index}
                         class="px-2.5 py-1.5 rounded-lg border text-[9px] font-semibold uppercase tracking-wider transition-colors {isExpanded ? 'bg-primary text-white border-primary' : 'bg-surface-container text-on-surface hover:bg-white/5 border-outline-variant/10'}"
                       >
-                        {isExpanded ? 'Fermer' : 'Modifier'}
+                        {isExpanded ? m.e1_tickets_type_collapse() : m.e1_tickets_type_edit()}
                       </button>
 
                       <!-- Delete button -->
                       <button
                         onclick={() => removeTicketType(index)}
                         class="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/15 transition-all"
-                        title="Supprimer"
+                        title={m.e1_tickets_type_delete()}
                       >
                         <Papicon icon="trash-2" size={13} />
                       </button>
@@ -1811,52 +1812,52 @@
                       <!-- Button label, emoji, style select -->
                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label class="block">
-                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Libellé du Bouton / Option</span>
-                          <FormInput type="text" bind:value={ticketType.label} placeholder="Support technique" className="w-full" />
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_label()}</span>
+                          <FormInput type="text" bind:value={ticketType.label} placeholder={m.e1_tickets_type_label_ph()} className="w-full" />
                         </label>
                         <div class="grid grid-cols-2 gap-3">
                           <label class="block">
-                            <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Emoji</span>
+                            <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_emoji()}</span>
                             <div class="flex gap-1.5">
                               <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
                               <EmojiPicker bind:value={ticketType.emoji} />
                             </div>
                           </label>
                           <label class="block">
-                            <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Couleur bouton (Style)</span>
+                            <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_style()}</span>
                             <FormSelect bind:value={ticketType.buttonStyle} className="w-full">
-                              <option value="PRIMARY">Bleu (Primaire)</option>
-                              <option value="SECONDARY">Gris (Secondaire)</option>
-                              <option value="SUCCESS">Vert (Succès)</option>
-                              <option value="DANGER">Rouge (Danger)</option>
+                              <option value="PRIMARY">{m.e1_tickets_style_primary()}</option>
+                              <option value="SECONDARY">{m.e1_tickets_style_secondary()}</option>
+                              <option value="SUCCESS">{m.e1_tickets_style_success()}</option>
+                              <option value="DANGER">{m.e1_tickets_style_danger()}</option>
                             </FormSelect>
                           </label>
                         </div>
                       </div>
 
                       <label class="block">
-                        <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Description de l'option (menu déroulant)</span>
-                        <FormTextarea bind:value={ticketType.description} placeholder="Sélectionnez cette option si vous rencontrez un problème..." className="w-full h-16" />
+                        <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_desc()}</span>
+                        <FormTextarea bind:value={ticketType.description} placeholder={m.e1_tickets_type_desc_ph()} className="w-full h-16" />
                       </label>
 
                       <!-- Salons & Rôles targets -->
                       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <label class="block">
-                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Mode d'ouverture</span>
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_mode()}</span>
                           <FormSelect bind:value={ticketType.mode} className="w-full">
-                            <option value="">Par défaut (global)</option>
-                            <option value="CHANNEL">Nouveau Salon</option>
-                            <option value="DM">Messages Privés (MP)</option>
-                            <option value="THREAD">Thread (Fil de discussion)</option>
+                            <option value="">{m.e1_tickets_mode_default()}</option>
+                            <option value="CHANNEL">{m.e1_tickets_mode_channel_opt()}</option>
+                            <option value="DM">{m.e1_tickets_mode_dm_opt()}</option>
+                            <option value="THREAD">{m.e1_tickets_mode_thread_opt()}</option>
                           </FormSelect>
                         </label>
                         <label class="block">
-                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Catégorie cible (Salons / Threads)</span>
-                          <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner (hérité par défaut)" className="w-full" />
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_category()}</span>
+                          <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
                         </label>
                         <label class="block">
-                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Rôle Staff spécifique</span>
-                          <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner (hérité par défaut)" className="w-full" />
+                          <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_staff_role()}</span>
+                          <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
                         </label>
                       </div>
 
@@ -1866,15 +1867,15 @@
                           <div class="flex items-center gap-2.5 p-1">
                             <ToggleSwitch checked={ticketType.anonymous} onToggle={(v) => { ticketType.anonymous = v; }} size="sm" />
                             <div>
-                              <span class="text-xs font-semibold text-on-surface">Anonymat du Staff</span>
-                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">Masque l'identité du staff en mode MP</p>
+                              <span class="text-xs font-semibold text-on-surface">{m.e1_tickets_staff_anonymity()}</span>
+                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">{m.e1_tickets_staff_anonymity_desc()}</p>
                             </div>
                           </div>
                           <div class="flex items-center gap-2.5 p-1">
                             <ToggleSwitch checked={ticketType.staffServerRelay} onToggle={(v) => { ticketType.staffServerRelay = v; }} size="sm" />
                             <div>
-                              <span class="text-xs font-semibold text-on-surface">Créer le fil sur le serveur staff</span>
-                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">Pour le mode MP / relais staff externe</p>
+                              <span class="text-xs font-semibold text-on-surface">{m.e1_tickets_thread_on_staff_server()}</span>
+                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">{m.e1_tickets_thread_on_staff_server_desc()}</p>
                             </div>
                           </div>
                         </div>
@@ -1886,14 +1887,14 @@
                           <div class="flex items-center gap-2.5 p-1">
                             <ToggleSwitch checked={ticketType.staffServerChannel} onToggle={(v) => { ticketType.staffServerChannel = v; }} size="sm" />
                             <div>
-                              <span class="text-xs font-semibold text-on-surface">Créer le salon sur le serveur staff</span>
-                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">Ticket interne (RH, plainte...) hébergé sur {staffServerInfo.staffGuildName}</p>
+                              <span class="text-xs font-semibold text-on-surface">{m.e1_tickets_channel_on_staff_server()}</span>
+                              <p class="text-[10px] text-on-surface-variant/50 leading-none mt-0.5">{m.e1_tickets_channel_on_staff_server_desc({ name: staffServerInfo.staffGuildName ?? "" })}</p>
                             </div>
                           </div>
                           {#if ticketType.staffServerChannel}
                             <label class="block">
-                              <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Catégorie sur le serveur staff</span>
-                              <SearchableSelect bind:value={ticketType.staffServerCategoryId} options={staffServerInfo.categories.map((c: any) => ({ id: c.id, name: c.name }))} placeholder="Sélectionner une catégorie" className="w-full" />
+                              <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_staff_server_category()}</span>
+                              <SearchableSelect bind:value={ticketType.staffServerCategoryId} options={staffServerInfo.categories.map((c: any) => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_category_ph()} className="w-full" />
                             </label>
                           {/if}
                         </div>
@@ -1904,15 +1905,15 @@
                         <label class="flex items-center gap-3 cursor-pointer p-1 rounded-xl transition-colors">
                           <input type="checkbox" bind:checked={ticketType.formEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
                           <div>
-                            <span class="text-xs font-bold text-on-surface">Activer le formulaire de questions pour ce type</span>
-                            <p class="text-[10px] text-on-surface-variant/60">Affiche une pop-up de questions lors du clic.</p>
+                            <span class="text-xs font-bold text-on-surface">{m.e1_tickets_enable_form()}</span>
+                            <p class="text-[10px] text-on-surface-variant/60">{m.e1_tickets_enable_form_desc()}</p>
                           </div>
                         </label>
 
                         {#if ticketType.formEnabled}
                           <div class="space-y-4 pt-4 pl-7">
                             <div class="flex items-center justify-between">
-                              <span class="text-xs font-bold text-on-surface-variant/80">Questions personnalisées (Maximum 5)</span>
+                              <span class="text-xs font-bold text-on-surface-variant/80">{m.e1_tickets_custom_questions()}</span>
                               <button
                                 onclick={() => addCustomField(index)}
                                 disabled={(ticketType.formCustomFields || []).length >= 5}
@@ -1924,8 +1925,8 @@
 
                             {#if !(ticketType.formCustomFields || []).length}
                               <div class="p-4 rounded-xl border border-dashed border-outline-variant/20 bg-surface-container/10 text-center">
-                                <p class="text-xs text-on-surface-variant/60">Aucune question configurée pour ce type.</p>
-                                <p class="text-[10px] text-on-surface-variant/40 mt-1">Le modal utilisera par défaut : "Sujet" et "Description".</p>
+                                <p class="text-xs text-on-surface-variant/60">{m.e1_tickets_no_question()}</p>
+                                <p class="text-[10px] text-on-surface-variant/40 mt-1">{m.e1_tickets_no_question_hint()}</p>
                               </div>
                             {:else}
                               <div class="space-y-3">
@@ -1943,40 +1944,40 @@
 
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <label class="block">
-                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">Question / Label</span>
-                                        <FormInput type="text" bind:value={field.label} placeholder="Quel est votre problème ?" className="w-full" />
+                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">{m.e1_tickets_field_question()}</span>
+                                        <FormInput type="text" bind:value={field.label} placeholder={m.e1_tickets_field_question_ph()} className="w-full" />
                                       </label>
                                       <label class="block">
-                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">Indication / Placeholder</span>
-                                        <FormInput type="text" bind:value={field.placeholder} placeholder="Détaillez ici..." className="w-full" />
+                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">{m.e1_tickets_field_hint()}</span>
+                                        <FormInput type="text" bind:value={field.placeholder} placeholder={m.e1_tickets_field_hint_ph()} className="w-full" />
                                       </label>
                                     </div>
 
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                       <label class="block">
-                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">Type de réponse</span>
+                                        <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">{m.e1_tickets_answer_type()}</span>
                                         <FormSelect bind:value={field.style} className="w-full">
-                                          <option value="SHORT">Ligne courte (ex: Nom, Pseudo) [Modal]</option>
-                                          <option value="PARAGRAPH">Paragraphe long (ex: Description) [Modal]</option>
-                                          <option value="SELECT">Menu déroulant (ex: Catégories) [Interactif]</option>
-                                          <option value="RADIO">Boutons radios (ex: Oui/Non) [Interactif]</option>
-                                          <option value="FILE">Fichier joint (ex: Capture d'écran) [Interactif]</option>
+                                          <option value="SHORT">{m.e1_tickets_answer_short()}</option>
+                                          <option value="PARAGRAPH">{m.e1_tickets_answer_paragraph()}</option>
+                                          <option value="SELECT">{m.e1_tickets_answer_select()}</option>
+                                          <option value="RADIO">{m.e1_tickets_answer_radio()}</option>
+                                          <option value="FILE">{m.e1_tickets_answer_file()}</option>
                                         </FormSelect>
                                       </label>
                                       <label class="flex items-center gap-2 cursor-pointer pt-5">
                                         <input type="checkbox" bind:checked={field.required} class="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-outline-variant/30" />
-                                        <span class="text-[9px] font-bold text-on-surface">Champ obligatoire</span>
+                                        <span class="text-[9px] font-bold text-on-surface">{m.e1_tickets_field_required()}</span>
                                       </label>
                                     </div>
 
                                     {#if field.style === 'SELECT' || field.style === 'RADIO'}
                                       <div class="pt-1">
                                         <label class="block">
-                                          <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">Choix / Options (séparés par des virgules)</span>
+                                          <span class="text-[9px] font-bold text-on-surface-variant/70 mb-1 block">{m.e1_tickets_field_choices()}</span>
                                           <FormInput
                                             type="text"
                                             bind:value={field.choicesString}
-                                            placeholder="Choix A, Choix B, Choix C"
+                                            placeholder={m.e1_tickets_field_choices_ph()}
                                             className="w-full"
                                             oninput={() => {
                                               field.choices = field.choicesString ? field.choicesString.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -2007,8 +2008,8 @@
   {:else if activeTab === 'transcripts'}
     <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col min-h-[40vh]">
       <div class="mb-4">
-        <h3 class="text-lg font-semibold text-on-surface">Transcriptions</h3>
-        <p class="text-on-surface-variant text-xs mt-0.5">Historique des transcriptions de tickets et de salons.</p>
+        <h3 class="text-lg font-semibold text-on-surface">{m.e1_tickets_transcripts_title()}</h3>
+        <p class="text-on-surface-variant text-xs mt-0.5">{m.e1_tickets_transcripts_desc()}</p>
       </div>
 
       {#if loading}
@@ -2018,7 +2019,7 @@
       {:else if transcripts.length === 0}
         <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
           <Papicon icon="inbox" size={36} class="opacity-50 mb-2" />
-          <p class="text-xs font-bold">Aucune transcription</p>
+          <p class="text-xs font-bold">{m.e1_tickets_transcripts_empty()}</p>
         </div>
       {:else}
         <!-- Mobile: card layout / Desktop: table -->
@@ -2026,11 +2027,11 @@
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-outline-variant/15 text-xs font-medium text-on-surface-variant/70">
-                <th class="py-3 px-4">Salon</th>
-                <th class="py-3 px-4">Type</th>
-                <th class="py-3 px-4">Période</th>
-                <th class="py-3 px-4">Généré le</th>
-                <th class="py-3 px-4 text-right">Action</th>
+                <th class="py-3 px-4">{m.e1_tickets_th_channel()}</th>
+                <th class="py-3 px-4">{m.e1_tickets_th_type()}</th>
+                <th class="py-3 px-4">{m.e1_tickets_th_period()}</th>
+                <th class="py-3 px-4">{m.e1_tickets_th_generated()}</th>
+                <th class="py-3 px-4 text-right">{m.e1_tickets_th_action()}</th>
               </tr>
             </thead>
             <tbody>
@@ -2041,20 +2042,20 @@
                   </td>
                   <td class="py-3 px-4">
                     {#if t.channelName.startsWith('ticket-') || t.channelName.startsWith('fermer-')}
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">Ticket</span>
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">{m.e1_tickets_badge_ticket()}</span>
                     {:else}
                       <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">/transcript</span>
                     {/if}
                   </td>
                   <td class="py-3 px-4 text-xs text-on-surface-variant">
                     {#if t.startTime && t.endTime}
-                      {new Date(t.startTime).toLocaleDateString('fr-FR')} — {new Date(t.endTime).toLocaleDateString('fr-FR')}
+                      {new Date(t.startTime).toLocaleDateString(dateLocale())} — {new Date(t.endTime).toLocaleDateString(dateLocale())}
                     {:else}
-                      <span class="text-on-surface-variant/40 italic">Toutes</span>
+                      <span class="text-on-surface-variant/40 italic">{m.e1_tickets_period_all()}</span>
                     {/if}
                   </td>
                   <td class="py-3 px-4 text-xs text-on-surface-variant">
-                    {new Date(t.createdAt).toLocaleDateString('fr-FR')}
+                    {new Date(t.createdAt).toLocaleDateString(dateLocale())}
                   </td>
                   <td class="py-3 px-4 text-right">
                     <a href="/transcripts/{t.id}" target="_blank"
@@ -2076,21 +2077,21 @@
               <div class="flex items-center justify-between gap-2 mb-2">
                 <span class="font-mono text-sm font-bold text-on-surface truncate"><span class="text-primary/70">#</span>{t.channelName}</span>
                 {#if t.channelName.startsWith('ticket-') || t.channelName.startsWith('fermer-')}
-                  <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">Ticket</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">{m.e1_tickets_badge_ticket()}</span>
                 {:else}
                   <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">/transcript</span>
                 {/if}
               </div>
               <p class="text-[10px] text-on-surface-variant/60 mb-2">
-                {new Date(t.createdAt).toLocaleDateString('fr-FR')}
+                {new Date(t.createdAt).toLocaleDateString(dateLocale())}
                 {#if t.startTime && t.endTime}
-                  — Du {new Date(t.startTime).toLocaleDateString('fr-FR')} au {new Date(t.endTime).toLocaleDateString('fr-FR')}
+                  — Du {new Date(t.startTime).toLocaleDateString(dateLocale())} au {new Date(t.endTime).toLocaleDateString(dateLocale())}
                 {/if}
               </p>
               <a href="/transcripts/{t.id}" target="_blank"
                 class="px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1"
               >
-                <Papicon icon="external-link" size={11} /> Consulter
+                <Papicon icon="external-link" size={11} /> {m.e1_tickets_view_btn()}
               </a>
             </div>
           {/each}
@@ -2111,7 +2112,7 @@
             <span class="sat-avg-value">{satisfactionData.global.averageRating.toFixed(1)}</span>
             <span class="sat-avg-max">/5</span>
           </div>
-          <p class="sat-avg-label">{satisfactionData.global.totalResponses} réponses</p>
+          <p class="sat-avg-label">{m.e1_tickets_sat_responses({ count: satisfactionData.global.totalResponses })}</p>
 
           <div class="sat-distribution">
             {#each satisfactionData.global.distribution as d}
@@ -2128,9 +2129,9 @@
 
         <!-- Staff Satisfaction Card -->
         <div class="sat-card sat-staff-card">
-          <h3 class="sat-card-title">Satisfaction par Staff</h3>
+          <h3 class="sat-card-title">{m.e1_tickets_sat_by_staff()}</h3>
           {#if satisfactionData.byStaff.length === 0}
-            <p class="sat-empty">Aucune donnee par staff.</p>
+            <p class="sat-empty">{m.e1_tickets_sat_no_staff_data()}</p>
           {:else}
             <div class="sat-staff-list">
               {#each satisfactionData.byStaff as staff}
@@ -2149,7 +2150,7 @@
                   <div class="sat-staff-rating" style="color: {getRatingColor(staff.averageRating)}">
                     {staff.averageRating.toFixed(1)}/5
                   </div>
-                  <span class="sat-staff-count">({staff.totalResponses} avis)</span>
+                  <span class="sat-staff-count">{m.e1_tickets_sat_reviews_count({ count: staff.totalResponses })}</span>
                 </button>
               {/each}
             </div>
@@ -2158,9 +2159,9 @@
 
         <!-- Recent Reviews Card -->
         <div class="sat-card sat-recent-card">
-          <h3 class="sat-card-title">Avis recents</h3>
+          <h3 class="sat-card-title">{m.e1_tickets_sat_recent()}</h3>
           {#if satisfactionData.global.recent.length === 0}
-            <p class="sat-empty">Aucun avis pour le moment.</p>
+            <p class="sat-empty">{m.e1_tickets_sat_no_review()}</p>
           {:else}
             <div class="sat-recent-list">
               {#each satisfactionData.global.recent.slice(0, 15) as review}
@@ -2180,7 +2181,7 @@
                   {#if review.comment}
                     <span class="sat-review-comment">"{review.comment}"</span>
                   {/if}
-                  <span class="sat-review-date">{new Date(review.createdAt).toLocaleDateString('fr-FR')}</span>
+                  <span class="sat-review-date">{new Date(review.createdAt).toLocaleDateString(dateLocale())}</span>
                 </div>
               {/each}
             </div>
@@ -2190,7 +2191,7 @@
     {:else}
       <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
         <Papicon icon="smile" size={36} class="opacity-50 mb-2" />
-        <p class="text-xs font-bold">Aucune donnee de satisfaction</p>
+        <p class="text-xs font-bold">{m.e1_tickets_sat_empty()}</p>
       </div>
     {/if}
   {/if}
@@ -2206,22 +2207,22 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
       <div class="flex items-center gap-4 mb-2 text-rose-500">
         <Papicon icon="x-circle" size={36} />
-        <h3 class="text-2xl font-semibold">Clôturer le Ticket</h3>
+        <h3 class="text-2xl font-semibold">{m.e1_tickets_close_modal_title()}</h3>
       </div>
-      <p class="text-sm text-on-surface-variant/80 mb-6">Cette action fermera le salon de ticket. Vous pourrez y ajouter un motif de fermeture.</p>
+      <p class="text-sm text-on-surface-variant/80 mb-6">{m.e1_tickets_close_modal_desc()}</p>
       
       <div>
-        <label for="close-reason-input" class="field-label">Raison de la fermeture (Optionnel)</label>
-        <textarea id="close-reason-input" bind:value={closeReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder="Raison de la fermeture..."></textarea>
+        <label for="close-reason-input" class="field-label">{m.e1_tickets_close_reason_label()}</label>
+        <textarea id="close-reason-input" bind:value={closeReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder={m.e1_tickets_close_reason_ph()}></textarea>
       </div>
       
       <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-        <button onclick={() => showCloseModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
+        <button onclick={() => showCloseModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">{m.common_cancel()}</button>
         <button 
           onclick={closeTicket} 
           class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm"
         >
-          Confirmer la fermeture
+          {m.e1_tickets_close_confirm()}
         </button>
       </div>
     </div>
@@ -2234,17 +2235,17 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-md shadow-sm p-10 animate-in zoom-in-95 duration-300">
       <div class="flex items-center gap-4 mb-2 text-rose-500">
         <Papicon icon="delete" size={36} />
-        <h3 class="text-2xl font-semibold">Supprimer définitivement ?</h3>
+        <h3 class="text-2xl font-semibold">{m.e1_tickets_delete_modal_title()}</h3>
       </div>
-      <p class="text-sm text-on-surface-variant/80 mb-6">Cette action va supprimer définitivement le salon sur Discord et générer une transcription autonome Kotbo.</p>
+      <p class="text-sm text-on-surface-variant/80 mb-6">{m.e1_tickets_delete_modal_desc()}</p>
       
       <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-        <button onclick={() => showDeleteConfirmModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
+        <button onclick={() => showDeleteConfirmModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">{m.common_cancel()}</button>
         <button 
           onclick={deleteTicket} 
           class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm"
         >
-          Confirmer la suppression
+          {m.e1_tickets_delete_confirm()}
         </button>
       </div>
     </div>
@@ -2260,30 +2261,30 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
       <div class="flex items-center gap-4 mb-2 text-purple-400">
         <Papicon icon="refresh-ccw" size={36} />
-        <h3 class="text-2xl font-semibold">Restaurer le Ticket</h3>
+        <h3 class="text-2xl font-semibold">{m.e1_tickets_restore_modal_title()}</h3>
       </div>
-      <p class="text-sm text-on-surface-variant/80 mb-4">Cette action va :</p>
+      <p class="text-sm text-on-surface-variant/80 mb-4">{m.e1_tickets_restore_modal_intro()}</p>
       <ul class="text-sm text-on-surface-variant/80 mb-6 space-y-2 list-disc ml-5">
-        <li>Créer un <strong>nouveau salon</strong> de ticket sur Discord</li>
-        <li>Rejouer tout l'<strong>historique des messages et embeds</strong> via webhook (noms et avatars d'origine)</li>
-        <li>Réouvrir le ticket avec le statut <strong>Ouvert</strong></li>
+        <li>{m.e1_tickets_restore_step1_pre()}<strong>{m.e1_tickets_restore_step1_strong()}</strong>{m.e1_tickets_restore_step1_post()}</li>
+        <li>{m.e1_tickets_restore_step2_pre()}<strong>{m.e1_tickets_restore_step2_strong()}</strong>{m.e1_tickets_restore_step2_post()}</li>
+        <li>{m.e1_tickets_restore_step3_pre()}<strong>{m.e1_tickets_restore_step3_strong()}</strong></li>
       </ul>
 
       <div class="flex items-start gap-2 p-3 rounded-lg bg-purple-500/5 border border-purple-500/15 mb-4">
         <Papicon icon="info" size={14} class="text-purple-400 mt-0.5 shrink-0" />
         <div class="text-[10px] text-purple-300/80 leading-relaxed">
-          <p class="font-semibold mb-1">Limites de restauration ({remaining}/{maxRestores} restantes)</p>
-          <p>1re — instantanée · 2e — après 24h · 3e — après 7 jours · Ensuite bloqué</p>
+          <p class="font-semibold mb-1">{m.e1_tickets_restore_limits_title({ remaining, max: maxRestores })}</p>
+          <p>{m.e1_tickets_restore_limits_desc()}</p>
         </div>
       </div>
 
       <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15 mb-6">
         <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
-        <p class="text-[10px] text-amber-500/80 leading-relaxed">La restauration peut prendre quelques secondes selon le nombre de messages. Les pièces jointes d'origine ne seront pas restaurées.</p>
+        <p class="text-[10px] text-amber-500/80 leading-relaxed">{m.e1_tickets_restore_warning()}</p>
       </div>
 
       <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-        <button onclick={() => showRestoreModal = false} disabled={restoring} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors disabled:opacity-50">Annuler</button>
+        <button onclick={() => showRestoreModal = false} disabled={restoring} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors disabled:opacity-50">{m.common_cancel()}</button>
         <button
           onclick={restoreTicket}
           disabled={restoring}
@@ -2291,9 +2292,9 @@
         >
           {#if restoring}
             <div class="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
-            Restauration...
+            {m.e1_tickets_restoring()}
           {:else}
-            Confirmer la restauration
+            {m.e1_tickets_restore_confirm()}
           {/if}
         </button>
       </div>
