@@ -13,6 +13,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
+  import { m, dateLocale } from '../lib/i18n';
   import {
     fetchSchedules,
     createSchedule,
@@ -50,13 +51,13 @@
   );
 
   // Predefined frequencies mapping
-  const frequencies = [
-    { key: 'hourly', label: 'Toutes les heures', value: '0 * * * *' },
-    { key: 'daily', label: 'Chaque jour à minuit', value: '0 0 * * *' },
-    { key: 'weekly', label: 'Chaque semaine (dimanche à minuit)', value: '0 0 * * 0' },
-    { key: 'monthly', label: 'Chaque mois (le 1er à minuit)', value: '0 0 1 * *' },
-    { key: 'custom', label: 'Personnalisée (Expression Cron)', value: '' }
-  ];
+  const frequencies = $derived([
+    { key: 'hourly', label: m.schedules_freq_hourly(), value: '0 * * * *' },
+    { key: 'daily', label: m.schedules_freq_daily(), value: '0 0 * * *' },
+    { key: 'weekly', label: m.schedules_freq_weekly(), value: '0 0 * * 0' },
+    { key: 'monthly', label: m.schedules_freq_monthly(), value: '0 0 1 * *' },
+    { key: 'custom', label: m.schedules_freq_custom(), value: '' }
+  ]);
 
   onMount(async () => {
     await loadSchedules();
@@ -113,12 +114,12 @@
 
   async function handleSaveSchedule() {
     if (!formName.trim()) {
-      createAction.setError('Le nom de la planification est requis.');
+      createAction.setError(m.schedules_err_name_required());
       return;
     }
 
     if (formType !== 'SERVER_BACKUP' && !formTargetId) {
-      createAction.setError('Un salon cible est requis pour ce type de tâche.');
+      createAction.setError(m.schedules_err_target_required());
       return;
     }
 
@@ -140,7 +141,7 @@
       await loadSchedules();
       return true;
     }, {
-      successMessage: isEditing ? 'Planification mise à jour avec succès.' : 'Planification créée avec succès.'
+      successMessage: isEditing ? m.schedules_success_updated() : m.schedules_success_created()
     });
   }
 
@@ -153,7 +154,7 @@
       await loadSchedules();
       return true;
     }, {
-      successMessage: 'Planification supprimée avec succès.'
+      successMessage: m.schedules_success_deleted()
     });
   }
 
@@ -163,7 +164,7 @@
       await loadSchedules();
       return true;
     }, {
-      successMessage: enabled ? 'Planification activée.' : 'Planification désactivée.'
+      successMessage: enabled ? m.schedules_success_enabled() : m.schedules_success_disabled()
     });
   }
 
@@ -173,21 +174,21 @@
       await loadSchedules();
       return true;
     }, {
-      successMessage: 'Planification lancée manuellement en arrière-plan.'
+      successMessage: m.schedules_success_run()
     });
   }
 
   function getChannelName(channelId: string | null): string {
-    if (!channelId) return 'Aucun';
+    if (!channelId) return m.schedules_channel_none();
     const found = availableChannels.find((c: any) => c.id === channelId);
     return found ? `#${found.name}` : `#${channelId}`;
   }
 
   function formatType(type: string): string {
     switch (type) {
-      case 'CHANNEL_RESET': return 'Réinitialisation de salon';
-      case 'SERVER_BACKUP': return 'Sauvegarde de serveur';
-      case 'DATA_EXPORT': return 'Exportation de données';
+      case 'CHANNEL_RESET': return m.schedules_type_channel_reset();
+      case 'SERVER_BACKUP': return m.schedules_type_server_backup();
+      case 'DATA_EXPORT': return m.schedules_type_data_export();
       default: return type;
     }
   }
@@ -198,8 +199,8 @@
   }
 
   function formatDate(dateStr: string | null): string {
-    if (!dateStr) return 'Jamais';
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
+    if (!dateStr) return m.schedules_never();
+    return new Date(dateStr).toLocaleDateString(dateLocale(), {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -210,14 +211,14 @@
 </script>
 
 <ModulePage
-  title="Planifications de tâches"
-  description="Configurez et automatisez des actions régulières sur votre serveur Discord."
+  title={m.schedules_title()}
+  description={m.schedules_description()}
   icon="calendar"
   featureKey="settings"
 >
   {#snippet actions()}
     {#if canManageSchedules}
-      <ActionButton onClick={openCreateModal} variant="primary" label="Nouvelle planification" icon="plus" />
+      <ActionButton onClick={openCreateModal} variant="primary" label={m.schedules_btn_new()} icon="plus" />
     {/if}
   {/snippet}
 
@@ -235,11 +236,11 @@
           <Papicon icon="calendar" size={32} />
         </div>
         <div class="space-y-1">
-          <h3 class="text-xl font-semibold">Aucune planification</h3>
-          <p class="text-sm text-on-surface-variant/70 font-medium">Créez votre première planification pour automatiser des tâches récurrentes.</p>
+          <h3 class="text-xl font-semibold">{m.schedules_empty_title()}</h3>
+          <p class="text-sm text-on-surface-variant/70 font-medium">{m.schedules_empty_desc()}</p>
         </div>
         {#if canManageSchedules}
-          <ActionButton onClick={openCreateModal} variant="primary" label="Créer une planification" icon="plus" />
+          <ActionButton onClick={openCreateModal} variant="primary" label={m.schedules_btn_create()} icon="plus" />
         {/if}
       </div>
     {:else}
@@ -266,17 +267,17 @@
             <div class="space-y-2.5 bg-surface-container-high/15 border border-outline-variant/5 p-4 rounded-lg text-xs font-semibold text-on-surface-variant">
               <div class="flex items-center gap-2">
                 <div class="text-primary/70 shrink-0"><Papicon icon="clock" size={16} /></div>
-                <span class="truncate">Fréquence : {formatCron(schedule.cron)}</span>
+                <span class="truncate">{m.schedules_freq_label({ freq: formatCron(schedule.cron) })}</span>
               </div>
               {#if schedule.type !== 'SERVER_BACKUP'}
                 <div class="flex items-center gap-2">
                   <div class="text-primary/70 shrink-0"><Papicon icon="hash" size={16} /></div>
-                  <span class="truncate">Salon cible : {getChannelName(schedule.targetId)}</span>
+                  <span class="truncate">{m.schedules_target_channel_label({ channel: getChannelName(schedule.targetId) })}</span>
                 </div>
               {/if}
               <div class="flex items-center gap-2 border-t border-outline-variant/5 pt-2 mt-1">
                 <div class="text-primary/70 shrink-0"><Papicon icon="history" size={16} /></div>
-                <span class="truncate">Dernier lancement : {formatDate(schedule.lastRun)}</span>
+                <span class="truncate">{m.schedules_last_run_label({ date: formatDate(schedule.lastRun) })}</span>
               </div>
             </div>
           </div>
@@ -288,7 +289,7 @@
                 onClick={() => handleRunNow(schedule)}
                 variant="muted"
                 size="sm"
-                label="Lancer"
+                label={m.schedules_btn_run()}
                 icon="play"
                 disabled={runAction.state.loading || !schedule.enabled}
               />
@@ -296,7 +297,7 @@
                 onClick={() => openEditModal(schedule)}
                 variant="muted"
                 size="sm"
-                label="Modifier"
+                label={m.schedules_btn_edit()}
                 icon="edit-3"
                 disabled={updateAction.state.loading}
               />
@@ -304,7 +305,7 @@
                 onClick={() => { selectedSchedule = schedule; showDeleteModal = true; }}
                 variant="danger"
                 size="sm"
-                label="Supprimer"
+                label={m.schedules_btn_delete()}
                 icon="trash"
                 disabled={deleteAction.state.loading}
               />
@@ -320,41 +321,41 @@
 </ModulePage>
 
 <!-- Modal de création / édition de planification -->
-<Modal bind:open={showCreateModal} title={isEditing ? "Modifier la planification" : "Créer une planification"}>
+<Modal bind:open={showCreateModal} title={isEditing ? m.schedules_modal_edit_title() : m.schedules_modal_create_title()}>
   <div class="space-y-6">
     <!-- Nom -->
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Nom de la tâche</span>
+      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_task_name()}</span>
       <input
         type="text"
         bind:value={formName}
-        placeholder="ex: Réinitialisation Générale Salon Général"
+        placeholder={m.schedules_form_task_name_placeholder()}
         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       />
     </div>
 
     <!-- Type -->
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Type d'action</span>
+      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_action_type()}</span>
       <FormSelect
         bind:value={formType}
         className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       >
-        <option value="CHANNEL_RESET">Réinitialisation de salon (nuke)</option>
-        <option value="SERVER_BACKUP">Sauvegarde complète du serveur</option>
-        <option value="DATA_EXPORT">Exportation des données (Logs & Profils)</option>
+        <option value="CHANNEL_RESET">{m.schedules_form_type_reset_option()}</option>
+        <option value="SERVER_BACKUP">{m.schedules_form_type_backup_option()}</option>
+        <option value="DATA_EXPORT">{m.schedules_form_type_export_option()}</option>
       </FormSelect>
     </div>
 
     <!-- Salon Discord cible -->
     {#if formType !== 'SERVER_BACKUP'}
       <div class="space-y-2">
-        <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon de destination / cible</span>
+        <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_target_channel()}</span>
         <SearchableSelect
           id="schedule-target-channel"
           bind:value={formTargetId}
           options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))}
-          placeholder="Choisir un salon..."
+          placeholder={m.schedules_form_target_channel_placeholder()}
           className="w-full"
         />
       </div>
@@ -362,7 +363,7 @@
 
     <!-- Fréquence -->
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Fréquence d'exécution</span>
+      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_frequency()}</span>
       <FormSelect
         value={formFrequency}
         onchange={(e) => handleFrequencyChange((e.target as HTMLSelectElement).value)}
@@ -377,37 +378,37 @@
     <!-- Expression Cron -->
     {#if formFrequency === 'custom'}
       <div class="space-y-2">
-        <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Expression Cron</span>
+        <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.schedules_form_cron_expr()}</span>
         <input
           type="text"
           bind:value={formCron}
-          placeholder="* * * * * (minute, heure, jour, mois, jour de la semaine)"
+          placeholder={m.schedules_form_cron_placeholder()}
           class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-mono"
         />
-        <p class="text-[10px] text-on-surface-variant/60 ml-2">Standard cron unix format. ex: `0 12 * * *` pour chaque midi.</p>
+        <p class="text-[10px] text-on-surface-variant/60 ml-2">{m.schedules_form_cron_help()}</p>
       </div>
     {/if}
 
     <!-- Footer Actions -->
     <div class="flex justify-end gap-3 pt-2">
-      <ActionButton onClick={() => showCreateModal = false} variant="muted" label="Annuler" />
-      <ActionButton onClick={handleSaveSchedule} variant="primary" label={isEditing ? "Enregistrer" : "Créer"} />
+      <ActionButton onClick={() => showCreateModal = false} variant="muted" label={m.schedules_btn_cancel()} />
+      <ActionButton onClick={handleSaveSchedule} variant="primary" label={isEditing ? m.schedules_btn_save() : m.schedules_btn_create()} />
     </div>
     <InlineFeedback state={createAction} />
   </div>
 </Modal>
 
 <!-- Modal de suppression -->
-<Modal bind:open={showDeleteModal} title="Supprimer la planification">
+<Modal bind:open={showDeleteModal} title={m.schedules_modal_delete_title()}>
   <div class="space-y-4">
-    <p class="text-sm font-medium">Êtes-vous sûr de vouloir supprimer la planification <strong class="text-on-surface">{selectedSchedule?.name}</strong> ?</p>
+    <p class="text-sm font-medium">{m.schedules_confirm_delete({ name: selectedSchedule?.name ?? '' })}</p>
     <p class="text-xs text-error font-bold bg-error/10 border border-error/20 px-4 py-3 rounded-lg flex items-center gap-2">
       <Papicon icon="alert-triangle" size={16} />
-      Cette action est définitive.
+      {m.schedules_confirm_delete_warning()}
     </p>
     <div class="flex justify-end gap-3 pt-2">
-      <ActionButton onClick={() => showDeleteModal = false} variant="muted" label="Annuler" />
-      <ActionButton onClick={handleDeleteSchedule} variant="danger" label="Supprimer" />
+      <ActionButton onClick={() => showDeleteModal = false} variant="muted" label={m.schedules_btn_cancel()} />
+      <ActionButton onClick={handleDeleteSchedule} variant="danger" label={m.schedules_btn_delete()} />
     </div>
     <InlineFeedback state={deleteAction} />
   </div>
