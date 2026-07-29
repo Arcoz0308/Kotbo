@@ -1,6 +1,7 @@
 <script lang="ts">
   import Papicon from './Papicon.svelte';
   import HierarchyNode from './HierarchyNode.svelte';
+  import { m } from '../i18n';
 
   type HierarchySchema = {
     chiefStaff: { userId?: string | null; roleId?: string | null; name?: string | null } | null;
@@ -69,8 +70,8 @@
       <div class="w-20 h-20 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner opacity-50">
         <Papicon icon="schema" size={32} />
       </div>
-      <h3 class="text-xl font-semibold tracking-tight text-on-surface/40">Aucune hiérarchie à afficher</h3>
-      <p class="mt-2 text-xs opacity-50">Créez des hiérarchies et assignez des rôles pour générer l'organigramme.</p>
+      <h3 class="text-xl font-semibold tracking-tight text-on-surface/40">{m.staff_orgchart_empty_title()}</h3>
+      <p class="mt-2 text-xs opacity-50">{m.staff_orgchart_empty_desc()}</p>
     </div>
   {:else}
     <div class="tree-canvas flex flex-col items-center min-w-max">
@@ -83,9 +84,9 @@
             </div>
             <div class="mt-2">
               <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider">
-                Resp Staff Global
+                {m.staff_orgchart_global_chief()}
               </span>
-              <p class="text-lg font-bold text-on-surface mt-2 tracking-tight">{schema.chiefStaff.name || 'Nom Inconnu'}</p>
+              <p class="text-lg font-bold text-on-surface mt-2 tracking-tight">{schema.chiefStaff.name || m.staff_orgchart_unknown_name()}</p>
               {#if schema.chiefStaff.userId}
                 <span class="text-[10px] font-mono text-on-surface-variant/40 bg-surface-container-high/40 px-2 py-0.5 rounded-md mt-1.5 inline-block">
                   ID: {schema.chiefStaff.userId}

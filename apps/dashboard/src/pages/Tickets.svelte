@@ -285,7 +285,7 @@
   function createTicketTypeDraft(index = 0, legacy?: any) {
     return {
       id: legacy?.ticketTypeId || crypto.randomUUID(),
-      label: legacy?.ticketEmbedButtonText || `Ticket ${index + 1}`,
+      label: legacy?.ticketEmbedButtonText || m.e1_tickets_default_ticket_label({ index: index + 1 }),
       description: legacy?.ticketEmbedDesc || '',
       emoji: '📩',
       categoryId: legacy?.ticketCategoryId || ticketCategoryId || '',
@@ -338,7 +338,7 @@
         .filter((item: any) => item && typeof item === 'object')
         .map((item: any, index: number) => ({
           id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : crypto.randomUUID(),
-          label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
+          label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : m.e1_tickets_default_ticket_label({ index: index + 1 }),
           description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : '',
           emoji: typeof item.emoji === 'string' && item.emoji.trim() ? item.emoji.trim().slice(0, 16) : '📩',
           categoryId: typeof item.categoryId === 'string' ? item.categoryId : '',
@@ -381,7 +381,7 @@
     const newId = 'field_' + Math.random().toString(36).substring(2, 10);
     ticketType.formCustomFields = [...ticketType.formCustomFields, {
       id: newId,
-      label: `Question ${ticketType.formCustomFields.length + 1}`,
+      label: m.e1_tickets_default_question_label({ index: ticketType.formCustomFields.length + 1 }),
       placeholder: '',
       style: 'SHORT',
       required: true
@@ -476,9 +476,9 @@
       ticketLogChannelId = config.ticketLogChannelId || '';
       ticketStaffRoleId = config.ticketStaffRoleId || '';
       ticketChannelId = config.ticketChannelId || '';
-      ticketEmbedTitle = config.ticketEmbedTitle || 'Support Technique';
-      ticketEmbedDesc = config.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket de support.';
-      ticketEmbedButtonText = config.ticketEmbedButtonText || 'Ouvrir un ticket';
+      ticketEmbedTitle = config.ticketEmbedTitle || m.e1_tickets_default_embed_title();
+      ticketEmbedDesc = config.ticketEmbedDesc || m.e1_tickets_default_embed_desc();
+      ticketEmbedButtonText = config.ticketEmbedButtonText || m.e1_tickets_default_embed_button_text();
       ticketEmbedColor = config.ticketEmbedColor || '#5865F2';
       ticketEmbedType = config.ticketEmbedType === 'DROPDOWN' ? 'DROPDOWN' : 'BUTTONS';
       ticketMode = config.ticketMode || 'CHANNEL';
@@ -499,7 +499,7 @@
       ticketWelcomeColor = config.ticketWelcomeColor || '#5865F2';
       ticketWelcomeThumbnail = config.ticketWelcomeThumbnail || '';
       ticketWelcomeImage = config.ticketWelcomeImage || '';
-      ticketWelcomeFooter = config.ticketWelcomeFooter || 'Kotbo · Ticket ID: {ticket_id}';
+      ticketWelcomeFooter = config.ticketWelcomeFooter || m.e1_tickets_default_welcome_footer({ ticket_id: '{ticket_id}' });
       savedSettingsConfig = {
         ticketCategoryId,
         ticketLogChannelId,
@@ -1446,7 +1446,7 @@
           class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
         >
           <Papicon icon="send" size={13} />
-          {sendEmbedAction.state.loading ? 'Envoi...' : 'Envoyer Embed'}
+          {sendEmbedAction.state.loading ? m.e1_tickets_sending() : m.e1_tickets_send_embed()}
         </button>
       </div>
 
@@ -1618,12 +1618,12 @@
           <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block col-span-1 md:col-span-2">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Titre (Placeholders : {'{type_label}'})</span>
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_welcome_title_label()}</span>
                 <FormInput type="text" bind:value={ticketWelcomeTitle} placeholder={m.e1_tickets_welcome_title_ph({ type_label: '{type_label}' })} className="w-full" />
               </label>
             </div>
             <label class="block">
-              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description (Placeholders : {'{user}'}, {'{staff_mention}'}, {'{reason}'}, {'{description}'})</span>
+              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_welcome_desc_label()}</span>
               <FormTextarea bind:value={ticketWelcomeDesc} placeholder={m.e1_tickets_welcome_desc_ph({ user: '{user}', staff_mention: '{staff_mention}' })} className="w-full h-32" />
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1685,7 +1685,7 @@
                   <input type="number" bind:value={ticketInactivityHours} min={1} max={168} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
                 </label>
                 <label class="block sm:col-span-2">
-                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Message ({'{user}'} = mention)</span>
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_inactivity_message_label()}</span>
                   <FormTextarea bind:value={ticketInactivityMessage} placeholder={m.e1_tickets_inactivity_ph({ user: '{user}' })} className="w-full h-20" />
                 </label>
               </div>
@@ -1749,14 +1749,14 @@
                           <!-- Staff Role Badge -->
                           {#if ticketType.staffRoleId}
                             {@const role = discordRoles.find(r => r.id === ticketType.staffRoleId)}
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">Staff: @{role?.name || 'Inconnu'}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">Staff: @{role?.name || m.e1_tickets_unknown_role()}</span>
                           {:else}
                             <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">{m.e1_tickets_badge_inherited_staff()}</span>
                           {/if}
 
                           <!-- Form Enabled Badge -->
                           {#if ticketType.formEnabled}
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/15">Avec Formulaire ({(ticketType.formCustomFields || []).length} question{(ticketType.formCustomFields || []).length > 1 ? 's' : ''})</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/15">{m.e1_tickets_badge_form_with_questions({ count: (ticketType.formCustomFields || []).length })}</span>
                           {:else}
                             <span class="px-1.5 py-0.5 rounded text-[8px] font-semibold tracking-wider bg-surface-container-high text-on-surface-variant/40 border border-outline-variant/10">{m.e1_tickets_badge_direct_creation()}</span>
                           {/if}
@@ -1919,7 +1919,7 @@
                                 disabled={(ticketType.formCustomFields || []).length >= 5}
                                 class="px-2 py-1 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 rounded-lg text-[9px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1"
                               >
-                                <Papicon icon="plus" size={11} /> Ajouter une question
+                                <Papicon icon="plus" size={11} /> {m.e1_tickets_add_question()}
                               </button>
                             </div>
 
@@ -1933,7 +1933,7 @@
                                 {#each ticketType.formCustomFields as field, fieldIndex}
                                   <div class="p-3 rounded-lg border border-outline-variant/10 bg-surface-container/10 space-y-3 relative group">
                                     <div class="flex items-center justify-between">
-                                      <span class="text-[10px] font-bold text-primary">Question #{fieldIndex + 1}</span>
+                                      <span class="text-[10px] font-bold text-primary">{m.e1_tickets_question_number({ index: fieldIndex + 1 })}</span>
                                       <button
                                         onclick={() => removeCustomField(index, field.id)}
                                         class="text-rose-500 hover:text-rose-400 p-1 rounded-lg hover:bg-rose-500/10 transition-colors"
