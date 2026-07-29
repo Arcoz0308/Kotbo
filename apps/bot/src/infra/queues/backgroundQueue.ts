@@ -53,6 +53,8 @@ type BackgroundJobPayload = {
 };
 
 const QUEUE_NAME = 'kotbo-background-jobs';
+const DEFAULT_LOCK_DURATION_MS = 120_000;
+const DEFAULT_MAX_STALLED_COUNT = 3;
 
 let queue: Queue<BackgroundJobPayload, void, BackgroundJobName> | null = null;
 let worker: Worker<BackgroundJobPayload, void, BackgroundJobName> | null = null;
@@ -62,6 +64,11 @@ let handlers: Partial<Record<BackgroundJobName, () => Promise<void>>> = {};
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function getProcessor(): Processor<BackgroundJobPayload, void, BackgroundJobName> {
@@ -112,9 +119,28 @@ export async function startBackgroundQueueWorker(): Promise<boolean> {
       getProcessor(),
       {
         connection: workerConnection,
-        concurrency: Number.parseInt(process.env.BULLMQ_CONCURRENCY ?? '10', 10) || 10,
+        concurrency: readPositiveInteger(process.env.BULLMQ_CONCURRENCY, 10),
+        // Certains jobs (notamment le snapshot d'activité lissé sur 9 minutes)
+        // restent actifs longtemps. Un verrou plus généreux évite les faux
+        // "stalled" lors d'une courte pause de l'event loop, tandis que BullMQ
+        // continue de le renouveler automatiquement à mi-durée.
+        lockDuration: readPositiveInteger(
+          process.env.BULLMQ_LOCK_DURATION_MS,
+          DEFAULT_LOCK_DURATION_MS,
+        ),
+        // Un redéploiement interrompt les jobs actifs. Autoriser plusieurs
+        // récupérations empêche qu'un job périodique devienne irrécupérable
+        // après deux redéploiements rapprochés.
+        maxStalledCount: readPositiveInteger(
+          process.env.BULLMQ_MAX_STALLED_COUNT,
+          DEFAULT_MAX_STALLED_COUNT,
+        ),
       },
     );
+
+    worker.on('stalled', (jobId) => {
+      logger.warn('Queue', `Job interrompu puis remis en attente: ${jobId}`);
+    });
 
     worker.on('failed', (job, error) => {
       logger.error('Queue', `Job échoué: ${job?.name ?? 'inconnu'}`, error);
