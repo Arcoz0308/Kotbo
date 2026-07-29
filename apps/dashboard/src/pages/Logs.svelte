@@ -9,6 +9,7 @@
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+  import AuditDiffViewer from '../lib/components/logs/AuditDiffViewer.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import {
     fetchMemberCase,
@@ -580,8 +581,8 @@
     })
   );
 
-  const logsTabs = ['logs', 'config'] as const;
-  let activeTab = $state<'logs' | 'config'>('logs');
+  const logsTabs = ['logs', 'audit', 'config'] as const;
+  let activeTab = $state<'logs' | 'audit' | 'config'>('logs');
 
   $effect(() => {
     const _path = $router.path;
@@ -613,6 +614,13 @@
         >
           {m.lg_tab_journal()}
         </button>
+        <button
+          type="button"
+          onclick={() => gotoTab('/logs', 'audit', 'logs')}
+          class="tab-button {activeTab === 'audit' ? 'active' : ''}"
+        >
+          {m.audit_tab()}
+        </button>
         {#if canManageSettings}
           <button
             type="button"
@@ -633,6 +641,13 @@
       />
     </div>
   {/snippet}
+
+{#if activeTab === 'audit'}
+<!-- Audit structurel : autonome, charge ses propres données -->
+<div class="animate-in fade-in slide-in-from-bottom-4 duration-300">
+  <AuditDiffViewer />
+</div>
+{/if}
 
 {#if activeTab === 'config' && canManageSettings}
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
