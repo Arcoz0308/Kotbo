@@ -12,6 +12,7 @@ COPY tsconfig.json bunfig.toml ./
 COPY packages/database/package.json packages/database/
 COPY packages/core/package.json packages/core/
 COPY packages/contracts/package.json packages/contracts/
+COPY packages/shared/package.json packages/shared/
 COPY apps/bot/package.json apps/bot/
 
 # Install only the bot workspace and shared packages. Frontend-only dependencies
@@ -22,6 +23,7 @@ RUN bun install --frozen-lockfile
 COPY packages/database packages/database
 COPY packages/core packages/core
 COPY packages/contracts packages/contracts
+COPY packages/shared packages/shared
 COPY apps/bot apps/bot
 
 # Generate Prisma client
@@ -42,6 +44,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/packages/database ./packages/database
 COPY --from=builder /app/packages/core ./packages/core
 COPY --from=builder /app/packages/contracts ./packages/contracts
+COPY --from=builder /app/packages/shared ./packages/shared
 COPY --from=builder /app/apps/bot ./apps/bot
 
 ENV NODE_ENV=production
