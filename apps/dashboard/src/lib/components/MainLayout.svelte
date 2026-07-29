@@ -25,6 +25,7 @@
   import { authStore } from '../stores/auth.svelte';
   import { onboardingStore } from '../stores/tutorial.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
+  import { m } from '../i18n';
 
   const { children }: { children?: Snippet } = $props();
 
@@ -127,9 +128,9 @@
       return;
     }
     const confirmed = await confirmDialog.ask({
-      title: 'Modifications non sauvegardées',
-      description: `Vous avez des modifications non sauvegardées sur « ${unsavedChanges.pageLabel} ». Quitter sans enregistrer ?`,
-      confirmLabel: 'Quitter sans enregistrer',
+      title: m.banner_unsaved_title(),
+      description: m.banner_unsaved_desc({ page: unsavedChanges.pageLabel }),
+      confirmLabel: m.banner_unsaved_leave(),
       variant: 'warning',
     });
     if (confirmed) {
@@ -166,18 +167,18 @@
               </div>
 
               <h2 class="text-lg font-semibold text-on-surface mb-1">
-                {pageStatus.wipMessage ? 'Fonctionnalité premium' : 'Fonctionnalité en développement'}
+                {pageStatus.wipMessage ? m.banner_premium_title() : m.banner_wip_title()}
               </h2>
               <p class="text-sm text-on-surface-variant mb-5">
                 {#if pageStatus.wipMessage}
                   {pageStatus.wipMessage}
                 {:else}
-                  La page <strong>{pageStatus.name}</strong> est actuellement en cours de développement et n'est pas encore disponible.
+                  {m.banner_wip_desc({ page: pageStatus.name })}
                 {/if}
               </p>
 
               <a href="/" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-on-primary text-sm font-medium hover:opacity-90 transition-opacity">
-                Retour à l'accueil
+                {m.banner_back_home()}
               </a>
             </div>
           </div>
@@ -192,15 +193,15 @@
             </div>
 
             <p class="flex-1 text-xs text-on-surface-variant">
-              <strong>{pageStatus.name}</strong> est en bêta.
-              <button type="button" onclick={() => feedbackModal.show()} class="text-purple-600 dark:text-purple-400 font-medium hover:underline cursor-pointer ml-1">Signaler un problème</button>
+              <strong>{pageStatus.name}</strong> {m.banner_beta_suffix()}
+              <button type="button" onclick={() => feedbackModal.show()} class="text-purple-600 dark:text-purple-400 font-medium hover:underline cursor-pointer ml-1">{m.banner_report_issue()}</button>
             </p>
 
             <button
               type="button"
               onclick={() => dismissBanner(pageStatus.name)}
               class="shrink-0 p-1 text-on-surface-variant/50 hover:text-on-surface-variant transition-colors rounded"
-              aria-label="Fermer"
+              aria-label={m.common_close()}
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />

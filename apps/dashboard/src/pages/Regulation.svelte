@@ -55,7 +55,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let reordering = $state(false);
   const saveAction = createAsyncActionState();
   let showVerificationWarningModal = $state(false);
-  const guildState = dashboardStore.state as any;
+  const guildState = $derived(dashboardStore.state as any);
 
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
@@ -63,6 +63,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   onMount(async () => {
     loadingConfig = true;
     try {
+      await dashboardStore.refresh();
       const configs = await fetchFeatureConfigurations();
       featureConfig = configs?.features?.find((c: any) => c.featureKey === 'regulation') || null;
     } catch (err) {
@@ -80,9 +81,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     
     const ok = await saveAction.run(async () => {
       const resOk = await updateFeatureConfiguration('regulation', { [key]: value });
-      if (!resOk) throw new Error(m.e9_error_api());
+      if (!resOk) throw new Error(m.common_error());
       return true;
-    }, { successMessage: m.e9_regulation_config_updated() });
+    }, { successMessage: m.regulation_config_updated() });
 
     if (!ok) {
       featureConfig[key] = previousValue;
@@ -102,14 +103,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     (() => {
       const isFallback = !guildState.regulationChannelId;
       const channelId = guildState.regulationChannelId || guildState.configChannelId;
-      if (!channelId) return m.e9_regulation_no_channel();
+      if (!channelId) return m.regulation_no_channel();
       const channel = (guildState.discordChannels || []).find((c: any) => c.id === channelId);
-      const name = channel ? channelDisplayName(channel) : m.e9_regulation_channel_hash({ channelId });
-      return name + (isFallback ? ` ${m.e9_regulation_default_config_suffix()}` : '');
+      const name = channel ? channelDisplayName(channel) : m.regulation_channel_hash({ channelId });
+      return name + (isFallback ? ` ${m.regulation_default_config_suffix()}` : '');
     })()
   );
   const publicationStatusLabel = $derived(
-    guildState.regulationMessageId ? m.e9_regulation_msg_published() : m.e9_regulation_msg_none()
+    guildState.regulationMessageId ? m.regulation_msg_published() : m.regulation_msg_none()
   );
 
   function resetDraft() {
@@ -294,7 +295,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     const emoji = normalizeText(draftEmoji);
 
     if (!title || !description) {
-      feedbackMessage = m.e9_regulation_title_desc_required();
+      feedbackMessage = m.regulation_title_desc_required();
       feedbackIsError = true;
       return;
     }
@@ -315,13 +316,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           : false;
 
       if (!ok) {
-        feedbackMessage = m.e9_regulation_save_failed();
+        feedbackMessage = m.regulation_save_failed();
         feedbackIsError = true;
         return;
       }
 
       modalOpen = false;
-      await refreshState(modalMode === 'create' ? m.e9_regulation_article_added() : m.e9_regulation_article_updated());
+      await refreshState(modalMode === 'create' ? m.regulation_article_added() : m.regulation_article_updated());
     } finally {
       saving = false;
     }
@@ -331,7 +332,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     if (!deletingRule) return;
 
     if (deleteConfirmationText.trim().toUpperCase() !== 'SUPPRIMER') {
-      feedbackMessage = m.e9_regulation_delete_cancelled();
+      feedbackMessage = m.regulation_delete_cancelled();
       feedbackIsError = true;
       return;
     }
@@ -344,12 +345,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     try {
       const ok = await deleteRegulationArticle(rule.id);
       if (!ok) {
-        feedbackMessage = m.e9_regulation_delete_failed();
+        feedbackMessage = m.regulation_delete_failed();
         feedbackIsError = true;
         return;
       }
 
-      await refreshState(m.e9_regulation_article_deleted());
+      await refreshState(m.regulation_article_deleted());
     } finally {
       saving = false;
     }
@@ -360,7 +361,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     feedbackIsError = false;
 
     if (!guildState.regulationChannelId && !guildState.configChannelId) {
-      feedbackMessage = m.e9_regulation_no_publish_channel();
+      feedbackMessage = m.regulation_no_publish_channel();
       feedbackIsError = true;
       return;
     }
@@ -368,9 +369,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     publishing = true;
     try {
       await publishRegulation();
-      await refreshState(guildState.regulationMessageId ? m.e9_regulation_republished() : m.e9_regulation_published());
+      await refreshState(guildState.regulationMessageId ? m.regulation_republished() : m.regulation_published());
     } catch (error) {
-      feedbackMessage = error instanceof Error ? error.message : m.e9_regulation_publish_failed();
+      feedbackMessage = error instanceof Error ? error.message : m.regulation_publish_failed();
       feedbackIsError = true;
     } finally {
       publishing = false;
@@ -388,14 +389,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     try {
       const ok = await saveAction.run(async () => {
         const resOk = await updateRegulationSettings({ regulationChannelId: channelId });
-        if (!resOk) throw new Error(m.e9_error_api());
+        if (!resOk) throw new Error(m.common_error());
 
         if (featureConfig) {
           await updateFeatureConfiguration('regulation', { channelId });
           featureConfig.channelId = channelId;
         }
         return true;
-      }, { successMessage: channelId ? m.e9_regulation_channel_updated() : m.e9_regulation_channel_removed() });
+      }, { successMessage: channelId ? m.regulation_channel_updated() : m.regulation_channel_removed() });
       
       if (!ok) {
         guildState.regulationChannelId = previousChannelId;
@@ -438,9 +439,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     try {
       const ok = await saveAction.run(async () => {
         const resOk = await updateRegulationSettings({ regulationVerificationEnabled: enabled });
-        if (!resOk) throw new Error(m.e9_error_api());
+        if (!resOk) throw new Error(m.common_error());
         return true;
-      }, { successMessage: enabled ? m.e9_regulation_verif_enabled() : m.e9_regulation_verif_disabled() });
+      }, { successMessage: enabled ? m.regulation_verif_enabled_toast() : m.regulation_verif_disabled_toast() });
       
       if (!ok) {
         guildState.regulationVerificationEnabled = previous;
@@ -460,9 +461,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     try {
       const ok = await saveAction.run(async () => {
         const resOk = await updateRegulationSettings({ regulationRoleId: roleId });
-        if (!resOk) throw new Error(m.e9_error_api());
+        if (!resOk) throw new Error(m.common_error());
         return true;
-      }, { successMessage: m.e9_regulation_role_updated() });
+      }, { successMessage: m.regulation_role_updated_toast() });
       
       if (!ok) {
         guildState.regulationRoleId = previous;
@@ -482,9 +483,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     try {
       const ok = await saveAction.run(async () => {
         const resOk = await updateRegulationSettings({ regulationLockEnabled: enabled });
-        if (!resOk) throw new Error(m.e9_error_api());
+        if (!resOk) throw new Error(m.common_error());
         return true;
-      }, { successMessage: enabled ? m.e9_regulation_lock_enabled() : m.e9_regulation_lock_disabled() });
+      }, { successMessage: enabled ? m.regulation_lock_enabled_toast() : m.regulation_lock_disabled_toast() });
 
       if (!ok) {
         guildState.regulationLockEnabled = previous;
@@ -684,6 +685,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
       </div>
       <ActionButton
+        onclick={openCreateModal}
         onClick={openCreateModal}
         disabled={!canManageSettings || reordering}
         variant="primary"
@@ -714,7 +716,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <h4 class="text-xl font-semibold text-on-surface">{m.regulation_no_articles_title()}</h4>
             <p class="text-on-surface-variant/60 max-w-sm">{m.regulation_no_articles_desc()}</p>
           </div>
-          <ActionButton onClick={openCreateModal} disabled={!canManageSettings} variant="primary" icon="Plus" label={m.regulation_create_first_btn()} className="px-8 py-3 rounded-xl" />
+          <ActionButton onclick={openCreateModal} onClick={openCreateModal} disabled={!canManageSettings} variant="primary" icon="Plus" label={m.regulation_create_first_btn()} className="px-8 py-3 rounded-xl" />
         </div>
       {:else}
         {#each regulationRules as rule}
