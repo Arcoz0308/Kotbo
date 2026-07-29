@@ -42,14 +42,7 @@
   };
 
   const accent = $derived(CATEGORY_ACCENT[def?.category ?? 'action'] ?? '#64748b');
-
-  /** Hauteur d'une rangée de ports, alignée sur l'espacement du gabarit. */
-  const ROW = 22;
-  const HEADER = 44;
-
-  function portTop(index: number, offset: number): number {
-    return HEADER + offset + index * ROW;
-  }
+  const maxDataRows = $derived(Math.max(dataInputs.length, dataOutputs.length));
 
   function label(port: PortDef): string {
     return port.label || (port.type === 'Exec' ? '' : port.id);
@@ -57,69 +50,89 @@
 </script>
 
 <div
-  class="rounded-xl border-2 bg-surface-container shadow-lg min-w-52 transition-all
-    {selected ? 'border-primary' : data.hasError ? 'border-red-500/70' : 'border-outline-variant/20'}
+  class="rounded-xl border-2 bg-surface-container-high shadow-2xl min-w-56 overflow-visible transition-all relative
+    {selected ? 'border-primary ring-2 ring-primary/30' : data.hasError ? 'border-red-500' : 'border-outline-variant/30'}
     {data.replayStatus === 'ERROR' ? 'ring-2 ring-red-500' : ''}
     {data.replayOrder != null ? 'ring-2 ring-amber-400' : ''}"
   style="--accent: {accent}"
 >
   <!-- En-tête -->
-  <div class="px-3 py-2 rounded-t-lg flex items-center gap-2" style="background: {accent}22">
-    <span class="w-2 h-2 rounded-full shrink-0" style="background: {accent}"></span>
-    <span class="text-xs font-bold text-on-surface truncate">{def?.label ?? data.nodeType}</span>
+  <div class="px-3.5 py-2.5 rounded-t-[10px] flex items-center gap-2 border-b border-outline-variant/15" style="background: {accent}2b">
+    <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background: {accent}"></span>
+    <span class="text-xs font-bold text-white tracking-wide truncate">{def?.label ?? data.nodeType}</span>
     {#if data.replayOrder != null}
-      <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-black">
+      <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-black shadow-sm">
         {data.replayOrder + 1}
       </span>
     {/if}
   </div>
 
-  <!-- Corps : les ports sont positionnés en absolu par rapport à ce bloc -->
-  <div class="relative px-3 py-2 text-[11px] text-on-surface-variant/80" style="min-height: {
-    Math.max(execInputs.length, execOutputs.length) * ROW
-    + Math.max(dataInputs.length, dataOutputs.length) * ROW + 8
-  }px">
-    <!-- Ports d'exécution -->
-    {#each execInputs as port, i}
-      <Handle
-        type="target"
-        position={Position.Left}
-        id={port.id}
-        style="top: {portTop(i, 0)}px; background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px;"
-      />
-    {/each}
-    {#each execOutputs as port, i}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id={port.id}
-        style="top: {portTop(i, 0)}px; background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px;"
-      />
-      <div class="absolute right-3 text-right font-semibold text-on-surface/70" style="top: {portTop(i, 0) - HEADER}px">
-        {label(port)}
-      </div>
-    {/each}
+  <!-- Corps des ports -->
+  <div class="p-3 space-y-2 text-xs text-slate-200">
+    <!-- Ports d'exécution (Exec) -->
+    {#if execInputs.length > 0 || execOutputs.length > 0}
+      <div class="space-y-1.5 pb-2 border-b border-outline-variant/15">
+        {#each execInputs as port}
+          <div class="relative flex items-center h-6">
+            <Handle
+              type="target"
+              position={Position.Left}
+              id={port.id}
+              style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.5);"
+            />
+            <span class="font-bold text-white/90">{label(port)}</span>
+          </div>
+        {/each}
 
-    <!-- Ports de données -->
-    {#each dataInputs as port, i}
-      {@const top = portTop(i, execInputs.length * ROW)}
-      <Handle
-        type="target"
-        position={Position.Left}
-        id={port.id}
-        style="top: {top}px; background: {PORT_COLORS[port.type]}; width: 9px; height: 9px;"
-      />
-      <div class="absolute left-3" style="top: {top - HEADER}px">{label(port)}</div>
-    {/each}
-    {#each dataOutputs as port, i}
-      {@const top = portTop(i, execOutputs.length * ROW)}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id={port.id}
-        style="top: {top}px; background: {PORT_COLORS[port.type]}; width: 9px; height: 9px;"
-      />
-      <div class="absolute right-3 text-right" style="top: {top - HEADER}px">{label(port)}</div>
-    {/each}
+        {#each execOutputs as port}
+          <div class="relative flex items-center justify-end h-6">
+            <span class="font-bold text-white/90 text-right">{label(port)}</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id={port.id}
+              style="right: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.5);"
+            />
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Ports de données (Inputs à gauche, Outputs à droite) -->
+    {#if maxDataRows > 0}
+      <div class="space-y-1.5">
+        {#each Array(maxDataRows) as _, i}
+          {@const inputPort = dataInputs[i]}
+          {@const outputPort = dataOutputs[i]}
+          <div class="flex items-center justify-between h-6 gap-4">
+            <!-- Port d'entrée (Gauche) -->
+            <div class="relative flex items-center min-w-0 h-6">
+              {#if inputPort}
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={inputPort.id}
+                  style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[inputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5);"
+                />
+                <span class="truncate font-medium text-slate-200">{label(inputPort)}</span>
+              {/if}
+            </div>
+
+            <!-- Port de sortie (Droite) -->
+            <div class="relative flex items-center justify-end min-w-0 ml-auto h-6">
+              {#if outputPort}
+                <span class="truncate text-right font-medium text-slate-200">{label(outputPort)}</span>
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id={outputPort.id}
+                  style="right: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[outputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.5);"
+                />
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 </div>

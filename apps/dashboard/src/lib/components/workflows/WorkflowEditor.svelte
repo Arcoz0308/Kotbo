@@ -44,7 +44,23 @@
   let nodes = $state.raw<Node[]>([]);
   let edges = $state.raw<Edge[]>([]);
   let selectedId = $state<string | null>(null);
+  let selectedEdgeId = $state<string | null>(null);
   let issues = $state<ValidationIssue[]>([]);
+
+  const selectedEdge = $derived(edges.find((e) => e.id === selectedEdgeId));
+  const selectedEdgeSourceNode = $derived(
+    selectedEdge ? nodes.find((n) => n.id === selectedEdge.source) : undefined,
+  );
+  const selectedEdgeTargetNode = $derived(
+    selectedEdge ? nodes.find((n) => n.id === selectedEdge.target) : undefined,
+  );
+
+  function deleteSelectedEdge(): void {
+    if (!selectedEdgeId) return;
+    edges = edges.filter((e) => e.id !== selectedEdgeId);
+    selectedEdgeId = null;
+    revalidate();
+  }
 
   const nodeTypes = { kotbo: WorkflowNodeCard };
 
@@ -121,13 +137,13 @@
     lastLoadedGraph = source;
 
     untrack(() => {
-      nodes = source.nodes.map((n: WorkflowNode) => ({
+      nodes = source.nodes.map((n: any) => ({
         id: n.id,
         type: 'kotbo',
         position: n.position,
         data: { nodeType: n.type, config: n.config ?? {}, graph: source },
       }));
-      edges = source.edges.map((e: WorkflowEdge) => ({
+      edges = source.edges.map((e: any) => ({
         id: e.id,
         source: e.source,
         sourceHandle: e.sourceHandle,
@@ -150,7 +166,7 @@
   });
 
   function isExecEdge(current: WorkflowGraph, sourceId: string, handle: string): boolean {
-    const source = current.nodes.find((n: WorkflowNode) => n.id === sourceId);
+    const source = current.nodes.find((n: any) => n.id === sourceId);
     if (!source) return false;
     const port = resolveNodeOutputs(source, current).find((p: { id: string }) => p.id === handle);
     return port?.type === 'Exec';
@@ -194,8 +210,8 @@
    */
   function isValidConnection(connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null }): boolean {
     const current = toGraph();
-    const source = current.nodes.find((n: WorkflowNode) => n.id === connection.source);
-    const target = current.nodes.find((n: WorkflowNode) => n.id === connection.target);
+    const source = current.nodes.find((n: any) => n.id === connection.source);
+    const target = current.nodes.find((n: any) => n.id === connection.target);
     if (!source || !target) return false;
 
     const from = resolveNodeOutputs(source, current).find((p: { id: string }) => p.id === connection.sourceHandle);
@@ -252,7 +268,7 @@
       <div class="mb-3">
         <h4 class="text-[10px] font-bold text-on-surface-variant/50 mb-1">{CATEGORY_LABELS[category]()}</h4>
         <div class="space-y-1">
-          {#each NODE_CATALOG.filter((d) => d.category === category) as def}
+          {#each NODE_CATALOG.filter((d: any) => d.category === category) as def}
             <button
               onclick={() => addNode(def.type)}
               title={def.description}
@@ -272,20 +288,42 @@
       {nodeTypes}
       {isValidConnection}
       fitView
+      deleteKeyCode={['Delete', 'Backspace']}
+      proOptions={{ hideAttribution: true }}
       onconnect={revalidate}
       ondelete={revalidate}
       onnodedragstop={revalidate}
-      onnodeclick={({ node }) => (selectedId = node.id)}
-      onpaneclick={() => (selectedId = null)}
+      onnodeclick={({ node }: { node: any }) => { selectedId = node.id; selectedEdgeId = null; }}
+      onedgeclick={({ edge }: { edge: any }) => { selectedEdgeId = edge.id; selectedId = null; }}
+      onpaneclick={() => { selectedId = null; selectedEdgeId = null; }}
     >
-      <Background />
+      <Background variant="dots" gap={18} size={1.2} color="rgba(255, 255, 255, 0.12)" />
       <Controls />
     </SvelteFlow>
   </div>
 
   <!-- Panneau latéral : configuration et problèmes -->
   <aside class="w-64 shrink-0 overflow-y-auto rounded-2xl bg-surface-container-high/50 border border-outline-variant/10 p-3 space-y-4">
-    {#if selectedNode && selectedDef}
+    {#if selectedEdge}
+      <div class="p-3 rounded-xl bg-surface-container-highest/60 border border-outline-variant/20 space-y-2">
+        <div class="flex items-center justify-between">
+          <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">Liaison sélectionnée</h3>
+          <button
+            onclick={deleteSelectedEdge}
+            class="px-2 py-1 rounded-lg text-xs font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors flex items-center gap-1"
+            title="Supprimer la liaison"
+          >
+            <Papicon icon="Trash" size={12} />
+            <span>Supprimer</span>
+          </button>
+        </div>
+        <p class="text-[11px] text-on-surface-variant/80">
+          Relie <span class="font-semibold text-on-surface">{getNodeDef((selectedEdgeSourceNode?.data as any)?.nodeType)?.label ?? selectedEdge?.source}</span>
+          à <span class="font-semibold text-on-surface">{getNodeDef((selectedEdgeTargetNode?.data as any)?.nodeType)?.label ?? selectedEdge?.target}</span>
+        </p>
+        <p class="text-[10px] text-on-surface-variant/50">Astuce : vous pouvez aussi appuyer sur Suppr ou Retour arrière pour la supprimer.</p>
+      </div>
+    {:else if selectedNode && selectedDef}
       <div>
         <div class="flex items-center justify-between mb-2">
           <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">{m.wf_node_config()}</h3>
@@ -411,3 +449,53 @@
     </div>
   </aside>
 </div>
+
+<style>
+  :global(.svelte-flow__attribution) {
+    display: none !important;
+  }
+
+  :global(.svelte-flow__controls) {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+    border-radius: 0.75rem !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    background: #181b22 !important;
+  }
+
+  :global(.svelte-flow__controls-button) {
+    background: #181b22 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    color: #f1f5f9 !important;
+    fill: #f1f5f9 !important;
+    width: 28px !important;
+    height: 28px !important;
+    transition: background-color 0.15s ease, color 0.15s ease !important;
+  }
+
+  :global(.svelte-flow__controls-button:hover) {
+    background: rgba(255, 255, 255, 0.12) !important;
+    color: #ffffff !important;
+  }
+
+  :global(.svelte-flow__controls-button svg) {
+    fill: currentColor !important;
+    stroke: currentColor !important;
+  }
+
+  :global(.svelte-flow__edge-path) {
+    stroke-width: 2.5px !important;
+    transition: stroke 0.15s ease, stroke-width 0.15s ease !important;
+  }
+
+  :global(.svelte-flow__edge:hover .svelte-flow__edge-path) {
+    stroke: #38bdf8 !important;
+    stroke-width: 3.5px !important;
+    cursor: pointer !important;
+  }
+
+  :global(.svelte-flow__edge.selected .svelte-flow__edge-path) {
+    stroke: #ef4444 !important;
+    stroke-width: 3.5px !important;
+  }
+</style>

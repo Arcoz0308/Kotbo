@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "migrate:deploy": "cd ../.. && bun run db:migrate:deploy",
-    "build:i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
+    "build:i18n": "bunx @inlang/paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
     "prestart": "bun run build:i18n && bun run migrate:deploy && bun run quality:gate",
     "build": "bun run build:i18n && bun run typecheck",
     "dev": "bun run build:i18n && bun run --watch src/launcher.ts",
