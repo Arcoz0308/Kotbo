@@ -7,7 +7,7 @@ import {
   json,
   readJsonBody,
   getGuildName,
-  
+  resolveFeatureAccessMap,
   pushAudit,
   
   
@@ -56,13 +56,39 @@ export async function handleMeetingRoutes(
   client: Client,
   user: AuthClaims,
   guildId: string,
-  _access: DashboardAccess
+  access: DashboardAccess
 ): Promise<boolean> {
   const method = req.method;
   const auditUser = user.username ?? `User${user.userId}`;
 
     // 3. Meetings routes
     if (parts[4] === 'meetings') {
+      if (method !== 'GET' && !access.canManageSettings) {
+        const guild = client.guilds.cache.get(guildId)
+          ?? await client.guilds.fetch(guildId).catch(() => null);
+        const member = guild
+          ? await guild.members.fetch(user.userId).catch(() => null)
+          : null;
+        const roleIds = member ? member.roles.cache.map((role) => role.id) : [];
+        const featureAccess = await resolveFeatureAccessMap(
+          client,
+          guildId,
+          access,
+          user.userId,
+          roleIds,
+        );
+        const meetingAccess = featureAccess.meetings;
+        const isDelete = method === 'DELETE';
+        const isAllowed = isDelete
+          ? meetingAccess?.canDelete
+          : meetingAccess?.canConfigure;
+
+        if (!isAllowed) {
+          json(res, 403, { error: 'Action de gestion des réunions non autorisée.' });
+          return true;
+        }
+      }
+
       // GET /api/dashboard/guilds/:guildId/meetings
       if (parts.length === 5 && method === 'GET') {
         try {

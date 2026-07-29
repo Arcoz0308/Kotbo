@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   MessageFlags,
+  type AutocompleteInteraction,
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { errorContainer, kotboContainer } from '../../utils/embeds.js';
@@ -12,6 +13,8 @@ import {
   cancelListing,
   getActiveListings,
   getMyListings,
+  getMarketplaceListingChoices,
+  getMarketplaceSellableItems,
 } from '../../services/economy/marketplaceService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { separator, v2Message } from '@arcscord/components';
@@ -24,7 +27,7 @@ const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub.setName('sell')
       .setDescription('Mettre un objet en vente')
-      .addStringOption((opt) => opt.setName('objet').setDescription('ID de l\'objet').setRequired(true))
+      .addStringOption((opt) => opt.setName('objet').setDescription('Objet à mettre en vente').setRequired(true).setAutocomplete(true))
       .addIntegerOption((opt) => opt.setName('prix').setDescription('Prix en coins').setRequired(true).setMinValue(1))
       .addIntegerOption((opt) => opt.setName('quantité').setDescription('Quantité').setMinValue(1))
       .addStringOption((opt) => opt.setName('type').setDescription('Type de vente').addChoices(
@@ -35,22 +38,72 @@ const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub.setName('buy')
       .setDescription('Acheter un objet au prix fixe')
-      .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true)))
+      .addStringOption((opt) => opt.setName('annonce').setDescription('Annonce à acheter').setRequired(true).setAutocomplete(true)))
   .addSubcommand((sub) =>
     sub.setName('bid')
       .setDescription('Enchérir sur un objet')
-      .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true))
+      .addStringOption((opt) => opt.setName('annonce').setDescription('Annonce sur laquelle enchérir').setRequired(true).setAutocomplete(true))
       .addIntegerOption((opt) => opt.setName('montant').setDescription('Montant de l\'enchère').setRequired(true).setMinValue(1)))
   .addSubcommand((sub) =>
     sub.setName('cancel')
       .setDescription('Annuler une annonce')
-      .addStringOption((opt) => opt.setName('annonce').setDescription('ID de l\'annonce').setRequired(true)))
+      .addStringOption((opt) => opt.setName('annonce').setDescription('Annonce à annuler').setRequired(true).setAutocomplete(true)))
   .addSubcommand((sub) =>
     sub.setName('list')
       .setDescription('Voir les annonces actives'))
   .addSubcommand((sub) =>
     sub.setName('my')
       .setDescription('Voir mes annonces'));
+
+async function autocomplete(interaction: AutocompleteInteraction) {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.respond([]);
+    return;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  const focusedValue = interaction.options.getFocused().toLowerCase();
+  const userId = interaction.user.id;
+
+  try {
+    if (subcommand === 'sell') {
+      const inventory = await getMarketplaceSellableItems(guildId, userId);
+      const choices = inventory
+        .filter((entry) => {
+          const search = `${entry.item.name} ${entry.item.id}`.toLowerCase();
+          return search.includes(focusedValue);
+        })
+        .slice(0, 25)
+        .map((entry) => ({
+          name: `${entry.item.emoji} ${entry.item.name} · x${entry.quantity}`.slice(0, 100),
+          value: entry.item.id,
+        }));
+      await interaction.respond(choices);
+      return;
+    }
+
+    if (subcommand === 'buy' || subcommand === 'bid' || subcommand === 'cancel') {
+      const listings = await getMarketplaceListingChoices(guildId, userId, subcommand);
+      const choices = listings
+        .filter((listing) => {
+          const search = `${listing.item?.name ?? ''} ${listing.itemId} ${listing.id}`.toLowerCase();
+          return search.includes(focusedValue);
+        })
+        .slice(0, 25)
+        .map((listing) => ({
+          name: `${listing.item?.emoji ?? '📦'} ${listing.item?.name ?? listing.itemId} · x${listing.quantity} · ${listing.currentBid ?? listing.price} coins`.slice(0, 100),
+          value: listing.id,
+        }));
+      await interaction.respond(choices);
+      return;
+    }
+
+    await interaction.respond([]);
+  } catch {
+    await interaction.respond([]);
+  }
+}
 
 async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
@@ -80,7 +133,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         color: 'success',
         title: m.b3_market_sell_success_title({ success: E.success }, { locale }),
         fields: [
-          m.b3_market_sell_success_body({ itemId, quantity, dot: E.dot, mode: type === 'FIXED_PRICE' ? m.b3_market_mode_fixed({}, { locale }) : m.b3_market_mode_auction({}, { locale }), price, coins: E.coins, duration, id: result.listing.id.slice(-6) }, { locale }),
+          m.b3_market_sell_success_body({ itemId, quantity, dot: E.dot, mode: type === 'FIXED_PRICE' ? m.b3_market_mode_fixed({}, { locale }) : m.b3_market_mode_auction({}, { locale }), price, coins: E.coins, duration, id: result.listing.id }, { locale }),
         ],
         footerTitle: m.b3_market_footer({}, { locale }),
       }),
@@ -183,8 +236,8 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const lines = listings.map((l: any) => {
       const typeLabel = l.type === 'AUCTION' ? '🔨 [Enchère]' : '💰';
-      const endsAt = new Date(l.endsAt).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      return `${typeLabel} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — Vendeur: <@${l.sellerId}> — **${l.price}** ${E.coins} (fin le ${endsAt})`;
+      const endsAt = new Date(l.expiresAt).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      return `${typeLabel} \`${l.id}\` **${l.item?.emoji ?? '📦'} ${l.item?.name ?? l.itemId}** x${l.quantity} — Vendeur: <@${l.sellerId}> — **${l.price}** ${E.coins} (fin le ${endsAt})`;
     });
 
     await interaction.editReply(v2Message(
@@ -225,7 +278,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const lines = listings.map((l: any) => {
       const icon = statusIcons[l.status] ?? E.dot;
-      return `${icon} \`${l.id.slice(-6)}\` **${l.itemId}** x${l.quantity} — ${l.price} ${E.coins}`;
+      return `${icon} \`${l.id}\` **${l.item?.emoji ?? '📦'} ${l.item?.name ?? l.itemId}** x${l.quantity} — ${l.price} ${E.coins}`;
     });
 
     await interaction.editReply(v2Message(
@@ -242,4 +295,4 @@ async function execute(interaction: ChatInputCommandInteraction) {
   }
 }
 
-export const marketCommand = { data, execute } satisfies SlashCommandDefinition;
+export const marketCommand = { data, execute, autocomplete } satisfies SlashCommandDefinition;

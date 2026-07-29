@@ -209,8 +209,28 @@ export async function handleLeadershipRoutes(
     // GET /api/dashboard/users/:userId/staff-stats
     if (parts[usersIdx + 2] === 'staff-stats') {
       try {
-        const staffMember = await prisma.staffMember.findFirst({
-          where: { userId },
+        const guildId = url.searchParams.get('guildId');
+        if (!guildId) {
+          json(res, 400, { error: 'guildId manquant' });
+          return true;
+        }
+
+        const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+        if (!accessLevel.canViewDashboard) {
+          json(res, 403, { error: 'Accès refusé' });
+          return true;
+        }
+
+        const isOwnProfile = userId === user.userId;
+        const canSeeSensitive = accessLevel.canManageSettings
+          || ['admin', 'moderator'].includes(accessLevel.level);
+        if (!isOwnProfile && !canSeeSensitive) {
+          json(res, 403, { error: 'Accès refusé à ces statistiques staff' });
+          return true;
+        }
+
+        const staffMember = await prisma.staffMember.findUnique({
+          where: { guildId_userId: { guildId, userId } },
           include: {
             warnings: { where: { isActive: true } },
             activities: { orderBy: { activityDate: 'desc' }, take: 30 },

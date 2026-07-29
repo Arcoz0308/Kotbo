@@ -48,7 +48,7 @@ model MarketplaceTransaction {
   id String @id @default(cuid())
 
   guildId   String
-  listingId String
+  listingId String @unique
   sellerId  String
   buyerId   String
   itemId    String

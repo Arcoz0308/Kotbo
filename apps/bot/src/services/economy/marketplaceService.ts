@@ -1,6 +1,63 @@
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
+class MarketplacePurchaseError extends Error {}
+
+async function attachItemsToListings<T extends { itemId: string }>(listings: T[]) {
+  const itemIds = [...new Set(listings.map((listing) => listing.itemId))];
+  const items = itemIds.length > 0
+    ? await prismaRead.rpgItem.findMany({
+        where: { id: { in: itemIds } },
+        select: { id: true, name: true, emoji: true },
+      })
+    : [];
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+
+  return listings.map((listing) => ({
+    ...listing,
+    item: itemsById.get(listing.itemId) ?? null,
+  }));
+}
+
+export async function getMarketplaceSellableItems(guildId: string, userId: string) {
+  const profile = await prismaRead.rpgProfile.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    select: { id: true },
+  });
+  if (!profile) return [];
+
+  return prismaRead.rpgInventoryItem.findMany({
+    where: { rpgProfileId: profile.id, quantity: { gt: 0 } },
+    include: {
+      item: {
+        select: { id: true, name: true, emoji: true },
+      },
+    },
+    orderBy: { itemId: 'asc' },
+  });
+}
+
+export async function getMarketplaceListingChoices(
+  guildId: string,
+  userId: string,
+  action: 'buy' | 'bid' | 'cancel',
+) {
+  const listings = await prismaRead.marketplaceListing.findMany({
+    where: {
+      guildId,
+      status: 'ACTIVE',
+      expiresAt: { gt: new Date() },
+      ...(action === 'cancel' ? { sellerId: userId } : { sellerId: { not: userId } }),
+      ...(action === 'buy' ? { type: 'FIXED_PRICE' } : {}),
+      ...(action === 'bid' ? { type: 'AUCTION' } : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+
+  return attachItemsToListings(listings);
+}
+
 export async function createListing(guildId: string, sellerId: string, data: {
   itemId: string;
   quantity: number;
@@ -53,61 +110,76 @@ export async function buyListing(
   /** Details de l'annonce achetee, utilises pour le message de confirmation. */
   listing?: { itemId: string; quantity: number; price: number; sellerId: string };
 }> {
-  const listing = await prismaRead.marketplaceListing.findFirst({
-    where: { id: listingId, guildId, status: 'ACTIVE', type: 'FIXED_PRICE' },
-  });
+  try {
+    const purchased = await prisma.$transaction(async (tx) => {
+      const listing = await tx.marketplaceListing.findFirst({
+        where: { id: listingId, guildId, status: 'ACTIVE', type: 'FIXED_PRICE' },
+      });
 
-  if (!listing) return { success: false, error: 'Annonce introuvable ou déjà vendue.' };
-  if (listing.sellerId === buyerId) return { success: false, error: 'Vous ne pouvez pas acheter votre propre annonce.' };
-  if (listing.expiresAt < new Date()) return { success: false, error: 'Cette annonce a expiré.' };
+      if (!listing) throw new MarketplacePurchaseError('Annonce introuvable ou déjà vendue.');
+      if (listing.sellerId === buyerId) {
+        throw new MarketplacePurchaseError('Vous ne pouvez pas acheter votre propre annonce.');
+      }
+      if (listing.expiresAt < new Date()) {
+        throw new MarketplacePurchaseError('Cette annonce a expiré.');
+      }
 
-  const buyerProfile = await prismaRead.rpgProfile.findUnique({
-    where: { guildId_userId: { guildId, userId: buyerId } },
-  });
-  if (!buyerProfile || buyerProfile.balance < listing.price) {
-    return { success: false, error: 'Fonds insuffisants.' };
-  }
+      const buyerProfile = await tx.rpgProfile.findUnique({
+        where: { guildId_userId: { guildId, userId: buyerId } },
+        select: { id: true },
+      });
+      if (!buyerProfile) throw new MarketplacePurchaseError('Fonds insuffisants.');
 
-  await prisma.$transaction([
-    prisma.rpgProfile.update({
-      where: { guildId_userId: { guildId, userId: buyerId } },
-      data: { balance: { decrement: listing.price } },
-    }),
-    prisma.rpgProfile.update({
-      where: { guildId_userId: { guildId, userId: listing.sellerId } },
-      data: { balance: { increment: listing.price } },
-    }),
-    prisma.rpgInventoryItem.upsert({
-      where: { rpgProfileId_itemId: { rpgProfileId: buyerProfile.id, itemId: listing.itemId } },
-      create: { rpgProfileId: buyerProfile.id, itemId: listing.itemId, quantity: listing.quantity },
-      update: { quantity: { increment: listing.quantity } },
-    }),
-    prisma.marketplaceListing.update({
-      where: { id: listingId },
-      data: { status: 'SOLD' },
-    }),
-    prisma.marketplaceTransaction.create({
-      data: {
-        guildId,
-        listingId,
-        sellerId: listing.sellerId,
-        buyerId,
+      const claimed = await tx.marketplaceListing.updateMany({
+        where: { id: listingId, guildId, status: 'ACTIVE', type: 'FIXED_PRICE' },
+        data: { status: 'SOLD' },
+      });
+      if (claimed.count === 0) {
+        throw new MarketplacePurchaseError('Annonce introuvable ou déjà vendue.');
+      }
+
+      const debited = await tx.rpgProfile.updateMany({
+        where: { id: buyerProfile.id, balance: { gte: listing.price } },
+        data: { balance: { decrement: listing.price } },
+      });
+      if (debited.count === 0) throw new MarketplacePurchaseError('Fonds insuffisants.');
+
+      await tx.rpgProfile.update({
+        where: { guildId_userId: { guildId, userId: listing.sellerId } },
+        data: { balance: { increment: listing.price } },
+      });
+      await tx.rpgInventoryItem.upsert({
+        where: { rpgProfileId_itemId: { rpgProfileId: buyerProfile.id, itemId: listing.itemId } },
+        create: { rpgProfileId: buyerProfile.id, itemId: listing.itemId, quantity: listing.quantity },
+        update: { quantity: { increment: listing.quantity } },
+      });
+      await tx.marketplaceTransaction.create({
+        data: {
+          guildId,
+          listingId,
+          sellerId: listing.sellerId,
+          buyerId,
+          itemId: listing.itemId,
+          quantity: listing.quantity,
+          price: listing.price,
+        },
+      });
+
+      return {
         itemId: listing.itemId,
         quantity: listing.quantity,
         price: listing.price,
-      },
-    }),
-  ]);
+        sellerId: listing.sellerId,
+      };
+    });
 
-  return {
-    success: true,
-    listing: {
-      itemId: listing.itemId,
-      quantity: listing.quantity,
-      price: listing.price,
-      sellerId: listing.sellerId,
-    },
-  };
+    return { success: true, listing: purchased };
+  } catch (error) {
+    if (error instanceof MarketplacePurchaseError) {
+      return { success: false, error: error.message };
+    }
+    throw error;
+  }
 }
 
 export async function placeBid(
@@ -263,7 +335,7 @@ export async function processExpiredListings(guildId?: string): Promise<void> {
 }
 
 export async function getActiveListings(guildId: string, page = 0, limit = 20) {
-  const [listings, total] = await Promise.all([
+  const [rawListings, total] = await Promise.all([
     prismaRead.marketplaceListing.findMany({
       where: { guildId, status: 'ACTIVE', expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
@@ -274,16 +346,18 @@ export async function getActiveListings(guildId: string, page = 0, limit = 20) {
       where: { guildId, status: 'ACTIVE', expiresAt: { gt: new Date() } },
     }),
   ]);
+  const listings = await attachItemsToListings(rawListings);
 
   return { listings, total, page, totalPages: Math.ceil(total / limit) };
 }
 
 export async function getMyListings(guildId: string, userId: string) {
-  return prismaRead.marketplaceListing.findMany({
+  const listings = await prismaRead.marketplaceListing.findMany({
     where: { guildId, sellerId: userId },
     orderBy: { createdAt: 'desc' },
     take: 50,
   });
+  return attachItemsToListings(listings);
 }
 
 export async function getTransactionHistory(guildId: string, userId?: string, limit = 30) {
