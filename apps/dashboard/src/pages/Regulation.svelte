@@ -770,7 +770,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   <button 
                     onclick={() => openEditModal(rule)}
                     class="p-3 rounded-xl hover:bg-primary/10 hover:text-primary text-on-surface-variant/60 transition-all"
-                    title={m.reaction_roles_edit_button_title()}
+                    title={m.common_edit()}
                   >
                     <Papicon icon="PencilSimple" size={18} />
                   </button>
@@ -890,7 +890,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onclick={closeModal} 
           class="px-8 py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all"
         >
-          {m.reaction_roles_cancel_button()}
+          {m.common_cancel()}
         </button>
         <ActionButton
           onClick={saveRule}
@@ -937,7 +937,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <div class="flex flex-col gap-2">
         <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? m.regulation_delete_deleting() : m.regulation_delete_confirm_btn()} disabled={saving} className="w-full py-4 rounded-xl shadow-sm shadow-error/20" />
-        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">{m.reaction_roles_cancel_button()}</button>
+        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">{m.common_cancel()}</button>
       </div>
     </div>
   </div>
@@ -972,7 +972,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         >
           {m.regulation_warning_modal_confirm()}
         </button>
-        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">{m.reaction_roles_cancel_button()}</button>
+        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">{m.common_cancel()}</button>
       </div>
     </div>
   </div>

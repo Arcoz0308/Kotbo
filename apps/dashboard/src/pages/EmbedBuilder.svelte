@@ -71,6 +71,16 @@
     fields: [],
   });
 
+  function cloneEmbed(source: EmbedModel): EmbedModel {
+    return {
+      ...emptyEmbed(),
+      ...source,
+      fields: Array.isArray(source.fields)
+        ? source.fields.map((field) => ({ ...field }))
+        : [],
+    };
+  }
+
   let embed = $state<EmbedModel>(emptyEmbed());
   let content = $state('');
   let savedTemplates = $state<SavedEmbedTemplate[]>([]);
@@ -102,7 +112,7 @@
       id: crypto.randomUUID(),
       name,
       createdAt: new Date().toISOString(),
-      embed: structuredClone(embed),
+      embed: cloneEmbed(embed),
       content: content || undefined,
       targetChannelId: targetChannelId || undefined,
       targetMessageId: targetMessageId.trim() || undefined,
@@ -116,10 +126,7 @@
   function loadTemplate(id: string) {
     const tpl = savedTemplates.find((t) => t.id === id);
     if (!tpl) return;
-    embed = {
-      ...emptyEmbed(),
-      ...structuredClone(tpl.embed)
-    };
+    embed = cloneEmbed(tpl.embed);
     content = tpl.content || '';
     targetChannelId = tpl.targetChannelId || '';
     targetMessageId = tpl.targetMessageId || '';
