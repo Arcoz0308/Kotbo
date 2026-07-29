@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
@@ -68,7 +69,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'Paramètres Généraux',
+          label: m.general_settings_unsaved_label(),
           onSave: () => handleSave(),
           onReset: () => {
             guildSettings = { ...savedSettings };
@@ -77,7 +78,7 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Paramètres Généraux') {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.general_settings_unsaved_label()) {
           unsavedChanges.clear();
         }
       });
@@ -85,7 +86,7 @@
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Paramètres Généraux') {
+    if (unsavedChanges.pageLabel === m.general_settings_unsaved_label()) {
       unsavedChanges.clear();
     }
   });
@@ -120,50 +121,49 @@
 
   async function handleSave(): Promise<boolean> {
     if (!canManageSettings) {
-      saveAction.setError('Accès refusé: permissions insuffisantes.');
+      saveAction.setError(m.general_settings_access_denied());
       return false;
     }
     let success = false;
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings(guildSettings);
-      if (!ok) throw new Error('Erreur API');
+      if (!ok) throw new Error(m.general_settings_api_error());
 
       await dashboardStore.refresh();
       savedSettings = { ...guildSettings };
       success = true;
       return true;
-    }, { successMessage: 'Paramètres globaux enregistrés.' });
+    }, { successMessage: m.general_settings_saved_toast() });
     return success;
   }
 
   const channelFields = [
-    { key: 'meetingVoiceChannelId', label: 'Vocal Réunions', desc: 'Salon vocal par défaut', isVoice: true },
-    { key: 'dailyAlgoChannelId', label: 'Salon Daily Algo', desc: 'Salon de publication des exercices quotidiens' },
-    { key: 'publicChannelId', label: 'Salon Public', desc: 'Salon public général' },
-    { key: 'newsChannelId', label: 'Salon Actualités', desc: 'Salon de publication des annonces de patch notes / staff news' },
-    { key: 'configChannelId', label: 'Salon Config', desc: 'Salon de configuration interne' },
-    { key: 'logChannelId', label: 'Salon Logs', desc: 'Salon des logs d\'activité' },
+    { key: 'meetingVoiceChannelId', label: m.general_settings_ch_meeting_voice_label(), desc: m.general_settings_ch_meeting_voice_desc(), isVoice: true },
+    { key: 'dailyAlgoChannelId', label: m.general_settings_ch_daily_algo_label(), desc: m.general_settings_ch_daily_algo_desc() },
+    { key: 'publicChannelId', label: m.general_settings_ch_public_label(), desc: m.general_settings_ch_public_desc() },
+    { key: 'newsChannelId', label: m.general_settings_ch_news_label(), desc: m.general_settings_ch_news_desc() },
+    { key: 'configChannelId', label: m.general_settings_ch_config_label(), desc: m.general_settings_ch_config_desc() },
+    { key: 'logChannelId', label: m.general_settings_ch_logs_label(), desc: m.general_settings_ch_logs_desc() },
   ];
 
   const roleFields = [
-    { key: 'baseStaffRoleId', label: 'Rôle Staff Base', desc: 'Rôle de base du staff' },
-    { key: 'testStaffRoleId', label: 'Rôle Staff Test', desc: 'Rôle pour les membres en période d\'essai' },
+    { key: 'baseStaffRoleId', label: m.general_settings_role_base_label(), desc: m.general_settings_role_base_desc() },
+    { key: 'testStaffRoleId', label: m.general_settings_role_test_label(), desc: m.general_settings_role_test_desc() },
   ];
 
   const toggleFields = [
-
-    { key: 'translationEnabled', label: 'Auto-traduction', desc: 'Contenus' },
-    { key: 'codePoliceEnabled', label: 'Code Police', desc: 'Audit code' },
-    { key: 'dailyAlgoEnabled', label: 'Daily Algo', desc: 'Défis quotidiens' },
-    { key: 'githubReleasesEnabled', label: 'GitHub Releases', desc: 'Notifications releases' },
-    { key: 'propagateSanctions', label: 'Propager les sanctions', desc: 'Synchronisation inter-serveurs' },
-    { key: 'crossServerSanctionsEnabled', label: 'Casier inter-serveurs', desc: 'Partager/voir les sanctions des autres serveurs de l\'instance' },
+    { key: 'translationEnabled', label: m.general_settings_toggle_translation_label(), desc: m.general_settings_toggle_translation_desc() },
+    { key: 'codePoliceEnabled', label: m.general_settings_toggle_code_police_label(), desc: m.general_settings_toggle_code_police_desc() },
+    { key: 'dailyAlgoEnabled', label: m.general_settings_toggle_daily_algo_label(), desc: m.general_settings_toggle_daily_algo_desc() },
+    { key: 'githubReleasesEnabled', label: m.general_settings_toggle_github_label(), desc: m.general_settings_toggle_github_desc() },
+    { key: 'propagateSanctions', label: m.general_settings_toggle_propagate_label(), desc: m.general_settings_toggle_propagate_desc() },
+    { key: 'crossServerSanctionsEnabled', label: m.general_settings_toggle_cross_server_label(), desc: m.general_settings_toggle_cross_server_desc() },
   ];
 </script>
 
 <ModulePage
-  title="Paramètres Généraux"
-  description="Configuration globale du serveur et des intégrations."
+  title={m.general_settings_page_title()}
+  description={m.general_settings_page_desc()}
   icon="settings"
   featureKey="settings"
 >
@@ -195,16 +195,16 @@
         <div class="space-y-6">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Hash" size={20} class="text-primary" />
-            Canaux Discord
+            {m.general_settings_section_channels()}
           </h3>
           <div class="space-y-4">
             {#each channelFields as field}
               <div class="space-y-1.5">
                 <label for={field.key} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{field.label}</label>
                 {#if field.isVoice}
-                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} placeholder={m.general_settings_none_placeholder()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
                 {:else}
-                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.general_settings_none_placeholder()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
                 {/if}
                 <p class="text-[11px] text-on-surface-variant/40 ml-2">{field.desc}</p>
               </div>
@@ -218,13 +218,13 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-8">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Shield" size={20} class="text-secondary" />
-            Rôles Staff
+            {m.general_settings_section_roles()}
           </h3>
           <div class="space-y-4">
             {#each roleFields as field}
               <div class="space-y-1.5">
                 <label for={field.key} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{field.label}</label>
-                <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.general_settings_none_placeholder()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
                 <p class="text-[11px] text-on-surface-variant/40 ml-2">{field.desc}</p>
               </div>
             {/each}
@@ -235,7 +235,7 @@
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-8">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Link" size={20} class="text-tertiary" />
-            Intégrations
+            {m.general_settings_section_integrations()}
           </h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {#each toggleFields as toggle}
@@ -250,7 +250,7 @@
                   guildSettings[key] = v;
                   guildSettings = {...guildSettings};
                   historyStore.push({
-                    label: `Modifier ${toggle.label}`,
+                    label: m.general_settings_history_toggle({ label: toggle.label }),
                     undo: () => {
                       guildSettings[key] = previousValue;
                       guildSettings = {...guildSettings};

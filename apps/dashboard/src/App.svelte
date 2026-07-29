@@ -87,7 +87,7 @@
     if (path.startsWith("/recruitment")) return "recruitment";
     if (path.startsWith("/tickets")) return "tickets";
     if (path.startsWith("/tutoring")) return "tutoring";
-    if (path.startsWith("/meetings")) return "absences";
+    if (path.startsWith("/meetings")) return "meetings";
     if (path.startsWith("/absences")) return "absences";
     if (path.startsWith("/planning")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";

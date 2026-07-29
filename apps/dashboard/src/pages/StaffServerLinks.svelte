@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -55,16 +56,16 @@
     dashboardStore.state.discordRoles ?? []
   );
 
-  const syncModeLabels: Record<string, string> = {
-    MAIN_TO_STAFF: 'Principal → Staff',
-    STAFF_TO_MAIN: 'Staff → Principal',
-    BIDIRECTIONAL: 'Bidirectionnel',
+  const syncModeLabels: Record<string, () => string> = {
+    MAIN_TO_STAFF: () => m.staff_server_mode_main_to_staff(),
+    STAFF_TO_MAIN: () => m.staff_server_mode_staff_to_main(),
+    BIDIRECTIONAL: () => m.channel_links_direction_bidirectional(),
   };
 
-  const syncModeDescriptions: Record<string, string> = {
-    MAIN_TO_STAFF: 'La hiérarchie est gérée ici, un rôle simple est donné sur le serveur staff',
-    STAFF_TO_MAIN: 'La hiérarchie est gérée sur le serveur staff, un rôle simple est donné ici',
-    BIDIRECTIONAL: 'La hiérarchie est synchronisée sur les deux serveurs',
+  const syncModeDescriptions: Record<string, () => string> = {
+    MAIN_TO_STAFF: () => m.staff_server_mode_main_to_staff_desc(),
+    STAFF_TO_MAIN: () => m.staff_server_mode_staff_to_main_desc(),
+    BIDIRECTIONAL: () => m.staff_server_mode_bidirectional_desc(),
   };
 
   async function loadData() {
@@ -73,7 +74,7 @@
       const data = await fetchStaffServerLinks();
       links = data ?? [];
     } catch (err) {
-      toast.error('Erreur lors du chargement');
+      toast.error(m.staff_server_load_error());
     } finally {
       loading = false;
     }
@@ -100,10 +101,10 @@
   async function handleConfigChange(linkId: string, field: string, value: unknown) {
     try {
       await updateStaffServerLink(linkId, { [field]: value });
-      toast.success('Configuration enregistrée');
+      toast.success(m.staff_server_config_saved_toast());
       await loadData();
     } catch {
-      toast.error('Erreur lors de la sauvegarde');
+      toast.error(m.staff_server_save_error());
     }
   }
 
@@ -115,7 +116,7 @@
 
   async function handleCreate() {
     if (!newStaffGuildId) {
-      toast.error('Entrez l\'ID du serveur staff');
+      toast.error(m.staff_server_err_id_required());
       return;
     }
     await saveAction.run(async () => {
@@ -132,7 +133,7 @@
         return true;
       }
       return false;
-    }, { successMessage: 'Serveur staff lié avec succès' });
+    }, { successMessage: m.staff_server_linked_toast() });
   }
 
   async function handleToggle(linkId: string, enabled: boolean) {
@@ -142,7 +143,7 @@
 
   async function handleAddMapping() {
     if (!newMainRoleId && !newStaffRoleId) {
-      toast.error('Spécifiez au moins un rôle');
+      toast.error(m.staff_server_err_role_required());
       return;
     }
     await saveAction.run(async () => {
@@ -158,7 +159,7 @@
         return true;
       }
       return false;
-    }, { successMessage: 'Mapping ajouté' });
+    }, { successMessage: m.staff_server_mapping_added_toast() });
   }
 
   async function handleDeleteMapping(linkId: string, mappingId: string) {
@@ -171,10 +172,10 @@
     try {
       const result = await syncStaffServerRoles(linkId);
       if (result) {
-        toast.success(`Sync terminée : ${result.synced} action(s), ${result.errors} erreur(s)`);
+        toast.success(m.staff_server_sync_finished_toast({ synced: result.synced, errors: result.errors }));
       }
     } catch {
-      toast.error('Erreur lors de la synchronisation');
+      toast.error(m.staff_server_sync_error());
     } finally {
       syncingLinkId = '';
     }
@@ -205,8 +206,8 @@
 </script>
 
 <ModulePage
-  title="Serveurs Staff"
-  description="Liez des serveurs staff pour synchroniser automatiquement les rôles et la hiérarchie"
+  title={m.staff_server_page_title()}
+  description={m.staff_server_page_desc()}
   icon="shield"
   featureKey="staff_server"
 >
@@ -220,13 +221,13 @@
     <div class="flex flex-col gap-6">
       <!-- Actions bar -->
       <div class="flex items-center justify-between">
-        <p class="text-sm text-on-surface-variant">{links.length} serveur(s) staff lié(s)</p>
+        <p class="text-sm text-on-surface-variant">{m.staff_server_linked_count({ count: links.length })}</p>
         <button
           onclick={() => { showCreateModal = true; }}
           class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
         >
           <Papicon icon="plus" size={16} />
-          Lier un serveur staff
+          {m.staff_server_link_btn()}
         </button>
       </div>
 
@@ -240,9 +241,9 @@
           <div class="w-16 h-16 bg-surface-container-low rounded-2xl flex items-center justify-center mb-4">
             <Papicon icon="shield" size={32} class="text-on-surface-variant/40" />
           </div>
-          <h3 class="text-lg font-semibold text-on-surface mb-1">Aucun serveur staff</h3>
+          <h3 class="text-lg font-semibold text-on-surface mb-1">{m.staff_server_empty_title()}</h3>
           <p class="text-sm text-on-surface-variant/60 max-w-sm">
-            Liez un serveur Discord dédié au staff pour synchroniser automatiquement les rôles et la hiérarchie.
+            {m.staff_server_empty_desc()}
           </p>
         </div>
       {:else}
@@ -264,10 +265,10 @@
                       <h4 class="text-sm font-semibold text-on-surface">{link.otherGuildName}</h4>
                       <div class="flex items-center gap-2 mt-0.5">
                         <span class="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                          {link.isMain ? 'Serveur staff' : 'Serveur principal'}
+                          {link.isMain ? m.staff_server_badge_staff_server() : m.staff_server_badge_main_server()}
                         </span>
                         <span class="text-xs px-2 py-0.5 rounded-full bg-surface-container border border-outline-variant/15 text-on-surface-variant">
-                          {syncModeLabels[link.syncMode]}
+                          {syncModeLabels[link.syncMode]?.() ?? link.syncMode}
                         </span>
                         {#if link.hierarchy}
                           <span class="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400">
@@ -287,21 +288,21 @@
                       onclick={() => handleSync(link.id)}
                       disabled={syncingLinkId === link.id}
                       class="p-2 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-50"
-                      title="Synchroniser"
+                      title={m.staff_server_sync_tooltip()}
                     >
                       <Papicon icon="refresh-cw" size={16} class="text-on-surface-variant {syncingLinkId === link.id ? 'animate-spin' : ''}" />
                     </button>
                     <button
                       onclick={() => toggleExpanded(link.id)}
                       class="p-2 rounded-lg hover:bg-surface-container transition-colors"
-                      title="Détails"
+                      title={m.staff_server_details_tooltip()}
                     >
                       <Papicon icon={expandedLinkId === link.id ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant" />
                     </button>
                     <button
                       onclick={() => confirmDelete(link.id)}
                       class="p-2 rounded-lg hover:bg-red-500/10 transition-colors"
-                      title="Supprimer"
+                      title={m.common_delete()}
                     >
                       <Papicon icon="trash-2" size={16} class="text-red-400" />
                     </button>
@@ -313,19 +314,19 @@
               {#if expandedLinkId === link.id}
                 <div class="border-t border-outline-variant/20 bg-surface-container/20 p-5">
                   <div class="flex items-center justify-between mb-4">
-                    <h5 class="text-sm font-semibold text-on-surface">Mappings de rôles</h5>
+                    <h5 class="text-sm font-semibold text-on-surface">{m.staff_server_mappings_heading()}</h5>
                     <button
                       onclick={() => openMappingModal(link.id)}
                       class="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors text-xs font-medium"
                     >
                       <Papicon icon="plus" size={14} />
-                      Ajouter
+                      {m.common_add()}
                     </button>
                   </div>
 
                   {#if link.roleMappings.length === 0}
                     <p class="text-sm text-on-surface-variant/50 text-center py-4">
-                      Aucun mapping configuré. Ajoutez des correspondances de rôles entre les deux serveurs.
+                      {m.staff_server_no_mappings_desc()}
                     </p>
                   {:else}
                     <div class="space-y-2">
@@ -359,18 +360,18 @@
 
                   {#if link.isMain}
                     <div class="mt-5 pt-4 border-t border-outline-variant/10">
-                      <h5 class="text-sm font-semibold text-on-surface mb-1">Notifications cross-serveur</h5>
+                      <h5 class="text-sm font-semibold text-on-surface mb-1">{m.staff_server_cross_notifs_heading()}</h5>
                       <p class="text-xs text-on-surface-variant/50 mb-4">
-                        Salons du serveur staff qui recevront les notifications de ce serveur principal.
+                        {m.staff_server_cross_notifs_desc()}
                       </p>
 
                       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {#each [
-                          { field: 'modlogMirrorChannelId', label: 'Miroir du modlog', hint: 'Copie des alertes automod, ghost ping et honeypot' },
-                          { field: 'sanctionReportChannelId', label: 'Rapports de sanction', hint: 'Embed posté à chaque nouveau rapport' },
-                          { field: 'recruitmentAlertChannelId', label: 'Alertes de candidatures', hint: 'Notification à chaque nouvelle candidature' },
-                          { field: 'offboardingAlertChannelId', label: 'Alerte départ staff', hint: 'Alerte avec bouton d\'expulsion quand un membre perd tous ses rôles staff' },
-                          { field: 'onboardingInviteChannelId', label: 'Salon d\'invitation onboarding', hint: 'Salon source des invitations envoyées aux nouveaux staff' },
+                          { field: 'modlogMirrorChannelId', label: m.staff_server_field_modlog_mirror(), hint: m.staff_server_hint_modlog_mirror() },
+                          { field: 'sanctionReportChannelId', label: m.staff_server_field_sanction_report(), hint: m.staff_server_hint_sanction_report() },
+                          { field: 'recruitmentAlertChannelId', label: m.staff_server_field_recruitment_alert(), hint: m.staff_server_hint_recruitment_alert() },
+                          { field: 'offboardingAlertChannelId', label: m.staff_server_field_offboarding_alert(), hint: m.staff_server_hint_offboarding_alert() },
+                          { field: 'onboardingInviteChannelId', label: m.staff_server_field_onboarding_invite(), hint: m.staff_server_hint_onboarding_invite() },
                         ] as cfg}
                           <div>
                             <label for="config-{cfg.field}" class="block text-xs font-medium text-on-surface mb-1">{cfg.label}</label>
@@ -380,7 +381,7 @@
                               onchange={(e) => handleConfigChange(link.id, cfg.field, (e.target as HTMLSelectElement).value || null)}
                               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
                             >
-                              <option value="">Aucun</option>
+                              <option value="">{m.common_none()}</option>
                               {#each staffChannels as ch}
                                 <option value={ch.id}>#{ch.name}</option>
                               {/each}
@@ -390,27 +391,27 @@
                         {/each}
 
                         <div>
-                          <label for="recruitment-category" class="block text-xs font-medium text-on-surface mb-1">Catégorie des entretiens de recrutement</label>
+                          <label for="recruitment-category" class="block text-xs font-medium text-on-surface mb-1">{m.staff_server_field_recruitment_category()}</label>
                           <select
                             id="recruitment-category"
                             value={link.staffRecruitmentCategoryId ?? ''}
                             onchange={(e) => handleConfigChange(link.id, 'staffRecruitmentCategoryId', (e.target as HTMLSelectElement).value || null)}
                             class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
                           >
-                            <option value="">Aucune</option>
+                            <option value="">{m.common_none()}</option>
                             {#each staffCategories as cat}
                               <option value={cat.id}>{cat.name}</option>
                             {/each}
                           </select>
-                          <p class="text-[10px] text-on-surface-variant/40 mt-1">Catégorie du serveur staff où créer les salons d'entretien</p>
+                          <p class="text-[10px] text-on-surface-variant/40 mt-1">{m.staff_server_hint_recruitment_category()}</p>
                         </div>
                       </div>
 
                       <div class="mt-4 space-y-3">
                         <div class="flex items-center justify-between">
                           <div>
-                            <p class="text-xs font-medium text-on-surface">Invitation d'onboarding automatique</p>
-                            <p class="text-[10px] text-on-surface-variant/40">Envoie une invitation au serveur staff en DM au premier rôle staff obtenu</p>
+                            <p class="text-xs font-medium text-on-surface">{m.staff_server_toggle_onboarding_title()}</p>
+                            <p class="text-[10px] text-on-surface-variant/40">{m.staff_server_toggle_onboarding_desc()}</p>
                           </div>
                           <ToggleSwitch
                             checked={!!link.onboardingInviteEnabled}
@@ -419,8 +420,8 @@
                         </div>
                         <div class="flex items-center justify-between">
                           <div>
-                            <p class="text-xs font-medium text-on-surface">Entretiens de recrutement sur le serveur staff</p>
-                            <p class="text-[10px] text-on-surface-variant/40">Crée les salons d'entretien sur le serveur staff plutôt qu'ici</p>
+                            <p class="text-xs font-medium text-on-surface">{m.staff_server_toggle_recruitment_title()}</p>
+                            <p class="text-[10px] text-on-surface-variant/40">{m.staff_server_toggle_recruitment_desc()}</p>
                           </div>
                           <ToggleSwitch
                             checked={!!link.recruitmentOnStaffServer}
@@ -433,7 +434,7 @@
 
                   <div class="mt-4 pt-3 border-t border-outline-variant/10">
                     <p class="text-xs text-on-surface-variant/50">
-                      Mode : {syncModeDescriptions[link.syncMode]}
+                      Mode : {syncModeDescriptions[link.syncMode]?.() ?? link.syncMode}
                     </p>
                     <p class="text-xs text-on-surface-variant/40 mt-1">
                       ID : <code class="font-mono">{link.id}</code>
@@ -448,10 +449,10 @@
     </div>
 
     <!-- Create Link Modal -->
-      <Modal bind:open={showCreateModal} title="Lier un serveur staff">
+      <Modal bind:open={showCreateModal} title={m.staff_server_modal_create_title()}>
         <div class="flex flex-col gap-5 p-1">
           <div>
-            <label for="new-staff-guild-id" class="block text-sm font-medium text-on-surface mb-1.5">ID du serveur staff</label>
+            <label for="new-staff-guild-id" class="block text-sm font-medium text-on-surface mb-1.5">{m.staff_server_field_staff_guild_id()}</label>
             <input
               id="new-staff-guild-id"
               type="text"
@@ -459,31 +460,31 @@
               placeholder="Ex: 123456789012345678"
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary/50 outline-none placeholder:text-on-surface-variant/30"
             />
-            <p class="text-xs text-on-surface-variant/50 mt-1">Le bot doit être présent sur ce serveur.</p>
+            <p class="text-xs text-on-surface-variant/50 mt-1">{m.staff_server_hint_bot_present()}</p>
           </div>
 
           <div>
-            <label for="new-sync-mode" class="block text-sm font-medium text-on-surface mb-1.5">Mode de synchronisation</label>
+            <label for="new-sync-mode" class="block text-sm font-medium text-on-surface mb-1.5">{m.staff_server_field_sync_mode()}</label>
             <select
               id="new-sync-mode"
               bind:value={newSyncMode}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
-              <option value="MAIN_TO_STAFF">Principal → Staff</option>
-              <option value="STAFF_TO_MAIN">Staff → Principal</option>
-              <option value="BIDIRECTIONAL">Bidirectionnel</option>
+              <option value="MAIN_TO_STAFF">{m.staff_server_mode_main_to_staff()}</option>
+              <option value="STAFF_TO_MAIN">{m.staff_server_mode_staff_to_main()}</option>
+              <option value="BIDIRECTIONAL">{m.channel_links_direction_bidirectional()}</option>
             </select>
-            <p class="text-xs text-on-surface-variant/50 mt-1">{syncModeDescriptions[newSyncMode]}</p>
+            <p class="text-xs text-on-surface-variant/50 mt-1">{syncModeDescriptions[newSyncMode]?.() ?? newSyncMode}</p>
           </div>
 
           <div>
-            <label for="new-simple-staff-role-id" class="block text-sm font-medium text-on-surface mb-1.5">Rôle staff simple (optionnel)</label>
+            <label for="new-simple-staff-role-id" class="block text-sm font-medium text-on-surface mb-1.5">{m.staff_server_field_simple_role()}</label>
             <select
               id="new-simple-staff-role-id"
               bind:value={newSimpleStaffRoleId}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
-              <option value="">Aucun</option>
+              <option value="">{m.common_none()}</option>
               {#each roles as role}
                 <option value={role.id}>{role.name}</option>
               {/each}
@@ -491,13 +492,13 @@
           </div>
 
           <div>
-            <label for="new-main-log-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">Salon de logs (optionnel)</label>
+            <label for="new-main-log-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">{m.staff_server_field_main_log()}</label>
             <select
               id="new-main-log-channel-id"
               bind:value={newMainLogChannelId}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
-              <option value="">Aucun</option>
+              <option value="">{m.common_none()}</option>
               {#each channels as ch}
                 <option value={ch.id}>#{ch.name}</option>
               {/each}
@@ -509,22 +510,22 @@
             disabled={saveAction.state.loading}
             class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
           >
-            {saveAction.state.loading ? 'Liaison...' : 'Lier le serveur'}
+            {saveAction.state.loading ? m.staff_server_linking() : m.staff_server_link_submit()}
           </button>
         </div>
       </Modal>
 
     <!-- Mapping Modal -->
-      <Modal bind:open={showMappingModal} title="Ajouter un mapping de rôle">
+      <Modal bind:open={showMappingModal} title={m.staff_server_modal_mapping_title()}>
         <div class="flex flex-col gap-5 p-1">
           <div>
-            <label for="new-main-role-id" class="block text-sm font-medium text-on-surface mb-1.5">Rôle sur ce serveur</label>
+            <label for="new-main-role-id" class="block text-sm font-medium text-on-surface mb-1.5">{m.staff_server_field_main_role()}</label>
             <select
               id="new-main-role-id"
               bind:value={newMainRoleId}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
-              <option value="">Sélectionner</option>
+              <option value="">{m.common_select()}</option>
               {#each roles as role}
                 <option value={role.id}>{role.name}</option>
               {/each}
@@ -536,7 +537,7 @@
           </div>
 
           <div>
-            <label for="new-staff-role-id" class="block text-sm font-medium text-on-surface mb-1.5">ID du rôle sur le serveur staff</label>
+            <label for="new-staff-role-id" class="block text-sm font-medium text-on-surface mb-1.5">{m.staff_server_field_staff_role_id()}</label>
             <input
               id="new-staff-role-id"
               type="text"
@@ -551,29 +552,29 @@
             disabled={saveAction.state.loading}
             class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
           >
-            {saveAction.state.loading ? 'Ajout...' : 'Ajouter le mapping'}
+            {saveAction.state.loading ? m.staff_server_adding() : m.staff_server_add_mapping_submit()}
           </button>
         </div>
       </Modal>
 
     <!-- Delete Confirm Modal -->
-      <Modal bind:open={showDeleteModal} title="Confirmer la suppression">
+      <Modal bind:open={showDeleteModal} title={m.staff_server_delete_modal_title()}>
         <div class="flex flex-col gap-4 p-1">
           <p class="text-sm text-on-surface-variant">
-            Êtes-vous sûr de vouloir supprimer ce lien ? Les rôles ne seront plus synchronisés entre les deux serveurs.
+            {m.staff_server_delete_modal_desc()}
           </p>
           <div class="flex gap-3 justify-end">
             <button
               onclick={() => { showDeleteModal = false; }}
               class="px-4 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm hover:bg-surface-container-high transition-colors"
             >
-              Annuler
+              {m.common_cancel()}
             </button>
             <button
               onclick={handleDelete}
               class="px-4 py-2 rounded-lg bg-red-500 text-white text-sm hover:bg-red-600 transition-colors"
             >
-              Supprimer
+              {m.common_delete()}
             </button>
           </div>
         </div>
