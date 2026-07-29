@@ -16,7 +16,11 @@ export default defineConfig({
   envDir,
   envPrefix: ['VITE_', 'DISCORD_'],
   plugins: [
-    svelte(),
+    svelte({
+      experimental: {
+        disableSvelteResolveWarnings: true,
+      },
+    }),
     tailwindcss(),
     paraglideVitePlugin({
       project: './project.inlang',

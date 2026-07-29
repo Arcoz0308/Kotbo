@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { SvelteFlow, Background, Controls, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import Papicon from '../Papicon.svelte';
@@ -86,60 +87,72 @@
       });
     }
 
-    nodes = nodes.map((n) => {
-      const replay = replayByNode.get(n.id);
-      return {
-        ...n,
-        data: {
-          ...(n.data as Record<string, unknown>),
-          graph: current,
-          hasError: errored.has(n.id),
-          replayOrder: replay?.order ?? null,
-          replayStatus: replay?.status ?? null,
-        },
-      };
+    untrack(() => {
+      nodes = nodes.map((n) => {
+        const replay = replayByNode.get(n.id);
+        return {
+          ...n,
+          data: {
+            ...(n.data as Record<string, unknown>),
+            graph: current,
+            hasError: errored.has(n.id),
+            replayOrder: replay?.order ?? null,
+            replayStatus: replay?.status ?? null,
+          },
+        };
+      });
     });
   }
+
+  let lastLoadedGraph: WorkflowGraph | null = null;
 
   function revalidate(): void {
     const current = toGraph();
     issues = validateGraph(current);
     decorate(current, issues);
+    lastLoadedGraph = current;
     onChange?.(current, issues);
   }
 
   // Chargement initial : conversion du graphe métier vers l'état du canvas
   $effect(() => {
     const source = graph;
-    nodes = source.nodes.map((n) => ({
-      id: n.id,
-      type: 'kotbo',
-      position: n.position,
-      data: { nodeType: n.type, config: n.config ?? {}, graph: source },
-    }));
-    edges = source.edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      sourceHandle: e.sourceHandle,
-      target: e.target,
-      targetHandle: e.targetHandle,
-      animated: isExecEdge(source, e.source, e.sourceHandle),
-    }));
-    issues = validateGraph(source);
-    decorate(source, issues);
+    if (source === lastLoadedGraph) return;
+    lastLoadedGraph = source;
+
+    untrack(() => {
+      nodes = source.nodes.map((n: WorkflowNode) => ({
+        id: n.id,
+        type: 'kotbo',
+        position: n.position,
+        data: { nodeType: n.type, config: n.config ?? {}, graph: source },
+      }));
+      edges = source.edges.map((e: WorkflowEdge) => ({
+        id: e.id,
+        source: e.source,
+        sourceHandle: e.sourceHandle,
+        target: e.target,
+        targetHandle: e.targetHandle,
+        animated: isExecEdge(source, e.source, e.sourceHandle),
+      }));
+      issues = validateGraph(source);
+      decorate(source, issues);
+    });
   });
 
   // Le rejeu ne modifie pas le graphe, seulement sa décoration
   $effect(() => {
     void replayIndex;
     void replaySteps;
-    decorate(toGraph(), issues);
+    untrack(() => {
+      decorate(toGraph(), issues);
+    });
   });
 
   function isExecEdge(current: WorkflowGraph, sourceId: string, handle: string): boolean {
-    const source = current.nodes.find((n) => n.id === sourceId);
+    const source = current.nodes.find((n: WorkflowNode) => n.id === sourceId);
     if (!source) return false;
-    const port = resolveNodeOutputs(source, current).find((p) => p.id === handle);
+    const port = resolveNodeOutputs(source, current).find((p: { id: string }) => p.id === handle);
     return port?.type === 'Exec';
   }
 
@@ -181,12 +194,12 @@
    */
   function isValidConnection(connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null }): boolean {
     const current = toGraph();
-    const source = current.nodes.find((n) => n.id === connection.source);
-    const target = current.nodes.find((n) => n.id === connection.target);
+    const source = current.nodes.find((n: WorkflowNode) => n.id === connection.source);
+    const target = current.nodes.find((n: WorkflowNode) => n.id === connection.target);
     if (!source || !target) return false;
 
-    const from = resolveNodeOutputs(source, current).find((p) => p.id === connection.sourceHandle);
-    const to = getNodeDef(target.type)?.inputs.find((p) => p.id === connection.targetHandle);
+    const from = resolveNodeOutputs(source, current).find((p: { id: string }) => p.id === connection.sourceHandle);
+    const to = getNodeDef(target.type)?.inputs.find((p: { id: string }) => p.id === connection.targetHandle);
     if (!from || !to) return false;
 
     return canConnect(from.type, to.type);
