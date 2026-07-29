@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m, dateLocale } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -72,7 +73,10 @@
   }
 
   async function handleCreateBackup() {
-    const backupName = createOptions.name || `Sauvegarde - ${new Date().toLocaleDateString('fr-FR')} ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    const backupName = createOptions.name || m.backups_default_name({
+      date: new Date().toLocaleDateString(dateLocale()),
+      time: new Date().toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' })
+    });
     const backupDesc = createOptions.description;
     
     // Close modal immediately
@@ -81,9 +85,9 @@
     // Set active creating state
     creatingBackup = {
       name: backupName,
-      description: backupDesc || 'Création de la sauvegarde en cours...',
+      description: backupDesc || m.backups_creating_desc(),
       progress: 0,
-      statusText: 'Initialisation de la sauvegarde...'
+      statusText: m.backups_status_init()
     };
     
     // Start progress simulation
@@ -91,16 +95,16 @@
       if (!creatingBackup) return;
       if (creatingBackup.progress < 30) {
         creatingBackup.progress += 5;
-        creatingBackup.statusText = 'Connexion à Discord...';
+        creatingBackup.statusText = m.backups_status_connect();
       } else if (creatingBackup.progress < 70) {
         creatingBackup.progress += 3;
-        creatingBackup.statusText = 'Extraction des rôles & salons...';
+        creatingBackup.statusText = m.backups_status_extract();
       } else if (creatingBackup.progress < 90) {
         creatingBackup.progress += 1.5;
-        creatingBackup.statusText = 'Traitement des permissions & emojis...';
+        creatingBackup.statusText = m.backups_status_permissions();
       } else if (creatingBackup.progress < 98) {
         creatingBackup.progress += 0.2;
-        creatingBackup.statusText = 'Sauvegarde en base de données...';
+        creatingBackup.statusText = m.backups_status_db();
       }
     }, 150);
     
@@ -125,7 +129,7 @@
         
         if (creatingBackup) {
           creatingBackup.progress = 100;
-          creatingBackup.statusText = 'Sauvegarde complétée !';
+          creatingBackup.statusText = m.backups_status_done();
         }
         
         // Wait 800ms at 100% for the user to see the success before reloading
@@ -139,7 +143,7 @@
         throw error;
       }
     }, {
-      successMessage: 'Sauvegarde créée avec succès.'
+      successMessage: m.backups_create_toast()
     });
   }
 
@@ -153,7 +157,7 @@
       await loadBackups();
       return true;
     }, {
-      successMessage: 'Sauvegarde supprimée avec succès.'
+      successMessage: m.backups_delete_toast()
     });
   }
 
@@ -165,14 +169,14 @@
       selectedBackup = null;
       return true;
     }, {
-      successMessage: 'Restauration lancée avec succès. Le serveur va être restauré.'
+      successMessage: m.backups_restore_toast()
     });
   }
 
   async function openMemberCase(backup: any) {
     if (!backup.createdByUserId) return;
     memberModalUserId = backup.createdByUserId;
-    memberModalUserName = backup.createdByUsername || 'Membre';
+    memberModalUserName = backup.createdByUsername || m.backups_member_fallback();
     memberModalOpen = true;
     memberCaseLoading = true;
     memberCaseError = '';
@@ -183,7 +187,7 @@
         memberModalUserName = memberCaseData.profile.displayName || memberCaseData.profile.username || memberModalUserName;
       }
     } catch (error) {
-      memberCaseError = error instanceof Error ? error.message : 'Impossible de charger le dossier';
+      memberCaseError = error instanceof Error ? error.message : m.backups_case_error();
     } finally {
       memberCaseLoading = false;
     }
@@ -203,13 +207,13 @@
       link.remove();
       return true;
     }, {
-      successMessage: 'Sauvegarde exportée avec succès.'
+      successMessage: m.backups_export_toast()
     });
   }
 
   async function handleImportBackup() {
     if (!importFile) return;
-    const backupName = createOptions.name || `Import - ${importFile.name.replace('.json', '')}`;
+    const backupName = createOptions.name || m.backups_import_default_name({ name: importFile.name.replace('.json', '') });
     
     // Close modal immediately
     showImportModal = false;
@@ -217,22 +221,22 @@
     // Set active creating state
     creatingBackup = {
       name: backupName,
-      description: 'Importation depuis le fichier JSON...',
+      description: m.backups_import_desc(),
       progress: 0,
-      statusText: 'Chargement du fichier...'
+      statusText: m.backups_import_status_load()
     };
     
     const progressInterval = setInterval(() => {
       if (!creatingBackup) return;
       if (creatingBackup.progress < 40) {
         creatingBackup.progress += 10;
-        creatingBackup.statusText = 'Lecture du JSON...';
+        creatingBackup.statusText = m.backups_import_status_read();
       } else if (creatingBackup.progress < 85) {
         creatingBackup.progress += 5;
-        creatingBackup.statusText = 'Vérification de la limite de sauvegardes...';
+        creatingBackup.statusText = m.backups_import_status_limit();
       } else if (creatingBackup.progress < 98) {
         creatingBackup.progress += 2;
-        creatingBackup.statusText = 'Création en base de données...';
+        creatingBackup.statusText = m.backups_import_status_create();
       }
     }, 100);
     
@@ -260,7 +264,7 @@
             
             if (creatingBackup) {
               creatingBackup.progress = 100;
-              creatingBackup.statusText = 'Importation complétée !';
+              creatingBackup.statusText = m.backups_import_status_done();
             }
             
             await new Promise(res => setTimeout(res, 800));
@@ -281,7 +285,7 @@
         reader.readAsText(fileToImport);
       });
     }, {
-      successMessage: 'Sauvegarde importée avec succès.'
+      successMessage: m.backups_import_toast()
     });
   }
 
@@ -294,7 +298,7 @@
   }
 
   function formatDate(date: string): string {
-    return new Date(date).toLocaleDateString('fr-FR', {
+    return new Date(date).toLocaleDateString(dateLocale(), {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -305,14 +309,14 @@
 </script>
 
 <ModulePage
-  title="Sauvegardes du serveur"
-  description="Gérez et restaurez les configurations, salons, rôles et membres de votre serveur Discord."
+  title={m.backups_page_title()}
+  description={m.backups_page_desc()}
   icon="archive"
   featureKey="settings"
 >
   {#snippet actions()}
     {#if canManageBackups}
-      <ActionButton onClick={() => showCreateModal = true} variant="primary" label="Nouvelle sauvegarde" icon="plus" />
+      <ActionButton onClick={() => showCreateModal = true} variant="primary" label={m.backups_new_btn()} icon="plus" />
     {/if}
   {/snippet}
 
@@ -330,11 +334,11 @@
           <Papicon icon="archive" size={32} />
         </div>
         <div class="space-y-1">
-          <h3 class="text-xl font-semibold">Aucune sauvegarde</h3>
-          <p class="text-sm text-on-surface-variant/70 font-medium">Créez votre première sauvegarde pour sécuriser votre serveur.</p>
+          <h3 class="text-xl font-semibold">{m.backups_empty_title()}</h3>
+          <p class="text-sm text-on-surface-variant/70 font-medium">{m.backups_empty_desc()}</p>
         </div>
         {#if canManageBackups}
-          <ActionButton onClick={() => showCreateModal = true} variant="primary" label="Créer une sauvegarde" icon="plus" />
+          <ActionButton onClick={() => showCreateModal = true} variant="primary" label={m.backups_empty_btn()} icon="plus" />
         {/if}
       </div>
     {:else}
@@ -347,7 +351,7 @@
               </div>
               <div class="flex-1 min-w-0">
                 <h3 class="text-base font-semibold truncate leading-snug text-primary">{creatingBackup.name}</h3>
-                <p class="text-xs text-on-surface-variant/60 font-semibold mt-0.5">Sauvegarde en cours...</p>
+                <p class="text-xs text-on-surface-variant/60 font-semibold mt-0.5">{m.backups_in_progress()}</p>
               </div>
               <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-[10px] font-semibold rounded-lg uppercase tracking-wider shrink-0">
                 {Math.round(creatingBackup.progress)}%
@@ -376,7 +380,7 @@
 
           <div class="flex items-center justify-between pt-3 border-t border-outline-variant/10 mt-6">
             <p class="text-[10px] text-on-surface-variant/50 font-bold">
-              Traitement en tâche de fond...
+              {m.backups_background()}
             </p>
             <div class="flex items-center justify-center shrink-0">
               <div class="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
@@ -401,7 +405,7 @@
                 <p class="text-xs text-on-surface-variant/60 font-semibold mt-0.5">{formatDate(backup.createdAt)}</p>
               </div>
               {#if backup.isPreset}
-                <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-[10px] font-semibold rounded-lg uppercase tracking-wider shrink-0">Preset</span>
+                <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-[10px] font-semibold rounded-lg uppercase tracking-wider shrink-0">{m.backups_preset_badge()}</span>
               {/if}
             </div>
 
@@ -413,45 +417,45 @@
             <div class="grid grid-cols-2 gap-2.5 mb-4 bg-surface-container-high/15 border border-outline-variant/5 p-4 rounded-lg">
               <div class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
                 <div class="text-primary/70 shrink-0"><Papicon icon="role" size={16} /></div>
-                <span class="truncate">{backup.rolesCount} rôles</span>
+                <span class="truncate">{m.backups_count_roles({ count: backup.rolesCount })}</span>
               </div>
               <div class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
                 <div class="text-primary/70 shrink-0"><Papicon icon="channel" size={16} /></div>
-                <span class="truncate">{backup.channelsCount} salons</span>
+                <span class="truncate">{m.backups_count_channels({ count: backup.channelsCount })}</span>
               </div>
               <div class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
                 <div class="text-primary/70 shrink-0"><Papicon icon="user" size={16} /></div>
-                <span class="truncate">{backup.membersCount} membres</span>
+                <span class="truncate">{m.backups_count_members({ count: backup.membersCount })}</span>
               </div>
               <div class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
                 <div class="text-primary/70 shrink-0"><Papicon icon="emoji" size={16} /></div>
-                <span class="truncate">{backup.emojisCount} emojis</span>
+                <span class="truncate">{m.backups_count_emojis({ count: backup.emojisCount })}</span>
               </div>
               <div class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant col-span-2 border-t border-outline-variant/5 pt-2 mt-1">
                 <div class="text-primary/70 shrink-0"><Papicon icon="sticker" size={16} /></div>
-                <span class="truncate">{backup.stickersCount} stickers ({formatSize(backup.sizeBytes)})</span>
+                <span class="truncate">{m.backups_count_stickers({ count: backup.stickersCount, size: formatSize(backup.sizeBytes) })}</span>
               </div>
             </div>
 
             <!-- Enabled options list -->
             <div class="flex flex-wrap gap-1.5 mb-4">
               {#if backup.includeMessages}
-                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Messages</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">{m.backups_opt_messages()}</span>
               {/if}
               {#if backup.includeMembers}
-                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Membres</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">{m.backups_opt_members()}</span>
               {/if}
               {#if backup.includeRoles}
-                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Rôles</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">{m.backups_opt_roles()}</span>
               {/if}
               {#if backup.includeChannels}
-                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Salons</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">{m.backups_opt_channels()}</span>
               {/if}
               {#if backup.includeEmojis}
-                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Emojis</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">{m.backups_opt_emojis()}</span>
               {/if}
               {#if backup.includeStickers}
-                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Stickers</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">{m.backups_opt_stickers()}</span>
               {/if}
             </div>
           </div>
@@ -461,20 +465,20 @@
               <button
                 onclick={() => openMemberCase(backup)}
                 class="text-[10px] text-on-surface-variant/50 font-bold truncate max-w-[35%] hover:text-primary transition-colors text-left cursor-pointer"
-                title="Voir le dossier de {backup.createdByUsername}"
+                title={m.backups_view_case({ user: backup.createdByUsername })}
               >
-                Par {backup.createdByUsername}#{backup.createdByTag || '0000'}
+                {m.backups_author({ user: `${backup.createdByUsername}#${backup.createdByTag || '0000'}` })}
               </button>
             {:else}
               <p class="text-[10px] text-on-surface-variant/50 font-bold truncate max-w-[35%]">
-                Par {backup.createdByUsername}#{backup.createdByTag || '0000'}
+                {m.backups_author({ user: `${backup.createdByUsername}#${backup.createdByTag || '0000'}` })}
               </p>
             {/if}
             <div class="flex gap-2 shrink-0">
-              <ActionButton onClick={() => handleExportBackup(backup)} variant="muted" size="sm" label="Exporter" icon="download" />
+              <ActionButton onClick={() => handleExportBackup(backup)} variant="muted" size="sm" label={m.backups_export_btn()} icon="download" />
               {#if canManageBackups}
-                <ActionButton onClick={() => { selectedBackup = backup; showRestoreModal = true; }} variant="muted" size="sm" label="Restaurer" icon="rotate-ccw" />
-                <ActionButton onClick={() => { selectedBackup = backup; showDeleteModal = true; }} variant="danger" size="sm" label="Supprimer" icon="trash" />
+                <ActionButton onClick={() => { selectedBackup = backup; showRestoreModal = true; }} variant="muted" size="sm" label={m.backups_restore_btn()} icon="rotate-ccw" />
+                <ActionButton onClick={() => { selectedBackup = backup; showDeleteModal = true; }} variant="danger" size="sm" label={m.common_delete()} icon="trash" />
               {/if}
             </div>
           </div>
@@ -487,39 +491,39 @@
   {#if canManageBackups}
     <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
       <div class="space-y-1">
-        <h3 class="text-xl font-semibold">Importer une sauvegarde</h3>
-        <p class="text-sm text-on-surface-variant/70 font-medium">Vous avez un fichier de sauvegarde au format JSON ? Importez-le directement sur le serveur.</p>
+        <h3 class="text-xl font-semibold">{m.backups_import_section_title()}</h3>
+        <p class="text-sm text-on-surface-variant/70 font-medium">{m.backups_import_section_desc()}</p>
       </div>
-      <ActionButton onClick={() => showImportModal = true} variant="muted" label="Importer un fichier" icon="upload" />
+      <ActionButton onClick={() => showImportModal = true} variant="muted" label={m.backups_import_section_btn()} icon="upload" />
     </section>
   {/if}
 </ModulePage>
 
 <!-- Modal de création de backup -->
-<Modal bind:open={showCreateModal} title="Créer une sauvegarde">
+<Modal bind:open={showCreateModal} title={m.backups_create_modal_title()}>
   <div class="space-y-6">
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Nom de la sauvegarde</span>
-      <input 
-        type="text" 
-        bind:value={createOptions.name} 
-        placeholder="Laisser vide pour le nom par défaut" 
+      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_name()}</span>
+      <input
+        type="text"
+        bind:value={createOptions.name}
+        placeholder={m.backups_field_name_ph()}
         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       />
     </div>
     
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Description</span>
-      <input 
-        type="text" 
-        bind:value={createOptions.description} 
-        placeholder="Description optionnelle" 
+      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_desc()}</span>
+      <input
+        type="text"
+        bind:value={createOptions.description}
+        placeholder={m.backups_field_desc_ph()}
         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       />
     </div>
 
     <div class="space-y-3">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Éléments à inclure</span>
+      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_include()}</span>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-surface-container-high/20 border border-outline-variant/5 p-4 rounded-lg">
         <label class="flex items-center gap-3 cursor-pointer group">
           <input 
@@ -527,7 +531,7 @@
             bind:checked={createOptions.includeMessages} 
             class="w-5 h-5 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all checked:bg-primary checked:border-primary cursor-pointer accent-primary" 
           />
-          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">Messages (désactivé par défaut)</span>
+          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">{m.backups_opt_messages_default_off()}</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer group">
           <input 
@@ -535,7 +539,7 @@
             bind:checked={createOptions.includeMembers} 
             class="w-5 h-5 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all checked:bg-primary checked:border-primary cursor-pointer accent-primary" 
           />
-          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">Membres</span>
+          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">{m.backups_opt_members()}</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer group">
           <input 
@@ -543,7 +547,7 @@
             bind:checked={createOptions.includeRoles} 
             class="w-5 h-5 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all checked:bg-primary checked:border-primary cursor-pointer accent-primary" 
           />
-          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">Rôles</span>
+          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">{m.backups_opt_roles()}</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer group">
           <input 
@@ -551,7 +555,7 @@
             bind:checked={createOptions.includeChannels} 
             class="w-5 h-5 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all checked:bg-primary checked:border-primary cursor-pointer accent-primary" 
           />
-          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">Salons</span>
+          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">{m.backups_opt_channels()}</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer group">
           <input 
@@ -559,7 +563,7 @@
             bind:checked={createOptions.includeEmojis} 
             class="w-5 h-5 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all checked:bg-primary checked:border-primary cursor-pointer accent-primary" 
           />
-          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">Emojis</span>
+          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">{m.backups_opt_emojis()}</span>
         </label>
         <label class="flex items-center gap-3 cursor-pointer group">
           <input 
@@ -567,42 +571,42 @@
             bind:checked={createOptions.includeStickers} 
             class="w-5 h-5 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all checked:bg-primary checked:border-primary cursor-pointer accent-primary" 
           />
-          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">Stickers</span>
+          <span class="text-xs font-semibold text-on-surface-variant group-hover:text-on-surface transition-colors">{m.backups_opt_stickers()}</span>
         </label>
       </div>
     </div>
 
     <div class="flex justify-end gap-3 pt-2">
-      <ActionButton onClick={() => showCreateModal = false} variant="muted" label="Annuler" />
-      <ActionButton onClick={handleCreateBackup} variant="primary" label="Créer la sauvegarde" />
+      <ActionButton onClick={() => showCreateModal = false} variant="muted" label={m.common_cancel()} />
+      <ActionButton onClick={handleCreateBackup} variant="primary" label={m.backups_create_submit()} />
     </div>
     <InlineFeedback state={createAction} />
   </div>
 </Modal>
 
 <!-- Modal de suppression -->
-<Modal bind:open={showDeleteModal} title="Supprimer la sauvegarde">
+<Modal bind:open={showDeleteModal} title={m.backups_delete_modal_title()}>
   <div class="space-y-4">
-    <p class="text-sm font-medium">Êtes-vous sûr de vouloir supprimer la sauvegarde <strong class="text-on-surface">{selectedBackup?.name}</strong> ?</p>
+    <p class="text-sm font-medium">{m.backups_delete_confirm({ name: selectedBackup?.name ?? '' })}</p>
     <p class="text-xs text-error font-bold bg-error/10 border border-error/20 px-4 py-3 rounded-lg flex items-center gap-2">
       <Papicon icon="AlertTriangle" size={16} />
-      Cette action est irréversible.
+      {m.backups_irreversible()}
     </p>
     <div class="flex justify-end gap-3 pt-2">
-      <ActionButton onClick={() => showDeleteModal = false} variant="muted" label="Annuler" />
-      <ActionButton onClick={handleDeleteBackup} variant="danger" label="Supprimer" />
+      <ActionButton onClick={() => showDeleteModal = false} variant="muted" label={m.common_cancel()} />
+      <ActionButton onClick={handleDeleteBackup} variant="danger" label={m.common_delete()} />
     </div>
     <InlineFeedback state={deleteAction} />
   </div>
 </Modal>
 
 <!-- Modal d'import -->
-<Modal bind:open={showImportModal} title="Importer une sauvegarde">
+<Modal bind:open={showImportModal} title={m.backups_import_modal_title()}>
   <div class="space-y-6">
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Fichier JSON</span>
-      <input 
-        type="file" 
+      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_file()}</span>
+      <input
+        type="file"
         accept=".json" 
         onchange={(e) => importFile = (e.currentTarget as HTMLInputElement).files?.[0] || null} 
         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-on-primary hover:file:bg-primary/90 file:cursor-pointer file:transition-all"
@@ -610,34 +614,34 @@
     </div>
     
     <div class="space-y-2">
-      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Nom de la sauvegarde (optionnel)</span>
-      <input 
-        type="text" 
-        bind:value={createOptions.name} 
-        placeholder="Laisser vide pour le nom par défaut" 
+      <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.backups_field_name_optional()}</span>
+      <input
+        type="text"
+        bind:value={createOptions.name}
+        placeholder={m.backups_field_name_ph()}
         class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       />
     </div>
 
     <div class="flex justify-end gap-3 pt-2">
-      <ActionButton onClick={() => showImportModal = false} variant="muted" label="Annuler" />
-      <ActionButton onClick={handleImportBackup} variant="primary" label="Importer" disabled={!importFile} />
+      <ActionButton onClick={() => showImportModal = false} variant="muted" label={m.common_cancel()} />
+      <ActionButton onClick={handleImportBackup} variant="primary" label={m.backups_import_submit()} disabled={!importFile} />
     </div>
     <InlineFeedback state={importAction} />
   </div>
 </Modal>
 
 <!-- Modal de restauration -->
-<Modal bind:open={showRestoreModal} title="Restaurer la sauvegarde">
+<Modal bind:open={showRestoreModal} title={m.backups_restore_modal_title()}>
   <div class="space-y-4">
-    <p class="text-sm font-medium">Voulez-vous restaurer la sauvegarde <strong class="text-on-surface">{selectedBackup?.name}</strong> sur ce serveur ?</p>
+    <p class="text-sm font-medium">{m.backups_restore_confirm({ name: selectedBackup?.name ?? '' })}</p>
     <p class="text-xs text-amber-500 font-bold bg-amber-500/10 border border-amber-500/20 px-4 py-3 rounded-lg flex items-center gap-2">
       <Papicon icon="AlertTriangle" size={16} />
-      Cette action écrasera la configuration actuelle du serveur avec les données de la sauvegarde. Le bot va appliquer les rôles, salons et permissions sauvegardés.
+      {m.backups_restore_warning()}
     </p>
     <div class="flex justify-end gap-3 pt-2">
-      <ActionButton onClick={() => showRestoreModal = false} variant="muted" label="Annuler" />
-      <ActionButton onClick={handleRestoreBackup} variant="primary" label="Restaurer" icon="rotate-ccw" />
+      <ActionButton onClick={() => showRestoreModal = false} variant="muted" label={m.common_cancel()} />
+      <ActionButton onClick={handleRestoreBackup} variant="primary" label={m.backups_restore_btn()} icon="rotate-ccw" />
     </div>
     <InlineFeedback state={restoreAction} />
   </div>
