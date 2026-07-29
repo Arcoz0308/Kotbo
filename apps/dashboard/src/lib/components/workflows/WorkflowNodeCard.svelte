@@ -1,13 +1,11 @@
 <script lang="ts">
   import { Handle, Position } from '@xyflow/svelte';
   import { PORT_COLORS, getNodeDef, resolveNodeOutputs, type PortDef, type WorkflowGraph } from '@kotbo/shared';
+  import Papicon from '../Papicon.svelte';
+  import WorkflowMessageModal from './WorkflowMessageModal.svelte';
 
   /**
-   * Rendu d'un bloc sur le canvas.
-   *
-   * Les ports d'exécution sont placés en haut, les ports de données en dessous,
-   * ce qui sépare visuellement les deux flux comme dans un éditeur de
-   * blueprints. La couleur d'un port encode son type.
+   * Rendu d'un bloc sur le canvas avec saisie directe et éditeur WYSIWYG.
    */
   const { id, data, selected }: {
     id: string;
@@ -16,7 +14,6 @@
       config?: Record<string, unknown>;
       graph: WorkflowGraph;
       hasError?: boolean;
-      /** Rang d'exécution lors d'un rejeu, null hors rejeu */
       replayOrder?: number | null;
       replayStatus?: 'OK' | 'ERROR' | 'SKIPPED' | null;
       availableRoles?: { id: string; name: string }[];
@@ -25,6 +22,10 @@
     };
     selected?: boolean;
   } = $props();
+
+  let showMessageModal = $state(false);
+  let modalConfigKey = $state('text');
+  let modalTitle = $state('Éditer le message');
 
   const def = $derived(getNodeDef(data.nodeType));
   const outputs = $derived(
@@ -61,10 +62,29 @@
   function getDataPortLabel(port: PortDef): string {
     return port.label || port.id;
   }
+
+  function isInputConnected(portId: string): boolean {
+    if (!data.graph?.edges) return false;
+    return data.graph.edges.some((e) => e.target === id && e.targetHandle === portId);
+  }
+
+  function openWysiwyg(key: string, titleStr: string) {
+    modalConfigKey = key;
+    modalTitle = titleStr;
+    showMessageModal = true;
+  }
+
+  // Est-ce un nœud qui manipule du texte/message ?
+  const hasTextCapabilities = $derived(
+    data.nodeType === 'SendMessage' ||
+    data.nodeType === 'SendDM' ||
+    data.nodeType === 'SendEmbed' ||
+    data.nodeType === 'ConstText'
+  );
 </script>
 
 <div
-  class="rounded-xl border-2 bg-surface-container-high shadow-2xl min-w-56 overflow-visible transition-all relative
+  class="rounded-xl border-2 bg-surface-container-high shadow-2xl min-w-64 overflow-visible transition-all relative
     {selected ? 'border-primary ring-2 ring-primary/30' : data.hasError ? 'border-red-500' : 'border-outline-variant/30'}
     {data.replayStatus === 'ERROR' ? 'ring-2 ring-red-500' : ''}
     {data.replayOrder != null ? 'ring-2 ring-amber-400' : ''}"
@@ -81,7 +101,7 @@
     {/if}
   </div>
 
-  <!-- Corps des ports -->
+  <!-- Corps du nœud -->
   <div class="p-3 space-y-2 text-xs text-slate-200">
     <!-- Ports d'exécution (Exec) -->
     {#if maxExecRows > 0}
@@ -97,6 +117,7 @@
                   type="target"
                   position={Position.Left}
                   id={inPort.id}
+                  title="Entrée de flux (Exec)"
                   style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
                 <span class="truncate font-semibold text-white/90 text-xs flex items-center gap-1">
@@ -117,6 +138,7 @@
                   type="source"
                   position={Position.Right}
                   id={outPort.id}
+                  title="{getExecOutputLabel(outPort)} (Flux Exec)"
                   style="right: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS.Exec}; width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
               {/if}
@@ -126,7 +148,7 @@
       </div>
     {/if}
 
-    <!-- Configuration intégrée directement dans le nœud -->
+    <!-- Configuration de base issue du catalogue -->
     {#if def?.config && def.config.length > 0}
       <div class="px-2 py-2 my-1 rounded-lg bg-surface-container-highest/40 border border-outline-variant/15 space-y-1.5 nodrag">
         {#each def.config as field}
@@ -221,9 +243,109 @@
       </div>
     {/if}
 
-    <!-- Ports de données (Inputs à gauche, Outputs à droite) -->
+    <!-- Saisie directe pour les ports d'entrée de données non reliés par un fil -->
+    {#if dataInputs.length > 0}
+      <div class="space-y-2 py-1">
+        {#each dataInputs as inputPort}
+          {@const connected = isInputConnected(inputPort.id)}
+          {#if !connected}
+            <div class="px-2 py-1.5 rounded-lg bg-surface-container-highest/30 border border-outline-variant/10 space-y-1 nodrag">
+              <label for="direct-input-{id}-{inputPort.id}" class="text-[9px] font-bold text-on-surface-variant/70 uppercase tracking-wider block">
+                {getDataPortLabel(inputPort)} (Direct)
+              </label>
+
+              {#if inputPort.type === 'Channel'}
+                <select
+                  id="direct-input-{id}-{inputPort.id}"
+                  value={String(data.config?.channelId ?? data.config?.[inputPort.id] ?? '')}
+                  onchange={(e) => {
+                    data.onUpdateConfig?.(inputPort.id, e.currentTarget.value);
+                    data.onUpdateConfig?.('channelId', e.currentTarget.value);
+                  }}
+                  class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
+                >
+                  <option value="">— Sélectionner un salon —</option>
+                  {#each (data.availableChannels ?? []) as channel}
+                    <option value={channel.id}>#{channel.name}</option>
+                  {/each}
+                </select>
+
+              {:else if inputPort.type === 'Role'}
+                <select
+                  id="direct-input-{id}-{inputPort.id}"
+                  value={String(data.config?.roleId ?? data.config?.[inputPort.id] ?? '')}
+                  onchange={(e) => {
+                    data.onUpdateConfig?.(inputPort.id, e.currentTarget.value);
+                    data.onUpdateConfig?.('roleId', e.currentTarget.value);
+                  }}
+                  class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none cursor-pointer"
+                >
+                  <option value="">— Sélectionner un rôle —</option>
+                  {#each (data.availableRoles ?? []) as role}
+                    <option value={role.id}>@{role.name}</option>
+                  {/each}
+                </select>
+
+              {:else if inputPort.type === 'String' && (inputPort.id === 'text' || inputPort.id === 'description')}
+                <div class="space-y-1">
+                  <input
+                    id="direct-input-{id}-{inputPort.id}"
+                    type="text"
+                    value={String(data.config?.[inputPort.id] ?? '')}
+                    oninput={(e) => data.onUpdateConfig?.(inputPort.id, e.currentTarget.value)}
+                    placeholder="Ecrire le texte ici..."
+                    class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onclick={() => openWysiwyg(inputPort.id, `Éditer "${getDataPortLabel(inputPort)}"`)}
+                    class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-300 transition-all flex items-center justify-center gap-1"
+                  >
+                    <Papicon icon="TextBubble" size={11} />
+                    <span>✏️ Éditeur WYSIWYG / Aperçu</span>
+                  </button>
+                </div>
+
+              {:else if inputPort.type === 'String'}
+                <input
+                  id="direct-input-{id}-{inputPort.id}"
+                  type="text"
+                  value={String(data.config?.[inputPort.id] ?? '')}
+                  oninput={(e) => data.onUpdateConfig?.(inputPort.id, e.currentTarget.value)}
+                  placeholder="Valeur..."
+                  class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none"
+                />
+
+              {:else if inputPort.type === 'Number'}
+                <input
+                  id="direct-input-{id}-{inputPort.id}"
+                  type="number"
+                  value={Number(data.config?.[inputPort.id] ?? 0)}
+                  oninput={(e) => data.onUpdateConfig?.(inputPort.id, Number(e.currentTarget.value))}
+                  class="nodrag w-full px-2 py-1 rounded bg-surface-container border border-outline-variant/30 text-xs text-on-surface focus:ring-1 focus:ring-primary/50 outline-none"
+                />
+              {/if}
+            </div>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Bouton WYSIWYG pour ConstText si présent -->
+    {#if data.nodeType === 'ConstText'}
+      <button
+        type="button"
+        onclick={() => openWysiwyg('value', 'Éditer le texte fixe')}
+        class="nodrag w-full px-2 py-1 rounded bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[10px] font-semibold text-indigo-300 transition-all flex items-center justify-center gap-1"
+      >
+        <Papicon icon="TextBubble" size={11} />
+        <span>✏️ Éditeur WYSIWYG / Aperçu</span>
+      </button>
+    {/if}
+
+    <!-- Ports de données (Handles visuels : Inputs à gauche, Outputs à droite) -->
     {#if maxDataRows > 0}
-      <div class="space-y-1.5">
+      <div class="space-y-1.5 pt-1">
         {#each Array(maxDataRows) as _, i}
           {@const inputPort = dataInputs[i]}
           {@const outputPort = dataOutputs[i]}
@@ -235,20 +357,22 @@
                   type="target"
                   position={Position.Left}
                   id={inputPort.id}
+                  title="{getDataPortLabel(inputPort)} (Type: {inputPort.type})"
                   style="left: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[inputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
-                <span class="truncate font-medium text-slate-200 text-xs">{getDataPortLabel(inputPort)}</span>
+                <span class="truncate font-medium text-slate-200 text-xs" title="Type: {inputPort.type}">{getDataPortLabel(inputPort)}</span>
               {/if}
             </div>
 
             <!-- Port de sortie (Droite) -->
             <div class="relative flex items-center justify-end min-w-0 ml-auto h-6">
               {#if outputPort}
-                <span class="truncate text-right font-medium text-slate-200 text-xs">{getDataPortLabel(outputPort)}</span>
+                <span class="truncate text-right font-medium text-slate-200 text-xs" title="Type: {outputPort.type}">{getDataPortLabel(outputPort)}</span>
                 <Handle
                   type="source"
                   position={Position.Right}
                   id={outputPort.id}
+                  title="{getDataPortLabel(outputPort)} (Type: {outputPort.type})"
                   style="right: -18px; top: 50%; transform: translateY(-50%); background: {PORT_COLORS[outputPort.type] ?? '#94a3b8'}; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgba(15, 23, 42, 0.8);"
                 />
               {/if}
@@ -259,3 +383,14 @@
     {/if}
   </div>
 </div>
+
+<!-- Modal Éditeur WYSIWYG -->
+<WorkflowMessageModal
+  open={showMessageModal}
+  title={modalTitle}
+  initialText={String(data.config?.[modalConfigKey] ?? '')}
+  onSave={(newText) => {
+    data.onUpdateConfig?.(modalConfigKey, newText);
+  }}
+  onClose={() => (showMessageModal = false)}
+/>
