@@ -532,7 +532,7 @@ import { m, dateLocale } from '../lib/i18n';
           />
 
           <div class="flex flex-col gap-2">
-            <div class="flex gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 overflow-x-auto no-scrollbar">
+            <div class="analytics-period-presets flex gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 overflow-x-auto no-scrollbar">
               {#each periodPresets as p}
                 <button
                   onclick={() => changePeriod(p.value as any)}
@@ -582,7 +582,7 @@ import { m, dateLocale } from '../lib/i18n';
 
   <!-- Navigation Catégories -->
   <div class="analytics-category-nav sticky top-4 z-30 flex justify-center">
-    <div class="flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
+    <div class="analytics-category-list flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
       {#each categories as cat}
         <button 
           onclick={() => { const firstTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; gotoTab('/analytics', firstTab, 'overview'); }}
@@ -601,7 +601,7 @@ import { m, dateLocale } from '../lib/i18n';
   <!-- Navigation Onglets (sous-catégories) -->
   {#if currentTabs.length > 1}
     <div class="flex justify-center">
-      <div class="flex max-w-full gap-1 overflow-x-auto bg-surface-container p-1.5 rounded-lg border border-outline-variant no-scrollbar">
+      <div class="analytics-subcategory-list flex max-w-full gap-1 overflow-x-auto bg-surface-container p-1.5 rounded-lg border border-outline-variant no-scrollbar">
         {#each currentTabs as tab}
           <button 
             onclick={() => selectTab(tab)}

@@ -7,6 +7,7 @@
   import TutorialWelcome from './TutorialWelcome.svelte';
   import TutorialChecklist from './TutorialChecklist.svelte';
   import PageTip from './PageTip.svelte';
+  import MobileBottomNav from './MobileBottomNav.svelte';
 
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
@@ -149,6 +150,7 @@
 
 <div class="app-shell flex min-h-screen bg-background text-on-background transition-colors duration-200">
   <Sidebar />
+  <MobileBottomNav />
 
   <div class="app-content min-w-0 flex-1 flex flex-col transition-all duration-200 {$isMobile ? 'ml-0' : (collapsed ? 'ml-18' : 'ml-60')}">
     <Navbar />

@@ -77,6 +77,7 @@
 
 :root {
   --mobile-bottom-safe: max(1rem, env(safe-area-inset-bottom));
+  --mobile-dock-clearance: calc(5rem + env(safe-area-inset-bottom));
   --background: #ffffff;
   --surface: #ffffff;
   --on-background: #111827;
@@ -726,6 +727,28 @@
 }
 
 @media (max-width: 767px) {
+  body.has-mobile-dock {
+    overflow: hidden;
+  }
+
+  body.has-mobile-dock .app-shell,
+  body.has-mobile-dock .app-content {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.has-mobile-dock .app-main {
+    min-height: 0;
+    flex: 1 1 auto;
+    margin-bottom: var(--mobile-dock-clearance);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding-bottom: 1.25rem !important;
+    scroll-padding-bottom: 1.25rem;
+  }
+
   .app-navbar {
     height: calc(3.5rem + env(safe-area-inset-top)) !important;
     padding-top: env(safe-area-inset-top);
@@ -758,32 +781,37 @@
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
-    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
     justify-content: center;
-    padding: 0.125rem 0;
+    padding: 0.25rem 0;
   }
 
-  .app-navbar__mobile-title {
+  .app-navbar__mobile-server-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    flex: 0 0 auto;
+    border-radius: 0.45rem;
+    object-fit: cover;
+  }
+
+  .app-navbar__mobile-server-fallback {
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+    color: var(--primary-color);
+    font-size: 0.6875rem;
+    font-weight: 800;
+  }
+
+  .app-navbar__mobile-server-name {
+    min-width: 0;
+    flex: 1 1 auto;
     overflow: hidden;
     color: var(--on-surface);
-    font-family: var(--font-headline);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 700;
-    line-height: 1.05;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .app-navbar__mobile-server {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 0.2rem;
-    overflow: hidden;
-    color: var(--on-surface-variant);
-    font-size: 0.625rem;
-    font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.1;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -903,6 +931,22 @@
     border-radius: 1.125rem !important;
   }
 
+  .inbox-mobile-filter {
+    gap: 0.4rem;
+    color: var(--on-surface-variant);
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .inbox-mobile-filter select {
+    width: 100%;
+    border: 1px solid var(--outline-variant);
+    border-radius: 0.875rem;
+    background: var(--surface-container-lowest);
+    color: var(--on-surface);
+    font-weight: 650;
+  }
+
   .inbox-notification-card > :first-child {
     width: 2.75rem !important;
     height: 2.75rem !important;
@@ -911,6 +955,11 @@
   .inbox-notification-card__footer {
     align-items: flex-start !important;
     flex-direction: column;
+  }
+
+  .inbox-notification-card__title {
+    overflow-wrap: anywhere;
+    line-height: 1.25;
   }
 
   .inbox-notification-card__actions {
@@ -926,6 +975,14 @@
   .pulse-score-row {
     grid-template-columns: minmax(5rem, auto) minmax(3rem, 1fr) 2rem !important;
     gap: 0.5rem !important;
+  }
+
+  .app-main[data-page="leveling"] .leveling-xp-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .app-main[data-page="leveling"] .leveling-xp-grid > .col-span-2 {
+    grid-column: 1 / -1 !important;
   }
 
   .form-color-modal__palette {
@@ -945,6 +1002,12 @@
     max-width: calc(100vw - 2rem);
     flex-wrap: wrap;
     justify-content: flex-end;
+  }
+
+  body.has-mobile-dock .home-floating-actions,
+  body.has-mobile-dock .toast-container,
+  body.has-mobile-dock .tutorial-checklist {
+    bottom: var(--mobile-dock-clearance) !important;
   }
 
   .toast-container {
@@ -994,6 +1057,55 @@
     margin-left: -0.5rem;
   }
 
+  .analytics-period-presets {
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible !important;
+  }
+
+  .analytics-period-presets > button {
+    min-width: 0;
+    padding-right: 0.5rem !important;
+    padding-left: 0.5rem !important;
+    white-space: normal !important;
+  }
+
+  .analytics-category-list {
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible !important;
+  }
+
+  .analytics-category-list > button {
+    min-width: 0;
+    justify-content: center;
+    gap: 0.25rem !important;
+    padding: 0.75rem 0.35rem !important;
+    font-size: 0.6875rem !important;
+    white-space: normal !important;
+  }
+
+  .analytics-category-list > button > div {
+    display: none;
+  }
+
+  .analytics-subcategory-list {
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible !important;
+  }
+
+  .analytics-subcategory-list > button {
+    min-width: 0;
+    justify-content: center;
+    padding-right: 0.5rem !important;
+    padding-left: 0.5rem !important;
+    white-space: normal !important;
+  }
+
   .app-main :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
     max-width: 100%;
     min-height: 2.75rem;
@@ -1001,15 +1113,6 @@
   }
 
   .app-main :where(.btn, .tab-button, [role="tab"]) {
-    min-height: 2.75rem;
-  }
-
-  .app-main :where(button, a[role="button"]):not(.calendar-container button) {
-    min-height: 2.75rem;
-  }
-
-  .app-main :where(button, a)[aria-label] {
-    min-width: 2.75rem;
     min-height: 2.75rem;
   }
 
@@ -1050,6 +1153,8 @@
   .app-main .mobile-card-table {
     display: block;
     width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
     border-collapse: separate;
   }
 
@@ -1065,6 +1170,7 @@
 
   .app-main .mobile-card-table > tbody {
     display: grid;
+    width: 100%;
     gap: 0.75rem;
     padding: 0.75rem;
   }
@@ -1111,8 +1217,36 @@
   }
 
   .app-main .mobile-card-table > tbody > tr > td > :where(div, span, p) {
+    max-width: 100%;
     min-width: 0;
     justify-self: end;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td :where(.flex, .inline-flex) {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-actions {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-summary {
+    display: block;
+    text-align: left;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-summary::before {
+    display: none;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-actions::before {
+    margin-bottom: 0.25rem;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-actions > * {
+    justify-self: stretch;
   }
 
   .table-wrap {
@@ -1122,13 +1256,9 @@
 
   .tab-group {
     width: 100% !important;
-    flex-wrap: nowrap !important;
+    flex-wrap: wrap !important;
     justify-content: flex-start;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scroll-padding-inline: 0.25rem;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
   }
 
   .tab-group::-webkit-scrollbar {
@@ -1136,8 +1266,12 @@
   }
 
   .tab-button {
-    flex: 0 0 auto;
+    min-width: 0;
+    flex: 1 1 auto;
+    justify-content: center;
     padding-inline: 0.875rem;
+    text-align: center;
+    white-space: normal;
   }
 
   .page-header {
@@ -1205,15 +1339,6 @@
   .module-page__actions > :where(button, a) {
     min-height: 2.75rem;
     justify-content: center;
-  }
-
-  .app-main > :where(div, section) > header {
-    max-width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .app-main :where(.justify-between) {
-    row-gap: 0.75rem;
   }
 
   .section-card__body {
@@ -1464,6 +1589,10 @@
     gap: 0.25rem !important;
   }
 
+  .app-navbar__profile {
+    display: none !important;
+  }
+
   .app-main[data-mobile-layout="settings"] :where(form, [role="dialog"]) :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6),
   .app-main[data-mobile-layout="editor"] :where(form, [role="dialog"]) :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6) {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -1474,15 +1603,28 @@
     gap: 0.75rem;
   }
 
+  .app-main .mobile-card-table > tbody {
+    padding: 0.625rem;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td {
+    display: block;
+    text-align: left;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td::before {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td > :where(div, span, p) {
+    justify-self: start;
+  }
+
   .info-row dd {
     max-width: 58%;
     overflow-wrap: anywhere;
     text-align: right;
-  }
-
-  .app-main > :where(div, section) > header {
-    align-items: stretch !important;
-    flex-direction: column;
   }
 
   .app-sidebar nav button[aria-pressed] {

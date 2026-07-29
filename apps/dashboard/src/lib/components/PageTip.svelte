@@ -146,6 +146,7 @@
     }
 
     .page-tip__layout {
+      align-items: center;
       gap: 0.75rem;
     }
 
@@ -156,18 +157,28 @@
     }
 
     .page-tip__description {
-      display: -webkit-box;
-      margin: 0.25rem 0 0;
-      overflow: hidden;
-      font-size: 0.75rem;
-      line-height: 1.4;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      line-clamp: 2;
+      display: none;
     }
 
     .page-tip__highlights,
     .page-tip__footer {
+      display: none;
+    }
+
+    .page-tip__layout > div:last-child > div:first-child {
+      align-items: center;
+      margin-bottom: 0;
+    }
+
+    .page-tip__layout h3 {
+      overflow: hidden;
+      font-size: 0.8125rem;
+      line-height: 1.2;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .page-tip__layout [class*="uppercase"] {
       display: none;
     }
   }

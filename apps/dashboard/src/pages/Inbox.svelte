@@ -100,8 +100,22 @@
     </button>
   {/snippet}
 
-  <!-- Tabs -->
-  <div class="flex items-center gap-2 p-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-[22px] overflow-x-auto no-scrollbar shadow-sm">
+  <!-- Sur téléphone, le filtre natif reste entièrement lisible et ne demande
+       pas de deviner qu'une rangée d'onglets continue hors écran. -->
+  <label class="inbox-mobile-filter">
+    <span>{m.common_filter()}</span>
+    <select
+      value={currentTab}
+      onchange={(event) => gotoTab('/inbox', event.currentTarget.value, 'tous')}
+    >
+      {#each tabs as tab}
+        <option value={tab.id}>{tabLabel(tab.id)}</option>
+      {/each}
+    </select>
+  </label>
+
+  <!-- Tabs desktop -->
+  <div class="inbox-tabs items-center gap-2 p-1.5 bg-surface-container-lowest border border-outline-variant/20 rounded-[22px] overflow-x-auto no-scrollbar shadow-sm">
     {#each tabs as tab}
       <button
         onclick={() => gotoTab('/inbox', tab.id, 'tous')}
@@ -162,7 +176,7 @@
             <div class="flex-1 min-w-0">
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4 mb-2">
                 <div class="flex items-center gap-2">
-                  <h3 class="text-lg font-semibold text-on-surface tracking-tight truncate">
+                  <h3 class="inbox-notification-card__title text-lg font-semibold text-on-surface tracking-tight">
                     {notif.title}
                   </h3>
                   {#if !notif.isRead}
@@ -217,6 +231,24 @@
 </ModulePage>
 
 <style>
+  .inbox-tabs {
+    display: flex;
+  }
+
+  .inbox-mobile-filter {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .inbox-tabs {
+      display: none;
+    }
+
+    .inbox-mobile-filter {
+      display: grid;
+    }
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

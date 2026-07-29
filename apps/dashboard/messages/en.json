@@ -19,6 +19,7 @@
   "common_yes": "Yes",
   "common_no": "No",
   "common_all": "All",
+  "common_filter": "Filter notifications",
   "common_none": "None",
   "common_admin": "Administration",
   "common_mod": "Moderation",
