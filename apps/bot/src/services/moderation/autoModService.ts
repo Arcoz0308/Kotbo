@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
 import { loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
 import { mirrorModlogToStaffServer } from '../staff/staffServerService.js';
+import { getUppercasePercentage } from './capsDetection.js';
 
 // Cache for AutoMod configs: key is guildId, value is the config object
 const autoModConfigsCache = new Map<string, AutoModConfig>();
@@ -674,22 +675,18 @@ export async function handleAutoMod(message: Message, client: Client): Promise<b
     }
 
     // 3. Limite de majuscules (Caps Lock)
-    if (config.capsEnabled && content.length >= config.capsMinLength) {
-      const letters = content.replace(/[^a-zA-Z]/g, '');
-      if (letters.length >= config.capsMinLength) {
-        const uppercaseLetters = letters.replace(/[^A-Z]/g, '');
-        const percent = (uppercaseLetters.length / letters.length) * 100;
+    if (config.capsEnabled) {
+      const percent = getUppercasePercentage(content, config.capsMinLength);
 
-        if (percent >= config.capsThresholdPercent) {
-          await deleteMessage(message);
-          await applySanction(
-            message,
-            'WARN',
-            `[AutoMod] Excès de majuscules (${Math.round(percent)}% de majuscules)`,
-            client
-          );
-          return true;
-        }
+      if (percent !== null && percent >= config.capsThresholdPercent) {
+        await deleteMessage(message);
+        await applySanction(
+          message,
+          'WARN',
+          `[AutoMod] Excès de majuscules (${Math.round(percent)}% de majuscules)`,
+          client
+        );
+        return true;
       }
     }
 

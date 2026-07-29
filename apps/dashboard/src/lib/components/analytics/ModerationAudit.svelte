@@ -310,9 +310,9 @@
 
 <style>
   .premium-card {
-    background: rgba(var(--color-surface-container-low), 0.4);
+    background: color-mix(in srgb, var(--surface-container-low) 70%, transparent);
     backdrop-filter: blur(24px);
-    border: 1px solid rgba(var(--color-outline-variant), 0.1);
+    border: 1px solid color-mix(in srgb, var(--outline-variant) 40%, transparent);
     transition: all 0.4s cubic-bezier(0.2, 1, 0.3, 1);
   }
 </style>

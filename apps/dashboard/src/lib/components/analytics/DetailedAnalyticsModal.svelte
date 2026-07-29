@@ -334,8 +334,8 @@
 
 <style>
   .premium-card {
-    background: rgba(var(--color-surface-container-low), 0.95);
-    border: 1px solid rgba(var(--color-outline-variant), 0.2);
+    background: var(--surface-container-low);
+    border: 1px solid color-mix(in srgb, var(--outline-variant) 60%, transparent);
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 
@@ -346,7 +346,7 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(var(--color-outline-variant), 0.2);
+    background: color-mix(in srgb, var(--outline-variant) 60%, transparent);
     border-radius: 10px;
   }
 </style>

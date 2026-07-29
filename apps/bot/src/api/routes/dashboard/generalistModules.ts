@@ -7,7 +7,7 @@ import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGood
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
-import { createReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
+import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
@@ -934,9 +934,11 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 6 && method === 'DELETE') {
       const menuId = parts[5];
       try {
-        await prisma.reactionRoleMenu.delete({
-          where: { id: menuId },
-        });
+        const deleted = await deleteReactionRoleMenu(client, guildId, menuId);
+        if (!deleted) {
+          json(res, 404, { error: 'Menu de rôles introuvable' });
+          return true;
+        }
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('ReactionRolesAPI', 'Error deleting menu:', err);
