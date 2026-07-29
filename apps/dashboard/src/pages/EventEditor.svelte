@@ -470,7 +470,7 @@
           <div class="flex items-center justify-between px-2">
             <h3 class="text-xl font-semibold text-on-surface">{m.eve_ctf_challenges_title({ count: event.ctfChallenges?.length || 0 })}</h3>
             <button onclick={addCtfChallenge} class="text-primary font-semibold uppercase text-[10px] tracking-widest flex items-center gap-2">
-              <Papicon icon="Cross" size={14} /> {m.eve_btn_add_challenge()}
+              <Papicon icon="Plus" size={14} /> {m.eve_btn_add_challenge()}
             </button>
           </div>
 
@@ -593,7 +593,7 @@
                 <Papicon icon="FileUp" size={14} /> {m.eve_btn_import_csv()}
               </button>
               <button onclick={addQuestion} class="text-primary font-semibold uppercase text-[10px] tracking-widest flex items-center gap-2">
-                <Papicon icon="Cross" size={14} /> {m.eve_btn_add_question()}
+                <Papicon icon="Plus" size={14} /> {m.eve_btn_add_question()}
               </button>
             </div>
           </div>
