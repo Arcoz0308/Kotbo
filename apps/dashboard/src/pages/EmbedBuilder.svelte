@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -109,7 +110,7 @@
     savedTemplates = [entry, ...savedTemplates].slice(0, 30);
     templateName = '';
     persistTemplates();
-    templateAction.setMessage(`Modèle « ${name} » enregistré.`);
+    templateAction.setMessage(m.embed_builder_template_saved_toast({ name }));
   }
 
   function loadTemplate(id: string) {
@@ -123,14 +124,14 @@
     targetChannelId = tpl.targetChannelId || '';
     targetMessageId = tpl.targetMessageId || '';
     selectedTemplateId = id;
-    templateAction.setMessage(`Modèle « ${tpl.name} » chargé.`);
+    templateAction.setMessage(m.embed_builder_template_loaded_toast({ name: tpl.name }));
   }
 
   function deleteTemplate(id: string) {
     savedTemplates = savedTemplates.filter((t) => t.id !== id);
     if (selectedTemplateId === id) selectedTemplateId = null;
     persistTemplates();
-    templateAction.setMessage('Modèle supprimé.');
+    templateAction.setMessage(m.embed_builder_template_deleted_toast());
   }
 
   onMount(async () => {
@@ -164,13 +165,13 @@
     // Validate empty fields if any exist
     const hasEmptyField = embed.fields.some(f => !f.name.trim() || !f.value.trim());
     if (hasEmptyField) {
-      actionState.setError('Tous les champs de l\'embed doivent avoir un titre et un contenu.');
+      actionState.setError(m.embed_builder_err_empty_field());
       return;
     }
 
     const hasEmbedData = embed.title || embed.description || embed.authorName || embed.footerText || embed.fields.length > 0 || embed.imageUrl || embed.thumbnailUrl;
     if (!content.trim() && !hasEmbedData) {
-      actionState.setError('Vous devez saisir du texte de message ou remplir au moins un champ de l\'embed.');
+      actionState.setError(m.embed_builder_err_no_content());
       return;
     }
 
@@ -197,24 +198,24 @@
       };
 
       const res = await sendOrUpdateEmbed(payload);
-      if (!res || !res.ok) throw new Error('Erreur d\'envoi de l\'embed');
+      if (!res || !res.ok) throw new Error(m.embed_builder_err_send());
       
       if (res.messageId) {
         targetMessageId = res.messageId;
       }
       return true;
-    }, { successMessage: targetMessageId.trim() ? 'Embed modifié avec succès !' : 'Embed envoyé avec succès !' });
+    }, { successMessage: targetMessageId.trim() ? m.embed_builder_edit_success() : m.embed_builder_send_success() });
   }
 
   function getChannelName(channelId: string) {
     const channel = availableChannels.find(c => c.id === channelId);
-    return channel ? channelDisplayName(channel) : `Salon inconnu (${channelId})`;
+    return channel ? channelDisplayName(channel) : m.embed_builder_unknown_channel({ id: channelId });
   }
 </script>
 
 <ModulePage
-  title="Créateur d'Embeds"
-  description="Concevez et modifiez des messages d'embed complexes et personnalisés sur vos salons."
+  title={m.embed_builder_title()}
+  description={m.embed_builder_desc()}
   icon="file-plus"
   featureKey="embed_builder"
 >
@@ -234,13 +235,13 @@
       <!-- Editor Form -->
       <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit max-h-[85vh] overflow-y-auto scrollbar-thin pr-3">
         <div class="p-5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 space-y-4">
-          <h3 class="text-sm font-semibold uppercase tracking-wider text-on-surface-variant/80">Mes modèles</h3>
+          <h3 class="text-sm font-semibold uppercase tracking-wider text-on-surface-variant/80">{m.embed_builder_templates_title()}</h3>
           {#if canManageSettings}
             <div class="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 bind:value={templateName}
-                placeholder="Nom du modèle (optionnel)"
+                placeholder={m.embed_builder_template_name_ph()}
                 class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
               />
               <button
@@ -248,12 +249,12 @@
                 onclick={saveCurrentAsTemplate}
                 class="px-4 py-2.5 bg-secondary/20 text-secondary font-semibold uppercase tracking-widest text-[10px] rounded-xl hover:bg-secondary/30 transition-all"
               >
-                Sauvegarder
+                {m.embed_builder_save_template_btn()}
               </button>
             </div>
           {/if}
           {#if savedTemplates.length === 0}
-            <p class="text-xs text-on-surface-variant/50 font-medium">Aucun modèle enregistré sur cet appareil.</p>
+            <p class="text-xs text-on-surface-variant/50 font-medium">{m.embed_builder_no_templates()}</p>
           {:else}
             <ul class="space-y-2 max-h-40 overflow-y-auto pr-1">
               {#each savedTemplates as tpl (tpl.id)}
@@ -274,7 +275,7 @@
                       type="button"
                       onclick={() => deleteTemplate(tpl.id)}
                       class="p-1.5 text-error hover:bg-error/10 rounded-lg transition-colors"
-                      title="Supprimer"
+                      title={m.reaction_roles_delete_tooltip()}
                     >
                       <Papicon icon="Trash" size={14} />
                     </button>
@@ -287,29 +288,29 @@
 
         <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="Pen" size={20} class="text-primary" />
-          Éditeur d'Embed
+          {m.embed_builder_editor_title()}
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label for="targetChan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon d'envoi</label>
+            <label for="targetChan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.embed_builder_channel_label()}</label>
             <SearchableSelect 
               id="targetChan"
               bind:value={targetChannelId} 
               options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
-              placeholder="Sélectionner le salon" 
+              placeholder={m.embed_builder_channel_ph()} 
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
           </div>
 
           <div class="space-y-1.5">
-            <label for="msgId" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Message ID (Modifier existant)</label>
+            <label for="msgId" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.embed_builder_msg_id_label()}</label>
             <input 
               id="msgId"
               type="text" 
               bind:value={targetMessageId} 
-              placeholder="Laisser vide pour envoyer un nouveau"
+              placeholder={m.embed_builder_msg_id_ph()}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-on-surface"
               disabled={!canManageSettings}
             />
@@ -317,13 +318,13 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Texte du message</h4>
+          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_msg_text_header()}</h4>
           <div class="space-y-1.5">
-            <label for="msgContent" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Contenu textuel (hors embed)</label>
+            <label for="msgContent" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_content_label()}</label>
             <textarea 
               id="msgContent"
               bind:value={content} 
-              placeholder="Texte brut à afficher en dehors de l'embed..."
+              placeholder={m.embed_builder_content_ph()}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none h-20 resize-none text-on-surface"
               disabled={!canManageSettings}
             ></textarea>
@@ -331,21 +332,21 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Auteur</h4>
+          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_author_header()}</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="authorName" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Nom de l'auteur</label>
+              <label for="authorName" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_name_label()}</label>
               <input 
                 id="authorName"
                 type="text" 
                 bind:value={embed.authorName} 
-                placeholder="Kotbo Staff"
+                placeholder={m.embed_builder_author_name_ph()}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
                 disabled={!canManageSettings}
               />
             </div>
             <div class="space-y-1.5">
-              <label for="authorIcon" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de l'icône de l'auteur</label>
+              <label for="authorIcon" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_icon_label()}</label>
               <input 
                 id="authorIcon"
                 type="url" 
@@ -356,7 +357,7 @@
               />
             </div>
             <div class="space-y-1.5 sm:col-span-2">
-              <label for="authorUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL du lien de l'auteur (clic sur le nom)</label>
+              <label for="authorUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_author_url_label()}</label>
               <input 
                 id="authorUrl"
                 type="url" 
@@ -370,21 +371,21 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Contenu Principal</h4>
+          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_main_content_header()}</h4>
           <div class="space-y-1.5">
-            <label for="embedTitle" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Titre de l'embed</label>
+            <label for="embedTitle" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_embed_title_label()}</label>
             <input 
               id="embedTitle"
               type="text" 
               bind:value={embed.title} 
-              placeholder="Entrez un titre accrocheur"
+              placeholder={m.embed_builder_embed_title_ph()}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
               disabled={!canManageSettings}
             />
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL du titre (lien de redirection)</label>
+            <label for="embedUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_embed_url_label()}</label>
             <input 
               id="embedUrl"
               type="url" 
@@ -396,11 +397,11 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedDesc" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Description</label>
+            <label for="embedDesc" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_desc_label()}</label>
             <textarea 
               id="embedDesc"
               bind:value={embed.description} 
-              placeholder="Contenu textuel principal de votre embed..."
+              placeholder={m.embed_builder_desc_ph()}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none h-24 resize-none"
               disabled={!canManageSettings}
             ></textarea>
@@ -408,7 +409,7 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="embedColor" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Couleur latérale (Hex ou select)</label>
+              <label for="embedColor" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_color_label()}</label>
               <div class="flex gap-2">
                 <input 
                   id="embedColor"
@@ -428,7 +429,7 @@
             </div>
             
             <div class="space-y-1.5">
-              <label for="embedThumbnail" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de la vignette (haut-droite)</label>
+              <label for="embedThumbnail" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_thumbnail_label()}</label>
               <input 
                 id="embedThumbnail"
                 type="url" 
@@ -441,7 +442,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedImage" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de la grande image (bas)</label>
+            <label for="embedImage" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_image_label()}</label>
             <input 
               id="embedImage"
               type="url" 
@@ -456,14 +457,14 @@
         <!-- Fields Builder -->
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
           <div class="flex items-center justify-between">
-            <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Champs de l'Embed ({embed.fields.length})</h4>
+            <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_fields_header({ n: embed.fields.length })}</h4>
             <button 
               type="button" 
               onclick={addField} 
               disabled={embed.fields.length >= 25 || !canManageSettings}
               class="text-xs font-bold text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
             >
-              <Papicon icon="Plus" size={14} /> Ajouter un champ
+              <Papicon icon="Plus" size={14} /> {m.embed_builder_add_field_btn()}
             </button>
           </div>
 
@@ -472,12 +473,12 @@
               <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3 relative group">
                 <div class="flex gap-2">
                   <div class="flex-1 space-y-1">
-                    <label for={`fldName-${idx}`} class="text-[10px] font-bold text-on-surface-variant/50 ml-1 uppercase">Titre du champ</label>
+                    <label for={`fldName-${idx}`} class="text-[10px] font-bold text-on-surface-variant/50 ml-1 uppercase">{m.embed_builder_field_title_label()}</label>
                     <input 
                       id={`fldName-${idx}`}
                       type="text" 
                       bind:value={fld.name} 
-                      placeholder="Nom du champ" 
+                      placeholder={m.embed_builder_field_title_ph()} 
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none"
                       required
                       disabled={!canManageSettings}
@@ -488,6 +489,7 @@
                       type="button" 
                       onclick={() => removeField(idx)}
                       class="self-end p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
+                      title={m.reaction_roles_remove_button_title()}
                     >
                       <Papicon icon="Minus" size={14} />
                     </button>
@@ -495,11 +497,11 @@
                 </div>
 
                 <div class="space-y-1">
-                  <label for={`fldVal-${idx}`} class="text-[10px] font-bold text-on-surface-variant/50 ml-1 uppercase">Contenu du champ</label>
+                  <label for={`fldVal-${idx}`} class="text-[10px] font-bold text-on-surface-variant/50 ml-1 uppercase">{m.embed_builder_field_val_label()}</label>
                   <textarea 
                     id={`fldVal-${idx}`}
                     bind:value={fld.value} 
-                    placeholder="Valeur ou texte du champ" 
+                    placeholder={m.embed_builder_field_val_ph()} 
                     class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-1.5 text-xs focus:outline-none h-14 resize-none"
                     required
                     disabled={!canManageSettings}
@@ -514,7 +516,7 @@
                     class="rounded border-outline-variant/20 text-primary focus:ring-primary/20"
                     disabled={!canManageSettings}
                   />
-                  <label for={`fldInline-${idx}`} class="text-[11px] font-bold text-on-surface-variant/60 uppercase">Aligner en ligne (Inline)</label>
+                  <label for={`fldInline-${idx}`} class="text-[11px] font-bold text-on-surface-variant/60 uppercase">{m.embed_builder_field_inline_label()}</label>
                 </div>
               </div>
             {/each}
@@ -522,10 +524,10 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Pied de Page (Footer)</h4>
+          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">{m.embed_builder_footer_header()}</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="footerText" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Texte du footer</label>
+              <label for="footerText" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_footer_text_label()}</label>
               <input 
                 id="footerText"
                 type="text" 
@@ -536,7 +538,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="footerIcon" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de l'icône du footer</label>
+              <label for="footerIcon" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">{m.embed_builder_footer_icon_label()}</label>
               <input 
                 id="footerIcon"
                 type="url" 
@@ -554,7 +556,7 @@
                 class="rounded border-outline-variant/20 text-primary focus:ring-primary/20"
                 disabled={!canManageSettings}
               />
-              <label for="embedTimestamp" class="text-[11px] font-bold text-on-surface-variant/60 uppercase">Afficher l'horodatage (Timestamp)</label>
+              <label for="embedTimestamp" class="text-[11px] font-bold text-on-surface-variant/60 uppercase">{m.embed_builder_timestamp_label()}</label>
             </div>
           </div>
         </div>
@@ -566,7 +568,7 @@
               disabled={actionState.state.loading || !targetChannelId}
               class="px-8 py-3.5 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
             >
-              {targetMessageId.trim() ? "Modifier l'embed" : "Publier l'embed"}
+              {targetMessageId.trim() ? m.embed_builder_edit_btn() : m.embed_builder_publish_btn()}
             </button>
           </div>
         {/if}
@@ -576,7 +578,7 @@
       <section class="space-y-6 h-fit">
         <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="Camera" size={20} class="text-secondary" />
-          Aperçu en temps réel
+          {m.embed_builder_live_preview()}
         </h3>
 
         <div class="p-6 rounded-xl bg-surface-container-low/30 border border-outline-variant/10 flex flex-col gap-4 select-none relative overflow-hidden">
@@ -588,7 +590,7 @@
               <div class="flex items-center gap-2">
                 <span class="font-bold text-primary">Kotbo</span>
                 <span class="bg-primary/20 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                <span class="text-[11px] text-on-surface-variant/40">Aujourd'hui à 12:10</span>
+                <span class="text-[11px] text-on-surface-variant/40">{m.announcements_today_at({ time: '12:10' })}</span>
               </div>
               
               <!-- Message content (outside embed) -->
@@ -666,7 +668,7 @@
                             <span class="mx-1">•</span>
                           {/if}
                           {#if embed.timestamp}
-                            Aujourd'hui à 12:10
+                            {m.announcements_today_at({ time: '12:10' })}
                           {/if}
                         </span>
                       </div>
@@ -681,7 +683,7 @@
                   {/if}
                 </div>
               {:else if !content.trim()}
-                <p class="text-xs text-on-surface-variant/40 italic mt-2">Saisissez des informations à gauche pour voir l'aperçu de l'embed.</p>
+                <p class="text-xs text-on-surface-variant/40 italic mt-2">{m.embed_builder_preview_empty_hint()}</p>
               {/if}
             </div>
           </div>

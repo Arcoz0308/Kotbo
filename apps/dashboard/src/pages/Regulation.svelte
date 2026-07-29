@@ -498,8 +498,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 </script>
 
 <ModulePage 
-  title="Règlement du Serveur" 
-  description="Crée, ordonne et publie les articles du règlement. La sélection des rapports de sanction se synchronise directement avec cette liste." 
+  title={m.regulation_page_title()} 
+  description={m.regulation_page_desc()} 
   icon="gavel"
   featureKey="regulation"
 >
@@ -508,7 +508,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <RefreshButton
         onClick={() => dashboardStore.refresh()}
         loading={guildState.loading}
-        label="Actualiser"
+        label={m.regulation_refresh_btn()}
         className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-medium bg-on-surface text-surface shadow-sm  transition-all duration-300"
         iconClass="text-lg"
       />
@@ -519,10 +519,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     <div class="flex items-center gap-4 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-xl border border-outline-variant/5 mb-8">
        <div class="flex items-center gap-2">
           <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-          <span>{activeRules.length} actif(s) sur {regulationRules.length} article(s)</span>
+          <span>{m.regulation_stats_active({ active: activeRules.length, total: regulationRules.length })}</span>
        </div>
        <span class="w-px h-3 bg-outline-variant/20"></span>
-       <span>Dernière synchro: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+       <span>{m.regulation_last_sync({ time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) })}</span>
     </div>
   {/if}
 
@@ -533,16 +533,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="Hash" size={18} />
         </div>
-        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Salon de publication</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.regulation_section_channel()}</h3>
       </div>
       <div class="space-y-4">
         <div class="flex flex-col gap-2 p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
-          <span class="text-[13px] font-medium text-on-surface-variant/60">Actuel</span>
+          <span class="text-[13px] font-medium text-on-surface-variant/60">{m.regulation_channel_current()}</span>
           <span class="text-sm font-semibold text-primary bg-primary/5 px-3 py-2 rounded-lg break-all">{regulationChannelLabel}</span>
         </div>
         {#if canManageSettings}
           <div class="space-y-2">
-            <SearchableSelect id="regulation-channel-select" bind:value={guildState.regulationChannelId} options={(guildState.discordChannels || []).map((channel: any) => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder="Par défaut (salon config)" className="w-full" on:change={(e) => handleRegulationChannelChange(e.detail.value)} disabled={saving || guildState.loading || guildState.discordChannels.length === 0} />
+            <SearchableSelect id="regulation-channel-select" bind:value={guildState.regulationChannelId} options={(guildState.discordChannels || []).map((channel: any) => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder={m.regulation_channel_default_ph()} className="w-full" on:change={(e) => handleRegulationChannelChange(e.detail.value)} disabled={saving || guildState.loading || guildState.discordChannels.length === 0} />
           </div>
         {/if}
       </div>
@@ -553,14 +553,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="Bell" size={18} />
         </div>
-        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Notifications MP</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.regulation_section_dm_notifs()}</h3>
       </div>
       <div class="space-y-4">
         {#if featureConfig && canManageSettings}
           <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
             <div class="space-y-0.5">
-              <span class="text-sm font-bold text-on-surface">Activer les MP</span>
-              <p class="text-[11px] text-on-surface-variant/60 leading-tight">Notifier par message privé</p>
+              <span class="text-sm font-bold text-on-surface">{m.regulation_dm_notifs_title()}</span>
+              <p class="text-[11px] text-on-surface-variant/60 leading-tight">{m.regulation_dm_notifs_desc()}</p>
             </div>
             <ToggleSwitch 
               checked={featureConfig.notifyViaDM ?? false}
@@ -571,8 +571,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
           <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10 {!(featureConfig.notifyViaDM ?? false) ? 'opacity-40 pointer-events-none' : ''}">
             <div class="space-y-0.5">
-              <span class="text-sm font-bold text-on-surface">Staff uniquement</span>
-              <p class="text-[11px] text-on-surface-variant/60 leading-tight">Restreindre l'envoi de MP aux staffs uniquement</p>
+              <span class="text-sm font-bold text-on-surface">{m.regulation_staff_only_title()}</span>
+              <p class="text-[11px] text-on-surface-variant/60 leading-tight">{m.regulation_staff_only_desc()}</p>
             </div>
             <ToggleSwitch 
               checked={featureConfig.notifyOnlyStaffRoles ?? false}
@@ -591,12 +591,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="bg-secondary/10 p-2 rounded-xl text-secondary">
           <Papicon icon="PaperPlaneTilt" size={18} />
         </div>
-        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">État du message</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.regulation_section_msg_status()}</h3>
       </div>
       <div class="space-y-4">
         <div class="p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
           <p class="text-sm font-bold text-on-surface leading-relaxed">{publicationStatusLabel}</p>
-          <p class="mt-1 text-[10px] font-medium text-on-surface-variant/60 uppercase tracking-wider">Synchronisation automatique active</p>
+          <p class="mt-1 text-[10px] font-medium text-on-surface-variant/60 uppercase tracking-wider">{m.regulation_msg_sync_active()}</p>
         </div>
         <ActionButton
           onClick={handlePublishRegulation}
@@ -604,7 +604,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           variant="primary"
           className="w-full py-4 rounded-xl "
           icon={guildState.regulationMessageId ? 'ArrowsCounterClockwise' : 'Megaphone'}
-          label={publishing ? 'Publication en cours...' : guildState.regulationMessageId ? 'Actualiser le message' : 'Publier le règlement'}
+          label={publishing ? m.regulation_btn_publishing() : guildState.regulationMessageId ? m.regulation_btn_republish() : m.regulation_btn_publish()}
         />
       </div>
     </div>
@@ -614,14 +614,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="ShieldCheck" size={18} />
         </div>
-        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Vérification</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{m.regulation_section_verification()}</h3>
       </div>
       <div class="space-y-4">
         {#if canManageSettings}
           <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
             <div class="space-y-0.5">
-              <span class="text-sm font-bold text-on-surface">Vérification</span>
-              <p class="text-[11px] text-on-surface-variant/60 leading-tight">Activer le bouton règlement</p>
+              <span class="text-sm font-bold text-on-surface">{m.regulation_verif_title()}</span>
+              <p class="text-[11px] text-on-surface-variant/60 leading-tight">{m.regulation_verif_desc()}</p>
             </div>
             <ToggleSwitch 
               checked={guildState.regulationVerificationEnabled}
@@ -632,12 +632,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
           {#if guildState.regulationVerificationEnabled}
             <div class="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-              <label class="field-label" for="regulation-role-select">Rôle attribué</label>
+              <label class="field-label" for="regulation-role-select">{m.regulation_verif_role_label()}</label>
               <SearchableSelect 
                 id="regulation-role-select" 
                 bind:value={guildState.regulationRoleId} 
                 options={availableRoles.map((role: any) => ({ id: role.id, name: `@${role.name}` }))} 
-                placeholder="Création automatique ('Vérifié')" 
+                placeholder={m.regulation_verif_role_ph()} 
                 className="w-full" 
                 on:change={(e) => handleRegulationRoleChange(e.detail.value)} 
                 disabled={saving || guildState.loading} 
@@ -646,8 +646,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
             <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10 animate-in fade-in slide-in-from-top-1 duration-200">
               <div class="space-y-0.5">
-                <span class="text-sm font-bold text-on-surface">Verrouiller</span>
-                <p class="text-[11px] text-on-surface-variant/60 leading-tight">Masquer les autres salons</p>
+                <span class="text-sm font-bold text-on-surface">{m.regulation_lock_title()}</span>
+                <p class="text-[11px] text-on-surface-variant/60 leading-tight">{m.regulation_lock_desc()}</p>
               </div>
               <ToggleSwitch 
                 checked={guildState.regulationLockEnabled}
@@ -679,8 +679,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <Papicon icon="ListBullets" size={20} />
         </div>
         <div>
-          <h3 class="text-xl font-semibold text-on-surface tracking-tight">Articles du règlement</h3>
-          <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">Gérez la structure de votre serveur</p>
+          <h3 class="text-xl font-semibold text-on-surface tracking-tight">{m.regulation_articles_header()}</h3>
+          <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.regulation_articles_sub()}</p>
         </div>
       </div>
       <ActionButton
@@ -688,7 +688,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         disabled={!canManageSettings || reordering}
         variant="primary"
         icon="Plus"
-        label="Nouvel Article"
+        label={m.regulation_new_article_btn()}
         className="px-6 py-3 rounded-xl shadow-sm shadow-primary/20"
       />
     </div>
@@ -711,10 +711,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <Papicon icon="Files" size={48} />
           </div>
           <div class="space-y-1">
-            <h4 class="text-xl font-semibold text-on-surface">Aucun article configuré</h4>
-            <p class="text-on-surface-variant/60 max-w-sm">Commencez par créer le premier article pour définir les règles de votre communauté.</p>
+            <h4 class="text-xl font-semibold text-on-surface">{m.regulation_no_articles_title()}</h4>
+            <p class="text-on-surface-variant/60 max-w-sm">{m.regulation_no_articles_desc()}</p>
           </div>
-          <ActionButton onClick={openCreateModal} disabled={!canManageSettings} variant="primary" icon="Plus" label="Créer le premier article" className="px-8 py-3 rounded-xl" />
+          <ActionButton onClick={openCreateModal} disabled={!canManageSettings} variant="primary" icon="Plus" label={m.regulation_create_first_btn()} className="px-8 py-3 rounded-xl" />
         </div>
       {:else}
         {#each regulationRules as rule}
@@ -752,11 +752,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 
                 <div class="flex flex-wrap items-center gap-2">
                    <span class="px-3 py-1 rounded-lg bg-surface-container-high/60 text-xs font-medium text-on-surface-variant/60 border border-outline-variant/5">
-                    {rule.enabled ? 'Visible' : 'Masqué'}
+                    {rule.enabled ? m.regulation_badge_visible() : m.regulation_badge_hidden()}
                    </span>
                    {#if canManageSettings}
                     <span class="px-3 py-1 rounded-lg bg-primary/5 text-xs font-medium text-primary/60 border border-primary/10 animate-pulse">
-                      Glisser pour réorganiser
+                      {m.regulation_drag_hint()}
                     </span>
                    {/if}
                 </div>
@@ -768,14 +768,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   <button 
                     onclick={() => openEditModal(rule)}
                     class="p-3 rounded-xl hover:bg-primary/10 hover:text-primary text-on-surface-variant/60 transition-all"
-                    title="Modifier"
+                    title={m.reaction_roles_edit_button_title()}
                   >
                     <Papicon icon="PencilSimple" size={18} />
                   </button>
                   <button 
                     onclick={() => openDeleteModal(rule)}
                     class="p-3 rounded-xl hover:bg-error-container/20 hover:text-error text-on-surface-variant/60 transition-all"
-                    title="Supprimer"
+                    title={m.reaction_roles_delete_tooltip()}
                   >
                     <Papicon icon="Trash" size={18} />
                   </button>
@@ -791,14 +791,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   disabled={reordering || rule.sortOrder === 0}
                   class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-[13px] font-medium disabled:opacity-30"
                  >
-                  Monter
+                  {m.regulation_move_up()}
                  </button>
                  <button 
                   onclick={() => moveRuleByOffset(rule.id, 1)}
                   disabled={reordering || rule.sortOrder === regulationRules.length - 1}
                   class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-[13px] font-medium disabled:opacity-30"
                  >
-                  Descendre
+                  {m.regulation_move_down()}
                  </button>
               </div>
             {/if}
@@ -820,8 +820,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <Papicon icon={modalMode === 'create' ? "PlusCircle" : "PencilSimple"} size={24} />
           </div>
           <div>
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{modalMode === 'create' ? 'Configuration' : 'Édition'}</p>
-            <h3 id="regulation-modal-title" class="text-2xl font-semibold text-on-surface tracking-tight">{modalMode === 'create' ? 'Nouvel Article' : 'Modifier l’Article'}</h3>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{modalMode === 'create' ? m.regulation_modal_config_badge() : m.regulation_modal_edit_badge()}</p>
+            <h3 id="regulation-modal-title" class="text-2xl font-semibold text-on-surface tracking-tight">{modalMode === 'create' ? m.regulation_modal_title_add() : m.regulation_modal_title_edit()}</h3>
           </div>
         </div>
         <button onclick={closeModal} class="p-2 rounded-xl hover:bg-surface-container-high transition-colors text-on-surface-variant/40">
@@ -831,13 +831,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
-          <label for="regulation-title" class="field-label">Titre de la règle</label>
-          <FormInput id="regulation-title" type="text" bind:value={draftTitle} className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="Ex: Respect et courtoisie" />
+          <label for="regulation-title" class="field-label">{m.regulation_field_title_label()}</label>
+          <FormInput id="regulation-title" type="text" bind:value={draftTitle} className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder={m.regulation_field_title_ph()} />
         </div>
         <div class="space-y-2">
-          <label for="regulation-emoji" class="field-label">Emoji (Optionnel)</label>
+          <label for="regulation-emoji" class="field-label">{m.regulation_field_emoji_label()}</label>
           <div class="flex gap-2">
-            <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="📌 ou <:custom:123>" />
+            <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder={m.regulation_field_emoji_ph()} />
             <EmojiPicker bind:value={draftEmoji} />
           </div>
         </div>
@@ -850,21 +850,21 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               </div>
             </div>
             <div class="flex-1">
-              <span class="block text-sm font-semibold text-on-surface tracking-tight">Article actif et visible</span>
-              <span class="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest mt-0.5">Visibilité publique et synchronisation</span>
+              <span class="block text-sm font-semibold text-on-surface tracking-tight">{m.regulation_field_active_title()}</span>
+              <span class="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest mt-0.5">{m.regulation_field_active_desc()}</span>
             </div>
           </label>
         </div>
       </div>
 
       <div class="space-y-2">
-        <label for="regulation-description" class="field-label">Description détaillée (Markdown supporté)</label>
+        <label for="regulation-description" class="field-label">{m.regulation_field_desc_label()}</label>
         <FormTextarea
           id="regulation-description"
           bind:value={draftDescription}
           rows={5}
           className="w-full rounded-xl px-6 py-5 bg-surface-container-high/60 border border-outline-variant/10 font-medium text-on-surface leading-relaxed focus:ring-2 focus:ring-primary/40 transition-all"
-          placeholder="Décris précisément la règle..."
+          placeholder={m.regulation_field_desc_ph()}
         />
       </div>
 
@@ -873,14 +873,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         <div class="absolute top-0 right-0 p-4 opacity-10 text-primary">
            <Papicon icon="Eye" size={48} />
         </div>
-        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary/60 mb-3">Aperçu en temps réel</p>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary/60 mb-3">{m.regulation_preview_badge()}</p>
         <div class="flex items-center gap-3 mb-2">
           {#if draftEmoji}
             <span class="text-xl">{draftEmoji}</span>
           {/if}
-          <p class="text-lg font-semibold text-on-surface tracking-tight">{draftTitle || 'Titre de l’article'}</p>
+          <p class="text-lg font-semibold text-on-surface tracking-tight">{draftTitle || m.regulation_preview_title_ph()}</p>
         </div>
-        <p class="whitespace-pre-wrap text-sm font-medium text-on-surface-variant leading-relaxed">{draftDescription || 'La description apparaîtra ici...'}</p>
+        <p class="whitespace-pre-wrap text-sm font-medium text-on-surface-variant leading-relaxed">{draftDescription || m.regulation_preview_desc_ph()}</p>
       </div>
 
       <div class="flex items-center justify-end gap-3 pt-2">
@@ -888,13 +888,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onclick={closeModal} 
           class="px-8 py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all"
         >
-          Annuler
+          {m.reaction_roles_cancel_button()}
         </button>
         <ActionButton
           onClick={saveRule}
           variant="primary"
           className="px-10 py-4 rounded-xl shadow-sm shadow-primary/20"
-          label={saving ? 'Enregistrement...' : modalMode === 'create' ? 'Créer l’Article' : 'Sauvegarder'}
+          label={saving ? m.regulation_save_saving() : modalMode === 'create' ? m.regulation_save_create_btn() : m.regulation_save_edit_btn()}
           disabled={saving || !canManageSettings}
         />
       </div>
@@ -913,17 +913,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <Papicon icon="Warning" size={40} />
         </div>
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-error/60">Action Irréversible</p>
-          <h3 id="delete-rule-title" class="text-2xl font-semibold text-on-surface tracking-tight">Supprimer l’Article ?</h3>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-error/60">{m.regulation_delete_modal_badge()}</p>
+          <h3 id="delete-rule-title" class="text-2xl font-semibold text-on-surface tracking-tight">{m.regulation_delete_modal_title()}</h3>
         </div>
         <p class="text-sm font-bold text-on-surface-variant leading-relaxed">
-          Voulez-vous vraiment supprimer <span class="text-on-surface font-semibold">{deletingRule.emoji ? `${deletingRule.emoji} ` : ''}{deletingRule.title}</span> ?
-          Cette action retirera l’article de tous les futurs rapports.
+          {m.regulation_delete_modal_desc({ rule: (deletingRule.emoji ? `${deletingRule.emoji} ` : '') + deletingRule.title })}
         </p>
       </div>
 
       <div class="space-y-3">
-        <label for="delete-rule-confirm" class="field-label">Tapez <span class="text-error">SUPPRIMER</span> pour confirmer</label>
+        <label for="delete-rule-confirm" class="field-label">{m.regulation_delete_confirm_prompt({ keyword: 'SUPPRIMER' })}</label>
         <FormInput
           id="delete-rule-confirm"
           type="text"
@@ -935,8 +934,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="flex flex-col gap-2">
-        <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? 'Suppression...' : 'Confirmer la Suppression'} disabled={saving} className="w-full py-4 rounded-xl shadow-sm shadow-error/20" />
-        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
+        <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? m.regulation_delete_deleting() : m.regulation_delete_confirm_btn()} disabled={saving} className="w-full py-4 rounded-xl shadow-sm shadow-error/20" />
+        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">{m.reaction_roles_cancel_button()}</button>
       </div>
     </div>
   </div>
@@ -953,14 +952,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <Papicon icon="Warning" size={40} />
         </div>
         <div>
-          <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500/60">Attention de sécurité</p>
-          <h3 id="verification-warning-title" class="text-2xl font-semibold text-on-surface tracking-tight">Activer la vérification ?</h3>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500/60">{m.regulation_warning_modal_badge()}</p>
+          <h3 id="verification-warning-title" class="text-2xl font-semibold text-on-surface tracking-tight">{m.regulation_warning_modal_title()}</h3>
         </div>
         <p class="text-sm font-bold text-on-surface-variant leading-relaxed">
-          L'activation de la vérification par règlement peut causer des conflits de permissions Discord et donner par mégarde un accès de lecture à <span class="text-amber-500 font-semibold">@everyone</span> sur certains salons privés.
+          {m.regulation_warning_modal_desc1({ everyone: '@everyone' })}
         </p>
         <p class="text-xs font-semibold text-on-surface-variant/70 leading-relaxed">
-          Assurez-vous que vos salons privés refusent explicitement l'autorisation de lire les messages pour le rôle <span class="font-semibold">@everyone</span>.
+          {m.regulation_warning_modal_desc2({ everyone: '@everyone' })}
         </p>
       </div>
 
@@ -969,9 +968,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onclick={confirmVerificationToggle}
           class="w-full py-4 bg-amber-500 text-white rounded-xl text-[13px] font-medium hover: active:scale-95 transition-all shadow-sm"
         >
-          Activer quand même
+          {m.regulation_warning_modal_confirm()}
         </button>
-        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
+        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-[13px] font-medium text-on-surface-variant hover:bg-surface-container-high transition-all">{m.reaction_roles_cancel_button()}</button>
       </div>
     </div>
   </div>
