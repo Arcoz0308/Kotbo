@@ -3,6 +3,8 @@ import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Mes
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
+import { resolveGuildLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
 
 /**
  * Crée et envoie un menu de rôles avec boutons dans un canal Discord
@@ -101,11 +103,12 @@ export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
     if (!channel?.isTextBased()) return;
 
     const options = menu.options as Array<{ emoji?: string; label: string; roleId: string }>;
+    const locale = await resolveGuildLocale(menu.guildId, discordGuild.preferredLocale);
 
     // Créer l'embed du menu
     const embed = new EmbedBuilder()
       .setTitle(resolveEmojiShortcodes(menu.title))
-      .setDescription("Cliquez sur les boutons ci-dessous pour vous attribuer ou retirer les rôles correspondants.")
+      .setDescription(m.panel_reactionroles_description({}, { locale }))
       .setColor('#5865F2')
       .setTimestamp();
 
