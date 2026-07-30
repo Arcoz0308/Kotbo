@@ -271,7 +271,8 @@ export const iconAliases: Record<string, string> = {
   'radio_button_checked': 'CircleDot',
   'short_text': 'Type',
   'title': 'Heading',
-  'translate': 'Languages'
+  'translate': 'Languages',
+  'tune': 'SlidersHorizontal'
 };
 
 /** Icones reellement fournies par Papicons, pour eviter ses logs d'erreur. */

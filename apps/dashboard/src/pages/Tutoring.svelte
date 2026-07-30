@@ -160,6 +160,8 @@
     confirmModal = { open: true, title, message, onConfirm };
   }
 
+  let defaultTabApplied = false;
+
   async function fetchData() {
     loading = true;
     try {
@@ -175,10 +177,15 @@
       tutorApprentices = tutorData?.apprentices || [];
       apprenticeProgress = apprenticeData?.progress;
 
-      // Default tab based on role
-      if (tutorApprentices.length > 0) activeTab = 'dashboard';
-      else if (apprenticeProgress) activeTab = 'progress';
-      else if (authStore.isAdmin || tutorApprentices.length > 0) activeTab = 'config';
+      // Onglet par defaut choisi une seule fois : les rechargements declenches
+      // par une action (checklist, carnet de bord, items) ne doivent pas
+      // ramener l'utilisateur sur un autre onglet.
+      if (!defaultTabApplied) {
+        defaultTabApplied = true;
+        if (tutorApprentices.length > 0) activeTab = 'dashboard';
+        else if (apprenticeProgress) activeTab = 'progress';
+        else if (authStore.isAdmin) activeTab = 'config';
+      }
 
     } catch (err) {
       console.error('Error fetching tutoring data:', err);
@@ -188,6 +195,11 @@
   }
 
   onMount(async () => {
+    // Le layout monte la page des que la session est confirmee, alors que les
+    // guildes (donc authStore.isAdmin) arrivent un peu apres. Sans cette
+    // attente, un rechargement complet choisit l'onglet par defaut et masque
+    // les controles admin comme si l'utilisateur ne l'etait pas.
+    await authStore.initialize();
     await Promise.all([
       fetchData(),
       loadFeatureConfig()
