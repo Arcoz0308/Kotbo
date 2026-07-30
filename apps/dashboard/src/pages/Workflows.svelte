@@ -108,7 +108,7 @@
   }
 
   function startFromTemplate(template: RecipeTemplate): void {
-    openEditor(template.name, compileRecipe(template.build()));
+    openEditor(TEMPLATE_LABELS[template.id]?.name() ?? '', compileRecipe(template.build()));
   }
 
   async function edit(id: string): Promise<void> {
@@ -138,11 +138,11 @@
     if (!canManageSettings || saving) return;
 
     if (!form.name.trim()) {
-      toast.error('Donnez un nom à cette automatisation.');
+      toast.error(m.wf_need_name());
       return;
     }
     if (hasBlockingIssue(issues)) {
-      toast.error('Certaines étapes sont incomplètes.');
+      toast.error(m.wf_steps_incomplete());
       return;
     }
 
@@ -186,7 +186,7 @@
         enabled: false,
         graph: full.workflow.graph,
       });
-      toast.success('Automatisation dupliquée.');
+      toast.success(m.wf_duplicated());
       await loadList();
     } catch (e: any) {
       toast.error(e?.message || m.wf_error());
@@ -217,6 +217,15 @@
       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
     });
   }
+
+  /** Libellés des modèles, tenus hors du fichier de données pour rester traduisibles. */
+  const TEMPLATE_LABELS: Record<string, { name: () => string; description: () => string }> = {
+    welcome: { name: m.wf_tpl_welcome, description: m.wf_tpl_welcome_desc },
+    'young-account': { name: m.wf_tpl_young, description: m.wf_tpl_young_desc },
+    'anti-invite': { name: m.wf_tpl_invite, description: m.wf_tpl_invite_desc },
+    'level-reward': { name: m.wf_tpl_level, description: m.wf_tpl_level_desc },
+    'ticket-welcome': { name: m.wf_tpl_ticket, description: m.wf_tpl_ticket_desc },
+  };
 
   const STATUS_META: Record<string, { label: () => string; color: string }> = {
     COMPLETED: { label: () => m.wf_exec_status_completed(), color: 'bg-emerald-500/15 text-emerald-300' },
@@ -255,7 +264,7 @@
             class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
           >
             <Papicon icon="Plus" size={14} />
-            Nouvelle automatisation
+            {m.wf_new_automation()}
           </button>
         {/if}
       </div>
@@ -279,14 +288,15 @@
   {:else if view === 'templates'}
     <div class="space-y-5">
       <div class="space-y-1">
-        <h2 class="text-sm font-bold text-on-surface">Par quoi commencer ?</h2>
+        <h2 class="text-sm font-bold text-on-surface">{m.wf_start_title()}</h2>
         <p class="text-xs text-on-surface-variant/60">
-          Les modèles sont prêts à l'emploi : il ne reste qu'à choisir les salons et les rôles.
+          {m.wf_start_desc()}
         </p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         {#each RECIPE_TEMPLATES as template (template.id)}
+          {@const labels = TEMPLATE_LABELS[template.id]}
           <button
             type="button"
             onclick={() => startFromTemplate(template)}
@@ -296,8 +306,8 @@
               <Papicon icon={template.icon} size={16} />
             </span>
             <span class="min-w-0 space-y-1">
-              <span class="block text-sm font-semibold text-on-surface">{template.name}</span>
-              <span class="block text-xs text-on-surface-variant/60 leading-snug">{template.description}</span>
+              <span class="block text-sm font-semibold text-on-surface">{labels?.name()}</span>
+              <span class="block text-xs text-on-surface-variant/60 leading-snug">{labels?.description()}</span>
             </span>
           </button>
         {/each}
@@ -311,8 +321,8 @@
             <Papicon icon="Plus" size={16} />
           </span>
           <span class="min-w-0 space-y-1">
-            <span class="block text-sm font-semibold text-on-surface">Partir d'une page blanche</span>
-            <span class="block text-xs text-on-surface-variant/60 leading-snug">Choisir soi-même le déclencheur et les étapes.</span>
+            <span class="block text-sm font-semibold text-on-surface">{m.wf_start_blank()}</span>
+            <span class="block text-xs text-on-surface-variant/60 leading-snug">{m.wf_start_blank_desc()}</span>
           </span>
         </button>
       </div>
@@ -327,7 +337,7 @@
           <input
             id="wf-name"
             bind:value={form.name}
-            placeholder="Message de bienvenue"
+            placeholder={m.wf_name_example()}
             class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-sm text-on-surface focus:border-primary/50 focus:outline-none"
           />
         </div>
@@ -344,13 +354,13 @@
             class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-30 {tab === 'steps'
               ? 'bg-primary text-on-primary'
               : 'text-on-surface-variant/70 hover:text-on-surface'}"
-          >Étapes</button>
+          >{m.wf_tab_steps()}</button>
           <button
             onclick={() => (tab = 'graph')}
             class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all {tab === 'graph'
               ? 'bg-primary text-on-primary'
               : 'text-on-surface-variant/70 hover:text-on-surface'}"
-          >Graphe</button>
+          >{m.wf_tab_graph()}</button>
         </div>
       </div>
 
@@ -358,8 +368,7 @@
         <p class="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
           <Papicon icon="Warning" size={13} class="mt-0.5 shrink-0" />
           <span>
-            Cette automatisation utilise des blocs qui ne s'expriment pas sous forme d'étapes — une boucle ou un
-            aiguillage, par exemple. Elle reste modifiable dans la vue graphe, sans rien perdre.
+            {m.wf_advanced_notice()}
           </span>
         </p>
       {/if}
@@ -367,7 +376,7 @@
       {#if blocking.length > 0}
         <p class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
           <Papicon icon="Warning" size={13} />
-          {blocking.length === 1 ? 'Une étape reste à compléter avant l\'enregistrement.' : `${blocking.length} étapes restent à compléter avant l'enregistrement.`}
+          {m.wf_incomplete({ n: blocking.length })}
         </p>
       {/if}
 
@@ -391,9 +400,9 @@
       <div class="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-surface-container-high/50 border border-outline-variant/10">
         <div class="flex items-center gap-1 bg-surface-container-highest/60 p-1 rounded-xl border border-outline-variant/15">
           {#each [
-            { key: 'all' as const, label: 'Toutes', count: workflows.length },
-            { key: 'active' as const, label: 'Actives', count: workflows.filter((w) => w.enabled).length },
-            { key: 'inactive' as const, label: 'En pause', count: workflows.filter((w) => !w.enabled).length },
+            { key: 'all' as const, label: m.wf_filter_all(), count: workflows.length },
+            { key: 'active' as const, label: m.wf_filter_active(), count: workflows.filter((w) => w.enabled).length },
+            { key: 'inactive' as const, label: m.wf_filter_paused(), count: workflows.filter((w) => !w.enabled).length },
           ] as filter (filter.key)}
             <button
               onclick={() => (statusFilter = filter.key)}
@@ -409,7 +418,7 @@
           <input
             type="text"
             bind:value={searchFilter}
-            placeholder="Rechercher une automatisation…"
+            placeholder={m.wf_search_placeholder()}
             class="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-xs text-on-surface focus:border-primary/50 focus:outline-none"
           />
         </div>
@@ -422,19 +431,17 @@
           </div>
           <div class="space-y-1">
             <p class="text-sm font-semibold text-on-surface">
-              {workflows.length === 0 ? 'Aucune automatisation pour l\'instant' : 'Aucun résultat'}
+              {workflows.length === 0 ? m.wf_empty_title() : m.wf_no_result()}
             </p>
             <p class="text-xs text-on-surface-variant/50">
-              {workflows.length === 0
-                ? 'Le bot peut réagir tout seul aux arrivées, aux messages ou aux sanctions.'
-                : 'Essayez un autre mot-clé.'}
+              {workflows.length === 0 ? m.wf_empty_desc() : m.wf_try_other()}
             </p>
           </div>
           {#if workflows.length === 0 && canManageSettings}
             <button
               onclick={() => (view = 'templates')}
               class="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:opacity-90 transition-all"
-            >Créer la première</button>
+            >{m.wf_create_first()}</button>
           {/if}
         </div>
       {:else}
@@ -457,7 +464,7 @@
                   class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 {workflow.enabled
                     ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                     : 'bg-surface-container-highest text-on-surface-variant/50'}"
-                >{workflow.enabled ? 'Active' : 'En pause'}</span>
+                >{workflow.enabled ? m.wf_status_active() : m.wf_status_paused()}</span>
               </div>
 
               <div class="flex flex-wrap items-center gap-3 text-[11px] text-on-surface-variant/60 pt-1 border-t border-outline-variant/10">
@@ -479,16 +486,16 @@
                     class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-surface-container-highest text-on-surface hover:bg-surface-container-highest/80 transition-all flex items-center gap-1.5"
                   >
                     <Papicon icon="Pen" size={12} />
-                    Modifier
+                    {m.wf_edit()}
                   </button>
                   <button
                     onclick={() => duplicate(workflow)}
                     class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/80 hover:text-on-surface transition-all"
-                  >Dupliquer</button>
+                  >{m.wf_duplicate()}</button>
                   <button
                     onclick={() => toggle(workflow)}
                     class="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-container-highest text-on-surface-variant/70 hover:text-on-surface transition-all"
-                  >{workflow.enabled ? 'Mettre en pause' : 'Activer'}</button>
+                  >{workflow.enabled ? m.wf_pause() : m.wf_activate()}</button>
                   <button
                     onclick={() => remove(workflow.id)}
                     class="p-1.5 rounded-xl text-red-300/70 hover:text-red-300 hover:bg-red-500/10 transition-all ml-auto"

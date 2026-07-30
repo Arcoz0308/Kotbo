@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../../i18n';
   import Papicon from '../Papicon.svelte';
   import { tokensOfType, type ContextToken, type FieldKind, type ValueRef } from '@kotbo/shared';
 
@@ -108,7 +109,7 @@
     />
     {#if textTokens.length > 0}
       <span class="flex flex-wrap items-center gap-1">
-        <span class="text-[10px] text-on-surface-variant/40 uppercase tracking-wider">insérer</span>
+        <span class="text-[10px] text-on-surface-variant/40 uppercase tracking-wider">{m.wf_insert()}</span>
         {#each textTokens.slice(0, 8) as token (token.path)}
           <button
             type="button"
@@ -142,11 +143,11 @@
       class="{chipClass} appearance-none pr-7 cursor-pointer focus:outline-none"
     >
       <option value="" disabled>
-        {kind === 'role' ? 'choisir un rôle' : kind === 'channel' ? 'choisir un salon' : 'choisir un membre'}
+        {kind === 'role' ? m.wf_choose_role() : kind === 'channel' ? m.wf_choose_channel() : m.wf_choose_member()}
       </option>
 
       {#if contextChoices.length > 0}
-        <optgroup label="Du déclencheur">
+        <optgroup label={m.wf_from_trigger()}>
           {#each contextChoices as token (token.path)}
             <option value="ctx:{token.path}">{token.label}</option>
           {/each}
@@ -154,7 +155,7 @@
       {/if}
 
       {#if kind === 'role' && roles.length > 0}
-        <optgroup label="Rôles du serveur">
+        <optgroup label={m.wf_server_roles()}>
           {#each roles as role (role.id)}
             <option value="lit:{role.id}">@{role.name}</option>
           {/each}
@@ -162,7 +163,7 @@
       {/if}
 
       {#if kind === 'channel' && channels.length > 0}
-        <optgroup label="Salons du serveur">
+        <optgroup label={m.wf_server_channels()}>
           {#each channels as channel (channel.id)}
             <option value="lit:{channel.id}">#{channel.name}</option>
           {/each}

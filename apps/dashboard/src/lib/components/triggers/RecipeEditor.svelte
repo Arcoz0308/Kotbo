@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../../i18n';
   import Papicon from '../Papicon.svelte';
   import StepCard from './StepCard.svelte';
   import StepPicker from './StepPicker.svelte';
@@ -96,7 +97,7 @@
 
   /** Reformule un message de validation pensé pour le graphe. */
   function humanize(issue: ValidationIssue): string {
-    if (issue.code === 'MISSING_INPUT') return 'Un champ de cette étape reste à remplir.';
+    if (issue.code === 'MISSING_INPUT') return m.wf_field_missing();
     return issue.message;
   }
 
@@ -242,13 +243,13 @@
   <!-- ── Déclencheur ──────────────────────────────────────────────────── -->
   <section class="rounded-2xl bg-surface-container-high/60 border border-outline-variant/15 border-l-[3px] border-l-emerald-400/60 p-4 space-y-3">
     <div class="flex items-center justify-between gap-3">
-      <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Quand</h3>
+      <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{m.wf_when()}</h3>
       {#if trigger && !changingTrigger}
         <button
           type="button"
           onclick={() => (changingTrigger = true)}
           class="text-[11px] font-medium text-primary hover:underline"
-        >changer</button>
+        >{m.wf_change()}</button>
       {/if}
     </div>
 
@@ -265,11 +266,11 @@
   <!-- ── Étapes ───────────────────────────────────────────────────────── -->
   {#if trigger && !changingTrigger}
     <section class="space-y-2">
-      <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 px-1">Alors</h3>
+      <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 px-1">{m.wf_then()}</h3>
 
       {#if recipe.steps.length === 0}
         <p class="px-4 py-6 rounded-2xl bg-surface-container-high/30 text-center text-xs text-on-surface-variant/50">
-          Aucune étape pour l'instant. Ajoutez la première action à exécuter.
+          {m.wf_no_steps()}
         </p>
       {/if}
 
@@ -295,7 +296,7 @@
             class="ml-4 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-on-surface-variant/50 hover:text-primary transition-colors"
           >
             <Papicon icon="Plus" size={10} />
-            Ajouter une condition à ce « si »
+            {m.wf_add_test()}
           </button>
         {/if}
       {/each}
@@ -306,7 +307,7 @@
         class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-semibold text-on-surface-variant/70 border border-dashed border-outline-variant/30 hover:text-on-surface hover:border-primary/40 hover:bg-surface-container-high/40 transition-all"
       >
         <Papicon icon="Plus" size={13} />
-        Ajouter une étape
+        {m.wf_add_step()}
       </button>
     </section>
   {/if}

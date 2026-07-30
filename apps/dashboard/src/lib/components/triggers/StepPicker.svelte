@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../../i18n';
   import Papicon from '../Papicon.svelte';
   import { ACTION_GROUP_LABELS, availableActions, type ActionGroup } from '@kotbo/shared';
 
@@ -40,15 +41,15 @@
   >
     <div class="sticky top-0 p-4 bg-surface-container border-b border-outline-variant/15 space-y-3">
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-bold text-on-surface">Que doit-il se passer ?</h3>
-        <button type="button" onclick={onClose} class="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-on-surface" aria-label="Fermer">
+        <h3 class="text-sm font-bold text-on-surface">{m.wf_step_picker_title()}</h3>
+        <button type="button" onclick={onClose} class="p-1.5 rounded-lg text-on-surface-variant/50 hover:text-on-surface" aria-label={m.wf_close()}>
           <Papicon icon="Cross" size={14} />
         </button>
       </div>
       <input
         type="text"
         bind:value={search}
-        placeholder="Rechercher une action…"
+        placeholder={m.wf_search_action()}
         class="w-full px-3 py-2 rounded-xl bg-surface-container-highest border border-outline-variant/20 text-sm text-on-surface focus:outline-none focus:border-primary/50"
       />
     </div>
@@ -77,7 +78,7 @@
       {/each}
 
       <section class="space-y-2 pt-2 border-t border-outline-variant/15">
-        <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">Organiser</h4>
+        <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{m.wf_group_organize()}</h4>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             type="button"
@@ -86,8 +87,8 @@
           >
             <span class="p-2 rounded-xl bg-amber-500/10 text-amber-300 shrink-0"><Papicon icon="GitBranch" size={14} /></span>
             <span class="min-w-0">
-              <span class="block text-xs font-medium text-on-surface">Ajouter une condition</span>
-              <span class="block text-[10px] text-on-surface-variant/50">N'exécuter la suite que dans certains cas</span>
+              <span class="block text-xs font-medium text-on-surface">{m.wf_add_condition()}</span>
+              <span class="block text-[10px] text-on-surface-variant/50">{m.wf_add_condition_desc()}</span>
             </span>
           </button>
           <button
@@ -97,8 +98,8 @@
           >
             <span class="p-2 rounded-xl bg-sky-500/10 text-sky-300 shrink-0"><Papicon icon="Clock" size={14} /></span>
             <span class="min-w-0">
-              <span class="block text-xs font-medium text-on-surface">Attendre</span>
-              <span class="block text-[10px] text-on-surface-variant/50">Laisser passer un délai avant la suite</span>
+              <span class="block text-xs font-medium text-on-surface">{m.wf_add_wait()}</span>
+              <span class="block text-[10px] text-on-surface-variant/50">{m.wf_add_wait_desc()}</span>
             </span>
           </button>
         </div>

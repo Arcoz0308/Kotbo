@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../../i18n';
   import Papicon from '../Papicon.svelte';
   import ValueField from './ValueField.svelte';
   import Self from './StepCard.svelte';
@@ -153,7 +154,7 @@
       {:else if step.kind === 'wait'}
         <div class="flex flex-wrap items-center gap-2 text-sm text-on-surface">
           <Papicon icon="Clock" size={14} class="text-sky-300 shrink-0" />
-          <span class="text-on-surface-variant/90">Attendre</span>
+          <span class="text-on-surface-variant/90">{m.wf_wait_prefix()}</span>
           <input
             type="number"
             min="1"
@@ -161,22 +162,22 @@
             oninput={(event) => onChange({ ...(step as WaitStep), seconds: Math.max(1, Number(event.currentTarget.value)) })}
             class="w-24 px-2.5 py-1 rounded-lg text-xs bg-surface-container-highest border border-outline-variant/25 text-on-surface focus:outline-none focus:border-primary/60"
           />
-          <span class="text-on-surface-variant/90">secondes avant la suite</span>
+          <span class="text-on-surface-variant/90">{m.wf_wait_suffix()}</span>
         </div>
 
       {:else if step.kind === 'condition'}
         <div class="space-y-2">
           <div class="flex flex-wrap items-center gap-2">
             <Papicon icon="GitBranch" size={14} class="text-amber-300 shrink-0" />
-            <span class="text-sm font-semibold text-on-surface">Si</span>
+            <span class="text-sm font-semibold text-on-surface">{m.wf_if()}</span>
             {#if (step as ConditionStep).tests.length > 1}
               <select
                 value={(step as ConditionStep).match}
                 onchange={(event) => onChange({ ...(step as ConditionStep), match: event.currentTarget.value as 'all' | 'any' })}
                 class="px-2 py-0.5 rounded-lg text-[11px] bg-surface-container-highest border border-outline-variant/25 text-on-surface-variant cursor-pointer focus:outline-none"
               >
-                <option value="all">toutes ces conditions</option>
-                <option value="any">au moins une condition</option>
+                <option value="all">{m.wf_match_all()}</option>
+                <option value="any">{m.wf_match_any()}</option>
               </select>
             {/if}
           </div>
@@ -216,13 +217,13 @@
                   class="px-2 py-0.5 rounded-lg text-[10px] font-medium border transition-colors {test.negate
                     ? 'bg-red-500/15 border-red-500/30 text-red-300'
                     : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant/50 hover:text-on-surface'}"
-                  title="Inverser la condition"
-                >inverser</button>
+                  title={m.wf_invert_title()}
+                >{m.wf_invert()}</button>
                 <button
                   type="button"
                   onclick={() => removeTest(test.id)}
                   class="p-1 rounded-lg text-on-surface-variant/40 hover:text-red-300 transition-colors"
-                  aria-label="Retirer cette condition"
+                  aria-label={m.wf_remove_test()}
                 ><Papicon icon="Trash" size={12} /></button>
               </div>
             {/if}
@@ -244,26 +245,26 @@
         disabled={!canMoveUp}
         onclick={() => onMove(step.id, -1)}
         class="p-1.5 rounded-lg text-on-surface-variant/40 hover:text-on-surface hover:bg-surface-container-highest disabled:opacity-20 disabled:hover:bg-transparent transition-colors"
-        aria-label="Monter l'étape"
+        aria-label={m.wf_move_up()}
       ><Papicon icon="ChevronUp" size={13} /></button>
       <button
         type="button"
         disabled={!canMoveDown}
         onclick={() => onMove(step.id, 1)}
         class="p-1.5 rounded-lg text-on-surface-variant/40 hover:text-on-surface hover:bg-surface-container-highest disabled:opacity-20 disabled:hover:bg-transparent transition-colors"
-        aria-label="Descendre l'étape"
+        aria-label={m.wf_move_down()}
       ><Papicon icon="ChevronDown" size={13} /></button>
       <button
         type="button"
         onclick={() => onRemove(step.id)}
         class="p-1.5 rounded-lg text-on-surface-variant/40 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-        aria-label="Supprimer l'étape"
+        aria-label={m.wf_remove_step()}
       ><Papicon icon="Trash" size={13} /></button>
     </div>
   </div>
 
   {#if step.kind === 'condition'}
-    {#each [{ key: 'then' as const, label: 'Alors' }, { key: 'otherwise' as const, label: 'Sinon' }] as branch (branch.key)}
+    {#each [{ key: 'then' as const, label: m.wf_then() }, { key: 'otherwise' as const, label: m.wf_else() }] as branch (branch.key)}
       <div class="px-3 pb-3">
         <div class="pl-3 border-l border-dashed border-outline-variant/25 space-y-2">
           <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">{branch.label}</p>
@@ -290,7 +291,7 @@
             class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-on-surface-variant/60 border border-dashed border-outline-variant/25 hover:text-on-surface hover:border-primary/40 transition-colors"
           >
             <Papicon icon="Plus" size={11} />
-            Ajouter une étape
+            {m.wf_add_step()}
           </button>
         </div>
       </div>

@@ -11,9 +11,8 @@ import type { Recipe } from '@kotbo/shared';
  */
 
 export interface RecipeTemplate {
+  /** Sert aussi de clé de libellé, traduite côté page */
   id: string;
-  name: string;
-  description: string;
   icon: string;
   build: () => Recipe;
 }
@@ -21,8 +20,6 @@ export interface RecipeTemplate {
 export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   {
     id: 'welcome',
-    name: 'Message de bienvenue',
-    description: 'Accueillir chaque arrivée dans un salon et lui donner son rôle de départ.',
     icon: 'User',
     build: () => ({
       trigger: { type: 'OnMemberJoin' },
@@ -50,8 +47,6 @@ export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   },
   {
     id: 'young-account',
-    name: 'Surveiller les comptes récents',
-    description: 'Signaler au staff les arrivées dont le compte Discord a moins d\'une semaine.',
     icon: 'Shield',
     build: () => ({
       trigger: { type: 'OnMemberJoin' },
@@ -81,8 +76,6 @@ export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   },
   {
     id: 'anti-invite',
-    name: 'Bloquer les invitations',
-    description: 'Exclure temporairement qui poste un lien d\'invitation vers un autre serveur.',
     icon: 'AlertTriangle',
     build: () => ({
       trigger: { type: 'OnMessageSend' },
@@ -113,8 +106,6 @@ export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   },
   {
     id: 'level-reward',
-    name: 'Récompense de niveau',
-    description: 'Féliciter publiquement un membre qui monte de niveau.',
     icon: 'Sparkles',
     build: () => ({
       trigger: { type: 'OnLevelUp' },
@@ -133,8 +124,6 @@ export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   },
   {
     id: 'ticket-welcome',
-    name: 'Accueil des tickets',
-    description: 'Poster les consignes dès l\'ouverture d\'un ticket de support.',
     icon: 'TextBubble',
     build: () => ({
       trigger: { type: 'OnTicketCreated' },
