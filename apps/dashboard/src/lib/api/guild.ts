@@ -1,7 +1,7 @@
 /** Etat de la guilde, modules, presets et reglages globaux. */
 import { authStore } from '../stores/auth.svelte';
 import { toast } from '../stores/toast.svelte';
-import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation } from './client';
+import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation, dashboardRequest } from './client';
 
 export async function fetchGuildState(
   guildId = authStore.selectedGuildId,
@@ -46,6 +46,11 @@ export interface GuildLanguageState {
   /** Langue declaree du serveur Discord, `null` si inexploitable. */
   detected: 'fr' | 'en' | null;
   available: Array<'fr' | 'en'>;
+  /**
+   * Compte-rendu du re-rendu des panneaux persistants (reglement, tickets,
+   * roles-reaction), `null` si la langue effective n'a pas change.
+   */
+  rerender: { updated: number; skipped: number; failed: number } | null;
 }
 
 export async function fetchGuildLanguage(guildId = authStore.selectedGuildId): Promise<GuildLanguageState | null> {
@@ -62,12 +67,16 @@ export async function fetchGuildLanguage(guildId = authStore.selectedGuildId): P
   }
 }
 
-/** Passe `language: null` (ou `mode: 'auto'`) pour repasser en detection auto. */
+/**
+ * Passe `language: null` (ou `mode: 'auto'`) pour repasser en detection auto.
+ *
+ * La reponse porte deja le nouvel etat : pas besoin d'un GET de suivi.
+ */
 export async function updateGuildLanguage(
   payload: { mode: 'auto' } | { language: 'fr' | 'en' },
   guildId = authStore.selectedGuildId,
-) {
-  return dashboardMutation('/language', {
+): Promise<GuildLanguageState | null> {
+  return dashboardRequest('/language', {
     method: 'PATCH',
     payload,
     guildId,
