@@ -1,5 +1,5 @@
 /** Which mobile overlay is currently on screen. Only one may be open at a time. */
-type MobileSheet = 'nav' | 'account' | null;
+type MobileSheet = 'nav' | 'account' | 'tabs' | null;
 
 class MobileNavStore {
   #sheet = $state<MobileSheet>(null);
