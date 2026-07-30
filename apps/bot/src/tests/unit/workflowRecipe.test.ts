@@ -6,6 +6,7 @@ import {
   contextTokens,
   decompileGraph,
   hasBlockingIssue,
+  isEmptyValue,
   validateGraph,
   type Recipe,
 } from '@kotbo/shared';
@@ -24,9 +25,22 @@ import {
  * avant comparaison plutôt que d'alourdir la compilation pour les conserver.
  */
 function withoutTestIds(recipe: Recipe | null): unknown {
-  return JSON.parse(JSON.stringify(recipe), (key, value) => (
-    key === 'id' && typeof value === 'string' && value.startsWith('t') ? 'ID' : value
+  return JSON.parse(JSON.stringify(recipe), (_key, value) => (
+    value && typeof value === 'object' && 'condition' in value ? { ...value, id: 'ID' } : value
   ));
+}
+
+/** Retire les valeurs vides, qui ne survivent pas à la compilation. */
+function withoutEmptyValues(recipe: Recipe): Recipe {
+  return JSON.parse(JSON.stringify(recipe), (_key, value) => {
+    // `'values' in value` est vrai pour un tableau — d'où le garde-fou.
+    if (value && typeof value === 'object' && !Array.isArray(value) && 'values' in value) {
+      const kept = Object.entries(value.values as Record<string, { from: string } & Record<string, unknown>>)
+        .filter(([, ref]) => !isEmptyValue(ref as never));
+      return { ...value, values: Object.fromEntries(kept) };
+    }
+    return value;
+  });
 }
 
 const welcome: Recipe = {
@@ -158,6 +172,33 @@ describe('relecture des graphes', () => {
 
   test('refuse un graphe sans déclencheur', () => {
     expect(decompileGraph({ nodes: [], edges: [] })).toBeNull();
+  });
+});
+
+describe('modèles proposés à la création', () => {
+  /**
+   * Les modèles vivent côté dashboard mais sont du pur contenu : les recopier
+   * ici garderait deux vérités. On les relit donc depuis leur source, sans quoi
+   * un modèle cassé ne se découvrirait qu'à l'écran.
+   */
+  test('se compilent et se relisent tous', async () => {
+    const { RECIPE_TEMPLATES } = await import(
+      '../../../../dashboard/src/lib/components/triggers/recipeTemplates'
+    );
+
+    for (const template of RECIPE_TEMPLATES) {
+      const recipe = template.build();
+      const graph = compileRecipe(recipe);
+
+      // Un champ laissé vide ne produit aucun nœud : il revient absent plutôt
+      // que vide, ce que l'éditeur affiche de la même façon.
+      expect(withoutTestIds(decompileGraph(graph))).toEqual(withoutTestIds(withoutEmptyValues(recipe)));
+
+      // Les rôles et salons sont laissés vides à dessein : seules ces entrées
+      // manquantes doivent être signalées, pas une erreur de construction.
+      const codes = new Set(validateGraph(graph).filter((i) => i.severity === 'error').map((i) => i.code));
+      expect([...codes].every((code) => code === 'MISSING_INPUT')).toBe(true);
+    }
   });
 });
 
