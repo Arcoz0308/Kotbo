@@ -4,13 +4,14 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { staffStore } from '../lib/stores/staff.svelte';
-  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks } from '../lib/api';
-  import type { ChangelogCommit } from '../lib/api';
+  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks, fetchGuildLanguage, updateGuildLanguage, fetchHomeWidgets } from '../lib/api';
+  import type { ChangelogCommit, GuildLanguageState, HomeWidgetsData, HomeWidgetSection } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';
+  import { isMobile } from '../lib/stores/media.svelte';
 
   interface LayoutItem {
     id: string;
@@ -29,6 +30,7 @@
     { id: 'notifications', colSpan: 1, rowSpan: 1, visible: true },
     { id: 'staff', colSpan: 1, rowSpan: 1, visible: true },
     { id: 'audit', colSpan: 1, rowSpan: 1, visible: true },
+    { id: 'botLanguage', colSpan: 1, rowSpan: 1, visible: true },
     { id: 'actions', colSpan: 3, rowSpan: 1, visible: true },
   ];
 
@@ -42,6 +44,7 @@
     { id: 'notifications', title: m.home_mod_notifications_title(), desc: m.home_mod_notifications_desc(), icon: 'inbox' },
     { id: 'staff', title: m.home_mod_staff_title(), desc: m.home_mod_staff_desc(), icon: 'users' },
     { id: 'audit', title: m.home_mod_audit_title(), desc: m.home_mod_audit_desc(), icon: 'activity' },
+    { id: 'botLanguage', title: m.home_mod_botlanguage_title(), desc: m.home_mod_botlanguage_desc(), icon: 'globe' },
     { id: 'actions', title: m.home_mod_actions_title(), desc: m.home_mod_actions_desc(), icon: 'plus-circle' },
     { id: 'notes', title: m.home_mod_notes_title(), desc: m.home_mod_notes_desc(), icon: 'edit' },
     { id: 'serverInfo', title: m.home_mod_serverinfo_title(), desc: m.home_mod_serverinfo_desc(), icon: 'server' },
@@ -552,6 +555,14 @@
     return parts.join('; ');
   }
 
+  function displayColSpan(item: LayoutItem): number {
+    return $isMobile ? 1 : item.colSpan;
+  }
+
+  function displayRowSpan(item: LayoutItem): number {
+    return $isMobile ? 1 : (item.rowSpan || 1);
+  }
+
   function getColSpanClass(colSpan: number): string {
     if (colSpan === 2) return "md:col-span-2";
     if (colSpan === 3) return "md:col-span-2 lg:col-span-3";
@@ -597,17 +608,136 @@
     }
   }
 
+  let botLanguage = $state<GuildLanguageState | null>(null);
+  let botLanguageLoading = $state(false);
+  let botLanguageRerender = $state<GuildLanguageState['rerender']>(null);
+  let botLanguageGuildId: string | null = null;
+
+  async function loadBotLanguage(force = false) {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId || botLanguageLoading || (!force && botLanguageGuildId === guildId)) return;
+    botLanguageLoading = true;
+    try {
+      botLanguage = await fetchGuildLanguage();
+      if (authStore.selectedGuildId === guildId) botLanguageGuildId = guildId;
+    } finally {
+      botLanguageLoading = false;
+    }
+  }
+
+  async function setBotLanguage(payload: { mode: 'auto' } | { language: 'fr' | 'en' }) {
+    if (botLanguageLoading) return;
+    botLanguageLoading = true;
+    botLanguageRerender = null;
+    try {
+      const state = await updateGuildLanguage(payload);
+      if (state) {
+        botLanguage = state;
+        botLanguageRerender = state.rerender;
+      }
+    } catch {
+      // dashboardRequest a deja notifie l'echec.
+    } finally {
+      botLanguageLoading = false;
+    }
+  }
+
+  const botLanguageLabel = (code: 'fr' | 'en') =>
+    code === 'fr' ? m.home_botlanguage_fr() : m.home_botlanguage_en();
+
+  const WIDGET_SECTIONS: Record<string, HomeWidgetSection> = {
+    leveling: 'leveling',
+    invites: 'invites',
+    economy: 'economy',
+    tickets: 'tickets',
+    events: 'events',
+    polls: 'polls',
+    serverInfo: 'serverInfo',
+    quickGuide: 'quickGuide',
+    botHosting: 'hosting',
+  };
+
+  let homeWidgets = $state<HomeWidgetsData | null>(null);
+  let homeWidgetsLoading = $state(false);
+  let homeWidgetsKey: string | null = null;
+  let homeWidgetsGuildId: string | null = null;
+
+  function sectionsFor(visibleIds: Set<string>): HomeWidgetSection[] {
+    return Object.entries(WIDGET_SECTIONS)
+      .filter(([id]) => visibleIds.has(id))
+      .map(([, section]) => section);
+  }
+
+  async function loadHomeWidgets(sections: HomeWidgetSection[], force = false) {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId || sections.length === 0) return;
+
+    if (homeWidgetsGuildId !== guildId) {
+      homeWidgets = null;
+      homeWidgetsGuildId = guildId;
+    }
+
+    const key = `${guildId}:${[...sections].sort().join(',')}`;
+    if (homeWidgetsLoading || (!force && homeWidgetsKey === key)) return;
+
+    homeWidgetsLoading = true;
+    try {
+      const data = await fetchHomeWidgets(sections);
+      if (authStore.selectedGuildId !== guildId) return;
+      homeWidgets = data;
+      homeWidgetsKey = key;
+    } catch {
+      homeWidgets = null;
+      homeWidgetsKey = null;
+    } finally {
+      homeWidgetsLoading = false;
+    }
+  }
+
+  function formatDuration(seconds: number): string {
+    const days = Math.floor(seconds / 86400);
+    if (days >= 1) return m.home_uptime_days({ n: days });
+    const hours = Math.floor(seconds / 3600);
+    if (hours >= 1) return m.home_uptime_hours({ n: hours });
+    return m.home_uptime_minutes({ n: Math.max(1, Math.floor(seconds / 60)) });
+  }
+
+  function formatMemory(megabytes: number): string {
+    if (megabytes >= 1024) return `${(megabytes / 1024).toFixed(1)} GB`;
+    return `${megabytes} MB`;
+  }
+
+  function formatEventDate(iso: string): string {
+    return new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
   $effect(() => {
     const guildId = authStore.selectedGuildId;
     const visibleIds = new Set(userLayout.filter((item) => item.visible).map((item) => item.id));
     if (!guildId || visibleIds.size === 0) return;
 
-    if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
-      void loadAnalytics();
+    // L'état léger de la page d'accueil doit garder la priorité sur ces
+    // widgets secondaires. Les déclencher pendant le premier rendu mettait
+    // immédiatement 5 à 8 requêtes en concurrence avec la requête critique.
+    const loadSecondaryWidgets = () => {
+      if (authStore.selectedGuildId !== guildId) return;
+      if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
+        void loadAnalytics();
+      }
+      if (visibleIds.has('staff')) void staffStore.fetchAll();
+      if (visibleIds.has('news')) void loadChangelog();
+      if (visibleIds.has('staffServer')) void loadStaffServerLinks();
+      if (visibleIds.has('botLanguage')) void loadBotLanguage();
+      void loadHomeWidgets(sectionsFor(visibleIds));
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(loadSecondaryWidgets, { timeout: 1_500 });
+      return () => window.cancelIdleCallback(idleId);
     }
-    if (visibleIds.has('staff')) void staffStore.fetchAll();
-    if (visibleIds.has('news')) void loadChangelog();
-    if (visibleIds.has('staffServer')) void loadStaffServerLinks();
+
+    const timeoutId = globalThis.setTimeout(loadSecondaryWidgets, 250);
+    return () => globalThis.clearTimeout(timeoutId);
   });
 
   const activeModulesCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'active').length);
@@ -726,6 +856,7 @@
     if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
       loadAnalytics(true);
     }
+    void loadHomeWidgets(sectionsFor(visibleIds), true);
   };
 
   function formatNumber(n: number): string {
@@ -798,7 +929,7 @@
         </div>
       </div>
       <button
-        onclick={() => router.goto('/module-catalog')}
+        onclick={() => router.goto('/modules')}
         class="px-3 py-1.5 text-xs font-medium bg-red-500/20 hover:bg-red-500/30 rounded-md transition-colors"
       >
         {m.home_repair()}
@@ -823,14 +954,14 @@
     {#each userLayout.filter(item => item.visible) as item, index (item.id)}
       <div
         role="listitem"
-        draggable={isEditing}
+        draggable={isEditing && !$isMobile}
         ondragstart={(e) => handleDragStart(e, index)}
         ondragend={handleDragEnd}
         ondragover={(e) => handleDragOver(e, index)}
         ondragleave={handleDragLeave}
         ondrop={(e) => handleDrop(e, index)}
-        class="section-card p-5 flex flex-col relative group transition-all duration-200 {getColSpanClass(item.colSpan)} {getRowSpanClass(item.rowSpan || 1)} {getModuleMinHeight(item.id)} {isEditing ? 'border-dashed border-primary/50 hover:shadow-lg hover:border-primary bg-surface-container-lowest/80' : ''} {isEditing && dragOverIndex === index ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface scale-[1.02]' : ''}"
-        style={isEditing ? `cursor: grab; ${getSpanStyle(item.colSpan, item.rowSpan || 1)}` : getSpanStyle(item.colSpan, item.rowSpan || 1)}
+        class="home-bento-item section-card p-5 flex flex-col relative group transition-all duration-200 {getColSpanClass(displayColSpan(item))} {getRowSpanClass(displayRowSpan(item))} {getModuleMinHeight(item.id)} {isEditing ? 'border-dashed border-primary/50 hover:shadow-lg hover:border-primary bg-surface-container-lowest/80' : ''} {isEditing && dragOverIndex === index ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface scale-[1.02]' : ''}"
+        style={isEditing ? `cursor: grab; ${getSpanStyle(displayColSpan(item), displayRowSpan(item))}` : getSpanStyle(displayColSpan(item), displayRowSpan(item))}
       >
         {#if isEditing}
           <!-- Grab handle indicator -->
@@ -853,6 +984,7 @@
               onclick={() => moveModule(index, -1)}
               disabled={index === 0}
               title={m.home_move_up()}
+              aria-label={m.home_move_up()}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             >
               <Papicon icon="arrow-up" size={12} />
@@ -861,56 +993,63 @@
               onclick={() => moveModule(index, 1)}
               disabled={index === userLayout.length - 1}
               title={m.home_move_down()}
+              aria-label={m.home_move_down()}
               class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             >
               <Papicon icon="arrow-down" size={12} />
             </button>
-            <button
-              onclick={() => toggleSize(item.id)}
-              title={m.home_width_cols({ n: item.colSpan })}
-              class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
-            >
-              {item.colSpan}c
-            </button>
-            <button
-              onclick={() => toggleRowSize(item.id)}
-              title={m.home_height_rows({ n: item.rowSpan || 1 })}
-              class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
-            >
-              {item.rowSpan || 1}r
-            </button>
+            {#if !$isMobile}
+              <button
+                onclick={() => toggleSize(item.id)}
+                title={m.home_width_cols({ n: item.colSpan })}
+                aria-label={m.home_width_cols({ n: item.colSpan })}
+                class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
+              >
+                {item.colSpan}c
+              </button>
+              <button
+                onclick={() => toggleRowSize(item.id)}
+                title={m.home_height_rows({ n: item.rowSpan || 1 })}
+                aria-label={m.home_height_rows({ n: item.rowSpan || 1 })}
+                class="p-1 rounded text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors text-[10px] font-bold px-1.5 cursor-pointer"
+              >
+                {item.rowSpan || 1}r
+              </button>
+            {/if}
             <button
               onclick={() => hideModule(item.id)}
               title={m.home_hide_module()}
+              aria-label={m.home_hide_module()}
               class="p-1 rounded text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
             >
               <Papicon icon="trash" size={12} />
             </button>
           </div>
 
-          <!-- Right resize handle (colSpan) -->
-          <div
-            role="button"
-            tabindex="-1"
-            aria-label={m.home_resize_width()}
-            onmousedown={(e) => handleResizeStart(e, item.id, 'col')}
-            class="absolute top-0 right-0 w-2 h-full cursor-col-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-r-lg"
-            title={m.home_resize_width()}
-          >
-            <div class="absolute top-1/2 right-0.5 -translate-y-1/2 w-0.5 h-8 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
-          </div>
+          {#if !$isMobile}
+            <!-- Desktop-only precision resize handles -->
+            <div
+              role="button"
+              tabindex="-1"
+              aria-label={m.home_resize_width()}
+              onmousedown={(e) => handleResizeStart(e, item.id, 'col')}
+              class="absolute top-0 right-0 w-2 h-full cursor-col-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-r-lg"
+              title={m.home_resize_width()}
+            >
+              <div class="absolute top-1/2 right-0.5 -translate-y-1/2 w-0.5 h-8 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
+            </div>
 
-          <!-- Bottom resize handle (rowSpan) -->
-          <div
-            role="button"
-            tabindex="-1"
-            aria-label={m.home_resize_height()}
-            onmousedown={(e) => handleResizeStart(e, item.id, 'row')}
-            class="absolute bottom-0 left-0 w-full h-2 cursor-row-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-b-lg"
-            title={m.home_resize_height()}
-          >
-            <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
-          </div>
+            <div
+              role="button"
+              tabindex="-1"
+              aria-label={m.home_resize_height()}
+              onmousedown={(e) => handleResizeStart(e, item.id, 'row')}
+              class="absolute bottom-0 left-0 w-full h-2 cursor-row-resize z-20 group/resize hover:bg-primary/20 transition-colors rounded-b-lg"
+              title={m.home_resize_height()}
+            >
+              <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary/40 rounded-full opacity-0 group-hover/resize:opacity-100 transition-opacity"></div>
+            </div>
+          {/if}
         {/if}
 
         {#if item.id === 'liveStats'}
@@ -983,19 +1122,19 @@
                   {/if}
                 </div>
               </div>
-              <div class="w-full grow" style="min-height: {(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}px">
+              <div class="w-full grow" style="min-height: {displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}px">
                 {#if activityData.length > 0}
                   {#await import('../lib/components/LineChart.svelte')}
                     <div
                       class="w-full rounded-lg bg-surface-container animate-pulse"
-                      style:height={`${(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}px`}
+                      style:height={`${displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}px`}
                       aria-hidden="true"
                     ></div>
                   {:then module}
                     {@const LineChart = module.default}
                     <LineChart
                       data={activityData}
-                      height={(item.rowSpan || 1) >= 3 ? 320 : (item.rowSpan || 1) >= 2 ? 220 : 128}
+                      height={displayRowSpan(item) >= 3 ? 320 : displayRowSpan(item) >= 2 ? 220 : 128}
                       labelKey="name"
                       valueKey="value"
                       color={statConfig.color}
@@ -1009,6 +1148,77 @@
               </div>
             </div>
           {/if}
+        {:else if item.id === 'botLanguage'}
+          <div class="flex flex-col gap-4 h-full">
+            <div class="flex items-center gap-2.5 shrink-0">
+              <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant">
+                <Papicon icon="globe" size={16} />
+              </div>
+              <h3 class="font-medium text-on-surface">{m.home_botlanguage()}</h3>
+            </div>
+
+            {#if botLanguage}
+              <div class="flex flex-col gap-3 grow">
+                <div>
+                  <p class="text-2xl font-semibold text-on-surface">{botLanguageLabel(botLanguage.locale)}</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">
+                    {botLanguage.mode === 'manual' ? m.home_botlanguage_mode_manual() : m.home_botlanguage_mode_auto()}
+                  </p>
+                </div>
+
+                <p class="text-[11px] text-on-surface-variant">
+                  {#if botLanguage.detected}
+                    {m.home_botlanguage_detected({ lang: botLanguageLabel(botLanguage.detected) })}
+                  {:else}
+                    {m.home_botlanguage_detected_none()}
+                  {/if}
+                </p>
+
+                <div class="flex flex-wrap gap-2 mt-auto">
+                  {#each botLanguage.available as code}
+                    <button
+                      type="button"
+                      disabled={botLanguageLoading}
+                      onclick={() => setBotLanguage({ language: code })}
+                      class="px-2.5 py-1 rounded-lg text-xs border transition-colors disabled:opacity-50 cursor-pointer
+                        {botLanguage.mode === 'manual' && botLanguage.locale === code
+                          ? 'border-primary text-primary bg-primary/10'
+                          : 'border-outline-variant text-on-surface-variant hover:bg-surface-container'}"
+                    >
+                      {botLanguageLabel(code)}
+                    </button>
+                  {/each}
+                  <button
+                    type="button"
+                    disabled={botLanguageLoading || botLanguage.mode === 'auto'}
+                    onclick={() => setBotLanguage({ mode: 'auto' })}
+                    class="px-2.5 py-1 rounded-lg text-xs border transition-colors disabled:opacity-50 cursor-pointer
+                      {botLanguage.mode === 'auto'
+                        ? 'border-primary text-primary bg-primary/10'
+                        : 'border-outline-variant text-on-surface-variant hover:bg-surface-container'}"
+                  >
+                    {m.home_botlanguage_auto_action()}
+                  </button>
+                </div>
+
+                {#if botLanguageRerender}
+                  {#if botLanguageRerender.failed > 0}
+                    <p class="text-[10px] text-amber-400">{m.home_botlanguage_panels_failed({ n: botLanguageRerender.failed })}</p>
+                  {:else if botLanguageRerender.updated > 0}
+                    <p class="text-[10px] text-emerald-400">{m.home_botlanguage_panels_updated({ n: botLanguageRerender.updated })}</p>
+                  {:else}
+                    <p class="text-[10px] text-on-surface-variant/70">{m.home_botlanguage_panels_none()}</p>
+                  {/if}
+                {:else}
+                  <p class="text-[10px] text-on-surface-variant/70">{m.home_botlanguage_hint()}</p>
+                {/if}
+              </div>
+            {:else}
+              <div class="h-full flex items-center justify-center text-on-surface-variant/40 text-xs">
+                {botLanguageLoading ? m.common_loading() : m.home_no_data()}
+              </div>
+            {/if}
+          </div>
         {:else if item.id === 'system'}
           <div class="flex flex-col gap-4 h-full justify-between">
             <div class="flex items-center justify-between shrink-0">
@@ -1018,11 +1228,11 @@
                 </div>
                 <h3 class="font-medium text-on-surface">{m.home_system()}</h3>
               </div>
-              <button onclick={() => router.goto('/module-catalog')} class="text-xs text-primary hover:underline cursor-pointer">{m.nav_modules()}</button>
+              <button onclick={() => router.goto('/modules')} class="text-xs text-primary hover:underline cursor-pointer">{m.nav_modules()}</button>
             </div>
 
-            <div class="flex {item.colSpan >= 2 ? 'flex-row gap-6' : 'flex-col gap-4'} grow {item.colSpan < 2 ? 'justify-center' : 'items-center'}">
-              <div class="flex items-center gap-4 {item.colSpan >= 2 ? '' : 'justify-center'}">
+            <div class="flex {displayColSpan(item) >= 2 ? 'flex-row gap-6' : 'flex-col gap-4'} grow {displayColSpan(item) < 2 ? 'justify-center' : 'items-center'}">
+              <div class="flex items-center gap-4 {displayColSpan(item) >= 2 ? '' : 'justify-center'}">
                 <div class="relative w-16 h-16 shrink-0">
                   <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
                     <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" class="text-surface-container-high" stroke-width="4" />
@@ -1040,10 +1250,10 @@
                 </div>
               </div>
 
-              {#if item.colSpan >= 2 || (item.rowSpan || 1) >= 2}
-                <div class="flex-1 space-y-1.5 {item.colSpan >= 2 ? 'border-l border-outline-variant pl-6' : 'border-t border-outline-variant pt-3'}">
+              {#if displayColSpan(item) >= 2 || displayRowSpan(item) >= 2}
+                <div class="flex-1 space-y-1.5 {displayColSpan(item) >= 2 ? 'border-l border-outline-variant pl-6' : 'border-t border-outline-variant pt-3'}">
                   <span class="text-[10px] text-on-surface-variant">{m.home_active_modules()}</span>
-                  {#each dashboardStore.state.modules.filter(m => m.status === 'active').slice(0, (item.rowSpan || 1) >= 2 ? 8 : 5) as mod}
+                  {#each dashboardStore.state.modules.filter(m => m.status === 'active').slice(0, displayRowSpan(item) >= 2 ? 8 : 5) as mod}
                     <div class="flex items-center justify-between text-xs">
                       <span class="text-on-surface truncate">{mod.name}</span>
                       <span class="text-[10px] text-emerald-400 shrink-0">{m.home_active_lower()}</span>
@@ -1070,8 +1280,8 @@
             </div>
           </div>
         {:else if item.id === 'channels'}
-          {@const channelCount = getListCount(5, item.colSpan, item.rowSpan || 1)}
-          {@const channelsCols = item.colSpan >= 2 ? 2 : 1}
+          {@const channelCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
+          {@const channelsCols = displayColSpan(item) >= 2 ? 2 : 1}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1125,7 +1335,7 @@
                   <div class="h-6 animate-pulse bg-surface-container-high rounded"></div>
                 {/each}
               {:else if moderation}
-                <div class="grid {item.colSpan >= 2 ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
+                <div class="grid {displayColSpan(item) >= 2 ? 'grid-cols-4' : 'grid-cols-2'} gap-2">
                   <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
                     <p class="text-lg font-semibold text-on-surface">{moderation.totals.warns}</p>
                     <p class="text-[10px] text-on-surface-variant">Warns</p>
@@ -1146,10 +1356,10 @@
                 {#if moderation.activeSanctions > 0}
                   <p class="text-[11px] text-amber-400 mt-1">{m.home_active_sanctions({ n: moderation.activeSanctions })}</p>
                 {/if}
-                {#if (item.rowSpan || 1) >= 2 && moderation.recentSanctions?.length > 0}
+                {#if displayRowSpan(item) >= 2 && moderation.recentSanctions?.length > 0}
                   <div class="border-t border-outline-variant pt-2 mt-1 space-y-1.5">
                     <span class="text-[10px] text-on-surface-variant">{m.home_recent_sanctions()}</span>
-                    {#each moderation.recentSanctions.slice(0, (item.rowSpan || 1) >= 3 ? 6 : 3) as sanction}
+                    {#each moderation.recentSanctions.slice(0, displayRowSpan(item) >= 3 ? 6 : 3) as sanction}
                       <div class="flex items-center justify-between text-xs">
                         <span class="text-on-surface truncate">{sanction.targetName || m.home_member()}</span>
                         <span class="text-[10px] text-on-surface-variant shrink-0">{sanction.type}</span>
@@ -1163,8 +1373,8 @@
             </div>
           </div>
         {:else if item.id === 'members'}
-          {@const memberCount = getListCount(5, item.colSpan, item.rowSpan || 1)}
-          {@const membersCols = item.colSpan >= 2 ? 2 : 1}
+          {@const memberCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
+          {@const membersCols = displayColSpan(item) >= 2 ? 2 : 1}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1203,8 +1413,8 @@
             </div>
           </div>
         {:else if item.id === 'notifications'}
-          {@const notifCount = getListCount(5, item.colSpan, item.rowSpan || 1)}
-          {@const notifCols = item.colSpan >= 2 ? 2 : 1}
+          {@const notifCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
+          {@const notifCols = displayColSpan(item) >= 2 ? 2 : 1}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1248,8 +1458,8 @@
             </div>
           </div>
         {:else if item.id === 'staff'}
-          {@const staffAbsCount = (item.rowSpan || 1) >= 2 ? 3 : 1}
-          {@const staffMeetCount = (item.rowSpan || 1) >= 2 ? 3 : 1}
+          {@const staffAbsCount = displayRowSpan(item) >= 2 ? 3 : 1}
+          {@const staffMeetCount = displayRowSpan(item) >= 2 ? 3 : 1}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1264,8 +1474,8 @@
               </div>
             </div>
 
-            <div class="grow flex {item.colSpan >= 2 ? 'flex-row gap-4' : 'flex-col'} justify-center">
-              <div class="{item.colSpan >= 2 ? 'flex-1' : ''} space-y-2.5">
+            <div class="grow flex {displayColSpan(item) >= 2 ? 'flex-row gap-4' : 'flex-col'} justify-center">
+              <div class="{displayColSpan(item) >= 2 ? 'flex-1' : ''} space-y-2.5">
                 {#each pendingAbsences.slice(0, staffAbsCount) as absence, i}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
                     <span class="text-[10px] text-primary block mb-1">{i === 0 ? m.home_next_absence() : m.home_absence()}</span>
@@ -1280,7 +1490,7 @@
                 {/each}
               </div>
 
-              <div class="{item.colSpan >= 2 ? 'flex-1' : ''} space-y-2.5 {item.colSpan < 2 ? 'mt-2.5' : ''}">
+              <div class="{displayColSpan(item) >= 2 ? 'flex-1' : ''} space-y-2.5 {displayColSpan(item) < 2 ? 'mt-2.5' : ''}">
                 {#each staffStore.upcomingMeetings.slice(0, staffMeetCount) as meeting, i}
                   <div class="p-2.5 rounded-lg border border-outline-variant bg-surface-container-low">
                     <span class="text-[10px] text-secondary block mb-1">{i === 0 ? m.home_next_meeting() : m.home_meeting()}</span>
@@ -1303,7 +1513,7 @@
             </a>
           </div>
         {:else if item.id === 'audit'}
-          {@const auditCount = getListCount(5, item.colSpan, item.rowSpan || 1)}
+          {@const auditCount = getListCount(5, displayColSpan(item), displayRowSpan(item))}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1325,8 +1535,8 @@
                       <span class="text-[10px] text-primary truncate">{entry.module}</span>
                       <span class="text-[9px] text-on-surface-variant shrink-0">{entry.dateIso ? relativeTime(entry.dateIso) : entry.time || ''}</span>
                     </div>
-                    <p class="text-[11px] text-on-surface {item.colSpan >= 2 ? '' : 'truncate'}">{@html entry.action}</p>
-                    {#if item.colSpan >= 2 && entry.user}
+                    <p class="text-[11px] text-on-surface {displayColSpan(item) >= 2 ? '' : 'truncate'}">{@html entry.action}</p>
+                    {#if displayColSpan(item) >= 2 && entry.user}
                       <p class="text-[10px] text-on-surface-variant">{m.home_by_user({ user: entry.user })}</p>
                     {/if}
                   </div>
@@ -1346,7 +1556,7 @@
               <button onclick={() => router.goto('/planning')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
                 <Papicon icon="video" size={12} class="text-secondary" /> {m.home_meeting()}
               </button>
-              <button onclick={() => router.goto('/module-catalog')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
+              <button onclick={() => router.goto('/modules')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
                 <Papicon icon="plus-circle" size={12} class="text-tertiary" /> Module
               </button>
               <button onclick={() => router.goto('/analytics')} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-container border border-outline-variant rounded-md text-xs text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer">
@@ -1373,6 +1583,8 @@
             ></textarea>
           </div>
         {:else if item.id === 'serverInfo'}
+          {@const serverInfo = homeWidgets?.serverInfo}
+          {@const memberCount = serverInfo?.memberCount ?? (liveStats ? liveStats.humansCount + liveStats.botsCount : null)}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1385,25 +1597,31 @@
             <div class="space-y-2 text-xs grow flex flex-col justify-center">
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">{m.home_name_label()}</span>
-                <span class="font-medium text-on-surface truncate max-w-[150px]">{dashboardStore.state.guildName || 'Kotbo'}</span>
+                <span class="font-medium text-on-surface truncate max-w-[150px]">{serverInfo?.name || dashboardStore.state.guildName || '—'}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">{m.home_members_label()}</span>
-                <span class="font-medium text-on-surface">{liveStats ? formatNumber(liveStats.humansCount + liveStats.botsCount) : '—'}</span>
+                <span class="font-medium text-on-surface">{memberCount === null ? '—' : formatNumber(memberCount)}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">Boosts</span>
-                <span class="font-medium text-purple-400 flex items-center gap-1">
-                  <Papicon icon="star" size={10} /> {m.home_boost_level({ n: 2 })}
-                </span>
+                {#if serverInfo?.boostLevel == null}
+                  <span class="font-medium text-on-surface">—</span>
+                {:else}
+                  <span class="font-medium text-purple-400 flex items-center gap-1">
+                    <Papicon icon="star" size={10} /> {m.home_boost_level({ n: serverInfo.boostLevel })} · {serverInfo.boostCount}
+                  </span>
+                {/if}
               </div>
               <div class="flex justify-between py-1">
                 <span class="text-on-surface-variant">{m.home_owner()}</span>
-                <span class="font-medium text-on-surface font-semibold text-on-surface">{m.home_manager()}</span>
+                <span class="font-semibold text-on-surface truncate max-w-[150px]">{serverInfo?.ownerTag || '—'}</span>
               </div>
             </div>
           </div>
         {:else if item.id === 'botHosting'}
+          {@const hosting = homeWidgets?.hosting}
+          {@const memoryPercent = hosting && hosting.memoryTotalMb > 0 ? Math.min(100, Math.round((hosting.memoryUsedMb / hosting.memoryTotalMb) * 100)) : 0}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1412,37 +1630,45 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_bothosting_title()}</h3>
               </div>
-              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-500/20 text-emerald-400 font-medium">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> {m.home_online_label()}
-              </span>
+              {#if hosting}
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-500/20 text-emerald-400 font-medium">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> {m.home_online_label()}
+                </span>
+              {/if}
             </div>
             <div class="space-y-3 grow flex flex-col justify-center">
               <div>
                 <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
                   <span>{m.home_cpu()}</span>
-                  <span class="font-medium text-on-surface">12%</span>
+                  <span class="font-medium text-on-surface">{hosting?.cpuPercent == null ? '—' : `${hosting.cpuPercent}%`}</span>
                 </div>
                 <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
-                  <div class="bg-emerald-500 h-full rounded-full" style="width: 12%"></div>
+                  <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: {hosting?.cpuPercent ?? 0}%"></div>
                 </div>
               </div>
               <div>
                 <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
                   <span>{m.home_ram()}</span>
-                  <span class="font-medium text-on-surface">256 Mo / 1024 Mo</span>
+                  <span class="font-medium text-on-surface">{hosting ? `${formatMemory(hosting.memoryUsedMb)} / ${formatMemory(hosting.memoryTotalMb)}` : '—'}</span>
                 </div>
                 <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
-                  <div class="bg-primary h-full rounded-full" style="width: 25%"></div>
+                  <div class="bg-primary h-full rounded-full transition-all duration-500" style="width: {memoryPercent}%"></div>
                 </div>
               </div>
               <div class="flex justify-between text-xs pt-1">
                 <span class="text-on-surface-variant">{m.home_api_latency()}</span>
-                <span class="font-medium text-emerald-400">18 ms</span>
+                <span class="font-medium {!hosting ? 'text-on-surface' : hosting.latencyMs < 200 ? 'text-emerald-400' : hosting.latencyMs < 500 ? 'text-amber-400' : 'text-red-400'}">
+                  {hosting ? `${hosting.latencyMs} ms` : '—'}
+                </span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span class="text-on-surface-variant">{m.home_uptime()}</span>
+                <span class="font-medium text-on-surface">{hosting ? formatDuration(hosting.uptimeSeconds) : '—'}</span>
               </div>
             </div>
           </div>
         {:else if item.id === 'news'}
-          {@const maxNewsItems = (item.rowSpan || 1) >= 2 ? 6 : 3}
+          {@const maxNewsItems = displayRowSpan(item) >= 2 ? 6 : 3}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1487,6 +1713,13 @@
             </div>
           </div>
         {:else if item.id === 'quickGuide'}
+          {@const guide = homeWidgets?.quickGuide}
+          {@const guideSteps = [
+            { label: m.home_guide_invite(), done: guide?.botInvited ?? false, href: '/modules' },
+            { label: m.home_guide_logs(), done: guide?.logsConfigured ?? false, href: '/logs' },
+            { label: m.home_guide_tickets(), done: guide?.ticketsConfigured ?? false, href: '/tickets' },
+            { label: m.home_guide_roles(), done: guide?.staffRolesConfigured ?? false, href: '/staff-management/roles' },
+          ]}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center gap-2.5 mb-3 shrink-0">
               <div class="w-7 h-7 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500">
@@ -1495,22 +1728,20 @@
               <h3 class="text-sm font-medium text-on-surface">{m.home_quick_guide()}</h3>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
-              <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
-                <input type="checkbox" checked disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span class="line-through text-on-surface-variant">{m.home_guide_invite()}</span>
-              </label>
-              <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
-                <input type="checkbox" checked disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span class="line-through text-on-surface-variant">{m.home_guide_logs()}</span>
-              </label>
-              <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
-                <input type="checkbox" disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span>{m.home_guide_tickets()}</span>
-              </label>
-              <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
-                <input type="checkbox" disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span>{m.home_guide_roles()}</span>
-              </label>
+              {#each guideSteps as step}
+                <button
+                  onclick={() => router.goto(step.href)}
+                  disabled={!guide}
+                  class="flex items-center gap-2 text-xs text-on-surface text-left disabled:cursor-default {guide ? 'cursor-pointer hover:text-primary' : ''}"
+                >
+                  <span class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 {step.done ? 'bg-primary border-primary text-white' : 'border-outline-variant'}">
+                    {#if step.done}
+                      <Papicon icon="check" size={10} />
+                    {/if}
+                  </span>
+                  <span class={step.done ? 'line-through text-on-surface-variant' : ''}>{step.label}</span>
+                </button>
+              {/each}
             </div>
           </div>
         {:else if item.id === 'clockWeather'}
@@ -1521,21 +1752,13 @@
               </div>
               <h3 class="text-sm font-medium text-on-surface">{m.home_mod_clockweather_title()}</h3>
             </div>
-            <div class="flex items-center justify-between grow">
-              <div>
-                <p class="text-2xl font-bold text-on-surface tracking-tight">{currentTime}</p>
-                <p class="text-[10px] text-on-surface-variant capitalize">{currentDate}</p>
-              </div>
-              <div class="text-right shrink-0">
-                <div class="flex items-center gap-1 justify-end text-sky-400">
-                  <Papicon icon="sun" size={16} />
-                  <span class="text-sm font-semibold">22°C</span>
-                </div>
-                <p class="text-[10px] text-on-surface-variant">{m.home_nice_weather()}</p>
-              </div>
+            <div class="flex flex-col justify-center grow">
+              <p class="text-2xl font-bold text-on-surface tracking-tight">{currentTime}</p>
+              <p class="text-[10px] text-on-surface-variant capitalize">{currentDate}</p>
             </div>
           </div>
         {:else if item.id === 'economy'}
+          {@const economy = homeWidgets?.economy}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1549,18 +1772,27 @@
             <div class="space-y-2.5 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.totalBalance) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_in_circulation()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_transactions_7d()}</p>
+                  <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.activePlayers) : '—'}</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">{m.home_economy_hint()}</p>
+              <p class="text-[10px] text-on-surface-variant text-center">
+                {#if !economy}
+                  {m.home_economy_hint()}
+                {:else if !economy.enabled}
+                  {m.home_economy_disabled()}
+                {:else}
+                  {m.home_economy_players({ n: economy.players })}
+                {/if}
+              </p>
             </div>
           </div>
         {:else if item.id === 'leveling'}
+          {@const leveling = homeWidgets?.leveling}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1574,18 +1806,27 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{leveling?.averageLevel ?? '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_avg_level()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_xp_gained_7d()}</p>
+                  <p class="text-lg font-semibold text-on-surface">{leveling ? formatNumber(leveling.activeMembers) : '—'}</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">{m.home_leveling_hint()}</p>
+              <p class="text-[10px] text-on-surface-variant text-center">
+                {#if !leveling}
+                  {m.home_leveling_hint()}
+                {:else if !leveling.enabled}
+                  {m.home_leveling_disabled()}
+                {:else}
+                  {m.home_leveling_ranked({ n: leveling.rankedMembers })}
+                {/if}
+              </p>
             </div>
           </div>
         {:else if item.id === 'tickets'}
+          {@const tickets = homeWidgets?.tickets}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1599,21 +1840,22 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-3 gap-2">
                 <div class="px-2 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.open) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_open_tickets()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.claimed) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_in_progress()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.closedRecently) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_closed_7d()}</p>
                 </div>
               </div>
             </div>
           </div>
         {:else if item.id === 'invites'}
+          {@const invites = homeWidgets?.invites}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1627,18 +1869,26 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-teal-500/5 border border-teal-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{invites ? formatNumber(invites.activeCodes) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_active_invites()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{invites?.retentionPercent == null ? '—' : `${invites.retentionPercent}%`}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_retention()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">{m.home_invites_hint()}</p>
+              <p class="text-[10px] text-on-surface-variant text-center">
+                {#if invites}
+                  {m.home_invites_joined({ n: invites.joinedRecently })}
+                {:else}
+                  {m.home_invites_hint()}
+                {/if}
+              </p>
             </div>
           </div>
         {:else if item.id === 'events'}
+          {@const upcomingEvents = homeWidgets?.events?.upcoming ?? []}
+          {@const maxEvents = displayRowSpan(item) >= 2 ? 5 : 3}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1649,15 +1899,36 @@
               </div>
               <button onclick={() => router.goto('/events')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
-            <div class="space-y-2 grow flex flex-col justify-center">
-              <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
-                <Papicon icon="calendar" size={18} class="mb-1 text-rose-500/50" />
-                <p class="text-[11px]">{m.home_no_upcoming_events()}</p>
-                <p class="text-[10px] mt-0.5">{m.home_create_event_hint()}</p>
-              </div>
+            <div class="space-y-2 grow flex flex-col {upcomingEvents.length > 0 ? '' : 'justify-center'}">
+              {#if upcomingEvents.length === 0}
+                <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
+                  <Papicon icon="calendar" size={18} class="mb-1 text-rose-500/50" />
+                  <p class="text-[11px]">{m.home_no_upcoming_events()}</p>
+                  <p class="text-[10px] mt-0.5">{m.home_create_event_hint()}</p>
+                </div>
+              {:else}
+                {#each upcomingEvents.slice(0, maxEvents) as evt (evt.id)}
+                  <button
+                    onclick={() => router.goto('/events')}
+                    class="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-rose-500/5 border border-rose-500/10 hover:border-rose-500/30 transition-colors text-left cursor-pointer"
+                  >
+                    <div class="min-w-0">
+                      <p class="text-xs font-medium text-on-surface truncate">{evt.title}</p>
+                      <p class="text-[10px] text-on-surface-variant">
+                        {evt.startsAt ? formatEventDate(evt.startsAt) : evt.type}
+                      </p>
+                    </div>
+                    <span class="text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 {evt.status === 'ONGOING' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}">
+                      {evt.status === 'ONGOING' ? m.ev_status_ongoing() : m.ev_status_published()}
+                    </span>
+                  </button>
+                {/each}
+              {/if}
             </div>
           </div>
         {:else if item.id === 'polls'}
+          {@const openPolls = homeWidgets?.polls?.open ?? []}
+          {@const maxPolls = displayRowSpan(item) >= 2 ? 5 : 3}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1666,13 +1937,25 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_polls_title()}</h3>
               </div>
+              <button onclick={() => router.goto('/staff-management/polls')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
-            <div class="space-y-2 grow flex flex-col justify-center">
-              <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
-                <Papicon icon="bar-chart" size={18} class="mb-1 text-violet-500/50" />
-                <p class="text-[11px]">{m.home_no_active_polls()}</p>
-                <p class="text-[10px] mt-0.5">{m.home_polls_hint()}</p>
-              </div>
+            <div class="space-y-2 grow flex flex-col {openPolls.length > 0 ? '' : 'justify-center'}">
+              {#if openPolls.length === 0}
+                <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
+                  <Papicon icon="bar-chart" size={18} class="mb-1 text-violet-500/50" />
+                  <p class="text-[11px]">{m.home_no_active_polls()}</p>
+                  <p class="text-[10px] mt-0.5">{m.home_polls_hint()}</p>
+                </div>
+              {:else}
+                {#each openPolls.slice(0, maxPolls) as poll (poll.id)}
+                  <div class="px-2.5 py-2 rounded-lg bg-violet-500/5 border border-violet-500/10">
+                    <p class="text-xs font-medium text-on-surface truncate">{poll.title}</p>
+                    <p class="text-[10px] text-on-surface-variant">
+                      {m.home_poll_votes({ n: poll.voteCount })}{poll.closesAt ? ` · ${m.home_poll_closes({ date: formatEventDate(poll.closesAt) })}` : ''}
+                    </p>
+                  </div>
+                {/each}
+              {/if}
             </div>
           </div>
         {:else if item.id === 'staffServer'}
@@ -1726,7 +2009,7 @@
   </div>
 
   <!-- Floating Actions -->
-  <div class="fixed bottom-6 right-6 z-100 flex items-center gap-3">
+  <div class="home-floating-actions fixed bottom-6 right-6 z-100 flex items-center gap-3">
     {#if !isEditing}
       <button
         onclick={() => isEditing = true}

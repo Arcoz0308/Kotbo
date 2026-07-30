@@ -11,6 +11,7 @@ import {
   dashboardSensitiveRateLimiter,
 } from '../shared.js';
 import { isGuildActivated } from '../../utils/activation.js';
+import { trackDashboardVisit } from '../../services/analytics/ghostActivityTracker.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
 
@@ -35,6 +36,7 @@ import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
 import { handleStaffServerRoutes } from './dashboard/staffServer.js';
 import { handleChannelHealthRoutes } from './dashboard/channelHealth.js';
 import { handlePulseRoutes } from './dashboard/pulse.js';
+import { handleHomeWidgetsRoutes } from './dashboard/homeWidgets.js';
 import { handleReputationRoutes } from './dashboard/reputation.js';
 import { handleSatisfactionRoutes } from './dashboard/satisfaction.js';
 import { handleSeasonRoutes } from './dashboard/seasons.js';
@@ -46,6 +48,10 @@ import { handleWidgetRoutes } from './dashboard/widget.js';
 import { handleMessageLogRoutes } from './dashboard/messageLogs.js';
 import { handleRaidProtectionRoutes } from './dashboard/raidProtection.js';
 import { handleClansRoutes } from './dashboard/clans.js';
+import { handleGhostMembersRoutes } from './dashboard/ghostMembers.js';
+import { handleAuditEventRoutes } from './dashboard/auditEvents.js';
+import { handleWorkflowRoutes } from './dashboard/workflows.js';
+import { handleSimulationRoutes } from './dashboard/simulation.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -93,6 +99,10 @@ export async function handleDashboardRoutes(
       json(res, 403, { error: 'Accès refusé au dashboard pour ce serveur.' });
       return true;
     }
+
+    // Ghost Analyzer : consulter le dashboard d'un serveur est un signe de vie,
+    // même pour un membre qui n'écrit jamais. Débounce à une visite par heure.
+    trackDashboardVisit(guildId, user.userId);
 
     // Check guild activation (bypassed for owner and global admins, and during activation requests)
     const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
@@ -261,6 +271,9 @@ export async function handleDashboardRoutes(
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
+    if (await handleHomeWidgetsRoutes(req, res, parts, url, client, user, guildId, access)) {
+      return true;
+    }
     if (await handleReputationRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
@@ -294,6 +307,22 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleMessageLogRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleGhostMembersRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleAuditEventRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleWorkflowRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleSimulationRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

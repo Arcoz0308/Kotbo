@@ -4,16 +4,23 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, type Autocomplet
 import prisma from '../../utils/db.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
 import { buyShopItem, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b3_buy');
+const objetMeta = getCommandMetadata('b3_buy_objet');
+
 const data = new SlashCommandBuilder()
-  .setName('buy')
-  .setDescription('🛒 Achète un objet dans la boutique')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addStringOption(option =>
     option
-      .setName('objet')
-      .setDescription("L'objet à acheter (choisis dans la liste)")
+      .setName(objetMeta.name)
+      .setNameLocalizations(objetMeta.nameLocalizations)
+      .setDescription(objetMeta.description)
+      .setDescriptionLocalizations(objetMeta.descriptionLocalizations)
       .setRequired(true)
       .setAutocomplete(true)
   );
@@ -50,7 +57,7 @@ async function autocomplete(interaction: AutocompleteInteraction) {
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
-  const itemId = interaction.options.getString('objet', true);
+  const itemId = interaction.options.getString(objetMeta.name, true);
   const locale = await getEffectiveLocale(interaction);
 
   try {

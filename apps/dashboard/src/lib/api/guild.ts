@@ -1,9 +1,12 @@
 /** Etat de la guilde, modules, presets et reglages globaux. */
 import { authStore } from '../stores/auth.svelte';
 import { toast } from '../stores/toast.svelte';
-import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation } from './client';
+import { BASE_URL, JSON_HEADERS, authorizedFetch, getGuildId, dashboardMutation, dashboardRequest } from './client';
 
-export async function fetchGuildState(guildId = authStore.selectedGuildId) {
+export async function fetchGuildState(
+  guildId = authStore.selectedGuildId,
+  options: { overview?: boolean } = {},
+) {
   const selectedGuildId = getGuildId(guildId);
   if (!selectedGuildId) {
     console.warn('API: Attempted to fetch guild state without a selected guild.');
@@ -11,7 +14,8 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
   }
 
   try {
-    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}`);
+    const suffix = options.overview ? '?scope=overview' : '';
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}${suffix}`);
     if (!response.ok) {
       const error = new Error(`Server error: ${response.status}`);
       (error as any).status = response.status;
@@ -32,6 +36,52 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
     console.error('API Error:', error);
     throw error;
   }
+}
+
+export interface GuildLanguageState {
+  /** `manual` = choix explicite d'un admin, `auto` = detection depuis Discord. */
+  mode: 'manual' | 'auto';
+  /** Langue effectivement appliquee apres la cascade. */
+  locale: 'fr' | 'en';
+  /** Langue declaree du serveur Discord, `null` si inexploitable. */
+  detected: 'fr' | 'en' | null;
+  available: Array<'fr' | 'en'>;
+  /**
+   * Compte-rendu du re-rendu des panneaux persistants (reglement, tickets,
+   * roles-reaction), `null` si la langue effective n'a pas change.
+   */
+  rerender: { updated: number; skipped: number; failed: number } | null;
+}
+
+export async function fetchGuildLanguage(guildId = authStore.selectedGuildId): Promise<GuildLanguageState | null> {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}/language`);
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error('API Error (Guild language):', error);
+    return null;
+  }
+}
+
+/**
+ * Passe `language: null` (ou `mode: 'auto'`) pour repasser en detection auto.
+ *
+ * La reponse porte deja le nouvel etat : pas besoin d'un GET de suivi.
+ */
+export async function updateGuildLanguage(
+  payload: { mode: 'auto' } | { language: 'fr' | 'en' },
+  guildId = authStore.selectedGuildId,
+): Promise<GuildLanguageState | null> {
+  return dashboardRequest('/language', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Guild language):',
+  });
 }
 
 export async function updateModuleStatus(moduleId, status, guildId = authStore.selectedGuildId) {

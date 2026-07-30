@@ -1,12 +1,16 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { infoEmbed } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b2_dashboard');
+
 const data = new SlashCommandBuilder()
-  .setName('dashboard')
-  .setDescription('🔗 Obtiens le lien pour accéder au dashboard de Kotbo');
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';

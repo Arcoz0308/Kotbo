@@ -7,6 +7,7 @@
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { m, dateLocale } from '../lib/i18n';
 
   // ── Types ──────────────────────────────────────────────────────────────────
   interface Appeal {
@@ -56,13 +57,13 @@
   const history = $derived(appeals.filter(a => a.status !== 'PENDING' && a.status !== 'NEEDS_INFO'));
   const publicUrl = $derived(`${window.location.origin}/appeal/${authStore.selectedGuildId}`);
 
-  const STATUS_META: Record<string, { label: string; classes: string }> = {
-    PENDING: { label: 'En attente', classes: 'bg-amber-500/10 text-amber-500 border-amber-500/30' },
-    NEEDS_INFO: { label: 'Attente d\'infos', classes: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
-    ACCEPTED: { label: 'Accepté', classes: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' },
-    DENIED: { label: 'Refusé', classes: 'bg-rose-500/10 text-rose-500 border-rose-500/30' },
-    DENIED_PERMANENT: { label: 'Refus définitif', classes: 'bg-rose-900/20 text-rose-400 border-rose-900/40' },
-  };
+  const STATUS_META: Record<string, { label: string; classes: string }> = $derived({
+    PENDING: { label: m.ba_status_pending(), classes: 'bg-amber-500/10 text-amber-500 border-amber-500/30' },
+    NEEDS_INFO: { label: m.ba_status_needs_info(), classes: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
+    ACCEPTED: { label: m.ba_status_accepted(), classes: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' },
+    DENIED: { label: m.ba_status_denied(), classes: 'bg-rose-500/10 text-rose-500 border-rose-500/30' },
+    DENIED_PERMANENT: { label: m.ba_status_denied_permanent(), classes: 'bg-rose-900/20 text-rose-400 border-rose-900/40' },
+  });
 
   // ── API ────────────────────────────────────────────────────────────────────
   const base = () => `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/appeals`;
@@ -127,10 +128,10 @@
   async function decide(decision: 'ACCEPTED' | 'DENIED' | 'DENIED_PERMANENT') {
     if (!detail) return;
     if (decision !== 'ACCEPTED' && !actionReason.trim()) {
-      toast.error('Une raison est requise pour un refus');
+      toast.error(m.ba_reason_required());
       return;
     }
-    if (decision === 'DENIED_PERMANENT' && !(await confirmDialog.ask({ title: 'Refus définitif ?', description: 'Ce membre ne pourra plus jamais faire appel de son bannissement.', confirmLabel: 'Refuser définitivement', variant: 'danger' }))) return;
+    if (decision === 'DENIED_PERMANENT' && !(await confirmDialog.ask({ title: m.ba_permanent_title(), description: m.ba_permanent_desc(), confirmLabel: m.ba_permanent_confirm(), variant: 'danger' }))) return;
     actionInProgress = true;
     try {
       const res = await fetch(`${base()}/${detail.appeal.id}/decide`, {
@@ -138,19 +139,19 @@
         body: JSON.stringify({ decision, reason: actionReason.trim() || undefined }),
       });
       if (res.ok) {
-        toast.success(decision === 'ACCEPTED' ? 'Appel accepté — membre débanni et prévenu par DM' : 'Appel refusé — membre prévenu par DM');
+        toast.success(decision === 'ACCEPTED' ? m.ba_accepted_toast() : m.ba_denied_toast());
         detail = null;
         await loadAppeals();
       } else {
-        toast.error((await res.json()).error || 'Erreur');
+        toast.error((await res.json()).error || m.ba_error());
       }
-    } catch { toast.error('Erreur réseau'); }
+    } catch { toast.error(m.ba_error_network()); }
     actionInProgress = false;
   }
 
   async function requestInfo() {
     if (!detail || !actionReason.trim()) {
-      toast.error('Écris la question à poser au membre');
+      toast.error(m.ba_ask_question());
       return;
     }
     actionInProgress = true;
@@ -160,13 +161,13 @@
         body: JSON.stringify({ question: actionReason.trim() }),
       });
       if (res.ok) {
-        toast.success('Demande d\'informations envoyée au membre');
+        toast.success(m.ba_info_sent());
         detail = null;
         await loadAppeals();
       } else {
-        toast.error((await res.json()).error || 'Erreur');
+        toast.error((await res.json()).error || m.ba_error());
       }
-    } catch { toast.error('Erreur réseau'); }
+    } catch { toast.error(m.ba_error_network()); }
     actionInProgress = false;
   }
 
@@ -195,12 +196,12 @@
       });
       if (res.ok) {
         config = (await res.json()).config;
-        toast.success('Configuration enregistrée');
+        toast.success(m.ba_config_saved());
         if (extra.createDefaultForm) await loadConfig();
       } else {
-        toast.error((await res.json()).error || 'Erreur');
+        toast.error((await res.json()).error || m.ba_error());
       }
-    } catch { toast.error('Erreur réseau'); }
+    } catch { toast.error(m.ba_error_network()); }
     configSaving = false;
   }
 
@@ -208,7 +209,7 @@
     try {
       const res = await fetch(`${base()}/blacklist/${userId}`, { method: 'DELETE', headers: headers() });
       if (res.ok) {
-        toast.success('Retiré de la blacklist');
+        toast.success(m.ba_blacklist_removed());
         await loadBlacklist();
       }
     } catch { /* ignore */ }
@@ -216,11 +217,11 @@
 
   function copyPublicUrl() {
     navigator.clipboard.writeText(publicUrl);
-    toast.success('URL copiée !');
+    toast.success(m.ba_url_copied());
   }
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   onMount(async () => {
@@ -229,8 +230,8 @@
 </script>
 
 <ModulePage
-  title="Appels de bannissement"
-  description="Les membres bannis peuvent demander leur débannissement via un formulaire public."
+  title={m.ba_page_title()}
+  description={m.ba_page_desc()}
   icon="gavel"
   featureKey="sanctions"
 >
@@ -238,17 +239,17 @@
     <button onclick={copyPublicUrl}
       class="px-4 py-2 rounded-xl bg-surface-container text-xs font-bold flex items-center gap-2 hover:bg-surface-container-high transition-colors"
       title={publicUrl}>
-      <Papicon icon="link" size={14} /> Copier le lien public
+      <Papicon icon="link" size={14} /> {m.ba_copy_public_link()}
     </button>
   {/snippet}
 
   <!-- Tabs -->
   <div class="tab-group w-fit" role="tablist">
     {#each [
-      { id: 'queue', label: `File d'attente (${queue.length})` },
-      { id: 'history', label: 'Historique' },
-      { id: 'config', label: 'Configuration' },
-      { id: 'blacklist', label: `Blacklist (${blacklist.length})` },
+      { id: 'queue', label: m.ba_tab_queue({ count: queue.length }) },
+      { id: 'history', label: m.ba_tab_history() },
+      { id: 'config', label: m.ba_tab_config() },
+      { id: 'blacklist', label: m.ba_tab_blacklist({ count: blacklist.length }) },
     ] as t}
       <button onclick={() => { tab = t.id as typeof tab; detail = null; }}
         role="tab" aria-selected={tab === t.id}
@@ -270,7 +271,7 @@
         <div class="mb-4 text-on-surface-variant/30">
           <Papicon icon={tab === 'queue' ? 'check' : 'inbox'} size={48} />
         </div>
-        <p class="text-sm">{tab === 'queue' ? 'Aucune demande en attente.' : 'Aucune demande traitée pour le moment.'}</p>
+        <p class="text-sm">{tab === 'queue' ? m.ba_empty_queue() : m.ba_empty_history()}</p>
       </div>
     {:else}
       <div class="space-y-3">
@@ -291,7 +292,7 @@
                 <p class="font-semibold text-on-surface text-sm truncate">{appeal.userTag || appeal.userId}</p>
                 <p class="text-xs text-on-surface-variant/60 mt-0.5 truncate">
                   {formatDate(appeal.createdAt)}
-                  {#if appeal.banReason} · Ban : {appeal.banReason}{/if}
+                  {#if appeal.banReason} · {m.ba_ban_label()} {appeal.banReason}{/if}
                 </p>
               </div>
               <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border shrink-0 {meta.classes}">{meta.label}</span>
@@ -307,7 +308,7 @@
                 {:else}
                   <!-- Réponses du formulaire -->
                   <div>
-                    <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">Réponses</p>
+                    <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">{m.ba_answers()}</p>
                     <div class="space-y-2">
                       {#each Object.entries(detail.appeal.data || {}) as [key, value]}
                         <div class="rounded-lg bg-surface border border-outline-variant/15 p-3">
@@ -322,7 +323,7 @@
                     <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-4 space-y-4">
                       <p class="text-[11px] font-semibold text-blue-500 flex items-center gap-1.5 uppercase tracking-wider">
                         <Papicon icon="message-square" size={14} />
-                        Discussion
+                        {m.ba_discussion()}
                       </p>
 
                       {#if detail.appeal.messages && detail.appeal.messages.length > 0}
@@ -330,7 +331,7 @@
                           {#each detail.appeal.messages as msg}
                             <div class="p-3 rounded-lg border text-sm {msg.author === 'staff' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-surface border-outline-variant/15'}">
                               <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
-                                <span>{msg.author === 'staff' ? `Staff (${msg.authorTag || 'inconnu'})` : 'Membre'}</span>
+                                <span>{msg.author === 'staff' ? m.ba_staff_named({ tag: msg.authorTag || m.ba_unknown() }) : m.ba_member()}</span>
                                 <span>{formatDate(msg.createdAt)}</span>
                               </div>
                               <p class="whitespace-pre-wrap text-on-surface">{msg.content}</p>
@@ -342,14 +343,14 @@
                         <div class="space-y-3">
                           <div class="p-3 rounded-lg border text-sm bg-blue-500/5 border-blue-500/20">
                             <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
-                              <span>Staff</span>
+                              <span>{m.ba_staff()}</span>
                             </div>
                             <p class="whitespace-pre-wrap text-on-surface">{detail.appeal.infoRequest}</p>
                           </div>
                           {#if detail.appeal.infoResponse}
                             <div class="p-3 rounded-lg border text-sm bg-surface border-outline-variant/15">
                               <div class="flex items-center justify-between text-xs font-semibold text-on-surface-variant/60 mb-1">
-                                <span>Membre</span>
+                                <span>{m.ba_member()}</span>
                               </div>
                               <p class="whitespace-pre-wrap text-on-surface">{detail.appeal.infoResponse}</p>
                             </div>
@@ -358,7 +359,7 @@
                       {/if}
 
                       {#if detail.appeal.status === 'NEEDS_INFO' && (!detail.appeal.messages || detail.appeal.messages.length === 0 || detail.appeal.messages[detail.appeal.messages.length - 1]?.author === 'staff')}
-                        <p class="text-xs text-on-surface-variant/50 mt-2 italic">En attente de la réponse du membre…</p>
+                        <p class="text-xs text-on-surface-variant/50 mt-2 italic">{m.ba_waiting_member()}</p>
                       {/if}
                     </div>
                   {/if}
@@ -367,10 +368,10 @@
                   <div class="grid md:grid-cols-2 gap-4">
                     <div>
                       <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
-                        Historique de sanctions ({detail.sanctions.length})
+                        {m.ba_sanction_history({ count: detail.sanctions.length })}
                       </p>
                       {#if detail.sanctions.length === 0}
-                        <p class="text-xs text-on-surface-variant/50 italic">Aucune sanction enregistrée.</p>
+                        <p class="text-xs text-on-surface-variant/50 italic">{m.ba_no_sanction()}</p>
                       {:else}
                         <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                           {#each detail.sanctions as s}
@@ -385,10 +386,10 @@
                     </div>
                     <div>
                       <p class="text-[13px] font-medium text-on-surface-variant/50 mb-2">
-                        Appels précédents ({detail.previousAppeals.length})
+                        {m.ba_previous_appeals({ count: detail.previousAppeals.length })}
                       </p>
                       {#if detail.previousAppeals.length === 0}
-                        <p class="text-xs text-on-surface-variant/50 italic">Premier appel de ce membre.</p>
+                        <p class="text-xs text-on-surface-variant/50 italic">{m.ba_first_appeal()}</p>
                       {:else}
                         <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                           {#each detail.previousAppeals as pa}
@@ -407,36 +408,36 @@
                   {#if appeal.status === 'PENDING' || appeal.status === 'NEEDS_INFO'}
                     <div class="space-y-3 pt-2 border-t border-outline-variant/10">
                       <textarea bind:value={actionReason} rows="2"
-                        placeholder="Raison du refus / note d'acceptation / question au membre…"
+                        placeholder={m.ba_decision_placeholder()}
                         class="w-full bg-surface rounded-xl px-4 py-3 text-sm outline-none border border-outline-variant/20 focus:border-primary transition-colors resize-y"></textarea>
                       <div class="flex flex-wrap gap-2">
                         <button onclick={() => decide('ACCEPTED')} disabled={actionInProgress}
                           class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                          <Papicon icon="check" size={14} /> Accepter et débannir
+                          <Papicon icon="check" size={14} /> {m.ba_accept_unban()}
                         </button>
                         <button onclick={() => decide('DENIED')} disabled={actionInProgress}
                           class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                          <Papicon icon="x" size={14} /> Refuser
+                          <Papicon icon="x" size={14} /> {m.ba_deny()}
                         </button>
                         <button onclick={() => decide('DENIED_PERMANENT')} disabled={actionInProgress}
                           class="px-4 py-2 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-200 text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                          <Papicon icon="block" size={14} /> Refus définitif
+                          <Papicon icon="block" size={14} /> {m.ba_deny_permanent()}
                         </button>
                         <button onclick={requestInfo} disabled={actionInProgress}
                           class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                          <Papicon icon="message-square" size={14} /> Demander plus d'infos
+                          <Papicon icon="message-square" size={14} /> {m.ba_request_info()}
                         </button>
                       </div>
                       <p class="text-[11px] text-on-surface-variant/50">
-                        Accepter = unban Discord + sanction résolue + DM avec invitation. Refuser = DM avec la raison + cooldown de {config?.cooldownDays ?? 30} jours.
+                        {m.ba_decision_hint({ days: config?.cooldownDays ?? 30 })}
                       </p>
                     </div>
                   {:else}
                     <div class="rounded-lg bg-surface border border-outline-variant/15 p-3 text-sm">
                       <p class="font-semibold text-on-surface">
-                        Décision : {STATUS_META[detail.appeal.status]?.label}
-                        {#if detail.appeal.decidedByTag}<span class="text-on-surface-variant/60 font-normal"> par {detail.appeal.decidedByTag}</span>{/if}
-                        {#if detail.appeal.decidedAt}<span class="text-on-surface-variant/60 font-normal"> le {formatDate(detail.appeal.decidedAt)}</span>{/if}
+                        {m.ba_decision_label({ status: STATUS_META[detail.appeal.status]?.label })}
+                        {#if detail.appeal.decidedByTag}<span class="text-on-surface-variant/60 font-normal">{m.ba_decided_by({ tag: detail.appeal.decidedByTag })}</span>{/if}
+                        {#if detail.appeal.decidedAt}<span class="text-on-surface-variant/60 font-normal">{m.ba_decided_at({ date: formatDate(detail.appeal.decidedAt) })}</span>{/if}
                       </p>
                       {#if detail.appeal.decisionReason}
                         <p class="text-on-surface-variant/80 mt-1">{detail.appeal.decisionReason}</p>
@@ -444,10 +445,10 @@
                       <p class="text-[11px] mt-2 flex items-center gap-1.5 {detail.appeal.dmDelivered ? 'text-emerald-500' : 'text-amber-500'}">
                         {#if detail.appeal.dmDelivered}
                           <Papicon icon="check" size={12} />
-                          <span>DM de verdict envoyé au membre</span>
+                          <span>{m.ba_dm_delivered()}</span>
                         {:else}
                           <Papicon icon="warning" size={12} />
-                          <span>DM non délivré (DM fermés) — le membre verra le verdict sur la page publique</span>
+                          <span>{m.ba_dm_failed()}</span>
                         {/if}
                       </p>
                     </div>
@@ -465,19 +466,19 @@
       <div class="max-w-2xl space-y-5">
         <label class="flex items-center justify-between rounded-xl border border-outline-variant/20 bg-surface p-4 cursor-pointer">
           <div>
-            <p class="font-semibold text-on-surface text-sm">Activer les appels de bannissement</p>
-            <p class="text-xs text-on-surface-variant/60 mt-0.5">Rend la page publique accessible : {publicUrl}</p>
+            <p class="font-semibold text-on-surface text-sm">{m.ba_enable()}</p>
+            <p class="text-xs text-on-surface-variant/60 mt-0.5">{m.ba_enable_desc({ url: publicUrl })}</p>
           </div>
           <input type="checkbox" bind:checked={config.enabled} class="accent-primary w-5 h-5" />
         </label>
 
         <div class="rounded-xl border border-outline-variant/20 bg-surface p-4 space-y-4">
           <div>
-            <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">Formulaire d'appel</p>
+            <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">{m.ba_appeal_form()}</p>
             <div class="flex gap-2">
               <select bind:value={config.formId}
                 class="flex-1 bg-surface-container rounded-lg px-3 py-2.5 text-sm outline-none border border-outline-variant/20">
-                <option value={null}>— Aucun —</option>
+                <option value={null}>{m.ba_none()}</option>
                 {#each forms as f}
                   <option value={f.id}>{f.name}</option>
                 {/each}
@@ -485,28 +486,28 @@
               {#if !config.formId}
                 <button onclick={() => saveConfig({ createDefaultForm: true })} disabled={configSaving}
                   class="px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-colors shrink-0">
-                  Créer le formulaire par défaut
+                  {m.ba_create_default_form()}
                 </button>
               {/if}
             </div>
             <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
-              Les questions (et le thème visuel) se modifient dans Formulaires → Builder.
+              {m.ba_form_hint()}
             </p>
           </div>
 
           <div class="grid sm:grid-cols-2 gap-4">
             <div>
-              <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">Salon staff (embed + boutons)</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">{m.ba_staff_channel()}</p>
               <select bind:value={config.staffChannelId}
                 class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-sm outline-none border border-outline-variant/20">
-                <option value={null}>— Aucun —</option>
+                <option value={null}>{m.ba_none()}</option>
                 {#if staffServerChannels.length > 0}
-                  <optgroup label="Ce serveur">
+                  <optgroup label={m.ba_this_server()}>
                     {#each textChannels as c}
                       <option value={c.id}># {c.name}</option>
                     {/each}
                   </optgroup>
-                  <optgroup label={`Serveur staff lié${staffServerName ? ` (${staffServerName})` : ''}`}>
+                  <optgroup label={staffServerName ? m.ba_linked_staff_server_named({ name: staffServerName }) : m.ba_linked_staff_server()}>
                     {#each staffServerChannels as c}
                       <option value={c.id}># {c.name}</option>
                     {/each}
@@ -519,15 +520,15 @@
               </select>
               {#if staffServerChannels.length > 0}
                 <p class="text-[11px] text-on-surface-variant/50 mt-1.5">
-                  Les salons du serveur staff lié sont proposés : Kotbo peut y poster directement.
+                  {m.ba_staff_channel_hint()}
                 </p>
               {/if}
             </div>
             <div>
-              <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">Salon pour l'invitation de retour</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">{m.ba_invite_channel()}</p>
               <select bind:value={config.inviteChannelId}
                 class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-sm outline-none border border-outline-variant/20">
-                <option value={null}>— Automatique —</option>
+                <option value={null}>{m.ba_auto()}</option>
                 {#each textChannels as c}
                   <option value={c.id}># {c.name}</option>
                 {/each}
@@ -536,9 +537,9 @@
           </div>
           <label class="flex items-center justify-between rounded-xl border border-outline-variant/10 bg-surface-container/40 p-3.5 cursor-pointer">
             <div>
-              <p class="font-semibold text-on-surface text-sm">DM automatique du lien d'appel lors d'un ban définitif</p>
+              <p class="font-semibold text-on-surface text-sm">{m.ba_dm_on_ban()}</p>
               <p class="text-xs text-on-surface-variant/60 mt-0.5">
-                Dès qu'un membre est banni définitivement (hors bannissements temporaires), Kotbo lui envoie le lien public : {publicUrl}
+                {m.ba_dm_on_ban_desc({ url: publicUrl })}
               </p>
             </div>
             <input type="checkbox" bind:checked={config.notifyOnBanDM} class="accent-primary w-5 h-5 shrink-0 ml-4" />
@@ -548,9 +549,9 @@
           <div class="space-y-4 p-4 rounded-xl border border-outline-variant/10 bg-surface-container/40">
             <label class="flex items-center justify-between cursor-pointer">
               <div>
-                <p class="font-semibold text-on-surface text-sm">Vérification requise avant retour</p>
+                <p class="font-semibold text-on-surface text-sm">{m.ba_verification_required()}</p>
                 <p class="text-xs text-on-surface-variant/60 mt-0.5">
-                  Oblige le membre accepté à s'authentifier par Discord OAuth avant de débannir et générer l'invitation.
+                  {m.ba_verification_desc()}
                 </p>
               </div>
               <input type="checkbox" bind:checked={config.appealVerification} class="accent-primary w-5 h-5 shrink-0 ml-4" />
@@ -559,27 +560,27 @@
             {#if config.appealVerification}
               <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 pt-2 border-t border-outline-variant/10">
                 <label class="space-y-1.5">
-                  <span class="text-xs font-semibold text-on-surface-variant/60">Niveau de vérification</span>
+                  <span class="text-xs font-semibold text-on-surface-variant/60">{m.ba_verification_level()}</span>
                   <select bind:value={config.appealVerificationLevel} class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-sm outline-none border border-outline-variant/20">
-                    <option value="LOW">Bas (identify uniquement)</option>
-                    <option value="MEDIUM">Moyen (identify, email)</option>
-                    <option value="HIGH">Haut (identify, email, connections, guilds)</option>
+                    <option value="LOW">{m.ba_level_low()}</option>
+                    <option value="MEDIUM">{m.ba_level_medium()}</option>
+                    <option value="HIGH">{m.ba_level_high()}</option>
                   </select>
                 </label>
                 <label class="flex items-center justify-between cursor-pointer pt-4">
                   <div>
-                    <p class="font-semibold text-on-surface text-sm">Sauvegarder l'adresse IP</p>
+                    <p class="font-semibold text-on-surface text-sm">{m.ba_save_ip()}</p>
                     <p class="text-xs text-on-surface-variant/60">
-                      Enregistre l'IP pour détecter les doubles comptes.
+                      {m.ba_save_ip_desc()}
                     </p>
                   </div>
                   <input type="checkbox" bind:checked={config.appealSaveIp} class="accent-primary w-5 h-5 shrink-0 ml-4" />
                 </label>
                 <label class="flex items-center justify-between cursor-pointer pt-4">
                   <div>
-                    <p class="font-semibold text-on-surface text-sm">Sauvegarder l'empreinte de l'appareil</p>
+                    <p class="font-semibold text-on-surface text-sm">{m.ba_save_device()}</p>
                     <p class="text-xs text-on-surface-variant/60">
-                      Enregistre les détails du navigateur/système pour détecter les doubles comptes.
+                      {m.ba_save_device_desc()}
                     </p>
                   </div>
                   <input type="checkbox" bind:checked={config.appealSaveDevice} class="accent-primary w-5 h-5 shrink-0 ml-4" />
@@ -589,40 +590,40 @@
           </div>
           <div>
             <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">
-              Cooldown après refus : {config.cooldownDays} jour{config.cooldownDays > 1 ? 's' : ''}
+              {config.cooldownDays > 1 ? m.ba_cooldown_other({ days: config.cooldownDays }) : m.ba_cooldown_one({ days: config.cooldownDays })}
             </p>
             <input type="range" min="0" max="180" bind:value={config.cooldownDays} class="w-full accent-primary" />
           </div>
 
           <div>
-            <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">Texte d'accueil de la page publique</p>
+            <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">{m.ba_welcome_text()}</p>
             <textarea bind:value={config.welcomeText} rows="2"
-              placeholder="Ex : Sois honnête et détaillé, chaque demande est lue par un humain."
+              placeholder={m.ba_welcome_placeholder()}
               class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-sm outline-none border border-outline-variant/20 resize-none"></textarea>
           </div>
           <div class="grid sm:grid-cols-2 gap-4">
             <div>
-              <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">DM si accepté</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">{m.ba_dm_accepted()}</p>
               <textarea bind:value={config.acceptMessage} rows="3"
-                placeholder={'Défaut : "Ta demande sur {server} a été acceptée… {invite}"'}
+                placeholder={m.ba_dm_accepted_placeholder({ server: '{server}', invite: '{invite}' })}
                 class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-xs outline-none border border-outline-variant/20 resize-none"></textarea>
             </div>
             <div>
-              <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">DM si refusé</p>
+              <p class="text-xs font-semibold text-on-surface-variant/60 mb-1.5">{m.ba_dm_denied()}</p>
               <textarea bind:value={config.denyMessage} rows="3"
-                placeholder={'Défaut : "Ta demande sur {server} a été refusée. Raison : {reason}"'}
+                placeholder={m.ba_dm_denied_placeholder({ server: '{server}', reason: '{reason}' })}
                 class="w-full bg-surface-container rounded-lg px-3 py-2.5 text-xs outline-none border border-outline-variant/20 resize-none"></textarea>
             </div>
           </div>
           <p class="text-[11px] text-on-surface-variant/50">
-            Variables : {'{server}'}, {'{reason}'}, {'{invite}'} (accepté uniquement)
+            {m.ba_variables()} {'{server}'}, {'{reason}'}, {'{invite}'} {m.ba_variables_invite_only()}
           </p>
         </div>
 
         <div class="flex justify-end">
           <button onclick={() => saveConfig()} disabled={configSaving}
             class="px-6 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
-            {configSaving ? 'Enregistrement…' : 'Enregistrer'}
+            {configSaving ? m.ba_saving() : m.common_save()}
           </button>
         </div>
       </div>
@@ -634,21 +635,21 @@
         <div class="mb-4 text-on-surface-variant/30">
           <Papicon icon="user" size={48} />
         </div>
-        <p class="text-sm">Aucun membre blacklisté des appels.</p>
+        <p class="text-sm">{m.ba_no_blacklist()}</p>
       </div>
     {:else}
       <div class="space-y-2 max-w-2xl">
         {#each blacklist as entry (entry.id)}
           <div class="rounded-xl border border-outline-variant/20 bg-surface p-4 flex items-center gap-4">
             <div class="flex-1 min-w-0">
-              <p class="font-semibold text-on-surface text-sm">ID : {entry.userId}</p>
+              <p class="font-semibold text-on-surface text-sm">{m.ba_blacklist_id({ id: entry.userId })}</p>
               <p class="text-xs text-on-surface-variant/60 mt-0.5 truncate">
-                {entry.reason || 'Sans raison'} · ajouté {entry.addedByTag ? `par ${entry.addedByTag}` : ''} le {formatDate(entry.createdAt)}
+                {entry.reason || m.ba_no_reason()} {entry.addedByTag ? m.ba_blacklist_added_by({ tag: entry.addedByTag, date: formatDate(entry.createdAt) }) : m.ba_blacklist_added({ date: formatDate(entry.createdAt) })}
               </p>
             </div>
             <button onclick={() => removeFromBlacklist(entry.userId)}
               class="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 text-xs font-bold hover:bg-rose-500/20 transition-colors shrink-0">
-              Retirer
+              {m.ba_remove()}
             </button>
           </div>
         {/each}

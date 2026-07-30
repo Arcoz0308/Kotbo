@@ -5,6 +5,7 @@
   import { rescanMemberStats } from '../../api';
   import { toast } from '../../stores/toast.svelte';
   import { downloadSingleSheetXlsx } from '../../xlsxExport';
+  import { m, dateLocale } from '../../i18n';
 
   const { data, chartLabels, onOpenMember } = $props<{
     data: any;
@@ -40,21 +41,21 @@
   }
 
   function exportCSV(name: string, rows: Record<string, unknown>[]) {
-    if (!rows.length) { toast.error('Aucune donnée.'); return; }
+    if (!rows.length) { toast.error(m.an_export_empty()); return; }
     const headers = Object.keys(rows[0]);
     const csv = [headers.join(','), ...rows.map(r => headers.map(h => String(r[h] ?? '')).join(','))].join('\n');
     triggerDownload(csv, `${name}.csv`, 'text/csv;charset=utf-8');
   }
 
   async function exportXLSX(name: string, rows: Record<string, unknown>[]) {
-    if (!rows.length) { toast.error('Aucune donnée.'); return; }
+    if (!rows.length) { toast.error(m.an_export_empty()); return; }
     await downloadSingleSheetXlsx(name, name, rows);
   }
 
   function exportImage(cardSelector: string, name: string) {
     const card = document.querySelector(cardSelector);
     const canvas = card?.querySelector('canvas');
-    if (!canvas) { toast.error('Graphique introuvable.'); return; }
+    if (!canvas) { toast.error(m.an_export_chart_missing()); return; }
     canvas.toBlob((blob) => {
       if (blob) triggerDownload(blob, `${name}.png`, 'image/png');
     }, 'image/png');
@@ -73,12 +74,12 @@
     try {
       const res = await rescanMemberStats({ force: false });
       if (res?.ok) {
-        toast.success('Scraping des membres lancé en arrière-plan.');
+        toast.success(m.an_mem_sync_started());
       } else {
-        toast.error(res?.error || 'Erreur lors du lancement du scraping');
+        toast.error(res?.error || m.an_mem_sync_error());
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur lors du scraping');
+      toast.error(err instanceof Error ? err.message : m.an_mem_sync_error());
     } finally {
       scanningMembers = false;
     }
@@ -94,8 +95,8 @@
           <Papicon icon="Users" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-semibold text-on-surface">Flux de Population</h3>
-          <p class="text-xs font-bold text-on-surface-variant/40">{showCumulative ? 'Vue cumulée' : 'Arrivées vs Départs'}</p>
+          <h3 class="text-xl font-semibold text-on-surface">{m.an_mem_flux_title()}</h3>
+          <p class="text-xs font-bold text-on-surface-variant/40">{showCumulative ? m.an_mem_flux_cumulative() : m.an_mem_flux_daily()}</p>
         </div>
       </div>
       <div class="flex items-center gap-3">
@@ -105,13 +106,13 @@
             onclick={() => showCumulative = false}
             class="px-3 py-1.5 rounded-md text-xs font-medium transition-all {!showCumulative ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface'}"
           >
-            Journalier
+            {m.an_mem_daily()}
           </button>
           <button
             onclick={() => showCumulative = true}
             class="px-3 py-1.5 rounded-md text-xs font-medium transition-all {showCumulative ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface'}"
           >
-            Cumulé
+            {m.an_mem_cumulative()}
           </button>
         </div>
         <!-- Sync Membres -->
@@ -119,7 +120,7 @@
           onclick={handleRescanMembers}
           disabled={scanningMembers}
           class="p-2 rounded-lg bg-surface-container-high/40 hover:bg-surface-container-high border border-outline-variant/10 text-on-surface-variant/60 hover:text-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Synchroniser les membres existants pour remplir l'historique"
+          title={m.an_mem_sync_title()}
         >
           <Papicon icon="ArrowsClockwise" size={16} />
         </button>
@@ -133,11 +134,11 @@
         <div class="flex gap-4">
           <div class="flex flex-col items-end">
              <span class="text-sm font-semibold text-emerald-500">+{chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0)}</span>
-             <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Entrées</span>
+             <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_joins()}</span>
           </div>
           <div class="flex flex-col items-end">
              <span class="text-sm font-semibold text-rose-500">-{chartLabels.reduce((a, b) => a + (b.membersLeft || 0), 0)}</span>
-             <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Sorties</span>
+             <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_leaves()}</span>
           </div>
         </div>
       </div>
@@ -150,7 +151,7 @@
             labels: chartLabels.map(l => l.label),
             datasets: [
               {
-                label: 'Arrivées (cumulé)',
+                label: m.an_mem_joins_cumulative(),
                 data: cumulativeJoins(),
                 borderColor: '#10b981',
                 borderWidth: 3,
@@ -169,7 +170,7 @@
                 }
               },
               {
-                label: 'Départs (cumulé)',
+                label: m.an_mem_leaves_cumulative(),
                 data: cumulativeLeaves(),
                 borderColor: '#f97316',
                 borderWidth: 3,
@@ -197,7 +198,7 @@
             labels: chartLabels.map(l => l.label),
             datasets: [
               {
-                label: 'Arrivées',
+                label: m.an_mem_joins_series(),
                 data: chartLabels.map(l => l.membersJoined),
                 borderColor: '#10b981',
                 backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -212,7 +213,7 @@
                 }
               },
               {
-                label: 'Départs',
+                label: m.an_mem_leaves_series(),
                 data: chartLabels.map(l => l.membersLeft),
                 borderColor: '#f97316',
                 backgroundColor: 'rgba(249, 115, 22, 0.1)',
@@ -235,15 +236,15 @@
 
     <div class="grid grid-cols-3 gap-4 border-t border-outline-variant/10 pt-6">
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Moy. Arrivées/jour</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_avg_joins_per_day()}</p>
         <p class="text-2xl font-semibold text-emerald-500">{Math.round(chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0) / Math.max(chartLabels.length, 1))}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Moy. Départs/jour</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_avg_leaves_per_day()}</p>
         <p class="text-2xl font-semibold text-orange-500">{Math.round(chartLabels.reduce((a, b) => a + (b.membersLeft || 0), 0) / Math.max(chartLabels.length, 1))}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Net</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_net()}</p>
         <p class="text-2xl font-semibold {chartLabels.reduce((a, b) => a + (b.membersJoined || 0) - (b.membersLeft || 0), 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
           {chartLabels.reduce((a, b) => a + (b.membersJoined || 0) - (b.membersLeft || 0), 0)}
         </p>
@@ -259,8 +260,8 @@
           <Papicon icon="Activity" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-semibold text-on-surface">Membres Actifs</h3>
-          <p class="text-xs font-bold text-on-surface-variant/40">Pic d'activité simultanée</p>
+          <h3 class="text-xl font-semibold text-on-surface">{m.an_mem_active_title()}</h3>
+          <p class="text-xs font-bold text-on-surface-variant/40">{m.an_mem_active_subtitle()}</p>
         </div>
       </div>
       <ExportDropdown
@@ -275,7 +276,7 @@
         data={{
           labels: chartLabels.map(l => l.label),
           datasets: [{
-            label: 'Membres Actifs',
+            label: m.an_mem_active_title(),
             data: chartLabels.map(l => l.peakOnline || 0),
             borderColor: '#06b6d4',
             backgroundColor: 'rgba(6, 182, 212, 0.1)',
@@ -296,15 +297,15 @@
 
     <div class="grid grid-cols-3 gap-4 border-t border-outline-variant/10 pt-6">
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Pic Record</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_peak_record()}</p>
         <p class="text-2xl font-semibold text-cyan-500">{Math.max(...chartLabels.map(l => l.peakOnline || 0), 0)}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Moyenne</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_average()}</p>
         <p class="text-2xl font-semibold text-cyan-500">{Math.round(chartLabels.reduce((a, b) => a + (b.onlineMembers || 0), 0) / Math.max(chartLabels.length, 1))}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Minimum</p>
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_minimum()}</p>
         <p class="text-2xl font-semibold text-cyan-500">{Math.min(...chartLabels.filter(l => l.onlineMembers > 0).map(l => l.onlineMembers || 0), 0)}</p>
       </div>
     </div>
@@ -320,8 +321,8 @@
             <Papicon icon="Award" size={24} />
           </div>
           <div>
-            <h3 class="text-xl font-semibold text-on-surface">Membres avec le Tag [{data.clanTag}]</h3>
-            <p class="text-xs font-bold text-on-surface-variant/40">Évolution du nombre de membres arborant le tag du serveur</p>
+            <h3 class="text-xl font-semibold text-on-surface">{m.an_mem_clantag_title({ tag: data.clanTag })}</h3>
+            <p class="text-xs font-bold text-on-surface-variant/40">{m.an_mem_clantag_subtitle()}</p>
           </div>
         </div>
         <div class="flex items-center gap-3">
@@ -332,7 +333,7 @@
           />
           <div class="flex flex-col items-end">
             <span class="text-2xl font-semibold text-indigo-500">{data.clanTaggedMembersCount || 0}</span>
-            <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Membres Actuels</span>
+            <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_current_members()}</span>
           </div>
         </div>
       </div>
@@ -342,7 +343,7 @@
           data={{
             labels: chartLabels.map(l => l.label),
             datasets: [{
-              label: `Membres [${data.clanTag}]`,
+              label: m.an_mem_clantag_series({ tag: data.clanTag }),
               data: chartLabels.map(l => l.taggedMembersCount || 0),
               borderColor: '#6366f1',
               backgroundColor: 'rgba(99, 102, 241, 0.1)',
@@ -363,15 +364,15 @@
 
       <div class="grid grid-cols-3 gap-4 border-t border-outline-variant/10 pt-6">
         <div class="space-y-1">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Début de Période</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_period_start()}</p>
           <p class="text-2xl font-semibold text-indigo-500">{chartLabels[0]?.taggedMembersCount || 0}</p>
         </div>
         <div class="space-y-1">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Fin de Période</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_period_end()}</p>
           <p class="text-2xl font-semibold text-indigo-500">{chartLabels[chartLabels.length - 1]?.taggedMembersCount || 0}</p>
         </div>
         <div class="space-y-1">
-          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Croissance</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{m.an_mem_growth()}</p>
           <p class="text-2xl font-semibold {growth >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
             {growth >= 0 ? `+${growth}` : growth}
           </p>
@@ -387,8 +388,8 @@
         <Papicon icon="Trophy" size={24} />
       </div>
       <div>
-        <h3 class="text-xl font-semibold text-on-surface">Membres les Plus Actifs</h3>
-        <p class="text-xs font-bold text-on-surface-variant/40">Parmi tous les contributeurs</p>
+        <h3 class="text-xl font-semibold text-on-surface">{m.an_mem_most_active_title()}</h3>
+        <p class="text-xs font-bold text-on-surface-variant/40">{m.an_mem_most_active_subtitle()}</p>
       </div>
     </div>
 
@@ -403,14 +404,14 @@
             <img src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt={member.name} class="w-10 h-10 rounded-full" />
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-on-surface truncate">{member.name}</p>
-              <p class="text-xs text-on-surface-variant/60">{member.messageCount.toLocaleString('fr-FR')} messages</p>
+              <p class="text-xs text-on-surface-variant/60">{m.an_mem_message_count({ count: member.messageCount.toLocaleString(dateLocale()) })}</p>
             </div>
           </div>
           <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
         </button>
       {/each}
       {#if (data?.topMessageMembers || []).length === 0}
-        <p class="text-center py-10 text-on-surface-variant/40 font-bold text-sm">Aucune donnée disponible</p>
+        <p class="text-center py-10 text-on-surface-variant/40 font-bold text-sm">{m.an_mem_no_data()}</p>
       {/if}
     </div>
   </div>

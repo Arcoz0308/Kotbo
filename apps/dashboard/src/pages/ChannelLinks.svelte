@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -63,7 +64,7 @@
     try {
       links = (await fetchChannelLinks()) ?? [];
     } catch (err) {
-      toast.error('Erreur lors du chargement des liens');
+      toast.error(m.channel_links_load_error());
     } finally {
       loading = false;
     }
@@ -74,7 +75,7 @@
     try {
       otherGuilds = (await fetchChannelLinkOtherGuilds()) ?? [];
     } catch (err) {
-      toast.error('Erreur lors du chargement des serveurs');
+      toast.error(m.channel_links_load_guilds_error());
     } finally {
       loadingGuilds = false;
     }
@@ -99,11 +100,11 @@
 
   async function handleCreateDirect() {
     if (!newSourceChannelId) {
-      toast.error('Sélectionnez un salon source');
+      toast.error(m.channel_links_err_source_required());
       return;
     }
     if (!newTargetGuildId || !newTargetChannelId) {
-      toast.error('Sélectionnez un serveur et un salon cible');
+      toast.error(m.channel_links_err_target_required());
       return;
     }
     await saveAction.run(async () => {
@@ -125,7 +126,7 @@
         return true;
       }
       return false;
-    }, { successMessage: 'Lien créé avec succès' });
+    }, { successMessage: m.channel_links_created_toast() });
   }
 
   async function handleToggleLink(linkId: string, enabled: boolean) {
@@ -153,7 +154,7 @@
         return true;
       }
       return false;
-    }, { successMessage: 'Configuration mise à jour' });
+    }, { successMessage: m.channel_links_config_updated_toast() });
   }
 
   let configInviteTopicUpdated = $state(false);
@@ -166,10 +167,10 @@
       if (result?.inviteUrl) {
         configInviteUrl = result.inviteUrl;
         configInviteTopicUpdated = !!result.topicUpdated;
-        toast.success(result.topicUpdated ? 'Invitation ajoutée dans la description du salon' : 'Invitation générée');
+        toast.success(result.topicUpdated ? m.channel_links_invite_topic_toast() : m.channel_links_invite_generated_toast());
       }
     } catch {
-      toast.error('Erreur lors de la génération');
+      toast.error(m.channel_links_invite_gen_error());
     } finally {
       generatingInvite = false;
     }
@@ -196,17 +197,17 @@
   }
 
   function directionLabel(d: string) {
-    return d === 'BIDIRECTIONAL' ? 'Bidirectionnel' : 'Unidirectionnel';
+    return d === 'BIDIRECTIONAL' ? m.channel_links_direction_bidirectional() : m.channel_links_direction_unidirectional();
   }
 
-  function modeLabel(m: string) {
-    return m === 'WEBHOOK' ? 'Webhook' : 'Embed';
+  function modeLabel(mMode: string) {
+    return mMode === 'WEBHOOK' ? m.channel_links_mode_webhook() : m.channel_links_mode_embed();
   }
 </script>
 
 <ModulePage
-  title="Liens de salons"
-  description="Reliez des salons entre serveurs pour synchroniser les messages"
+  title={m.channel_links_page_title()}
+  description={m.channel_links_page_desc()}
   icon="link"
   featureKey="channel_links"
 >
@@ -220,13 +221,13 @@
     <div class="flex flex-col gap-6">
       <!-- Actions bar -->
       <div class="flex items-center justify-between">
-        <p class="text-sm text-on-surface-variant">{links.length} lien(s) configuré(s)</p>
+        <p class="text-sm text-on-surface-variant">{m.channel_links_configured_count({ count: links.length })}</p>
         <button
           onclick={openCreateModal}
           class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
         >
           <Papicon icon="plus" size={16} />
-          Créer un lien
+          {m.channel_links_create_btn()}
         </button>
       </div>
 
@@ -240,9 +241,9 @@
           <div class="w-16 h-16 bg-surface-container-low rounded-2xl flex items-center justify-center mb-4">
             <Papicon icon="link" size={32} class="text-on-surface-variant/40" />
           </div>
-          <h3 class="text-lg font-semibold text-on-surface mb-1">Aucun lien configuré</h3>
+          <h3 class="text-lg font-semibold text-on-surface mb-1">{m.channel_links_empty_title()}</h3>
           <p class="text-sm text-on-surface-variant/60 max-w-sm">
-            Créez un lien pour synchroniser les messages entre un salon de ce serveur et un salon d'un autre serveur.
+            {m.channel_links_empty_desc()}
           </p>
         </div>
       {:else}
@@ -279,10 +280,10 @@
                     <span class="text-[10px] px-2 py-0.5 rounded-full bg-surface-container border border-outline-variant/15 text-on-surface-variant">
                       {modeLabel(link.isSource ? link.targetRelayMode : link.sourceRelayMode)}
                     </span>
-                    {#if link.relayText}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">Texte</span>{/if}
-                    {#if link.relayImages}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">Images</span>{/if}
-                    {#if link.relayEdits}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">Éditions</span>{/if}
-                    {#if link.relayDeletes}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">Suppressions</span>{/if}
+                    {#if link.relayText}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_text()}</span>{/if}
+                    {#if link.relayImages}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_images()}</span>{/if}
+                    {#if link.relayEdits}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_edits()}</span>{/if}
+                    {#if link.relayDeletes}<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{m.channel_links_relay_deletes()}</span>{/if}
                   </div>
                 </div>
 
@@ -295,14 +296,14 @@
                   <button
                     onclick={() => openConfig(link)}
                     class="p-2 rounded-lg hover:bg-surface-container transition-colors"
-                    title="Configurer"
+                    title={m.channel_links_config_tooltip()}
                   >
                     <Papicon icon="settings" size={16} class="text-on-surface-variant" />
                   </button>
                   <button
                     onclick={() => confirmDelete(link.id)}
                     class="p-2 rounded-lg hover:bg-red-500/10 transition-colors"
-                    title="Supprimer"
+                    title={m.common_delete()}
                   >
                     <Papicon icon="trash-2" size={16} class="text-red-400" />
                   </button>
@@ -315,17 +316,17 @@
     </div>
 
     <!-- Create Link Modal -->
-    <Modal bind:open={showCreateModal} title="Créer un lien de salon">
+    <Modal bind:open={showCreateModal} title={m.channel_links_modal_create_title()}>
       <div class="flex flex-col gap-5 p-4">
         <!-- Step 1: Source channel -->
         <div>
-          <label for="new-source-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">Salon sur ce serveur</label>
+          <label for="new-source-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">{m.channel_links_source_channel_label()}</label>
           <select
             id="new-source-channel-id"
             bind:value={newSourceChannelId}
             class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
           >
-            <option value="">Sélectionner un salon</option>
+            <option value="">{m.channel_links_select_channel_ph()}</option>
             {#each channels as ch}
               <option value={ch.id}>#{ch.name}</option>
             {/each}
@@ -334,16 +335,16 @@
 
         <!-- Step 2: Target server -->
         <div>
-          <span class="block text-sm font-medium text-on-surface mb-1.5">Serveur cible</span>
+          <span class="block text-sm font-medium text-on-surface mb-1.5">{m.channel_links_target_guild_label()}</span>
           {#if loadingGuilds}
             <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30">
               <div class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></div>
-              <span class="text-sm text-on-surface-variant">Chargement des serveurs...</span>
+              <span class="text-sm text-on-surface-variant">{m.channel_links_loading_guilds()}</span>
             </div>
           {:else if otherGuilds.length === 0}
             <div class="px-3 py-3 rounded-lg bg-surface-container/40 border border-outline-variant/20 text-center">
-              <p class="text-sm text-on-surface-variant/60">Aucun serveur disponible.</p>
-              <p class="text-xs text-on-surface-variant/40 mt-1">Le bot doit être présent et vous devez être admin sur le serveur cible.</p>
+              <p class="text-sm text-on-surface-variant/60">{m.channel_links_no_guilds_title()}</p>
+              <p class="text-xs text-on-surface-variant/40 mt-1">{m.channel_links_no_guilds_desc()}</p>
             </div>
           {:else}
             <div class="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
@@ -362,7 +363,7 @@
                   {/if}
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-on-surface truncate">{guild.name}</p>
-                    <p class="text-xs text-on-surface-variant/50">{guild.channels.length} salon(s)</p>
+                    <p class="text-xs text-on-surface-variant/50">{m.channel_links_guild_channel_count({ count: guild.channels.length })}</p>
                   </div>
                   {#if newTargetGuildId === guild.id}
                     <Papicon icon="check" size={16} class="text-primary shrink-0" />
@@ -376,13 +377,13 @@
         <!-- Step 3: Target channel (only if server selected) -->
         {#if newTargetGuildId}
           <div>
-            <label for="new-target-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">Salon sur le serveur cible</label>
+            <label for="new-target-channel-id" class="block text-sm font-medium text-on-surface mb-1.5">{m.channel_links_target_channel_label()}</label>
             <select
               id="new-target-channel-id"
               bind:value={newTargetChannelId}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
-              <option value="">Sélectionner un salon</option>
+              <option value="">{m.channel_links_select_channel_ph()}</option>
               {#each targetGuildChannels as ch}
                 <option value={ch.id}>#{ch.name}</option>
               {/each}
@@ -393,25 +394,25 @@
         <!-- Options -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label for="new-direction" class="block text-sm font-medium text-on-surface mb-1.5">Direction</label>
+            <label for="new-direction" class="block text-sm font-medium text-on-surface mb-1.5">{m.channel_links_field_direction()}</label>
             <select
               id="new-direction"
               bind:value={newDirection}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
-              <option value="BIDIRECTIONAL">Bidirectionnel</option>
-              <option value="UNIDIRECTIONAL">Unidirectionnel</option>
+              <option value="BIDIRECTIONAL">{m.channel_links_direction_bidirectional()}</option>
+              <option value="UNIDIRECTIONAL">{m.channel_links_direction_unidirectional()}</option>
             </select>
           </div>
           <div>
-            <label for="new-relay-mode" class="block text-sm font-medium text-on-surface mb-1.5">Mode de relay</label>
+            <label for="new-relay-mode" class="block text-sm font-medium text-on-surface mb-1.5">{m.channel_links_field_relay_mode()}</label>
             <select
               id="new-relay-mode"
               bind:value={newRelayMode}
               class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
             >
-              <option value="WEBHOOK">Webhook (miroir)</option>
-              <option value="EMBED">Embed</option>
+              <option value="WEBHOOK">{m.channel_links_mode_webhook_mirror()}</option>
+              <option value="EMBED">{m.channel_links_mode_embed()}</option>
             </select>
           </div>
         </div>
@@ -419,8 +420,8 @@
         <!-- Server invite option -->
         <div class="flex items-center justify-between px-3 py-2.5 rounded-lg bg-surface-container/40 border border-outline-variant/10">
           <div>
-            <span class="text-sm text-on-surface">Générer une invitation Discord</span>
-            <p class="text-xs text-on-surface-variant/50 mt-0.5">Crée un lien d'invitation à mettre dans la description du serveur cible</p>
+            <span class="text-sm text-on-surface">{m.channel_links_option_invite_title()}</span>
+            <p class="text-xs text-on-surface-variant/50 mt-0.5">{m.channel_links_option_invite_desc()}</p>
           </div>
           <ToggleSwitch checked={newCreateServerInvite} onToggle={(v) => newCreateServerInvite = v} size="sm" />
         </div>
@@ -443,16 +444,16 @@
           <div class="flex flex-col gap-2 px-4 py-3 rounded-lg bg-green-500/10 border border-green-500/30">
             <div class="flex items-center gap-2">
               <Papicon icon="check-circle" size={16} class="text-green-400" />
-              <span class="text-sm font-semibold text-green-400">Lien créé avec invitation</span>
+              <span class="text-sm font-semibold text-green-400">{m.channel_links_invite_created_badge()}</span>
             </div>
-            <p class="text-xs text-on-surface-variant/70">Copiez ce lien et ajoutez-le dans la description du serveur cible :</p>
+            <p class="text-xs text-on-surface-variant/70">{m.channel_links_invite_created_hint()}</p>
             <div class="flex items-center gap-2">
               <code class="flex-1 text-sm font-mono bg-surface-container px-3 py-1.5 rounded-lg text-on-surface select-all break-all">{createdInviteUrl}</code>
               <button
                 type="button"
-                onclick={() => { navigator.clipboard.writeText(createdInviteUrl ?? ''); toast.success('Lien copié !'); }}
+                onclick={() => { navigator.clipboard.writeText(createdInviteUrl ?? ''); toast.success(m.channel_links_link_copied()); }}
                 class="p-2 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors"
-                title="Copier"
+                title={m.common_copy()}
               >
                 <Papicon icon="copy" size={16} class="text-on-surface-variant" />
               </button>
@@ -461,7 +462,7 @@
               onclick={() => { showCreateModal = false; createdInviteUrl = null; }}
               class="w-full mt-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
             >
-              Fermer
+              {m.common_close()}
             </button>
           </div>
         {:else}
@@ -470,51 +471,51 @@
             disabled={saveAction.state.loading || !newSourceChannelId || !newTargetGuildId || !newTargetChannelId}
             class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
           >
-            {saveAction.state.loading ? 'Création...' : 'Créer le lien'}
+            {saveAction.state.loading ? m.channel_links_creating() : m.channel_links_create_submit()}
           </button>
         {/if}
       </div>
     </Modal>
 
     <!-- Config Modal -->
-    <Modal bind:open={showConfigModal} title="Configuration du lien">
+    <Modal bind:open={showConfigModal} title={m.channel_links_modal_config_title()}>
       {#if configLink}
         <div class="flex flex-col gap-5 p-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label for="config-link-direction" class="block text-sm font-medium text-on-surface mb-1.5">Direction</label>
+              <label for="config-link-direction" class="block text-sm font-medium text-on-surface mb-1.5">{m.channel_links_field_direction()}</label>
               <select
                 id="config-link-direction"
                 bind:value={configLink.direction}
                 class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
               >
-                <option value="BIDIRECTIONAL">Bidirectionnel</option>
-                <option value="UNIDIRECTIONAL">Unidirectionnel</option>
+                <option value="BIDIRECTIONAL">{m.channel_links_direction_bidirectional()}</option>
+                <option value="UNIDIRECTIONAL">{m.channel_links_direction_unidirectional()}</option>
               </select>
             </div>
             <div>
-              <label for="config-link-target-relay-mode" class="block text-sm font-medium text-on-surface mb-1.5">Mode relay (cible)</label>
+              <label for="config-link-target-relay-mode" class="block text-sm font-medium text-on-surface mb-1.5">{m.channel_links_field_target_relay_mode()}</label>
               <select
                 id="config-link-target-relay-mode"
                 bind:value={configLink.targetRelayMode}
                 class="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm outline-none"
               >
-                <option value="WEBHOOK">Webhook</option>
-                <option value="EMBED">Embed</option>
+                <option value="WEBHOOK">{m.channel_links_mode_webhook()}</option>
+                <option value="EMBED">{m.channel_links_mode_embed()}</option>
               </select>
             </div>
           </div>
 
           <div>
-            <span class="block text-sm font-medium text-on-surface mb-2">Contenu relayé</span>
+            <span class="block text-sm font-medium text-on-surface mb-2">{m.channel_links_relayed_content_heading()}</span>
             <div class="grid grid-cols-2 gap-3">
               {#each [
-                { label: 'Texte', key: 'relayText' },
-                { label: 'Images', key: 'relayImages' },
-                { label: 'Embeds', key: 'relayEmbeds' },
-                { label: 'Réactions', key: 'relayReactions' },
-                { label: 'Éditions', key: 'relayEdits' },
-                { label: 'Suppressions', key: 'relayDeletes' },
+                { label: m.channel_links_relay_text(), key: 'relayText' },
+                { label: m.channel_links_relay_images(), key: 'relayImages' },
+                { label: m.channel_links_relay_embeds(), key: 'relayEmbeds' },
+                { label: m.channel_links_relay_reactions(), key: 'relayReactions' },
+                { label: m.channel_links_relay_edits(), key: 'relayEdits' },
+                { label: m.channel_links_relay_deletes(), key: 'relayDeletes' },
               ] as toggle}
                 <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-container/40 border border-outline-variant/10">
                   <span class="text-sm text-on-surface">{toggle.label}</span>
@@ -526,27 +527,27 @@
 
           <!-- Invitation Discord -->
           <div class="border-t border-outline-variant/20 pt-4">
-            <span class="block text-sm font-medium text-on-surface mb-2">Invitation Discord</span>
-            <p class="text-xs text-on-surface-variant/50 mb-3">Générez un lien d'invitation permanent pour ce salon, à mettre dans la description du serveur lié.</p>
+            <span class="block text-sm font-medium text-on-surface mb-2">{m.channel_links_invite_section_title()}</span>
+            <p class="text-xs text-on-surface-variant/50 mb-3">{m.channel_links_invite_section_desc()}</p>
 
             {#if configInviteUrl}
               <div class="flex flex-col gap-2 px-3 py-3 rounded-lg bg-green-500/10 border border-green-500/30">
                 <div class="flex items-center gap-2">
                   <Papicon icon="check-circle" size={14} class="text-green-400" />
                   <span class="text-xs font-semibold text-green-400">
-                    {configInviteTopicUpdated ? 'Invitation ajoutée dans la description du salon distant' : 'Invitation générée'}
+                    {configInviteTopicUpdated ? m.channel_links_invite_added_topic() : m.channel_links_invite_generated()}
                   </span>
                 </div>
                 {#if !configInviteTopicUpdated}
-                  <p class="text-xs text-on-surface-variant/60">Le bot n'a pas pu modifier la description du salon distant. Copiez le lien manuellement :</p>
+                  <p class="text-xs text-on-surface-variant/60">{m.channel_links_invite_manual_hint()}</p>
                 {/if}
                 <div class="flex items-center gap-2">
                   <code class="flex-1 text-xs font-mono bg-surface-container px-2.5 py-1.5 rounded-lg text-on-surface select-all break-all">{configInviteUrl}</code>
                   <button
                     type="button"
-                    onclick={() => { navigator.clipboard.writeText(configInviteUrl ?? ''); toast.success('Lien copié !'); }}
+                    onclick={() => { navigator.clipboard.writeText(configInviteUrl ?? ''); toast.success(m.channel_links_link_copied()); }}
                     class="p-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors"
-                    title="Copier"
+                    title={m.common_copy()}
                   >
                     <Papicon icon="copy" size={14} class="text-on-surface-variant" />
                   </button>
@@ -561,10 +562,10 @@
               >
                 {#if generatingInvite}
                   <div class="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></div>
-                  Génération...
+                  {m.channel_links_generating_invite()}
                 {:else}
                   <Papicon icon="link" size={14} class="text-on-surface-variant" />
-                  Générer une invitation
+                  {m.channel_links_generate_invite_btn()}
                 {/if}
               </button>
             {/if}
@@ -575,30 +576,30 @@
             disabled={saveAction.state.loading}
             class="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
           >
-            {saveAction.state.loading ? 'Sauvegarde...' : 'Sauvegarder'}
+            {saveAction.state.loading ? m.channel_links_saving() : m.common_save()}
           </button>
         </div>
       {/if}
     </Modal>
 
     <!-- Delete Confirm Modal -->
-    <Modal bind:open={showDeleteModal} title="Confirmer la suppression">
+    <Modal bind:open={showDeleteModal} title={m.channel_links_delete_modal_title()}>
       <div class="flex flex-col gap-4 p-4">
         <p class="text-sm text-on-surface-variant">
-          Êtes-vous sûr de vouloir supprimer ce lien ? Les messages ne seront plus relayés entre les deux salons.
+          {m.channel_links_delete_modal_desc()}
         </p>
         <div class="flex gap-3 justify-end">
           <button
             onclick={() => { showDeleteModal = false; }}
             class="px-4 py-2 rounded-lg bg-surface-container border border-outline-variant/30 text-on-surface text-sm hover:bg-surface-container-high transition-colors"
           >
-            Annuler
+            {m.common_cancel()}
           </button>
           <button
             onclick={handleDelete}
             class="px-4 py-2 rounded-lg bg-red-500 text-white text-sm hover:bg-red-600 transition-colors"
           >
-            Supprimer
+            {m.common_delete()}
           </button>
         </div>
       </div>

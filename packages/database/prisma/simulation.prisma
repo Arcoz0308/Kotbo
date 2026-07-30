@@ -1,0 +1,128 @@
+// ── Staff Simulator ──────────────────────────────────────────────────────────
+// Entraînement des modérateurs sur des incidents simulés injectés par webhook
+// dans un salon bac à sable, sans aucun impact sur la communauté réelle.
+
+model SimulationConfig {
+  guildId String @id
+
+  enabled Boolean @default(false)
+
+  // Salon bac à sable : seul endroit où une simulation peut démarrer.
+  testChannelId String?
+
+  // Délai laissé au modérateur pour réagir à un incident avant qu'il expire.
+  stepTimeoutSeconds Int @default(180)
+
+  // Rôles autorisés à lancer une session pour eux-mêmes (vide = staff configuré)
+  traineeRoleIds String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("simulation_configs")
+}
+
+model SimulationScenario {
+  id      String @id @default(cuid())
+  guildId String
+
+  title       String
+  description String  @default("")
+  difficulty  String  @default("MEDIUM") // EASY | MEDIUM | HARD
+  enabled     Boolean @default(true)
+
+  // Tableau de ScenarioStep — voir @kotbo/shared
+  steps Json
+
+  createdById String?
+
+  guild    Guild               @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  sessions SimulationSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, enabled])
+  @@map("simulation_scenarios")
+}
+
+model SimulationSession {
+  id         String @id @default(cuid())
+  guildId    String
+  scenarioId String
+
+  traineeId   String
+  traineeName String
+  channelId   String
+
+  // RUNNING | COMPLETED | ABANDONED
+  status String @default("RUNNING")
+
+  // Index de l'étape en cours ; -1 une fois la session terminée
+  currentStep Int @default(0)
+
+  // Identifiant du webhook utilisé pour injecter les faux messages, conservé
+  // pour supprimer les messages du bac à sable à la clôture.
+  webhookId String?
+  // Messages injectés, à nettoyer en fin de session
+  postedMessageIds String[] @default([])
+
+  // ── Résultats, calculés à la clôture ───────────────────────────────────────
+  score            Int @default(0)
+  maxScore         Int @default(0)
+  scorePercent     Int @default(0)
+  correctCount     Int @default(0)
+  partialCount     Int @default(0)
+  missedCount      Int @default(0)
+  averageResponseMs Int @default(0)
+  // Conseils d'amélioration issus des étapes ratées
+  advice String[] @default([])
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  scenario SimulationScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  guild    Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  answers  SimulationAnswer[]
+
+  @@index([guildId, startedAt])
+  @@index([guildId, traineeId, startedAt])
+  @@index([guildId, status])
+  @@map("simulation_sessions")
+}
+
+model SimulationAnswer {
+  id        String @id @default(cuid())
+  sessionId String
+
+  stepIndex Int
+  stepId    String
+  stepKind  String
+
+  expectedAction   String
+  expectedMinutes  Int?
+  chosenAction     String?
+  chosenMinutes    Int?
+
+  correct           Boolean @default(false)
+  partiallyCorrect  Boolean @default(false)
+  points            Int     @default(0)
+  maxPoints         Int     @default(0)
+  slow              Boolean @default(false)
+  reason            String  @default("")
+
+  // Temps de réaction depuis l'injection de l'incident
+  responseMs Int @default(0)
+
+  // Horodatage de l'injection, pour recalculer un temps de réaction
+  postedAt   DateTime  @default(now())
+  answeredAt DateTime?
+
+  session SimulationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, stepIndex])
+  @@index([sessionId, stepIndex])
+  @@map("simulation_answers")
+}

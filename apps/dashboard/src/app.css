@@ -3,11 +3,9 @@
 @import "@fontsource/inter/latin-500.css";
 @import "@fontsource/inter/latin-600.css";
 @import "@fontsource/inter/latin-700.css";
-@import "@fontsource/manrope/latin-400.css";
 @import "@fontsource/manrope/latin-500.css";
 @import "@fontsource/manrope/latin-600.css";
 @import "@fontsource/manrope/latin-700.css";
-@import "@fontsource/manrope/latin-800.css";
 @import "@fontsource/outfit/latin-400.css";
 @import "@fontsource/outfit/latin-600.css";
 @import "@fontsource/outfit/latin-800.css";
@@ -56,9 +54,9 @@
   --color-error-container: #fef2f2;
   --color-on-error-container: #991b1b;
 
-  --font-headline: "Inter", system-ui, -apple-system, sans-serif;
+  --font-headline: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
-  --font-label: "Inter", system-ui, -apple-system, sans-serif;
+  --font-label: "Manrope", "Inter", system-ui, -apple-system, sans-serif;
 
   --radius-DEFAULT: 0.375rem;
   --radius-lg: 0.5rem;
@@ -78,6 +76,15 @@
 
 
 :root {
+  /* Mobile shell geometry. Anything that floats above the page (toasts, FABs,
+     the tutorial checklist) offsets itself with these so the tab bar can change
+     height without every consumer needing to be found and edited. */
+  --mobile-topbar-height: 3.25rem;
+  --mobile-tabbar-height: 3.625rem;
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-tabbar-clearance: calc(var(--mobile-tabbar-height) + var(--mobile-safe-bottom));
+  --mobile-gutter: 1rem;
+
   --background: #ffffff;
   --surface: #ffffff;
   --on-background: #111827;
@@ -132,9 +139,36 @@
 }
 
 @layer base {
+  html {
+    min-width: 20rem;
+    overflow-x: clip;
+    scroll-behavior: smooth;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background font-body text-on-surface antialiased transition-colors duration-200;
+    min-width: 20rem;
+    min-height: 100dvh;
+    overflow-x: clip;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
   }
 
   /* Native <select> — le navigateur affiche souvent une liste blanche en mode sombre */
@@ -588,4 +622,832 @@
 
 .slide-up {
   animation-name: slide-up;
+}
+
+/* ── Responsive application shell ───────────────────── */
+
+/* Grid and flex children default to min-width:auto, which lets a single wide
+   cell push the whole page sideways. These guards are why the dashboard can
+   host arbitrary page content without horizontal scroll. */
+.app-shell,
+.app-content,
+.app-main,
+.app-main > * {
+  min-width: 0;
+}
+
+.app-main :where(.flex, .grid) > * {
+  min-width: 0;
+}
+
+.app-main :where(pre, code) {
+  max-width: 100%;
+}
+
+.app-main :where(p, h1, h2, h3, h4, dd, li) {
+  overflow-wrap: anywhere;
+}
+
+.app-main :where(pre) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-navbar {
+  isolation: isolate;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1000;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.625rem;
+  background: var(--primary-color);
+  color: var(--on-primary-color);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  transform: translateY(-150%);
+  transition: transform 150ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.mobile-sidebar-backdrop {
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+/* Touch devices have no hover state to leave, so a hover shadow just sticks
+   to whatever the user last tapped. */
+@media (hover: none) {
+  .section-card:hover,
+  .premium-card:hover,
+  .stat-kpi:hover,
+  .pressable:hover {
+    box-shadow: none;
+  }
+}
+
+/* ── Handheld gutters ───────────────────────────────── */
+
+@media (max-width: 1023px) {
+  .app-main {
+    padding-right: max(var(--mobile-gutter), env(safe-area-inset-right));
+    padding-left: max(var(--mobile-gutter), env(safe-area-inset-left));
+  }
+}
+
+/* ── Tablet · 768–1023px ────────────────────────────────
+   Navigation collapses to a drawer, but the content still has room for
+   desktop density. Phones never reach these rules: below 768px the layout
+   swaps to the dedicated mobile shell components instead. */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app-sidebar {
+    width: min(88vw, 22rem);
+    padding-bottom: env(safe-area-inset-bottom);
+    border-right-color: color-mix(in srgb, var(--primary-color) 18%, var(--outline-variant));
+    box-shadow: 24px 0 70px rgb(0 0 0 / 0.24);
+  }
+
+  .app-sidebar nav :where(a, button),
+  .app-sidebar button {
+    min-height: 2.75rem;
+  }
+
+  .app-sidebar button[aria-label] {
+    min-width: 2.75rem;
+  }
+
+  .app-sidebar input[type="search"] {
+    min-height: 2.625rem;
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+    font-size: 0.875rem;
+  }
+
+  .app-navbar {
+    height: calc(3.5rem + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+  }
+
+  .app-navbar-spacer {
+    height: calc(3.5rem + env(safe-area-inset-top));
+  }
+
+  .app-navbar__menu,
+  .app-navbar__profile,
+  .notification-trigger {
+    min-width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.75rem;
+  }
+
+  .app-navbar__mobile-context {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--outline-variant);
+    border-radius: 0.625rem;
+  }
+
+  .app-navbar__mobile-server-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    flex: 0 0 auto;
+    border-radius: 0.45rem;
+    object-fit: cover;
+  }
+
+  .app-navbar__mobile-server-fallback {
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+    color: var(--primary-color);
+    font-size: 0.6875rem;
+    font-weight: 800;
+  }
+
+  .app-navbar__mobile-server-name {
+    max-width: 14rem;
+    overflow: hidden;
+    color: var(--on-surface);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ── Phone · ≤767px ─────────────────────────────────────
+   The mobile shell is active: fixed top bar, fixed tab bar, and normal
+   document scrolling in between. Nothing here may introduce a second scroll
+   container. Sticky headers, scroll restoration and the browser's own
+   URL-bar collapse all depend on the page being the scroller. */
+
+@media (max-width: 767px) {
+  .app-main {
+    padding-top: 1rem;
+    /* Clear the tab bar, plus a breath of space so the last row is reachable. */
+    padding-bottom: calc(var(--mobile-tabbar-clearance) + 1.5rem);
+  }
+
+  /* ── Type and rhythm ── */
+
+  .page-header {
+    margin-bottom: 1.25rem;
+  }
+
+  .page-header h1,
+  .page-header h2 {
+    font-family: var(--font-headline);
+    font-size: clamp(1.35rem, 6.5vw, 1.75rem);
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+  }
+
+  .page-header p {
+    max-width: 42rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Desktop padding scales are too generous once the viewport is 390px wide.
+     Compacting them here beats editing the same values across 90 pages. */
+  .app-main :where(.p-8, .p-6) {
+    padding: 1rem;
+  }
+
+  .app-main :where(.p-5) {
+    padding: 0.875rem;
+  }
+
+  .app-main :where(.px-8, .px-6) {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .app-main :where(.py-8, .py-6) {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .app-main :where(.gap-8) { gap: 1rem; }
+  .app-main :where(.gap-6) { gap: 0.875rem; }
+  .app-main :where(.mb-8) { margin-bottom: 1.25rem; }
+  .app-main :where(.mt-8) { margin-top: 1.25rem; }
+
+  /* ── Touch targets ── */
+
+  .app-main :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    max-width: 100%;
+    min-height: 2.75rem;
+    /* Below 16px, iOS Safari zooms the viewport on focus and never zooms back. */
+    font-size: 1rem;
+  }
+
+  .app-main :where(.btn, .tab-button, [role="tab"]) {
+    min-height: 2.75rem;
+  }
+
+  /* ── Cards and sections ── */
+
+  .section-card,
+  .section-card-flush,
+  .premium-card,
+  .stat-kpi {
+    border-radius: 1rem;
+  }
+
+  .section-card__header {
+    /* stretch, not the inherited center/start: once the header stacks, the
+       title block and the action row should both span the full width. */
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.875rem;
+    padding: 1rem 1rem 0.25rem;
+  }
+
+  .section-card__actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .section-card__actions > :where(button, a),
+  .module-page__actions > :where(button, a) {
+    min-height: 2.75rem;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .section-card__body {
+    padding: 1rem;
+  }
+
+  .section-card__body--flush {
+    padding: 0;
+  }
+
+  .module-page {
+    gap: 1.25rem;
+  }
+
+  .module-page__header {
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+
+  .module-page__identity {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .module-page__icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+  }
+
+  .module-page__identity h1 {
+    font-family: var(--font-headline);
+    font-size: 1.125rem;
+  }
+
+  .module-page__identity p {
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    line-height: 1.45;
+  }
+
+  .module-page__actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* ── Tabs ── */
+
+  .tab-group {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    overflow: visible;
+  }
+
+  .tab-button {
+    min-width: 0;
+    flex: 1 1 auto;
+    justify-content: center;
+    padding-inline: 0.875rem;
+    text-align: center;
+    white-space: normal;
+  }
+
+  /* ── Data tables ──
+     responsiveTables tags each table as either a card list (simple, labelled)
+     or a scroller (too many columns to fold). */
+
+  .app-main .mobile-scroll-table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-main .mobile-scroll-table th,
+  .app-main .mobile-scroll-table td {
+    min-width: 6rem;
+    padding: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .app-main .mobile-scroll-table td :where(p, span):not(.badge) {
+    white-space: normal;
+  }
+
+  /* Pin the identifying column so a sideways scroll keeps its context. */
+  .app-main .mobile-scroll-table :where(th, td):first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface-container-lowest);
+    box-shadow: 1px 0 0 var(--outline-variant);
+  }
+
+  .app-main .mobile-scroll-table th:first-child {
+    z-index: 2;
+    background: var(--surface-container);
+  }
+
+  .app-main .mobile-card-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    border-collapse: separate;
+  }
+
+  .app-main .mobile-card-table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .app-main .mobile-card-table > tbody {
+    display: grid;
+    width: 100%;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  /* A padded card body already provides the inset; a second one would frame
+     each row twice. Flush bodies keep the padding, since they have none. */
+  .section-card__body:not(.section-card__body--flush) .mobile-card-table > tbody {
+    padding: 0;
+  }
+
+  .app-main .mobile-card-table > tbody > tr {
+    display: grid;
+    overflow: visible;
+    border: 1px solid var(--outline-variant);
+    border-radius: 0.875rem;
+    background: var(--surface-container-lowest);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
+  }
+
+  .app-main .mobile-card-table > tbody > tr:hover {
+    background: var(--surface-container-lowest);
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td {
+    display: grid;
+    min-width: 0;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    grid-template-columns: minmax(5.5rem, 38%) minmax(0, 1fr);
+    border-bottom: 1px solid var(--outline-variant);
+    text-align: right;
+    white-space: normal;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td:last-child {
+    border-bottom: 0;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td::before {
+    align-self: start;
+    color: var(--on-surface-variant);
+    content: attr(data-label);
+    font-family: var(--font-label);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-align: left;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td > :where(div, span, p) {
+    max-width: 100%;
+    min-width: 0;
+    justify-self: end;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td :where(.flex, .inline-flex) {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* Row actions become a wrapping row of full-width targets: a lone "Open"
+     button hugging its text is the hardest thing on the card to hit. */
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    text-align: left;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-actions::before {
+    flex: 1 0 100%;
+    margin-bottom: 0.125rem;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-actions > * {
+    min-width: 0;
+    flex: 1 1 7rem;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-actions
+    :where(button, a) {
+    justify-content: center;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-summary {
+    display: block;
+    text-align: left;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td.mobile-table-summary::before {
+    display: none;
+  }
+
+  .table-wrap {
+    margin-inline: -0.25rem;
+    border-radius: 0.875rem;
+  }
+
+  /* ── Overlays become bottom sheets ──
+     Reaching a dialog's controls at the top of a phone screen means changing
+     grip; anchoring them to the bottom keeps them in the thumb arc. */
+
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-panel {
+    max-height: min(92dvh, 54rem);
+    padding: 1rem;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 1.25rem 1.25rem 0 0;
+  }
+
+  .app-modal,
+  .confirm-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .app-modal__panel,
+  .confirm-modal__panel {
+    width: 100%;
+    max-width: none;
+    max-height: min(92dvh, 54rem);
+    padding-bottom: env(safe-area-inset-bottom);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 1.25rem 1.25rem 0 0;
+    box-shadow: 0 -24px 70px rgb(0 0 0 / 0.28);
+  }
+
+  .app-modal__panel::before,
+  .confirm-modal__panel::before {
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    z-index: 2;
+    width: 2.5rem;
+    height: 0.25rem;
+    content: '';
+    border-radius: 999px;
+    background: var(--outline-variant);
+    transform: translateX(-50%);
+  }
+
+  .app-modal__header {
+    padding: 1.25rem 1rem 0.875rem;
+  }
+
+  .app-modal__body {
+    overscroll-behavior-y: contain;
+  }
+
+  .confirm-modal__panel {
+    padding: 1.5rem 1rem max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .confirm-modal__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .confirm-modal__actions > button {
+    min-height: 2.75rem;
+    justify-content: center;
+  }
+
+  .keyboard-shortcuts-modal {
+    align-items: flex-end;
+  }
+
+  .keyboard-shortcuts-modal__panel {
+    max-height: 90dvh;
+    margin: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 1.25rem 1.25rem 0 0;
+  }
+
+  .keyboard-shortcuts-modal__row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .keyboard-shortcuts-modal__keys {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .tutorial-welcome-panel {
+    border-radius: 1.25rem;
+    overscroll-behavior-y: contain;
+  }
+
+  .command-palette,
+  .server-switcher-modal {
+    align-items: flex-start;
+    padding: calc(var(--mobile-topbar-height) + env(safe-area-inset-top) + 0.75rem) 0.75rem
+      var(--mobile-tabbar-clearance);
+  }
+
+  .command-palette__panel,
+  .server-switcher-modal__panel {
+    max-height: min(72dvh, 36rem);
+    border-radius: 1.125rem;
+    box-shadow: 0 24px 70px rgb(0 0 0 / 0.3);
+  }
+
+  .command-palette__panel input,
+  .server-switcher-modal__panel input {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  .command-palette__panel [class*="max-h-"],
+  .server-switcher-modal__panel [class*="max-h-"] {
+    max-height: 58dvh;
+  }
+
+  .notification-panel {
+    position: fixed;
+    top: calc(var(--mobile-topbar-height) + env(safe-area-inset-top) + 0.5rem);
+    right: max(0.75rem, env(safe-area-inset-right));
+    left: max(0.75rem, env(safe-area-inset-left));
+    width: auto;
+    max-height: min(68dvh, 34rem);
+    border-radius: 1rem;
+    box-shadow: 0 24px 70px rgb(0 0 0 / 0.28);
+  }
+
+  /* ── Floating furniture sits above the tab bar ── */
+
+  .toast-container,
+  .tutorial-checklist {
+    right: 0.75rem;
+    bottom: calc(var(--mobile-tabbar-clearance) + 0.5rem);
+    left: 0.75rem;
+    width: auto;
+    max-width: none;
+  }
+
+  .tutorial-checklist__panel {
+    width: min(100%, 22rem);
+    max-height: min(68dvh, 38rem);
+  }
+
+  /* Le bouton d'édition du layout est en z-100 : il passait par-dessus la
+     barre d'onglets et les feuilles mobiles. Il redescend sous les deux, la
+     position au-dessus de la barre suffit à le garder atteignable. */
+  .home-floating-actions {
+    z-index: 44;
+    right: 1rem;
+    bottom: calc(var(--mobile-tabbar-clearance) + 0.75rem);
+    max-width: calc(100vw - 2rem);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* ── Per-task layouts ──
+     data-mobile-layout is set from the route, so a page behaves according to
+     the job it does rather than the desktop component it happens to use. */
+
+  .app-main[data-mobile-layout="directory"] :where(.sticky) {
+    scroll-margin-top: calc(var(--mobile-topbar-height) + env(safe-area-inset-top) + 0.5rem);
+  }
+
+  .app-main[data-mobile-layout="editor"] :where(form) {
+    scroll-margin-top: calc(var(--mobile-topbar-height) + env(safe-area-inset-top) + 0.5rem);
+  }
+
+  /* The node editor on /triggers and /workflows is a three-pane desktop
+     layout: a 240px palette, the canvas, then a 256px inspector. Side by side
+     on a 390px screen the canvas is left with no width at all, so the panes
+     stack and the canvas is promoted to the top where the eye lands first.
+     Keyed on the height utility the editor container carries; if that markup
+     changes the rule stops matching rather than misapplying. */
+  .app-main[data-page="workflows"] [class*="70vh"],
+  .app-main[data-page="triggers"] [class*="70vh"] {
+    height: auto;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .app-main[data-page="workflows"] [class*="70vh"] > aside,
+  .app-main[data-page="triggers"] [class*="70vh"] > aside {
+    width: 100%;
+    max-height: 42vh;
+    flex: 0 0 auto;
+  }
+
+  .app-main[data-page="workflows"] [class*="70vh"] > :not(aside),
+  .app-main[data-page="triggers"] [class*="70vh"] > :not(aside) {
+    min-height: 58vh;
+    order: -1;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-container {
+    height: calc(100dvh - var(--mobile-topbar-height) - var(--mobile-tabbar-clearance) - 6rem);
+    min-height: 28rem;
+    border-radius: 0.875rem;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.75rem;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-header__leading {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-header__title {
+    margin: 0.25rem 0 0;
+    overflow: hidden;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 0.875rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-view-tabs {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .app-main[data-mobile-layout="planner"] .calendar-view-tabs > button {
+    min-height: 2.5rem;
+    flex: 1 0 auto;
+  }
+
+  /* The planner's side panels become a swipeable rail under the calendar. */
+  .app-main[data-mobile-layout="planner"] aside {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    max-height: 12rem;
+    flex-direction: row;
+    gap: 0.75rem;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .app-main[data-mobile-layout="planner"] aside::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-main[data-mobile-layout="planner"] aside > * {
+    min-width: min(78vw, 19rem);
+    max-height: 12rem;
+    flex: 0 0 auto;
+    overflow-y: auto;
+    scroll-snap-align: start;
+  }
+}
+
+/* ── Compact phone · ≤479px ─────────────────────────── */
+
+@media (max-width: 479px) {
+  .app-main {
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+  }
+
+  /* Dense forms stop being readable in two columns at this width. */
+  .app-main[data-mobile-layout="settings"] :where(form, [role="dialog"])
+    :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6),
+  .app-main[data-mobile-layout="editor"] :where(form, [role="dialog"])
+    :where(.grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .info-row {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .info-row dd {
+    max-width: 58%;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+
+  /* Label above value: side by side leaves neither enough room. */
+  .app-main .mobile-card-table > tbody {
+    padding: 0.625rem;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td:not(.mobile-table-actions) {
+    display: block;
+    text-align: left;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td:not(.mobile-table-actions)::before {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .app-main .mobile-card-table > tbody > tr > td > :where(div, span, p) {
+    justify-self: start;
+  }
+}
+
+/* ── Very compact phone · ≤399px ────────────────────── */
+
+@media (max-width: 399px) {
+  .app-main :where(.grid-cols-3, .grid-cols-4, .grid-cols-5) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-main :where(.text-3xl) { font-size: 1.625rem; }
+  .app-main :where(.text-2xl) { font-size: 1.375rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

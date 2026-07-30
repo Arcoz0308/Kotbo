@@ -9,23 +9,24 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { localInitialAvatar } from '../lib/discordMedia';
+  import { m, dateLocale } from '../lib/i18n';
 
-  const PERMISSIONS = [
-    { value: 'READ_STATS',      label: 'Stats serveur',     desc: 'Membres, messages, activité' },
-    { value: 'READ_MEMBERS',    label: 'Membres & messages', desc: 'Profils, messages récents, lecture des forums et articles' },
-    { value: 'READ_SANCTIONS',  label: 'Sanctions',          desc: 'Liste et historique' },
-    { value: 'READ_STAFF',      label: 'Staff',              desc: 'Liste et profils du staff' },
-    { value: 'READ_TICKETS',    label: 'Tickets',            desc: 'Liste des tickets ouverts' },
-    { value: 'READ_COMMUNITY',  label: 'Communauté',         desc: 'Classements, suggestions, événements, quêtes, réputation, accueil personnalisé' },
-    { value: 'READ_ECONOMY',    label: 'Économie',           desc: 'Profils RPG, boutique, marketplace, classements économiques' },
-    { value: 'READ_MODERATION', label: 'Modération',         desc: 'AutoMod, mots bannis, réponses auto, CodePolice' },
-    { value: 'READ_ANALYTICS',  label: 'Analytics',          desc: 'Stats par salon, heatmap horaire, Pulse, prédictions' },
-    { value: 'WRITE_SANCTIONS', label: 'Sanctionner',        desc: '⚠ Appliquer / lever des sanctions via IA' },
-    { value: 'WRITE_MESSAGES',  label: 'Gérer messages',     desc: '⚠ Envoyer, éditer/supprimer des messages et gérer forums, articles et tags' },
-    { value: 'WRITE_TICKETS',   label: 'Gérer tickets',      desc: '⚠ Répondre et fermer des tickets via IA' },
-    { value: 'WRITE_COMMUNITY', label: 'Gérer communauté',   desc: '⚠ Répondre aux suggestions, gérer événements, giveaways et le pipeline d\'accueil personnalisé' },
-    { value: 'WRITE_MEMBERS',   label: 'Gérer membres',      desc: '⚠ Notes modérateur, ajout/retrait de rôles, niveaux, invitations' },
-  ] as const;
+  const PERMISSIONS = $derived([
+    { value: 'READ_STATS',      label: m.mcp_perm_read_stats_label(),     desc: m.mcp_perm_read_stats_desc() },
+    { value: 'READ_MEMBERS',    label: m.mcp_perm_read_members_label(),   desc: m.mcp_perm_read_members_desc() },
+    { value: 'READ_SANCTIONS',  label: m.mcp_perm_read_sanctions_label(), desc: m.mcp_perm_read_sanctions_desc() },
+    { value: 'READ_STAFF',      label: m.mcp_perm_read_staff_label(),     desc: m.mcp_perm_read_staff_desc() },
+    { value: 'READ_TICKETS',    label: m.mcp_perm_read_tickets_label(),   desc: m.mcp_perm_read_tickets_desc() },
+    { value: 'READ_COMMUNITY',  label: m.mcp_perm_read_community_label(), desc: m.mcp_perm_read_community_desc() },
+    { value: 'READ_ECONOMY',    label: m.mcp_perm_read_economy_label(),   desc: m.mcp_perm_read_economy_desc() },
+    { value: 'READ_MODERATION', label: m.mcp_perm_read_moderation_label(),desc: m.mcp_perm_read_moderation_desc() },
+    { value: 'READ_ANALYTICS',  label: m.mcp_perm_read_analytics_label(), desc: m.mcp_perm_read_analytics_desc() },
+    { value: 'WRITE_SANCTIONS', label: m.mcp_perm_write_sanctions_label(),desc: m.mcp_perm_write_sanctions_desc() },
+    { value: 'WRITE_MESSAGES',  label: m.mcp_perm_write_messages_label(), desc: m.mcp_perm_write_messages_desc() },
+    { value: 'WRITE_TICKETS',   label: m.mcp_perm_write_tickets_label(),  desc: m.mcp_perm_write_tickets_desc() },
+    { value: 'WRITE_COMMUNITY', label: m.mcp_perm_write_community_label(),desc: m.mcp_perm_write_community_desc() },
+    { value: 'WRITE_MEMBERS',   label: m.mcp_perm_write_members_label(),  desc: m.mcp_perm_write_members_desc() },
+  ]);
 
   type McpKey = {
     id: string;
@@ -97,19 +98,19 @@
       border: 'border-[#d97757]/25',
       setupUrl: 'https://claude.ai/settings/connectors',
       docsUrl: 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp',
-      primaryAction: 'Ouvrir Connectors',
-      note: 'Claude utilise les Custom connectors en remote MCP. Le serveur doit être public, puis Claude ouvre le flow OAuth Kotbo pour saisir ta clé MCP.',
+      primaryAction: m.mcp_help_claude_action(),
+      note: m.mcp_help_claude_note(),
       fields: [
         { label: 'Name', value: 'Kotbo' },
-        { label: 'URL', value: 'URL MCP directe Claude si OAuth bloque, sinon URL MCP standard' },
-        { label: 'Advanced settings', value: 'Laisse vide avec l URL directe. Pour OAuth standard, laisse vide aussi sauf demande explicite.' },
+        { label: 'URL', value: m.mcp_help_claude_field_url() },
+        { label: 'Advanced settings', value: m.mcp_help_claude_field_advanced() },
       ],
       steps: [
-        'Ouvre Claude puis va dans Customize > Connectors.',
-        'Clique sur le bouton + puis choisis Add custom connector.',
-        'Ouvre une clé MCP ci-dessous et clique URL directe Claude, puis copie cette URL.',
-        'Nom : Kotbo. URL : colle l URL directe Claude. Ne remplis pas Client ID ni Client Secret.',
-        'Valide avec Add. Si tu utilises l URL MCP standard à la place, clique Connect puis colle ta clé mcp_ sur la page Kotbo.',
+        m.mcp_help_claude_step1(),
+        m.mcp_help_claude_step2(),
+        m.mcp_help_claude_step3(),
+        m.mcp_help_claude_step4(),
+        m.mcp_help_claude_step5(),
       ],
     },
     chatgpt: {
@@ -121,19 +122,19 @@
       border: 'border-emerald-400/25',
       setupUrl: 'https://chatgpt.com/#settings/Apps',
       docsUrl: 'https://developers.openai.com/api/docs/guides/developer-mode',
-      primaryAction: 'Ouvrir ChatGPT Apps',
-      note: 'ChatGPT passe par Developer mode pour créer une app depuis un serveur MCP distant. Kotbo expose OAuth, PKCE, resource metadata et Bearer token comme attendu par les Apps MCP.',
+      primaryAction: m.mcp_help_chatgpt_action(),
+      note: m.mcp_help_chatgpt_note(),
       fields: [
         { label: 'App name', value: 'Kotbo' },
-        { label: 'MCP server URL', value: 'URL MCP du serveur' },
-        { label: 'Authentication', value: 'OAuth ou Mixed Authentication. Ne mets pas client_credentials.' },
+        { label: 'MCP server URL', value: m.mcp_help_chatgpt_field_url() },
+        { label: 'Authentication', value: m.mcp_help_chatgpt_field_auth() },
       ],
       steps: [
-        'Ouvre ChatGPT sur le web avec un compte compatible, puis Settings > Apps > Advanced settings.',
-        'Active Developer mode si ce n est pas déjà fait.',
-        'Clique Create app et choisis un serveur MCP distant.',
-        'Nom : Kotbo. Server URL : colle l URL MCP affichée ici.',
-        'Sélectionne OAuth ou Mixed Authentication. Au premier usage, ChatGPT ouvrira la page Kotbo pour saisir ta clé MCP.',
+        m.mcp_help_chatgpt_step1(),
+        m.mcp_help_chatgpt_step2(),
+        m.mcp_help_chatgpt_step3(),
+        m.mcp_help_chatgpt_step4(),
+        m.mcp_help_chatgpt_step5(),
       ],
     },
     gemini: {
@@ -145,20 +146,20 @@
       border: 'border-sky-400/25',
       setupUrl: 'https://ai.google.dev/gemini-api/docs/interactions/deep-research',
       docsUrl: 'https://ai.google.dev/gemini-api/docs/interactions/deep-research',
-      primaryAction: 'Ouvrir la doc Gemini',
-      note: 'Gemini utilise surtout MCP côté API. Utilise l URL MCP standard avec un header Bearer, ou l URL directe si ton environnement ne sait pas envoyer de header.',
+      primaryAction: m.mcp_help_gemini_action(),
+      note: m.mcp_help_gemini_note(),
       fields: [
         { label: 'type', value: 'mcp_server' },
         { label: 'name', value: 'Kotbo' },
-        { label: 'url', value: 'URL MCP standard ou URL directe' },
-        { label: 'headers', value: 'Authorization: Bearer mcp_... si ton client ne lance pas OAuth automatiquement.' },
+        { label: 'url', value: m.mcp_help_gemini_field_url() },
+        { label: 'headers', value: m.mcp_help_gemini_field_headers() },
       ],
       steps: [
-        'Dans ton appel Gemini Deep Research, ajoute un tool avec type = mcp_server.',
-        'Renseigne name = Kotbo et url = l URL MCP affichée ici.',
-        'Si ton environnement supporte OAuth remote MCP, laisse Gemini suivre le flow Kotbo.',
-        'Sinon ajoute headers.Authorization = Bearer suivi de ta clé MCP complète.',
-        'Optionnel : utilise allowed_tools pour limiter les actions sensibles comme apply_sanction.',
+        m.mcp_help_gemini_step1(),
+        m.mcp_help_gemini_step2(),
+        m.mcp_help_gemini_step3(),
+        m.mcp_help_gemini_step4(),
+        m.mcp_help_gemini_step5(),
       ],
     },
   });
@@ -174,7 +175,7 @@
       const result = await fetchMcpKeys();
       keys = Array.isArray(result) ? result : [];
     } catch {
-      toast.error('Erreur lors du chargement des clés MCP');
+      toast.error(m.mcp_toast_err_load_keys());
     } finally {
       loading = false;
     }
@@ -202,7 +203,7 @@
         newKeyPerms = ['READ_STATS', 'READ_MEMBERS', 'READ_SANCTIONS'];
       }
     } catch {
-      toast.error('Erreur lors de la création de la clé');
+      toast.error(m.mcp_toast_err_create_key());
     } finally {
       creating = false;
     }
@@ -236,7 +237,7 @@
         return result.directUrl as string;
       }
     } catch {
-      toast.error('Impossible de générer l URL MCP directe');
+      toast.error(m.mcp_toast_err_direct_url());
     } finally {
       directUrlLoadingKeyId = null;
     }
@@ -257,9 +258,9 @@
       delete directUrls[deletingKeyId];
       directUrls = { ...directUrls };
       if (expandedKeyId === deletingKeyId) expandedKeyId = null;
-      toast.success('Clé MCP révoquée');
+      toast.success(m.mcp_toast_key_revoked());
     } catch {
-      toast.error('Erreur lors de la suppression');
+      toast.error(m.mcp_toast_err_delete());
     } finally {
       deletingKeyId = null;
       deletingKeyName = '';
@@ -268,7 +269,7 @@
 
   function formatDate(iso: string | null) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleDateString(dateLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 
   function permLabel(perm: string) {
@@ -290,7 +291,7 @@
   }
 
   function formatLogTime(ts: string) {
-    return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return new Date(ts).toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
   async function refreshMcpLogs() {
@@ -301,7 +302,7 @@
       diagLogs = Array.isArray(result?.logs) ? result.logs : [];
       console.info('[MCP logs]', diagLogs);
     } catch {
-      toast.error('Impossible de charger les logs MCP');
+      toast.error(m.mcp_toast_err_load_logs());
     } finally {
       diagRunning = false;
     }
@@ -321,15 +322,15 @@
 </script>
 
 <ModulePage
-  title="MCP — Model Context Protocol"
-  description="Connecte une IA (Claude, ChatGPT…) à ton bot pour interroger et piloter ton serveur Discord."
+  title={m.mcp_title()}
+  description={m.mcp_description()}
   icon="cpu"
 >
   {#snippet actions()}
     <button
       onclick={() => { helpOpen = true; }}
       class="p-2 rounded-lg border border-outline-variant text-on-surface-variant hover:text-on-surface hover:border-outline transition-colors"
-      title="Aide de connexion"
+      title={m.mcp_btn_help()}
     >
       <Papicon icon="help-circle" size={16} />
     </button>
@@ -338,46 +339,46 @@
       class="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-primary/20"
     >
       <Papicon icon="plus" size={14} />
-      Nouvelle clé
+      {m.mcp_btn_new_key()}
     </button>
   {/snippet}
 
   <!-- Endpoint -->
   <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-4">
-    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2.5">Endpoint MCP</p>
+    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2.5">{m.mcp_endpoint_label()}</p>
     <div class="flex items-center gap-2">
       <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-sm text-gray-200 font-mono break-all">
-        {endpointUrl || '— sélectionne un serveur —'}
+        {endpointUrl || m.mcp_endpoint_select_server()}
       </code>
       {#if endpointUrl}
         <button
           onclick={() => copy(endpointUrl, 'endpoint')}
           class="shrink-0 px-3 py-2.5 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white hover:border-white/20 transition-colors"
         >
-          {copiedField === 'endpoint' ? '✓ Copié' : 'Copier'}
+          {copiedField === 'endpoint' ? m.mcp_btn_copied() : m.mcp_btn_copy()}
         </button>
         <button
           onclick={openMcpDiagnostics}
           class="shrink-0 px-3 py-2.5 rounded-lg border border-amber-400/25 text-xs text-amber-300 hover:text-amber-200 hover:border-amber-400/40 transition-colors"
         >
-          Logs
+          {m.mcp_btn_logs()}
         </button>
       {/if}
     </div>
     <p class="text-xs text-gray-600 mt-2">
-      Colle cette URL dans ton client IA. Le serveur supporte OAuth 2.0 avec PKCE pour Claude/ChatGPT, et Bearer token pour les clients MCP qui le demandent.
+      {m.mcp_endpoint_notice()}
     </p>
   </div>
 
   <!-- Keys -->
   <div class="space-y-2">
-    <h2 class="text-sm font-semibold text-white">Clés d'accès</h2>
+    <h2 class="text-sm font-semibold text-white">{m.mcp_keys_section_title()}</h2>
 
     {#if loading}
       <div class="flex flex-col items-center justify-center py-12 text-gray-600 bg-[#1a1d23] border border-white/8 rounded-xl">
         <div class="flex items-center">
           <Papicon icon="loader-2" size={18} class="animate-spin mr-2" />
-          <span class="text-sm">Chargement…</span>
+          <span class="text-sm">{m.mcp_loading()}</span>
         </div>
         <LoadingHint context="config" />
       </div>
@@ -385,8 +386,8 @@
     {:else if keys.length === 0}
       <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-10 text-center space-y-2">
         <Papicon icon="key" size={30} class="text-gray-700 mx-auto" />
-        <p class="text-sm text-gray-500">Aucune clé configurée.</p>
-        <p class="text-xs text-gray-700">Crée une clé pour connecter ton agent IA.</p>
+        <p class="text-sm text-gray-500">{m.mcp_empty_title()}</p>
+        <p class="text-xs text-gray-700">{m.mcp_empty_desc()}</p>
       </div>
 
     {:else}
@@ -408,7 +409,7 @@
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-white">{key.name}</p>
                 <p class="text-xs text-gray-600 mt-0.5">
-                  Dernière utilisation : {formatDate(key.lastUsedAt)}
+                  {m.mcp_last_used({ date: formatDate(key.lastUsedAt) })}
                 </p>
               </div>
 
@@ -427,7 +428,7 @@
                 <button
                   onclick={(e) => { e.stopPropagation(); confirmDelete(key); }}
                   class="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  title="Révoquer"
+                  title={m.mcp_btn_revoke()}
                 >
                   <Papicon icon="trash-2" size={13} />
                 </button>
@@ -444,7 +445,7 @@
               <div class="px-4 pb-4 pt-1 border-t border-white/5 bg-black/20 space-y-3">
                 <!-- Client ID -->
                 <div class="space-y-1">
-                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Client ID</p>
+                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{m.mcp_client_id_label()}</p>
                   <div class="flex items-center gap-2">
                     <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-300 break-all">
                       {key.id}
@@ -453,7 +454,7 @@
                       onclick={() => copy(key.id, `id-${key.id}`)}
                       class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
                     >
-                      {copiedField === `id-${key.id}` ? '✓' : 'Copier'}
+                      {copiedField === `id-${key.id}` ? '✓' : m.mcp_btn_copy()}
                     </button>
                   </div>
                 </div>
@@ -461,7 +462,7 @@
                 <!-- Client Secret (display key) -->
                 <div class="space-y-1">
                   <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
-                    Client Secret <span class="text-gray-700 normal-case font-normal">(affiché en clair à la création uniquement)</span>
+                    {m.mcp_client_secret_label()} <span class="text-gray-700 normal-case font-normal">{m.mcp_client_secret_hint()}</span>
                   </p>
                   <div class="flex items-center gap-2">
                     <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-600 break-all">
@@ -472,7 +473,7 @@
 
                 <!-- Endpoint for this guild -->
                 <div class="space-y-1">
-                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">URL endpoint</p>
+                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{m.mcp_endpoint_url_label()}</p>
                   <div class="flex items-center gap-2">
                     <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-300 break-all">
                       {endpointUrl}
@@ -481,7 +482,7 @@
                       onclick={() => copy(endpointUrl, `url-${key.id}`)}
                       class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
                     >
-                      {copiedField === `url-${key.id}` ? '✓' : 'Copier'}
+                      {copiedField === `url-${key.id}` ? '✓' : m.mcp_btn_copy()}
                     </button>
                   </div>
                 </div>
@@ -490,9 +491,9 @@
                 <div class="space-y-1 rounded-lg border border-amber-400/15 bg-amber-400/5 p-3">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p class="text-[11px] font-medium text-amber-300 uppercase tracking-wide">URL directe Claude</p>
+                      <p class="text-[11px] font-medium text-amber-300 uppercase tracking-wide">{m.mcp_direct_url_title()}</p>
                       <p class="mt-0.5 text-xs text-amber-200/70">
-                        À utiliser si Claude termine OAuth puis affiche encore "Authorization failed".
+                        {m.mcp_direct_url_desc()}
                       </p>
                     </div>
                     <button
@@ -500,7 +501,7 @@
                       disabled={directUrlLoadingKeyId === key.id}
                       class="shrink-0 px-2.5 py-2 rounded-lg border border-amber-400/25 text-xs text-amber-200 hover:border-amber-400/40 hover:text-amber-100 disabled:opacity-50 transition-colors"
                     >
-                      {directUrlLoadingKeyId === key.id ? 'Génération...' : copiedField === `direct-${key.id}` ? 'Copié' : directUrls[key.id]?.url ? 'Copier' : 'Générer'}
+                      {directUrlLoadingKeyId === key.id ? m.mcp_btn_generating() : copiedField === `direct-${key.id}` ? m.mcp_btn_copied() : directUrls[key.id]?.url ? m.mcp_btn_copy() : m.mcp_btn_generate()}
                     </button>
                   </div>
                   {#if directUrls[key.id]?.url}
@@ -508,14 +509,14 @@
                       {directUrls[key.id].url}
                     </code>
                     <p class="mt-1 text-[11px] text-gray-600">
-                      Expire le {new Date(directUrls[key.id].expiresAt).toLocaleDateString('fr-FR')}. Révoquer la clé coupe aussi cette URL.
+                      {m.mcp_direct_url_expires({ date: new Date(directUrls[key.id].expiresAt).toLocaleDateString(dateLocale()) })}
                     </p>
                   {/if}
                 </div>
 
                 <!-- Permissions list -->
                 <div class="space-y-1">
-                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Permissions</p>
+                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{m.mcp_permissions_label()}</p>
                   <div class="flex flex-wrap gap-1.5">
                     {#each key.permissions as perm}
                       <span class="px-2 py-1 rounded-lg text-xs font-medium
@@ -536,13 +537,13 @@
 </ModulePage>
 
 <!-- ── Create Modal ──────────────────────────────────────────────────────── -->
-<Modal bind:open={createOpen} onClose={closeCreateModal} title={createdKey ? '🎉 Clé créée' : 'Nouvelle clé MCP'}>
+<Modal bind:open={createOpen} onClose={closeCreateModal} title={createdKey ? m.mcp_modal_created_title() : m.mcp_modal_create_title()}>
   {#if createdKey}
     <div class="space-y-4">
       <div class="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
         <Papicon icon="alert-triangle" size={15} class="text-amber-400 shrink-0 mt-0.5" />
         <p class="text-xs text-amber-300 leading-relaxed">
-          Copie ces informations maintenant. Le <strong>Client Secret</strong> ne sera <strong>plus jamais affiché</strong>.
+          {m.mcp_modal_created_warning()}
         </p>
       </div>
 
@@ -550,8 +551,8 @@
       <div class="space-y-1.5">
         <div class="flex items-center gap-1.5 text-xs font-medium text-gray-400">
           <Papicon icon="hash" size={12} />
-          Client ID
-          <span class="text-gray-600 font-normal">(à coller dans "Client ID" ou "App ID")</span>
+          {m.mcp_client_id_label()}
+          <span class="text-gray-600 font-normal">{m.mcp_client_id_hint()}</span>
         </div>
         <div class="flex items-center gap-2">
           <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-xs font-mono text-gray-200 break-all">
@@ -561,7 +562,7 @@
             onclick={() => copy(createdKey!.clientId, 'new-id')}
             class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            {copiedField === 'new-id' ? '✓' : 'Copier'}
+            {copiedField === 'new-id' ? '✓' : m.mcp_btn_copy()}
           </button>
         </div>
       </div>
@@ -570,8 +571,8 @@
       <div class="space-y-1.5">
         <div class="flex items-center gap-1.5 text-xs font-medium text-gray-400">
           <Papicon icon="key" size={12} />
-          Client Secret
-          <span class="text-gray-600 font-normal">(à coller dans "Client Secret" ou "Token")</span>
+          {m.mcp_client_secret_label()}
+          <span class="text-gray-600 font-normal">{m.mcp_modal_created_secret_hint()}</span>
         </div>
         <div class="flex items-center gap-2">
           <code class="flex-1 bg-black/40 border border-primary/25 rounded-lg px-3 py-2.5 text-xs font-mono text-green-400 break-all">
@@ -581,7 +582,7 @@
             onclick={() => copy(createdKey!.clientSecret, 'new-secret')}
             class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            {copiedField === 'new-secret' ? '✓' : 'Copier'}
+            {copiedField === 'new-secret' ? '✓' : m.mcp_btn_copy()}
           </button>
         </div>
       </div>
@@ -590,7 +591,7 @@
       <div class="space-y-1.5">
         <div class="flex items-center gap-1.5 text-xs font-medium text-gray-400">
           <Papicon icon="globe" size={12} />
-          URL du serveur MCP
+          {m.mcp_modal_created_mcp_url_label()}
         </div>
         <div class="flex items-center gap-2">
           <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-xs font-mono text-gray-300 break-all">
@@ -600,7 +601,7 @@
             onclick={() => copy(endpointUrl, 'new-url')}
             class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
           >
-            {copiedField === 'new-url' ? '✓' : 'Copier'}
+            {copiedField === 'new-url' ? '✓' : m.mcp_btn_copy()}
           </button>
         </div>
       </div>
@@ -609,7 +610,7 @@
         <div class="space-y-1.5 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
           <div class="flex items-center gap-1.5 text-xs font-medium text-amber-300">
             <Papicon icon="link" size={12} />
-            URL directe Claude
+            {m.mcp_direct_url_title()}
           </div>
           <div class="flex items-center gap-2">
             <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-xs font-mono text-gray-200 break-all">
@@ -619,40 +620,40 @@
               onclick={() => copy(createdKey!.directUrl!, 'new-direct-url')}
               class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
             >
-              {copiedField === 'new-direct-url' ? '✓' : 'Copier'}
+              {copiedField === 'new-direct-url' ? '✓' : m.mcp_btn_copy()}
             </button>
           </div>
           <p class="text-[11px] leading-relaxed text-amber-200/70">
-            Pour Claude : colle cette URL comme serveur MCP et laisse les champs OAuth avancés vides.
+            {m.mcp_modal_created_claude_notice()}
           </p>
         </div>
       {/if}
 
       <button onclick={closeCreateModal} class="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
-        J'ai tout copié, fermer
+        {m.mcp_modal_created_btn_done()}
       </button>
     </div>
 
   {:else}
     <div class="space-y-5">
       <div>
-        <label for="key-name" class="block text-sm font-medium text-gray-300 mb-1.5">Nom de la clé</label>
+        <label for="key-name" class="block text-sm font-medium text-gray-300 mb-1.5">{m.mcp_form_key_name()}</label>
         <input
           id="key-name"
           type="text"
           bind:value={newKeyName}
-          placeholder="Ex: Claude.ai, Claude Desktop…"
+          placeholder={m.mcp_form_key_name_placeholder()}
           maxlength={64}
           class="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
         />
       </div>
 
       <div>
-        <p class="text-sm font-medium text-gray-300 mb-3">Permissions</p>
+        <p class="text-sm font-medium text-gray-300 mb-3">{m.mcp_permissions_label()}</p>
         <div class="space-y-4 max-h-[380px] overflow-y-auto pr-1">
           <!-- Lecture Section -->
           <div>
-            <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">Lecture (READ)</h4>
+            <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">{m.mcp_perm_read_section()}</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               {#each readPermissions as perm}
                 <div class="flex items-center justify-between p-2.5 rounded-lg border border-white/5 bg-black/20 hover:border-white/10 hover:bg-white/[0.01] transition-all">
@@ -663,7 +664,7 @@
                   <button
                     type="button"
                     onclick={() => togglePerm(perm.value)}
-                    aria-label="Basculer la permission {perm.label}"
+                    aria-label={m.mcp_form_toggle_perm_aria({ label: perm.label })}
                     class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {newKeyPerms.includes(perm.value) ? 'bg-primary' : 'bg-white/10'}"
                   >
                     <span
@@ -677,7 +678,7 @@
 
           <!-- Ecriture Section -->
           <div>
-            <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">Écriture & Actions (WRITE)</h4>
+            <h4 class="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2 border-b border-white/5 pb-1">{m.mcp_perm_write_section()}</h4>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               {#each writePermissions as perm}
                 <div class="flex items-center justify-between p-2.5 rounded-lg border border-white/5 bg-black/20 hover:border-white/10 hover:bg-white/[0.01] transition-all">
@@ -688,7 +689,7 @@
                   <button
                     type="button"
                     onclick={() => togglePerm(perm.value)}
-                    aria-label="Basculer la permission {perm.label}"
+                    aria-label={m.mcp_form_toggle_perm_aria({ label: perm.label })}
                     class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {newKeyPerms.includes(perm.value) ? 'bg-red-500/80 hover:bg-red-500' : 'bg-white/10'}"
                   >
                     <span
@@ -707,14 +708,14 @@
         disabled={!newKeyName.trim() || newKeyPerms.length === 0 || creating}
         class="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
       >
-        {creating ? 'Création…' : 'Générer la clé'}
+        {creating ? m.mcp_btn_creating() : m.mcp_btn_generate_key()}
       </button>
     </div>
   {/if}
 </Modal>
 
 <!-- ── AI setup helper ───────────────────────────────────────────────────── -->
-<Modal bind:open={helpOpen} onClose={() => { helpOpen = false; }} title="Connecter Kotbo à une IA" size="xl">
+<Modal bind:open={helpOpen} onClose={() => { helpOpen = false; }} title={m.mcp_help_modal_title()} size="xl">
   <div class="space-y-5 p-5">
     <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
       {#each Object.entries(aiGuides) as [id, guide]}
@@ -730,7 +731,7 @@
             <div class="min-w-0">
               <span class="block text-sm font-semibold {selectedAi === id ? guide.color : 'text-gray-200'}">{guide.name}</span>
               <span class="mt-1 block text-xs leading-relaxed text-gray-500">
-                {id === 'claude' ? 'Custom connector remote MCP' : id === 'chatgpt' ? 'Developer Mode Apps' : 'Deep Research API MCP'}
+                {id === 'claude' ? m.mcp_help_guide_claude_badge() : id === 'chatgpt' ? m.mcp_help_guide_chatgpt_badge() : m.mcp_help_guide_gemini_badge()}
               </span>
             </div>
           </div>
@@ -753,7 +754,7 @@
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
       <div class="space-y-4">
         <div class="space-y-2">
-          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Tutoriel {currentGuide.name}</p>
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_tutorial_title({ name: currentGuide.name })}</p>
           <ol class="space-y-2">
             {#each currentGuide.steps as step, index}
               <li class="flex gap-2 text-sm text-gray-300">
@@ -781,7 +782,7 @@
             class="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2.5 text-sm text-gray-300 transition-colors hover:text-white"
           >
             <Papicon icon="book-open" size={14} />
-            Doc officielle
+            {m.mcp_help_official_doc()}
           </a>
         </div>
       </div>
@@ -789,22 +790,22 @@
       <div class="space-y-3">
         <div class="rounded-lg border border-white/8 bg-black/20 p-3">
           <div class="mb-2 flex items-center justify-between gap-2">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">URL MCP</p>
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_mcp_url()}</p>
             <button
               disabled={!endpointUrl}
               onclick={() => copy(endpointUrl, 'help-endpoint')}
               class="shrink-0 rounded-md border border-white/10 px-2 py-1 text-xs text-gray-400 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {copiedField === 'help-endpoint' ? 'Copié' : 'Copier'}
+              {copiedField === 'help-endpoint' ? m.mcp_btn_copied() : m.mcp_btn_copy()}
             </button>
           </div>
           <code class="block rounded-lg border border-white/8 bg-black/40 px-3 py-2.5 font-mono text-xs text-gray-200 break-all">
-            {endpointUrl || 'Sélectionne un serveur pour obtenir l URL MCP'}
+            {endpointUrl || m.mcp_help_select_server_placeholder()}
           </code>
         </div>
 
         <div class="rounded-lg border border-white/8 bg-black/20 p-3">
-          <p class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Champs à remplir</p>
+          <p class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">{m.mcp_help_fields_to_fill()}</p>
           <div class="space-y-2">
             {#each currentGuide.fields as field}
               <div class="rounded-lg border border-white/6 bg-black/25 px-3 py-2">
@@ -817,7 +818,7 @@
 
         {#if selectedAi === 'gemini'}
           <div class="rounded-lg border border-sky-400/20 bg-sky-400/8 p-3">
-            <p class="mb-2 text-xs font-medium text-sky-300">Exemple Gemini</p>
+            <p class="mb-2 text-xs font-medium text-sky-300">{m.mcp_help_gemini_example()}</p>
             <pre class="overflow-x-auto rounded-lg border border-white/8 bg-black/40 p-3 text-[11px] leading-relaxed text-gray-300">{`{
   "type": "mcp_server",
   "name": "Kotbo",
@@ -830,29 +831,29 @@
         {/if}
 
         <p class="text-xs leading-relaxed text-gray-600">
-          La clé MCP complète est visible uniquement juste après création. Si tu ne l as plus, crée une nouvelle clé.
+          {m.mcp_help_key_notice()}
         </p>
       </div>
     </div>
   </div>
 </Modal>
 
-<Modal bind:open={diagOpen} onClose={() => { diagOpen = false; }} title="Logs MCP" size="xl">
+<Modal bind:open={diagOpen} onClose={() => { diagOpen = false; }} title={m.mcp_logs_modal_title()} size="xl">
   <div class="space-y-3 p-5">
     <div class="flex items-center justify-between gap-3">
-      <p class="text-sm text-gray-400">Dernières connexions réelles au serveur MCP pour ce serveur Discord.</p>
+      <p class="text-sm text-gray-400">{m.mcp_logs_subtitle()}</p>
       <button
         onclick={refreshMcpLogs}
         disabled={diagRunning || !guildId}
         class="px-3 py-2 rounded-lg border border-white/10 text-sm text-gray-300 hover:text-white disabled:opacity-40"
       >
-        {diagRunning ? 'Chargement...' : 'Actualiser'}
+        {diagRunning ? m.mcp_logs_btn_refreshing() : m.mcp_logs_btn_refresh()}
       </button>
     </div>
 
     {#if diagLogs.length === 0}
       <div class="rounded-lg border border-white/8 bg-black/20 p-6 text-sm text-gray-500">
-        {diagRunning ? 'Chargement des logs...' : 'Aucun log MCP récent. Lance une connexion Claude ou ChatGPT puis actualise.'}
+        {diagRunning ? m.mcp_logs_loading() : m.mcp_logs_empty()}
       </div>
     {:else}
       <div class="space-y-2">
@@ -867,7 +868,7 @@
                 </div>
                 <p class="mt-1 break-all font-mono text-[11px] text-gray-600">{log.method} {log.url}</p>
               </div>
-              <span class="max-w-full truncate text-xs text-gray-500">{log.ua || 'user-agent absent'}</span>
+              <span class="max-w-full truncate text-xs text-gray-500">{log.ua || m.mcp_logs_no_ua()}</span>
             </div>
             <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-black/35 p-3 text-xs leading-relaxed text-gray-300">{formatLogData(log.data)}</pre>
           </div>
@@ -880,9 +881,9 @@
 <!-- ── Delete Confirm ────────────────────────────────────────────────────── -->
 <ConfirmModal
   bind:open={deleteOpen}
-  title="Révoquer la clé"
-  description="La clé « {deletingKeyName} » sera désactivée immédiatement. Les agents IA qui l'utilisent perdront l'accès."
+  title={m.mcp_delete_modal_title()}
+  description={m.mcp_delete_modal_desc({ name: deletingKeyName })}
   variant="danger"
-  confirmLabel="Révoquer"
+  confirmLabel={m.mcp_delete_modal_confirm()}
   onConfirm={handleDelete}
 />

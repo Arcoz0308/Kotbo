@@ -17,6 +17,8 @@ import { checkTicketInactivity } from '../services/features/ticketService.js';
 import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 import { pruneOldMessageLogs } from './messageLogging.js';
+import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
+import { resumePendingExecutions } from '../services/features/workflow/workflowService.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
 
@@ -154,9 +156,7 @@ export async function registerCrons(client: Client): Promise<void> {
     'staff-warnings-expiration': expireStaffWarnings,
     'staff-blacklist-expiration': expireStaffBlacklist,
     'activity-10min-snapshot': async () => {
-      runActivitySnapshot(client).catch((error) => {
-        logger.error('Analytics', "Erreur lors du snapshot d'activité en arrière-plan:", error);
-      });
+      await runActivitySnapshot(client);
     },
     'missing-reports-check': async () => {
       logger.info('Cron', 'Vérification des rapports de sanction manquants...');
@@ -255,6 +255,36 @@ export async function registerCrons(client: Client): Promise<void> {
       const { pingMasterServer } = await import('../services/system/statsService.js');
       await pingMasterServer(client);
     },
+    'access-lifecycle': async () => {
+      logger.debug('Cron', 'Vérification des accès à durée limitée...');
+      const { runAccessLifecycleCheck } = await import('../services/system/accessService.js');
+      await runAccessLifecycleCheck(client);
+    },
+    'message-logs-prune': pruneOldMessageLogs,
+    'audit-events-prune': pruneOldAuditEvents,
+    'workflow-resume': async () => {
+      await resumePendingExecutions(client);
+    },
+    'word-stats-prune': async () => {
+      await pruneOldWordStats();
+    },
+    'ban-hygiene-scan': async () => {
+      await runBanHygieneScan(client);
+    },
+    'staff-reminders': async () => {
+      const { processDueReminders } = await import('../services/staff/reminderService.js');
+      await processDueReminders(client);
+    },
+    'raid-protection-tick': async () => {
+      const { expireOverdueCaptchaSessions } = await import('../services/moderation/captchaService.js');
+      const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');
+      await expireOverdueCaptchaSessions(client);
+      await autoDisableExpiredRaidModes(client);
+    },
+    'raid-protection-locks-renew': async () => {
+      const { renewActiveLocks } = await import('../services/moderation/raidProtectionService.js');
+      await renewActiveLocks(client);
+    },
   });
 
   logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l'enregistrement des cron schedules...");
@@ -324,6 +354,18 @@ export async function registerCrons(client: Client): Promise<void> {
   // 🗂️ Journalisation des messages: purge selon la rétention (tous les jours à 03:30)
   cron.schedule('30 3 * * *', async () => {
     await runCronJob('message-logs-prune', pruneOldMessageLogs, 2000);
+  });
+
+  // 📜 Audit structurel: purge des états avant/après expirés (tous les jours à 03:35)
+  cron.schedule('35 3 * * *', async () => {
+    await runCronJob('audit-events-prune', pruneOldAuditEvents, 2000);
+  });
+
+  // 🧩 Workflows: reprise des exécutions suspendues par un nœud « Attendre »
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('workflow-resume', async () => {
+      await resumePendingExecutions(client);
+    });
   });
 
   // 📊 Stats de mots: purge des agrégats de plus de 90 jours (tous les jours à 03:45)
@@ -495,6 +537,17 @@ export async function registerCrons(client: Client): Promise<void> {
         await refreshAllStaffWidgets(guildId);
       }
     }, 5000);
+  });
+
+  // 🔑 Accès à durée limitée: rappels et expiration des essais/abonnements.
+  // Toutes les minutes, car c'est la granularité d'une durée d'accès : un essai
+  // court doit se couper à l'heure dite. La requête est filtrée par index partiel
+  // et ne remonte que les serveurs ayant une échéance en cours.
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('access-lifecycle', async () => {
+      const { runAccessLifecycleCheck } = await import('../services/system/accessService.js');
+      await runAccessLifecycleCheck(client);
+    }, 1000);
   });
 
   // 📊 Stats: Ping all instances every 6 hours

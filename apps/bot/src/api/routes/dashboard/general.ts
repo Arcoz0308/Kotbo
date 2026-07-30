@@ -6,6 +6,9 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { isGuildActivated, activateGuild } from '../../../utils/activation.js';
 import { translate } from '../../../services/integrations/translationService.js';
+import { cache } from '../../../utils/cache.js';
+import { getGuildLanguageState, normalizeLocale } from '../../../utils/i18n.js';
+import { rerenderPersistentPanels } from '../../../services/core/panelRerenderService.js';
 import {
   json,
   readJsonBody,
@@ -40,6 +43,86 @@ export async function handleGeneralRoutes(
     } catch (err) {
       logger.error('GeneralAPI', 'Error translating text:', err);
       json(res, 500, { error: 'Erreur lors de la traduction' });
+    }
+    return true;
+  }
+
+  // GET|PATCH /api/dashboard/guilds/:guildId/language
+  //
+  // Expose la carte « Langue du bot » de l'accueil. `language: null` cote base
+  // signifie « detection automatique » : la cascade retombe alors sur la langue
+  // declaree du serveur Discord, puis sur l'anglais.
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'language' && (method === 'GET' || method === 'PATCH')) {
+    const guildId = parts[3]!;
+    try {
+      const access = await resolveDashboardAccess(client, guildId, user.userId);
+      if (!access.canViewDashboard) {
+        json(res, 403, { error: 'Accès refusé' });
+        return true;
+      }
+
+      const discordGuild = client.guilds.cache.get(guildId) ?? null;
+      const detected = normalizeLocale(discordGuild?.preferredLocale ?? null);
+
+      if (method === 'PATCH') {
+        if (!access.canManageSettings) {
+          json(res, 403, { error: 'Accès refusé' });
+          return true;
+        }
+
+        const body = await readJsonBody<{ mode?: 'auto' | 'manual'; language?: string | null }>(req);
+        const wantsAuto = body?.mode === 'auto' || body?.language === null;
+        const requested = wantsAuto ? null : normalizeLocale(body?.language);
+
+        if (!wantsAuto && !requested) {
+          json(res, 400, { error: "Langue invalide : utilisez 'fr', 'en', ou mode 'auto'" });
+          return true;
+        }
+
+        const before = await getGuildLanguageState(guildId, discordGuild?.preferredLocale ?? null);
+
+        await prisma.guild.upsert({
+          where: { id: guildId },
+          update: { language: requested },
+          create: { id: guildId, language: requested },
+        });
+        await cache.invalidateGuild(guildId);
+
+        const after = await getGuildLanguageState(guildId, discordGuild?.preferredLocale ?? null);
+
+        // Ecrire la langue ne reecrit pas les messages deja publies : sans ce
+        // re-rendu, les panneaux persistants restent dans l'ancienne langue et le
+        // reglage passe pour inoperant. C'est ce que fait `/languages rerender`,
+        // qui reste utile apres une modification de gabarit.
+        const rerender = after.locale === before.locale
+          ? null
+          : await rerenderPersistentPanels(client, guildId);
+
+        json(res, 200, {
+          mode: after.mode,
+          locale: after.locale,
+          detected,
+          available: ['fr', 'en'],
+          rerender: rerender && {
+            updated: rerender.updated,
+            skipped: rerender.skipped,
+            failed: rerender.failed,
+          },
+        });
+        return true;
+      }
+
+      const state = await getGuildLanguageState(guildId, discordGuild?.preferredLocale ?? null);
+      json(res, 200, {
+        mode: state.mode,
+        locale: state.locale,
+        detected,
+        available: ['fr', 'en'],
+        rerender: null,
+      });
+    } catch (err) {
+      logger.error('GeneralAPI', `Error handling language for guild ${guildId}:`, err);
+      json(res, 500, { error: 'Erreur lors de la gestion de la langue' });
     }
     return true;
   }
@@ -129,7 +212,9 @@ export async function handleGuildGeneralRoutes(
   // GET /api/dashboard/guilds/:guildId or /api/dashboard/guilds/:guildId/state
   if ((parts.length === 4 || (parts.length === 5 && parts[4] === 'state')) && method === 'GET') {
     try {
-      const state = await getGuildState(client, guildId, access, user.userId);
+      const state = await getGuildState(client, guildId, access, user.userId, {
+        overview: url.searchParams.get('scope') === 'overview',
+      });
       if (!state) {
         json(res, 404, { error: 'Guilde introuvable' });
         return true;

@@ -17,6 +17,7 @@ import {
   trackThreadCreation,
   trackReply,
 } from '../services/analytics/analyticsService.js';
+import { trackGhostSignal } from '../services/analytics/ghostActivityTracker.js';
 import { logStaffVoiceSession } from '../services/staff/staffLeadershipService.js';
 import { incrementQuestProgress } from '../services/community/questService.js';
 import { recordVoiceJoin, recordVoiceLeave } from '../services/moderation/dc/voiceTracking.js';
@@ -129,6 +130,8 @@ export function registerAnalyticsBusSubscribers(_client: Client): void {
   // ── Reactions ─────────────────────────────────────────────────
   kotboEventBus.subscribe('reaction:add', async (payload) => {
     await trackReaction(payload.guildId, payload.userId);
+    // Ghost Analyzer : réagir sans écrire est le signal typique du spectateur
+    trackGhostSignal(payload.guildId, payload.userId, 'reaction');
     incrementQuestProgress(payload.guildId, payload.userId, 'REACT_MESSAGES').catch(() => {});
   }, MODULE_NAME);
 

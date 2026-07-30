@@ -44,12 +44,12 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby="keyboard-shortcuts-title"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    class="keyboard-shortcuts-modal fixed inset-0 z-50 flex items-center justify-center bg-black/50"
     onclick={handleBackdropClick}
     onkeydown={handleKeyDown}
     tabindex="-1"
   >
-    <div class="bg-surface-container-low border border-outline-variant/20 rounded-xl shadow-sm max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div class="keyboard-shortcuts-modal__panel bg-surface-container-low border border-outline-variant/20 rounded-xl shadow-sm max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
       <!-- Header -->
       <div class="flex items-center justify-between p-6 border-b border-outline-variant/10">
         <div class="flex items-center gap-3">
@@ -76,9 +76,9 @@
             <h3 class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">{cat.label}</h3>
             <div class="space-y-2">
               {#each shortcuts.filter(s => s.category === cat.id) as shortcut}
-                <div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-high/10 hover:bg-surface-container-high/20 transition-colors">
+                <div class="keyboard-shortcuts-modal__row flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-container-high/10 hover:bg-surface-container-high/20 transition-colors">
                   <p class="text-sm font-medium text-on-surface">{shortcut.description}</p>
-                  <div class="flex items-center gap-1">
+                  <div class="keyboard-shortcuts-modal__keys flex items-center gap-1">
                     {#each shortcut.keys as key}
                       {#if key === 'ou'}
                         <span class="text-xs font-bold text-on-surface-variant/60 mx-1">{m.ksm_or()}</span>

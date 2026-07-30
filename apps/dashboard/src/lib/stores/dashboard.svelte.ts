@@ -75,7 +75,12 @@ class DashboardStore {
       canModerateDailyAlgo: false,
       canManageSettings: false
     },
-    featureAccess: {} as Record<string, { canView?: boolean; canConfigure?: boolean }>,
+    featureAccess: {} as Record<string, {
+      canView?: boolean;
+      canModerate?: boolean;
+      canConfigure?: boolean;
+      canDelete?: boolean;
+    }>,
     modules: [],
     notifications: {
       discordChannel: '#alertes-redaction',
@@ -130,6 +135,7 @@ class DashboardStore {
    * stores.
    */
   private loadedGuildId: string | null = null;
+  private fullyLoadedGuildId: string | null = null;
 
   private mergeAuditTrail(existing: any[], incoming: any[]): any[] {
     if (!Array.isArray(incoming) || incoming.length === 0) {
@@ -156,14 +162,24 @@ class DashboardStore {
       .slice(0, 1000); // Keep reasonable history
   }
 
-  async refresh(): Promise<void> {
-    if (this.refreshPromise) return this.refreshPromise;
+  async refresh(options: { full?: boolean } = {}): Promise<void> {
+    const requestedGuildId = authStore.selectedGuildId;
+    const full = options.full
+      ?? (typeof window === 'undefined' || window.location.pathname !== '/');
+
+    if (this.refreshPromise) {
+      await this.refreshPromise;
+      if (full && this.fullyLoadedGuildId !== requestedGuildId) {
+        return this.refresh({ full: true });
+      }
+      return;
+    }
     if (!authStore.token || !authStore.selectedGuildId) {
       this.state.loading = false;
       return;
     }
 
-    const pending = this.runRefresh();
+    const pending = this.runRefresh(full);
     this.refreshPromise = pending;
     try {
       await pending;
@@ -174,7 +190,12 @@ class DashboardStore {
     }
   }
 
-  private async runRefresh(): Promise<void> {
+  async ensureFullState(): Promise<void> {
+    if (this.fullyLoadedGuildId === authStore.selectedGuildId) return;
+    await this.refresh({ full: true });
+  }
+
+  private async runRefresh(full: boolean): Promise<void> {
     // Fige la guild visee pour toute la duree de l'appel : si l'utilisateur
     // change de serveur pendant la requete, on ne doit pas marquer la nouvelle
     // guild comme chargee avec les donnees de l'ancienne.
@@ -194,7 +215,7 @@ class DashboardStore {
 
     try {
       const [data, apprenticeData] = await Promise.all([
-        fetchGuildState(),
+        fetchGuildState(authStore.selectedGuildId, { overview: !full }),
         fetchApprenticeProgress().catch(() => ({ progress: null }))
       ]);
       
@@ -282,6 +303,7 @@ class DashboardStore {
         authStore.member = data.member;
         this.state.error = null;
         this.loadedGuildId = requestedGuildId;
+        if (full) this.fullyLoadedGuildId = requestedGuildId;
         this.clearRetry();
       }
     } catch (err) {

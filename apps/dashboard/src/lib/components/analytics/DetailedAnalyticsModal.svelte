@@ -2,7 +2,7 @@
   import { portal } from '../../actions/portal';
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
-  import { m } from '../../i18n';
+  import { m, dateLocale } from '../../i18n';
 
   const {
     open = false,
@@ -171,7 +171,7 @@
                 <div class="flex items-center gap-6">
                   <div class="text-right">
                     <p class="text-[10px] font-semibold {type === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{type === 'messages' ? m.d7_dam_messages() : m.d7_dam_minutes()}</p>
-                    <p class="text-base font-semibold text-on-surface">{(type === 'messages' ? item.messageCount : Math.round(item.voiceTimeSeconds / 60)).toLocaleString('fr-FR')}</p>
+                    <p class="text-base font-semibold text-on-surface">{(type === 'messages' ? item.messageCount : Math.round(item.voiceTimeSeconds / 60)).toLocaleString(dateLocale())}</p>
                   </div>
                   <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
@@ -189,7 +189,7 @@
                 </div>
                 <div class="text-right">
                   <p class="text-[10px] font-semibold text-secondary uppercase tracking-widest">{m.d7_dam_volume()}</p>
-                  <p class="text-base font-semibold text-on-surface">{(item.messagesCount || item.count).toLocaleString('fr-FR')}</p>
+                  <p class="text-base font-semibold text-on-surface">{(item.messagesCount || item.count).toLocaleString(dateLocale())}</p>
                 </div>
               </div>
 
@@ -279,7 +279,7 @@
                       {/if}
                     </div>
                     <p class="text-xs font-medium text-on-surface-variant/60 mt-0.5 line-clamp-1">{item.reason || m.d7_dam_no_reason()}</p>
-                    <p class="text-[10px] text-on-surface-variant/40 mt-1">{new Date(item.createdAt).toLocaleString('fr-FR')}</p>
+                    <p class="text-[10px] text-on-surface-variant/40 mt-1">{new Date(item.createdAt).toLocaleString(dateLocale())}</p>
                   </div>
                 </div>
                 <div class="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-outline-variant/5 pt-3 md:pt-0 shrink-0">
@@ -334,8 +334,8 @@
 
 <style>
   .premium-card {
-    background: rgba(var(--color-surface-container-low), 0.95);
-    border: 1px solid rgba(var(--color-outline-variant), 0.2);
+    background: var(--surface-container-low);
+    border: 1px solid color-mix(in srgb, var(--outline-variant) 60%, transparent);
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 
@@ -346,7 +346,7 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(var(--color-outline-variant), 0.2);
+    background: color-mix(in srgb, var(--outline-variant) 60%, transparent);
     border-radius: 10px;
   }
 </style>

@@ -89,7 +89,22 @@ export async function fetchMessageLogChannels(
 
 export async function fetchMessageLogStats(
   guildId = authStore.selectedGuildId,
-): Promise<{ total: number; enabled: boolean; retentionDays: number; ignoredChannels: string[] } | null> {
+): Promise<{
+  total: number;
+  enabled: boolean;
+  retentionDays: number;
+  ignoredChannels: string[];
+  status: {
+    status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+    error: string | null;
+    scrapedChannelsCount: number;
+    totalChannelsCount: number;
+    scrapedMessagesCount: number;
+    currentChannelName: string;
+    startedAt: string;
+    completedAt?: string;
+  } | null;
+} | null> {
   return dashboardRequest('/message-logs/stats', {
     method: 'GET',
     guildId,

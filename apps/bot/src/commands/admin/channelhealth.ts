@@ -12,62 +12,89 @@ import {
   upsertChannelHealthConfig,
 } from '../../services/analytics/channelHealthService.js';
 import { separator, v2Message } from '@arcscord/components';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b4_ch');
+const analyseMeta = getCommandMetadata('b4_ch_analyse');
+const activerMeta = getCommandMetadata('b4_ch_activer');
+const desactiverMeta = getCommandMetadata('b4_ch_desactiver');
+const configMeta = getCommandMetadata('b4_ch_config');
+
+const MODE_CHOICES = [
+  {
+    name: m.b4_ch_mode_notify({}, { locale: 'en' }),
+    name_localizations: { fr: m.b4_ch_mode_notify({}, { locale: 'fr' }) },
+    value: 'NOTIFY',
+  },
+  {
+    name: m.b4_ch_mode_auto({}, { locale: 'en' }),
+    name_localizations: { fr: m.b4_ch_mode_auto({}, { locale: 'fr' }) },
+    value: 'AUTO',
+  },
+];
+
 const data = new SlashCommandBuilder()
-  .setName('channelhealth')
-  .setDescription('Gestion du moniteur de santé des salons')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addSubcommand(sub =>
     sub
-      .setName('analyse')
-      .setDescription('Lance une analyse de santé des salons'),
+      .setName(analyseMeta.name)
+      .setNameLocalizations(analyseMeta.nameLocalizations)
+      .setDescription(analyseMeta.description)
+      .setDescriptionLocalizations(analyseMeta.descriptionLocalizations),
   )
   .addSubcommand(sub =>
     sub
-      .setName('activer')
-      .setDescription('Active le moniteur de santé des salons')
+      .setName(activerMeta.name)
+      .setNameLocalizations(activerMeta.nameLocalizations)
+      .setDescription(activerMeta.description)
+      .setDescriptionLocalizations(activerMeta.descriptionLocalizations)
       .addChannelOption(opt =>
         opt
           .setName('salon-alertes')
-          .setDescription('Salon pour recevoir les rapports')
+          .setDescription(m.b4_ch_activer_opt_salon({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_ch_activer_opt_salon({}, { locale: 'fr' }) })
           .addChannelTypes(ChannelType.GuildText)
           .setRequired(false),
       ),
   )
   .addSubcommand(sub =>
     sub
-      .setName('desactiver')
-      .setDescription('Désactive le moniteur de santé des salons'),
+      .setName(desactiverMeta.name)
+      .setNameLocalizations(desactiverMeta.nameLocalizations)
+      .setDescription(desactiverMeta.description)
+      .setDescriptionLocalizations(desactiverMeta.descriptionLocalizations),
   )
   .addSubcommand(sub =>
     sub
-      .setName('config')
-      .setDescription('Configure les seuils du moniteur')
+      .setName(configMeta.name)
+      .setNameLocalizations(configMeta.nameLocalizations)
+      .setDescription(configMeta.description)
+      .setDescriptionLocalizations(configMeta.descriptionLocalizations)
       .addStringOption(opt =>
         opt
           .setName('mode-split')
-          .setDescription('Mode pour les salons surchargés')
-          .addChoices(
-            { name: 'Notification seulement', value: 'NOTIFY' },
-            { name: 'Automatique', value: 'AUTO' },
-          )
+          .setDescription(m.b4_ch_config_opt_modesplit({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_ch_config_opt_modesplit({}, { locale: 'fr' }) })
+          .addChoices(...MODE_CHOICES)
           .setRequired(false),
       )
       .addStringOption(opt =>
         opt
           .setName('mode-archive')
-          .setDescription('Mode pour les salons morts')
-          .addChoices(
-            { name: 'Notification seulement', value: 'NOTIFY' },
-            { name: 'Automatique', value: 'AUTO' },
-          )
+          .setDescription(m.b4_ch_config_opt_modearchive({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_ch_config_opt_modearchive({}, { locale: 'fr' }) })
+          .addChoices(...MODE_CHOICES)
           .setRequired(false),
       )
       .addIntegerOption(opt =>
         opt
           .setName('periode')
-          .setDescription("Période d'analyse en jours (7-90)")
+          .setDescription(m.b4_ch_config_opt_periode({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b4_ch_config_opt_periode({}, { locale: 'fr' }) })
           .setMinValue(7)
           .setMaxValue(90)
           .setRequired(false),

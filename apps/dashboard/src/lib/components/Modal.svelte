@@ -65,7 +65,7 @@
 {#if open}
   <div
     use:portal
-    class="fixed inset-0 z-9999 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
+    class="app-modal fixed inset-0 z-9999 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"
@@ -85,15 +85,15 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="relative w-full {sizeClasses[size]} bg-surface-container-lowest shadow-lg overflow-hidden border border-outline-variant flex flex-col animate-in fade-in slide-up duration-150 {isScreen
+      class="app-modal__panel relative w-full {sizeClasses[size]} bg-surface-container-lowest shadow-lg overflow-hidden border border-outline-variant flex flex-col animate-in fade-in slide-up duration-150 {isScreen
         ? 'h-full rounded-none sm:h-[calc(100vh-2rem)] sm:rounded-xl'
         : 'rounded-xl max-h-[90vh]'}"
       onclick={(e) => e.stopPropagation()}
     >
       <!-- Header -->
       {#if title || showCloseButton}
-        <header class="px-5 py-4 border-b border-outline-variant flex items-center justify-between">
-          <div class="flex-1">
+        <header class="app-modal__header px-5 py-4 border-b border-outline-variant flex items-center justify-between">
+          <div class="min-w-0 flex-1">
             {#if title}
               <h3 id="modal-title" class="text-base font-semibold text-on-surface">{title}</h3>
             {/if}
@@ -116,7 +116,7 @@
 
       <!-- Content — the modal's single scroll container. Children must not nest
            another overflow-y:auto full-height wrapper here, or two scrollbars appear. -->
-      <div class="flex-1 min-h-0 overflow-y-auto">
+      <div class="app-modal__body flex-1 min-h-0 overflow-y-auto">
         {@render children?.()}
       </div>
     </div>

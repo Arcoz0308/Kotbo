@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../../i18n';
   import { onMount } from 'svelte';
   import type { SortDirection, SortField } from '../../sanctions/filterSort';
   import Papicon from '../Papicon.svelte';
@@ -95,7 +96,7 @@
         type="button"
         onclick={() => onToggleSort?.()}
         class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-transparent text-[11px] font-semibold transition hover:border-slate-300 hover:bg-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800 {sortDirection ? 'text-primary' : 'text-on-surface-variant'}"
-        title={sortDirection ? `Tri ${sortDirection === 'asc' ? 'croissant' : 'decroissant'}` : 'Activer le tri'}
+        title={sortDirection ? `Tri ${sortDirection === 'asc' ? 'croissant' : 'decroissant'}` : m.csf_enable_sort()}
         disabled={disabled}
       >
         {#if sortDirection === 'asc'}
@@ -113,7 +114,7 @@
         type="button"
         onclick={toggleFilterPanel}
         class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border text-[11px] font-semibold transition {selectedCount > 0 ? 'border-primary/35 bg-primary/10 text-primary' : 'border-slate-200 text-on-surface-variant hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800'}"
-        title={selectedCount > 0 ? `${selectedCount} filtre(s) actif(s)` : 'Filtrer cette colonne'}
+        title={selectedCount > 0 ? `${selectedCount} filtre(s) actif(s)` : m.csf_filter_column()}
         disabled={disabled}
       >
         <Papicon icon="filter" size={12} />
@@ -124,14 +125,14 @@
   {#if canFilter && filterOpen}
     <div class="absolute left-0 top-8 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div class="mb-2 flex items-center justify-between gap-2">
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Filtrer {label.toLowerCase()}</p>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{m.csf_filter_label({ label: label.toLowerCase() })}</p>
         {#if selectedCount > 0}
           <button
             type="button"
             onclick={clearFilter}
             class="text-[10px] font-bold text-primary transition hover:opacity-80"
           >
-            Effacer
+            {m.csf_clear()}
           </button>
         {/if}
       </div>
@@ -140,14 +141,14 @@
         <input
           type="text"
           bind:value={searchTerm}
-          placeholder="Rechercher..."
+          placeholder={m.csf_search_ph()}
           class="mb-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-on-surface outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-800"
         />
       {/if}
 
       <div class="max-h-56 space-y-1 overflow-y-auto pr-1">
         {#if filteredOptions.length === 0}
-          <p class="py-2 text-xs text-on-surface-variant">Aucun resultat</p>
+          <p class="py-2 text-xs text-on-surface-variant">{m.csf_no_result()}</p>
         {:else}
           {#each filteredOptions as entry (entry.value)}
             <label class="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/70">

@@ -6,6 +6,7 @@
   import CommandPalette from './CommandPalette.svelte';
   import { fetchAdminStats } from '../api';
   import { brandingStore } from '../stores/branding.svelte';
+  import { searchStore } from '../stores/search.svelte';
   import { m } from '../i18n';
 
   const { children }: { children?: Snippet } = $props();
@@ -34,7 +35,6 @@
 
   let health = $state<HealthStats | null>(null);
   let healthInterval: ReturnType<typeof setInterval> | null = null;
-  let paletteOpen = $state(false);
 
   async function fetchHealth() {
     try {
@@ -117,7 +117,7 @@
   );
 </script>
 
-<CommandPalette bind:open={paletteOpen} />
+<CommandPalette />
 
 <div class="min-h-screen animate-in fade-in duration-500">
   <!-- Ambient background glow -->
@@ -143,7 +143,7 @@
 
       <!-- Center: Cmd+K search trigger -->
       <button
-        onclick={() => paletteOpen = true}
+        onclick={() => searchStore.show()}
         class="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl bg-on-surface/5 hover:bg-on-surface/8 border border-outline-variant/10 text-on-surface-variant/40 hover:text-on-surface/60 transition-all duration-200 text-sm font-medium min-w-52"
       >
         <Papicon icon="Search" size={14} />
@@ -161,7 +161,7 @@
         </div>
         <!-- Mobile Cmd+K -->
         <button
-          onclick={() => paletteOpen = true}
+          onclick={() => searchStore.show()}
           class="md:hidden w-8 h-8 flex items-center justify-center rounded-xl bg-on-surface/5 hover:bg-on-surface/10 border border-outline-variant/10 text-on-surface-variant transition-all"
         >
           <Papicon icon="Search" size={14} />

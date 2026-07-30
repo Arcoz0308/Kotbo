@@ -270,7 +270,7 @@
           <div class="mt-3">
             <PrivacyNotice
               compact
-              showDca
+              showDpa
               text="Ces données servent à détecter les comptes multiples (DCA) et sécuriser le serveur. "
             />
           </div>

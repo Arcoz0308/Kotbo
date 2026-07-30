@@ -6,8 +6,9 @@
   import FormSelect from './FormSelect.svelte';
   import SearchableSelect from './SearchableSelect.svelte';
   import ActionButton from './ActionButton.svelte';
+  import { m } from '../i18n';
 
-  const { featureKey = '', roleAccess = [], title = 'Permissions par rôle', description = 'Définissez les accès spécifiques pour chaque rôle Discord.', guildId = null } = $props();
+  const { featureKey = '', roleAccess = [], title = m.rp_title(), description = m.rp_desc(), guildId = null } = $props();
 
   const saveAction = createAsyncActionState();
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
@@ -46,22 +47,22 @@
       if (!ok) throw new Error('Erreur API');
       await dashboardStore.refresh();
       return true;
-    }, { successMessage: 'Permissions mises à jour.' });
+    }, { successMessage: m.rp_updated_toast() });
   }
 
   const permissions = $derived(
     featureKey === 'double_accounts'
       ? [
-          { key: 'canView', label: 'Voir', icon: 'eye' },
-          { key: 'canModerate', label: 'Valider', icon: 'check-circle' },
-          { key: 'canConfigure', label: 'Mettre en DS', icon: 'shield' },
-          { key: 'canDelete', label: 'Sanctionner', icon: 'alert-triangle' }
+          { key: 'canView', label: m.rp_perm_view(), icon: 'eye' },
+          { key: 'canModerate', label: m.rp_perm_validate(), icon: 'check-circle' },
+          { key: 'canConfigure', label: m.rp_perm_ds(), icon: 'shield' },
+          { key: 'canDelete', label: m.rp_perm_sanction(), icon: 'alert-triangle' }
         ]
       : [
-          { key: 'canView', label: 'Voir', icon: 'eye' },
-          { key: 'canModerate', label: 'Modérer', icon: 'shield' },
-          { key: 'canConfigure', label: 'Configurer', icon: 'settings' },
-          { key: 'canDelete', label: 'Supprimer', icon: 'trash-2' }
+          { key: 'canView', label: m.rp_perm_view(), icon: 'eye' },
+          { key: 'canModerate', label: m.rp_perm_moderate(), icon: 'shield' },
+          { key: 'canConfigure', label: m.rp_perm_configure(), icon: 'settings' },
+          { key: 'canDelete', label: m.rp_perm_delete(), icon: 'trash-2' }
         ]
   );
 </script>
@@ -77,21 +78,21 @@
       class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-[13px] font-medium hover:bg-primary/20 transition-all"
     >
       <Papicon icon="plus" size={14} />
-      Ajouter un rôle
+      {m.rp_add_role()}
     </button>
   </div>
 
   {#if localRoleAccess.length === 0}
     <div class="py-10 text-center bg-surface-container-low/20 rounded-xl border border-dashed border-outline-variant/20">
       <Papicon icon="lock" size={40} class="text-on-surface-variant/20 mb-3 mx-auto" />
-      <p class="text-xs font-bold text-on-surface-variant/60">Aucune restriction spécifique. Le module utilise les permissions par défaut.</p>
+      <p class="text-xs font-bold text-on-surface-variant/60">{m.rp_empty_state()}</p>
     </div>
   {:else}
     <div class="space-y-3">
       {#each localRoleAccess as entry, i}
         <div class="flex flex-col md:flex-row items-start md:items-center gap-4 p-5 bg-surface-container-low/40 rounded-xl border border-outline-variant/10 group animate-in fade-in slide-in-from-right-4 duration-300">
           <div class="w-full md:w-64">
-            <SearchableSelect bind:value={entry.roleId} options={availableRoles.map(role => ({ id: role.id, name: `@${role.name}` }))} placeholder="Sélectionner un rôle" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm" />
+            <SearchableSelect bind:value={entry.roleId} options={availableRoles.map(role => ({ id: role.id, name: `@${role.name}` }))} placeholder={m.rp_select_role_placeholder()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm" />
           </div>
 
           <div class="flex flex-wrap items-center gap-3 flex-1">
@@ -109,7 +110,7 @@
           <button 
             onclick={() => removeRole(i)}
             class="p-2.5 text-on-surface-variant/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-            title="Supprimer la règle"
+            title={m.rp_delete_rule_title()}
           >
             <Papicon icon="x" size={18} />
           </button>
@@ -122,8 +123,7 @@
     <ActionButton 
       onClick={handleSave} 
       variant="primary" 
-      label={saveAction.loading ? 'Enregistrement...' : 'Enregistrer les permissions'} 
-      loading={saveAction.loading}
+      label={saveAction.state.loading ? m.rp_saving_permissions() : m.rp_save_permissions()}
       disabled={localRoleAccess.length > 0 && localRoleAccess.some(r => !r.roleId)}
     />
   </div>

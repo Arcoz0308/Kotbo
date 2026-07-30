@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "migrate:deploy": "cd ../.. && bun run db:migrate:deploy",
-    "build:i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
+    "build:i18n": "bunx @inlang/paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
     "prestart": "bun run build:i18n && bun run migrate:deploy && bun run quality:gate",
     "build": "bun run build:i18n && bun run typecheck",
     "dev": "bun run build:i18n && bun run --watch src/launcher.ts",
@@ -18,7 +18,7 @@
     "test:watch": "bun test --isolate --watch src/tests",
     "typecheck": "bun x tsgo -p tsconfig.json --noEmit",
     "typecheck:tsc": "bun x tsc -p tsconfig.json --noEmit",
-    "quality:gate": "bun run build:i18n && bun run lint && bun run test:unit && bun run coverage:gate",
+    "quality:gate": "bun run build:i18n && bun run typecheck && bun run lint && bun run test:unit && bun run coverage:gate",
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
@@ -27,6 +27,7 @@
     "@hono/zod-openapi": "^0.19.6",
     "@kotbo/contracts": "workspace:*",
     "@kotbo/core": "workspace:*",
+    "@kotbo/shared": "workspace:*",
     "@kotbo/database": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@napi-rs/canvas": "^0.1.100",

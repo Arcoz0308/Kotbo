@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { COLORS, truncate } from '../../utils/embeds.js';
+import { fetchExternal } from '../../utils/http.js';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
 import { registerWarnSanction, registerTimeoutSanction, registerBanSanction } from './sanctionService.js';
 import type { RaidProtectionConfig } from '@prisma/client';
@@ -70,7 +71,7 @@ const MAX_IMAGES_PER_MESSAGE = 5;
 
 async function hashRemoteImage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url);
+    const res = await fetchExternal(url, {}, 5_000);
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
     if (buf.byteLength === 0 || buf.byteLength > MAX_IMAGE_BYTES) return null;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
@@ -51,7 +52,7 @@
     if (dirty && canConfigure) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'Suggestions',
+          label: m.suggestions_page_title(),
           onSave: () => handleSaveConfig(),
           onReset: () => {
             moduleConfig = { ...savedConfig };
@@ -60,7 +61,7 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Suggestions') {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.suggestions_page_title()) {
           unsavedChanges.clear();
         }
       });
@@ -68,7 +69,7 @@
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Suggestions') {
+    if (unsavedChanges.pageLabel === m.suggestions_page_title()) {
       unsavedChanges.clear();
     }
   });
@@ -127,7 +128,7 @@
     let success = false;
     await configAction.run(async () => {
       const res = await updateSuggestionsConfig(moduleConfig);
-      if (!res?.config) throw new Error('Erreur de sauvegarde');
+      if (!res?.config) throw new Error(m.suggestions_save_config_error());
       const saved = {
         enabled: res.config.enabled ?? true,
         channelId: res.config.channelId ?? null,
@@ -136,7 +137,7 @@
       savedConfig = { ...saved };
       success = true;
       return true;
-    }, { successMessage: 'Configuration des suggestions enregistrée !' });
+    }, { successMessage: m.suggestions_save_config_success() });
     return success;
   }
 
@@ -144,19 +145,19 @@
     if (!canModerate) return;
     const responseText = responseDrafts[id] || '';
     if (!responseText.trim()) {
-      actionState.setError('Veuillez saisir un commentaire de réponse.');
+      actionState.setError(m.suggestions_comment_required_error());
       return;
     }
 
     await actionState.run(async () => {
       const res = await resolveSuggestion(id, { status, responseText });
-      if (!res || !res.suggestion) throw new Error('Erreur de résolution');
+      if (!res || !res.suggestion) throw new Error(m.suggestions_resolve_error());
       
       // Update local state
       suggestions = suggestions.map(s => s.id === id ? res.suggestion : s);
       responseDrafts[id] = '';
       return true;
-    }, { successMessage: 'Décision enregistrée et embed mis à jour sur Discord !' });
+    }, { successMessage: m.suggestions_resolve_success() });
   }
 
   const filteredSuggestions = $derived(
@@ -165,12 +166,12 @@
       : suggestions.filter(s => s.status === currentFilter)
   );
 
-  const statusLabels: Record<string, string> = {
-    'PENDING': 'En Attente',
-    'APPROVED': 'Approuvée',
-    'REJECTED': 'Rejetée',
-    'IMPLEMENTED': 'Implémentée'
-  };
+  const statusLabels = $derived<Record<string, string>>({
+    'PENDING': m.suggestions_status_pending(),
+    'APPROVED': m.suggestions_status_approved(),
+    'REJECTED': m.suggestions_status_rejected(),
+    'IMPLEMENTED': m.suggestions_status_implemented()
+  });
 
   const statusColors: Record<string, string> = {
     'PENDING': 'bg-amber-400/20 text-amber-400 border-amber-400/20',
@@ -180,7 +181,7 @@
   };
 
   function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleString('fr-FR', {
+    return new Date(dateStr).toLocaleString(undefined, {
       day: 'numeric',
       month: 'short',
       hour: '2-digit',
@@ -190,8 +191,8 @@
 </script>
 
 <ModulePage
-  title="Suggestions"
-  description="Consultez et modérez les suggestions de la communauté avec vote en temps réel."
+  title={m.suggestions_page_title()}
+  description={m.suggestions_page_desc()}
   icon="thumbs-up"
   featureKey="suggestions"
 >
@@ -203,7 +204,7 @@
           role="tab" aria-selected={currentFilter === filter}
           class="tab-button {currentFilter === filter ? 'active' : ''}"
         >
-          {filter === 'ALL' ? 'Toutes' : statusLabels[filter]}
+          {filter === 'ALL' ? m.suggestions_filter_all() : statusLabels[filter]}
         </button>
       {/each}
     </div>
@@ -230,7 +231,7 @@
               </div>
               <div>
                 <p class="text-sm font-semibold text-on-surface">{suggestion.username}</p>
-                <p class="text-[10px] text-on-surface-variant/50 font-bold">Posté le {formatDate(suggestion.createdAt)}</p>
+                <p class="text-[10px] text-on-surface-variant/50 font-bold">{m.suggestions_posted_on({ date: formatDate(suggestion.createdAt) })}</p>
               </div>
             </div>
 
@@ -257,7 +258,7 @@
             <!-- Public response display -->
             <div class="p-5 rounded-lg bg-secondary/5 border border-secondary/15 space-y-2 animate-in fade-in duration-200">
               <div class="flex items-center gap-2 text-xs font-semibold text-secondary uppercase tracking-wider">
-                <Papicon icon="User" size={14} /> Réponse du Staff
+                <Papicon icon="User" size={14} /> {m.suggestions_staff_response()}
               </div>
               <p class="text-sm text-on-surface-variant font-medium leading-relaxed font-sans">{suggestion.responseText}</p>
             </div>
@@ -267,11 +268,11 @@
             <!-- Moderation actions form -->
             <div class="space-y-4 pt-4 border-t border-outline-variant/10 animate-in fade-in duration-300">
               <div class="space-y-1.5">
-                <label for={`resp-${suggestion.id}`} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Réponse ou commentaire public</label>
+                <label for={`resp-${suggestion.id}`} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.suggestions_public_comment_label()}</label>
                 <textarea 
                   id={`resp-${suggestion.id}`}
                   bind:value={responseDrafts[suggestion.id]} 
-                  placeholder="Expliquez la décision prise par l'équipe..."
+                  placeholder={m.suggestions_public_comment_ph()}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none"
                 ></textarea>
               </div>
@@ -282,21 +283,21 @@
                   disabled={!responseDrafts[suggestion.id]?.trim()}
                   class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
                 >
-                  Refuser
+                  {m.suggestions_btn_reject()}
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'APPROVED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
                   class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
                 >
-                  Approuver
+                  {m.suggestions_btn_approve()}
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'IMPLEMENTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
                   class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-[13px] font-medium rounded-lg transition-all disabled:opacity-50"
                 >
-                  Implémentée
+                  {m.suggestions_btn_implement()}
                 </button>
               </div>
             </div>
@@ -306,8 +307,8 @@
         <div class="section-card">
           <EmptyState
             icon="thumbs-up"
-            title="Aucune suggestion"
-            description="Aucune suggestion trouvée dans cette catégorie. Les membres peuvent en proposer via la commande Discord."
+            title={m.suggestions_empty_title()}
+            description={m.suggestions_empty_desc()}
           />
         </div>
       {/each}
@@ -315,15 +316,15 @@
 
     {#if canConfigure}
       <SectionCard
-        title="Configuration"
-        description="Définissez le salon où les nouvelles suggestions sont publiées sur Discord."
+        title={m.suggestions_config_section_title()}
+        description={m.suggestions_config_section_desc()}
         icon="settings"
       >
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="flex items-center justify-between gap-4 p-4 bg-surface-container rounded-lg border border-outline-variant">
             <div>
-              <p class="text-sm font-medium text-on-surface">Système de suggestions</p>
-              <p class="text-xs text-on-surface-variant mt-0.5">Active ou désactive la publication des suggestions.</p>
+              <p class="text-sm font-medium text-on-surface">{m.suggestions_system_toggle_title()}</p>
+              <p class="text-xs text-on-surface-variant mt-0.5">{m.suggestions_system_toggle_desc()}</p>
             </div>
             <ToggleSwitch
               checked={moduleConfig.enabled}
@@ -333,12 +334,12 @@
           </div>
 
           <div>
-            <label for="suggestions-channel" class="field-label">Salon des suggestions</label>
+            <label for="suggestions-channel" class="field-label">{m.suggestions_channel_label()}</label>
             <SearchableSelect
               id="suggestions-channel"
               bind:value={moduleConfig.channelId}
               options={availableChannels.map((c) => ({ id: c.id, name: channelDisplayName(c) }))}
-              placeholder="Sélectionner un salon"
+              placeholder={m.announcements_select_channel_placeholder()}
               className="w-full bg-surface-container border border-outline-variant rounded-lg px-4 py-3 text-sm"
               disabled={!canConfigure || !moduleConfig.enabled}
             />

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../../i18n';
   import type { ReportRuleOption } from '../../sanctions/reportRules';
   import { reportRuleIcon } from '../../sanctions/reportRules';
   import Papicon from '../Papicon.svelte';
@@ -8,7 +9,7 @@
     options,
     selectedIds,
     disabled = false,
-    placeholder = 'Aucune regle selectionnee',
+    placeholder = m.srb_no_rule_selected(),
     onToggle,
   }: {
     id: string;

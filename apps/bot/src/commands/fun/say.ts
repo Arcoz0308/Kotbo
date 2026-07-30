@@ -9,18 +9,16 @@ import {
 } from 'discord.js';
 import { errorEmbed, successEmbed, COLORS } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
-const COLOR_CHOICES = [
-  { name: '🔵 Bleu (défaut)', value: 'blue' },
-  { name: '🟢 Vert', value: 'green' },
-  { name: '🔴 Rouge', value: 'red' },
-  { name: '🟡 Jaune', value: 'yellow' },
-  { name: '🟣 Violet', value: 'purple' },
-  { name: '⚫ Sombre', value: 'dark' },
-  { name: '⬜ Blanc', value: 'white' },
-];
+const COLOR_KEYS = ['blue', 'green', 'red', 'yellow', 'purple', 'dark', 'white'] as const;
+
+const COLOR_CHOICES = COLOR_KEYS.map((key) => ({
+  name: (m as any)[`b2_say_color_${key}`]({}, { locale: 'en' }) as string,
+  name_localizations: { fr: (m as any)[`b2_say_color_${key}`]({}, { locale: 'fr' }) as string },
+  value: key,
+}));
 
 const COLOR_MAP: Record<string, number> = {
   blue: 0x5865f2,
@@ -32,41 +30,50 @@ const COLOR_MAP: Record<string, number> = {
   white: 0xffffff,
 };
 
+const meta = getCommandMetadata('b2_say');
+
 const data = new SlashCommandBuilder()
-  .setName('say')
-  .setDescription('📢 Envoyer un message en tant que bot dans un salon')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
   .addStringOption(option =>
     option
       .setName('message')
-      .setDescription('Le contenu du message à envoyer')
+      .setDescription(m.b2_say_opt_message({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_say_opt_message({}, { locale: 'fr' }) })
       .setRequired(true)
       .setMaxLength(4000),
   )
   .addChannelOption(option =>
     option
       .setName('salon')
-      .setDescription('Le salon cible (défaut : salon actuel)')
+      .setDescription(m.b2_say_opt_salon({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_say_opt_salon({}, { locale: 'fr' }) })
       .setRequired(false),
   )
   .addStringOption(option =>
     option
       .setName('titre')
-      .setDescription("Titre de l'embed — si renseigné, le message sera envoyé en embed")
+      .setDescription(m.b2_say_opt_titre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_say_opt_titre({}, { locale: 'fr' }) })
       .setRequired(false)
       .setMaxLength(256),
   )
   .addStringOption(option =>
     option
       .setName('couleur')
-      .setDescription("Couleur de l'embed (uniquement en mode embed)")
+      .setDescription(m.b2_say_opt_couleur({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_say_opt_couleur({}, { locale: 'fr' }) })
       .setRequired(false)
       .addChoices(...COLOR_CHOICES),
   )
   .addBooleanOption(option =>
     option
       .setName('anonyme')
-      .setDescription("Masquer votre nom dans le footer de l'embed (défaut : false)")
+      .setDescription(m.b2_say_opt_anonyme({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_say_opt_anonyme({}, { locale: 'fr' }) })
       .setRequired(false),
   );
 
@@ -101,7 +108,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       const color = COLOR_MAP[colorKey] ?? COLORS.primary;
 
       const embed = new EmbedBuilder()
-        .setColor(color as unknown)
+        .setColor(color)
         .setDescription(message)
         .setTimestamp();
 

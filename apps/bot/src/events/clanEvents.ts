@@ -1,10 +1,10 @@
-import { Client, Events, EmbedBuilder, GuildMember } from 'discord.js';
+import { Client, Events, EmbedBuilder } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 
 export function registerClanListener(client: Client) {
   // 1. Sécurité de Clan Unique (guildMemberUpdate)
-  client.on(Events.GuildMemberUpdate, async (oldMember: GuildMember, newMember: GuildMember) => {
+  client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     try {
       const guildId = newMember.guild.id;
 

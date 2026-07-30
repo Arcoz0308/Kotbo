@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m, dateLocale } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -127,6 +128,7 @@
   let permMemberSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   let permError = $state('');
   let permSaving = $state(false);
+  const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
 
   // Meetings Feature Access & Permissions
   const meetingsFeatureAccess = $derived(dashboardStore.state.featureAccess?.meetings || {});
@@ -210,7 +212,7 @@
 
   async function saveMeetingEdit() {
     if (!editMeetingTitle || !editMeetingDate) {
-      editMeetingError = 'Le titre et la date de début sont obligatoires.';
+      editMeetingError = m.meetings_err_required();
       return;
     }
     const start = new Date(editMeetingDate);
@@ -220,7 +222,7 @@
       return;
     }
     if (end <= start) {
-      editMeetingError = 'La date de fin doit être postérieure à la date de début.';
+      editMeetingError = m.meetings_err_end_before_start();
       return;
     }
 
@@ -251,7 +253,7 @@
       }
     } catch (e) {
       console.error('Failed to save meeting:', e);
-      editMeetingError = 'Erreur lors de l’enregistrement de la réunion.';
+      editMeetingError = m.meetings_err_save();
     } finally {
       savingMeetingEdit = false;
     }
@@ -293,15 +295,15 @@
 
   function formatStatus(status: string) {
     switch (status) {
-      case 'SCHEDULED': return 'Planifiée';
-      case 'IN_PROGRESS': return 'En cours';
-      case 'COMPLETED': return 'Terminée';
-      case 'CANCELLED': return 'Annulée';
+      case 'SCHEDULED': return m.meetings_status_scheduled();
+      case 'IN_PROGRESS': return m.meetings_status_in_progress();
+      case 'COMPLETED': return m.meetings_status_completed();
+      case 'CANCELLED': return m.meetings_status_cancelled();
       // Presence statuses
-      case 'PRESENT': return 'Présent';
-      case 'EXCUSED': return 'Excusé';
-      case 'ABSENT_CHECKED': return 'Excusé (Vérifié)';
-      case 'ABSENT': return 'Absent';
+      case 'PRESENT': return m.meetings_presence_present();
+      case 'EXCUSED': return m.meetings_presence_excused();
+      case 'ABSENT_CHECKED': return m.planning_presence_excused_checked();
+      case 'ABSENT': return m.meetings_presence_absent();
       default: return status;
     }
   }
@@ -315,7 +317,7 @@
     try {
       const data = await searchDiscordMembers(query, 15);
       memberSearchResults = (data?.members || []).filter(
-        (m: any) => !activeStaff.some(s => s.userId === m.id) && m.id !== (authStore.user as any)?.id
+        (mem: any) => !activeStaff.some(s => s.userId === mem.id) && mem.id !== (authStore.user as any)?.id
       );
     } catch (e) {
       console.error('Member search error:', e);
@@ -372,7 +374,7 @@
     permMemberSearchLoading = true;
     try {
       const data = await searchDiscordMembers(query, 15);
-      permMemberSearchResults = (data?.members || []).filter((m: any) => !permUserIds.includes(m.id));
+      permMemberSearchResults = (data?.members || []).filter((mem: any) => !permUserIds.includes(mem.id));
     } catch (e) {
       console.error('Permission member search error:', e);
       permMemberSearchResults = [];
@@ -409,7 +411,7 @@
       }
       permissionModalOpen = false;
     } catch (e: any) {
-      permError = e?.message || 'Erreur lors de la mise à jour.';
+      permError = e?.message || m.planning_err_perm_update();
     } finally {
       permSaving = false;
     }
@@ -423,7 +425,6 @@
   let miniCalDate = $state(new Date());
 
   // Derived
-  const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
   const myStaffRecord = $derived(allStaff.find(s => s.userId === (authStore.user as any)?.id));
   const activeStaff = $derived(allStaff.filter(s => !s.blacklistEntries || s.blacklistEntries.length === 0));
 
@@ -445,16 +446,16 @@
     const events: any[] = [];
 
     if (visibleTypes.includes('meeting') && calendarData.meetings) {
-      calendarData.meetings.forEach((m: any) => {
+      calendarData.meetings.forEach((mtg: any) => {
         events.push({
-          id: m.id,
-          title: m.title,
-          start: new Date(m.scheduledAt),
-          end: m.endedAt ? new Date(m.endedAt) : new Date(new Date(m.scheduledAt).getTime() + 3600000),
+          id: mtg.id,
+          title: mtg.title,
+          start: new Date(mtg.scheduledAt),
+          end: mtg.endedAt ? new Date(mtg.endedAt) : new Date(new Date(mtg.scheduledAt).getTime() + 3600000),
           type: 'meeting',
           isAllDay: false,
-          details: m.description,
-          raw: m
+          details: mtg.description,
+          raw: mtg
         });
       });
     }
@@ -648,7 +649,7 @@
       else if (currentItemDetail.type === 'meeting') payload.meetingId = currentItemDetail.raw.id;
 
       await createReminder(payload);
-      toast.success('Rappel programmé avec succès');
+      toast.success(m.planning_reminder_created());
       newReminderMessage = '';
       newReminderTime = '';
       
@@ -662,14 +663,14 @@
       }
     } catch (e: any) {
       console.error('Failed to create reminder:', e);
-      toast.error(e.message || 'Impossible de programmer le rappel');
+      toast.error(e.message || m.planning_reminder_err_create());
     }
   }
 
   async function handleDeleteReminder(reminderId: string) {
     try {
       await deleteReminder(reminderId);
-      toast.success('Rappel supprimé');
+      toast.success(m.planning_reminder_deleted());
       
       await Promise.all([refreshCalendar(), refreshTasks()]);
       
@@ -720,7 +721,7 @@
 
   async function handleCreateItem() {
     if (!formTitle && currentTab !== 'absence') {
-      formError = 'Le titre est obligatoire.';
+      formError = m.planning_err_title_required();
       return;
     }
     saving = true;
@@ -729,12 +730,12 @@
     try {
       if (currentTab === 'meeting') {
         const ok = await createMeeting(formTitle, formDescription, selectedStartDate.toISOString(), selectedEndDate.toISOString());
-        if (!ok) throw new Error("Erreur de création de la réunion.");
+        if (!ok) throw new Error(m.planning_err_create_meeting());
       } else if (currentTab === 'absence') {
-        if (!myStaffRecord) { formError = "Votre compte n'est pas enregistré comme membre du staff."; saving = false; return; }
-        if (!formDescription.trim()) { formError = "Le motif de l'absence est obligatoire."; saving = false; return; }
-        if (!formSuperiorId) { formError = 'Veuillez sélectionner un supérieur à notifier.'; saving = false; return; }
-        if (selectedEndDate && selectedEndDate < selectedStartDate) { formError = 'La date de fin doit être postérieure ou égale à la date de début.'; saving = false; return; }
+        if (!myStaffRecord) { formError = m.planning_err_not_staff(); saving = false; return; }
+        if (!formDescription.trim()) { formError = m.planning_err_absence_reason(); saving = false; return; }
+        if (!formSuperiorId) { formError = m.planning_err_superior_required(); saving = false; return; }
+        if (selectedEndDate && selectedEndDate < selectedStartDate) { formError = m.planning_err_end_before_start(); saving = false; return; }
         await createAbsence({
           staffUserId: myStaffRecord.userId,
           startDate: selectedStartDate.toISOString(),
@@ -745,7 +746,7 @@
           confirmIndefinite: !selectedEndDate
         });
       } else if (currentTab === 'call') {
-        if (!callPermCanCreate) { formError = "Vous n'avez pas la permission de planifier des appels."; saving = false; return; }
+        if (!callPermCanCreate) { formError = m.planning_err_no_call_permission(); saving = false; return; }
         await createCall({
           title: formTitle,
           description: formDescription,
@@ -770,7 +771,7 @@
       await Promise.all([refreshCalendar(), refreshTasks()]);
     } catch (err: any) {
       console.error(err);
-      formError = err.message || 'Une erreur est survenue lors de la création.';
+      formError = err.message || m.planning_err_create_generic();
     } finally {
       saving = false;
     }
@@ -795,7 +796,7 @@
       meetingDeleteModalOpen = true;
       return;
     }
-    if (!(await confirmDialog.danger('Supprimer cet élément ?'))) return;
+    if (!(await confirmDialog.danger(m.planning_confirm_delete_item()))) return;
     try {
       if (type === 'absence') await deleteAbsence(id);
       else if (type === 'call') await deleteCall(id);
@@ -821,10 +822,10 @@
 
   function getTypeLabel(type: string) {
     switch (type) {
-      case 'meeting': return 'Réunion';
-      case 'call': return 'Appel';
-      case 'absence': return 'Absence';
-      case 'task': return 'Tâche';
+      case 'meeting': return m.planning_type_meeting();
+      case 'call': return m.planning_type_call();
+      case 'absence': return m.planning_type_absence();
+      case 'task': return m.planning_type_task();
       default: return type;
     }
   }
@@ -851,13 +852,13 @@
 </script>
 
 <ModulePage
-  title="Planning & Agenda"
-  description="Gérez et visualisez l'emploi du temps de votre équipe."
+  title={m.planning_page_title()}
+  description={m.planning_page_desc()}
   icon="calendar"
   featureKey="absences"
 >
   {#snippet actions()}
-    <RefreshButton onClick={async () => { await Promise.all([refreshCalendar(), refreshTasks()]); }} loading={loading} label="Actualiser" />
+    <RefreshButton onClick={async () => { await Promise.all([refreshCalendar(), refreshTasks()]); }} loading={loading} label={m.planning_refresh()} />
 
     <!-- Task panel toggle (Outlook "My Day") -->
     <button
@@ -865,7 +866,7 @@
       class="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all border {showTaskPanel ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'bg-surface-container border-outline-variant/20 text-on-surface-variant hover:text-on-surface'}"
     >
       <Papicon icon="check-square" size={14} />
-      Ma journée
+      {m.planning_my_day()}
       {#if pendingTaskCount > 0}
         <span class="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] font-bold flex items-center justify-center">{pendingTaskCount}</span>
       {/if}
@@ -875,10 +876,10 @@
       <button
         onclick={openPermissionModal}
         class="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all border bg-surface-container border-outline-variant/20 text-on-surface-variant hover:text-on-surface"
-        title="Qui peut créer des appels ?"
+        title={m.planning_call_perms_tooltip()}
       >
         <Papicon icon="shield" size={14} />
-        Permissions appels
+        {m.planning_call_perms_btn()}
       </button>
     {/if}
 
@@ -886,14 +887,14 @@
       onClick={() => openCreateModal(new Date())}
       variant="primary"
       icon="plus"
-      label="Nouvel événement"
+      label={m.planning_new_event()}
     />
   {/snippet}
 
   {#if loading && allStaff.length === 0}
     <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-xl border border-outline-variant/30">
       <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-      <p class="mt-4 text-on-surface-variant font-medium">Chargement de l'agenda...</p>
+      <p class="mt-4 text-on-surface-variant font-medium">{m.planning_loading()}</p>
       <LoadingHint context="data" />
     </div>
   {:else}
@@ -910,7 +911,7 @@
                 <Papicon icon="chevron-left" size={14} class="text-on-surface-variant" />
               </button>
               <span class="text-[11px] font-semibold text-on-surface capitalize">
-                {capitalize(miniCalDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }))}
+                {capitalize(miniCalDate.toLocaleDateString(dateLocale(), { month: 'long', year: 'numeric' }))}
               </span>
               <button onclick={miniCalNext} class="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-hover transition-colors">
                 <Papicon icon="chevron-right" size={14} class="text-on-surface-variant" />
@@ -918,7 +919,7 @@
             </div>
 
             <div class="grid grid-cols-7 gap-0">
-              {#each ['L', 'M', 'M', 'J', 'V', 'S', 'D'] as day}
+              {#each [m.planning_weekday_mon(), m.planning_weekday_tue(), m.planning_weekday_wed(), m.planning_weekday_thu(), m.planning_weekday_fri(), m.planning_weekday_sat(), m.planning_weekday_sun()] as day}
                 <div class="text-center text-[9px] font-semibold text-on-surface-variant/50 py-1">{day}</div>
               {/each}
               {#each miniCalDays as { date, isCurrentMonth }}
@@ -937,13 +938,13 @@
 
           <!-- Calendars / Type Filters -->
           <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 shadow-sm">
-            <h3 class="text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-3">Mes calendriers</h3>
+            <h3 class="text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-3">{m.planning_my_calendars()}</h3>
             <div class="flex flex-col gap-1">
               {#each [
-                { key: 'meeting', label: 'Réunions', color: 'emerald' },
-                { key: 'call', label: 'Appels Discord', color: 'green' },
-                { key: 'absence', label: 'Absences', color: 'amber' },
-                { key: 'task', label: 'Tâches', color: 'purple' }
+                { key: 'meeting', label: m.planning_cal_meetings(), color: 'emerald' },
+                { key: 'call', label: m.planning_cal_calls(), color: 'green' },
+                { key: 'absence', label: m.planning_cal_absences(), color: 'amber' },
+                { key: 'task', label: m.planning_cal_tasks(), color: 'purple' }
               ] as { key, label, color }}
                 <button
                   onclick={() => toggleType(key)}
@@ -968,12 +969,12 @@
           <!-- Staff Members -->
           <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 shadow-sm">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest">Personnes</h3>
+              <h3 class="text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest">{m.planning_people()}</h3>
               <button
                 onclick={toggleEveryone}
                 class="text-[9px] font-semibold uppercase px-2 py-0.5 rounded transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary/20 text-primary' : 'text-on-surface-variant/50 hover:text-on-surface-variant'}"
               >
-                {selectedStaffIds.length === activeStaff.length ? 'Aucun' : 'Tous'}
+                {selectedStaffIds.length === activeStaff.length ? m.planning_select_none() : m.planning_select_all()}
               </button>
             </div>
 
@@ -1030,9 +1031,9 @@
                   <Papicon icon="sun" size={14} class="text-purple-400" />
                 </div>
                 <div>
-                  <h3 class="text-xs font-bold text-on-surface leading-tight">Ma journée</h3>
+                  <h3 class="text-xs font-bold text-on-surface leading-tight">{m.planning_my_day()}</h3>
                   <p class="text-[9px] text-on-surface-variant/60 font-medium">
-                    {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    {new Date().toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}
                   </p>
                 </div>
               </div>
@@ -1049,8 +1050,8 @@
               {#if userTasks.length === 0}
                 <div class="flex flex-col items-center justify-center h-full text-center p-6 text-on-surface-variant/30">
                   <Papicon icon="check-circle" size={40} class="mb-3" />
-                  <p class="text-xs font-semibold">Aucune tâche en cours</p>
-                  <p class="text-[10px] mt-1">Votre journée est libre !</p>
+                  <p class="text-xs font-semibold">{m.planning_no_task()}</p>
+                  <p class="text-[10px] mt-1">{m.planning_day_free()}</p>
                 </div>
               {:else}
                 <div class="flex flex-col gap-1.5">
@@ -1085,13 +1086,13 @@
                         <div class="flex items-center gap-2 mt-1.5">
                           {#if task.priority === 'HIGH'}
                             <span class="text-[9px] font-bold uppercase tracking-wider text-red-400 flex items-center gap-0.5">
-                              <Papicon icon="alert-triangle" size={9} /> Important
+                              <Papicon icon="alert-triangle" size={9} /> {m.planning_task_important()}
                             </span>
                           {/if}
                           {#if task.dueDate}
                             <span class="text-[9px] text-on-surface-variant/50 flex items-center gap-0.5 font-medium">
                               <Papicon icon="calendar" size={9} />
-                              {new Date(task.dueDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                              {new Date(task.dueDate).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short' })}
                             </span>
                           {/if}
                         </div>
@@ -1109,7 +1110,7 @@
                 class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[11px] font-semibold text-purple-400 hover:bg-purple-500/10 transition-colors"
               >
                 <Papicon icon="plus" size={14} />
-                Ajouter une tâche
+                {m.planning_add_task()}
               </button>
             </div>
           </div>
@@ -1121,13 +1122,13 @@
   <!-- ===== CREATION MODAL ===== -->
   {#if creationModalOpen}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => creationModalOpen = false} aria-label="Fermer"></button>
+      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => creationModalOpen = false} aria-label={m.planning_close_aria()}></button>
 
       <div class="relative w-full max-w-xl bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200">
 
         <!-- Header -->
         <div class="px-6 py-4 border-b border-outline-variant/15 bg-surface-container-low flex justify-between items-center">
-          <h3 class="text-sm font-bold text-on-surface">Nouvel événement</h3>
+          <h3 class="text-sm font-bold text-on-surface">{m.planning_new_event()}</h3>
           <button onclick={() => creationModalOpen = false} class="w-7 h-7 rounded-md hover:bg-surface-hover flex items-center justify-center transition-colors">
             <Papicon icon="x" size={16} />
           </button>
@@ -1137,10 +1138,10 @@
         <div class="px-6 pt-4 pb-0">
           <div class="flex bg-surface-container/50 p-0.5 rounded-lg border border-outline-variant/15 gap-0.5">
             {#each [
-              { key: 'meeting', label: 'Réunion', icon: 'calendar', color: 'emerald' },
-              { key: 'call', label: 'Appel', icon: 'phone', color: 'green' },
-              { key: 'absence', label: 'Absence', icon: 'sun', color: 'amber' },
-              { key: 'task', label: 'Tâche', icon: 'check-square', color: 'purple' }
+              { key: 'meeting', label: m.planning_type_meeting(), icon: 'calendar', color: 'emerald' },
+              { key: 'call', label: m.planning_type_call(), icon: 'phone', color: 'green' },
+              { key: 'absence', label: m.planning_type_absence(), icon: 'sun', color: 'amber' },
+              { key: 'task', label: m.planning_type_task(), icon: 'check-square', color: 'purple' }
             ].filter(t => t.key !== 'call' || callPermCanCreate) as { key, label, icon, color }}
               <button
                 onclick={() => gotoTab('/planning', key, 'meeting')}
@@ -1163,7 +1164,7 @@
           <!-- Title -->
           {#if currentTab !== 'absence'}
             <div>
-              <FormInput bind:value={formTitle} placeholder="Ajouter un titre" className="w-full text-sm font-semibold border-0! border-b! border-outline-variant/20! rounded-none! px-0! py-2! focus:border-primary! bg-transparent!" />
+              <FormInput bind:value={formTitle} placeholder={m.planning_title_ph()} className="w-full text-sm font-semibold border-0! border-b! border-outline-variant/20! rounded-none! px-0! py-2! focus:border-primary! bg-transparent!" />
             </div>
           {/if}
 
@@ -1192,7 +1193,7 @@
           <!-- Description -->
           <div class="flex items-start gap-3">
             <Papicon icon="align-left" size={16} class="text-on-surface-variant/50 shrink-0 mt-2" />
-            <FormTextarea bind:value={formDescription} placeholder={currentTab === 'absence' ? "Motif de l'absence *" : 'Ajouter une description...'} rows={2} className="w-full resize-none text-xs!" />
+            <FormTextarea bind:value={formDescription} placeholder={currentTab === 'absence' ? m.planning_absence_reason_ph() : m.planning_description_ph()} rows={2} className="w-full resize-none text-xs!" />
           </div>
 
           <!-- Absence-specific fields -->
@@ -1201,15 +1202,15 @@
               <Papicon icon="tag" size={16} class="text-on-surface-variant/50 shrink-0" />
               <div class="flex-1 grid grid-cols-2 gap-3">
                 <FormSelect bind:value={formAbsenceType} className="w-full text-xs! py-1.5!">
-                  <option value="Vacances">Vacances / Congés</option>
-                  <option value="Maladie">Maladie / Médical</option>
-                  <option value="Examens">Examens / Études</option>
-                  <option value="Autre">Autre motif</option>
+                  <option value="Vacances">{m.planning_absence_type_holidays()}</option>
+                  <option value="Maladie">{m.planning_absence_type_sick()}</option>
+                  <option value="Examens">{m.planning_absence_type_exams()}</option>
+                  <option value="Autre">{m.planning_absence_type_other()}</option>
                 </FormSelect>
                 <SearchableSelect
                   bind:value={formSuperiorId}
                   options={eligibleSuperiors.map(s => ({ id: s.userId, name: s.displayName || s.username }))}
-                  placeholder="Supérieur à notifier"
+                  placeholder={m.planning_superior_ph()}
                   className="w-full text-xs!"
                 />
               </div>
@@ -1221,18 +1222,18 @@
             <div class="border border-outline-variant/15 rounded-lg p-4 bg-surface-container/30 space-y-3">
               <div class="flex items-center gap-2 text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest">
                 <Papicon icon="headphones" size={12} />
-                Configuration Discord
+                {m.planning_discord_config()}
               </div>
 
               <div class="grid grid-cols-2 gap-3">
                 <FormSelect bind:value={formChannelMode} className="w-full text-xs! py-1.5!">
-                  <option value="CREATE_NEW">Salon temporaire</option>
-                  <option value="EXISTING">Salon existant</option>
+                  <option value="CREATE_NEW">{m.planning_channel_temp()}</option>
+                  <option value="EXISTING">{m.planning_channel_existing()}</option>
                 </FormSelect>
                 {#if formChannelMode === 'CREATE_NEW'}
                   <FormSelect bind:value={formChannelType} className="w-full text-xs! py-1.5!">
-                    <option value="VOICE">Vocal</option>
-                    <option value="STAGE">Conférence</option>
+                    <option value="VOICE">{m.planning_channel_voice()}</option>
+                    <option value="STAGE">{m.planning_channel_stage()}</option>
                   </FormSelect>
                 {:else}
                   <SearchableSelect
@@ -1241,7 +1242,7 @@
                       ...dashboardStore.state.discordVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` })),
                       ...dashboardStore.state.discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))
                     ]}
-                    placeholder="Sélectionner"
+                    placeholder={m.planning_select_ph()}
                     className="w-full text-xs!"
                   />
                 {/if}
@@ -1249,13 +1250,13 @@
 
               {#if formChannelMode === 'CREATE_NEW'}
                 <div class="flex items-center justify-between py-2 px-3 rounded-md bg-surface-container-high/30">
-                  <span class="text-[10px] font-medium text-on-surface-variant">Supprimer auto. quand vide</span>
+                  <span class="text-[10px] font-medium text-on-surface-variant">{m.planning_auto_delete_empty()}</span>
                   <ToggleSwitch checked={formIsTempChannel} onToggle={(v: boolean) => formIsTempChannel = v} />
                 </div>
               {/if}
 
               <div>
-                <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Invités — Staff</span>
+                <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">{m.planning_guests_staff()}</span>
                 <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
                   {#each activeStaff.filter(s => s.id !== myStaffRecord?.id) as staff}
                     <label class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-container-high/30 rounded-md cursor-pointer hover:bg-surface-container-high/50 transition-colors">
@@ -1276,7 +1277,7 @@
 
               <!-- Members search section -->
               <div>
-                <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Invités — Membres du serveur</span>
+                <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">{m.planning_guests_members()}</span>
 
                 <!-- Selected members chips -->
                 {#if formInviteeMemberIds.length > 0}
@@ -1312,7 +1313,7 @@
                     type="text"
                     value={memberSearchQuery}
                     oninput={(e) => handleMemberSearchInput((e.target as HTMLInputElement).value)}
-                    placeholder="Rechercher un membre..."
+                    placeholder={m.planning_search_member_ph()}
                     class="w-full pl-8 pr-3 py-2 bg-surface-container-high/30 rounded-md border border-outline-variant/15 text-[11px] font-medium text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:border-primary/50 transition-colors"
                   />
                 </div>
@@ -1343,7 +1344,7 @@
                     {/each}
                   </div>
                 {:else if memberSearchQuery.trim() && !memberSearchLoading}
-                  <p class="mt-2 text-[10px] text-on-surface-variant/40 text-center py-2">Aucun membre trouvé</p>
+                  <p class="mt-2 text-[10px] text-on-surface-variant/40 text-center py-2">{m.planning_no_member_found()}</p>
                 {/if}
               </div>
             </div>
@@ -1355,14 +1356,14 @@
               <Papicon icon="flag" size={16} class="text-on-surface-variant/50 shrink-0" />
               <div class="flex-1 grid grid-cols-2 gap-3">
                 <FormSelect bind:value={formPriority} className="w-full text-xs! py-1.5!">
-                  <option value="LOW">Priorité basse</option>
-                  <option value="MEDIUM">Priorité moyenne</option>
-                  <option value="HIGH">Priorité haute</option>
+                  <option value="LOW">{m.planning_priority_low()}</option>
+                  <option value="MEDIUM">{m.planning_priority_medium()}</option>
+                  <option value="HIGH">{m.planning_priority_high()}</option>
                 </FormSelect>
                 <SearchableSelect
                   bind:value={formAssigneeId}
                   options={activeStaff.map(s => ({ id: s.id, name: s.displayName || s.username }))}
-                  placeholder="Assigner à..."
+                  placeholder={m.planning_assign_ph()}
                   className="w-full text-xs!"
                 />
               </div>
@@ -1380,7 +1381,7 @@
         <!-- Footer -->
         <div class="px-6 py-3.5 border-t border-outline-variant/15 bg-surface-container-low flex justify-end gap-2">
           <button onclick={() => creationModalOpen = false} class="px-4 py-2 rounded-lg text-[11px] font-semibold text-on-surface-variant hover:bg-surface-hover transition-colors">
-            Annuler
+            {m.common_cancel()}
           </button>
           <button
             onclick={handleCreateItem}
@@ -1390,7 +1391,7 @@
             {#if saving}
               <div class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
             {/if}
-            Enregistrer
+            {m.common_save()}
           </button>
         </div>
       </div>
@@ -1402,7 +1403,7 @@
     {@const raw = currentItemDetail.raw}
     {@const typeColor = getTypeColor(currentItemDetail.type)}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => detailModalOpen = false} aria-label="Fermer"></button>
+      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => detailModalOpen = false} aria-label={m.planning_close_aria()}></button>
 
       <div class="relative w-full max-w-md max-h-[85vh] bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200 text-on-surface flex flex-col">
 
@@ -1428,10 +1429,10 @@
           <div class="flex items-center gap-2.5 text-xs text-on-surface-variant mb-4">
             <Papicon icon="clock" size={14} class="shrink-0" />
             <span class="font-medium">
-              {new Date(currentItemDetail.start).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              {new Date(currentItemDetail.start).toLocaleString(dateLocale(), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
               {#if currentItemDetail.end}
                 <span class="text-on-surface-variant/40 mx-1">–</span>
-                {new Date(currentItemDetail.end).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                {new Date(currentItemDetail.end).toLocaleString(dateLocale(), { hour: '2-digit', minute: '2-digit' })}
               {/if}
             </span>
           </div>
@@ -1469,7 +1470,7 @@
                         class="text-[10px] font-bold text-primary bg-primary/10 px-2.5 py-1 hover:bg-primary/20 rounded-md transition-colors flex items-center gap-1"
                       >
                         <Papicon icon="play" size={10} />
-                        Démarrer
+                        {m.meetings_start_btn()}
                       </button>
                     {:else if raw.status === 'IN_PROGRESS'}
                       <button 
@@ -1477,7 +1478,7 @@
                         class="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 hover:bg-emerald-500/20 rounded-md transition-colors flex items-center gap-1"
                       >
                         <Papicon icon="check" size={10} />
-                        Terminer
+                        {m.meetings_finish_btn()}
                       </button>
                     {/if}
                   </div>
@@ -1487,15 +1488,15 @@
               <!-- Attendance Stats -->
               <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-lg text-center">
                 <div>
-                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">Présents</p>
+                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_present()}</p>
                   <p class="text-base font-bold text-emerald-500">{stats.present}</p>
                 </div>
                 <div class="border-x border-outline-variant/30">
-                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">Excusés</p>
+                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_excused()}</p>
                   <p class="text-base font-bold text-amber-500">{stats.excused}</p>
                 </div>
                 <div>
-                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">Absents</p>
+                  <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_absent()}</p>
                   <p class="text-base font-bold text-red-500">{stats.absent}</p>
                 </div>
               </div>
@@ -1503,14 +1504,14 @@
               <!-- Attendance List -->
               {#if raw.presences && raw.presences.length > 0}
                 <div class="space-y-2">
-                  <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest px-1">Liste des présences</span>
+                  <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest px-1">{m.meetings_presence_list_title()}</span>
                   <div class="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
                     {#each raw.presences as presence}
                       <div class="flex items-center justify-between p-2 bg-surface-container-low/50 rounded-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors group">
                         <div class="flex items-center gap-2.5 min-w-0">
                           <button 
                             type="button"
-                            onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
+                            onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.planning_member_fallback())}
                             class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary overflow-hidden transition-transform shrink-0"
                           >
                             {#if presence.staffMember?.avatarUrl}
@@ -1522,10 +1523,10 @@
                           <div class="min-w-0">
                             <button 
                               type="button"
-                              onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
+                              onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.planning_member_fallback())}
                               class="text-xs font-bold text-on-surface hover:text-primary transition-colors text-left block truncate"
                             >
-                              {presence.staffMember?.displayName || presence.staffMember?.username || 'Membre'}
+                              {presence.staffMember?.displayName || presence.staffMember?.username || m.planning_member_fallback()}
                             </button>
                             {#if presence.note}
                               <p class="text-[9px] text-on-surface-variant leading-tight mt-0.5 truncate" title={presence.note}>{presence.note}</p>
@@ -1549,7 +1550,7 @@
             <div class="space-y-2 text-xs mb-4">
               <div class="flex items-center gap-2 text-on-surface-variant">
                 <Papicon icon="headphones" size={12} />
-                <span class="font-medium">{raw.channelMode === 'CREATE_NEW' ? 'Salon temporaire' : 'Salon existant'}</span>
+                <span class="font-medium">{raw.channelMode === 'CREATE_NEW' ? m.planning_channel_temp() : m.planning_channel_existing()}</span>
               </div>
               {#if raw.invitees && raw.invitees.length > 0}
                 <div class="flex items-start gap-2">
@@ -1562,7 +1563,7 @@
                           alt=""
                           class="w-4 h-4 rounded-full"
                         />
-                        {invitee.staffMember?.displayName || invitee.staffMember?.username || 'Membre'}
+                        {invitee.staffMember?.displayName || invitee.staffMember?.username || m.planning_member_fallback()}
                       </span>
                     {/each}
                   </div>
@@ -1601,17 +1602,17 @@
                 alt=""
                 class="w-7 h-7 rounded-full border border-outline-variant/20"
               />
-              <span class="text-xs font-bold text-on-surface">{currentItemDetail.staffName || raw.staffMember?.username || 'Membre inconnu'}</span>
+              <span class="text-xs font-bold text-on-surface">{currentItemDetail.staffName || raw.staffMember?.username || m.planning_unknown_member()}</span>
             </div>
             <div class="flex items-center gap-4 text-xs mb-4">
               <div class="flex items-center gap-1.5">
                 <Papicon icon="tag" size={12} class="text-on-surface-variant" />
-                <span class="font-semibold text-amber-400">{raw.type || 'Autre'}</span>
+                <span class="font-semibold text-amber-400">{raw.type || m.planning_absence_type_default()}</span>
               </div>
               <div class="flex items-center gap-1.5">
                 <Papicon icon="info" size={12} class="text-on-surface-variant" />
                 <span class="font-semibold {raw.status === 'APPROVED' ? 'text-emerald-400' : 'text-amber-400'}">
-                  {raw.status === 'APPROVED' ? 'Approuvé' : raw.status === 'PENDING' ? 'En attente' : raw.status}
+                  {raw.status === 'APPROVED' ? m.planning_absence_approved() : raw.status === 'PENDING' ? m.planning_absence_pending() : raw.status}
                 </span>
               </div>
             </div>
@@ -1621,7 +1622,7 @@
             <div class="mt-4 border-t border-outline-variant/15 pt-4 text-left">
               <h4 class="text-xs font-bold text-on-surface mb-2 flex items-center gap-1.5">
                 <Papicon icon="bell" size={12} class="text-amber-400" />
-                Rappels ({raw.reminders?.length || 0})
+                {m.planning_reminders_title({ count: raw.reminders?.length || 0 })}
               </h4>
 
               {#if raw.reminders && raw.reminders.length > 0}
@@ -1631,18 +1632,18 @@
                       <div class="flex-1 min-w-0 pr-2">
                         <div class="font-medium text-on-surface truncate">{reminder.message}</div>
                         <div class="text-[9px] text-on-surface-variant">
-                          Le {new Date(reminder.targetTime).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          {m.planning_reminder_at({ date: new Date(reminder.targetTime).toLocaleString(dateLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) })}
                           {#if reminder.fired}
-                            <span class="text-emerald-400 ml-1">(Envoyé)</span>
+                            <span class="text-emerald-400 ml-1">{m.planning_reminder_sent()}</span>
                           {:else}
-                            <span class="text-amber-400 ml-1">(Planifié)</span>
+                            <span class="text-amber-400 ml-1">{m.planning_reminder_scheduled()}</span>
                           {/if}
                         </div>
                       </div>
                       <button
                         onclick={() => handleDeleteReminder(reminder.id)}
                         class="p-1 rounded hover:bg-red-500/10 text-red-400 border-none bg-transparent transition-colors cursor-pointer shrink-0"
-                        title="Supprimer"
+                        title={m.planning_reminder_delete_tooltip()}
                       >
                         <Papicon icon="trash-2" size={10} />
                       </button>
@@ -1650,15 +1651,15 @@
                   {/each}
                 </div>
               {:else}
-                <p class="text-[11px] text-on-surface-variant italic mb-3">Aucun rappel configuré.</p>
+                <p class="text-[11px] text-on-surface-variant italic mb-3">{m.planning_no_reminder()}</p>
               {/if}
 
               <!-- Add Reminder Form -->
               <div class="flex flex-col gap-2 p-2.5 rounded bg-surface-container/30 border border-outline-variant/10 text-xs">
-                <div class="font-semibold text-[10px] uppercase text-on-surface-variant">Programmer un rappel</div>
+                <div class="font-semibold text-[10px] uppercase text-on-surface-variant">{m.planning_schedule_reminder()}</div>
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label for="new-reminder-time" class="block text-[9px] text-on-surface-variant font-medium mb-1">Date et heure</label>
+                    <label for="new-reminder-time" class="block text-[9px] text-on-surface-variant font-medium mb-1">{m.planning_reminder_datetime()}</label>
                     <input
                       id="new-reminder-time"
                       type="datetime-local"
@@ -1667,21 +1668,21 @@
                     />
                   </div>
                   <div>
-                    <label for="new-reminder-channel" class="block text-[9px] text-on-surface-variant font-medium mb-1">Canal de réception</label>
+                    <label for="new-reminder-channel" class="block text-[9px] text-on-surface-variant font-medium mb-1">{m.planning_reminder_channel()}</label>
                     <select
                       id="new-reminder-channel"
                       bind:value={newReminderChannel}
                       class="w-full bg-surface-container-high border border-outline-variant/20 rounded px-2 py-1 text-xs text-on-surface outline-none"
                     >
-                      <option value="DM">Message Privé (MP)</option>
-                      <option value="CURRENT">Ce salon Discord</option>
+                      <option value="DM">{m.planning_reminder_channel_dm()}</option>
+                      <option value="CURRENT">{m.planning_reminder_channel_current()}</option>
                     </select>
                   </div>
                 </div>
                 <div class="flex gap-2 items-center">
                   <input
                     type="text"
-                    placeholder="Note (ex: Réunion dans 5 min...)"
+                    placeholder={m.planning_reminder_note_ph()}
                     bind:value={newReminderMessage}
                     class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded px-2.5 py-1 text-xs text-on-surface outline-none"
                   />
@@ -1689,7 +1690,7 @@
                     onclick={handleAddReminder}
                     class="px-3 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors shrink-0 text-xs cursor-pointer border-none"
                   >
-                    Ajouter
+                    {m.planning_reminder_add()}
                   </button>
                 </div>
               </div>
@@ -1702,17 +1703,17 @@
           <div class="flex gap-2">
             <button onclick={handleDeleteDetail} class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold text-red-400 hover:bg-red-500/10 transition-colors">
               <Papicon icon="trash-2" size={12} />
-              Supprimer
+              {m.planning_detail_delete()}
             </button>
             {#if currentItemDetail.type === 'meeting' && canManageMeetings}
               <button onclick={() => openEditMeeting(raw)} class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors">
                 <Papicon icon="edit-2" size={12} />
-                Modifier
+                {m.planning_detail_edit()}
               </button>
             {/if}
           </div>
           <button onclick={() => detailModalOpen = false} class="px-4 py-1.5 rounded-md text-[11px] font-semibold text-on-surface-variant hover:bg-surface-hover transition-colors">
-            Fermer
+            {m.planning_detail_close()}
           </button>
         </div>
       </div>
@@ -1722,11 +1723,11 @@
   <!-- ===== CALL PERMISSIONS MODAL ===== -->
   {#if permissionModalOpen}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => permissionModalOpen = false} aria-label="Fermer"></button>
+      <button type="button" class="absolute inset-0 bg-black/50 border-none cursor-default" onclick={() => permissionModalOpen = false} aria-label={m.planning_close_aria()}></button>
 
       <div class="relative w-full max-w-lg bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200">
         <div class="px-6 py-4 border-b border-outline-variant/15 bg-surface-container-low flex justify-between items-center">
-          <h3 class="text-sm font-bold text-on-surface">Qui peut créer des appels ?</h3>
+          <h3 class="text-sm font-bold text-on-surface">{m.planning_call_perms_tooltip()}</h3>
           <button onclick={() => permissionModalOpen = false} class="w-7 h-7 rounded-md hover:bg-surface-hover flex items-center justify-center transition-colors">
             <Papicon icon="x" size={16} />
           </button>
@@ -1738,21 +1739,21 @@
               onclick={() => permMode = 'EVERYONE'}
               class="flex-1 py-2 text-[11px] font-semibold rounded-md transition-all {permMode === 'EVERYONE' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
             >
-              Tout le monde
+              {m.planning_perm_everyone()}
             </button>
             <button
               onclick={() => permMode = 'RESTRICTED'}
               class="flex-1 py-2 text-[11px] font-semibold rounded-md transition-all {permMode === 'RESTRICTED' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover'}"
             >
-              Rôles / membres précis
+              {m.planning_perm_restricted()}
             </button>
           </div>
 
           {#if permMode === 'RESTRICTED'}
             <div>
-              <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Rôles autorisés</span>
+              <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">{m.planning_perm_roles()}</span>
               {#if (dashboardStore.state.discordRoles || []).length === 0}
-                <p class="text-[10px] text-on-surface-variant/40">Aucun rôle Discord chargé.</p>
+                <p class="text-[10px] text-on-surface-variant/40">{m.planning_perm_no_roles()}</p>
               {:else}
                 <div class="flex flex-wrap gap-1.5">
                   {#each dashboardStore.state.discordRoles as role}
@@ -1768,7 +1769,7 @@
             </div>
 
             <div>
-              <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">Membres autorisés</span>
+              <span class="block text-[10px] font-semibold text-on-surface-variant/60 uppercase tracking-widest mb-2">{m.planning_perm_members()}</span>
 
               {#if permUserIds.length > 0}
                 <div class="flex flex-wrap gap-1.5 mb-2">
@@ -1799,7 +1800,7 @@
                   type="text"
                   value={permMemberSearchQuery}
                   oninput={(e) => handlePermMemberSearchInput((e.target as HTMLInputElement).value)}
-                  placeholder="Rechercher un membre..."
+                  placeholder={m.planning_search_member_ph()}
                   class="w-full pl-8 pr-3 py-2 bg-surface-container-high/30 rounded-md border border-outline-variant/15 text-[11px] font-medium text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:border-primary/50 transition-colors"
                 />
               </div>
@@ -1819,11 +1820,11 @@
                   {/each}
                 </div>
               {:else if permMemberSearchQuery.trim() && !permMemberSearchLoading}
-                <p class="mt-2 text-[10px] text-on-surface-variant/40 text-center py-2">Aucun membre trouvé</p>
+                <p class="mt-2 text-[10px] text-on-surface-variant/40 text-center py-2">{m.planning_no_member_found()}</p>
               {/if}
             </div>
           {:else}
-            <p class="text-[11px] text-on-surface-variant/60">Tous les membres ayant accès au dashboard staff pourront planifier des appels.</p>
+            <p class="text-[11px] text-on-surface-variant/60">{m.planning_perm_everyone_hint()}</p>
           {/if}
 
           {#if permError}
@@ -1836,7 +1837,7 @@
 
         <div class="px-6 py-3.5 border-t border-outline-variant/15 bg-surface-container-low flex justify-end gap-2">
           <button onclick={() => permissionModalOpen = false} class="px-4 py-2 rounded-lg text-[11px] font-semibold text-on-surface-variant hover:bg-surface-hover transition-colors">
-            Annuler
+            {m.common_cancel()}
           </button>
           <button
             onclick={savePermissionConfig}
@@ -1846,7 +1847,7 @@
             {#if permSaving}
               <div class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
             {/if}
-            Enregistrer
+            {m.common_save()}
           </button>
         </div>
       </div>
@@ -1878,14 +1879,14 @@
         onkeydown={(e) => e.key === 'Escape' && (meetingDeleteModalOpen = false)}
         role="button"
         tabindex="0"
-        aria-label="Fermer la modale"
+        aria-label={m.meetings_close_modal_aria()}
       ></div>
       
       <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter text-on-surface">
         <div class="p-8 border-b border-outline-variant/30 bg-red-500/5 flex items-center justify-between">
           <div>
-            <h3 class="text-xl font-semibold text-on-surface">Supprimer la réunion ?</h3>
-            <p class="text-on-surface-variant text-sm">Cette action est irréversible en base de données.</p>
+            <h3 class="text-xl font-semibold text-on-surface">{m.meetings_delete_modal_title()}</h3>
+            <p class="text-on-surface-variant text-sm">{m.meetings_delete_modal_subtitle()}</p>
           </div>
           <button onclick={() => meetingDeleteModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
             <Papicon icon="x" size={24} />
@@ -1894,38 +1895,38 @@
 
         <div class="p-8 space-y-6">
           <p class="text-sm text-on-surface-variant leading-relaxed">
-            Voulez-vous également supprimer les éléments associés sur Discord ?
+            {m.meetings_delete_question()}
           </p>
 
           <div class="space-y-4">
             <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
               <input type="checkbox" bind:checked={deleteDiscordEvent} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
               <div>
-                <p class="text-sm font-bold text-on-surface">Supprimer l'événement Discord</p>
-                <p class="text-[11px] text-on-surface-variant">Retire l'événement du calendrier du serveur.</p>
+                <p class="text-sm font-bold text-on-surface">{m.meetings_delete_event_label()}</p>
+                <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_event_desc()}</p>
               </div>
             </label>
 
             <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
               <input type="checkbox" bind:checked={deleteDiscordMessage} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
               <div>
-                <p class="text-sm font-bold text-on-surface">Supprimer le message d'annonce</p>
-                <p class="text-[11px] text-on-surface-variant">Supprime le message @everyone avec les boutons.</p>
+                <p class="text-sm font-bold text-on-surface">{m.meetings_delete_message_label()}</p>
+                <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_message_desc()}</p>
               </div>
             </label>
 
             <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
               <input type="checkbox" bind:checked={deleteDiscordNotification} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
               <div>
-                <p class="text-sm font-bold text-on-surface">Supprimer les notifications internes</p>
-                <p class="text-[11px] text-on-surface-variant">Nettoie l'Inbox du Dashboard pour tous les membres.</p>
+                <p class="text-sm font-bold text-on-surface">{m.meetings_delete_notif_label()}</p>
+                <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_notif_desc()}</p>
               </div>
             </label>
           </div>
 
           <div class="flex items-center justify-end gap-4 pt-4 border-t border-outline-variant/30">
             <button onclick={() => meetingDeleteModalOpen = false} class="px-6 py-2.5 font-bold text-on-surface-variant hover:bg-surface-hover rounded-xl transition-colors">
-              Annuler
+              {m.common_cancel()}
             </button>
             <button 
               onclick={confirmDeleteMeeting}
@@ -1935,7 +1936,7 @@
               {#if deletingMeeting}
                 <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
               {/if}
-              Supprimer
+              {m.planning_detail_delete()}
             </button>
           </div>
         </div>
@@ -1951,14 +1952,14 @@
         onkeydown={(e) => e.key === 'Escape' && (meetingEditModalOpen = false)}
         role="button"
         tabindex="0"
-        aria-label="Fermer la modale"
+        aria-label={m.meetings_close_modal_aria()}
       ></div>
       
       <div class="relative w-full max-w-3xl bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter text-on-surface">
         <div class="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-primary/5">
           <div>
-            <h3 class="text-2xl font-semibold text-on-surface">Modifier la réunion</h3>
-            <p class="text-on-surface-variant text-sm">Remplissez les détails pour l'organisation.</p>
+            <h3 class="text-2xl font-semibold text-on-surface">{m.planning_edit_meeting_title()}</h3>
+            <p class="text-on-surface-variant text-sm">{m.meetings_modal_subtitle()}</p>
           </div>
           <button onclick={() => meetingEditModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
             <Papicon icon="x" size={24} />
@@ -1967,17 +1968,17 @@
 
         <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           <div>
-            <label for="edit-meeting-title" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Titre de la réunion</label>
+            <label for="edit-meeting-title" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_title_label()}</label>
             <FormInput 
               id="edit-meeting-title"
               bind:value={editMeetingTitle}
-              placeholder="Ex: Réunion de coordination hebdomadaire"
+              placeholder={m.meetings_field_title_ph()}
               className="w-full text-lg font-bold"
             />
           </div>
 
           <div>
-            <label for="edit-meeting-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Début prévu</label>
+            <label for="edit-meeting-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_start_label()}</label>
             <FormInput 
               id="edit-meeting-date"
               type="datetime-local"
@@ -1987,7 +1988,7 @@
           </div>
 
           <div>
-            <label for="edit-meeting-end-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Fin prévue</label>
+            <label for="edit-meeting-end-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_end_label()}</label>
             <FormInput 
               id="edit-meeting-end-date"
               type="datetime-local"
@@ -2000,8 +2001,8 @@
             <DiscordMarkdownEditor
               id="edit-meeting-desc"
               bind:value={editMeetingDesc}
-              label="Ordre du jour / Description"
-              placeholder="Rédigez l'ordre du jour de la réunion..."
+              label={m.meetings_field_agenda_label()}
+              placeholder={m.meetings_field_agenda_ph()}
               rows={10}
               agendaMode={true}
               disabled={savingMeetingEdit}
@@ -2016,7 +2017,7 @@
 
           <div class="flex items-center justify-end gap-4 pt-4 mt-6 border-t border-outline-variant/30">
             <button onclick={() => meetingEditModalOpen = false} class="px-6 py-2.5 font-bold text-on-surface-variant hover:bg-surface-hover rounded-xl transition-colors">
-              Annuler
+              {m.common_cancel()}
             </button>
             <button 
               onclick={saveMeetingEdit}
@@ -2026,7 +2027,7 @@
               {#if savingMeetingEdit}
                 <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
               {/if}
-              Enregistrer
+              {m.common_save()}
             </button>
           </div>
         </div>

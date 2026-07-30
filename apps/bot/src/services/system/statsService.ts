@@ -2,6 +2,7 @@ import type { Client } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getCurrentInstance } from '../../utils/instanceContext.js';
+import { fetchExternal } from '../../utils/http.js';
 import botPackageJson from '../../../package.json';
 
 export interface BotPingPayload {
@@ -68,7 +69,7 @@ export async function pingMasterServer(client: Client): Promise<void> {
     logger.info('StatsPing', `Sending stats ping to ${pingUrl} (Guilds: ${guildCount}, Users: ${userCount}, Self-Hosted: ${isSelfHosted})`);
 
     // Perform the HTTP request
-    const response = await fetch(pingUrl, {
+    const response = await fetchExternal(pingUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

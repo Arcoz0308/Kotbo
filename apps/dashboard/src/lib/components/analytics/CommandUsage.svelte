@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { m, dateLocale } from '../../i18n';
 
   const { data = [] } = $props();
 
@@ -14,11 +15,11 @@
         <Papicon icon="Code" size={32} />
       </div>
       <div>
-        <h3 class="text-lg font-semibold">{totalCount.toLocaleString()}</h3>
-        <p class="text-xs font-medium text-on-surface-variant/50">Commandes Exécutées</p>
+        <h3 class="text-lg font-semibold">{totalCount.toLocaleString(dateLocale())}</h3>
+        <p class="text-xs font-medium text-on-surface-variant/50">{m.an_cmd_executed()}</p>
       </div>
       <p class="text-xs text-on-surface-variant/40 max-w-[200px]">
-        Utilisation globale des commandes du bot sur la période sélectionnée.
+        {m.an_cmd_summary_desc()}
       </p>
     </div>
 
@@ -26,7 +27,7 @@
     <div class="lg:col-span-2 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
       <h3 class="text-xl font-semibold flex items-center gap-3">
         <Papicon icon="ChartBar" size={20} class="text-primary" />
-        Répartition des Commandes
+        {m.an_cmd_breakdown()}
       </h3>
 
       <div class="space-y-4 max-h-[400px] overflow-y-auto pr-2 no-scrollbar">
@@ -38,7 +39,7 @@
                 <span class="text-sm font-bold text-on-surface">/{cmd.name}</span>
                 <span class="text-[10px] font-bold text-on-surface-variant/30">{percent.toFixed(1)}%</span>
               </div>
-              <span class="text-xs font-semibold text-primary">{cmd.count.toLocaleString()}</span>
+              <span class="text-xs font-semibold text-primary">{cmd.count.toLocaleString(dateLocale())}</span>
             </div>
             <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
               <div 
@@ -50,7 +51,7 @@
         {:else}
           <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30 space-y-3">
             <Papicon icon="Ghost" size={48} />
-            <p class="text-sm font-bold">Aucune commande enregistrée</p>
+            <p class="text-sm font-bold">{m.an_cmd_empty()}</p>
           </div>
         {/each}
       </div>

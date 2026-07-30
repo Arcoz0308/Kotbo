@@ -92,7 +92,7 @@
         <!-- Preset Palette -->
         <div>
           <span class="text-xs font-medium text-on-surface-variant/40 ml-1 mb-3 block">Couleurs recommandées</span>
-          <div class="grid grid-cols-6 gap-3">
+          <div class="form-color-modal__palette grid grid-cols-6 gap-3">
             {#each presetColors as pc}
               <button
                 onclick={() => tempValue = pc}
@@ -112,3 +112,20 @@
     </div>
   </div>
 {/if}
+
+<style>
+  /* Six swatches per row leaves each one under a fingertip; five is the most
+     that stays tappable on a 360px screen. */
+  @media (max-width: 767px) {
+    .form-color-modal__palette {
+      gap: 0.5rem;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .form-color-modal__palette > button {
+      width: 100%;
+      max-width: 2.5rem;
+      justify-self: center;
+    }
+  }
+</style>

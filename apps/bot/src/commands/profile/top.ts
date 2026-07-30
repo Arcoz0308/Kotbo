@@ -9,21 +9,34 @@ import {
   getOrCreateEconomyConfig,
 } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('c5_top');
+
+const choice = (key: 'argent' | 'rpg' | 'items' | 'monstres' | 'peche') => ({
+  name: (m as any)[`c5_top_choice_${key}`]({}, { locale: 'en' }) as string,
+  name_localizations: { fr: (m as any)[`c5_top_choice_${key}`]({}, { locale: 'fr' }) as string },
+  value: key,
+});
 
 const data = new SlashCommandBuilder()
-  .setName('top')
-  .setDescription('🏆 Classements RPG & Économie')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addStringOption(option =>
     option
       .setName('type')
-      .setDescription('Type de classement')
+      .setDescription(m.c5_top_opt_type({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c5_top_opt_type({}, { locale: 'fr' }) })
       .setRequired(true)
       .addChoices(
-        { name: '💰 Argent (les plus riches)', value: 'argent' },
-        { name: '⭐ RPG (niveau & XP)', value: 'rpg' },
-        { name: '🎒 Items (nombre d\'objets)', value: 'items' },
-        { name: '⚔️ Monstres (tués)', value: 'monstres' },
-        { name: '🎣 Pêche (poissons pêchés)', value: 'peche' },
+        choice('argent'),
+        choice('rpg'),
+        choice('items'),
+        choice('monstres'),
+        choice('peche'),
       ),
   );
 

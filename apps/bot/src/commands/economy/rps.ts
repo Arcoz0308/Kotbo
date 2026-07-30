@@ -4,7 +4,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, Me
 import prisma from '../../utils/db.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig, registerGambleAttempt } from '../../services/features/economyService.js';
 import { errorEmbed, COLORS } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 const CHOICES = ['pierre', 'feuille', 'ciseaux'];
@@ -15,24 +15,42 @@ function choiceLabel(choice: string, locale: 'fr' | 'en'): string {
   return m.b2_rps_scissors({}, { locale });
 }
 
+const meta = getCommandMetadata('b2_rps');
+
 const data = new SlashCommandBuilder()
-  .setName('rps')
-  .setDescription('🪨 Pierre, Feuille, Ciseaux pour parier et doubler vos pièces')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addStringOption(option =>
     option
       .setName('choix')
-      .setDescription('Votre coup')
+      .setDescription(m.b2_rps_opt_choix({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_rps_opt_choix({}, { locale: 'fr' }) })
       .setRequired(true)
       .addChoices(
-        { name: '🪨 Pierre', value: 'pierre' },
-        { name: '📄 Feuille', value: 'feuille' },
-        { name: '✂️ Ciseaux', value: 'ciseaux' }
+        {
+          name: m.b2_rps_choice_pierre({}, { locale: 'en' }),
+          name_localizations: { fr: m.b2_rps_choice_pierre({}, { locale: 'fr' }) },
+          value: 'pierre',
+        },
+        {
+          name: m.b2_rps_choice_feuille({}, { locale: 'en' }),
+          name_localizations: { fr: m.b2_rps_choice_feuille({}, { locale: 'fr' }) },
+          value: 'feuille',
+        },
+        {
+          name: m.b2_rps_choice_ciseaux({}, { locale: 'en' }),
+          name_localizations: { fr: m.b2_rps_choice_ciseaux({}, { locale: 'fr' }) },
+          value: 'ciseaux',
+        },
       )
   )
   .addIntegerOption(option =>
     option
       .setName('mise')
-      .setDescription('Le montant à parier')
+      .setDescription(m.b2_rps_opt_mise({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_rps_opt_mise({}, { locale: 'fr' }) })
       .setRequired(true)
       .setMinValue(1)
   );

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m, dateLocale } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -97,10 +98,10 @@
     
     await saveAction.run(async () => {
       const ok = await updateFeatureConfiguration('recruitment', { [key]: value });
-      if (!ok) throw new Error('Erreur API');
+      if (!ok) throw new Error(m.recruit_err_api());
       featureConfig[key] = value;
       return true;
-    }, { successMessage: 'Configuration mise à jour.' });
+    }, { successMessage: m.recruit_config_updated() });
   }
   const canView = $derived(
     !!(dashboardStore.state.featureAccess as any)?.recruitment?.canView
@@ -166,12 +167,12 @@
         fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
           headers: { 'Authorization': `Bearer ${authStore.token}` }
         }).catch(() => null),
-        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`, {
+        fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms?includeStructure=true`, {
           headers: { 'Authorization': `Bearer ${authStore.token}` }
         }).catch(() => null)
       ]);
 
-      if (!resCand.ok) throw new Error('Impossible de charger les candidatures');
+      if (!resCand.ok) throw new Error(m.recruit_err_load_applications());
       const dataCand = await resCand.json();
       candidatures = dataCand.candidatures || [];
 
@@ -219,12 +220,12 @@
   async function updateConfig(payload: any) {
     await saveAction.run(async () => {
       const ok = await updateRecruitmentConfig(payload);
-      if (!ok) throw new Error('Erreur API');
+      if (!ok) throw new Error(m.recruit_err_api());
 
       await dashboardStore.refresh();
       configVisible = false;
       return true;
-    }, { successMessage: 'Configuration enregistrée.' });
+    }, { successMessage: m.recruit_config_saved() });
   }
 
   async function doAction(candidatureId: string, action: string, data: any = {}) {
@@ -240,7 +241,7 @@
       });
       if (!res.ok) {
         const errJson = await res.json();
-        throw new Error(errJson.error || 'Action a échoué');
+        throw new Error(errJson.error || m.recruit_err_action_failed());
       }
       await fetchInitialData();
     } catch (err: any) {
@@ -250,7 +251,7 @@
   }
 
   async function deleteCandidature(candidatureId: string) {
-    if (!(await confirmDialog.danger('Supprimer cette candidature ?', 'Cette suppression est définitive.'))) return;
+    if (!(await confirmDialog.danger(m.recruit_confirm_delete_title(), m.recruit_confirm_delete_desc()))) return;
     loading = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/candidatures/${candidatureId}`, {
@@ -260,7 +261,7 @@
         }
       });
       if (!res.ok) {
-        throw new Error('Impossible de supprimer');
+        throw new Error(m.recruit_err_delete());
       }
       await fetchInitialData();
     } catch (err: any) {
@@ -271,11 +272,11 @@
 
   function getStatusLabel(status: string) {
     switch (status) {
-      case 'PENDING': return 'En attente';
-      case 'ORAL': return 'Entretien Oral';
-      case 'APPROVED': return 'Validé';
-      case 'REJECTED': return 'Refusé';
-      case 'AUTO_REJECTED': return 'Auto-Refusé';
+      case 'PENDING': return m.recruit_status_pending();
+      case 'ORAL': return m.recruit_status_oral();
+      case 'APPROVED': return m.recruit_status_approved();
+      case 'REJECTED': return m.recruit_status_rejected();
+      case 'AUTO_REJECTED': return m.recruit_status_auto_rejected();
       default: return status;
     }
   }
@@ -357,7 +358,7 @@
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Impossible de charger les formulaires');
+      if (!res.ok) throw new Error(m.recruit_err_load_forms());
       const data = await res.json();
       // Filter only Google Forms
       forms = (data.forms || []).filter((f: any) => f.structure?.type === 'google');
@@ -380,29 +381,29 @@
           {
             id: 'discord_id',
             type: 'short_text',
-            label: 'Discord ID',
-            description: 'Votre ID Discord (ex: 123456789012345678)',
+            label: m.recruit_form_default_discord_id_label(),
+            description: m.recruit_form_default_discord_id_desc(),
             required: true,
           },
           {
             id: 'discord_username',
             type: 'short_text',
-            label: 'Pseudo Discord',
-            description: 'Votre pseudo Discord (ex: elouan)',
+            label: m.recruit_form_default_username_label(),
+            description: m.recruit_form_default_username_desc(),
             required: true,
           },
           {
             id: 'email',
             type: 'email',
-            label: 'Email',
-            description: 'Votre adresse email',
+            label: m.recruit_form_default_email_label(),
+            description: m.recruit_form_default_email_desc(),
             required: true,
           },
           {
             id: 'age',
             type: 'number',
-            label: 'Âge',
-            description: 'Votre âge',
+            label: m.recruit_form_default_age_label(),
+            description: m.recruit_form_default_age_desc(),
             required: true,
           },
         ],
@@ -423,7 +424,7 @@
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Erreur lors de la création');
+        throw new Error(data.error || m.recruit_err_create_form());
       }
       const data = await res.json();
       newlyGeneratedKey = data.apiKey?.key || data.apiKey || ''; // fallback if API returns key directly
@@ -433,38 +434,38 @@
       newFormDescription = '';
       await fetchForms();
       return true;
-    }, { successMessage: 'Formulaire Google créé avec succès !' });
+    }, { successMessage: m.recruit_form_created() });
   }
 
   async function deleteForm(formId: string) {
-    if (!(await confirmDialog.danger('Supprimer ce formulaire ?', 'Cette action est irréversible.'))) return;
+    if (!(await confirmDialog.danger(m.recruit_confirm_delete_form_title(), m.recruit_confirm_delete_form_desc()))) return;
 
     await deleteFormAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Erreur lors de la suppression');
+      if (!res.ok) throw new Error(m.recruit_err_delete_form());
       await fetchForms();
       return true;
-    }, { successMessage: 'Formulaire supprimé' });
+    }, { successMessage: m.recruit_form_deleted() });
   }
 
   async function regenerateAPIKey(formId: string) {
-    if (!(await confirmDialog.ask({ title: 'Régénérer la clé API ?', description: "L'ancienne clé ne fonctionnera plus.", confirmLabel: 'Régénérer', variant: 'warning' }))) return;
+    if (!(await confirmDialog.ask({ title: m.recruit_confirm_regen_title(), description: m.recruit_confirm_regen_desc(), confirmLabel: m.recruit_confirm_regen_btn(), variant: 'warning' }))) return;
 
     await regenerateKeyAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}/regenerate-key`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Erreur lors de la régénération');
+      if (!res.ok) throw new Error(m.recruit_err_regen());
       const data = await res.json();
       newlyGeneratedKey = data.apiKey;
       showKeyModal = true;
       await fetchForms();
       return true;
-    }, { successMessage: 'Clé API régénérée' });
+    }, { successMessage: m.recruit_key_regenerated() });
   }
 
   async function showGoogleAppsScript(form: any) {
@@ -473,7 +474,7 @@
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${form.id}/script`, {
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
-      if (!res.ok) throw new Error('Erreur lors de la génération du script');
+      if (!res.ok) throw new Error(m.recruit_err_script());
       const data = await res.json();
       generatedScript = data.script;
       showScriptModal = true;
@@ -492,8 +493,9 @@
 </script>
 
 <ModulePage 
-  title="Recrutement" 
-  description="Suivi des candidatures et intégration du personnel." 
+  title={m.recruit_page_title()}
+  description={m.recruit_page_desc()}
+
   icon="person-add"
   featureKey="recruitment"
 >
@@ -506,18 +508,18 @@
           class="tab-button {activeTab === 'candidatures' ? 'active' : ''}"
         >
           <Papicon icon="people" size={16} />
-          <span class="text-xs font-bold">Candidatures</span>
+          <span class="text-xs font-bold">{m.recruit_tab_applications()}</span>
         </button>
         <button 
           onclick={() => activeTab = 'google-forms'}
           class="tab-button {activeTab === 'google-forms' ? 'active' : ''}"
         >
           <Papicon icon="description" size={16} />
-          <span class="text-xs font-bold">Google Forms</span>
+          <span class="text-xs font-bold">{m.recruit_tab_google_forms()}</span>
         </button>
       </div>
 
-      <RefreshButton onClick={activeTab === 'candidatures' ? fetchInitialData : fetchForms} loading={activeTab === 'candidatures' ? loading : formsLoading} label="Actualiser" />
+      <RefreshButton onClick={activeTab === 'candidatures' ? fetchInitialData : fetchForms} loading={activeTab === 'candidatures' ? loading : formsLoading} label={m.recruit_refresh()} />
 
       {#if activeTab === 'google-forms' && canManageSettings}
         <button 
@@ -525,7 +527,7 @@
           class="px-4 py-2.5 rounded-xl bg-primary text-white font-medium text-[13px] active:scale-[0.98] transition-all flex items-center gap-2"
         >
           <Papicon icon="add" size={16} />
-          Nouveau Google Form
+          {m.recruit_new_google_form()}
         </button>
       {/if}
 
@@ -533,7 +535,7 @@
         <button 
           onclick={() => configVisible = true}
           class="p-2.5 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
-          title="Paramètres du module"
+          title={m.recruit_module_settings_tooltip()}
         >
           <Papicon icon="settings" size={18} />
         </button>
@@ -550,7 +552,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-semibold text-on-surface leading-none">{stats.pending}</p>
-            <p class="text-[11px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">En attente</p>
+            <p class="text-[11px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">{m.recruit_stat_pending()}</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-sm hover:shadow-primary/5 transition-all">
@@ -559,7 +561,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-semibold text-on-surface leading-none">{stats.oral}</p>
-            <p class="text-[11px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">Oraux</p>
+            <p class="text-[11px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">{m.recruit_stat_oral()}</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-sm hover:shadow-rose-500/20 transition-all">
@@ -568,7 +570,7 @@
         </div>
         <div class="text-xs text-rose-500">
             <p class="text-2xl font-semibold leading-none">{stats.autoRejected}</p>
-            <p class="text-[11px] uppercase tracking-widest font-bold mt-1 opacity-70">Auto-Refus</p>
+            <p class="text-[11px] uppercase tracking-widest font-bold mt-1 opacity-70">{m.recruit_stat_auto_rejected()}</p>
         </div>
       </div>
     </div>
@@ -579,7 +581,7 @@
         <button 
            onclick={() => filter = f}
            class="px-6 py-2.5 rounded-full text-[13px] font-medium transition-all {filter === f ? 'bg-primary text-white scale-105' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'}">
-           {f === 'ALL' ? 'Tout' : getStatusLabel(f)}
+           {f === 'ALL' ? m.recruit_filter_all() : getStatusLabel(f)}
         </button>
       {/each}
   </div>
@@ -609,9 +611,9 @@
       <div class="w-24 h-24 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner">
         <Papicon icon="person_add_disabled" size={48} />
       </div>
-      <h3 class="text-2xl font-semibold tracking-tight text-on-surface/50">Aucune candidature</h3>
+      <h3 class="text-2xl font-semibold tracking-tight text-on-surface/50">{m.recruit_empty_title()}</h3>
       <p class="mt-3 text-sm max-w-sm text-center opacity-60 leading-relaxed px-10">
-        Reliez votre formulaire externe (Google Forms) via le Webhook Kotbo pour voir les candidatures apparaître ici.
+        {m.recruit_empty_desc()}
       </p>
     </div>
   {:else}
@@ -621,9 +623,9 @@
           <Papicon icon={filter === 'PENDING' ? 'inbox' : 'filter_list_off'} size={32} />
         </div>
         <h3 class="text-xl font-semibold tracking-tight text-on-surface/40">
-          {filter === 'PENDING' ? 'Pas de nouvelle candidature pour l\'instant' : `Aucune candidature "${getStatusLabel(filter)}"`}
+          {filter === 'PENDING' ? m.recruit_empty_pending() : m.recruit_empty_filtered({ status: getStatusLabel(filter) })}
         </h3>
-        <p class="mt-2 text-xs opacity-50">Revenez plus tard ou changez de filtre.</p>
+        <p class="mt-2 text-xs opacity-50">{m.recruit_empty_filtered_hint()}</p>
       </div>
     {:else}
       <div class="grid grid-cols-1 gap-6">
@@ -640,9 +642,9 @@
                                   {candidature.username?.charAt(0).toUpperCase() || '?'}
                               </div>
                               <div>
-                                  <h3 class="text-xl font-semibold text-on-surface font-headline tracking-tight">{candidature.username || 'Anonyme'}</h3>
+                                  <h3 class="text-xl font-semibold text-on-surface font-headline tracking-tight">{candidature.username || m.recruit_anonymous()}</h3>
                                   <div class="flex flex-wrap items-center gap-3 mt-1">
-                                      <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString()}</span>
+                                      <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString(dateLocale())}</span>
                                       <span class="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-widest border {getStatusColor(candidature.status)}">
                                           {getStatusLabel(candidature.status)}
                                       </span>
@@ -656,7 +658,7 @@
                                 <button 
                                     onclick={() => deleteCandidature(candidature.id)}
                                     class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
-                                    title="Supprimer la candidature"
+                                    title={m.recruit_delete_tooltip()}
                                 >
                                     <Papicon icon="delete" size={14} />
                                 </button>
@@ -688,17 +690,17 @@
                   <!-- Actions Side -->
                   <div class="xl:w-80 space-y-6 xl:border-l border-outline-variant/20 xl:pl-8">
                       <div>
-                          <p class="text-xs font-medium text-primary mb-3">Notes de gestion</p>
+                          <p class="text-xs font-medium text-primary mb-3">{m.recruit_notes_label()}</p>
                           <textarea 
                              bind:value={candidature.notes}
                              onblur={() => doAction(candidature.id, 'status_update', { status: candidature.status, notes: candidature.notes })}
-                             placeholder="Ajouter une observation interne..."
+                             placeholder={m.recruit_notes_ph()}
                              class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-lg p-4 text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
                       </div>
                       
                       {#if candidature.status === 'ORAL' && candidature.ticketChannelId}
                          <div class="flex items-center gap-2 p-3 rounded-xl bg-surface-container-low text-xs font-medium text-on-surface-variant">
-                            <Papicon icon="forum" size={16} /> Ticket créé
+                            <Papicon icon="forum" size={16} /> {m.recruit_ticket_created()}
                          </div>
                       {/if}
 
@@ -708,31 +710,31 @@
                                 <button 
                                    onclick={() => openValidateModal(candidature)}
                                    class="col-span-2 py-3 rounded-lg bg-blue-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-                                    <Papicon icon="check_circle" size={14} /> Passer Oral
+                                    <Papicon icon="check_circle" size={14} /> {m.recruit_action_to_oral()}
                                 </button>
                                 <button 
                                    onclick={() => openRejectModal(candidature)}
                                    class="col-span-2 py-3 rounded-lg bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-[13px] font-medium transition-all">
-                                    Refuser
+                                    {m.recruit_action_reject()}
                                 </button>
                              {/if}
                              {#if candidature.status === 'AUTO_REJECTED'}
                                <button 
                                  onclick={() => openValidateModal(candidature)}
                                  class="col-span-2 py-3 rounded-lg bg-emerald-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-                                  <Papicon icon="verified" size={14} /> Accepter quand même
+                                  <Papicon icon="verified" size={14} /> {m.recruit_action_accept_anyway()}
                                </button>
                              {/if}
                              {#if candidature.status === 'ORAL'}
                                 <button 
                                    onclick={() => openOralPassModal(candidature)}
                                    class="py-3 rounded-lg bg-emerald-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center">
-                                    Concluant
+                                    {m.recruit_action_oral_pass()}
                                 </button>
                                 <button 
                                    onclick={() => openOralFailModal(candidature)}
                                    class="py-3 rounded-lg bg-rose-600 text-white text-[13px] font-medium shadow-sm active:scale-[0.98] transition-all flex items-center justify-center">
-                                    Échoué
+                                    {m.recruit_action_oral_fail()}
                                 </button>
                              {/if}
                         </div>
@@ -740,7 +742,7 @@
                       
                       {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
                          <div class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
-                           Recandidature : {new Date(candidature.reapplyAfter).toLocaleDateString()}
+                           {m.recruit_reapply_after({ date: new Date(candidature.reapplyAfter).toLocaleDateString(dateLocale()) })}
                          </div>
                       {/if}
                   </div>
@@ -773,9 +775,9 @@
           <div class="w-24 h-24 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner">
             <Papicon icon="description" size={48} />
           </div>
-          <h3 class="text-2xl font-semibold tracking-tight text-on-surface/50">Aucun formulaire Google Forms</h3>
+          <h3 class="text-2xl font-semibold tracking-tight text-on-surface/50">{m.recruit_forms_empty_title()}</h3>
           <p class="mt-3 text-sm max-w-sm text-center opacity-60 leading-relaxed px-10">
-            Créez votre première intégration Google Forms pour commencer à recevoir des candidatures depuis vos formulaires externes.
+            {m.recruit_forms_empty_desc()}
           </p>
         </div>
       {:else}
@@ -793,7 +795,7 @@
                     {/if}
                   </div>
                   <span class="px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border {form.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}">
-                    {form.isActive ? 'Actif' : 'Inactif'}
+                    {form.isActive ? m.recruit_form_active() : m.recruit_form_inactive()}
                   </span>
                 </div>
 
@@ -801,7 +803,7 @@
                   {#if form.apiKey}
                     <div class="flex items-center gap-2">
                       <Papicon icon="api" size={14} class="text-primary" />
-                      <span class="font-medium">Clé API :</span>
+                      <span class="font-medium">{m.recruit_form_api_key()}</span>
                       <span class="font-mono bg-surface-container px-2 py-0.5 rounded border border-outline-variant/10">{form.apiKey.displayKey}</span>
                     </div>
                   {:else}
@@ -813,10 +815,10 @@
                       <button
                         onclick={() => {
                           navigator.clipboard.writeText(`${window.location.origin}/form/${form.id}`);
-                          toast.success("Lien copié dans le presse-papier !");
+                          toast.success(m.recruit_link_copied());
                         }}
                         class="p-1 rounded-md hover:bg-surface-container-high transition-colors shrink-0 text-on-surface-variant/65"
-                        title="Copier le lien public"
+                        title={m.recruit_copy_link_tooltip()}
                       >
                         <Papicon icon="content_copy" size={12} />
                       </button>
@@ -824,7 +826,7 @@
                   {/if}
                   <div class="flex items-center gap-2">
                     <Papicon icon="send" size={14} class="text-primary" />
-                    <span><strong>{form._count?.candidatures || 0}</strong> candidatures reçues</span>
+                    <span>{m.recruit_applications_received({ count: form._count?.candidatures || 0 })}</span>
                   </div>
                 </div>
 
@@ -833,15 +835,15 @@
                     <button
                       onclick={() => showGoogleAppsScript(form)}
                       class="flex-1 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-[13px] font-medium transition-all flex items-center justify-center gap-1.5"
-                      title="Générer le script Google Forms"
+                      title={m.recruit_script_tooltip()}
                     >
                       <Papicon icon="code" size={14} />
-                      Script
+                      {m.recruit_script_btn()}
                     </button>
                     <button
                       onclick={() => regenerateAPIKey(form.id)}
                       class="px-3 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant text-xs font-semibold uppercase transition-all"
-                      title="Régénérer la clé API"
+                      title={m.recruit_regen_tooltip()}
                     >
                       <Papicon icon="refresh" size={14} />
                     </button>
@@ -849,7 +851,7 @@
                   <button
                     onclick={() => deleteForm(form.id)}
                     class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-500 text-xs font-semibold uppercase transition-all"
-                    title="Supprimer le formulaire"
+                    title={m.recruit_delete_form_tooltip()}
                   >
                     <Papicon icon="delete" size={14} />
                   </button>
@@ -872,8 +874,8 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
         <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5">
           <div>
-            <h3 class="text-2xl font-semibold text-on-surface">Configuration Recrutement</h3>
-            <p class="text-on-surface-variant text-sm">Gérez les paramètres de l'équipe et des tickets.</p>
+            <h3 class="text-2xl font-semibold text-on-surface">{m.recruit_config_modal_title()}</h3>
+            <p class="text-on-surface-variant text-sm">{m.recruit_config_modal_desc()}</p>
           </div>
           <button onclick={() => configVisible = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
             <Papicon icon="x" size={24} />
@@ -883,12 +885,12 @@
         <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
              <div class="space-y-4">
                 <label class="block">
-                  <span class="text-[13px] font-medium text-on-surface-variant/60 ml-1 mb-2 block">Salon de logs recrutement</span>
+                  <span class="text-[13px] font-medium text-on-surface-variant/60 ml-1 mb-2 block">{m.recruit_field_log_channel()}</span>
                   <FormSelect
                      bind:value={recruitmentLogChannelId}
                      className="w-full"
                   >
-                    <option value="">Sélectionner un salon</option>
+                    <option value="">{m.recruit_select_channel()}</option>
                     {#each (dashboardStore.state.discordChannels as any[]) as c}
                       <option value={c.id}>#{c.name}</option>
                     {/each}
@@ -896,11 +898,11 @@
                 </label>
 
                <label class="block">
-                 <span class="text-[13px] font-medium text-on-surface-variant/60 ml-1 mb-2 block">ID Catégorie Tickets</span>
+                 <span class="text-[13px] font-medium text-on-surface-variant/60 ml-1 mb-2 block">{m.recruit_field_category_id()}</span>
                  <FormInput 
                    type="text" 
                    bind:value={recruitmentCategoryId} 
-                   placeholder="Ex: 123456789012345678"
+                   placeholder={m.recruit_field_category_ph()}
                    className="w-full"
                  />
                </label>
@@ -918,13 +920,13 @@
              </div>
         
         <div class="p-8 bg-surface-container-low border-t border-outline-variant/20 flex gap-4">
-            <button onclick={() => configVisible = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">Annuler</button>
+            <button onclick={() => configVisible = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">{m.common_cancel()}</button>
             <button 
               onclick={updateConfig} 
               disabled={saveAction.state.loading}
               class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
+              {saveAction.state.loading ? m.recruit_saving() : m.common_save()}
             </button>
         </div>
     </div>
@@ -937,23 +939,23 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-blue-500">
            <Papicon icon="check_circle" size={36} />
-           <h3 class="text-2xl font-semibold">Valider la candidature</h3>
+           <h3 class="text-2xl font-semibold">{m.recruit_validate_modal_title()}</h3>
         </div>
-        <p class="text-sm text-on-surface-variant/80 mb-6">Cette action créera un salon ticket et enverra un message privé au candidat.</p>
+        <p class="text-sm text-on-surface-variant/80 mb-6">{m.recruit_validate_modal_desc()}</p>
         
         <div>
-          <label for="validate-discord-id" class="field-label">ID Discord du Candidat</label>
-          <input id="validate-discord-id" type="text" bind:value={validationDiscordId} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium font-mono" placeholder="Ex: 123456789012345678">
-            <p class="text-[10px] text-on-surface-variant/60 mt-2">Ce champ doit être pré-rempli si le candidat a fourni un ID valide. Le bot s'en servira pour l'assigner au ticket.</p>
+          <label for="validate-discord-id" class="field-label">{m.recruit_validate_field_id()}</label>
+          <input id="validate-discord-id" type="text" bind:value={validationDiscordId} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium font-mono" placeholder={m.recruit_field_category_ph()}>
+            <p class="text-[10px] text-on-surface-variant/60 mt-2">{m.recruit_validate_field_hint()}</p>
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-            <button onclick={() => validateModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
+            <button onclick={() => validateModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">{m.common_cancel()}</button>
             <button 
                onclick={() => doAction(validateModalTarget.id, 'approve', { discordUserId: validationDiscordId }).then(() => validateModalTarget = null)} 
                disabled={!validationDiscordId}
                class="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white disabled:opacity-50 active:scale-[0.98] transition-transform shadow-sm">
-               Créer le ticket
+               {m.recruit_validate_submit()}
             </button>
         </div>
     </div>
@@ -966,21 +968,21 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-rose-500">
            <Papicon icon="cancel" size={36} />
-           <h3 class="text-2xl font-semibold">Refuser la candidature</h3>
+           <h3 class="text-2xl font-semibold">{m.recruit_reject_modal_title()}</h3>
         </div>
-        <p class="text-sm text-on-surface-variant/80 mb-6">Cette action clôturera la candidature.</p>
+        <p class="text-sm text-on-surface-variant/80 mb-6">{m.recruit_reject_modal_desc()}</p>
         
         <div>
-          <label for="reject-reason" class="field-label">Raison (Envoyée en MP) — Optionnel</label>
-          <textarea id="reject-reason" bind:value={rejectReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder="Raison spécifique du refus..."></textarea>
+          <label for="reject-reason" class="field-label">{m.recruit_reason_label()}</label>
+          <textarea id="reject-reason" bind:value={rejectReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder={m.recruit_reject_reason_ph()}></textarea>
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-            <button onclick={() => rejectModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
+            <button onclick={() => rejectModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">{m.common_cancel()}</button>
             <button 
                onclick={() => doAction(rejectModalTarget.id, 'reject', { reason: rejectReason }).then(() => rejectModalTarget = null)} 
                class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm">
-               Confirmer le refus
+               {m.recruit_reject_submit()}
             </button>
         </div>
     </div>
@@ -993,28 +995,28 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-emerald-500">
            <Papicon icon="how_to_reg" size={36} />
-           <h3 class="text-2xl font-semibold">Oral Concluant</h3>
+           <h3 class="text-2xl font-semibold">{m.recruit_oral_pass_title()}</h3>
         </div>
-        <p class="text-sm text-on-surface-variant/80 mb-6">Crée automatiquement le profil Staff Helper Test et assigne le tuteur de suivi.</p>
+        <p class="text-sm text-on-surface-variant/80 mb-6">{m.recruit_oral_pass_desc()}</p>
         
         <div class="space-y-4 font-inter">
              <div>
-               <label for="oral-pass-tutor" class="field-label">Assigner un tuteur</label>
+               <label for="oral-pass-tutor" class="field-label">{m.recruit_assign_tutor_label()}</label>
                <select id="oral-pass-tutor" bind:value={tutorSelected} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
-                    <option value="" disabled>Sélectionner un tuteur...</option>
+                    <option value="" disabled>{m.recruit_select_tutor()}</option>
                     {#each tutors as tutor}
                        <option value={tutor.userId}>{tutor.displayName || tutor.username} ({tutor.grade})</option>
                     {/each}
                 </select>
                 {#if tutors.length === 0}
-                   <p class="text-rose-400 text-xs mt-1">Aucun tuteur de niveau ≥ 2 n'a été trouvé.</p>
+                   <p class="text-rose-400 text-xs mt-1">{m.recruit_no_tutor_found()}</p>
                 {/if}
              </div>
 
              <div>
-               <label for="oral-pass-hierarchy" class="field-label">Hiérarchie d'intégration (Optionnel)</label>
+               <label for="oral-pass-hierarchy" class="field-label">{m.recruit_hierarchy_label()}</label>
                <select id="oral-pass-hierarchy" bind:value={selectedHierarchyId} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
-                    <option value="">-- Aucune --</option>
+                    <option value="">{m.recruit_hierarchy_none()}</option>
                     {#each hierarchies as h}
                        <option value={h.id}>{h.name}</option>
                     {/each}
@@ -1024,9 +1026,9 @@
              {#if selectedHierarchyId}
                {@const hRoles = selectedHierarchyId ? hierarchies.find(h => h.id === selectedHierarchyId)?.roles || [] : []}
                <div>
-                 <label for="oral-pass-hierarchy-grade" class="field-label">Grade hiérarchique de départ</label>
+                 <label for="oral-pass-hierarchy-grade" class="field-label">{m.recruit_hierarchy_grade_label()}</label>
                  <select id="oral-pass-hierarchy-grade" bind:value={selectedHierarchyGrade} class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
-                      <option value="">-- Choisir un grade --</option>
+                      <option value="">{m.recruit_hierarchy_grade_none()}</option>
                       {#each hRoles as r}
                          <option value={r.name}>{r.name}</option>
                       {/each}
@@ -1035,13 +1037,13 @@
              {/if}
 
              <div>
-               <label for="oral-pass-notes" class="field-label">Notes d'entretien</label>
-               <textarea id="oral-pass-notes" bind:value={oralPassNotes} class="w-full h-24 bg-surface-container rounded-lg p-4 focus:outline-hidden text-sm" placeholder="Observation sur l'entretien..."></textarea>
+               <label for="oral-pass-notes" class="field-label">{m.recruit_interview_notes_label()}</label>
+               <textarea id="oral-pass-notes" bind:value={oralPassNotes} class="w-full h-24 bg-surface-container rounded-lg p-4 focus:outline-hidden text-sm" placeholder={m.recruit_interview_notes_ph()}></textarea>
              </div>
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-            <button onclick={() => oralPassModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors font-inter">Annuler</button>
+            <button onclick={() => oralPassModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors font-inter">{m.common_cancel()}</button>
             <button 
                onclick={async () => {
                   await doAction(oralPassModalTarget.id, 'oral_pass', { 
@@ -1053,7 +1055,7 @@
                   oralPassModalTarget = null;
                }} 
                class="flex-1 py-4 rounded-xl font-bold bg-emerald-600 text-white active:scale-[0.98] transition-transform shadow-sm font-inter">
-               Valider & Intégrer
+               {m.recruit_oral_pass_submit()}
             </button>
         </div>
     </div>
@@ -1066,21 +1068,21 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-rose-500">
            <Papicon icon="thumb_down" size={36} />
-           <h3 class="text-2xl font-semibold">Oral Échoué</h3>
+           <h3 class="text-2xl font-semibold">{m.recruit_oral_fail_title()}</h3>
         </div>
-        <p class="text-sm text-on-surface-variant/80 mb-6">Le profil est rejeté et une attente d'1 mois est appliquée avant de pouvoir re-candidater.</p>
+        <p class="text-sm text-on-surface-variant/80 mb-6">{m.recruit_oral_fail_desc()}</p>
         
         <div>
-          <label for="oral-fail-reason" class="field-label">Raison (Envoyée en MP) — Optionnel</label>
-          <textarea id="oral-fail-reason" bind:value={oralFailReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden text-sm" placeholder="Raison de l'échec..."></textarea>
+          <label for="oral-fail-reason" class="field-label">{m.recruit_reason_label()}</label>
+          <textarea id="oral-fail-reason" bind:value={oralFailReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden text-sm" placeholder={m.recruit_oral_fail_reason_ph()}></textarea>
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-            <button onclick={() => oralFailModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
+            <button onclick={() => oralFailModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">{m.common_cancel()}</button>
             <button 
                onclick={() => doAction(oralFailModalTarget.id, 'oral_fail', { reason: oralFailReason }).then(() => oralFailModalTarget = null)} 
                class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white active:scale-[0.98] transition-transform shadow-sm">
-               Rejeter (Délai 1 mois)
+               {m.recruit_oral_fail_submit()}
             </button>
         </div>
     </div>
@@ -1092,8 +1094,8 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
       <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5">
         <div>
-          <h3 class="text-2xl font-semibold text-on-surface">Nouveau Formulaire Google Forms</h3>
-          <p class="text-on-surface-variant text-sm">Créez une intégration pour un formulaire externe.</p>
+          <h3 class="text-2xl font-semibold text-on-surface">{m.recruit_create_form_title()}</h3>
+          <p class="text-on-surface-variant text-sm">{m.recruit_create_form_desc()}</p>
         </div>
         <button onclick={() => showCreateModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
           <Papicon icon="x" size={24} />
@@ -1102,33 +1104,33 @@
 
       <div class="p-8 space-y-6">
         <label class="block">
-          <span class="text-[13px] font-medium text-primary mb-2 block">Nom du formulaire</span>
+          <span class="text-[13px] font-medium text-primary mb-2 block">{m.recruit_form_name_label()}</span>
           <FormInput 
             type="text" 
             bind:value={newFormName} 
-            placeholder="Ex: Formulaire Modération"
+            placeholder={m.recruit_form_name_ph()}
             className="w-full"
           />
         </label>
 
         <label class="block">
-          <span class="text-[13px] font-medium text-primary mb-2 block">Description</span>
+          <span class="text-[13px] font-medium text-primary mb-2 block">{m.recruit_form_desc_label()}</span>
           <textarea 
             bind:value={newFormDescription} 
-            placeholder="Description optionnelle..."
+            placeholder={m.recruit_form_desc_ph()}
             class="w-full bg-surface-container rounded-lg px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm h-24 resize-none"
           ></textarea>
         </label>
       </div>
 
       <div class="p-8 bg-surface-container-low border-t border-outline-variant/20 flex gap-4">
-        <button onclick={() => showCreateModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">Annuler</button>
+        <button onclick={() => showCreateModal = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">{m.common_cancel()}</button>
         <button 
           onclick={createForm} 
           disabled={createFormAction.state.loading || !newFormName.trim()}
           class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary active:scale-[0.98] transition-all disabled:opacity-50"
         >
-          {createFormAction.state.loading ? 'Création...' : 'Créer l\'intégration'}
+          {createFormAction.state.loading ? m.recruit_creating() : m.recruit_create_form_submit()}
         </button>
       </div>
     </div>
@@ -1141,8 +1143,8 @@
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-4xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto font-inter">
       <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5 sticky top-0 bg-surface z-10">
         <div>
-          <h3 class="text-2xl font-semibold text-on-surface">Script Google Apps Script</h3>
-          <p class="text-on-surface-variant text-sm">Formulaire: {selectedForm?.name}</p>
+          <h3 class="text-2xl font-semibold text-on-surface">{m.recruit_script_modal_title()}</h3>
+          <p class="text-on-surface-variant text-sm">{m.recruit_script_modal_form({ name: selectedForm?.name ?? "" })}</p>
         </div>
         <button onclick={() => showScriptModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
           <Papicon icon="x" size={24} />
@@ -1153,14 +1155,14 @@
         <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-4 text-amber-400">
           <Papicon icon="info" size={20} class="shrink-0" />
           <div class="text-sm">
-            <p class="font-bold mb-1">Instructions d'installation</p>
+            <p class="font-bold mb-1">{m.recruit_script_install_title()}</p>
             <ol class="list-decimal list-inside space-y-1 text-amber-400/80">
-              <li>Ouvrez votre Google Form</li>
-              <li>Cliquez sur "Extensions" > "Apps Script"</li>
-              <li>Supprimez tout code existant</li>
-              <li>Collez ce script</li>
-              <li>Sauvegardez (Ctrl+S)</li>
-              <li>Ajoutez un trigger: onSubmit > From form > On form submit</li>
+              <li>{m.recruit_script_step1()}</li>
+              <li>{m.recruit_script_step2()}</li>
+              <li>{m.recruit_script_step3()}</li>
+              <li>{m.recruit_script_step4()}</li>
+              <li>{m.recruit_script_step5()}</li>
+              <li>{m.recruit_script_step6()}</li>
             </ol>
           </div>
         </div>
@@ -1170,17 +1172,17 @@
           <button 
             onclick={() => {
               navigator.clipboard.writeText(generatedScript);
-              toast.success("Script copié !");
+              toast.success(m.recruit_script_copied());
             }}
             class="absolute top-4 right-4 px-4 py-2 rounded-xl bg-primary text-white text-[13px] font-medium hover:bg-primary/90 transition-all shadow-md active:scale-95"
           >
-            Copier
+            {m.recruit_copy_btn()}
           </button>
         </div>
       </div>
       
       <div class="p-8 bg-surface-container-low border-t border-outline-variant/20">
-        <button onclick={() => showScriptModal = false} class="w-full py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">Fermer</button>
+        <button onclick={() => showScriptModal = false} class="w-full py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">{m.recruit_close_btn()}</button>
       </div>
     </div>
   </div>
@@ -1194,9 +1196,9 @@
         <div>
           <h3 class="text-2xl font-semibold text-emerald-500 flex items-center gap-2">
             <Papicon icon="check_circle" size={24} />
-            Clé API Générée
+            {m.recruit_key_modal_title()}
           </h3>
-          <p class="text-on-surface-variant text-sm">Conservez-la précieusement</p>
+          <p class="text-on-surface-variant text-sm">{m.recruit_key_modal_subtitle()}</p>
         </div>
         <button onclick={() => showKeyModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
           <Papicon icon="x" size={24} />
@@ -1207,8 +1209,8 @@
         <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-4 text-amber-400">
           <Papicon icon="warning" size={20} class="shrink-0" />
           <div class="text-sm leading-relaxed font-medium">
-            <p class="font-bold mb-1">Attention sécurité</p>
-            <p>Pour votre sécurité, cette clé API ne sera **plus jamais affichée**. Copiez-la immédiatement et collez-la dans votre Google Apps Script.</p>
+            <p class="font-bold mb-1">{m.recruit_key_warning_title()}</p>
+            <p>{m.recruit_key_warning_desc()}</p>
           </div>
         </div>
 
@@ -1220,13 +1222,13 @@
             onclick={copyKeyToClipboard}
             class="absolute top-1/2 -translate-y-1/2 right-4 px-4 py-2.5 rounded-xl {keyCopied ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-[13px] font-medium hover:bg-primary/90 transition-all shadow-md active:scale-95"
           >
-            {keyCopied ? 'Copié !' : 'Copier'}
+            {keyCopied ? m.recruit_copied_btn() : m.recruit_copy_btn()}
           </button>
         </div>
       </div>
       
       <div class="p-8 bg-surface-container-low border-t border-outline-variant/20">
-        <button onclick={() => showKeyModal = false} class="w-full py-4 rounded-xl font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors">J'ai copié la clé</button>
+        <button onclick={() => showKeyModal = false} class="w-full py-4 rounded-xl font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors">{m.recruit_key_ack_btn()}</button>
       </div>
     </div>
   </div>
@@ -1237,4 +1239,3 @@
 </style>
 
 </ModulePage>
-

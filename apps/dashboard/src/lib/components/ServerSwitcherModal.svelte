@@ -107,7 +107,7 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-100 flex items-start justify-center pt-[15vh] px-4"
+    class="server-switcher-modal fixed inset-0 z-100 flex items-start justify-center pt-[15vh] px-4"
     role="dialog"
     aria-modal="true"
     aria-label={m.d7_server_switcher()}
@@ -123,7 +123,7 @@
     ></button>
 
     <div
-      class="relative z-10 w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg overflow-hidden"
+      class="server-switcher-modal__panel relative z-10 w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg overflow-hidden"
       role="document"
       transition:scale={{ start: 0.98, duration: 150 }}
     >

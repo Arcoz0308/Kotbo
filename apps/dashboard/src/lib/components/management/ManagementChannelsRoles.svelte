@@ -13,6 +13,13 @@
     availableRoles = [],
     onSaveGlobal = () => {},
     onSaveFeature = (_key: string) => {},
+  }: {
+    features?: any[];
+    guildSettings?: any;
+    availableChannels?: any[];
+    availableRoles?: any[];
+    onSaveGlobal?: (event: MouseEvent) => void | Promise<void>;
+    onSaveFeature?: (key: string) => void | Promise<void>;
   } = $props();
 
   const globalChannelFields = $derived([

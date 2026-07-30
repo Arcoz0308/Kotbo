@@ -9,24 +9,47 @@ import { giveRep, getReputation, getReputationLeaderboard, REP_DAILY_VOTE_LIMIT 
 import { incrementQuestProgress } from '../../services/community/questService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { separator, v2Message } from '@arcscord/components'
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b2_rep');
+const giveMeta = getCommandMetadata('b2_rep_give');
+const checkMeta = getCommandMetadata('b2_rep_check');
+const topMeta = getCommandMetadata('b2_rep_top');
+
 const data = new SlashCommandBuilder()
-  .setName('rep')
-  .setDescription('Système de réputation communautaire')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addSubcommand((sub) =>
-    sub.setName('give')
-      .setDescription('Donner un +rep à un membre')
-      .addUserOption((opt) => opt.setName('membre').setDescription('Le membre à récompenser').setRequired(true))
-      .addStringOption((opt) => opt.setName('raison').setDescription('Raison du +rep')))
+    sub.setName(giveMeta.name)
+      .setNameLocalizations(giveMeta.nameLocalizations)
+      .setDescription(giveMeta.description)
+      .setDescriptionLocalizations(giveMeta.descriptionLocalizations)
+      .addUserOption((opt) => opt
+        .setName('membre')
+        .setDescription(m.b2_rep_give_opt_membre({}, { locale: 'en' }))
+        .setDescriptionLocalizations({ fr: m.b2_rep_give_opt_membre({}, { locale: 'fr' }) })
+        .setRequired(true))
+      .addStringOption((opt) => opt
+        .setName('raison')
+        .setDescription(m.b2_rep_give_opt_raison({}, { locale: 'en' }))
+        .setDescriptionLocalizations({ fr: m.b2_rep_give_opt_raison({}, { locale: 'fr' }) })))
   .addSubcommand((sub) =>
-    sub.setName('check')
-      .setDescription('Voir la réputation d\'un membre')
-      .addUserOption((opt) => opt.setName('membre').setDescription('Le membre à consulter')))
+    sub.setName(checkMeta.name)
+      .setNameLocalizations(checkMeta.nameLocalizations)
+      .setDescription(checkMeta.description)
+      .setDescriptionLocalizations(checkMeta.descriptionLocalizations)
+      .addUserOption((opt) => opt
+        .setName('membre')
+        .setDescription(m.b2_rep_check_opt_membre({}, { locale: 'en' }))
+        .setDescriptionLocalizations({ fr: m.b2_rep_check_opt_membre({}, { locale: 'fr' }) })))
   .addSubcommand((sub) =>
-    sub.setName('top')
-      .setDescription('Classement des réputations'));
+    sub.setName(topMeta.name)
+      .setNameLocalizations(topMeta.nameLocalizations)
+      .setDescription(topMeta.description)
+      .setDescriptionLocalizations(topMeta.descriptionLocalizations));
 
 async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();

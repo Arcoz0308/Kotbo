@@ -104,13 +104,13 @@
 
 {#if show}
   <div
-    class="fixed bottom-6 right-6 z-[9990] flex flex-col items-end"
+    class="tutorial-checklist fixed bottom-6 right-6 z-[9990] flex flex-col items-end"
     transition:fly={{ y: 30, duration: 350, easing: cubicOut }}
   >
     {#if !minimized}
       <!-- Expanded panel -->
       <div
-        class="w-[22rem] bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-xl overflow-hidden"
+        class="tutorial-checklist__panel w-[22rem] bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-xl overflow-hidden"
         transition:scale={{ duration: 250, easing: backOut, start: 0.92 }}
       >
         <!-- Header -->

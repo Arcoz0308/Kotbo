@@ -30,7 +30,6 @@
   const currentLanguage = $derived(
     languages.find((lang) => lang.code === userPrefs.prefs.language) ?? languages[0]
   );
-
   onMount(() => {
     (async () => {
       try {
@@ -124,54 +123,97 @@
     onboardingStore.restart();
     userMenuOpen = false;
   }
+
+  function openMobileServerSwitcher() {
+    sidebarStore.closeMobile();
+    serverSwitcherStore.show();
+  }
 </script>
 
 <svelte:window />
 
-<header class="flex items-center justify-between px-6 bg-surface-container-lowest border-b border-outline-variant h-14 fixed top-0 right-0 z-40 transition-all duration-200 {$isMobile ? 'w-full' : collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-15rem)]'}">
-  <div class="flex items-center gap-4 server-selector-container relative">
+<header class="app-navbar flex items-center justify-between px-6 bg-surface-container-lowest border-b border-outline-variant h-14 fixed top-0 right-0 z-40 transition-all duration-200 {$isMobile ? 'w-full' : collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-15rem)]'}">
+  <div class="app-navbar__leading flex min-w-0 items-center gap-4 server-selector-container relative">
     {#if $isMobile}
       <button
         onclick={sidebarStore.toggleMobile}
-        class="flex items-center justify-center w-8 h-8 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+        class="app-navbar__menu flex items-center justify-center w-8 h-8 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+        aria-label="Ouvrir la navigation"
+        aria-controls="dashboard-sidebar"
+        aria-expanded={sidebarStore.mobileOpen}
       >
         <Papicon icon="menu" size={18} />
       </button>
-    {/if}
-    <button
-      onclick={serverSwitcherStore.show}
-      disabled={authStore.guilds.length <= 1}
-      class="flex items-center gap-2.5 bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg text-sm text-on-surface border border-outline-variant hover:border-outline transition-colors cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container disabled:border-outline-variant group select-none"
-    >
-      {#if guildIconUrl}
-        <img
-          src={guildIconUrl}
-          alt="Server Logo"
-          referrerpolicy="no-referrer"
-          class="w-5 h-5 rounded object-cover"
-        >
-      {:else}
-        <div class="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-[10px] font-medium text-primary">
-          {selectedGuild?.name?.charAt(0) || '?'}
-        </div>
-      {/if}
-      <span class="text-on-surface-variant font-medium text-sm transition-colors group-hover:text-on-surface">
-        {#if selectedGuild?.name}
-          {selectedGuild.name}
+
+      <button
+        type="button"
+        onclick={openMobileServerSwitcher}
+        disabled={authStore.guilds.length <= 1}
+        class="app-navbar__mobile-context min-w-0 text-left disabled:cursor-default"
+        aria-label={authStore.guilds.length > 1
+          ? `Changer de serveur, serveur actuel ${selectedGuild?.name ?? ''}`
+          : `Serveur ${selectedGuild?.name ?? ''}`}
+      >
+        {#if guildIconUrl}
+          <img
+            src={guildIconUrl}
+            alt=""
+            width="24"
+            height="24"
+            referrerpolicy="no-referrer"
+            class="app-navbar__mobile-server-icon"
+          >
         {:else}
-          <div class="h-4 w-20 bg-surface-container-high rounded animate-pulse inline-block align-middle"></div>
+          <span class="app-navbar__mobile-server-icon app-navbar__mobile-server-fallback">
+            {selectedGuild?.name?.charAt(0) || '?'}
+          </span>
         {/if}
-      </span>
-      {#if authStore.guilds.length > 1}
-        <Papicon icon="chevron-down" size={12} class="text-on-surface-variant/40" />
-      {/if}
-    </button>
+        <span class="app-navbar__mobile-server-name">
+          {selectedGuild?.name ?? 'Serveur'}
+        </span>
+        {#if authStore.guilds.length > 1}
+          <Papicon icon="chevron-down" size={12} class="shrink-0" />
+        {/if}
+      </button>
+    {/if}
+    {#if !$isMobile}
+      <button
+        onclick={serverSwitcherStore.show}
+        disabled={authStore.guilds.length <= 1}
+        class="app-navbar__server min-w-0 flex items-center gap-2.5 bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg text-sm text-on-surface border border-outline-variant hover:border-outline transition-colors cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container disabled:border-outline-variant group select-none"
+      >
+        {#if guildIconUrl}
+          <img
+            src={guildIconUrl}
+            alt=""
+            width="20"
+            height="20"
+            referrerpolicy="no-referrer"
+            class="w-5 h-5 rounded object-cover"
+          >
+        {:else}
+          <div class="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-[10px] font-medium text-primary">
+            {selectedGuild?.name?.charAt(0) || '?'}
+          </div>
+        {/if}
+        <span class="app-navbar__server-name truncate text-on-surface-variant font-medium text-sm transition-colors group-hover:text-on-surface">
+          {#if selectedGuild?.name}
+            {selectedGuild.name}
+          {:else}
+            <span class="h-4 w-20 bg-surface-container-high rounded animate-pulse inline-block align-middle"></span>
+          {/if}
+        </span>
+        {#if authStore.guilds.length > 1}
+          <Papicon icon="chevron-down" size={12} class="text-on-surface-variant/40" />
+        {/if}
+      </button>
+    {/if}
 
     {#if pairedGuild}
       <button
         onclick={switchToPairedGuild}
         title="Basculer vers {pairedGuild.name}"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/15 transition-colors select-none"
+        class="app-navbar__paired flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/15 transition-colors select-none"
       >
         <Papicon icon="arrow-right" size={13} />
         <span class="hidden sm:inline">
@@ -181,7 +223,7 @@
     {/if}
   </div>
 
-  <div class="flex items-center gap-3">
+  <div class="app-navbar__actions flex shrink-0 items-center gap-3">
 
     {#if authStore.member?.roles}
       <div class="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-container border border-outline-variant">
@@ -192,7 +234,7 @@
 
     <button
       onclick={themeStore.toggle}
-      class="w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
+      class="app-navbar__secondary-action w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
       aria-label={m.navbar_change_theme()}
       id="theme-toggle"
     >
@@ -203,7 +245,7 @@
       {/if}
     </button>
 
-    <div class="relative lang-menu-container">
+    <div class="app-navbar__secondary-action relative lang-menu-container">
       <button
         onclick={() => (langMenuOpen = !langMenuOpen)}
         class="w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container text-sm font-semibold select-none cursor-pointer"
@@ -246,7 +288,9 @@
     <div class="flex items-center gap-2 group user-menu-container relative">
       <button
         onclick={toggleUserMenu}
-        class="flex items-center gap-2 hover:bg-surface-container p-1 rounded-lg transition-colors group/avatar"
+        class="app-navbar__profile flex items-center gap-2 hover:bg-surface-container p-1 rounded-lg transition-colors group/avatar"
+        aria-label="Ouvrir le menu du profil"
+        aria-expanded={userMenuOpen}
       >
         <div class="w-8 h-8 shrink-0 rounded-md overflow-hidden ring-1 ring-outline-variant">
           {#if !authStore.user}
@@ -308,6 +352,16 @@
             </a>
           </div>
           <div class="border-t border-outline-variant py-1">
+            <a
+              href="https://docs.kotbo.fr/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2.5 px-3 py-2 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+              onclick={() => userMenuOpen = false}
+            >
+              <Papicon icon="pronote" size={16} />
+              {m.navbar_documentation()}
+            </a>
             <button
               type="button"
               class="flex items-center gap-2.5 px-3 py-2 w-full text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface cursor-pointer"
@@ -334,4 +388,4 @@
     </div>
   </div>
 </header>
-<div class="h-14"></div>
+<div class="app-navbar-spacer h-14"></div>

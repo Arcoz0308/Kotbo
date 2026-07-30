@@ -8,26 +8,37 @@ import {
 } from '../../services/progression/dailyAlgoService.js';
 import { COLORS, truncate, baseEmbed } from '../../utils/embeds.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('c3_dailyalgo');
+
+const VIEW_KEYS = ['previous', 'scoring', 'ranking', 'profile'] as const;
+
+const viewChoice = (key: (typeof VIEW_KEYS)[number]) => ({
+  name: (m as any)[`c3_dailyalgo_choice_${key}`]({}, { locale: 'en' }) as string,
+  name_localizations: { fr: (m as any)[`c3_dailyalgo_choice_${key}`]({}, { locale: 'fr' }) as string },
+  value: key,
+});
 
 const data = new SlashCommandBuilder()
-  .setName('daily-algo')
-  .setDescription('📚 Infos et stats Daily Algo')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addStringOption((option) =>
     option
       .setName('vue')
-      .setDescription('Choisir la vue Daily Algo')
+      .setDescription(m.c3_dailyalgo_opt_vue({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c3_dailyalgo_opt_vue({}, { locale: 'fr' }) })
       .setRequired(false)
-      .addChoices(
-        { name: 'Défi précédent', value: 'previous' },
-        { name: 'Barème de notation', value: 'scoring' },
-        { name: 'Classement serveur', value: 'ranking' },
-        { name: 'Profil & progression', value: 'profile' },
-      ),
+      .addChoices(...VIEW_KEYS.map(viewChoice)),
   )
   .addUserOption((option) =>
     option
       .setName('membre')
-      .setDescription('Membre ciblé (utile pour la vue profil)')
+      .setDescription(m.c3_dailyalgo_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.c3_dailyalgo_opt_membre({}, { locale: 'fr' }) })
       .setRequired(false),
   );
 

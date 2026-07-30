@@ -3,7 +3,7 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type AutocompleteInteraction, MessageFlags } from 'discord.js';
 import { getOrCreateRpgProfile, giveInventoryItem } from '../../services/features/economyService.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 interface LocalRpgItem {
@@ -19,26 +19,33 @@ interface LocalInventoryEntry {
   item: LocalRpgItem;
 }
 
+const meta = getCommandMetadata('b2_giveitem');
+
 const data = new SlashCommandBuilder()
-  .setName('give-item')
-  .setDescription('🎁 Offrir un objet de ton inventaire à un autre membre')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addUserOption(option =>
     option
       .setName('membre')
-      .setDescription("Le membre à qui donner l'objet")
+      .setDescription(m.b2_giveitem_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_giveitem_opt_membre({}, { locale: 'fr' }) })
       .setRequired(true)
   )
   .addStringOption(option =>
     option
       .setName('objet')
-      .setDescription("L'objet à offrir (choisis dans la liste)")
+      .setDescription(m.b2_giveitem_opt_objet({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_giveitem_opt_objet({}, { locale: 'fr' }) })
       .setRequired(true)
       .setAutocomplete(true)
   )
   .addIntegerOption(option =>
     option
       .setName('quantite')
-      .setDescription("La quantité d'objets à offrir (défaut : 1)")
+      .setDescription(m.b2_giveitem_opt_quantite({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b2_giveitem_opt_quantite({}, { locale: 'fr' }) })
       .setRequired(false)
       .setMinValue(1)
   );

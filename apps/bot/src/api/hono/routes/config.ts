@@ -1,5 +1,4 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { HTTPException } from 'hono/http-exception';
 import {
   getDiscordClientId,
   getMissingOAuthConfig,
@@ -43,9 +42,12 @@ configRouter.use('/api/config', rateLimit(configRateLimiter, 30, 60 * 1000));
 configRouter.openapi(configRoute, (c) => {
   const missingOAuth = getMissingOAuthConfig();
   if (missingOAuth.length > 0) {
-    throw new HTTPException(500, { message: 'Configuration OAuth invalide côté serveur.' });
+    return c.json({
+      error: 'Configuration OAuth invalide côté serveur.',
+      missing: missingOAuth,
+    }, 500);
   }
-  return c.json({ discordClientId: getDiscordClientId() });
+  return c.json({ discordClientId: getDiscordClientId() }, 200);
 });
 
 // ---------------------------------------------------------------------------
@@ -87,5 +89,5 @@ configRouter.openapi(brandingRoute, (c) => {
     faviconUrl:   inst.brandFaviconUrl,
     footerText:   inst.brandFooterText,
     isWhiteLabel: !inst.isDefault,
-  });
+  }, 200);
 });

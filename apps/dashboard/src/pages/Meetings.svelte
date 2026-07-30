@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m, dateLocale } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -126,7 +127,7 @@
     try {
       caseData = await fetchMemberCase(userId, authStore.selectedGuildId);
     } catch (err) {
-      caseError = err instanceof Error ? err.message : 'Impossible de charger le dossier';
+      caseError = err instanceof Error ? err.message : m.meetings_case_error();
     } finally {
       loadingCase = false;
     }
@@ -141,27 +142,29 @@
     };
   }
 
-  onMount(async () => {
+  onMount(() => {
     if (!canView) {
       // On redirige ou affiche une erreur si besoin, mais ici on laisse le ModulePage gérer le message si possible
       // ou on peut mettre une erreur locale
       return;
     }
-    loadMeetings();
-    loadStaffServerChannels();
+    let interval: ReturnType<typeof setInterval> | null = null;
+    void (async () => {
+      loadMeetings();
+      loadStaffServerChannels();
 
-    loadingConfig = true;
-    try {
-      const configs = await fetchFeatureConfigurations();
-      meetingsConfig = configs?.features?.find((c: any) => c.featureKey === 'meetings') || null;
-    } catch (err) {
-      console.error('Error fetching meetings config:', err);
-    } finally {
-      loadingConfig = false;
-    }
+      loadingConfig = true;
+      try {
+        const configs = await fetchFeatureConfigurations();
+        meetingsConfig = configs?.features?.find((c: any) => c.featureKey === 'meetings') || null;
+      } catch (err) {
+        console.error('Error fetching meetings config:', err);
+      } finally {
+        loadingConfig = false;
+      }
 
-    // Polling toutes les 10 secondes pour le "temps réel" demandé
-    const interval = setInterval(() => {
+      // Polling toutes les 10 secondes pour le "temps réel" demandé
+      interval = setInterval(() => {
       // On ne rafraîchit que si on n'est pas en train d'éditer ou de supprimer
       if (!modalOpen && !deleteModalOpen && !saving && !deleting) {
         void fetchMeetings().then(data => {
@@ -174,9 +177,12 @@
           }
         });
       }
-    }, 10000);
+      }, 10000);
+    })();
 
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   });
 
   function openCreate() {
@@ -206,17 +212,17 @@
   async function save() {
     // Basic validation
     if (!meetingTitle || !meetingDate) {
-      meetingError = 'Le titre et la date de début sont obligatoires.';
+      meetingError = m.meetings_err_required();
       return;
     }
     const start = new Date(meetingDate);
     const end = new Date(meetingEndDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      meetingError = 'Les dates fournies sont invalides.';
+      meetingError = m.meetings_err_invalid_dates();
       return;
     }
     if (end <= start) {
-      meetingError = 'La date de fin doit être postérieure à la date de début.';
+      meetingError = m.meetings_err_end_before_start();
       return;
     }
 
@@ -239,7 +245,7 @@
       await loadMeetings();
     } catch (e) {
       console.error('Failed to save meeting:', e);
-      meetingError = 'Erreur lors de l’enregistrement de la réunion.';
+      meetingError = m.meetings_err_save();
     } finally {
       saving = false;
     }
@@ -294,10 +300,14 @@
 
   function formatStatus(status: string) {
     switch (status) {
-      case 'SCHEDULED': return 'Planifiée';
-      case 'IN_PROGRESS': return 'En cours';
-      case 'COMPLETED': return 'Terminée';
-      case 'CANCELLED': return 'Annulée';
+      case 'SCHEDULED': return m.meetings_status_scheduled();
+      case 'IN_PROGRESS': return m.meetings_status_in_progress();
+      case 'COMPLETED': return m.meetings_status_completed();
+      case 'CANCELLED': return m.meetings_status_cancelled();
+      case 'PRESENT': return m.meetings_presence_present();
+      case 'EXCUSED': return m.meetings_presence_excused();
+      case 'ABSENT': return m.meetings_presence_absent();
+      case 'ABSENT_CHECKED': return m.meetings_presence_absent_checked();
       default: return status;
     }
   }
@@ -310,15 +320,17 @@
 </script>
 
 <ModulePage 
-  title="Réunions Staff" 
-  description="Planification, présence automatisée et comptes-rendus des réunions d'équipe." 
+  title={m.meetings_page_title()}
+  
+  description={m.meetings_page_desc()}
+  
   icon="calendar"
   featureKey="meetings"
 >
   {#snippet actions()}
-    <RefreshButton onClick={loadMeetings} loading={loading} label="Actualiser" />
+    <RefreshButton onClick={loadMeetings} loading={loading} label={m.meetings_refresh()} />
     {#if canManageSettings}
-      <ActionButton onClick={openCreate} variant="primary" icon="plus" label="Nouvelle Réunion" />
+      <ActionButton onClick={openCreate} variant="primary" icon="plus" label={m.meetings_new_btn()} />
     {/if}
   {/snippet}
 
@@ -326,10 +338,10 @@
     <div class="mb-10 space-y-6">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/20 shadow-sm">
-          <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-4">Canaux de Réunion</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-4">{m.meetings_config_channels_title()}</h4>
           <div class="space-y-4">
             <div>
-              <label for="meeting-announcement-channel" class="block text-[10px] font-semibold text-on-surface-variant uppercase mb-2 ml-1">Salon d'annonce</label>
+              <label for="meeting-announcement-channel" class="block text-[10px] font-semibold text-on-surface-variant uppercase mb-2 ml-1">{m.meetings_announce_channel_label()}</label>
               <select 
                 id="meeting-announcement-channel"
                 value={meetingAnnouncementChannelId} 
@@ -340,14 +352,14 @@
                 }}
                 class="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-2.5 text-sm outline-none transition focus:border-primary/50"
               >
-                <option value="">-- Aucun --</option>
+                <option value="">{m.meetings_none_option()}</option>
                 {#if staffServerChannels.staffGuildId}
-                  <optgroup label="Ce serveur">
+                  <optgroup label={m.meetings_optgroup_this_server()}>
                     {#each availableDiscordChannels as ch}
                       <option value={ch.id}>#{ch.name}</option>
                     {/each}
                   </optgroup>
-                  <optgroup label="Serveur staff — {staffServerChannels.staffGuildName}">
+                  <optgroup label={m.meetings_optgroup_staff_server({ name: staffServerChannels.staffGuildName ?? "" })}>
                     {#each staffServerChannels.channels as ch}
                       <option value={ch.id}>#{ch.name}</option>
                     {/each}
@@ -360,7 +372,7 @@
               </select>
             </div>
             <div>
-              <label for="meeting-voice-channel" class="block text-[10px] font-semibold text-on-surface-variant uppercase mb-2 ml-1">Salon vocal</label>
+              <label for="meeting-voice-channel" class="block text-[10px] font-semibold text-on-surface-variant uppercase mb-2 ml-1">{m.meetings_voice_channel_label()}</label>
               <select 
                 id="meeting-voice-channel"
                 value={meetingVoiceChannelId} 
@@ -371,14 +383,14 @@
                 }}
                 class="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-2.5 text-sm outline-none transition focus:border-primary/50"
               >
-                <option value="">-- Aucun --</option>
+                <option value="">{m.meetings_none_option()}</option>
                 {#if staffServerChannels.staffGuildId}
-                  <optgroup label="Ce serveur">
+                  <optgroup label={m.meetings_optgroup_this_server()}>
                     {#each availableDiscordVoiceChannels as ch}
                       <option value={ch.id}>{ch.name}</option>
                     {/each}
                   </optgroup>
-                  <optgroup label="Serveur staff — {staffServerChannels.staffGuildName}">
+                  <optgroup label={m.meetings_optgroup_staff_server({ name: staffServerChannels.staffGuildName ?? "" })}>
                     {#each staffServerChannels.voiceChannels as ch}
                       <option value={ch.id}>{ch.name}</option>
                     {/each}
@@ -394,7 +406,7 @@
         </div>
 
         <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/20 shadow-sm flex flex-col">
-          <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-4">Accès Rôles</h4>
+          <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-4">{m.meetings_roles_access_title()}</h4>
           <div class="flex-1 overflow-y-auto max-h-[300px]">
             <RolePermissionSettings 
               featureKey="meetings" 
@@ -414,16 +426,16 @@
     {#if loading && meetings.length === 0}
       <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-xl border border-outline-variant/30">
         <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-        <p class="mt-4 text-on-surface-variant font-medium">Chargement des réunions...</p>
+        <p class="mt-4 text-on-surface-variant font-medium">{m.meetings_loading()}</p>
       </div>
     {:else if meetings.length === 0}
       <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-xl border border-outline-variant/30">
         <Papicon icon="calendar" size={60} class="text-on-surface-variant/20 mb-4" />
-        <h3 class="text-xl font-bold text-on-surface">Aucune réunion prévue</h3>
-        <p class="text-on-surface-variant mt-1">Planifiez votre première réunion pour commencer le suivi.</p>
+        <h3 class="text-xl font-bold text-on-surface">{m.meetings_empty_title()}</h3>
+        <p class="text-on-surface-variant mt-1">{m.meetings_empty_desc()}</p>
         {#if canManageSettings}
           <button onclick={openCreate} class="mt-6 px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold hover:bg-primary-hover transition-colors">
-            Créer une réunion
+            {m.meetings_empty_btn()}
           </button>
         {/if}
       </div>
@@ -441,15 +453,15 @@
                   <h4 class="text-xl font-bold text-on-surface leading-tight">{meeting.title}</h4>
                   <div class="flex items-center gap-2 mt-1 text-on-surface-variant text-sm font-medium">
                     <Papicon icon="calendar" size={18} />
-                    {new Date(meeting.scheduledAt).toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' })}
+                    {new Date(meeting.scheduledAt).toLocaleString(dateLocale(), { dateStyle: 'full', timeStyle: 'short' })}
                   </div>
                 </div>
                 {#if canManageSettings}
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onclick={() => openEdit(meeting)} class="p-2 hover:bg-surface-hover rounded-full transition-colors text-on-surface-variant hover:text-primary" title="Modifier">
+                    <button onclick={() => openEdit(meeting)} class="p-2 hover:bg-surface-hover rounded-full transition-colors text-on-surface-variant hover:text-primary" title={m.meetings_edit_tooltip()}>
                       <Papicon icon="edit-2" size={18} />
                     </button>
-                    <button onclick={() => openDelete(meeting.id)} class="p-2 hover:bg-red-500/10 rounded-full transition-colors text-on-surface-variant hover:text-red-500" title="Supprimer">
+                    <button onclick={() => openDelete(meeting.id)} class="p-2 hover:bg-red-500/10 rounded-full transition-colors text-on-surface-variant hover:text-red-500" title={m.meetings_delete_tooltip()}>
                       <Papicon icon="trash-2" size={18} />
                     </button>
                   </div>
@@ -460,21 +472,21 @@
                 {#if meeting.description}
                   {@html parseDiscordEmojisAndMarkdown(meeting.description)}
                 {:else}
-                  <span class="italic opacity-60">Aucune description fournie.</span>
+                  <span class="italic opacity-60">{m.meetings_no_description()}</span>
                 {/if}
               </div>
 
               <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-lg">
                 <div class="text-center">
-                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Présents</p>
+                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_present()}</p>
                   <p class="text-xl font-bold text-emerald-500">{stats.present}</p>
                 </div>
                 <div class="text-center border-x border-outline-variant/30">
-                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Excusés</p>
+                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_excused()}</p>
                   <p class="text-xl font-bold text-amber-500">{stats.excused}</p>
                 </div>
                 <div class="text-center">
-                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Absents</p>
+                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">{m.meetings_stat_absent()}</p>
                   <p class="text-xl font-bold text-red-500">{stats.absent}</p>
                 </div>
               </div>
@@ -484,9 +496,9 @@
               <div class="flex -space-x-2">
                 {#each meeting.presences.filter(p => p.status === 'PRESENT').slice(0, 5) as p}
                   <button 
-                    onclick={() => openMemberCase(p.staffUserId, p.staffMember?.displayName || p.staffMember?.username || 'Membre')}
+                    onclick={() => openMemberCase(p.staffUserId, p.staffMember?.displayName || p.staffMember?.username || m.meetings_member_fallback())}
                     class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform hover:z-10" 
-                    title={p.staffMember?.displayName || p.staffMember?.username || "Membre"}
+                    title={p.staffMember?.displayName || p.staffMember?.username || m.meetings_member_fallback()}
                   >
                     {#if p.staffMember?.avatarUrl}
                       <img src={p.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
@@ -506,16 +518,16 @@
                 {#if canModerate}
                    {#if meeting.status === 'SCHEDULED'}
                       <button onclick={() => updateStatus(meeting.id, 'IN_PROGRESS')} class="text-xs font-bold text-primary px-3 py-1.5 hover:bg-primary/10 rounded-lg transition-colors">
-                        Démarrer
+                        {m.meetings_start_btn()}
                       </button>
                    {:else if meeting.status === 'IN_PROGRESS'}
                       <button onclick={() => updateStatus(meeting.id, 'COMPLETED')} class="text-xs font-bold text-emerald-500 px-3 py-1.5 hover:bg-emerald-500/10 rounded-lg transition-colors">
-                        Terminer
+                        {m.meetings_finish_btn()}
                       </button>
                    {/if}
                 {/if}
                 <button onclick={() => openDetails(meeting)} class="text-xs font-bold text-on-surface-variant px-3 py-1.5 hover:bg-surface-hover rounded-lg transition-colors">
-                  Détails
+                  {m.meetings_details_btn()}
                 </button>
               </div>
             </div>
@@ -534,14 +546,14 @@
       onkeydown={(e) => e.key === 'Escape' && (modalOpen = false)}
       role="button"
       tabindex="0"
-      aria-label="Fermer la modale"
+      aria-label={m.meetings_close_modal_aria()}
     ></div>
     
     <div class="relative w-full max-w-3xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-primary/5">
         <div>
-          <h3 class="text-2xl font-semibold text-on-surface">{editMode ? 'Modifier' : 'Planifier'} une Réunion</h3>
-          <p class="text-on-surface-variant text-sm">Remplissez les détails pour l'organisation.</p>
+          <h3 class="text-2xl font-semibold text-on-surface">{editMode ? m.meetings_modal_edit_title() : m.meetings_modal_create_title()}</h3>
+          <p class="text-on-surface-variant text-sm">{m.meetings_modal_subtitle()}</p>
         </div>
         <button onclick={() => modalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
           <Papicon icon="x" size={24} />
@@ -550,17 +562,17 @@
 
       <div class="p-8 space-y-6">
         <div>
-          <label for="meeting-title" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Titre de la réunion</label>
+          <label for="meeting-title" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_title_label()}</label>
           <FormInput 
             id="meeting-title"
             bind:value={meetingTitle}
-            placeholder="Ex: Réunion de coordination hebdomadaire"
+            placeholder={m.meetings_field_title_ph()}
             className="w-full text-lg font-bold"
           />
         </div>
 
         <div>
-          <label for="meeting-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Début prévu</label>
+          <label for="meeting-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_start_label()}</label>
           <FormInput 
             id="meeting-date"
             type="datetime-local"
@@ -570,7 +582,7 @@
         </div>
 
         <div>
-          <label for="meeting-end-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Fin prévue</label>
+          <label for="meeting-end-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">{m.meetings_field_end_label()}</label>
           <FormInput 
             id="meeting-end-date"
             type="datetime-local"
@@ -583,8 +595,8 @@
           <DiscordMarkdownEditor
             id="meeting-desc"
             bind:value={meetingDesc}
-            label="Ordre du jour / Description"
-            placeholder="Rédigez l'ordre du jour de la réunion..."
+            label={m.meetings_field_agenda_label()}
+            placeholder={m.meetings_field_agenda_ph()}
             rows={10}
             agendaMode={true}
             disabled={saving}
@@ -595,7 +607,7 @@
           <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4 flex gap-3">
              <Papicon icon="info" size={24} class="text-blue-500" />
              <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-               La création d'une réunion annoncera automatiquement l'événement dans le salon dédié sur Discord et activera les boutons de RSVP.
+               {m.meetings_create_info()}
              </p>
           </div>
         {/if}
@@ -608,7 +620,7 @@
 
         <div class="flex items-center justify-end gap-4 pt-4 mt-6 border-t border-outline-variant/30">
           <button onclick={() => modalOpen = false} class="px-6 py-2.5 font-bold text-on-surface-variant hover:bg-surface-hover rounded-xl transition-colors">
-            Annuler
+            {m.common_cancel()}
           </button>
           <button 
             onclick={save}
@@ -618,7 +630,7 @@
             {#if saving}
               <div class="w-4 h-4 border-2 border-on-primary/20 border-t-on-primary rounded-full animate-spin"></div>
             {/if}
-            {editMode ? 'Mettre à jour' : 'Planifier la réunion'}
+            {editMode ? m.meetings_submit_edit() : m.meetings_submit_create()}
           </button>
         </div>
       </div>
@@ -634,7 +646,7 @@
       onkeydown={(e) => e.key === 'Escape' && (detailModalOpen = false)}
       role="button"
       tabindex="0"
-      aria-label="Fermer la modale"
+      aria-label={m.meetings_close_modal_aria()}
     ></div>
     
     <div class="relative w-full max-w-2xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter">
@@ -643,7 +655,7 @@
           <h3 class="text-2xl font-semibold text-on-surface">{selectedMeeting.title}</h3>
           <p class="text-on-surface-variant text-sm flex items-center gap-1">
              <Papicon icon="calendar" size={12} />
-             {new Date(selectedMeeting.scheduledAt).toLocaleString('fr-FR')}
+             {new Date(selectedMeeting.scheduledAt).toLocaleString(dateLocale())}
           </p>
         </div>
         <button onclick={() => detailModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
@@ -661,13 +673,13 @@
         {/if}
 
         <div class="space-y-4">
-           <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest px-1">Liste des présences</h4>
+           <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest px-1">{m.meetings_presence_list_title()}</h4>
            <div class="grid grid-cols-1 gap-2">
               {#each selectedMeeting.presences as presence}
                  <div class="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors group">
                     <div class="flex items-center gap-3">
                        <button 
-                          onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
+                          onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.meetings_member_fallback())}
                           class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary overflow-hidden transition-transform "
                        >
                           {#if presence.staffMember?.avatarUrl}
@@ -678,10 +690,10 @@
                        </button>
                        <div>
                           <button 
-                            onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
+                            onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || m.meetings_member_fallback())}
                             class="text-sm font-bold text-on-surface hover:text-primary transition-colors text-left block"
                           >
-                            {presence.staffMember?.displayName || presence.staffMember?.username || 'Membre'}
+                            {presence.staffMember?.displayName || presence.staffMember?.username || m.meetings_member_fallback()}
                           </button>
                           {#if presence.note}
                              <p class="text-[11px] text-on-surface-variant leading-tight mt-0.5">{presence.note}</p>
@@ -710,14 +722,14 @@
       onkeydown={(e) => e.key === 'Escape' && (deleteModalOpen = false)}
       role="button"
       tabindex="0"
-      aria-label="Fermer la modale"
+      aria-label={m.meetings_close_modal_aria()}
     ></div>
     
     <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 bg-red-500/5 flex items-center justify-between">
         <div>
-          <h3 class="text-xl font-semibold text-on-surface">Supprimer la réunion ?</h3>
-          <p class="text-on-surface-variant text-sm">Cette action est irréversible en base de données.</p>
+          <h3 class="text-xl font-semibold text-on-surface">{m.meetings_delete_modal_title()}</h3>
+          <p class="text-on-surface-variant text-sm">{m.meetings_delete_modal_subtitle()}</p>
         </div>
         <button onclick={() => deleteModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
           <Papicon icon="x" size={24} />
@@ -726,38 +738,38 @@
 
       <div class="p-8 space-y-6">
         <p class="text-sm text-on-surface-variant leading-relaxed">
-          Voulez-vous également supprimer les éléments associés sur Discord ?
+          {m.meetings_delete_question()}
         </p>
 
         <div class="space-y-4">
           <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
             <input type="checkbox" bind:checked={deleteDiscordEvent} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
-              <p class="text-sm font-bold text-on-surface">Supprimer l'événement Discord</p>
-              <p class="text-[11px] text-on-surface-variant">Retire l'événement du calendrier du serveur.</p>
+              <p class="text-sm font-bold text-on-surface">{m.meetings_delete_event_label()}</p>
+              <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_event_desc()}</p>
             </div>
           </label>
 
           <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
             <input type="checkbox" bind:checked={deleteDiscordMessage} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
-              <p class="text-sm font-bold text-on-surface">Supprimer le message d'annonce</p>
-              <p class="text-[11px] text-on-surface-variant">Supprime le message @everyone avec les boutons.</p>
+              <p class="text-sm font-bold text-on-surface">{m.meetings_delete_message_label()}</p>
+              <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_message_desc()}</p>
             </div>
           </label>
 
           <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
             <input type="checkbox" bind:checked={deleteDiscordNotification} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
-              <p class="text-sm font-bold text-on-surface">Supprimer les notifications internes</p>
-              <p class="text-[11px] text-on-surface-variant">Nettoie l'Inbox du Dashboard pour tous les membres.</p>
+              <p class="text-sm font-bold text-on-surface">{m.meetings_delete_notif_label()}</p>
+              <p class="text-[11px] text-on-surface-variant">{m.meetings_delete_notif_desc()}</p>
             </div>
           </label>
         </div>
 
         <div class="flex items-center justify-end gap-4 pt-4 border-t border-outline-variant/30">
           <button onclick={() => deleteModalOpen = false} class="px-6 py-2.5 font-bold text-on-surface-variant hover:bg-surface-hover rounded-xl transition-colors">
-            Annuler
+            {m.common_cancel()}
           </button>
           <button 
             onclick={confirmDelete}
@@ -767,7 +779,7 @@
             {#if deleting}
               <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
             {/if}
-            Supprimer
+            {m.common_delete()}
           </button>
         </div>
       </div>
@@ -787,7 +799,7 @@
   }}
   onSelectUser={(newUserId) => {
     const foundNode = caseData?.interactionGraph?.nodes?.find((n: any) => n.id === newUserId);
-    const label = foundNode?.label || 'Membre';
+    const label = foundNode?.label || m.meetings_member_fallback();
     openMemberCase(newUserId, label);
   }}
 />

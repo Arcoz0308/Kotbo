@@ -4,6 +4,7 @@
   import ExportDropdown from './ExportDropdown.svelte';
   import { toast } from '../../stores/toast.svelte';
   import { downloadSingleSheetXlsx } from '../../xlsxExport';
+  import { m, dateLocale } from '../../i18n';
 
   const { data, mode = 'messages', onOpenMember } = $props<{
     data: any;
@@ -53,7 +54,7 @@
   const membersChartData = $derived({
     labels: topMembers.slice(0, 5).map((m: any) => m.name || m.username),
     datasets: [{
-      label: mode === 'messages' ? 'Messages' : 'Minutes',
+      label: mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes(),
       data: topMembers.slice(0, 5).map((m: any) => mode === 'messages' ? m.messageCount : Math.round(m.voiceTimeSeconds / 60)),
       backgroundColor: mode === 'messages' ? '#6366f1' : '#10b981',
       borderRadius: 8,
@@ -73,7 +74,7 @@
   const channelsChartData = $derived({
     labels: topChannels.slice(0, 5).map((c: any) => `#${c.channelName || c.name || c.channelId}`),
     datasets: [{
-      label: mode === 'messages' ? 'Messages' : 'Minutes',
+      label: mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes(),
       data: topChannels.slice(0, 5).map((c: any) => mode === 'messages' ? (c.messagesCount || c.count) : (c.voiceMinutes || 0)),
       backgroundColor: mode === 'messages' ? '#ec4899' : '#10b981',
       borderRadius: 8,
@@ -95,9 +96,7 @@
       return `#${item.channelName || item.name || item.channelId}`;
     }),
     datasets: [{
-      label: expandedView === 'members'
-        ? (mode === 'messages' ? 'Messages' : 'Minutes')
-        : (mode === 'messages' ? 'Messages' : 'Minutes'),
+      label: mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes(),
       data: (expandedView === 'members' ? topMembers : topChannels).slice(0, 20).map((item: any) => {
         if (expandedView === 'members') {
           return mode === 'messages' ? item.messageCount : Math.round(item.voiceTimeSeconds / 60);
@@ -120,7 +119,7 @@
     plugins: {
       tooltip: {
         callbacks: {
-          label: (context: any) => `${context.parsed.x.toLocaleString('fr-FR')} ${mode === 'messages' ? 'messages' : 'minutes'}`
+          label: (context: any) => `${context.parsed.x.toLocaleString(dateLocale())} ${mode === 'messages' ? m.an_unit_messages_lc() : m.an_unit_minutes_lc()}`
         }
       }
     }
@@ -141,21 +140,21 @@
   }
 
   function doExportCSV(name: string, rows: Record<string, unknown>[]) {
-    if (!rows.length) { toast.error('Aucune donnée.'); return; }
+    if (!rows.length) { toast.error(m.an_export_empty()); return; }
     const headers = Object.keys(rows[0]);
     const csv = [headers.join(','), ...rows.map(r => headers.map(h => String(r[h] ?? '')).join(','))].join('\n');
     triggerDownload(csv, `${name}.csv`, 'text/csv;charset=utf-8');
   }
 
   async function doExportXLSX(name: string, rows: Record<string, unknown>[]) {
-    if (!rows.length) { toast.error('Aucune donnée.'); return; }
+    if (!rows.length) { toast.error(m.an_export_empty()); return; }
     await downloadSingleSheetXlsx(name, name, rows);
   }
 
   function doExportImage(cardSelector: string, name: string) {
     const card = document.querySelector(cardSelector);
     const canvas = card?.querySelector('canvas');
-    if (!canvas) { toast.error('Graphique introuvable.'); return; }
+    if (!canvas) { toast.error(m.an_export_chart_missing()); return; }
     canvas.toBlob((blob) => {
       if (blob) triggerDownload(blob, `${name}.png`, 'image/png');
     }, 'image/png');
@@ -190,13 +189,13 @@
         <div>
           <h3 class="text-xl md:text-2xl font-semibold text-on-surface">
             {#if expandedView === 'members'}
-              {mode === 'messages' ? 'Top Messagers' : 'Top Vocalistes'}
+              {mode === 'messages' ? m.an_eng_top_chatters() : m.an_eng_top_voice()}
             {:else}
-              {mode === 'messages' ? 'Salons Textuels Populaires' : 'Salons Vocaux Populaires'}
+              {mode === 'messages' ? m.an_eng_top_text_channels() : m.an_eng_top_voice_channels()}
             {/if}
           </h3>
           <p class="text-xs font-bold text-on-surface-variant/60">
-            Classement complet ({filteredExpandedData().length} résultats sur {expandedView === 'members' ? topMembers.length : topChannels.length})
+            {m.an_eng_full_ranking({ shown: filteredExpandedData().length, total: expandedView === 'members' ? topMembers.length : topChannels.length })}
           </p>
         </div>
       </div>
@@ -205,7 +204,7 @@
         class="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
       >
         <Papicon icon="ArrowLeft" size={14} />
-        Retour
+        {m.common_back()}
       </button>
     </div>
 
@@ -225,7 +224,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="Rechercher par nom..."
+          placeholder={m.an_eng_search_placeholder()}
           class="w-full bg-surface-container-high/40 text-on-surface text-sm font-bold rounded-lg pl-12 pr-4 py-3 border border-outline-variant/5 focus:border-primary/50 focus:outline-none transition-colors placeholder:text-on-surface-variant/40"
         />
       </div>
@@ -251,8 +250,8 @@
             </div>
             <div class="flex items-center gap-6">
               <div class="text-right">
-                <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? 'Messages' : 'Minutes'}</p>
-                <p class="text-base font-semibold text-on-surface">{(mode === 'messages' ? item.messageCount : Math.round(item.voiceTimeSeconds / 60)).toLocaleString('fr-FR')}</p>
+                <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
+                <p class="text-base font-semibold text-on-surface">{(mode === 'messages' ? item.messageCount : Math.round(item.voiceTimeSeconds / 60)).toLocaleString(dateLocale())}</p>
               </div>
               <Papicon icon="ArrowRight" size={16} class="opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
@@ -267,8 +266,8 @@
               <p class="text-base font-semibold text-on-surface">#{item.channelName || item.name || item.channelId}</p>
             </div>
             <div class="text-right">
-              <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-secondary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? 'Messages' : 'Minutes'}</p>
-              <p class="text-base font-semibold text-on-surface">{(mode === 'messages' ? (item.messagesCount || item.count) : (item.voiceMinutes || 0)).toLocaleString('fr-FR')}</p>
+              <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-secondary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
+              <p class="text-base font-semibold text-on-surface">{(mode === 'messages' ? (item.messagesCount || item.count) : (item.voiceMinutes || 0)).toLocaleString(dateLocale())}</p>
             </div>
           </div>
         {/if}
@@ -277,7 +276,7 @@
       {#if paginatedData.length === 0}
         <div class="py-20 text-center opacity-40">
           <Papicon icon="Ghost" size={48} class="mx-auto mb-4" />
-          <p class="text-sm font-bold">Aucune donnée trouvée</p>
+          <p class="text-sm font-bold">{m.an_eng_no_data_found()}</p>
         </div>
       {/if}
 
@@ -290,15 +289,15 @@
             class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <Papicon icon="CaretLeft" size={14} />
-            Précédent
+            {m.an_eng_previous()}
           </button>
-          <span class="text-xs font-bold text-on-surface-variant/60">Page {currentPage} sur {totalPages}</span>
+          <span class="text-xs font-bold text-on-surface-variant/60">{m.an_eng_page_of({ current: currentPage, total: totalPages })}</span>
           <button
             onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
             disabled={currentPage === totalPages}
             class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Suivant
+            {m.common_next()}
             <Papicon icon="CaretRight" size={14} />
           </button>
         </div>
@@ -317,8 +316,8 @@
             <Papicon icon={mode === 'messages' ? 'UsersFour' : 'Microphone'} size={24} />
           </div>
           <div>
-            <h3 class="text-xl font-semibold text-on-surface">{mode === 'messages' ? 'Top Messagers' : 'Top Vocalistes'}</h3>
-            <p class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? 'Par volume de messages' : 'Par temps passé en vocal'}</p>
+            <h3 class="text-xl font-semibold text-on-surface">{mode === 'messages' ? m.an_eng_top_chatters() : m.an_eng_top_voice()}</h3>
+            <p class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_eng_by_message_volume() : m.an_eng_by_voice_time()}</p>
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -332,7 +331,7 @@
               onclick={() => openExpanded('members')}
               class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
             >
-              Voir plus
+              {m.an_eng_see_more()}
             </button>
           {/if}
         </div>
@@ -357,15 +356,15 @@
             </div>
             <div class="flex items-center gap-4">
               <div class="text-right">
-                  <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? 'Messages' : 'Minutes'}</p>
-                  <p class="text-sm font-semibold text-on-surface">{(mode === 'messages' ? member.messageCount : Math.round(member.voiceTimeSeconds / 60)).toLocaleString('fr-FR')}</p>
+                  <p class="text-[10px] font-semibold {mode === 'messages' ? 'text-primary' : 'text-emerald-500'} uppercase tracking-widest">{mode === 'messages' ? m.an_unit_messages() : m.an_unit_minutes()}</p>
+                  <p class="text-sm font-semibold text-on-surface">{(mode === 'messages' ? member.messageCount : Math.round(member.voiceTimeSeconds / 60)).toLocaleString(dateLocale())}</p>
               </div>
               <Papicon icon="ArrowRight" size={14} class="opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </button>
         {/each}
         {#if topMembers.length === 0}
-          <p class="text-center py-10 text-on-surface-variant/40 font-bold text-sm">Aucune donnée pour cette période</p>
+          <p class="text-center py-10 text-on-surface-variant/40 font-bold text-sm">{m.an_eng_no_data_period()}</p>
         {/if}
       </div>
     </div>
@@ -378,8 +377,8 @@
             <Papicon icon={mode === 'messages' ? 'Hash' : 'SpeakerHigh'} size={24} />
           </div>
           <div>
-            <h3 class="text-xl font-semibold text-on-surface">{mode === 'messages' ? 'Salons Textuels Populaires' : 'Salons Vocaux Populaires'}</h3>
-            <p class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? 'Distribution des messages par salon' : 'Temps passé en vocal par salon'}</p>
+            <h3 class="text-xl font-semibold text-on-surface">{mode === 'messages' ? m.an_eng_top_text_channels() : m.an_eng_top_voice_channels()}</h3>
+            <p class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_eng_message_distribution() : m.an_eng_voice_time_by_channel()}</p>
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -393,7 +392,7 @@
               onclick={() => openExpanded('channels')}
               class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
             >
-              Voir plus
+              {m.an_eng_see_more()}
             </button>
           {/if}
         </div>
@@ -409,8 +408,8 @@
               <div class="p-4 rounded-lg {mode === 'messages' ? 'bg-secondary/5 border border-secondary/10 hover:border-secondary/30' : 'bg-emerald-500/5 border border-emerald-500/10 hover:border-emerald-500/30'} transition-colors">
                 <p class="text-[11px] font-semibold uppercase tracking-widest {mode === 'messages' ? 'text-secondary/60' : 'text-emerald-500/60'} mb-1">#{channel.channelName || channel.name || channel.channelId}</p>
                 <p class="text-lg font-semibold text-on-surface">
-                  {(mode === 'messages' ? (channel.messagesCount || channel.count) : (channel.voiceMinutes || 0)).toLocaleString('fr-FR')}
-                  <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? 'msgs' : 'min'}</span>
+                  {(mode === 'messages' ? (channel.messagesCount || channel.count) : (channel.voiceMinutes || 0)).toLocaleString(dateLocale())}
+                  <span class="text-xs font-bold text-on-surface-variant/40">{mode === 'messages' ? m.an_unit_msgs() : m.an_unit_min()}</span>
                 </p>
               </div>
           {/each}
@@ -421,8 +420,8 @@
             <Papicon icon={mode === 'messages' ? 'Hash' : 'SpeakerHigh'} size={28} />
           </div>
           <div>
-            <h3 class="text-base font-semibold text-on-surface">{mode === 'messages' ? 'Activité par Salon' : 'Activité Vocale par Salon'}</h3>
-            <p class="text-xs font-bold text-on-surface-variant/40 mt-1 max-w-xs">Aucune donnée disponible pour cette période.</p>
+            <h3 class="text-base font-semibold text-on-surface">{mode === 'messages' ? m.an_eng_channel_activity() : m.an_eng_voice_channel_activity()}</h3>
+            <p class="text-xs font-bold text-on-surface-variant/40 mt-1 max-w-xs">{m.an_eng_no_data_available()}</p>
           </div>
         </div>
       {/if}

@@ -260,7 +260,14 @@ export function buildRichCommandCatalog(): CommandCatalogEntry[] {
   });
 }
 
-export const getGuildState = async (client: Client, guildId: string, access: DashboardAccess, userId?: string): Promise<DashboardState | null> => {
+export const getGuildState = async (
+  client: Client,
+  guildId: string,
+  access: DashboardAccess,
+  userId?: string,
+  options: { overview?: boolean } = {},
+): Promise<DashboardState | null> => {
+  const overview = options.overview === true;
   const { ensureDashboardSchemaPatches } = await import('../../utils/schemaPatches.js');
   await ensureDashboardSchemaPatches();
 
@@ -282,10 +289,13 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     last7Days.push(dateKey);
   }
 
-  // Enforce default tables first
-  await getOrCreateDefaultTables(guildId).catch((err) => {
-    logger.error('DashboardAPI', `Failed to seed default sanction tables for guild ${guildId}:`, err);
-  });
+  // Une lecture de l'accueil ne doit jamais effectuer d'initialisation. Les
+  // tables par défaut sont créées sur le chargement complet / à l'activation.
+  if (!overview) {
+    await getOrCreateDefaultTables(guildId).catch((err) => {
+      logger.error('DashboardAPI', `Failed to seed default sanction tables for guild ${guildId}:`, err);
+    });
+  }
 
   const [
     dailyAlgoSubmissionCount,
@@ -303,41 +313,49 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     prisma.dashboardAuditLog.findMany({
       where: { guildId, eventType: { not: 'Discord' } },
       orderBy: { dateIso: 'desc' },
-      take: 300
+      take: overview ? 15 : 300
     }),
     prisma.dashboardAuditLog.findMany({
       where: { guildId, eventType: 'Discord' },
       orderBy: { dateIso: 'desc' },
-      take: 500
+      take: overview ? 15 : 500
     }),
-    prisma.sanction.findMany({
-      where: { guildId },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    }),
-    prisma.sanctionReport.findMany({
-      where: { guildId },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    }),
-    prisma.guildRegulationArticle.findMany({
-      where: { guildId },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-    }),
+    overview
+      ? Promise.resolve([])
+      : prisma.sanction.findMany({
+          where: { guildId },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+        }),
+    overview
+      ? Promise.resolve([])
+      : prisma.sanctionReport.findMany({
+          where: { guildId },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+        }),
+    overview
+      ? Promise.resolve([])
+      : prisma.guildRegulationArticle.findMany({
+          where: { guildId },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        }),
     prisma.guildDailyStat.findMany({
       where: {
         guildId,
         dateKey: { in: last7Days }
       }
     }),
-    prisma.sanctionTable.findMany({
-      where: { guildId },
-      include: {
-        tiers: {
-          orderBy: { level: 'asc' }
-        }
-      }
-    }),
+    overview
+      ? Promise.resolve([])
+      : prisma.sanctionTable.findMany({
+          where: { guildId },
+          include: {
+            tiers: {
+              orderBy: { level: 'asc' }
+            }
+          }
+        }),
   ]);
 
   const persistedAudit = [...persistedDashboardAudit, ...persistedDiscordAudit].sort(
@@ -717,7 +735,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     }
   };
 
-  const discordChannels: DashboardChannel[] = allChannels
+  const discordChannels: DashboardChannel[] = overview ? [] : allChannels
     .filter((channel) => textChannelTypes.has(channel.type))
     .map((channel) => ({
       id: channel.id,
@@ -729,7 +747,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
     .map(({ id, name, mention, type }) => ({ id, name, mention, type }));
 
-  const discordVoiceChannels: DashboardChannel[] = allChannels
+  const discordVoiceChannels: DashboardChannel[] = overview ? [] : allChannels
     .filter((channel) => channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice)
     .map((channel) => ({
       id: channel.id,
@@ -740,7 +758,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
     .map(({ id, name, mention }) => ({ id, name, mention }));
 
-  const discordCategories: DashboardChannel[] = allChannels
+  const discordCategories: DashboardChannel[] = overview ? [] : allChannels
     .filter((channel) => channel.type === ChannelType.GuildCategory)
     .map((channel) => ({
       id: channel.id,
@@ -751,7 +769,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
     .map(({ id, name, mention }) => ({ id, name, mention }));
 
-  const discordRoles: DashboardRole[] = allRoles
+  const discordRoles: DashboardRole[] = overview ? [] : allRoles
     .filter((role) => role.name !== '@everyone' && !role.managed)
     .map((role) => ({
           id: role.id,
@@ -841,7 +859,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     moderatorRoleId: guild.moderatorRoleId ?? '',
     commandRestrictions: runtime.commandRestrictions,
     sidebarFavorites: runtime.sidebarFavorites,
-    commandCatalog: buildRichCommandCatalog(),
+    commandCatalog: overview ? [] : buildRichCommandCatalog(),
     access: {
       level: access.level === 'admin' ? 'admin' : 'moderator',
       canModerateContent: access.canModerateContent,

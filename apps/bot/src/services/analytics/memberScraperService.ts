@@ -2,23 +2,62 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { Client, GuildMember } from 'discord.js';
 import { getDateKey } from './analyticsService.js';
+import { fetchAllMembers } from '../../utils/discord.js';
+import {
+  acquireGuildScrapeLock,
+  ownsGuildScrapeLock,
+  releaseGuildScrapeLock,
+  type GuildScrapeLock,
+} from './guildScrapeLock.js';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function startMemberScraping(client: Client, guildId: string, force = false): Promise<void> {
+export type MemberScrapeStartStatus =
+  | 'STARTED'
+  | 'ALREADY_RUNNING'
+  | 'ALREADY_COMPLETED'
+  | 'NOT_FOUND'
+  | 'NOT_ACTIVATED';
+
+export interface MemberScrapeStartResult {
+  status: MemberScrapeStartStatus;
+  completion?: Promise<void>;
+}
+
+export async function startMemberScraping(
+  client: Client,
+  guildId: string,
+  force = false,
+  parentLock?: GuildScrapeLock,
+): Promise<MemberScrapeStartResult> {
+  const lock = parentLock && ownsGuildScrapeLock(parentLock, guildId)
+    ? parentLock
+    : acquireGuildScrapeLock(guildId, 'members');
+  const ownsLock = lock !== parentLock;
+
+  if (!lock) {
+    logger.warn('MemberScraper', `Another data synchronization is already running for guild ${guildId}.`);
+    return { status: 'ALREADY_RUNNING' };
+  }
+
   const guildDb = await prisma.guild.findUnique({
     where: { id: guildId },
     select: { statsConfig: true, activated: true },
+  }).catch((error) => {
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    throw error;
   });
 
   if (!guildDb) {
     logger.error('MemberScraper', `Guild ${guildId} not found in database.`);
-    return;
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    return { status: 'NOT_FOUND' };
   }
 
   if (!guildDb.activated) {
     logger.warn('MemberScraper', `Guild ${guildId} is not activated. Scraping aborted.`);
-    return;
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    return { status: 'NOT_ACTIVATED' };
   }
 
   let statsConfig = (guildDb.statsConfig as any) || {};
@@ -26,11 +65,13 @@ export async function startMemberScraping(client: Client, guildId: string, force
 
   if (status === 'IN_PROGRESS' && !force) {
     logger.warn('MemberScraper', `Member scraping already in progress for guild ${guildId}.`);
-    return;
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    return { status: 'ALREADY_RUNNING' };
   }
   if (status === 'COMPLETED' && !force) {
     logger.info('MemberScraper', `Member scraping already completed for guild ${guildId}.`);
-    return;
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    return { status: 'ALREADY_COMPLETED' };
   }
 
   statsConfig = {
@@ -41,14 +82,25 @@ export async function startMemberScraping(client: Client, guildId: string, force
     memberScrapedAt: new Date().toISOString(),
   };
 
-  await prisma.guild.update({
-    where: { id: guildId },
-    data: { statsConfig },
-  });
+  try {
+    await prisma.guild.update({
+      where: { id: guildId },
+      data: { statsConfig },
+    });
+  } catch (error) {
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    throw error;
+  }
 
-  runMemberScrapeTask(client, guildId, force).catch((err) => {
-    logger.error('MemberScraper', `Uncaught error in member scraping task for guild ${guildId}:`, err);
-  });
+  const completion = runMemberScrapeTask(client, guildId, force)
+    .catch((err) => {
+      logger.error('MemberScraper', `Uncaught error in member scraping task for guild ${guildId}:`, err);
+    })
+    .finally(() => {
+      if (ownsLock) releaseGuildScrapeLock(lock);
+    });
+
+  return { status: 'STARTED', completion };
 }
 
 async function runMemberScrapeTask(client: Client, guildId: string, _force = false): Promise<void> {
@@ -63,7 +115,7 @@ async function runMemberScrapeTask(client: Client, guildId: string, _force = fal
     logger.info('MemberScraper', `Starting member scraping for guild: ${guild.name} (${guild.id})`);
 
     // Fetch ALL members from Discord API
-    const members = await guild.members.fetch();
+    const members = await fetchAllMembers(guild);
     const humanMembers = members.filter(m => !m.user.bot);
 
     logger.info('MemberScraper', `Fetched ${humanMembers.size} human members for guild ${guild.name}`);
@@ -122,9 +174,12 @@ async function runMemberScrapeTask(client: Client, guildId: string, _force = fal
         });
       });
 
-      await prisma.$transaction(ops).catch((error) => {
+      try {
+        await prisma.$transaction(ops);
+      } catch (error) {
         logger.error('MemberScraper', `Error upserting member batch (offset ${i}):`, error);
-      });
+        throw error;
+      }
 
       scrapedCount += batch.length;
 

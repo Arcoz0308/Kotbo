@@ -12,6 +12,8 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { createNotification } from './staffLeadershipService.js';
 import { fetchAllMembers } from '../../utils/discord.js';
+import { resolveGuildLocale, type BotLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
 
 export type RegulationArticle = {
   id: string;
@@ -34,22 +36,28 @@ export function buildRegulationEmbed(params: {
   guildId: string;
   articles: RegulationArticle[];
   publishedAt?: Date;
+  locale: BotLocale;
 }): EmbedBuilder {
+  const { locale } = params;
   const activeArticles = params.articles.filter((article) => article.enabled);
+  const publishedRelative = params.publishedAt
+    ? `<t:${Math.floor(params.publishedAt.getTime() / 1000)}:R>`
+    : m.panel_regulation_updated_now({}, { locale });
+
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle('📜 Règlement du serveur')
+    .setTitle(m.panel_regulation_title({}, { locale }))
     .setDescription([
-      `Bienvenue sur **${params.guildName}**.`,
-      'Merci de lire le règlement ci-dessous et de respecter les articles à tout moment.',
-      'Les règles listées ici sont synchronisées avec les rapports de sanction du dashboard.',
+      m.panel_regulation_welcome({ guild: params.guildName }, { locale }),
+      m.panel_regulation_read({}, { locale }),
+      m.panel_regulation_synced({}, { locale }),
     ].join('\n'))
     .addFields({
-      name: 'Résumé',
+      name: m.panel_regulation_summary({}, { locale }),
       value: [
-        `Articles actifs: **${activeArticles.length}**`,
-        `Articles totaux: **${params.articles.length}**`,
-        `Mise à jour: ${params.publishedAt ? `<t:${Math.floor(params.publishedAt.getTime() / 1000)}:R>` : "à l'instant"}`,
+        m.panel_regulation_articles_active({ count: activeArticles.length }, { locale }),
+        m.panel_regulation_articles_total({ count: params.articles.length }, { locale }),
+        m.panel_regulation_updated({ when: publishedRelative }, { locale }),
       ].join(' · '),
       inline: false,
     });
@@ -57,21 +65,27 @@ export function buildRegulationEmbed(params: {
   const visibleArticles = activeArticles.slice(0, 24);
   for (const [index, article] of visibleArticles.entries()) {
     embed.addFields({
-      name: `${getArticleEmoji(article)} Article ${index + 1} · ${article.title}`,
-      value: article.description.trim() || 'Aucune description fournie.',
+      name: m.panel_regulation_article_heading(
+        { emoji: getArticleEmoji(article), index: index + 1, title: article.title },
+        { locale },
+      ),
+      value: article.description.trim() || m.panel_regulation_article_no_desc({}, { locale }),
       inline: false,
     });
   }
 
   if (activeArticles.length > visibleArticles.length) {
     embed.addFields({
-      name: '… et plus',
-      value: `${activeArticles.length - visibleArticles.length} article(s) supplémentaire(s) non affiché(s) dans ce message.`,
+      name: m.panel_regulation_more_title({}, { locale }),
+      value: m.panel_regulation_more_value(
+        { count: activeArticles.length - visibleArticles.length },
+        { locale },
+      ),
       inline: false,
     });
   }
 
-  embed.setFooter({ text: 'Kotbo · Règlement synchronisé' });
+  embed.setFooter({ text: m.panel_regulation_footer({}, { locale }) });
   embed.setTimestamp(params.publishedAt ?? new Date());
   return embed;
 }
@@ -102,12 +116,14 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
 
   const discordGuild = client.guilds.cache.get(guildId);
   const guildName = discordGuild?.name ?? `Serveur ${guildId}`;
+  const locale = await resolveGuildLocale(guildId, discordGuild?.preferredLocale ?? null);
   const articles = await loadRegulationArticles(guildId);
   const embed = buildRegulationEmbed({
     guildName,
     guildId,
     articles,
     publishedAt: new Date(),
+    locale,
   });
 
   const channel = await client.channels.fetch(targetChannelId).catch(() => null) as TextChannel | null;
@@ -120,7 +136,7 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId('regulation_accept')
-        .setLabel('Accepter le règlement')
+        .setLabel(m.panel_regulation_accept_button({}, { locale }))
         .setStyle(ButtonStyle.Success)
         .setEmoji('✅')
     );
@@ -163,9 +179,9 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
         where: { guildId }
       });
       if (staff.length > 0) {
-        await Promise.all(staff.map(m => createNotification(
+        await Promise.all(staff.map(staffMember => createNotification(
           guildId,
-          m.userId,
+          staffMember.userId,
           'Règlement mis à jour',
           "Le règlement du serveur a été mis à jour. Merci d'en prendre connaissance.",
           'INFO',
@@ -179,11 +195,11 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
         if (discordGuild) {
           const members = await fetchAllMembers(discordGuild).catch(() => null);
           if (members) {
-            const memberList = Array.from(members.values()).filter(m => !m.user.bot);
-            await Promise.all(memberList.map(m => 
+            const memberList = Array.from(members.values()).filter(member => !member.user.bot);
+            await Promise.all(memberList.map(member =>
               createNotification(
                 guildId,
-                m.id,
+                member.id,
                 'Règlement mis à jour',
                 "Le règlement du serveur a été mis à jour. Merci d'en prendre connaissance.",
                 'INFO',

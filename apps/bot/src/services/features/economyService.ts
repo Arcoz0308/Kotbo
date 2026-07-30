@@ -1,9 +1,28 @@
-import type { RpgItem } from '@prisma/client';
+import type { Prisma, RpgItem } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { isShopItemAvailable } from './economyPolicy.js';
 
 // Cooldown tracker for in-memory message activity (to prevent spam farming)
 const messageActivityCooldown = new Map<string, number>();
+const MAX_ACTIVITY_COOLDOWNS = 100_000;
+let activityCooldownChecks = 0;
+
+function maintainActivityCooldowns(now: number): void {
+  activityCooldownChecks++;
+  if (activityCooldownChecks % 2_048 !== 0 && messageActivityCooldown.size < MAX_ACTIVITY_COOLDOWNS) return;
+
+  // Le cooldown vocal (2 min) est le plus long : toute entrée plus ancienne
+  // est définitivement inutile.
+  for (const [key, lastReward] of messageActivityCooldown) {
+    if (now - lastReward >= 120_000) messageActivityCooldown.delete(key);
+  }
+  while (messageActivityCooldown.size >= MAX_ACTIVITY_COOLDOWNS) {
+    const oldest = messageActivityCooldown.keys().next().value as string | undefined;
+    if (!oldest) break;
+    messageActivityCooldown.delete(oldest);
+  }
+}
 
 /**
  * Gets or creates the global/local economy configuration for a guild.
@@ -214,17 +233,19 @@ export async function getOrCreateRpgProfile(guildId: string, userId: string) {
  * Handles activity balance and XP rewards on text message or vocal usage.
  */
 export async function handleUserActivity(guildId: string, userId: string, type: 'text' | 'voice') {
-  const config = await getOrCreateEconomyConfig(guildId);
-  if (!config.enabled) return;
-
   const key = `${guildId}:${userId}:${type}`;
   const now = Date.now();
+  maintainActivityCooldowns(now);
   const lastReward = messageActivityCooldown.get(key) || 0;
   
   // Cooldown to avoid spam farming: 1 min for text, 2 min for voice gains
   const cooldownMs = type === 'text' ? 60000 : 120000;
   if (now - lastReward < cooldownMs) return;
 
+  const config = await getOrCreateEconomyConfig(guildId);
+  if (!config.enabled) return;
+
+  messageActivityCooldown.delete(key);
   messageActivityCooldown.set(key, now);
 
   const amount = type === 'text' ? Math.floor(Math.random() * 4) + 1 : Math.floor(Math.random() * 8) + 3; // 1-4 coins for chat, 3-10 for voice
@@ -292,9 +313,9 @@ export async function claimDaily(guildId: string, userId: string) {
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
   const now = new Date();
+  const cooldownMs = config.dailyCooldownHour * 60 * 60 * 1000;
 
   if (profile.lastDaily) {
-    const cooldownMs = config.dailyCooldownHour * 60 * 60 * 1000;
     const diff = now.getTime() - profile.lastDaily.getTime();
 
     if (diff < cooldownMs) {
@@ -312,19 +333,45 @@ export async function claimDaily(guildId: string, userId: string) {
 
   const reward = Math.floor(Math.random() * (config.dailyRewardMax - config.dailyRewardMin + 1)) + config.dailyRewardMin;
 
-  await prisma.rpgProfile.update({
-    where: { id: profile.id },
+  const claimed = await prisma.rpgProfile.updateMany({
+    where: {
+      id: profile.id,
+      OR: [
+        { lastDaily: null },
+        { lastDaily: { lte: new Date(now.getTime() - cooldownMs) } },
+      ],
+    },
     data: {
       balance: { increment: reward },
       lastDaily: now
     }
   });
 
+  if (claimed.count === 0) {
+    const current = await prisma.rpgProfile.findUnique({
+      where: { id: profile.id },
+      select: { lastDaily: true },
+    });
+    const lastDaily = current?.lastDaily ?? now;
+    const remainingMs = Math.max(0, cooldownMs - (now.getTime() - lastDaily.getTime()));
+    return {
+      success: false,
+      cooldown: true,
+      remainingHours: Math.floor(remainingMs / (1000 * 60 * 60)),
+      remainingMinutes: Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60))
+    };
+  }
+
+  const updated = await prisma.rpgProfile.findUnique({
+    where: { id: profile.id },
+    select: { balance: true },
+  });
+
   return {
     success: true,
     cooldown: false,
     reward,
-    newBalance: profile.balance + reward
+    newBalance: updated?.balance ?? profile.balance + reward
   };
 }
 
@@ -539,7 +586,7 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
     where: { id: itemId }
   });
 
-  if (!item || (!item.purchasable && item.guildId !== guildId)) {
+  if (!isShopItemAvailable(item, guildId)) {
     throw new Error("Objet introuvable ou indisponible à l'achat.");
   }
 
@@ -997,9 +1044,9 @@ export async function work(guildId: string, userId: string) {
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
   const now = new Date();
+  const cooldownMs = 60 * 60 * 1000; // 1 heure
 
   if (profile.lastWork) {
-    const cooldownMs = 60 * 60 * 1000; // 1 heure
     const diff = now.getTime() - profile.lastWork.getTime();
 
     if (diff < cooldownMs) {
@@ -1019,8 +1066,14 @@ export async function work(guildId: string, userId: string) {
   const salary = 50 + profile.level * 10 + Math.floor(Math.random() * 50);
   const xpReward = 15;
 
-  await prisma.rpgProfile.update({
-    where: { id: profile.id },
+  const worked = await prisma.rpgProfile.updateMany({
+    where: {
+      id: profile.id,
+      OR: [
+        { lastWork: null },
+        { lastWork: { lte: new Date(now.getTime() - cooldownMs) } },
+      ],
+    },
     data: {
       balance: { increment: salary },
       xp: { increment: xpReward },
@@ -1028,14 +1081,33 @@ export async function work(guildId: string, userId: string) {
     }
   });
 
+  if (worked.count === 0) {
+    const current = await prisma.rpgProfile.findUnique({
+      where: { id: profile.id },
+      select: { lastWork: true },
+    });
+    const lastWork = current?.lastWork ?? now;
+    const remainingMs = Math.max(0, cooldownMs - (now.getTime() - lastWork.getTime()));
+    return {
+      success: false,
+      cooldown: true,
+      remainingMinutes: Math.floor(remainingMs / (1000 * 60)),
+      remainingSeconds: Math.floor((remainingMs % (1000 * 60)) / 1000)
+    };
+  }
+
   const levelUp = await checkLevelUp(guildId, userId);
+  const updated = await prisma.rpgProfile.findUnique({
+    where: { id: profile.id },
+    select: { balance: true },
+  });
 
   return {
     success: true,
     cooldown: false,
     salary,
     xpReward,
-    newBalance: profile.balance + salary,
+    newBalance: updated?.balance ?? profile.balance + salary,
     levelUp
   };
 }
@@ -1105,22 +1177,42 @@ export async function registerGambleAttempt(guildId: string, userId: string, bet
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
   const now = new Date();
-  const windowExpired = !profile.dailyBetWindowStart || (now.getTime() - profile.dailyBetWindowStart.getTime()) >= 24 * 60 * 60 * 1000;
-  const currentCount = windowExpired ? 0 : profile.dailyBetCount;
+  const windowStartCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  if (currentCount >= config.maxDailyBets) {
-    throw new Error(`Vous avez atteint la limite de **${config.maxDailyBets}** parties de jeux d'argent par jour. Réessayez plus tard.`);
-  }
-
-  await prisma.rpgProfile.update({
-    where: { id: profile.id },
+  const resetWindow = await prisma.rpgProfile.updateMany({
+    where: {
+      id: profile.id,
+      OR: [
+        { dailyBetWindowStart: null },
+        { dailyBetWindowStart: { lte: windowStartCutoff } },
+      ],
+    },
     data: {
-      dailyBetCount: currentCount + 1,
-      dailyBetWindowStart: windowExpired ? now : profile.dailyBetWindowStart
+      dailyBetCount: 1,
+      dailyBetWindowStart: now,
     }
   });
 
-  return profile;
+  if (resetWindow.count === 0) {
+    const incremented = await prisma.rpgProfile.updateMany({
+      where: {
+        id: profile.id,
+        dailyBetWindowStart: { gt: windowStartCutoff },
+        dailyBetCount: { lt: config.maxDailyBets },
+      },
+      data: {
+        dailyBetCount: { increment: 1 },
+      },
+    });
+
+    if (incremented.count === 0) {
+      throw new Error(`Vous avez atteint la limite de **${config.maxDailyBets}** parties de jeux d'argent par jour. Réessayez plus tard.`);
+    }
+  }
+
+  return prisma.rpgProfile.findUnique({
+    where: { id: profile.id },
+  });
 }
 
 /**
@@ -1298,7 +1390,7 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
   const item = inventoryEntry.item;
   const isEquipped = profile.weaponId === itemId || profile.armorId === itemId;
 
-  const updates: unknown[] = [];
+  const updates: Prisma.PrismaPromise<unknown>[] = [];
 
   if (remainingQty > 0) {
     updates.push(
@@ -1318,7 +1410,7 @@ export async function adminRemoveItem(guildId: string, userId: string, itemId: s
     // Stat bonuses (ATK/DEF/SPD) are all applied together on equip regardless of slot
     // (see equipInventoryItem), so all three must be reverted together here too.
     if (isEquipped) {
-      const updateData: Record<string, unknown> = {
+      const updateData: Prisma.RpgProfileUpdateInput = {
         attack: { increment: -item.atkBonus },
         defense: { increment: -item.defBonus },
         speed: { increment: -item.spdBonus }

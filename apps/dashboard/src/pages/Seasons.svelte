@@ -5,6 +5,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import EmptyState from '../lib/components/EmptyState.svelte';
+  import { m } from '../lib/i18n';
 
   let loading = $state(true);
   let data: any = $state(null);
@@ -16,7 +17,7 @@
     try {
       data = await fetchSeasonsData();
     } catch {
-      toast.error('Erreur lors du chargement');
+      toast.error(m.sea_load_error());
     } finally {
       loading = false;
     }
@@ -24,7 +25,7 @@
 
   async function handleCreate() {
     if (!newSeason.name || !newSeason.startDate || !newSeason.endDate) {
-      toast.error('Tous les champs sont requis');
+      toast.error(m.sea_required_fields_toast());
       return;
     }
     try {
@@ -33,7 +34,7 @@
       newSeason = { name: '', startDate: '', endDate: '' };
       await load();
     } catch {
-      toast.error('Erreur lors de la création');
+      toast.error(m.sea_create_error_toast());
     }
   }
 
@@ -42,7 +43,7 @@
       await startSeason(seasonId);
       await load();
     } catch {
-      toast.error('Erreur lors du demarrage');
+      toast.error(m.sea_start_error_toast());
     }
   }
 
@@ -51,16 +52,16 @@
       await endSeason(seasonId);
       await load();
     } catch {
-      toast.error('Erreur lors de la cloture');
+      toast.error(m.sea_end_error_toast());
     }
   }
 
   function getStatusBadge(status: string) {
     const map: Record<string, { label: string; cls: string }> = {
-      UPCOMING: { label: 'A venir', cls: 'bg-primary/10 text-primary' },
-      ACTIVE: { label: 'En cours', cls: 'bg-emerald-500/10 text-emerald-500' },
-      ENDED: { label: 'Terminee', cls: 'bg-amber-500/10 text-amber-500' },
-      ARCHIVED: { label: 'Archivee', cls: 'bg-surface-container-high/40 text-on-surface-variant' },
+      UPCOMING: { label: m.sea_status_upcoming(), cls: 'bg-primary/10 text-primary' },
+      ACTIVE: { label: m.sea_status_active(), cls: 'bg-emerald-500/10 text-emerald-500' },
+      ENDED: { label: m.sea_status_ended(), cls: 'bg-amber-500/10 text-amber-500' },
+      ARCHIVED: { label: m.sea_status_archived(), cls: 'bg-surface-container-high/40 text-on-surface-variant' },
     };
     return map[status] ?? { label: status, cls: 'bg-surface-container-high/40 text-on-surface-variant' };
   }
@@ -83,8 +84,8 @@
 </script>
 
 <ModulePage
-  title="Saisons de Leveling"
-  description="Classements compétitifs avec récompenses de fin de saison."
+  title={m.sea_page_title()}
+  description={m.sea_page_desc()}
   icon="flag"
   featureKey="leveling"
 >
@@ -94,27 +95,27 @@
       onclick={() => showCreate = !showCreate}
     >
       <Papicon icon="plus" size={16} />
-      Nouvelle saison
+      {m.sea_btn_new_season()}
     </button>
   {/snippet}
 
 <!-- ======================== CREATE FORM ======================== -->
 {#if showCreate}
   <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 space-y-4 mb-6">
-    <h3 class="text-base font-semibold flex items-center gap-2.5">Creer une saison</h3>
+    <h3 class="text-base font-semibold flex items-center gap-2.5">{m.sea_create_title()}</h3>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div class="space-y-1">
-        <label for="season-name" class="field-label">Nom</label>
+        <label for="season-name" class="field-label">{m.sea_field_name()}</label>
         <input
           id="season-name"
           type="text"
           bind:value={newSeason.name}
-          placeholder="Saison 1 --- Ete 2026"
+          placeholder={m.sea_name_ph()}
           class="w-full px-3 py-2 bg-surface-container-high/30 border border-outline-variant/10 rounded-lg text-on-surface text-sm"
         />
       </div>
       <div class="space-y-1">
-        <label for="season-start-date" class="field-label">Date de debut</label>
+        <label for="season-start-date" class="field-label">{m.sea_field_start_date()}</label>
         <input
           id="season-start-date"
           type="date"
@@ -123,7 +124,7 @@
         />
       </div>
       <div class="space-y-1">
-        <label for="season-end-date" class="field-label">Date de fin</label>
+        <label for="season-end-date" class="field-label">{m.sea_field_end_date()}</label>
         <input
           id="season-end-date"
           type="date"
@@ -136,11 +137,11 @@
       <button
         class="px-4 py-2 bg-surface-container-high/40 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container-high/60 transition-all"
         onclick={() => showCreate = false}
-      >Annuler</button>
+      >{m.sea_btn_cancel()}</button>
       <button
         class="px-4 py-2 bg-primary text-on-primary text-[13px] font-medium rounded-xl shadow-sm active:scale-[0.98] transition-all flex items-center gap-2"
         onclick={handleCreate}
-      >Creer</button>
+      >{m.sea_btn_create()}</button>
     </div>
   </div>
 {/if}
@@ -149,7 +150,7 @@
 {#if loading}
   <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    <p class="text-sm">Chargement des donnees...</p>
+    <p class="text-sm">{m.sea_loading()}</p>
   </div>
 {:else if data}
 
@@ -161,7 +162,7 @@
         <div>
           <div class="flex items-center gap-3 mb-1">
             <h2 class="text-xl font-bold text-on-surface">{data.activeSeason.name}</h2>
-            <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-xs font-medium rounded-full">En cours</span>
+            <span class="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-500 text-xs font-medium rounded-full">{m.sea_status_active()}</span>
           </div>
           <p class="flex items-center gap-1.5 text-xs text-on-surface-variant/60">
             <Papicon icon="calendar" size={14} />
@@ -176,11 +177,11 @@
           <div class="space-y-3">
             <h4 class="text-sm font-semibold flex items-center gap-2 text-on-surface-variant">
               <Papicon icon="crown" size={16} />
-              Classement actuel
+              {m.sea_current_ranking()}
             </h4>
             <div class="space-y-0.5">
               {#each data.activeLeaderboard as entry, i}
-                <div class="grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}" style="grid-template-columns: 28px 40px 1fr 80px 100px;">
+                <div class="season-leaderboard-row grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}">
                   <span class="text-base leading-none">{getMedal(i)}</span>
                   <span class="font-semibold text-on-surface-variant">#{entry.rank}</span>
                   <span class="font-mono text-xs text-on-surface-variant/60">{entry.userId}</span>
@@ -199,7 +200,7 @@
             onclick={() => handleEnd(data.activeSeason.id)}
           >
             <Papicon icon="x" size={14} />
-            Terminer la saison
+            {m.sea_btn_end_season()}
           </button>
         </div>
       </div>
@@ -208,7 +209,7 @@
 
   <!-- ==================== ALL SEASONS TIMELINE ==================== -->
   {#if data.seasons.length > 0}
-    <h3 class="text-base font-semibold flex items-center gap-2.5 mb-4">Toutes les saisons</h3>
+    <h3 class="text-base font-semibold flex items-center gap-2.5 mb-4">{m.sea_all_seasons()}</h3>
 
     <div class="relative pl-6">
       <!-- Vertical line -->
@@ -233,7 +234,7 @@
               </span>
               <span class="flex items-center gap-1">
                 <Papicon icon="users" size={13} />
-                {season._count?.snapshots ?? 0} participants
+                {m.sea_participants_count({ count: season._count?.snapshots ?? 0 })}
               </span>
             </div>
             {#if season.status === 'UPCOMING'}
@@ -243,7 +244,7 @@
                   onclick={() => handleStart(season.id)}
                 >
                   <Papicon icon="zap" size={13} />
-                  Demarrer
+                  {m.sea_btn_start()}
                 </button>
               </div>
             {/if}
@@ -253,7 +254,36 @@
     </div>
   {:else}
     <!-- Empty state -->
-    <EmptyState icon="flag" title="Aucune saison créée" description="Cliquez sur « Nouvelle saison » pour commencer." />
+    <EmptyState icon="flag" title={m.sea_empty_title()} description={m.sea_empty_desc()} />
   {/if}
 {/if}
 </ModulePage>
+
+<style>
+  .season-leaderboard-row {
+    grid-template-columns: 28px 40px 1fr 80px 100px;
+  }
+
+  /* Level and user id compete for the same space on a phone: keep the rank,
+     the name and the score, and let the level go. */
+  @media (max-width: 767px) {
+    .season-leaderboard-row {
+      gap: 0.375rem;
+      grid-template-columns: 1.5rem 2rem minmax(0, 1fr) auto;
+    }
+
+    .season-leaderboard-row > :nth-child(3) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .season-leaderboard-row > :nth-child(4) {
+      display: none;
+    }
+
+    .season-leaderboard-row > :last-child {
+      white-space: nowrap;
+    }
+  }
+</style>

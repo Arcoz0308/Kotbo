@@ -172,6 +172,12 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
       const pid = 'pid' in childProcess ? childProcess.pid : undefined;
       logger.info('Sharding', `[${instanceLabel}] Processus enfant pour le Shard ${shard.id} démarré (PID: ${pid}).`);
 
+      if ('stdout' in childProcess && childProcess.stdout) {
+        childProcess.stdout.on('data', (data: Buffer) => {
+          process.stdout.write(data);
+        });
+      }
+
       if ('stderr' in childProcess && childProcess.stderr) {
         childProcess.stderr.on('data', (data: Buffer) => {
           logger.error('Sharding', `[${instanceLabel}][Shard ${shard.id} STDERR] ${data.toString().trim()}`);

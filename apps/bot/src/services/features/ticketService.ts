@@ -8,6 +8,8 @@ import { generateTranscript } from './transcriptService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
 import { handleTicketTrigger } from './autoResponseService.js';
 import { embedToV2 } from '../../utils/patchV2.js';
+import { resolveGuildLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
 
 function sanitizeTicketChannelName(input: string): string {
   const cleaned = input
@@ -223,19 +225,25 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   const colorHex = guildConfig.ticketEmbedColor || '#5865F2';
   const color = typeof colorHex === 'string' ? parseInt(colorHex.replace('#', ''), 16) : COLORS_RAW.primary;
 
+  // `ticketEmbedTitle`, `ticketEmbedDesc` et `ticketEmbedButtonText` sont NOT NULL
+  // en base : leur contenu appartient a l'admin et est republie tel quel. Seuls
+  // les textes que le bot genere lui-meme suivent la langue du serveur.
+  const discordGuild = client.guilds.cache.get(guildId);
+  const locale = await resolveGuildLocale(guildId, discordGuild?.preferredLocale ?? null);
+
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
-    label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
-    description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.",
+    label: guildConfig.ticketEmbedButtonText,
+    description: guildConfig.ticketEmbedDesc,
     categoryId: guildConfig.ticketCategoryId ?? null,
     staffRoleId: guildConfig.ticketStaffRoleId ?? null,
     emoji: '📩',
     buttonStyle: 'PRIMARY',
   });
 
-  const title = resolveEmojiShortcodes(guildConfig.ticketEmbedTitle || 'Support Technique');
-  let desc = resolveEmojiShortcodes(guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.");
+  const title = resolveEmojiShortcodes(guildConfig.ticketEmbedTitle);
+  let desc = resolveEmojiShortcodes(guildConfig.ticketEmbedDesc);
   if (ticketTypes.length > 0) {
-    desc += '\n\n**Types de tickets**\n';
+    desc += `\n\n${m.panel_tickets_types_heading({}, { locale })}\n`;
     ticketTypes.forEach(t => {
       desc += `${t.emoji || '📩'} **${t.label}** — ${t.description}\n`;
     });
@@ -255,7 +263,7 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   if (guildConfig.ticketEmbedFooter) {
     embed.setFooter({ text: resolveEmojiShortcodes(guildConfig.ticketEmbedFooter).substring(0, 2048) });
   } else {
-    embed.setFooter({ text: 'Kotbo • Système de tickets' });
+    embed.setFooter({ text: m.panel_tickets_default_footer({}, { locale }) });
   }
   if (guildConfig.ticketEmbedAuthorName) {
     embed.setAuthor({
@@ -271,7 +279,7 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   if (embedType === 'DROPDOWN') {
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId('ticket:select_type')
-      .setPlaceholder('Sélectionnez un type de ticket...')
+      .setPlaceholder(m.panel_tickets_select_placeholder({}, { locale }))
       .addOptions(
         ticketTypes.map((type) => ({
           label: type.label.slice(0, 80),
@@ -1926,7 +1934,7 @@ async function setupInteractiveTicketQuestions(
           content: `<@${userId}> 📎 **${f.label}** : Veuillez glisser-déposer votre fichier ou image dans ce salon.`
         });
 
-        const filter = (m: Message) => m.author.id === userId && m.attachments.size > 0;
+        const filter = (candidate: Message) => candidate.author.id === userId && candidate.attachments.size > 0;
         const collected = await channel.awaitMessages({ filter, max: 1, time: 300000 }).catch(() => null);
 
         if (collected && collected.first()) {

@@ -15,6 +15,7 @@ import {
   Events,
   PermissionFlagsBits,
   type Client,
+  type ColorResolvable,
   type Guild,
   type GuildMember,
   type OverwriteResolvable,
@@ -187,7 +188,11 @@ async function createPartnershipTicket(
       new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
     );
 
-    const recap = buildRecapEmbed(app).setColor((guildConfig?.ticketEmbedColor as number | null) || meta.color);
+    const configuredColor = guildConfig?.ticketEmbedColor;
+    const recapColor: ColorResolvable = configuredColor && /^#?[0-9a-f]{6}$/i.test(configuredColor)
+      ? (configuredColor.startsWith('#') ? configuredColor : `#${configuredColor}`) as ColorResolvable
+      : meta.color;
+    const recap = buildRecapEmbed(app).setColor(recapColor);
 
     await ticketChannel.send({
       content: `${staffRoleId ? `<@&${staffRoleId}> ` : ''}<@${app.userId}> 🔔 Bienvenue ! Ta candidature **${meta.label}** a bien été transmise au staff, qui va l'étudier ici avec toi.`,

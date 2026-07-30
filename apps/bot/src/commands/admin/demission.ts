@@ -12,13 +12,17 @@ import prisma from '../../utils/db.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { errorContainer } from '../../utils/embeds.js';
 import { v2Message } from '@arcscord/components';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 
+const meta = getCommandMetadata('b2_demission');
+
 const data = new SlashCommandBuilder()
-  .setName('demission')
-  .setDescription('Soumet une demande de démission du staff avec un motif.');
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations);
 
 async function execute(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) return;

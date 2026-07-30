@@ -2,42 +2,57 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
 import { roleGrantsAdministrator } from '../../services/moderation/adminLockService.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 const MAX_MENTIONS = 20;
 
+const meta = getCommandMetadata('b2_role');
+const addMeta = getCommandMetadata('b2_role_add');
+const removeMeta = getCommandMetadata('b2_role_remove');
+
+const membresOption = <T extends { setName(n: string): T; setDescription(d: string): T; setDescriptionLocalizations(l: Record<string, string>): T; setRequired(r: boolean): T }>(option: T) =>
+  option
+    .setName('membres')
+    .setDescription(m.b2_role_opt_membres({}, { locale: 'en' }))
+    .setDescriptionLocalizations({ fr: m.b2_role_opt_membres({}, { locale: 'fr' }) })
+    .setRequired(true);
+
 const data = new SlashCommandBuilder()
-  .setName('role')
-  .setDescription('🎭 Gère les rôles des membres en masse')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
   .addSubcommand((sub) =>
     sub
-      .setName('add')
-      .setDescription('Ajoute un rôle à plusieurs membres')
+      .setName(addMeta.name)
+      .setNameLocalizations(addMeta.nameLocalizations)
+      .setDescription(addMeta.description)
+      .setDescriptionLocalizations(addMeta.descriptionLocalizations)
       .addRoleOption((option) =>
-        option.setName('role').setDescription('Le rôle à ajouter').setRequired(true),
-      )
-      .addStringOption((option) =>
         option
-          .setName('membres')
-          .setDescription('Mentionnez les membres (ex: @user1 @user2 @user3)')
+          .setName('role')
+          .setDescription(m.b2_role_add_opt_role({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b2_role_add_opt_role({}, { locale: 'fr' }) })
           .setRequired(true),
-      ),
+      )
+      .addStringOption(membresOption),
   )
   .addSubcommand((sub) =>
     sub
-      .setName('remove')
-      .setDescription('Retire un rôle à plusieurs membres')
+      .setName(removeMeta.name)
+      .setNameLocalizations(removeMeta.nameLocalizations)
+      .setDescription(removeMeta.description)
+      .setDescriptionLocalizations(removeMeta.descriptionLocalizations)
       .addRoleOption((option) =>
-        option.setName('role').setDescription('Le rôle à retirer').setRequired(true),
-      )
-      .addStringOption((option) =>
         option
-          .setName('membres')
-          .setDescription('Mentionnez les membres (ex: @user1 @user2 @user3)')
+          .setName('role')
+          .setDescription(m.b2_role_remove_opt_role({}, { locale: 'en' }))
+          .setDescriptionLocalizations({ fr: m.b2_role_remove_opt_role({}, { locale: 'fr' }) })
           .setRequired(true),
-      ),
+      )
+      .addStringOption(membresOption),
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {

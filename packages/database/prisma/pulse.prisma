@@ -35,15 +35,17 @@ model PulseSnapshot {
   trend      String @default("STABLE") // UP, DOWN, STABLE
   trendDelta Int    @default(0)
 
-  // Alertes générées
-  alerts Json? // [{ type, message, severity }]
+  // Alertes générées. `code` + `params` permettent de traduire côté client ;
+  // `message` est le rendu français figé, conservé comme repli.
+  alerts Json? // [{ type, code, severity, params?, message }]
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // `@@unique([guildId, dateKey])` crée déjà l'index B-tree correspondant :
+  // un `@@index` sur les mêmes colonnes ne servait qu'à ralentir les écritures.
   @@unique([guildId, dateKey])
-  @@index([guildId, dateKey])
   @@map("pulse_snapshots")
 }

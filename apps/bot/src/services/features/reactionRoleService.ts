@@ -3,6 +3,8 @@ import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Mes
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
+import { resolveGuildLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
 
 /**
  * Crée et envoie un menu de rôles avec boutons dans un canal Discord
@@ -30,6 +32,61 @@ export async function createReactionRoleMenu(
 }
 
 /**
+ * Supprime un menu en base puis tente de retirer son message Discord.
+ * La suppression en base en premier invalide immédiatement les anciens boutons,
+ * même si le bot ne peut plus accéder au message.
+ */
+export async function deleteReactionRoleMenu(
+  client: Client,
+  guildId: string,
+  menuId: string
+): Promise<boolean> {
+  const menu = await prisma.reactionRoleMenu.findFirst({
+    where: { id: menuId, guildId },
+  });
+
+  if (!menu) {
+    return false;
+  }
+
+  await prisma.reactionRoleMenu.delete({
+    where: { id: menu.id },
+  });
+
+  if (!menu.messageId) {
+    return true;
+  }
+
+  try {
+    const discordGuild = client.guilds.cache.get(guildId)
+      || await client.guilds.fetch(guildId).catch(() => null);
+    const channel = discordGuild?.channels.cache.get(menu.channelId)
+      || await discordGuild?.channels.fetch(menu.channelId).catch(() => null);
+
+    if (!channel?.isTextBased()) {
+      logger.warn(
+        'ReactionRoleService',
+        `Message ${menu.messageId} non supprimé : salon ${menu.channelId} introuvable ou non textuel.`
+      );
+      return true;
+    }
+
+    const message = await channel.messages.fetch(menu.messageId).catch(() => null);
+    if (message) {
+      await message.delete();
+    }
+  } catch (err) {
+    logger.warn(
+      'ReactionRoleService',
+      `Le menu ${menu.id} est désactivé, mais son message Discord n'a pas pu être supprimé :`,
+      err
+    );
+  }
+
+  return true;
+}
+
+/**
  * Envoie ou met à jour le message d'un menu de rôles
  */
 export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
@@ -46,11 +103,12 @@ export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
     if (!channel?.isTextBased()) return;
 
     const options = menu.options as Array<{ emoji?: string; label: string; roleId: string }>;
+    const locale = await resolveGuildLocale(menu.guildId, discordGuild.preferredLocale);
 
     // Créer l'embed du menu
     const embed = new EmbedBuilder()
       .setTitle(resolveEmojiShortcodes(menu.title))
-      .setDescription("Cliquez sur les boutons ci-dessous pour vous attribuer ou retirer les rôles correspondants.")
+      .setDescription(m.panel_reactionroles_description({}, { locale }))
       .setColor('#5865F2')
       .setTimestamp();
 
@@ -111,6 +169,25 @@ export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
 export async function handleRoleToggleInteraction(interaction: ButtonInteraction) {
   try {
     const roleId = interaction.customId.split(':')[1];
+    const guildId = interaction.guildId;
+    const messageId = interaction.message.id;
+
+    const activeMenu = guildId
+      ? await prisma.reactionRoleMenu.findFirst({
+        where: { guildId, messageId },
+      })
+      : null;
+    const configuredRoles = Array.isArray(activeMenu?.options)
+      ? activeMenu.options as Array<{ roleId?: string }>
+      : [];
+
+    if (!activeMenu || !configuredRoles.some(option => option.roleId === roleId)) {
+      return interaction.reply({
+        content: '❌ Ce panneau de rôles a été supprimé ou n’est plus actif.',
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+
     // `interaction.member` peut etre un GuildMember complet ou sa forme brute
     // APIInteractionGuildMember (hors cache), qui n'expose pas de gestionnaire
     // de roles : seul le premier permet d'ajouter ou retirer un role.

@@ -6,6 +6,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyticsCard.svelte';
   import { fetchDailyAlgoAnalytics } from '../lib/api';
+  import { m } from '../lib/i18n';
 
 
   let data: any = $state(null);
@@ -18,10 +19,10 @@
     error = '';
     
     try {
-      const result = await fetchDailyAlgoAnalytics(period);
+      const result = await fetchDailyAlgoAnalytics({ days: period });
       data = result;
     } catch (e) {
-      error = 'Erreur lors du chargement des données';
+      error = m.daa_load_error();
       console.error(e);
     } finally {
       loading = false;
@@ -43,8 +44,8 @@
         </div>
         <div>
           <span class="text-xs font-medium text-primary">Daily Algo</span>
-          <h1 class="text-lg font-semibold text-on-surface tracking-tight">Analytics Challenges</h1>
-          <p class="text-sm text-on-surface-variant/70">Performances, participations et tendances</p>
+          <h1 class="text-lg font-semibold text-on-surface tracking-tight">{m.daa_title()}</h1>
+          <p class="text-sm text-on-surface-variant/70">{m.daa_desc()}</p>
         </div>
       </div>
       <RefreshButton onclick={loadData} />
@@ -63,7 +64,7 @@
  ? 'bg-primary text-primary-on'
           : 'bg-surface-container-high/40 text-on-surface-variant hover:bg-surface-container-high'}"
       >
-        {p} jours
+        {m.daa_days_unit({ count: p })}
       </button>
     {/each}
   </div>
@@ -78,7 +79,7 @@
         <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
       </div>
-      <p class="text-[13px] font-medium text-on-surface-variant/60">Analyse des challenges...</p>
+      <p class="text-[13px] font-medium text-on-surface-variant/60">{m.daa_loading()}</p>
     </div>
   {:else if data}
     <DailyAlgoAnalyticsCard {data} />

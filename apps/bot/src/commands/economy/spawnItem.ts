@@ -4,29 +4,36 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, type Autocomplet
 import prisma from '../../utils/db.js';
 import { adminSpawnItem } from '../../services/features/economyService.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b3_spawnitem');
+
 const data = new SlashCommandBuilder()
-  .setName('spawn-item')
-  .setDescription("⚙️ Faire apparaître un objet de la base de données dans l'inventaire de quelqu'un")
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addUserOption(option =>
     option
       .setName('membre')
-      .setDescription('Le membre cible')
+      .setDescription(m.b3_spawnitem_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b3_spawnitem_opt_membre({}, { locale: 'fr' }) })
       .setRequired(true)
   )
   .addStringOption(option =>
     option
       .setName('objet')
-      .setDescription("L'objet à faire apparaître")
+      .setDescription(m.b3_spawnitem_opt_objet({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b3_spawnitem_opt_objet({}, { locale: 'fr' }) })
       .setRequired(true)
       .setAutocomplete(true)
   )
   .addIntegerOption(option =>
     option
       .setName('quantite')
-      .setDescription("La quantité d'objets à faire apparaître (défaut : 1)")
+      .setDescription(m.b3_spawnitem_opt_quantite({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b3_spawnitem_opt_quantite({}, { locale: 'fr' }) })
       .setRequired(false)
       .setMinValue(1)
   )

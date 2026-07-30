@@ -4,12 +4,16 @@ import { getOrCreateEconomyConfig } from '../../services/features/economyService
 import { kotboContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { separator, v2Message } from '@arcscord/components';
-import { getEffectiveLocale } from '../../utils/i18n.js';
+import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
+const meta = getCommandMetadata('b3_economyinfo');
+
 const data = new SlashCommandBuilder()
-  .setName('economy-info')
-  .setDescription("🪙 Tout ce qu'il faut savoir sur l'économie du serveur");
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations);
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;

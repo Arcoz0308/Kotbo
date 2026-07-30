@@ -1,8 +1,7 @@
 /* Service worker Kotbo — PWA (offline shell) + widget Windows 11/Edge */
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `kotbo-shell-${VERSION}`;
-const ASSET_CACHE = `kotbo-assets-${VERSION}`;
 const WIDGET_TAG = 'kotbo-stats';
 
 // ---------------------------------------------------------------------------
@@ -18,10 +17,13 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
+    if (self.registration.navigationPreload) {
+      await self.registration.navigationPreload.enable();
+    }
     const keys = await caches.keys();
     await Promise.all(
       keys
-        .filter((key) => key.startsWith('kotbo-') && key !== SHELL_CACHE && key !== ASSET_CACHE)
+        .filter((key) => key.startsWith('kotbo-') && key !== SHELL_CACHE)
         .map((key) => caches.delete(key)),
     );
     await self.clients.claim();
@@ -31,7 +33,7 @@ self.addEventListener('activate', (event) => {
 // ---------------------------------------------------------------------------
 // Stratégies de cache
 //  - navigations : network-first, fallback sur le shell en cache (hors-ligne)
-//  - /assets/ (fichiers hashés Vite) : cache-first
+//  - /assets/ : cache HTTP natif (immutable côté nginx), sans duplication SW
 //  - /api/ : jamais mis en cache
 // ---------------------------------------------------------------------------
 
@@ -46,7 +48,7 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate') {
     event.respondWith((async () => {
       try {
-        const fresh = await fetch(request);
+        const fresh = (await event.preloadResponse) || await fetch(request);
         if (fresh.ok) {
           const cache = await caches.open(SHELL_CACHE);
           cache.put('/', fresh.clone());
@@ -59,19 +61,6 @@ self.addEventListener('fetch', (event) => {
       }
     })());
     return;
-  }
-
-  if (url.pathname.startsWith('/assets/')) {
-    event.respondWith((async () => {
-      const cached = await caches.match(request);
-      if (cached) return cached;
-      const fresh = await fetch(request);
-      if (fresh.ok) {
-        const cache = await caches.open(ASSET_CACHE);
-        cache.put(request, fresh.clone());
-      }
-      return fresh;
-    })());
   }
 });
 

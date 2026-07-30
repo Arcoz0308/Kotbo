@@ -6,11 +6,13 @@ import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
+import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const servicePath = path.resolve(__dirname, '../../services/analytics/messageScraperService.js');
+const guildDataSyncServicePath = path.resolve(__dirname, '../../services/analytics/guildDataSyncService.js');
 import { json, verifyAuth, resolveAdminAccess, collectShardSnapshots, collectShardGuilds, loadShardingConfig, saveShardingConfig, requestContainerRestart, requestShardRespawn, normalizeGlobalBannedWord, normalizeGlobalBannedWordCategory, cleanupGlobalBannedWords, getGuildName, readJsonBody, ShardSnapshot, ShardingMode, ShardingConfig } from '../shared.js';
 import {
   getModuleActivationStats,
@@ -22,6 +24,15 @@ import {
 } from '../../services/analytics/moduleStatsService.js';
 import { collectUserData } from '../../services/system/gdprExportService.js';
 import { buildGdprZip } from '../../services/system/gdprZip.js';
+
+/**
+ * `readJsonBody` refuse (415) toute requête sans Content-Type JSON. Les endpoints
+ * dont le corps est facultatif s'en servent pour ne le lire que s'il existe, et
+ * rester compatibles avec les appels historiques sans corps.
+ */
+function isJsonRequest(req: IncomingMessage): boolean {
+  return req.headers['content-type']?.includes('application/json') ?? false;
+}
 
 export async function handleAdminRoutes(
   req: IncomingMessage,
@@ -1155,14 +1166,29 @@ export async function handleAdminRoutes(
       const codes = await prisma.activationCode.findMany({
         orderBy: { createdAt: 'desc' }
       });
+      // État d'accès des serveurs ayant consommé un code, pour afficher
+      // l'échéance et le temps restant à côté du code.
+      const usedGuildIds = codes.map((c) => c.usedByGuildId).filter((id): id is string => !!id);
+      const accessRows = usedGuildIds.length
+        ? await prisma.guild.findMany({
+            where: { id: { in: usedGuildIds } },
+            select: { id: true, activated: true, accessType: true, accessExpiresAt: true, accessExpiredAt: true },
+          })
+        : [];
+      const accessByGuild = new Map(accessRows.map((g) => [g.id, g] as const));
+
       const enrichedCodes = await Promise.all(codes.map(async (c) => {
         let guildName = null;
         if (c.usedByGuildId) {
           guildName = guildNames.get(c.usedByGuildId) ?? getGuildName(client, c.usedByGuildId);
         }
+        const access = c.usedByGuildId ? accessByGuild.get(c.usedByGuildId) : null;
         return {
           ...c,
-          guildName
+          guildName,
+          guildActivated: access?.activated ?? null,
+          accessExpiresAt: access?.accessExpiresAt ?? null,
+          accessExpiredAt: access?.accessExpiredAt ?? null,
         };
       }));
       json(res, 200, enrichedCodes);
@@ -1176,13 +1202,27 @@ export async function handleAdminRoutes(
   // POST /api/admin/activation-codes
   if (parts.length === 3 && parts[2] === 'activation-codes' && method === 'POST') {
     try {
+      // Corps optionnel : sans lui, on retombe sur un code permanent, le
+      // comportement historique de cet endpoint.
+      const body = isJsonRequest(req)
+        ? await readJsonBody<{ accessType?: string; durationMinutes?: number | null; label?: string | null }>(req)
+        : null;
+      const access = normalizeAccessGrant(body?.accessType, body?.durationMinutes);
+      if ('error' in access) {
+        json(res, 400, { error: access.error });
+        return true;
+      }
+
       const code = `KB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-      
+
       const newCode = await prisma.activationCode.create({
         data: {
           code,
           createdById: user.userId,
-          isActive: true
+          isActive: true,
+          accessType: access.accessType,
+          durationMinutes: access.durationMinutes,
+          label: body?.label?.trim() || null,
         }
       });
 
@@ -1209,6 +1249,11 @@ export async function handleAdminRoutes(
 
       if (codeRow.usedByGuildId) {
         await deactivateGuild(codeRow.usedByGuildId);
+        // Le serveur perd tout sur décision humaine : il faut le lui dire.
+        // Jamais bloquant, une notification ratée ne doit pas annuler la révocation.
+        await announceAccessRevoked(client, codeRow.usedByGuildId).catch((err) =>
+          logger.warn('AdminAPI', `Impossible de prévenir ${codeRow.usedByGuildId} de la révocation :`, err),
+        );
       }
 
       await prisma.activationCode.delete({
@@ -1258,6 +1303,9 @@ export async function handleAdminRoutes(
     const guildId = parts[3];
     try {
       await deactivateGuild(guildId);
+      await announceAccessRevoked(client, guildId).catch((err) =>
+        logger.warn('AdminAPI', `Impossible de prévenir ${guildId} de la désactivation :`, err),
+      );
       json(res, 200, { ok: true, message: 'Le serveur a été désactivé.' });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la désactivation du serveur :', err);
@@ -1270,22 +1318,87 @@ export async function handleAdminRoutes(
   if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'activate-auto' && method === 'POST') {
     const guildId = parts[3];
     try {
+      // Corps optionnel : sans lui, l'activation reste permanente comme avant.
+      const body = isJsonRequest(req)
+        ? await readJsonBody<{ accessType?: string; durationMinutes?: number | null }>(req)
+        : null;
+      const access = normalizeAccessGrant(body?.accessType, body?.durationMinutes);
+      if ('error' in access) {
+        json(res, 400, { error: access.error });
+        return true;
+      }
+
       const code = `KB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
       await prisma.activationCode.create({
         data: {
           code,
           createdById: user.userId,
-          isActive: true
+          isActive: true,
+          accessType: access.accessType,
+          durationMinutes: access.durationMinutes,
         }
       });
 
-      await activateGuild(guildId, code);
+      const result = await activateGuild(guildId, code);
 
-      json(res, 200, { ok: true, code, message: 'Le serveur a été activé automatiquement.' });
+      if (result.expiresAt && result.durationMinutes) {
+        await announceTrialStart(client, guildId, result.expiresAt, result.durationMinutes).catch((err) =>
+          logger.warn('AdminAPI', `Impossible d'annoncer le démarrage de l'essai sur ${guildId} :`, err),
+        );
+      }
+
+      json(res, 200, {
+        ok: true,
+        code,
+        accessType: result.accessType,
+        accessExpiresAt: result.expiresAt,
+        message: result.expiresAt
+          ? `Le serveur a été activé pour ${formatDuration(result.durationMinutes!)}.`
+          : 'Le serveur a été activé automatiquement.',
+      });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la génération et affectation du code :', err);
       json(res, 500, { error: "Erreur lors de l'activation automatique du serveur." });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/access/extend : prolonge un accès à durée limitée
+  if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'access' && parts[5] === 'extend' && method === 'POST') {
+    const guildId = parts[3];
+    try {
+      const body = await readJsonBody<{ minutes?: number; accessType?: string }>(req);
+      const minutes = typeof body?.minutes === 'number' ? body.minutes : Number(body?.minutes);
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_ACCESS_DURATION_MINUTES) {
+        json(res, 400, { error: `La durée doit être un nombre entier de minutes entre 1 et ${MAX_ACCESS_DURATION_MINUTES}.` });
+        return true;
+      }
+
+      const type = body?.accessType ? normalizeAccessGrant(body.accessType, minutes) : null;
+      if (type && 'error' in type) {
+        json(res, 400, { error: type.error });
+        return true;
+      }
+
+      const status = await extendAccess(guildId, minutes, type ? { type: type.accessType } : {});
+      if (!status) {
+        json(res, 404, { error: "Ce serveur n'est pas enregistré." });
+        return true;
+      }
+
+      json(res, 200, {
+        ok: true,
+        accessType: status.accessType,
+        accessExpiresAt: status.accessExpiresAt,
+        minutesLeft: status.minutesLeft,
+        message: status.accessExpiresAt
+          ? `Accès prolongé jusqu'au ${status.accessExpiresAt.toLocaleString('fr-FR')}.`
+          : 'Ce serveur dispose déjà d\'un accès permanent.',
+      });
+    } catch (err) {
+      logger.error('AdminAPI', "Erreur lors de la prolongation de l'accès :", err);
+      json(res, 500, { error: "Erreur lors de la prolongation de l'accès." });
     }
     return true;
   }
@@ -1313,34 +1426,104 @@ export async function handleAdminRoutes(
       const force = !!(body?.force || body?.forcer);
 
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ success: boolean; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
+        const results = await client.shard.broadcastEval<{ status: string; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           try {
             const { startHistoricalScraping } = await import(context.servicePath);
-            await startHistoricalScraping(shardClient, context.guildId, context.force);
-            return { success: true };
+            const result = await startHistoricalScraping(shardClient, context.guildId, context.force);
+            return { status: result.status };
           } catch (err) {
-            return { success: false, error: err instanceof Error ? err.message : String(err) };
+            return { status: 'FAILED', error: err instanceof Error ? err.message : String(err) };
           }
         }, { context: { guildId, force, servicePath } });
 
         const result = results.find(r => r !== null);
         if (!result) {
           json(res, 404, { error: 'Serveur introuvable' });
-        } else if (result.success) {
+        } else if (result.status === 'STARTED') {
           json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
+        } else if (result.status === 'ALREADY_COMPLETED') {
+          json(res, 200, { ok: true, message: "L'historique est déjà entièrement synchronisé." });
+        } else if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
         } else {
           json(res, 500, { error: result.error || 'Erreur lors du lancement du scraping' });
         }
       } else {
         const { startHistoricalScraping } = await import('../../services/analytics/messageScraperService.js');
-        await startHistoricalScraping(client, guildId, force);
-        json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
+        const result = await startHistoricalScraping(client, guildId, force);
+        if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+        } else {
+          json(res, 200, {
+            ok: true,
+            message: result.status === 'ALREADY_COMPLETED'
+              ? "L'historique est déjà entièrement synchronisé."
+              : 'Scraping historique lancé avec succès.',
+          });
+        }
       }
     } catch (err) {
       logger.error('AdminAPI', 'POST rescan-stats error:', err);
       json(res, 500, { error: 'Erreur lors du lancement du scraping' });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/resync-all
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'resync-all' && method === 'POST') {
+    const guildId = parts[3];
+
+    try {
+      if (client.shard) {
+        const results = await client.shard.broadcastEval<
+          { status: string; error?: string } | null,
+          { guildId: string; servicePath: string }
+        >(async (shardClient, context) => {
+          if (!shardClient.guilds.cache.has(context.guildId)) return null;
+          try {
+            const { startGuildDataSync } = await import(context.servicePath);
+            const result = await startGuildDataSync(shardClient, context.guildId);
+            return { status: result.status };
+          } catch (error) {
+            return { status: 'FAILED', error: error instanceof Error ? error.message : String(error) };
+          }
+        }, { context: { guildId, servicePath: guildDataSyncServicePath } });
+
+        const result = results.find((entry) => entry !== null);
+        if (!result) {
+          json(res, 404, { error: 'Serveur introuvable' });
+        } else if (result.status === 'STARTED') {
+          json(res, 202, { ok: true, status: result.status, message: 'Synchronisation complète lancée.' });
+        } else if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+        } else if (result.status === 'NOT_ACTIVATED') {
+          json(res, 400, { error: "Le serveur doit être activé avant d'être synchronisé." });
+        } else {
+          json(res, 500, { error: result.error || 'Impossible de lancer la synchronisation complète.' });
+        }
+      } else {
+        if (!client.guilds.cache.has(guildId) && !(await client.guilds.fetch(guildId).catch(() => null))) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+
+        const { startGuildDataSync } = await import('../../services/analytics/guildDataSyncService.js');
+        const result = await startGuildDataSync(client, guildId);
+        if (result.status === 'STARTED') {
+          json(res, 202, { ok: true, status: result.status, message: 'Synchronisation complète lancée.' });
+        } else if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+        } else if (result.status === 'NOT_ACTIVATED') {
+          json(res, 400, { error: "Le serveur doit être activé avant d'être synchronisé." });
+        } else {
+          json(res, 404, { error: 'Serveur introuvable' });
+        }
+      }
+    } catch (error) {
+      logger.error('AdminAPI', 'POST resync-all error:', error);
+      json(res, 500, { error: 'Erreur lors du lancement de la synchronisation complète.' });
     }
     return true;
   }
@@ -1369,30 +1552,43 @@ export async function handleAdminRoutes(
       const memberServicePath = path.resolve(__dirname, '../../services/analytics/memberScraperService.js');
 
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ success: boolean; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
+        const results = await client.shard.broadcastEval<{ status: string; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           try {
             const { startMemberScraping } = await import(context.servicePath);
-            await startMemberScraping(shardClient, context.guildId, context.force);
-            return { success: true };
+            const result = await startMemberScraping(shardClient, context.guildId, context.force);
+            return { status: result.status };
           } catch (err) {
-            return { success: false, error: err instanceof Error ? err.message : String(err) };
+            return { status: 'FAILED', error: err instanceof Error ? err.message : String(err) };
           }
         }, { context: { guildId, force, servicePath: memberServicePath } });
 
         const result = results.find(r => r !== null);
         if (!result) {
           json(res, 404, { error: 'Serveur introuvable' });
-        } else if (result.success) {
+        } else if (result.status === 'STARTED') {
           json(res, 200, { ok: true, message: 'Scraping des membres lancé avec succès.' });
+        } else if (result.status === 'ALREADY_COMPLETED') {
+          json(res, 200, { ok: true, message: 'Les membres sont déjà synchronisés.' });
+        } else if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
         } else {
           json(res, 500, { error: result.error || 'Erreur lors du lancement du scraping membres' });
         }
       } else {
         const { startMemberScraping } = await import('../../services/analytics/memberScraperService.js');
-        await startMemberScraping(client, guildId, force);
-        json(res, 200, { ok: true, message: 'Scraping des membres lancé avec succès.' });
+        const result = await startMemberScraping(client, guildId, force);
+        if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+        } else {
+          json(res, 200, {
+            ok: true,
+            message: result.status === 'ALREADY_COMPLETED'
+              ? 'Les membres sont déjà synchronisés.'
+              : 'Scraping des membres lancé avec succès.',
+          });
+        }
       }
     } catch (err) {
       logger.error('AdminAPI', 'POST rescan-members error:', err);

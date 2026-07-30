@@ -6,6 +6,7 @@
   import DailyAlgoMiniIDE from '../lib/components/DailyAlgoMiniIDE.svelte';
   import { detectIdeLanguageFromCode, normalizeIdeLanguage, type IdeLanguage } from '../lib/dailyAlgoIde';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { m } from '../lib/i18n';
 
   type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -66,20 +67,20 @@
   function statusMeta(current: SubmissionStatus): { label: string; classes: string } {
     if (current === 'APPROVED') {
       return {
-        label: 'Validee',
+        label: m.ide_status_approved(),
         classes: 'status-approved',
       };
     }
 
     if (current === 'REJECTED') {
       return {
-        label: 'Rejetee',
+        label: m.ide_status_rejected(),
         classes: 'status-rejected',
       };
     }
 
     return {
-      label: 'En attente',
+      label: m.ide_status_pending(),
       classes: 'status-pending',
     };
   }
@@ -818,12 +819,17 @@
 
   @media (max-width: 820px) {
     .daily-ide-wrap {
-      width: min(1880px, calc(100vw - 0.8rem));
-      padding: 0.4rem 0 0.8rem;
+      width: 100%;
+      height: auto;
+      min-height: 100dvh;
+      padding: 0;
       gap: 0.6rem;
+      overflow: visible;
     }
 
     .daily-ide-header {
+      position: sticky;
+      top: 0;
       flex-direction: column;
       align-items: flex-start;
       padding: 0.8rem;
@@ -835,7 +841,26 @@
 
     .daily-ide-main,
     .daily-ide-panel {
+      height: auto;
       padding: 0.55rem;
+    }
+
+    .daily-ide-grid {
+      display: flex;
+      min-height: 0;
+      flex-direction: column;
+      overflow: visible;
+    }
+
+    .daily-ide-main {
+      min-height: 31rem;
+    }
+
+    .daily-ide-panel {
+      overflow: visible;
+      padding: 1rem;
+      border-top: 1px solid var(--outline-variant);
+      border-left: 0;
     }
 
     .scores-grid {
@@ -844,6 +869,18 @@
 
     .score-field-full {
       grid-column: auto;
+    }
+
+    .score-input,
+    .review-textarea {
+      min-height: 2.75rem;
+      font-size: 16px;
+    }
+
+    .btn-approve,
+    .btn-reject,
+    .page-action {
+      min-height: 2.75rem;
     }
   }
 </style>

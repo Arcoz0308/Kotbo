@@ -4,6 +4,7 @@
   import { authStore } from '../stores/auth.svelte';
   import { fade, slide } from 'svelte/transition';
   import Papicon from './Papicon.svelte';
+  import { m } from '../i18n';
 
   let open = $state(false);
 
@@ -60,7 +61,9 @@
 <div class="relative notif-container">
   <button
     onclick={toggle}
-    class="relative w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
+    class="notification-trigger relative w-8 h-8 rounded-md border border-outline-variant bg-surface-container-lowest flex items-center justify-center transition-colors hover:bg-surface-container"
+    aria-label={m.notif_header_title()}
+    aria-expanded={open}
   >
     <Papicon icon="bell" size={16} class="text-on-surface-variant" />
 
@@ -76,11 +79,11 @@
   {#if open}
     <div
       transition:slide={{ duration: 150, axis: 'y' }}
-      class="absolute right-0 top-11 w-80 max-h-[400px] bg-surface-container-lowest rounded-lg border border-outline-variant shadow-lg flex flex-col overflow-hidden z-50"
+      class="notification-panel absolute right-0 top-11 w-80 max-h-[400px] bg-surface-container-lowest rounded-lg border border-outline-variant shadow-lg flex flex-col overflow-hidden z-50"
     >
       <div class="px-3 py-2.5 border-b border-outline-variant flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-medium text-on-surface">Notifications</span>
+          <span class="text-sm font-medium text-on-surface">{m.notif_header_title()}</span>
           {#if notificationsStore.unreadCount > 0}
             <span class="px-1.5 py-0.5 rounded-full bg-primary/10 text-[10px] font-medium text-primary">
               {notificationsStore.unreadCount}
@@ -92,7 +95,7 @@
             onclick={() => notificationsStore.markAllAsRead()}
             class="text-[11px] text-on-surface-variant hover:text-primary transition-colors"
           >
-            Tout marquer lu
+            {m.notif_mark_all_read()}
           </button>
         {/if}
       </div>
@@ -101,12 +104,12 @@
         {#if notificationsStore.loading && notificationsStore.items.length === 0}
           <div class="p-6 flex flex-col items-center text-on-surface-variant/50">
             <Papicon icon="refresh-cw" size={20} class="animate-spin mb-2" />
-            <span class="text-xs">Chargement...</span>
+            <span class="text-xs">{m.notif_loading()}</span>
           </div>
         {:else if notificationsStore.items.length === 0}
           <div class="p-6 flex flex-col items-center text-on-surface-variant/40">
             <Papicon icon="bell-off" size={24} class="mb-2" />
-            <span class="text-xs">Aucune notification</span>
+            <span class="text-xs">{m.notif_empty()}</span>
           </div>
         {:else}
           <div class="flex flex-col">
@@ -156,7 +159,7 @@
           href="/inbox"
           class="flex items-center justify-center w-full py-1.5 rounded-md text-xs text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
         >
-          Voir tout l'historique
+          {m.notif_view_history()}
         </a>
       </div>
     </div>

@@ -1,8 +1,12 @@
-import { Guild, GuildMember } from 'discord.js';
+import type { Guild, GuildMember } from 'discord.js';
+
+export type PlaceholderMember = Pick<GuildMember, 'id' | 'displayName'> & {
+  user: Pick<GuildMember['user'], 'username'>;
+};
 
 export interface PlaceholderContext {
   guild: Guild;
-  member?: GuildMember;
+  member?: PlaceholderMember;
   count?: number;
   goal?: number;
   // Pre-computed guild stats (to avoid re-fetching)

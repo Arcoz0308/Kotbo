@@ -9,6 +9,7 @@
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+  import AuditDiffViewer from '../lib/components/logs/AuditDiffViewer.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import {
     fetchMemberCase,
@@ -72,7 +73,7 @@
   const logCategories = [
     {
       id: 'messages',
-      label: 'Messages',
+      label: m.lg_cat_messages(),
       icon: 'Chat',
       events: [
         { type: 'message_delete', label: m.lg_ev_message_delete(), desc: m.lg_ev_message_delete_d() },
@@ -99,7 +100,7 @@
         { type: 'moderation_kick', label: m.lg_ev_kick(), desc: m.lg_ev_kick_d() },
         { type: 'moderation_ban', label: m.lg_ev_ban(), desc: m.lg_ev_ban_d() },
         { type: 'moderation_unban', label: m.lg_ev_unban(), desc: m.lg_ev_unban_d() },
-        { type: 'moderation_timeout', label: 'Timeout (Audit)', desc: m.lg_ev_timeout_audit_d() }
+        { type: 'moderation_timeout', label: m.lg_ev_timeout_audit(), desc: m.lg_ev_timeout_audit_d() }
       ]
     },
     {
@@ -580,8 +581,8 @@
     })
   );
 
-  const logsTabs = ['logs', 'config'] as const;
-  let activeTab = $state<'logs' | 'config'>('logs');
+  const logsTabs = ['logs', 'audit', 'config'] as const;
+  let activeTab = $state<'logs' | 'audit' | 'config'>('logs');
 
   $effect(() => {
     const _path = $router.path;
@@ -613,13 +614,20 @@
         >
           {m.lg_tab_journal()}
         </button>
+        <button
+          type="button"
+          onclick={() => gotoTab('/logs', 'audit', 'logs')}
+          class="tab-button {activeTab === 'audit' ? 'active' : ''}"
+        >
+          {m.audit_tab()}
+        </button>
         {#if canManageSettings}
           <button
             type="button"
             onclick={() => gotoTab('/logs', 'config', 'logs')}
             class="tab-button {activeTab === 'config' ? 'active' : ''}"
           >
-            Configuration
+            {m.lg_tab_config()}
           </button>
         {/if}
       </div>
@@ -627,12 +635,19 @@
       <RefreshButton
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
-        label="Actualiser"
+        label={m.common_refresh()}
         className="px-5 py-2.5 font-bold "
         iconClass="text-lg"
       />
     </div>
   {/snippet}
+
+{#if activeTab === 'audit'}
+<!-- Audit structurel : autonome, charge ses propres données -->
+<div class="animate-in fade-in slide-in-from-bottom-4 duration-300">
+  <AuditDiffViewer />
+</div>
+{/if}
 
 {#if activeTab === 'config' && canManageSettings}
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -656,8 +671,8 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-outline-variant/10">
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-xs font-medium text-on-surface">Journalisation</p>
-          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Activer l'audit global</p>
+          <p class="text-xs font-medium text-on-surface">{m.lg_logging_title()}</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_logging_desc()}</p>
         </div>
         <ToggleSwitch 
           checked={logsConfig?.loggingEnabled ?? true} 
@@ -692,7 +707,7 @@
 
       <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-xs font-medium text-on-surface">Notifs MP</p>
+          <p class="text-xs font-medium text-on-surface">{m.lg_dm_notifs()}</p>
           <p class="text-[11px] text-on-surface-variant/60 mt-0.5">{m.lg_dm_notifs_desc()}</p>
         </div>
         <ToggleSwitch 
@@ -828,7 +843,7 @@
           <tr class="bg-surface-container-high/30 border-b border-outline-variant/10">
             <th class="px-6 py-5">
               <ColumnSortFilter
-                label="Heure"
+                label={m.lg_col_time()}
                 sortDirection={sortDirectionFor('date')}
                 onToggleSort={() => toggleSort('date')}
               />
@@ -865,7 +880,7 @@
             </th>
             <th class="px-6 py-5">
               <ColumnSortFilter
-                label="Action"
+                label={m.lg_col_action()}
                 sortDirection={sortDirectionFor('action')}
                 onToggleSort={() => toggleSort('action')}
                 options={actionFilterOptions}
@@ -878,7 +893,7 @@
             <th class="px-6 py-5">
               <div class="flex justify-center">
                 <ColumnSortFilter
-                  label="Type"
+                  label={m.lg_col_type()}
                   sortDirection={sortDirectionFor('type')}
                   onToggleSort={() => toggleSort('type')}
                   options={typeFilterOptions}
@@ -949,7 +964,7 @@
               <td class="px-6 py-5 text-center">
                 <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider
  {entry.eventType === 'Automatique' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}">
-                  {entry.eventType}
+                  {entry.eventType === 'Automatique' ? m.lg_type_auto() : entry.eventType}
                 </span>
               </td>
             </tr>

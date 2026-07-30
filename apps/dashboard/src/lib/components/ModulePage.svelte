@@ -35,24 +35,24 @@
   }
 </script>
 
-<div class="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+<div class="module-page flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
   <InlineFeedback state={saveAction} />
   
   <!-- Header -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden group">
+  <header class="module-page__header flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden group">
     <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/8 rounded-full blur-[60px] group-hover:bg-primary/15 transition-all duration-700"></div>
 
-    <div class="flex items-center gap-4 relative">
-      <div class="w-11 h-11 bg-linear-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-md shadow-primary/15">
+    <div class="module-page__identity flex min-w-0 items-center gap-4 relative">
+      <div class="module-page__icon w-11 h-11 shrink-0 bg-linear-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-md shadow-primary/15">
         <Papicon {icon} size={22} class="text-white" />
       </div>
-      <div>
+      <div class="min-w-0">
         <h1 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">{title}</h1>
         <p class="text-sm text-on-surface-variant/70 font-medium">{description}</p>
       </div>
     </div>
 
-    <div class="flex items-center gap-3 relative">
+    <div class="module-page__actions flex items-center gap-3 relative">
       {#if actions}
         {@render actions()}
       {/if}
@@ -73,7 +73,7 @@
     </div>
   </header>
 
-  <main class="flex-1 space-y-8 {isModuleEnabled || isFixed || featureKey === 'sanctions' || featureKey === 'channel_links' || featureKey === 'staff_server' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
+  <main class="module-page__body flex-1 space-y-8 {isModuleEnabled || isFixed || featureKey === 'sanctions' || featureKey === 'channel_links' || featureKey === 'staff_server' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
     {@render children()}
   </main>
 </div>

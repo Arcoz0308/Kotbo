@@ -6,6 +6,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { m } from '../lib/i18n';
 
   let loading = $state(true);
   let data: any = $state(null);
@@ -22,7 +23,7 @@
     try {
       data = await fetchMarketplaceData();
     } catch {
-      toast.error('Erreur lors du chargement');
+      toast.error(m.mar_load_error());
     } finally {
       loading = false;
     }
@@ -39,28 +40,33 @@
   }
 
   function getStatusLabel(status: string): string {
-    const map: Record<string, string> = { ACTIVE: 'En vente', SOLD: 'Vendu', CANCELLED: 'Annulé', EXPIRED: 'Expiré' };
+    const map: Record<string, string> = {
+      ACTIVE: m.mar_status_active(),
+      SOLD: m.mar_status_sold(),
+      CANCELLED: m.mar_status_cancelled(),
+      EXPIRED: m.mar_status_expired()
+    };
     return map[status] ?? status;
   }
 
   function getTypeLabel(type: string): string {
-    return type === 'AUCTION' ? 'Enchere' : 'Prix fixe';
+    return type === 'AUCTION' ? m.mar_type_auction() : m.mar_type_buy_now();
   }
 
   function formatTimeLeft(expiresAt: string): string {
     const diff = new Date(expiresAt).getTime() - Date.now();
-    if (diff <= 0) return 'Expiré';
+    if (diff <= 0) return m.mar_expired();
     const hours = Math.floor(diff / 3600000);
-    if (hours > 24) return `${Math.floor(hours / 24)}j restants`;
-    return `${hours}h restantes`;
+    if (hours > 24) return m.mar_days_left({ days: Math.floor(hours / 24) });
+    return m.mar_hours_left({ hours });
   }
 
   onMount(load);
 </script>
 
 <ModulePage
-  title="Marché"
-  description="Hôtel des ventes — échanges entre joueurs."
+  title={m.mar_page_title()}
+  description={m.mar_page_desc()}
   icon="shopping-bag"
   featureKey="economy"
 >
@@ -69,7 +75,7 @@
 {#if loading}
   <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    <p class="text-sm">Chargement...</p>
+    <p class="text-sm">{m.mar_loading()}</p>
   </div>
 {:else if data}
   <!-- ======================== STATS ROW ======================== -->
@@ -80,7 +86,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-2xl font-bold">{data.activeListings.length}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Annonces actives</span>
+        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">{m.mar_active_listings_stat()}</span>
       </div>
     </div>
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
@@ -89,7 +95,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-2xl font-bold">{data.totalTransactions}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Transactions totales</span>
+        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">{m.mar_total_tx_stat()}</span>
       </div>
     </div>
     <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-4 flex items-center gap-3">
@@ -98,7 +104,7 @@
       </div>
       <div class="flex flex-col">
         <span class="text-2xl font-bold">{data.totalVolume.toLocaleString()}</span>
-        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">Volume total (coins)</span>
+        <span class="text-xs font-medium text-on-surface-variant/60 mt-0.5">{m.mar_total_volume_stat()}</span>
       </div>
     </div>
   </div>
@@ -110,14 +116,14 @@
       onclick={() => gotoTab('/marketplace', 'listings', 'listings')}
     >
       <Papicon icon="grid" size={14} />
-      Annonces ({data.activeListings.length})
+      {m.mar_tab_listings({ count: data.activeListings.length })}
     </button>
     <button
       class="px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all flex items-center gap-1.5 {tab === 'history' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30'}"
       onclick={() => gotoTab('/marketplace', 'history', 'listings')}
     >
       <Papicon icon="clock" size={14} />
-      Historique ({data.recentTransactions.length})
+      {m.mar_tab_history({ count: data.recentTransactions.length })}
     </button>
   </div>
 
@@ -126,8 +132,8 @@
     {#if data.activeListings.length === 0}
       <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
         <Papicon icon="shopping-bag" size={48} />
-        <p class="text-sm">Aucune annonce active</p>
-        <p class="text-xs text-on-surface-variant/40">Les joueurs peuvent creer des annonces via la commande /market.</p>
+        <p class="text-sm">{m.mar_empty_listings_title()}</p>
+        <p class="text-xs text-on-surface-variant/40">{m.mar_empty_listings_desc()}</p>
       </div>
     {:else}
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -143,7 +149,7 @@
             <div class="flex justify-between items-center">
               <span class="flex items-center gap-1.5 text-base font-bold text-amber-500">
                 <Papicon icon="dollar-sign" size={14} />
-                {listing.price.toLocaleString()} coins
+                {m.mar_price_coins({ price: listing.price.toLocaleString() })}
               </span>
               <span class="text-xs text-on-surface-variant/60 font-medium">x{listing.quantity}</span>
             </div>
@@ -152,7 +158,7 @@
             {#if listing.type === 'AUCTION' && listing.currentBid}
               <div class="flex items-center gap-1.5 text-xs text-primary font-medium">
                 <Papicon icon="trending-up" size={13} />
-                Enchere actuelle: {listing.currentBid.toLocaleString()} coins
+                {m.mar_current_bid({ amount: listing.currentBid.toLocaleString() })}
               </div>
             {/if}
 
@@ -182,8 +188,8 @@
     {#if data.recentTransactions.length === 0}
       <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/50 gap-4">
         <Papicon icon="clock" size={48} />
-        <p class="text-sm">Aucune transaction recente</p>
-        <p class="text-xs text-on-surface-variant/40">L'historique des ventes apparaitra ici.</p>
+        <p class="text-sm">{m.mar_empty_history_title()}</p>
+        <p class="text-xs text-on-surface-variant/40">{m.mar_empty_history_desc()}</p>
       </div>
     {:else}
       <div class="flex flex-col gap-2">
@@ -214,7 +220,7 @@
             <div class="flex flex-col items-end gap-0.5 shrink-0">
               <span class="flex items-center gap-1 text-sm font-semibold text-amber-500">
                 <Papicon icon="dollar-sign" size={13} />
-                {tx.price.toLocaleString()} coins
+                {m.mar_price_coins({ price: tx.price.toLocaleString() })}
               </span>
               <span class="text-[10px] text-on-surface-variant/60">{new Date(tx.createdAt).toLocaleDateString('fr-FR')}</span>
             </div>

@@ -3,6 +3,7 @@
   import { fetchPredictions } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { m } from '../lib/i18n';
 
   let loading = $state(true);
   let data: any = $state(null);
@@ -13,7 +14,7 @@
     try {
       data = await fetchPredictions(period);
     } catch {
-      toast.error('Erreur lors du chargement');
+      toast.error(m.pred_load_error());
     } finally {
       loading = false;
     }
@@ -30,12 +31,12 @@
 
 <div class="page-header">
   <div class="header-left">
-    <h1><Papicon name="trending-up" size={24} /> Prédictions & Tendances</h1>
-    <p class="subtitle">Prévisions de croissance et détection d'anomalies</p>
+    <h1><Papicon name="trending-up" size={24} /> {m.pred_title()}</h1>
+    <p class="subtitle">{m.pred_subtitle()}</p>
   </div>
   <div class="period-selector">
     {#each [7, 14, 30, 60, 90] as p}
-      <button class="btn btn-sm" class:active={period === p} onclick={() => { period = p; load(); }}>{p}j</button>
+      <button class="btn btn-sm" class:active={period === p} onclick={() => { period = p; load(); }}>{m.pred_days_btn({ count: p })}</button>
     {/each}
   </div>
 </div>
@@ -46,51 +47,51 @@
   <div class="pred-grid">
     <!-- Forecast -->
     <div class="card forecast-card">
-      <h3>Prévision de croissance</h3>
+      <h3>{m.pred_growth_title()}</h3>
       <div class="forecast-numbers">
         <div class="forecast-item">
           <span class="forecast-value">{data.growthForecast.predicted7d.toLocaleString()}</span>
-          <span class="forecast-label">Membres dans 7 jours</span>
+          <span class="forecast-label">{m.pred_members_7d()}</span>
         </div>
         <div class="forecast-item">
           <span class="forecast-value">{data.growthForecast.predicted30d.toLocaleString()}</span>
-          <span class="forecast-label">Membres dans 30 jours</span>
+          <span class="forecast-label">{m.pred_members_30d()}</span>
         </div>
         <div class="forecast-item">
           <span class="forecast-value">{data.growthForecast.confidence}%</span>
-          <span class="forecast-label">Confiance</span>
+          <span class="forecast-label">{m.pred_confidence()}</span>
         </div>
       </div>
     </div>
 
     <!-- Seasonality -->
     <div class="card seasonality-card">
-      <h3>Saisonnalité</h3>
+      <h3>{m.pred_seasonality_title()}</h3>
       <div class="season-items">
         <div class="season-item">
           <Papicon name="arrow-up-circle" size={16} />
-          <span>Jour le plus actif: <strong>{data.seasonality.busiestDay}</strong></span>
+          <span>{m.pred_busiest_day()} <strong>{data.seasonality.busiestDay}</strong></span>
         </div>
         <div class="season-item">
           <Papicon name="arrow-down-circle" size={16} />
-          <span>Jour le plus calme: <strong>{data.seasonality.quietestDay}</strong></span>
+          <span>{m.pred_quietest_day()} <strong>{data.seasonality.quietestDay}</strong></span>
         </div>
         <div class="season-item">
           <Papicon name="clock" size={16} />
-          <span>Heure de pointe: <strong>{data.seasonality.busiestHour}h</strong></span>
+          <span>{m.pred_busiest_hour()} <strong>{data.seasonality.busiestHour}h</strong></span>
         </div>
         <div class="season-item">
           <Papicon name="moon" size={16} />
-          <span>Heure creuse: <strong>{data.seasonality.quietestHour}h</strong></span>
+          <span>{m.pred_quietest_hour()} <strong>{data.seasonality.quietestHour}h</strong></span>
         </div>
       </div>
     </div>
 
     <!-- Trends Charts -->
     {#each [
-      { title: 'Membres', data: data.membersTrend, color: 'var(--color-primary)' },
-      { title: 'Messages', data: data.messagesTrend, color: 'var(--color-success)' },
-      { title: 'Minutes vocales', data: data.voiceTrend, color: 'var(--color-warning)' },
+      { title: m.pred_trend_members(), data: data.membersTrend, color: 'var(--color-primary)' },
+      { title: m.pred_trend_messages(), data: data.messagesTrend, color: 'var(--color-success)' },
+      { title: m.pred_trend_voice(), data: data.voiceTrend, color: 'var(--color-warning)' },
     ] as trend}
       {@const maxVal = Math.max(...trend.data.map((p: any) => p.value), 1)}
       <div class="card trend-card">
@@ -101,13 +102,13 @@
               class="trend-bar"
               class:predicted={point.predicted}
               style="height: {(point.value / maxVal) * 100}%; background: {trend.color}"
-              data-tooltip="{point.dateKey} : {point.value.toLocaleString('fr-FR')}{point.predicted ? ' (Prévu)' : ''}"
+              data-tooltip="{point.dateKey} : {point.value.toLocaleString('fr-FR')}{point.predicted ? ` ${m.pred_tooltip_predicted()}` : ''}"
             ></div>
           {/each}
         </div>
         <div class="chart-legend">
-          <span class="legend-item"><span class="legend-dot" style="background: {trend.color}"></span> Réel</span>
-          <span class="legend-item"><span class="legend-dot predicted-dot" style="background: {trend.color}"></span> Prédit</span>
+          <span class="legend-item"><span class="legend-dot" style="background: {trend.color}"></span> {m.pred_legend_real()}</span>
+          <span class="legend-item"><span class="legend-dot predicted-dot" style="background: {trend.color}"></span> {m.pred_legend_predicted()}</span>
         </div>
       </div>
     {/each}
@@ -115,13 +116,13 @@
     <!-- Anomalies -->
     {#if data.anomalies.length > 0}
       <div class="card anomalies-card">
-        <h3>Anomalies détectées</h3>
+        <h3>{m.pred_anomalies_title()}</h3>
         <div class="anomalies-list">
           {#each data.anomalies as anomaly}
             <div class="anomaly {getSeverityClass(anomaly.severity)}">
               <Papicon name={anomaly.type === 'spike' ? 'arrow-up' : 'arrow-down'} size={16} />
               <span class="anomaly-msg">{anomaly.message}</span>
-              <span class="anomaly-range">Attendu: {anomaly.expectedRange.min} — {anomaly.expectedRange.max}</span>
+              <span class="anomaly-range">{m.pred_expected_range({ min: anomaly.expectedRange.min, max: anomaly.expectedRange.max })}</span>
             </div>
           {/each}
         </div>
@@ -150,7 +151,6 @@
   .season-items { display: flex; flex-direction: column; gap: 0.5rem; }
   .season-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
 
-  .trend-card { }
   .trend-chart { display: flex; align-items: flex-end; gap: 1px; height: 100px; }
   .trend-bar { flex: 1; min-width: 3px; border-radius: 2px 2px 0 0; opacity: 0.8; transition: opacity 0.2s; position: relative; }
   .trend-bar:hover { opacity: 1; }

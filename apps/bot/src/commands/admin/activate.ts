@@ -8,7 +8,6 @@ import prisma from '../../utils/db.js';
 import { successContainer, errorContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { isGuildActivated, activateGuild } from '../../utils/activation.js';
-import { initializeAutoBackup } from '../../services/system/autoBackupService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { v2Message } from '@arcscord/components';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
@@ -70,20 +69,28 @@ async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     // Activate
-    await activateGuild(guildId, codeStr);
+    const access = await activateGuild(guildId, codeStr);
 
-    // Initialize auto backup
-    if (interaction.guild) {
-      await initializeAutoBackup(interaction.guild).catch((err) =>
-        console.error('Failed to initialize auto backup:', err)
+    // Accès à durée limitée : on annonce la période dans le salon public et on
+    // détaille l'échéance dans la réponse à l'admin.
+    if (access.expiresAt && access.durationMinutes) {
+      const { announceTrialStart, formatDuration } = await import('../../services/system/accessService.js');
+      await announceTrialStart(interaction.client, guildId, access.expiresAt, access.durationMinutes).catch((err) =>
+        console.error('Failed to announce trial start:', err)
       );
-    }
 
-    // Start historical message scraping
-    const { startHistoricalScraping } = await import('../../services/analytics/messageScraperService.js');
-    startHistoricalScraping(interaction.client, guildId).catch((err) =>
-      console.error('Failed to start historical scraping:', err)
-    );
+      const duration = formatDuration(access.durationMinutes, locale);
+      const expiresTs = Math.floor(access.expiresAt.getTime() / 1000);
+      return interaction.editReply(v2Message(
+        successContainer(
+          `${E.fire} ${m.c1_activate_trial_success_title({ duration }, { locale })}`,
+          m.c1_activate_trial_success_desc(
+            { duration, date: `<t:${expiresTs}:F>`, relative: `<t:${expiresTs}:R>` },
+            { locale },
+          ),
+        )
+      ));
+    }
 
     await interaction.editReply(v2Message(
       successContainer(

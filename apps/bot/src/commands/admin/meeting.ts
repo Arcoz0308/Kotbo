@@ -10,25 +10,55 @@ import { checkInMeeting, getMeetings, createMeeting, syncMeetingPresencesWithAbs
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { logger } from '../../utils/logger.js';
 import { separator, v2Message } from '@arcscord/components';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('c2_meeting');
+const checkinMeta = getCommandMetadata('c2_meeting_checkin');
+const listMeta = getCommandMetadata('c2_meeting_list');
+const syncMeta = getCommandMetadata('c2_meeting_sync');
+const createMeta = getCommandMetadata('c2_meeting_create');
 
 const data = new SlashCommandBuilder()
-  .setName('meeting')
-  .setDescription('Outils de gestion de réunion Staff.')
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .addSubcommand(sub =>
-    sub.setName('checkin')
-      .setDescription('Confirme manuellement votre présence à la réunion en cours.'))
+    sub.setName(checkinMeta.name)
+      .setNameLocalizations(checkinMeta.nameLocalizations)
+      .setDescription(checkinMeta.description)
+      .setDescriptionLocalizations(checkinMeta.descriptionLocalizations))
   .addSubcommand(sub =>
-    sub.setName('list')
-      .setDescription('Liste les prochaines réunions staff.'))
+    sub.setName(listMeta.name)
+      .setNameLocalizations(listMeta.nameLocalizations)
+      .setDescription(listMeta.description)
+      .setDescriptionLocalizations(listMeta.descriptionLocalizations))
   .addSubcommand(sub =>
-    sub.setName('sync')
-      .setDescription('Forces the sync of staff absences for the next meeting.'))
+    sub.setName(syncMeta.name)
+      .setNameLocalizations(syncMeta.nameLocalizations)
+      .setDescription(syncMeta.description)
+      .setDescriptionLocalizations(syncMeta.descriptionLocalizations))
   .addSubcommand(sub =>
-    sub.setName('create')
-      .setDescription('Planifie une nouvelle réunion staff.')
-      .addStringOption(opt => opt.setName('title').setDescription('Titre de la réunion').setRequired(true))
-      .addStringOption(opt => opt.setName('date').setDescription('Date et heure (format: YYYY-MM-DD HH:mm)').setRequired(true))
-      .addStringOption(opt => opt.setName('description').setDescription('Sujet ou ordre du jour').setRequired(false)));
+    sub.setName(createMeta.name)
+      .setNameLocalizations(createMeta.nameLocalizations)
+      .setDescription(createMeta.description)
+      .setDescriptionLocalizations(createMeta.descriptionLocalizations)
+      .addStringOption(opt => opt
+        .setName('title')
+        .setDescription(m.c2_meeting_create_opt_title({}, { locale: 'en' }))
+        .setDescriptionLocalizations({ fr: m.c2_meeting_create_opt_title({}, { locale: 'fr' }) })
+        .setRequired(true))
+      .addStringOption(opt => opt
+        .setName('date')
+        .setDescription(m.c2_meeting_create_opt_date({}, { locale: 'en' }))
+        .setDescriptionLocalizations({ fr: m.c2_meeting_create_opt_date({}, { locale: 'fr' }) })
+        .setRequired(true))
+      .addStringOption(opt => opt
+        .setName('description')
+        .setDescription(m.c2_meeting_create_opt_description({}, { locale: 'en' }))
+        .setDescriptionLocalizations({ fr: m.c2_meeting_create_opt_description({}, { locale: 'fr' }) })
+        .setRequired(false)));
 
 async function execute(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) return;

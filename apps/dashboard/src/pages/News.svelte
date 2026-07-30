@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '../lib/i18n';
   import { channelDisplayName } from '../lib/channelUtils';
   import { onMount } from 'svelte';
   import { router } from 'tinro';
@@ -55,7 +56,7 @@
   let content = $state('');
   let summary = $state('');
   let imageUrl = $state('');
-  let category = $state('Mise à jour');
+  let category = $state(m.news_cat_update());
   let subcategory = $state('');
   let published = $state(false);
   let publishMode = $state<'summary' | 'full_embed'>('summary');
@@ -68,7 +69,13 @@
 
   const actionState = createAsyncActionState();
 
-  const categories = ['Mise à jour', 'Patch Note', 'Annonce', 'Blog', 'Staff'];
+  const categories = $derived([
+    m.news_cat_update(),
+    m.news_cat_patch(),
+    m.news_cat_announcement(),
+    m.news_cat_blog(),
+    m.news_cat_staff()
+  ]);
 
   const filteredArticles = $derived(
     (articles || []).filter(art => {
@@ -84,8 +91,8 @@
     const categoryMap = new Map<string, Map<string, any[]>>();
 
     for (const article of filteredArticles) {
-      const articleCategory = article?.category || 'Sans catégorie';
-      const articleSubcategory = article?.subcategory?.trim() || 'Général';
+      const articleCategory = article?.category || m.news_uncategorized();
+      const articleSubcategory = article?.subcategory?.trim() || m.news_general();
 
       if (!categoryMap.has(articleCategory)) {
         categoryMap.set(articleCategory, new Map());
@@ -125,7 +132,7 @@
 
   // Récupère l'ID du serveur depuis les articles ou le store
   const currentGuildId = $derived(
-    articles[0]?.guildId ||
+    (articles || [])[0]?.guildId ||
     guildId ||
     ''
   );
@@ -146,9 +153,12 @@
   async function loadArticles() {
     loading = true;
     try {
-      articles = isPublicView ? await fetchPublicNews(guildId) : await fetchNews();
+      // dashboardRequest renvoie null quand aucun serveur n'est sélectionné
+      const result = isPublicView ? await fetchPublicNews(guildId) : await fetchNews();
+      articles = Array.isArray(result) ? result : [];
     } catch (err) {
       console.error(err);
+      articles = [];
     } finally {
       loading = false;
     }
@@ -162,9 +172,11 @@
     }
     loadingConfigs = true;
     try {
-      categoryConfigs = await fetchNewsCategoryConfigs();
+      const result = await fetchNewsCategoryConfigs();
+      categoryConfigs = Array.isArray(result) ? result : [];
     } catch (err) {
       console.error(err);
+      categoryConfigs = [];
     } finally {
       loadingConfigs = false;
     }
@@ -176,7 +188,7 @@
     content = '';
     summary = '';
     imageUrl = '';
-    category = 'Mise à jour';
+    category = m.news_cat_update();
     subcategory = '';
     published = false;
     publishMode = 'summary';
@@ -200,7 +212,7 @@
 
   async function handleSave() {
     if (!title.trim() || !content.trim()) {
-      toast.error('Le titre et le contenu sont requis.');
+      toast.error(m.news_err_title_content_req());
       return;
     }
 
@@ -224,22 +236,22 @@
       showEditor = false;
       await loadArticles();
       return true;
-    }, { successMessage: isEditing ? 'Article mis à jour !' : 'Article créé !' });
+    }, { successMessage: isEditing ? m.news_toast_updated() : m.news_toast_created() });
   }
 
   async function handleDelete(id: string) {
-    if (!(await confirmDialog.danger('Supprimer cet article ?'))) return;
+    if (!(await confirmDialog.danger(m.news_confirm_delete_article()))) return;
 
     await actionState.run(async () => {
       await deleteNews(id);
       await loadArticles();
       return true;
-    }, { successMessage: 'Article supprimé.' });
+    }, { successMessage: m.news_toast_article_deleted() });
   }
 
   async function handleSaveConfig() {
     if (!configCategory.trim() || !configChannelId) {
-      toast.error('La catégorie et le salon Discord sont requis.');
+      toast.error(m.news_err_category_channel_req());
       return;
     }
 
@@ -254,27 +266,27 @@
       configChannelId = '';
       await loadConfigs();
       return true;
-    }, { successMessage: 'Configuration enregistrée !' });
+    }, { successMessage: m.news_toast_config_saved() });
   }
 
   async function handleDeleteConfig(id: string) {
-    if (!(await confirmDialog.danger('Supprimer cette configuration ?'))) return;
+    if (!(await confirmDialog.danger(m.news_confirm_delete_config()))) return;
 
     await actionState.run(async () => {
       await deleteNewsCategoryConfig(id);
       await loadConfigs();
       return true;
-    }, { successMessage: 'Configuration supprimée.' });
+    }, { successMessage: m.news_toast_config_deleted() });
   }
 
   function copyRssUrl() {
     navigator.clipboard.writeText(rssFeedUrl);
-    toast.success('Lien du flux RSS copié dans le presse-papiers !');
+    toast.success(m.news_rss_copied_toast());
   }
 
   // Markdown live preview parser
   function interpretMarkdown(text: string) {
-    if (!text) return '<p class="text-on-surface-variant/40 italic">Aucun contenu rédigé pour le moment...</p>';
+    if (!text) return `<p class="text-on-surface-variant/40 italic">${m.news_preview_empty_content()}</p>`;
     
     // Escaping simple HTML tags to avoid XSS (just standard practice)
     const escaped = text
@@ -301,7 +313,7 @@
   }
 
   function formatDate(date: string) {
-    return new Date(date).toLocaleDateString('fr-FR', {
+    return new Date(date).toLocaleDateString(undefined, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -312,10 +324,10 @@
 </script>
 
 <ModulePage
-  title="Actualités & RSS"
+  title={m.news_page_title()}
   description={isPublicView
-    ? 'Consultez les dernières annonces publiées pour ce serveur.'
-    : 'Rédigez des annonces, des patch notes et générez le flux RSS du serveur.'}
+    ? m.news_page_desc_public()
+    : m.news_page_desc_admin()}
   icon="rss"
 >
   {#snippet actions()}
@@ -324,14 +336,14 @@
         onclick={() => showEditor = false}
         class="px-5 py-2.5 bg-surface-container-high text-on-surface font-medium text-[13px] rounded-lg shadow hover:bg-surface-container-highest transition-all"
       >
-        Retour à la liste
+        {m.news_back_to_list()}
       </button>
     {:else if canEdit}
       <button
         onclick={openCreate}
         class="px-6 py-2.5 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all"
       >
-        Créer un article
+        {m.news_create_btn()}
       </button>
     {/if}
   {/snippet}
@@ -347,18 +359,18 @@
       <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
         <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="edit" size={20} class="text-primary" />
-          {isEditing ? 'Modifier l\'article' : 'Rédiger une actualité'}
+          {isEditing ? m.news_edit_title() : m.news_create_title()}
         </h3>
 
         <div class="space-y-4">
           <!-- Title -->
           <div class="space-y-1.5">
-            <label for="news-title" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Titre</label>
+            <label for="news-title" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_title_label()}</label>
             <input 
               id="news-title" 
               type="text" 
               bind:value={title} 
-              placeholder="Ex: Mise à jour v1.4.0 ou Patch Notes de sécurité..."
+              placeholder={m.news_field_title_ph()}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
             />
           </div>
@@ -366,13 +378,13 @@
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <!-- Category -->
             <div class="space-y-1.5">
-              <label for="news-category" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Catégorie</label>
+              <label for="news-category" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_category_label()}</label>
               <input 
                 id="news-category" 
                 type="text"
                 list="categories-list"
                 bind:value={category} 
-                placeholder="Ex: Annonce, Patch Note..."
+                placeholder={m.news_field_category_ph()}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
               />
               <datalist id="categories-list">
@@ -384,12 +396,12 @@
 
             <!-- Subcategory -->
             <div class="space-y-1.5">
-              <label for="news-subcategory" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sous-catégorie (optionnel)</label>
+              <label for="news-subcategory" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_subcategory_label()}</label>
               <input 
                 id="news-subcategory" 
                 type="text"
                 bind:value={subcategory} 
-                placeholder="Ex: API, Frontend, Web..."
+                placeholder={m.news_field_subcategory_ph()}
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
               />
             </div>
@@ -397,8 +409,8 @@
             <!-- Published checkbox -->
             <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
               <div>
-                <p class="text-xs font-bold leading-tight">Publier immédiatement</p>
-                <p class="text-[11px] text-on-surface-variant/50">Visibilité publique & notification</p>
+                <p class="text-xs font-bold leading-tight">{m.news_publish_now_label()}</p>
+                <p class="text-[11px] text-on-surface-variant/50">{m.news_publish_now_sub()}</p>
               </div>
               <input 
                 type="checkbox" 
@@ -409,31 +421,31 @@
           </div>
 
           <div class="space-y-2 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 p-4">
-            <p class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">Mode d'envoi Discord</p>
+            <p class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">{m.news_publish_mode_label()}</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
                 onclick={() => (publishMode = 'summary')}
                 class="rounded-xl px-4 py-2.5 text-xs font-bold transition-all border {publishMode === 'summary' ? 'border-primary/40 bg-primary/10 text-primary' : 'border-outline-variant/20 bg-surface text-on-surface-variant'}"
               >
-                Résumé + bouton vers la page
+                {m.news_publish_mode_summary()}
               </button>
               <button
                 type="button"
                 onclick={() => (publishMode = 'full_embed')}
                 class="rounded-xl px-4 py-2.5 text-xs font-bold transition-all border {publishMode === 'full_embed' ? 'border-primary/40 bg-primary/10 text-primary' : 'border-outline-variant/20 bg-surface text-on-surface-variant'}"
               >
-                Embed complet + page publique
+                {m.news_publish_mode_full()}
               </button>
             </div>
             <p class="text-[11px] text-on-surface-variant/70">
-              Ce choix est utilisé lors de la publication immédiate ou quand un brouillon est publié.
+              {m.news_publish_mode_sub()}
             </p>
           </div>
 
           <!-- Image URL -->
           <div class="space-y-1.5">
-            <label for="news-image" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">URL de l'image (optionnel)</label>
+            <label for="news-image" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_image_label()}</label>
             <input 
               id="news-image" 
               type="text" 
@@ -445,24 +457,24 @@
 
           <!-- Summary -->
           <div class="space-y-1.5">
-            <label for="news-summary" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Résumé court (optionnel)</label>
+            <label for="news-summary" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_summary_label()}</label>
             <textarea 
               id="news-summary" 
               bind:value={summary} 
               rows="2" 
-              placeholder="Une description rapide de deux lignes..."
+              placeholder={m.news_field_summary_ph()}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none"
             ></textarea>
           </div>
 
           <!-- Content (Markdown) -->
           <div class="space-y-1.5">
-            <label for="news-content" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Contenu de l'article (Markdown supporté)</label>
+            <label for="news-content" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.news_field_content_label()}</label>
             <textarea 
               id="news-content" 
               bind:value={content} 
               rows="12" 
-              placeholder="Rédigez votre article ici..."
+              placeholder={m.news_field_content_ph()}
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-4 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none font-mono"
             ></textarea>
           </div>
@@ -473,13 +485,13 @@
               onclick={() => showEditor = false}
               class="px-6 py-3 bg-surface-container-high text-on-surface font-bold text-sm rounded-lg hover:bg-surface-container-highest transition-all"
             >
-              Annuler
+              {m.news_cancel_btn()}
             </button>
             <button 
               onclick={handleSave}
               class="px-8 py-3 bg-primary text-on-primary font-medium text-[13px] rounded-lg transition-all"
             >
-              {isEditing ? 'Mettre à jour' : 'Créer l\'article'}
+              {isEditing ? m.news_update_btn() : m.news_submit_create_btn()}
             </button>
           </div>
         </div>
@@ -489,7 +501,7 @@
       <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl flex flex-col h-full">
         <h3 class="text-xl font-semibold flex items-center gap-3 mb-6 shrink-0">
           <Papicon icon="eye" size={20} class="text-secondary" />
-          Prévisualisation en direct
+          {m.news_preview_title()}
         </h3>
         
         <div class="flex-1 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-8 overflow-y-auto max-h-150 custom-scrollbar prose prose-invert">
@@ -506,7 +518,7 @@
               </span>
             {/if}
           </div>
-          <h2 class="text-2xl font-semibold text-on-surface mb-2">{title || 'Titre de l\'article'}</h2>
+          <h2 class="text-2xl font-semibold text-on-surface mb-2">{title || m.news_preview_default_title()}</h2>
           {#if summary}
             <p class="text-sm font-medium text-on-surface-variant border-l-2 border-outline-variant/30 pl-4 py-1 italic mb-6">{summary}</p>
           {/if}
@@ -523,7 +535,7 @@
         onclick={() => gotoTab('/news', 'articles', 'articles')}
         class="tab-button {activeTab === 'articles' ? 'active' : ''}"
       >
-        Articles
+        {m.news_tab_articles()}
         {#if activeTab === 'articles'}
           <div class="absolute bottom-0 left-8 right-8 h-0.5 bg-primary rounded-t-full"></div>
         {/if}
@@ -533,7 +545,7 @@
           onclick={() => gotoTab('/news', 'configs', 'articles')}
           class="tab-button {activeTab === 'configs' ? 'active' : ''}"
         >
-          Flux & Salons par Catégorie
+          {m.news_tab_configs()}
           {#if activeTab === 'configs'}
             <div class="absolute bottom-0 left-8 right-8 h-0.5 bg-primary rounded-t-full"></div>
           {/if}
@@ -549,10 +561,10 @@
           <div class="space-y-2">
             <h3 class="text-lg font-semibold flex items-center gap-2.5">
               <Papicon icon="globe" size={20} class="text-primary" />
-              Votre Flux RSS Public
+              {m.news_rss_card_title()}
             </h3>
             <p class="text-xs text-on-surface-variant font-medium max-w-2xl">
-              Ce flux RSS est généré dynamiquement à partir des articles marqués comme **publiés**. Vos membres peuvent s'y abonner sur Feedly, Inoreader, ou tout autre lecteur RSS.
+              {m.news_rss_card_desc()}
             </p>
           </div>
           <div class="flex items-center gap-2 bg-surface-container-low border border-outline-variant/25 px-5 py-3 rounded-lg w-full md:w-auto md:min-w-100">
@@ -560,7 +572,7 @@
             <button 
               onclick={copyRssUrl} 
               class="p-2 text-primary hover:bg-primary/10 rounded-xl transition-all"
-              title="Copier le lien"
+              title={m.news_rss_copy_tooltip()}
             >
               <Papicon icon="copy" size={18} />
             </button>
@@ -578,19 +590,19 @@
               <input 
                 type="text" 
                 bind:value={searchQuery} 
-                placeholder="Rechercher par titre, résumé ou auteur..." 
+                placeholder={m.news_search_ph()} 
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg pl-11 pr-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
 
             <div class="flex items-center gap-2">
-              <label for="filter-category" class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-wider">Filtrer :</label>
+              <label for="filter-category" class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-wider">{m.news_filter_label()}</label>
               <select 
                 id="filter-category" 
                 bind:value={categoryFilter} 
                 class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               >
-                <option value="ALL">Toutes catégories</option>
+                <option value="ALL">{m.news_filter_all()}</option>
                 {#each categories as cat}
                   <option value={cat}>{cat}</option>
                 {/each}
@@ -619,16 +631,16 @@
                     <div class="space-y-2">
                       <div class="flex items-center gap-2 text-primary">
                         <Papicon icon="globe" size={18} />
-                        <span class="text-[10px] font-semibold uppercase tracking-wider">Vue forum</span>
+                        <span class="text-[10px] font-semibold uppercase tracking-wider">{m.news_forum_view_badge()}</span>
                       </div>
-                      <h4 class="text-lg font-semibold text-on-surface">Catégories, sous-catégories et derniers articles</h4>
+                      <h4 class="text-lg font-semibold text-on-surface">{m.news_forum_view_title()}</h4>
                       <p class="text-xs text-on-surface-variant/70 max-w-2xl">
-                        Les articles sont regroupés par catégorie puis par sous-catégorie pour rappeler l’organisation d’un forum.
+                        {m.news_forum_view_desc()}
                       </p>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                      <span class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider">{filteredArticles.length} article{filteredArticles.length > 1 ? 's' : ''}</span>
-                      <span class="px-3 py-1.5 rounded-full bg-secondary/10 text-secondary text-[10px] font-semibold uppercase tracking-wider">{forumSections.length} catégorie{forumSections.length > 1 ? 's' : ''}</span>
+                      <span class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider">{m.news_forum_articles_count({ n: filteredArticles.length })}</span>
+                      <span class="px-3 py-1.5 rounded-full bg-secondary/10 text-secondary text-[10px] font-semibold uppercase tracking-wider">{m.news_forum_categories_count({ n: forumSections.length })}</span>
                     </div>
                   </div>
                 </div>
@@ -644,7 +656,7 @@
                             </span>
                             <div>
                               <h5 class="text-base font-semibold text-on-surface">{section.categoryName}</h5>
-                              <p class="text-[11px] uppercase tracking-[0.18em] text-on-surface-variant/55">{section.totalCount} sujet{section.totalCount > 1 ? 's' : ''}</p>
+                              <p class="text-[11px] uppercase tracking-[0.18em] text-on-surface-variant/55">{m.news_forum_subjects_count({ n: section.totalCount })}</p>
                             </div>
                           </div>
                         </div>
@@ -666,7 +678,7 @@
                                 {subcategorySection.subcategoryName}
                               </div>
                               <p class="text-[11px] text-on-surface-variant/60">
-                                {subcategorySection.totalCount} article{subcategorySection.totalCount > 1 ? 's' : ''}
+                                {m.news_forum_articles_count({ n: subcategorySection.totalCount })}
                               </p>
                             </div>
 
@@ -695,11 +707,11 @@
                                           {/if}
                                           {#if art.published}
                                             <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
-                                              Publié
+                                              {m.news_badge_published()}
                                             </span>
                                           {:else}
                                             <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
-                                              Brouillon
+                                              {m.news_badge_draft()}
                                             </span>
                                           {/if}
                                         </div>
@@ -736,13 +748,13 @@
                 <table class="w-full border-collapse text-left">
                   <thead>
                     <tr class="bg-surface-container-high/40 text-xs font-medium text-on-surface-variant/60">
-                      <th class="px-6 py-4">Article</th>
-                      <th class="px-6 py-4">Catégorie</th>
-                      <th class="px-6 py-4">Auteur</th>
-                      <th class="px-6 py-4">Date de pub.</th>
-                      <th class="px-6 py-4">État</th>
+                      <th class="px-6 py-4">{m.news_table_col_article()}</th>
+                      <th class="px-6 py-4">{m.news_table_col_category()}</th>
+                      <th class="px-6 py-4">{m.news_table_col_author()}</th>
+                      <th class="px-6 py-4">{m.news_table_col_pubdate()}</th>
+                      <th class="px-6 py-4">{m.news_table_col_status()}</th>
                       {#if canEdit}
-                        <th class="px-6 py-4 text-right">Actions</th>
+                        <th class="px-6 py-4 text-right">{m.news_table_col_actions()}</th>
                       {/if}
                     </tr>
                   </thead>
@@ -790,11 +802,11 @@
                         <td class="px-6 py-5">
                           {#if art.published}
                             <span class="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
-                              Publié
+                              {m.news_badge_published()}
                             </span>
                           {:else}
                             <span class="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
-                              Brouillon
+                              {m.news_badge_draft()}
                             </span>
                           {/if}
                         </td>
@@ -804,14 +816,14 @@
                               <button 
                                 onclick={() => openEdit(art)} 
                                 class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-                                title="Modifier"
+                                title={m.reaction_roles_edit_button_title()}
                               >
                                 <Papicon icon="edit" size={16} />
                               </button>
                               <button 
                                 onclick={() => handleDelete(art.id)} 
                                 class="p-2 text-on-surface-variant hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all"
-                                title="Supprimer"
+                                title={m.reaction_roles_delete_tooltip()}
                               >
                                 <Papicon icon="trash" size={16} />
                               </button>
@@ -829,14 +841,14 @@
               <div class="w-16 h-16 bg-surface-container-high/30 rounded-full flex items-center justify-center text-on-surface-variant/30 mb-4">
                 <Papicon icon="rss" size={32} />
               </div>
-              <h4 class="text-base font-semibold text-on-surface">Aucun article trouvé</h4>
-              <p class="text-xs text-on-surface-variant/60 font-medium mt-1">Commencez par rédiger votre première mise à jour ou patch note.</p>
+              <h4 class="text-base font-semibold text-on-surface">{m.news_empty_title()}</h4>
+              <p class="text-xs text-on-surface-variant/60 font-medium mt-1">{m.news_empty_desc()}</p>
               {#if canEdit}
                 <button 
                   onclick={openCreate}
                   class="mt-6 px-6 py-2.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-xl transition-all"
                 >
-                  Créer un article
+                  {m.news_create_btn()}
                 </button>
               {/if}
             </div>
@@ -852,21 +864,21 @@
               <div class="space-y-3 max-w-3xl">
                 <div class="flex items-center gap-2 text-primary">
                   <Papicon icon="rss" size={18} />
-                  <span class="text-[10px] font-semibold uppercase tracking-wider">Configuration éditoriale</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider">{m.news_config_badge()}</span>
                 </div>
                 <div class="space-y-2">
-                  <h3 class="text-2xl md:text-lg font-semibold tracking-tight text-on-surface">Salons actualité et flux RSS</h3>
+                  <h3 class="text-2xl md:text-lg font-semibold tracking-tight text-on-surface">{m.news_config_title()}</h3>
                   <p class="text-sm text-on-surface-variant/75 leading-relaxed max-w-2xl">
-                    Organisez chaque catégorie comme une rubrique de journal, avec des flux dédiés et des salons Discord associés.
+                    {m.news_config_desc()}
                   </p>
                 </div>
               </div>
               <div class="flex flex-wrap gap-2">
                 <span class="rounded-full bg-surface-container-high/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
-                  {categoryConfigs.length} liaison{categoryConfigs.length > 1 ? 's' : ''}
+                  {m.news_config_links_count({ n: categoryConfigs.length })}
                 </span>
                 <span class="rounded-full bg-primary/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                  {dashboardStore.state.discordChannels?.length || 0} salons détectés
+                  {m.news_config_channels_count({ n: dashboardStore.state.discordChannels?.length || 0 })}
                 </span>
               </div>
             </div>
@@ -881,23 +893,23 @@
                     <span class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
                       <Papicon icon="plus" size={18} />
                     </span>
-                    Nouvelle rubrique
+                    {m.news_config_new_title()}
                   </h4>
                   <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-                    Associez une catégorie ou sous-catégorie à un salon pour diffuser les annonces comme dans une rédaction.
+                    {m.news_config_new_desc()}
                   </p>
                 </div>
 
                 <div class="space-y-4">
                   <!-- Category Input -->
                   <div class="space-y-1.5">
-                    <label for="config-category" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">Rubrique</label>
+                    <label for="config-category" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">{m.news_config_rubric_label()}</label>
                     <input
                       id="config-category"
                       type="text"
                       list="categories-config-list"
                       bind:value={configCategory}
-                      placeholder="Ex: Monde, France, Tech..."
+                      placeholder={m.news_config_rubric_ph()}
                       class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                     />
                     <datalist id="categories-config-list">
@@ -909,20 +921,20 @@
 
                   <!-- Subcategory Input -->
                   <div class="space-y-1.5">
-                    <label for="config-subcategory" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">Sous-rubrique</label>
+                    <label for="config-subcategory" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">{m.news_config_subrubric_label()}</label>
                     <input
                       id="config-subcategory"
                       type="text"
                       bind:value={configSubcategory}
-                      placeholder="Ex: Europe, API, Web..."
+                      placeholder={m.news_config_subrubric_ph()}
                       class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                     />
                   </div>
 
                   <!-- Discord Channel Selector -->
                   <div class="space-y-1.5">
-                    <label for="config-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">Salon de diffusion</label>
-                    <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder="— Sélectionner un salon —" className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+                    <label for="config-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">{m.news_config_channel_label()}</label>
+                    <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: channelDisplayName(channel) }))} placeholder={m.news_config_channel_ph()} className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
                   </div>
 
                   <!-- Save Config Button -->
@@ -930,7 +942,7 @@
                     onclick={handleSaveConfig}
                     class="w-full mt-2 py-3 bg-on-surface text-surface font-medium text-[13px] rounded-lg hover:opacity-90 transition-all"
                   >
-                    Enregistrer la rubrique
+                    {m.news_config_save_btn()}
                   </button>
                 </div>
               </div>
@@ -940,13 +952,13 @@
             <section class="bg-surface-container-low/10 p-6 md:p-8 space-y-6">
               <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div class="space-y-1">
-                  <h4 class="text-lg font-semibold tracking-tight text-on-surface">Index des flux</h4>
+                  <h4 class="text-lg font-semibold tracking-tight text-on-surface">{m.news_config_index_title()}</h4>
                   <p class="text-xs text-on-surface-variant/65 max-w-2xl">
-                    Chaque ligne représente une rubrique éditoriale avec son salon de diffusion et son flux RSS public.
+                    {m.news_config_index_desc()}
                   </p>
                 </div>
                 <div class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/45">
-                  Flux disponibles en lecture publique
+                  {m.news_config_public_badge()}
                 </div>
               </div>
 
@@ -982,38 +994,38 @@
                             {/if}
                           </div>
                           <div class="space-y-1">
-                            <h5 class="text-base font-semibold text-on-surface">#{((dashboardStore.state.discordChannels || []).find(ch => ch.id === config.channelId)?.name) || 'salon-inconnu'}</h5>
+                            <h5 class="text-base font-semibold text-on-surface">#{((dashboardStore.state.discordChannels || []).find(ch => ch.id === config.channelId)?.name) || m.news_unknown_channel()}</h5>
                             <p class="text-xs text-on-surface-variant/65">
-                              Diffusion Discord liée à cette rubrique éditoriale.
+                              {m.news_config_discord_linked()}
                             </p>
                           </div>
                         </div>
 
                         <div class="flex flex-col gap-2 md:items-end">
                           <span class="inline-flex w-fit items-center rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
-                            RSS dédié
+                            {m.news_config_dedicated_rss()}
                           </span>
                           {#if canEdit}
                             <button
                               onclick={() => handleDeleteConfig(config.id)}
                               class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant hover:border-red-500/20 hover:text-red-500 transition-all"
-                              title="Supprimer"
+                              title={m.reaction_roles_delete_tooltip()}
                             >
                               <Papicon icon="trash" size={14} />
-                              Supprimer
+                              {m.reaction_roles_delete_tooltip()}
                             </button>
                           {/if}
                         </div>
                       </div>
 
                       <div class="mt-5 rounded-lg border border-outline-variant/10 bg-surface-container-low/40 px-4 py-3">
-                        <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/45 mb-2">Flux public</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/45 mb-2">{m.news_config_public_feed_label()}</p>
                         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <p class="font-mono text-[11px] text-on-surface break-all">
                             {API_BASE_URL}/api/public/rss/{currentGuildId}/{encodeURIComponent(config.category)}{config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}
                           </p>
                           <span class="text-[10px] font-medium text-on-surface-variant/60">
-                            Prêt à être consommé par un lecteur RSS
+                            {m.news_config_rss_ready()}
                           </span>
                         </div>
                       </div>
@@ -1025,8 +1037,8 @@
                   <div class="w-16 h-16 bg-surface-container-high/30 rounded-full flex items-center justify-center text-on-surface-variant/30 mb-4">
                     <Papicon icon="rss" size={32} />
                   </div>
-                  <h4 class="text-base font-semibold text-on-surface">Aucune rubrique configurée</h4>
-                  <p class="text-xs text-on-surface-variant/60 font-medium mt-1 text-center max-w-md">Créez la première liaison à gauche pour activer la diffusion éditoriale et le flux RSS public.</p>
+                  <h4 class="text-base font-semibold text-on-surface">{m.news_config_empty_title()}</h4>
+                  <p class="text-xs text-on-surface-variant/60 font-medium mt-1 text-center max-w-md">{m.news_config_empty_desc()}</p>
                 </div>
               {/if}
             </section>

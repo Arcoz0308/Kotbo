@@ -11,6 +11,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { m, dateLocale } from '../lib/i18n';
 
   const PAGE_SIZE = 30;
 
@@ -35,8 +36,13 @@
       loadingMore = true;
     }
     try {
-      const res = await fetchTranscripts({ q: query.trim() || undefined, limit: PAGE_SIZE, offset });
-      total = res.total;
+      const res = await fetchTranscripts({
+        q: query.trim() || undefined,
+        limit: PAGE_SIZE,
+        offset,
+        includeTotal: reset,
+      });
+      if (reset && res.total != null) total = res.total;
       transcripts = reset ? res.transcripts : [...transcripts, ...res.transcripts];
     } catch {
       if (reset) transcripts = [];
@@ -63,7 +69,7 @@
       if (url) {
         window.open(url, '_blank', 'noopener');
       } else {
-        toast.error('Impossible de générer le lien de la transcription.');
+        toast.error(m.ts_link_error());
       }
     } finally {
       openingId = null;
@@ -80,7 +86,7 @@
   }
 
   function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString('fr-FR', {
+    return new Date(iso).toLocaleString(dateLocale(), {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -93,8 +99,8 @@
 </script>
 
 <ModulePage
-  title="Transcriptions"
-  description="Consultez, recherchez et supprimez les transcriptions de salons"
+  title={m.ts_page_title()}
+  description={m.ts_page_desc()}
   icon="file"
   featureKey=""
 >
@@ -114,11 +120,11 @@
             type="text"
             bind:value={query}
             oninput={onSearchInput}
-            placeholder="Rechercher par nom de salon…"
+            placeholder={m.ts_search_placeholder()}
             class="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border border-outline-variant/30 rounded-lg text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary/60 transition-colors"
           />
         </div>
-        <p class="text-sm text-on-surface-variant/70 whitespace-nowrap">{total} transcription(s)</p>
+        <p class="text-sm text-on-surface-variant/70 whitespace-nowrap">{m.ts_count({ count: total })}</p>
       </div>
 
       {#if loading}
@@ -130,9 +136,9 @@
           <div class="w-16 h-16 bg-surface-container-low rounded-2xl flex items-center justify-center mb-4">
             <Papicon icon="file" size={32} class="text-on-surface-variant/40" />
           </div>
-          <h3 class="text-lg font-semibold text-on-surface mb-1">Aucune transcription</h3>
+          <h3 class="text-lg font-semibold text-on-surface mb-1">{m.ts_no_transcript_title()}</h3>
           <p class="text-sm text-on-surface-variant/60 max-w-sm">
-            {query ? 'Aucun résultat pour cette recherche.' : 'Les transcriptions générées apparaîtront ici.'}
+            {query ? m.ts_empty_no_match() : m.ts_empty_default()}
           </p>
         </div>
       {:else}
@@ -151,15 +157,15 @@
 
               {#if pendingDeleteId === t.id}
                 <div class="flex items-center gap-2">
-                  <span class="text-xs text-on-surface-variant">Confirmer ?</span>
+                  <span class="text-xs text-on-surface-variant">{m.ts_confirm_q()}</span>
                   <button
                     onclick={() => confirmDelete(t.id)}
                     class="px-3 py-1.5 text-xs font-medium bg-error text-white rounded-md hover:bg-error/90 transition-colors"
-                  >Supprimer</button>
+                  >{m.common_delete()}</button>
                   <button
                     onclick={() => (pendingDeleteId = null)}
                     class="px-3 py-1.5 text-xs font-medium bg-surface-container text-on-surface rounded-md hover:bg-surface-container-high transition-colors"
-                  >Annuler</button>
+                  >{m.common_cancel()}</button>
                 </div>
               {:else}
                 <div class="flex items-center gap-2">
@@ -173,14 +179,14 @@
                     {:else}
                       <Papicon icon="eye" size={14} />
                     {/if}
-                    Ouvrir
+                    {m.ts_open()}
                   </button>
                   {#if isAdmin}
                     <button
                       onclick={() => (pendingDeleteId = t.id)}
                       class="flex items-center justify-center w-8 h-8 text-on-surface-variant hover:text-error hover:bg-error/10 rounded-md transition-colors"
-                      title="Supprimer"
-                      aria-label="Supprimer la transcription"
+                      title={m.ts_delete_title()}
+                      aria-label={m.ts_delete_aria()}
                     >
                       <Papicon icon="trash" size={15} />
                     </button>
@@ -198,7 +204,7 @@
               disabled={loadingMore}
               class="px-4 py-2 text-sm font-medium bg-surface-container-low border border-outline-variant/30 text-on-surface rounded-lg hover:bg-surface-container transition-colors disabled:opacity-50"
             >
-              {loadingMore ? 'Chargement…' : 'Charger plus'}
+              {loadingMore ? m.common_loading() : m.ts_load_more()}
             </button>
           </div>
         {/if}

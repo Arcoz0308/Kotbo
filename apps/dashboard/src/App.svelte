@@ -87,7 +87,7 @@
     if (path.startsWith("/recruitment")) return "recruitment";
     if (path.startsWith("/tickets")) return "tickets";
     if (path.startsWith("/tutoring")) return "tutoring";
-    if (path.startsWith("/meetings")) return "absences";
+    if (path.startsWith("/meetings")) return "meetings";
     if (path.startsWith("/absences")) return "absences";
     if (path.startsWith("/planning")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";
@@ -95,7 +95,7 @@
     if (path.startsWith("/giveaways")) return "giveaways";
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
-    if (path.startsWith("/triggers")) return "auto_responses";
+    if (path.startsWith("/triggers") || path.startsWith("/workflows")) return "workflows";
     if (path.startsWith("/automod")) return "automod";
     if (path.startsWith("/admin-lock")) return "automod";
     if (path.startsWith("/suggestions")) return "suggestions";
@@ -527,6 +527,10 @@
               load={() => import("./pages/Logs.svelte")}
             />
             <LazyRoute
+              path="/workflows"
+              load={() => import("./pages/Workflows.svelte")}
+            />
+            <LazyRoute
               path="/sanctions/*"
               load={() => import("./pages/Sanctions.svelte")}
             />
@@ -674,11 +678,6 @@
             <LazyRoute
               path="/forms"
               load={() => import("./pages/CustomForms.svelte")}
-            />
-            <LazyRoute
-              path="/forms/builder/new"
-              load={() => import("./pages/FormBuilder.svelte")}
-              props={() => ({ formId: null })}
             />
             <LazyRoute
               path="/forms/builder/:formId"

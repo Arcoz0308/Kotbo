@@ -1,0 +1,295 @@
+import { updateSidebarFavorites } from '../api';
+import {
+  generalItems,
+  moderationItems,
+  levelingItems,
+  economyItems,
+  communityItems,
+  staffItems,
+  crossServerItems,
+  configItems,
+  type PageConfig,
+} from '../config/pages';
+import { m } from '../i18n';
+import { authStore } from './auth.svelte';
+import { dashboardStore } from './dashboard.svelte';
+
+export type NavGroup = { key: string; label: string; items: PageConfig[] };
+
+const FAVORITES_KEY = 'sidebar_favorites';
+const RECENTS_KEY = 'nav_recents';
+const MAX_FAVORITES = 80;
+const MAX_RECENTS = 6;
+
+/** Staff-only pages that non-admins reach only when they hold the matching role. */
+const STAFF_SHARED_PAGES = [
+  '/planning',
+  '/absences',
+  '/meetings',
+  '/tickets',
+  '/recruitment',
+  '/evaluations',
+];
+
+function sanitizeHrefs(entries: unknown, limit: number): string[] {
+  if (!Array.isArray(entries)) return [];
+  return [
+    ...new Set(
+      entries
+        .filter((entry): entry is string => typeof entry === 'string' && entry.startsWith('/'))
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, limit);
+}
+
+function readStored(key: string, limit: number): string[] {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(key);
+    return sanitizeHrefs(raw ? JSON.parse(raw) : [], limit);
+  } catch {
+    return [];
+  }
+}
+
+function writeStored(key: string, value: string[]): void {
+  try {
+    localStorage?.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable (private mode, quota): favourites stay in memory */
+  }
+}
+
+/**
+ * Single source of truth for what the current user may navigate to.
+ *
+ * Both the desktop sidebar and the mobile navigation sheet read from here, so
+ * permission rules only ever have to be expressed once.
+ */
+class NavigationStore {
+  #favorites = $state<string[]>([]);
+  #recents = $state<string[]>(readStored(RECENTS_KEY, MAX_RECENTS));
+  #hydratedGuildId = $state<string | null>(null);
+  #persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  readonly #guild = $derived(
+    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId),
+  );
+
+  readonly #featureAccess = $derived(
+    (dashboardStore.state.featureAccess ?? {}) as Record<string, { canView?: boolean }>,
+  );
+
+  readonly isAdmin = $derived(this.#guild?.accessLevel === 'admin');
+  readonly isModerator = $derived(this.#guild?.accessLevel === 'moderator');
+  readonly isStaff = $derived(!!authStore.member);
+  readonly isStaffServer = $derived(!!dashboardStore.state.isStaffServer);
+
+  canViewFeature = (featureKey?: string): boolean => {
+    if (!featureKey) return true;
+    const feature = this.#featureAccess[featureKey];
+    if (feature?.canView !== undefined) return feature.canView;
+    return this.#guild?.accessLevel !== 'none';
+  };
+
+  /** A module the user may see, but that is switched off for this guild. */
+  isModuleDisabled = (featureKey?: string): boolean => {
+    if (!featureKey) return false;
+    const state = dashboardStore.state;
+    switch (featureKey) {
+      case 'economy':
+        return !state.economyEnabled;
+      case 'leveling':
+        return !state.levelingEnabled;
+      case 'fun':
+        return !state.funEnabled;
+      case 'daily_algo':
+        return !state.dailyAlgoEnabled;
+      case 'auto_thread':
+        return !state.autoThreadEnabled;
+      case 'translation':
+        return !state.translationEnabled;
+      case 'codepolice':
+        return !state.codePoliceEnabled;
+      default:
+        return false;
+    }
+  };
+
+  readonly #visibleGeneral = $derived(generalItems.filter((i) => this.canViewFeature(i.featureKey)));
+
+  readonly #visibleModeration = $derived(
+    this.isStaff || this.isModerator || this.isAdmin
+      ? moderationItems
+          .filter((i) => i.href !== '/admin-lock' || !!dashboardStore.state.adminLockEnabled)
+          .filter((i) => this.canViewFeature(i.featureKey))
+      : [],
+  );
+
+  readonly #visibleLeveling = $derived(
+    this.isStaffServer ? [] : levelingItems.filter((i) => this.canViewFeature(i.featureKey)),
+  );
+
+  readonly #visibleEconomy = $derived(
+    this.isStaffServer ? [] : economyItems.filter((i) => this.canViewFeature(i.featureKey)),
+  );
+
+  readonly #visibleCommunity = $derived(
+    this.isStaffServer ? [] : communityItems.filter((i) => this.canViewFeature(i.featureKey)),
+  );
+
+  readonly #visibleStaff = $derived.by((): PageConfig[] => {
+    if (this.isAdmin) return staffItems.filter((i) => this.canViewFeature(i.featureKey));
+
+    const isTutor = dashboardStore.state.isTutor;
+    const isApprentice = !!dashboardStore.state.apprenticeProgress;
+
+    return staffItems
+      .filter(({ href }) => {
+        if (href === '/tutoring') return isTutor || isApprentice || this.isModerator;
+        if (STAFF_SHARED_PAGES.includes(href)) return this.isStaff || this.isModerator;
+        return false;
+      })
+      .filter((i) => this.canViewFeature(i.featureKey));
+  });
+
+  readonly #visibleCrossServer = $derived(
+    this.isAdmin ? crossServerItems.filter((i) => this.canViewFeature(i.featureKey)) : [],
+  );
+
+  readonly #visibleConfig = $derived(
+    this.isAdmin ? configItems.filter((i) => this.canViewFeature(i.featureKey)) : [],
+  );
+
+  /** Navigation groups in reading order, empty groups removed. */
+  readonly groups = $derived.by((): NavGroup[] => {
+    const general = { key: 'general', label: m.nav_group_general(), items: this.#visibleGeneral };
+    const moderation = { key: 'moderation', label: m.nav_group_moderation(), items: this.#visibleModeration };
+    const leveling = { key: 'leveling', label: m.nav_group_xp(), items: this.#visibleLeveling };
+    const economy = { key: 'economy', label: m.nav_group_economy(), items: this.#visibleEconomy };
+    const community = { key: 'community', label: m.nav_group_community(), items: this.#visibleCommunity };
+    const staff = { key: 'staff', label: m.nav_group_staff(), items: this.#visibleStaff };
+    const crossserver = { key: 'crossserver', label: m.nav_group_crossserver(), items: this.#visibleCrossServer };
+    const config = { key: 'config', label: m.nav_group_config(), items: this.#visibleConfig };
+
+    // On a staff server the staff tooling is the reason people are here.
+    const ordered = this.isStaffServer
+      ? [general, staff, moderation, leveling, economy, community, crossserver, config]
+      : [general, moderation, leveling, economy, community, staff, crossserver, config];
+
+    return ordered.filter((group) => group.items.length > 0);
+  });
+
+  /** Flat list of every reachable page, used for search. */
+  readonly allItems = $derived(this.groups.flatMap((group) => group.items));
+
+  get favorites(): string[] {
+    return this.#favorites;
+  }
+
+  readonly favoriteItems = $derived(
+    this.#favorites
+      .map((href) => this.allItems.find((item) => item.href === href))
+      .filter((item): item is PageConfig => !!item),
+  );
+
+  readonly recentItems = $derived(
+    this.#recents
+      .map((href) => this.allItems.find((item) => item.href === href))
+      .filter((item): item is PageConfig => !!item),
+  );
+
+  isFavorite = (href: string): boolean => this.#favorites.includes(href);
+
+  /**
+   * Favourites live on the server so they follow the user across devices, with
+   * localStorage as an offline mirror. Call once per guild from a component.
+   */
+  hydrateFavorites(): void {
+    const guildId = authStore.selectedGuildId ?? null;
+    const serverFavorites = sanitizeHrefs(
+      (dashboardStore.state as { sidebarFavorites?: unknown }).sidebarFavorites ?? [],
+      MAX_FAVORITES,
+    );
+
+    if (this.#hydratedGuildId !== guildId) {
+      const legacy = readStored(FAVORITES_KEY, MAX_FAVORITES);
+      this.#hydratedGuildId = guildId;
+      this.#favorites = serverFavorites.length > 0 ? serverFavorites : legacy;
+      if (legacy.length > 0 && serverFavorites.length === 0 && guildId) {
+        void this.#persist(legacy);
+      }
+      return;
+    }
+
+    if (JSON.stringify(serverFavorites) !== JSON.stringify(this.#favorites)) {
+      this.#favorites = serverFavorites;
+    }
+  }
+
+  toggleFavorite(href: string): void {
+    this.#favorites = this.#favorites.includes(href)
+      ? this.#favorites.filter((entry) => entry !== href)
+      : [...this.#favorites, href].slice(0, MAX_FAVORITES);
+
+    if (this.#persistTimer) clearTimeout(this.#persistTimer);
+    const snapshot = this.#favorites;
+    this.#persistTimer = setTimeout(() => void this.#persist(snapshot), 250);
+  }
+
+  /** Records a visit so the navigation sheet can offer a "recent" shortcut. */
+  noteVisit(href: string): void {
+    if (!href.startsWith('/') || href === '/') return;
+    const next = [href, ...this.#recents.filter((entry) => entry !== href)].slice(0, MAX_RECENTS);
+    if (JSON.stringify(next) === JSON.stringify(this.#recents)) return;
+    this.#recents = next;
+    writeStored(RECENTS_KEY, next);
+  }
+
+  /** Case- and accent-insensitive search across every reachable page. */
+  search(query: string): PageConfig[] {
+    const needle = normalize(query);
+    if (!needle) return [];
+    return this.allItems
+      .map((item) => ({ item, score: matchScore(normalize(item.name), needle) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.item);
+  }
+
+  async #persist(next: string[]): Promise<void> {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId) return;
+    const sanitized = sanitizeHrefs(next, MAX_FAVORITES);
+    (dashboardStore.state as { sidebarFavorites?: string[] }).sidebarFavorites = sanitized;
+    writeStored(FAVORITES_KEY, sanitized);
+    await updateSidebarFavorites(sanitized, guildId);
+  }
+}
+
+function normalize(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+/** Prefix matches rank above word-start matches, which rank above substrings. */
+function matchScore(haystack: string, needle: string): number {
+  if (haystack.startsWith(needle)) return 3;
+  if (haystack.includes(` ${needle}`)) return 2;
+  if (haystack.includes(needle)) return 1;
+  return 0;
+}
+
+export const navigationStore = new NavigationStore();
+
+/** Shared active-route test so sidebar and sheet always agree on highlighting. */
+export function isActiveNavItem(href: string, path: string, url: string): boolean {
+  if (href === '/') return path === '/';
+  const [base, query] = href.split('?');
+  if (query) return path === base && url.includes(query);
+  return path === base || path.startsWith(`${base}/`);
+}

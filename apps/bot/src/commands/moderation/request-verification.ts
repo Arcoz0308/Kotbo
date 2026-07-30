@@ -17,20 +17,36 @@ import {
 } from '../../services/moderation/securityVerificationService.js';
 import { deliverVerification } from '../../services/moderation/verificationDeliveryService.js';
 import { queueAuditLog } from '../../utils/auditLogger.js';
+import { getCommandMetadata } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
+
+const meta = getCommandMetadata('b1_reqverif');
+const contextMeta = getCommandMetadata('b1_reqverif_context');
 
 const data = new SlashCommandBuilder()
-  .setName('request-verification')
-  .setDescription("🔐 Demande une vérification de sécurité à un membre (le met en Timeout)")
+  .setName(meta.name)
+  .setNameLocalizations(meta.nameLocalizations)
+  .setDescription(meta.description)
+  .setDescriptionLocalizations(meta.descriptionLocalizations)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
   .addUserOption((option) =>
-    option.setName('membre').setDescription('Le membre à vérifier').setRequired(true)
+    option
+      .setName('membre')
+      .setDescription(m.b1_reqverif_opt_membre({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b1_reqverif_opt_membre({}, { locale: 'fr' }) })
+      .setRequired(true)
   )
   .addStringOption((option) =>
-    option.setName('raison').setDescription('La raison de la demande de vérification').setRequired(false)
+    option
+      .setName('raison')
+      .setDescription(m.b1_reqverif_opt_raison({}, { locale: 'en' }))
+      .setDescriptionLocalizations({ fr: m.b1_reqverif_opt_raison({}, { locale: 'fr' }) })
+      .setRequired(false)
   );
 
 const contextData = new ContextMenuCommandBuilder()
-  .setName('Demander vérification')
+  .setName(contextMeta.name)
+  .setNameLocalizations(contextMeta.nameLocalizations)
   .setType(ApplicationCommandType.User)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 

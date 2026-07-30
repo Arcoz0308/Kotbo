@@ -45,7 +45,7 @@
 
     <!-- Modal -->
     <div
-      class="relative w-full max-w-lg bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl overflow-hidden"
+      class="tutorial-welcome-panel relative w-full max-w-lg max-h-[92dvh] overflow-y-auto bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-2xl"
       transition:scale={{ duration: 400, easing: backOut, start: 0.9 }}
     >
       <!-- Gradient accent top -->

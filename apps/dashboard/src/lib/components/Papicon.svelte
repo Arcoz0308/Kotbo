@@ -1,16 +1,24 @@
 <script lang="ts">
-  import { Papicons } from "@getpapillon/papicons";
-  import * as LucideIcons from "lucide-svelte";
-  import { availablePapicons, toPapiconsName } from "../icons/papicons";
+  import { toPapiconsName } from "../icons/papicons";
+  import { getPapicon } from "../icons/papiconComponents";
+  import { getLucideIcon } from "../icons/lucide";
 
   const {
     icon = "",
+    name = "",
     size = 24,
-    class: className = ""
+    class: className = "",
+    className: classNameAlias = "",
+    class_: legacyClassName = "",
+    style = ""
   }: {
     icon?: string;
+    name?: string;
     size?: number;
     class?: string;
+    className?: string;
+    class_?: string;
+    style?: string;
     children?: import('svelte').Snippet;
   } = $props();
 
@@ -24,13 +32,16 @@
       depth += 1;
     }
 
-    return current;
+    // Papicons rend un <svg>. Toute autre forme (composant non deroule, element
+    // vide) signifie que le depaquetage a echoue : on repasse alors sur Lucide
+    // plutot que d'emettre un SVG vide qui casse la mise en page.
+    return current?.type === "svg" ? current : null;
   }
 
   function flattenChildren(children: any) {
     if (children == null) return [];
     const stack = Array.isArray(children) ? [...children] : [children];
-    const flattened = [];
+    const flattened: any[] = [];
 
     while (stack.length > 0) {
       const child = stack.shift();
@@ -44,35 +55,35 @@
     return flattened;
   }
 
-  const safeIcon = $derived(typeof icon === "string" ? icon : "");
-  const iconName = $derived(toPapiconsName(safeIcon));
-  const isPapiconAvailable = $derived(availablePapicons.has(iconName));
-
-  // Repli Lucide : iconName est deja en PascalCase, safeIcon couvre les noms
-  // Lucide passes tels quels.
-  const LucideComponent = $derived((LucideIcons as any)[iconName] || (LucideIcons as any)[safeIcon] || LucideIcons.HelpCircle);
+  const requestedIcon = $derived(icon || name);
+  const mergedClassName = $derived(`${className} ${classNameAlias} ${legacyClassName}`.trim());
+  const iconName = $derived(toPapiconsName(requestedIcon));
+  const PapiconComponent = $derived(getPapicon(iconName));
 
   const reactIcon = $derived.by(() => {
-    if (!isPapiconAvailable || !iconName) return null;
+    if (!PapiconComponent) return null;
     try {
-      return unwrapReactComponent(Papicons({ name: iconName, size, className }));
+      return unwrapReactComponent(PapiconComponent({ size, className: mergedClassName }));
     } catch {
       return null;
     }
   });
-  const svgProps = $derived(reactIcon?.props || {});
+  const svgProps = $derived(reactIcon?.props ?? {});
   const svgChildren = $derived(flattenChildren(svgProps.children));
+
+  const LucideComponent = $derived(getLucideIcon(requestedIcon));
 </script>
 
-{#key iconName}
-  {#if isPapiconAvailable && reactIcon}
+{#key PapiconComponent ? iconName : requestedIcon}
+  {#if reactIcon && svgChildren.length > 0}
     <svg
-      width={svgProps.width ?? size}
-      height={svgProps.height ?? size}
+      width={size}
+      height={size}
       viewBox={svgProps.viewBox ?? "0 0 24 24"}
       fill={svgProps.fill ?? "none"}
       xmlns="http://www.w3.org/2000/svg"
-      class={className}
+      class={mergedClassName}
+      {style}
     >
       {#each svgChildren as child}
         {#if child.type === 'path'}
@@ -92,6 +103,6 @@
       {/each}
     </svg>
   {:else}
-    <LucideComponent size={size} class={className} stroke-width={2.5} />
+    <LucideComponent size={size} class={mergedClassName} {style} stroke-width={2.25} />
   {/if}
 {/key}

@@ -271,27 +271,9 @@ export const iconAliases: Record<string, string> = {
   'radio_button_checked': 'CircleDot',
   'short_text': 'Type',
   'title': 'Heading',
-  'translate': 'Languages'
+  'translate': 'Languages',
+  'tune': 'SlidersHorizontal'
 };
-
-/** Icones reellement fournies par Papicons, pour eviter ses logs d'erreur. */
-export const availablePapicons = new Set([
-  'Accessibility', 'Add', 'AlertCircle', 'AlertTriangle', 'Alert', 'Apple', 'Archive',
-  'ArrowDownBox', 'ArrowDown', 'ArrowLeftBox', 'ArrowLeftDownBox', 'ArrowLeftDown',
-  'ArrowLeftUpBox', 'ArrowLeftUp', 'ArrowLeft', 'ArrowRightBox', 'ArrowRightDownBox',
-  'ArrowRightDown', 'ArrowRightUpBox', 'ArrowRightUp', 'ArrowRight', 'ArrowUpBox',
-  'ArrowUp', 'Bell', 'Bold', 'Bookmark', 'Bus', 'Butterfly', 'Calendar', 'Camera',
-  'Card', 'Chair', 'Check', 'ChevronDown', 'ChevronLeft', 'ChevronRight', 'ChevronUp',
-  'Clock', 'Code', 'Coefficient', 'ColorTheme', 'Cross', 'Crown', 'Cutlery',
-  'Ecoledirecte', 'Emoji', 'ExternalLink', 'Filter', 'Font', 'Gallery', 'Gears',
-  'Ghost', 'GlobeCross', 'Globe', 'Grades', 'GraduationHat', 'Grid', 'Heart',
-  'Home', 'InfoBox', 'Info', 'Link', 'List', 'Lock', 'Login', 'Logout', 'Mail',
-  'MapPin', 'Menu', 'Metro', 'Minus', 'Moon', 'Newspaper', 'Palette', 'Paper',
-  'PapillonApp', 'PapillonIcon', 'Password', 'PenAlt', 'Pen', 'Phone', 'Pie',
-  'PiggyBank', 'Pillar', 'Placeholder', 'Plus', 'PrivatePapillonApp', 'PrivatePapillonIcon',
-  'Pronote', 'QrCode', 'Search', 'Skolengo', 'Sparkles', 'Star', 'Sun', 'Sunrise',
-  'Tasks', 'TextBubble', 'Trash', 'Underline', 'Unlock', 'UserCross', 'User', 'Walk'
-]);
 
 export const fallbackIconName = 'Grid';
 

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { readdirSync } from 'node:fs';
 import { config as loadEnv } from 'dotenv';
 import { Client } from 'pg';
 
@@ -56,6 +57,7 @@ async function resolveApplied(migration: string) {
 // 1. Check database URL and fetch already applied migrations to skip them
 const connectionString = process.env.DATABASE_URL;
 let appliedMigrations = new Set<string>();
+let isFreshDatabase = false;
 
 if (connectionString) {
   try {
@@ -76,6 +78,9 @@ if (connectionString) {
         "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL"
       );
       appliedMigrations = new Set(res.rows.map((row: any) => row.migration_name));
+      isFreshDatabase = appliedMigrations.size === 0;
+    } else {
+      isFreshDatabase = true;
     }
     await client.end();
   } catch (err: any) {
@@ -85,6 +90,29 @@ if (connectionString) {
   }
 } else {
   console.warn("[MigrationRepair] DATABASE_URL non définie dans l'environnement. Exécution complète par défaut.");
+}
+
+// Sur une base neuve, les migrations normales doivent créer le schéma dans
+// l'ordre. Les scripts de réparation ciblent uniquement des installations
+// historiques et supposent notamment que la table `guilds` existe déjà.
+if (isFreshDatabase) {
+  console.log("[MigrationRepair] Base neuve détectée. Création du schéma courant et initialisation du baseline.");
+  const pushCode = await run(["bun", "run", "prisma", "db", "push"]);
+  if (pushCode !== 0) {
+    throw new Error("L'initialisation du schéma d'une base neuve a échoué.");
+  }
+
+  const migrationsDir = path.resolve(import.meta.dir, "migrations");
+  const migrations = readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+
+  for (const migration of migrations) {
+    await resolveApplied(migration);
+  }
+  console.log(`[MigrationRepair] Baseline initialisé avec ${migrations.length} migrations.`);
+  process.exit(0);
 }
 
 // 2. Filter repairs that haven't been applied yet

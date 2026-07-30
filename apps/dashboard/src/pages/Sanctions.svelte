@@ -366,7 +366,7 @@
     const data = table.tiers.map((tier: any) => ({
       [m.sc_xlsx_table()]: table.name,
       [m.sc_xlsx_tier()]: `T${tier.level}`,
-      "Action": tier.action,
+      [m.sc_xlsx_action()]: tier.action,
       [m.sc_xlsx_duration()]: tier.durationSeconds || 'N/A',
       [m.sc_xlsx_custom_reason()]: tier.customReason || ''
     }));
@@ -539,7 +539,7 @@
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
-          label: 'Sanctions (Configuration)',
+          label: m.sc_unsaved_label(),
           onSave: () => handleSaveSettings(),
           onReset: () => {
             guildSettings = JSON.parse(JSON.stringify(savedSettings));
@@ -548,7 +548,7 @@
       });
     } else if (!dirty) {
       untrack(() => {
-        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Sanctions (Configuration)') {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === m.sc_unsaved_label()) {
           unsavedChanges.clear();
         }
       });
@@ -556,7 +556,7 @@
   });
 
   onDestroy(() => {
-    if (unsavedChanges.pageLabel === 'Sanctions (Configuration)') {
+    if (unsavedChanges.pageLabel === m.sc_unsaved_label()) {
       unsavedChanges.clear();
     }
   });
@@ -1032,7 +1032,7 @@
     if (!pendingDeletion) return;
 
     if (deleteConfirmationText.trim().toUpperCase() !== m.sc_delete_keyword()) {
-      deletionMessage = 'Suppression annulee: validation finale non confirmee.';
+      deletionMessage = m.sc_delete_cancelled();
       deletionMessageIsError = true;
       return;
     }
@@ -1062,7 +1062,7 @@
 </script>
 
 <ModulePage 
-  title="Sanctions & Rapports" 
+  title={m.sc_page_title()} 
   description={m.sc_page_desc()} 
   icon="alert-triangle"
   featureKey="sanctions"
@@ -1092,7 +1092,7 @@
           onclick={() => gotoTab('/sanctions', 'settings', 'sanctions')}
           class="tab-button {activeTab === 'settings' ? 'active' : ''}"
         >
-          Configuration
+          {m.sc_tab_configuration()}
         </button>
       {/if}
     </div>
@@ -1133,7 +1133,7 @@
         <tr class="bg-slate-50 dark:bg-white/5">
           <th class="px-4 py-4">
             <ColumnSortFilter
-              label="Date"
+              label={m.sc_col_date()}
               sortField="date"
               sortDirection={sortDirectionFor('date')}
               onToggleSort={() => toggleSort('date')}
@@ -1141,7 +1141,7 @@
           </th>
           <th class="px-4 py-4">
             <ColumnSortFilter
-              label="Type"
+              label={m.sc_col_type()}
               sortField="type"
               sortDirection={sortDirectionFor('type')}
               onToggleSort={() => toggleSort('type')}
@@ -1164,7 +1164,7 @@
           </th>
           <th class="px-4 py-4">
             <ColumnSortFilter
-              label="Staff"
+              label={m.sc_col_staff()}
               sortField="moderator"
               sortDirection={sortDirectionFor('moderator')}
               onToggleSort={() => toggleSort('moderator')}
@@ -1193,7 +1193,7 @@
               onToggleValue={(value) => toggleFilter('statuses', value)}
             />
           </th>
-          <th class="px-4 py-4 text-[13px] font-bold text-on-surface-variant">Rapport</th>
+          <th class="px-4 py-4 text-[13px] font-bold text-on-surface-variant">{m.sc_col_report()}</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
@@ -1273,7 +1273,7 @@
         {:else if !showSanctionsSkeleton && filteredAndSortedSanctions.length === 0}
           <tr>
             <td colspan="7" class="px-6 py-14 text-center text-on-surface-variant">
-              Aucune sanction ne correspond aux filtres appliques.
+              {m.sc_no_match_filters()}
             </td>
           </tr>
         {/if}
@@ -1380,7 +1380,7 @@
                     onclick={() => showAddTableField = true}
                     class="text-xs font-semibold text-primary hover:text-primary/80 transition uppercase tracking-wider"
                   >
-                    + Ajouter
+                    {m.sc_add()}
                   </button>
                 {/if}
               </div>
@@ -1396,13 +1396,13 @@
                     onclick={addSanctionTable}
                     class="px-3 py-1 bg-primary text-on-primary rounded-xl text-[10px] font-semibold uppercase tracking-wider"
                   >
-                    Ok
+                    {m.sc_ok()}
                   </button>
                   <button 
                     onclick={() => { showAddTableField = false; newTableName = ''; }}
                     class="px-2 text-on-surface-variant/70 text-xs"
                   >
-                    Annuler
+                    {m.common_cancel()}
                   </button>
                 </div>
               {/if}
@@ -1458,28 +1458,28 @@
                       <button 
                         onclick={() => exportTableToImage(currentTable)}
                         class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
-                        title="Exporter en Image (Style Kotbo Landing)"
+                        title={m.sc_export_image_title()}
                       >
                         <Papicon icon="image" size={16} />
                       </button>
                       <button 
                         onclick={() => exportTableToXlsx(currentTable)}
                         class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-emerald-500/10 hover:text-emerald-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
-                        title="Exporter en Excel (.xlsx)"
+                        title={m.sc_export_xlsx_title()}
                       >
                         <Papicon icon="file-spreadsheet" size={16} />
                       </button>
                       <button 
                         onclick={() => exportTableToCsv(currentTable)}
                         class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-amber-500/10 hover:text-amber-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
-                        title="Exporter en CSV"
+                        title={m.sc_export_csv_title()}
                       >
                         <Papicon icon="file-text" size={16} />
                       </button>
                       <button 
                         onclick={() => exportTableToJson(currentTable)}
                         class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-indigo-500/10 hover:text-indigo-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
-                        title="Exporter en JSON"
+                        title={m.sc_export_json_title()}
                       >
                         <Papicon icon="code" size={16} />
                       </button>
@@ -1492,8 +1492,8 @@
                       <table class="w-full text-left border-collapse font-inter text-xs">
                         <thead>
                           <tr class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
-                            <th class="py-3 px-4 w-20 text-center border-r border-outline-variant/10">Palier</th>
-                            <th class="py-3 px-4 w-48 border-r border-outline-variant/10">Action</th>
+                            <th class="py-3 px-4 w-20 text-center border-r border-outline-variant/10">{m.sc_col_tier()}</th>
+                            <th class="py-3 px-4 w-48 border-r border-outline-variant/10">{m.sc_col_action()}</th>
                             <th class="py-3 px-4 w-48 border-r border-outline-variant/10">{m.sc_col_duration()}</th>
                             <th class="py-3 px-4 border-r border-outline-variant/10">{m.sc_col_custom_reason()}</th>
                             <th class="py-3 px-2 w-12 text-center"></th>
@@ -1519,12 +1519,12 @@
                                     {tier.action === 'BAN' ? 'text-red-600 dark:text-red-500 font-semibold' : ''}
                                     {tier.action === 'SOFTBAN' ? 'text-purple-500 dark:text-purple-400' : ''}"
                                 >
-                                  <option value="WARN" class="text-on-surface bg-surface-container-lowest">Warn</option>
-                                  <option value="TIMEOUT" class="text-on-surface bg-surface-container-lowest">Timeout</option>
-                                  <option value="KICK" class="text-on-surface bg-surface-container-lowest">Kick</option>
-                                  <option value="TEMP_BAN" class="text-on-surface bg-surface-container-lowest">Ban Temp</option>
-                                  <option value="BAN" class="text-on-surface bg-surface-container-lowest font-bold">Ban Perm</option>
-                                  <option value="SOFTBAN" class="text-on-surface bg-surface-container-lowest">Softban</option>
+                                  <option value="WARN" class="text-on-surface bg-surface-container-lowest">{m.sc_action_warn()}</option>
+                                  <option value="TIMEOUT" class="text-on-surface bg-surface-container-lowest">{m.sc_action_timeout()}</option>
+                                  <option value="KICK" class="text-on-surface bg-surface-container-lowest">{m.sc_action_kick()}</option>
+                                  <option value="TEMP_BAN" class="text-on-surface bg-surface-container-lowest">{m.sc_action_temp_ban()}</option>
+                                  <option value="BAN" class="text-on-surface bg-surface-container-lowest font-bold">{m.sc_action_ban()}</option>
+                                  <option value="SOFTBAN" class="text-on-surface bg-surface-container-lowest">{m.sc_action_softban()}</option>
                                 </select>
                               </td>
 
@@ -1683,12 +1683,12 @@
 
             {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
               <div class="space-y-3">
-                <p class="text-xs font-medium text-on-surface-variant/40 px-1">Preuves</p>
+                <p class="text-xs font-medium text-on-surface-variant/40 px-1">{m.sc_evidence()}</p>
                 <div class="flex flex-wrap gap-2">
                   {#each selectedReport.evidenceLinks as link}
                     <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-[11px] font-semibold text-primary uppercase tracking-widest transition-all hover:bg-primary/10">
                       <Papicon icon="external-link" size={14} />
-                      Lien de preuve
+                      {m.sc_evidence_link()}
                     </a>
                   {/each}
                 </div>
@@ -1741,7 +1741,7 @@
               </div>
               <div class="space-y-1.5">
                 <label for="report-duration" class="field-label">{m.sc_applied_duration()}</label>
-                <input id="report-duration" type="text" bind:value={sanctionDurationLabel} placeholder="Ex: 2h, 1j, Permanent" class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
+                <input id="report-duration" type="text" bind:value={sanctionDurationLabel} placeholder={m.sc_duration_ph()} class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
               </div>
             </div>
 
@@ -1773,7 +1773,7 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="report-notes" class="field-label">Notes contextuelles</label>
+              <label for="report-notes" class="field-label">{m.sc_context_notes()}</label>
               <textarea id="report-notes" bind:value={additionalNotes} rows={2} placeholder={m.sc_context_ph()} class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
             </div>
 
@@ -1789,7 +1789,7 @@
                   onclick={() => isEditing = false}
                   class="flex-1 py-4 rounded-lg bg-on-surface/5 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
                 >
-                  Annuler
+                  {m.common_cancel()}
                 </button>
                 <button
                   onclick={handleUpdateReport}
@@ -1835,7 +1835,7 @@
       tabindex="-1"
     >
       <div>
-        <p class="text-[10px] font-semibold uppercase tracking-wider text-red-500">Action sensible</p>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-red-500">{m.sc_sensitive_action()}</p>
         <h3 id="delete-sanction-title" class="mt-1 text-xl font-semibold text-on-surface">{m.sc_confirm_deletion()}</h3>
         <p class="mt-2 text-sm text-on-surface-variant">
           {m.sc_delete_confirm_pre()} <span class="font-bold text-on-surface">{typeLabel(pendingDeletion.type)}</span>

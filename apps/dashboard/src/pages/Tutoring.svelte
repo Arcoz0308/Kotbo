@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m, dateLocale } from '../lib/i18n';
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
@@ -80,7 +81,7 @@
 
   async function submitCreateTutoring() {
     if (!createTutoringForm.staffUserId) {
-      alert('Veuillez sélectionner un apprenti.');
+      alert(m.tutoring_alert_select_apprentice());
       return;
     }
     try {
@@ -90,12 +91,12 @@
         plannedDurationDays: Number(createTutoringForm.plannedDurationDays),
         targetGrade: createTutoringForm.targetGrade || undefined
       });
-      if (!ok) throw new Error('Erreur de l\'API');
+      if (!ok) throw new Error(m.tutoring_err_api());
       createTutoringModalOpen = false;
       fetchData();
     } catch (err: any) {
       console.error('Error creating tutoring relation:', err);
-      alert(err.message || 'Erreur lors de la création du tutorat.');
+      alert(err.message || m.tutoring_err_create());
     }
   }
   
@@ -159,6 +160,8 @@
     confirmModal = { open: true, title, message, onConfirm };
   }
 
+  let defaultTabApplied = false;
+
   async function fetchData() {
     loading = true;
     try {
@@ -174,10 +177,15 @@
       tutorApprentices = tutorData?.apprentices || [];
       apprenticeProgress = apprenticeData?.progress;
 
-      // Default tab based on role
-      if (tutorApprentices.length > 0) activeTab = 'dashboard';
-      else if (apprenticeProgress) activeTab = 'progress';
-      else if (authStore.isAdmin || tutorApprentices.length > 0) activeTab = 'config';
+      // Onglet par defaut choisi une seule fois : les rechargements declenches
+      // par une action (checklist, carnet de bord, items) ne doivent pas
+      // ramener l'utilisateur sur un autre onglet.
+      if (!defaultTabApplied) {
+        defaultTabApplied = true;
+        if (tutorApprentices.length > 0) activeTab = 'dashboard';
+        else if (apprenticeProgress) activeTab = 'progress';
+        else if (authStore.isAdmin) activeTab = 'config';
+      }
 
     } catch (err) {
       console.error('Error fetching tutoring data:', err);
@@ -187,6 +195,11 @@
   }
 
   onMount(async () => {
+    // Le layout monte la page des que la session est confirmee, alors que les
+    // guildes (donc authStore.isAdmin) arrivent un peu apres. Sans cette
+    // attente, un rechargement complet choisit l'onglet par defaut et masque
+    // les controles admin comme si l'utilisateur ne l'etait pas.
+    await authStore.initialize();
     await Promise.all([
       fetchData(),
       loadFeatureConfig()
@@ -196,7 +209,7 @@
   async function saveConfig() {
     await saveAction.run(async () => {
       const ok = await updateTutoringConfig(config);
-      if (!ok) throw new Error('Erreur API');
+      if (!ok) throw new Error(m.tutoring_err_api());
 
       if (featureConfig) {
         // Sync to feature config as well
@@ -214,7 +227,7 @@
 
       await dashboardStore.refresh();
       return true;
-    }, { successMessage: 'Configuration enregistrée.' });
+    }, { successMessage: m.tutoring_config_saved() });
   }
 
   async function setChecklistState(periodId: string, itemId: string, targetState: string, currentState: string | undefined) {
@@ -253,8 +266,8 @@
 
   async function handleDeleteTutoring(periodId: string) {
     showConfirm(
-      'Supprimer le tutorat',
-      'Êtes-vous sûr de vouloir supprimer ce tutorat ? Cette action est irréversible.',
+      m.tutoring_confirm_delete_title(),
+      m.tutoring_confirm_delete_msg(),
       async () => {
         try {
           await deleteTestingPeriod(periodId);
@@ -293,8 +306,17 @@
         canForce = true;
       } else {
         console.error('Error ending tutoring:', err);
-        endTutoringError = "Une erreur est survenue lors de la validation.";
+        endTutoringError = m.tutoring_err_generic_validation();
       }
+    }
+  }
+
+  function formatReportType(type: string) {
+    switch (type) {
+      case 'POSITIVE': return m.tutoring_report_positive();
+      case 'NEUTRAL': return m.tutoring_report_neutral();
+      case 'NEGATIVE': return m.tutoring_report_negative();
+      default: return type;
     }
   }
 
@@ -306,9 +328,9 @@
 
   // Visual helper for categories
   const categories = [
-    { id: 'TOOLS', label: 'Outils', icon: 'tool', color: 'primary' },
-    { id: 'KNOWLEDGE', label: 'Savoir', icon: 'book', color: 'secondary' },
-    { id: 'ACCESS', label: 'Accès', icon: 'key', color: 'tertiary' }
+    { id: 'TOOLS', label: m.tutoring_cat_tools(), icon: 'tool', color: 'primary' },
+    { id: 'KNOWLEDGE', label: m.tutoring_cat_knowledge(), icon: 'book', color: 'secondary' },
+    { id: 'ACCESS', label: m.tutoring_cat_access(), icon: 'key', color: 'tertiary' }
   ];
 
   function openItemModal(item = null) {
@@ -347,8 +369,8 @@
 
   async function deleteItem(itemId: string) {
     showConfirm(
-      'Supprimer l\'item',
-      'Êtes-vous sûr de vouloir supprimer cet item de la checklist ?',
+      m.tutoring_confirm_delete_item_title(),
+      m.tutoring_confirm_delete_item_msg(),
       async () => {
         try {
           await deleteTutoringItem(itemId);
@@ -364,8 +386,8 @@
 </script>
 
 <ModulePage 
-  title="Système de Tutorat" 
-  description="Accompagnement, transmission et suivi des nouveaux arrivants." 
+  title={m.tutoring_page_title()}
+  description={m.tutoring_page_desc()}
   icon="book"
   featureKey="tutoring"
 >
@@ -377,14 +399,14 @@
           class="tab-button {activeTab === 'dashboard' ? 'active' : ''}"
         >
           <Papicon icon="grid" size={18} />
-          <span class="text-sm font-bold">Dashboard Tuteur</span>
+          <span class="text-sm font-bold">{m.tutoring_tab_dashboard()}</span>
         </button>
         <button 
           onclick={() => activeTab = 'progress'}
           class="tab-button {activeTab === 'progress' ? 'active' : ''}"
         >
           <Papicon icon="trending-up" size={18} />
-          <span class="text-sm font-bold">Ma Progression</span>
+          <span class="text-sm font-bold">{m.tutoring_tab_progress()}</span>
         </button>
         {#if authStore.isAdmin || tutorApprentices.length > 0}
           <button 
@@ -392,7 +414,7 @@
             class="tab-button {activeTab === 'config' ? 'active' : ''}"
           >
             <Papicon icon="settings" size={18} />
-            <span class="text-sm font-bold">Configuration</span>
+            <span class="text-sm font-bold">{m.tutoring_tab_config()}</span>
           </button>
         {/if}
       </div>
@@ -403,7 +425,7 @@
           class="flex items-center gap-2 px-5 py-3 rounded-lg transition-all duration-300 bg-primary text-white hover: active:scale-[0.98]"
         >
           <Papicon icon="plus" size={18} />
-          <span class="text-sm font-semibold uppercase tracking-wider">Créer un tutorat</span>
+          <span class="text-sm font-semibold uppercase tracking-wider">{m.tutoring_create_btn()}</span>
         </button>
       {/if}
     </div>
@@ -422,7 +444,7 @@
         {#if tutorApprentices.length === 0}
           <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/40 rounded-xl border border-dashed border-outline-variant/50">
             <Papicon icon="user-plus" size={48} class="text-on-surface-variant/30 mb-4" />
-            <p class="text-on-surface-variant font-medium">Vous n'avez pas d'apprentis sous votre tutorat actuellement.</p>
+            <p class="text-on-surface-variant font-medium">{m.tutoring_empty_tutor()}</p>
           </div>
         {:else}
           {#each tutorApprentices as apprentice}
@@ -441,15 +463,15 @@
                     <div class="text-center">
                       <h3 class="font-semibold text-on-surface">{apprentice.staffMember.username}</h3>
                       {#if apprentice.mentor && apprentice.mentor.userId !== authStore.user?.id}
-                        <p class="text-[10px] font-bold text-primary uppercase tracking-wider">Tuteur: {apprentice.mentor.username}</p>
+                        <p class="text-[10px] font-bold text-primary uppercase tracking-wider">{m.tutoring_mentor_prefix({ name: apprentice.mentor.username })}</p>
                       {/if}
-                      <p class="text-xs text-on-surface-variant">Apprenti depuis {new Date(apprentice.startDate).toLocaleDateString()}</p>
+                      <p class="text-xs text-on-surface-variant">{m.tutoring_apprentice_since({ date: new Date(apprentice.startDate).toLocaleDateString(dateLocale()) })}</p>
                     </div>
                   </div>
                   
                   <div class="flex flex-col gap-2">
                     <div class="flex justify-between text-[13px] font-medium text-on-surface-variant/70 px-2">
-                      <span>Progression</span>
+                      <span>{m.tutoring_progress_label()}</span>
                       <span>{getProgressPercentage(apprentice.checklistProgress)}%</span>
                     </div>
                     <div class="h-3 bg-surface-container-high rounded-full overflow-hidden border border-outline-variant/20 p-0.5">
@@ -463,17 +485,17 @@
                   <div class="mt-4 p-4 bg-primary/5 rounded-lg border border-primary/10">
                     <div class="flex items-center gap-2 mb-2">
                       <Papicon icon="alert-circle" size={16} class="text-primary" />
-                      <span class="text-xs font-bold text-primary">Prochain Rapport</span>
+                      <span class="text-xs font-bold text-primary">{m.tutoring_next_report()}</span>
                     </div>
                     <p class="text-sm font-medium text-on-surface-variant mb-4">
-                      {apprentice.lastReportAt ? 'Dans 12 jours' : 'À faire dès que possible'}
+                      {apprentice.lastReportAt ? m.tutoring_next_report_scheduled() : m.tutoring_next_report_asap()}
                     </p>
                     <button 
                       onclick={() => { selectedApprentice = apprentice; reportModalOpen = true; }}
                       class="w-full py-2 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all flex items-center justify-center gap-2"
                     >
                       <Papicon icon="plus" size={14} />
-                      Faire un Rapport
+                      {m.tutoring_make_report_btn()}
                     </button>
                   </div>
 
@@ -483,13 +505,13 @@
                         onclick={() => { selectedApprentice = apprentice; endTutoringStatus = 'PASSED'; endTutoringModalOpen = true; endTutoringError = null; canForce = false; }}
                         class="flex-1 py-3 bg-success/10 text-success rounded-xl text-xs font-semibold hover:bg-success/20 transition-all"
                       >
-                        Valider
+                        {m.tutoring_validate_btn()}
                       </button>
                       <button 
                          onclick={() => { selectedApprentice = apprentice; endTutoringStatus = 'FAILED'; endTutoringModalOpen = true; endTutoringError = null; canForce = false; }}
                         class="flex-1 py-3 bg-error/10 text-error rounded-xl text-xs font-semibold hover:bg-error/20 transition-all"
                       >
-                        Échec
+                        {m.tutoring_fail_btn()}
                       </button>
                     </div>
                     {#if authStore.isAdmin}
@@ -497,7 +519,7 @@
                         onclick={() => handleDeleteTutoring(apprentice.id)}
                         class="w-full py-2 text-on-surface-variant/50 hover:text-error text-xs font-medium transition-all"
                       >
-                        Supprimer le tutorat
+                        {m.tutoring_delete_btn()}
                       </button>
                     {/if}
                   </div>
@@ -513,11 +535,11 @@
                             <Papicon icon="mic" size={20} />
                           </div>
                           <div>
-                            <div class="text-[10px] font-semibold uppercase text-primary tracking-widest">Activité Vocale</div>
+                            <div class="text-[10px] font-semibold uppercase text-primary tracking-widest">{m.tutoring_vocal_activity()}</div>
                             <div class="text-lg font-semibold text-on-surface">
                               {Math.round(apprentice.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprentice.vocalStats.voiceTimeSeconds % 3600) / 60)}m
                             </div>
-                            <div class="text-[11px] text-on-surface-variant">{apprentice.vocalStats.voiceSessionCount} sessions au total</div>
+                            <div class="text-[11px] text-on-surface-variant">{m.tutoring_vocal_sessions_total({ count: apprentice.vocalStats.voiceSessionCount })}</div>
                           </div>
                         </div>
                       {/if}
@@ -528,7 +550,7 @@
                             <Papicon icon="calendar-off" size={20} />
                           </div>
                           <div class="flex-1 overflow-hidden">
-                            <div class="text-[10px] font-semibold uppercase text-warning tracking-widest">Absences à venir</div>
+                            <div class="text-[10px] font-semibold uppercase text-warning tracking-widest">{m.tutoring_upcoming_absences()}</div>
                             <div class="flex flex-col gap-0.5">
                               {#each apprentice.absences as absence}
                                 <div class="text-[10px] font-bold text-on-surface truncate">
@@ -543,7 +565,7 @@
                   {/if}
 
                   <div class="flex items-center justify-between border-b border-outline-variant/30 pb-4">
-                    <h2 class="text-xl font-semibold text-on-surface">Checklist de Transmission</h2>
+                    <h2 class="text-xl font-semibold text-on-surface">{m.tutoring_checklist_title()}</h2>
                     <div class="flex gap-2">
                       {#each categories as cat}
                         <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-{cat.color}/10 text-{cat.color} text-[10px] font-bold uppercase">
@@ -579,7 +601,7 @@
                                 disabled={progress?.state === 'ACQUIRED'}
                               >
                                 <Papicon icon="eye" size={12} />
-                                <span>Connu</span>
+                                <span>{m.tutoring_state_known()}</span>
                               </button>
                               
                               <button 
@@ -589,7 +611,7 @@
                                    'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-success/50'}"
                               >
                                 <Papicon icon="check" size={12} />
-                                <span>Acquis</span>
+                                <span>{m.tutoring_state_acquired()}</span>
                               </button>
                             </div>
                           </div>
@@ -599,7 +621,7 @@
                           {#if progress?.completedAt}
                             <div class="flex items-center gap-1 text-[11px] font-medium text-primary/60">
                               <Papicon icon="clock" size={10} />
-                              <span>Validé le {new Date(progress.completedAt).toLocaleDateString()} par {apprentice.mentor?.username || 'un tuteur'}</span>
+                              <span>{m.tutoring_validated_on({ date: new Date(progress.completedAt).toLocaleDateString(dateLocale()), name: apprentice.mentor?.username || m.tutoring_default_tutor() })}</span>
                             </div>
                           {/if}
                         </div>
@@ -616,7 +638,7 @@
       {#if !apprenticeProgress}
         <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/40 rounded-xl border border-dashed border-outline-variant/50">
           <Papicon icon="award" size={48} class="text-on-surface-variant/30 mb-4" />
-          <p class="text-on-surface-variant font-medium">Vous n'êtes pas en période de tutorat actuellement.</p>
+          <p class="text-on-surface-variant font-medium">{m.tutoring_empty_apprentice()}</p>
         </div>
       {:else}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -640,8 +662,8 @@
                 </div>
               </div>
 
-              <h2 class="text-2xl font-semibold text-on-surface mb-2">Ma Progression</h2>
-              <p class="text-on-surface-variant mb-8 max-w-md">Continuez à valider vos acquis avec votre tuteur {apprenticeProgress.mentor?.username || 'attitré'}.</p>
+              <h2 class="text-2xl font-semibold text-on-surface mb-2">{m.tutoring_my_progress_title()}</h2>
+              <p class="text-on-surface-variant mb-8 max-w-md">{m.tutoring_my_progress_desc({ name: apprenticeProgress.mentor?.username || m.tutoring_assigned_tutor() })}</p>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {#each categories as cat}
@@ -677,11 +699,11 @@
                     <Papicon icon="mic" size={32} />
                   </div>
                   <div>
-                    <h3 class="text-xs font-semibold uppercase text-primary tracking-widest mb-1">Mon Activité Vocale</h3>
+                    <h3 class="text-xs font-semibold uppercase text-primary tracking-widest mb-1">{m.tutoring_my_vocal_activity()}</h3>
                     <div class="text-lg font-semibold text-on-surface leading-none mb-1">
                       {Math.round(apprenticeProgress.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprenticeProgress.vocalStats.voiceTimeSeconds % 3600) / 60)}m
                     </div>
-                    <p class="text-[10px] font-medium text-on-surface-variant uppercase tracking-wider">{apprenticeProgress.vocalStats.voiceSessionCount} sessions enregistrées</p>
+                    <p class="text-[10px] font-medium text-on-surface-variant uppercase tracking-wider">{m.tutoring_vocal_sessions_recorded({ count: apprenticeProgress.vocalStats.voiceSessionCount })}</p>
                   </div>
                 </div>
               {/if}
@@ -692,7 +714,7 @@
                     <Papicon icon="calendar-off" size={32} />
                   </div>
                   <div class="flex-1 overflow-hidden">
-                    <h3 class="text-xs font-semibold uppercase text-warning tracking-widest mb-1">Mes Absences</h3>
+                    <h3 class="text-xs font-semibold uppercase text-warning tracking-widest mb-1">{m.tutoring_my_absences()}</h3>
                     <div class="flex flex-col gap-1">
                       {#each apprenticeProgress.absences.slice(0, 2) as absence}
                         <div class="flex items-center justify-between">
@@ -707,13 +729,13 @@
             </div>
 
             <div class="bg-surface-container-low/60 p-8 rounded-xl border border-outline-variant/30">
-              <h2 class="text-2xl font-semibold text-on-surface mb-6">Carnet de Bord</h2>
+              <h2 class="text-2xl font-semibold text-on-surface mb-6">{m.tutoring_logbook_title()}</h2>
               
               <div class="flex flex-col gap-6">
                 <div class="flex gap-4">
                   <input 
                     type="text" 
-                    placeholder="Qu'avez-vous appris aujourd'hui ?" 
+                    placeholder={m.tutoring_logbook_ph()}
                     class="flex-1 bg-surface-container px-6 py-4 rounded-lg border border-outline-variant/30 focus:outline-none focus:border-primary transition-all text-on-surface"
                     onkeydown={(e) => { if(e.key === 'Enter') { addLog(apprenticeProgress.id, e.currentTarget.value); e.currentTarget.value = ''; } }}
                   />
@@ -725,7 +747,7 @@
                       input.value = '';
                     }}
                   >
-                    Ajouter
+                    {m.tutoring_logbook_add()}
                   </button>
                 </div>
 
@@ -750,29 +772,29 @@
               <div class="w-24 h-24 mx-auto bg-primary/10 rounded-xl flex items-center justify-center shadow-sm shadow-primary/20 mb-6">
                 <Papicon icon="user-check" size={40} class="text-white" />
               </div>
-              <h3 class="text-xl font-semibold text-on-surface mb-1">Mon Tuteur</h3>
-              <p class="text-on-surface-variant font-medium mb-6">{apprenticeProgress.mentor?.username || 'En attente...'}</p>
+              <h3 class="text-xl font-semibold text-on-surface mb-1">{m.tutoring_my_tutor_title()}</h3>
+              <p class="text-on-surface-variant font-medium mb-6">{apprenticeProgress.mentor?.username || m.tutoring_tutor_pending()}</p>
               
               <div class="flex flex-col gap-3">
                 <button class="w-full py-4 rounded-lg border-2 border-primary/20 text-primary font-semibold hover:bg-primary/5 transition-all">
-                  Contacter sur Discord
+                  {m.tutoring_contact_discord()}
                 </button>
               </div>
             </div>
 
             <div class="bg-surface-container-low/60 p-8 rounded-xl border border-outline-variant/30">
-              <h3 class="font-semibold text-on-surface mb-4">Dernier Retour</h3>
+              <h3 class="font-semibold text-on-surface mb-4">{m.tutoring_last_feedback()}</h3>
               {#if apprenticeProgress.reports.length > 0}
                 {@const lastReport = apprenticeProgress.reports[0]}
                 <div class="flex items-center gap-2 mb-3">
                   <div class="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase {lastReport.type === 'POSITIVE' ? 'bg-success/10 text-success' : lastReport.type === 'NEGATIVE' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}">
-                    {lastReport.type}
+                    {formatReportType(lastReport.type)}
                   </div>
                   <span class="text-[10px] font-bold text-on-surface-variant">{new Date(lastReport.createdAt).toLocaleDateString()}</span>
                 </div>
                 <p class="text-sm text-on-surface-variant italic leading-relaxed">"{lastReport.content}"</p>
               {:else}
-                <p class="text-sm text-on-surface-variant italic">Aucun rapport encore publié.</p>
+                <p class="text-sm text-on-surface-variant italic">{m.tutoring_no_report_yet()}</p>
               {/if}
             </div>
           </div>
@@ -782,16 +804,16 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Parameters -->
         <div class="lg:col-span-1 bg-surface-container-low/60 p-8 rounded-xl border border-outline-variant/30 flex flex-col gap-6">
-          <h2 class="text-2xl font-semibold text-on-surface mb-4">Paramètres</h2>
+          <h2 class="text-2xl font-semibold text-on-surface mb-4">{m.tutoring_settings_title()}</h2>
           
           {#if !config}
             <div class="p-6 bg-surface-container rounded-xl border border-dashed border-outline-variant/50 flex flex-col items-center justify-center text-center">
               <Papicon icon="alert-circle" size={32} class="text-on-surface-variant/30 mb-2" />
-              <p class="text-xs text-on-surface-variant font-medium">Impossible de charger la configuration.</p>
+              <p class="text-xs text-on-surface-variant font-medium">{m.tutoring_config_load_error()}</p>
             </div>
           {:else}
             <div class="flex flex-col gap-2">
-              <label for="reportIntervalDays" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Intervalle des Rapports (jours)</label>
+              <label for="reportIntervalDays" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_report_interval()}</label>
               <input 
                 id="reportIntervalDays"
                 type="number" 
@@ -801,7 +823,7 @@
             </div>
 
           <div class="flex flex-col gap-2">
-            <label for="reminderDaysBefore" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Rappels avant échéance (jours)</label>
+            <label for="reminderDaysBefore" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_reminder_days()}</label>
             <input 
               id="reminderDaysBefore"
               type="number" 
@@ -811,7 +833,7 @@
           </div>
 
           <div class="flex flex-col gap-2">
-            <label for="minTestDays" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Temps minimum en test (jours)</label>
+            <label for="minTestDays" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_min_test_days()}</label>
             <input 
               id="minTestDays"
               type="number" 
@@ -822,13 +844,13 @@
 
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20">
               <div class="flex flex-col">
-                <span class="font-bold text-on-surface text-sm">Activité Vocale</span>
-                <span class="text-[10px] text-on-surface-variant">Afficher les stats vocales</span>
+                <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_vocal_label()}</span>
+                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_vocal_desc()}</span>
               </div>
               <button 
                 onclick={() => config.showVocalActivity = !config.showVocalActivity}
                 class="w-10 h-5 rounded-full transition-all relative {config.showVocalActivity ? 'bg-primary' : 'bg-outline-variant'}"
-                aria-label="Toggle vocal activity"
+                aria-label={m.tutoring_toggle_vocal_aria()}
               >
                 <div class="absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all {config.showVocalActivity ? 'translate-x-5' : ''}"></div>
               </button>
@@ -836,13 +858,13 @@
 
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20">
               <div class="flex flex-col">
-                <span class="font-bold text-on-surface text-sm">Absences</span>
-                <span class="text-[10px] text-on-surface-variant">Afficher les absences</span>
+                <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_absences_label()}</span>
+                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_absences_desc()}</span>
               </div>
               <button 
                 onclick={() => config.showAbsences = !config.showAbsences}
                 class="w-10 h-5 rounded-full transition-all relative {config.showAbsences ? 'bg-primary' : 'bg-outline-variant'}"
-                aria-label="Toggle absences"
+                aria-label={m.tutoring_toggle_absences_aria()}
               >
                 <div class="absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all {config.showAbsences ? 'translate-x-5' : ''}"></div>
               </button>
@@ -850,13 +872,13 @@
 
             <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20 mt-2">
               <div class="flex flex-col">
-                <span class="font-bold text-on-surface text-sm">Notifications DM</span>
-                <span class="text-[10px] text-on-surface-variant">Rappels automatiques aux tuteurs</span>
+                <span class="font-bold text-on-surface text-sm">{m.tutoring_toggle_dm_label()}</span>
+                <span class="text-[10px] text-on-surface-variant">{m.tutoring_toggle_dm_desc()}</span>
               </div>
               <button 
                 onclick={() => config.remindersEnabled = !config.remindersEnabled}
                 class="w-10 h-5 rounded-full transition-all relative {config.remindersEnabled ? 'bg-primary' : 'bg-outline-variant'}"
-                aria-label="Toggle DM notifications"
+                aria-label={m.tutoring_toggle_dm_aria()}
               >
                 <div class="absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all {config.remindersEnabled ? 'translate-x-5' : ''}"></div>
               </button>
@@ -867,7 +889,7 @@
             onclick={saveConfig}
             disabled={saveAction.state.loading}
           >
-            {saveAction.state.loading ? 'Enregistrement...' : 'Sauvegarder'}
+            {saveAction.state.loading ? m.tutoring_saving() : m.tutoring_save_btn()}
           </button>
           {/if}
 
@@ -884,13 +906,13 @@
         <!-- Checklist Items Management -->
         <div class="lg:col-span-2 bg-surface-container-low/60 p-8 rounded-xl border border-outline-variant/30">
           <div class="flex items-center justify-between mb-8">
-            <h2 class="text-2xl font-semibold text-on-surface">Checklist de Formation</h2>
+            <h2 class="text-2xl font-semibold text-on-surface">{m.tutoring_training_checklist_title()}</h2>
             <button 
               onclick={() => openItemModal()}
               class="bg-primary/10 text-primary px-6 py-2.5 rounded-xl font-bold hover:bg-primary/20 transition-all flex items-center gap-2"
             >
               <Papicon icon="plus" size={18} />
-              Nouvel Item
+              {m.tutoring_new_item_btn()}
             </button>
           </div>
 
@@ -904,7 +926,7 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <span class="font-semibold text-on-surface">{item.title}</span>
-                      <span class="text-[10px] font-semibold uppercase px-2 py-0.5 bg-primary/5 text-primary rounded-md">{item.category}</span>
+                      <span class="text-[10px] font-semibold uppercase px-2 py-0.5 bg-primary/5 text-primary rounded-md">{categories.find(c => c.id === item.category)?.label || item.category}</span>
                     </div>
                     <p class="text-sm text-on-surface-variant line-clamp-1">{item.description}</p>
                   </div>
@@ -913,14 +935,14 @@
                   <button 
                     onclick={() => openItemModal(item)}
                     class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary transition-all"
-                    aria-label="Modifier l'item"
+                    aria-label={m.tutoring_edit_item_aria()}
                   >
                     <Papicon icon="edit-2" size={18} />
                   </button>
                   <button 
                     onclick={() => deleteItem(item.id)}
                     class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-error transition-all"
-                    aria-label="Supprimer l'item"
+                    aria-label={m.tutoring_delete_item_aria()}
                   >
                     <Papicon icon="trash-2" size={18} />
                   </button>
@@ -937,8 +959,8 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 animate-in fade-in duration-300">
     <div class="w-full max-w-lg bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-sm overflow-hidden animate-in zoom-in-95 duration-300">
       <div class="p-8">
-        <h2 class="text-2xl font-semibold text-on-surface mb-2">Nouveau Rapport</h2>
-        <p class="text-on-surface-variant mb-6 font-medium">Postez un rapport sur l'évolution de **{selectedApprentice?.staffMember?.username}**.</p>
+        <h2 class="text-2xl font-semibold text-on-surface mb-2">{m.tutoring_report_modal_title()}</h2>
+        <p class="text-on-surface-variant mb-6 font-medium">{m.tutoring_report_modal_desc({ name: selectedApprentice?.staffMember?.username ?? "" })}</p>
         
         <div class="flex flex-col gap-6">
           <div class="flex gap-2 p-1 bg-surface-container rounded-lg border border-outline-variant/20">
@@ -947,13 +969,13 @@
                 onclick={() => reportType = type}
                 class="flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all {reportType === type ? 'bg-primary text-white ' : 'text-on-surface-variant hover:bg-surface-hover'}"
               >
-                {type}
+                {formatReportType(type)}
               </button>
             {/each}
           </div>
 
           <textarea 
-            placeholder="Détails du rapport..." 
+            placeholder={m.tutoring_report_content_ph()}
             bind:value={reportContent}
             rows="6"
             class="w-full bg-surface-container px-6 py-4 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface resize-none"
@@ -964,13 +986,13 @@
               onclick={() => reportModalOpen = false}
               class="flex-1 py-4 rounded-lg border-2 border-outline-variant/30 text-on-surface-variant font-semibold hover:bg-surface-hover transition-all"
             >
-              Annuler
+              {m.common_cancel()}
             </button>
             <button 
               onclick={submitReport}
               class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all"
             >
-              Publier
+              {m.tutoring_publish_btn()}
             </button>
           </div>
         </div>
@@ -984,23 +1006,23 @@
     <div class="w-full max-w-lg bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-sm overflow-hidden animate-in zoom-in-95 duration-300">
       <div class="p-8">
         <h2 class="text-2xl font-semibold text-on-surface mb-2">
-          {endTutoringStatus === 'PASSED' ? 'Valider le Tutorat' : 'Échec du Tutorat'}
+          {endTutoringStatus === 'PASSED' ? m.tutoring_end_modal_title_pass() : m.tutoring_end_modal_title_fail()}
         </h2>
         <p class="text-on-surface-variant mb-6 font-medium text-sm">
-          {endTutoringStatus === 'PASSED' 
-            ? `Vous êtes sur le point de valider officiellement le tutorat de ${selectedApprentice?.staffMember?.username}.`
-            : `Vous allez marquer le tutorat de ${selectedApprentice?.staffMember?.username} comme ayant échoué.`}
+          {endTutoringStatus === 'PASSED'
+            ? m.tutoring_end_modal_desc_pass({ name: selectedApprentice?.staffMember?.username ?? '' })
+            : m.tutoring_end_modal_desc_fail({ name: selectedApprentice?.staffMember?.username ?? '' })}
         </p>
         
         <div class="flex flex-col gap-6">
           <div class="p-4 bg-surface-container/50 rounded-lg border border-outline-variant/20 flex items-center justify-between">
             <div class="flex flex-col">
-              <span class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest">Durée actuelle</span>
-              <span class="font-bold text-on-surface">{getDaysInTest(selectedApprentice?.startDate)} jours</span>
+              <span class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest">{m.tutoring_current_duration()}</span>
+              <span class="font-bold text-on-surface">{m.tutoring_days_unit({ count: getDaysInTest(selectedApprentice?.startDate) })}</span>
             </div>
             <div class="flex flex-col items-end">
-              <span class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest">Requis</span>
-              <span class="font-bold text-on-surface">{config?.minTestDays ?? 14} jours</span>
+              <span class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest">{m.tutoring_required_duration()}</span>
+              <span class="font-bold text-on-surface">{m.tutoring_days_unit({ count: config?.minTestDays ?? 14 })}</span>
             </div>
           </div>
 
@@ -1014,7 +1036,7 @@
                     onclick={() => { endTutoringForce = true; endTutoringError = null; }}
                     class="mt-2 text-xs font-semibold uppercase text-error underline underline-offset-4 hover:text-error/80 transition-all"
                   >
-                    Cliquer ici pour forcer la validation
+                    {m.tutoring_force_link()}
                   </button>
                 {/if}
               </div>
@@ -1022,10 +1044,10 @@
           {/if}
 
           <div class="flex flex-col gap-2">
-            <label for="notes" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Notes finales (facultatif)</label>
+            <label for="notes" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_final_notes_label()}</label>
             <textarea 
               id="notes"
-              placeholder="Commentaires sur la période..." 
+              placeholder={m.tutoring_final_notes_ph()}
               bind:value={endTutoringNotes}
               rows="4"
               class="w-full bg-surface-container px-6 py-4 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface resize-none"
@@ -1035,8 +1057,8 @@
           {#if endTutoringForce}
             <div class="p-4 bg-warning/10 border border-warning/20 rounded-lg flex items-center justify-between">
               <div class="flex flex-col">
-                <span class="font-bold text-warning">Validation Forcée</span>
-                <span class="text-[10px] text-on-surface-variant">Bypass du temps minimum</span>
+                <span class="font-bold text-warning">{m.tutoring_forced_validation()}</span>
+                <span class="text-[10px] text-on-surface-variant">{m.tutoring_forced_validation_desc()}</span>
               </div>
               <Papicon icon="shield-alert" size={24} class="text-warning" />
             </div>
@@ -1047,13 +1069,13 @@
               onclick={() => endTutoringModalOpen = false}
               class="flex-1 py-4 rounded-lg border-2 border-outline-variant/30 text-on-surface-variant font-semibold hover:bg-surface-hover transition-all"
             >
-              Annuler
+              {m.common_cancel()}
             </button>
             <button 
               onclick={submitEndTutoring}
               class="flex-1 py-4 {endTutoringStatus === 'PASSED' ? 'bg-success' : 'bg-error'} text-white rounded-lg font-semibold shadow-sm transition-all active:scale-[0.98]"
             >
-              Confirmer
+              {m.common_confirm()}
             </button>
           </div>
         </div>
@@ -1066,23 +1088,23 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 animate-in fade-in duration-300">
     <div class="w-full max-w-lg bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-sm overflow-hidden animate-in zoom-in-95 duration-300">
       <div class="p-8">
-        <h2 class="text-2xl font-semibold text-on-surface mb-2">{selectedItem ? 'Modifier' : 'Nouvel'} Item de Checklist</h2>
-        <p class="text-on-surface-variant mb-6 font-medium text-sm">Définissez un objectif de formation pour les apprentis.</p>
+        <h2 class="text-2xl font-semibold text-on-surface mb-2">{selectedItem ? m.tutoring_item_modal_title_edit() : m.tutoring_item_modal_title_new()}</h2>
+        <p class="text-on-surface-variant mb-6 font-medium text-sm">{m.tutoring_item_modal_desc()}</p>
         
         <div class="flex flex-col gap-6">
           <div class="flex flex-col gap-2">
-            <label for="item-title" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Titre de l'objectif</label>
+            <label for="item-title" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_title_label()}</label>
             <input 
               id="item-title"
               type="text" 
-              placeholder="Ex: Utilisation de la console admin" 
+              placeholder={m.tutoring_item_title_ph()}
               bind:value={itemForm.title}
               class="bg-surface-container px-6 py-4 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
             />
           </div>
 
           <div class="flex flex-col gap-2">
-            <label for="item-category" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Catégorie</label>
+            <label for="item-category" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_category_label()}</label>
             <select 
               id="item-category"
               bind:value={itemForm.category}
@@ -1095,10 +1117,10 @@
           </div>
 
           <div class="flex flex-col gap-2">
-            <label for="item-desc" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Description détaillée</label>
+            <label for="item-desc" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_item_desc_label()}</label>
             <textarea 
               id="item-desc"
-              placeholder="Expliquez ce que l'apprenti doit savoir faire..." 
+              placeholder={m.tutoring_item_desc_ph()}
               bind:value={itemForm.description}
               rows="4"
               class="w-full bg-surface-container px-6 py-4 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface resize-none"
@@ -1110,13 +1132,13 @@
               onclick={() => itemModalOpen = false}
               class="flex-1 py-4 rounded-lg border-2 border-outline-variant/30 text-on-surface-variant font-semibold hover:bg-surface-hover transition-all"
             >
-              Annuler
+              {m.common_cancel()}
             </button>
             <button 
               onclick={saveItem}
               class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all"
             >
-              Enregistrer
+              {m.common_save()}
             </button>
           </div>
         </div>
@@ -1129,24 +1151,24 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 animate-in fade-in duration-300">
     <div class="w-full max-w-lg bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-sm overflow-hidden animate-in zoom-in-95 duration-300">
       <div class="p-8">
-        <h2 class="text-2xl font-semibold text-on-surface mb-2">Créer un nouveau Tutorat</h2>
-        <p class="text-on-surface-variant mb-6 font-medium text-sm">Assignez un tuteur à un membre du staff en période de test.</p>
+        <h2 class="text-2xl font-semibold text-on-surface mb-2">{m.tutoring_create_modal_title()}</h2>
+        <p class="text-on-surface-variant mb-6 font-medium text-sm">{m.tutoring_create_modal_desc()}</p>
         
         {#if loadingStaffInfo}
           <div class="flex flex-col items-center justify-center py-10">
             <div class="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <p class="text-sm text-on-surface-variant mt-4 font-medium">Chargement des membres du staff...</p>
+            <p class="text-sm text-on-surface-variant mt-4 font-medium">{m.tutoring_loading_staff()}</p>
           </div>
         {:else}
           <div class="flex flex-col gap-6">
             <div class="flex flex-col gap-2">
-              <label for="apprentice" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Apprenti (Membre Staff)</label>
+              <label for="apprentice" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_apprentice()}</label>
               <select 
                 id="apprentice"
                 bind:value={createTutoringForm.staffUserId}
                 class="bg-surface-container px-6 py-4 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
               >
-                <option value="">-- Choisir un apprenti --</option>
+                <option value="">{m.tutoring_choose_apprentice()}</option>
                 {#each allStaffMembers as member}
                   <option value={member.userId}>
                     {member.displayName || member.username} ({member.grade})
@@ -1156,13 +1178,13 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="mentor" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Tuteur (Facultatif)</label>
+              <label for="mentor" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_mentor()}</label>
               <select 
                 id="mentor"
                 bind:value={createTutoringForm.mentorId}
                 class="bg-surface-container px-6 py-4 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
               >
-                <option value="">-- Aucun tuteur (Période autonome) --</option>
+                <option value="">{m.tutoring_no_mentor()}</option>
                 {#each allStaffMembers.filter(m => m.isTutor) as member}
                   <option value={member.userId}>
                     {member.displayName || member.username}
@@ -1172,13 +1194,13 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="target-grade" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Grade Visé (Facultatif)</label>
+              <label for="target-grade" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_target_grade()}</label>
               <select 
                 id="target-grade"
                 bind:value={createTutoringForm.targetGrade}
                 class="bg-surface-container px-6 py-4 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
               >
-                <option value="">-- Aucun --</option>
+                <option value="">{m.tutoring_none_option()}</option>
                 {#each allStaffRoles as role}
                   <option value={role.name}>{role.name}</option>
                 {/each}
@@ -1186,7 +1208,7 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <label for="duration" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">Durée planifiée (jours)</label>
+              <label for="duration" class="text-xs font-semibold uppercase text-on-surface-variant tracking-widest pl-2">{m.tutoring_field_duration()}</label>
               <input 
                 id="duration"
                 type="number" 
@@ -1201,13 +1223,13 @@
                 onclick={() => createTutoringModalOpen = false}
                 class="flex-1 py-4 rounded-lg border-2 border-outline-variant/30 text-on-surface-variant font-semibold hover:bg-surface-hover transition-all"
               >
-                Annuler
+                {m.common_cancel()}
               </button>
               <button 
                 onclick={submitCreateTutoring}
                 class="flex-1 py-4 bg-primary text-white rounded-lg font-semibold shadow-sm shadow-primary/20 active:scale-[0.98] transition-all"
               >
-                Créer
+                {m.tutoring_create_submit()}
               </button>
             </div>
           </div>
@@ -1233,13 +1255,13 @@
             onclick={() => confirmModal.open = false}
             class="flex-1 py-4 rounded-lg border-2 border-outline-variant/30 text-on-surface-variant font-semibold hover:bg-surface-hover transition-all"
           >
-            Annuler
+            {m.common_cancel()}
           </button>
           <button 
             onclick={() => { confirmModal.onConfirm(); confirmModal.open = false; }}
             class="flex-1 py-4 bg-error text-white rounded-lg font-semibold shadow-sm shadow-error/20 active:scale-[0.98] transition-all"
           >
-            Confirmer
+            {m.common_confirm()}
           </button>
         </div>
       </div>
