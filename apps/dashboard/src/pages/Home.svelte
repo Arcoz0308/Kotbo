@@ -4,8 +4,8 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { staffStore } from '../lib/stores/staff.svelte';
-  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks, fetchGuildLanguage, updateGuildLanguage } from '../lib/api';
-  import type { ChangelogCommit, GuildLanguageState } from '../lib/api';
+  import { fetchAnalytics, fetchUserSettings, updateUserSettings, fetchChangelog, fetchStaffServerLinks, fetchGuildLanguage, updateGuildLanguage, fetchHomeWidgets } from '../lib/api';
+  import type { ChangelogCommit, GuildLanguageState, HomeWidgetsData, HomeWidgetSection } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -640,6 +640,72 @@
   const botLanguageLabel = (code: 'fr' | 'en') =>
     code === 'fr' ? m.home_botlanguage_fr() : m.home_botlanguage_en();
 
+  const WIDGET_SECTIONS: Record<string, HomeWidgetSection> = {
+    leveling: 'leveling',
+    invites: 'invites',
+    economy: 'economy',
+    tickets: 'tickets',
+    events: 'events',
+    polls: 'polls',
+    serverInfo: 'serverInfo',
+    quickGuide: 'quickGuide',
+    botHosting: 'hosting',
+  };
+
+  let homeWidgets = $state<HomeWidgetsData | null>(null);
+  let homeWidgetsLoading = $state(false);
+  let homeWidgetsKey: string | null = null;
+  let homeWidgetsGuildId: string | null = null;
+
+  function sectionsFor(visibleIds: Set<string>): HomeWidgetSection[] {
+    return Object.entries(WIDGET_SECTIONS)
+      .filter(([id]) => visibleIds.has(id))
+      .map(([, section]) => section);
+  }
+
+  async function loadHomeWidgets(sections: HomeWidgetSection[], force = false) {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId || sections.length === 0) return;
+
+    if (homeWidgetsGuildId !== guildId) {
+      homeWidgets = null;
+      homeWidgetsGuildId = guildId;
+    }
+
+    const key = `${guildId}:${[...sections].sort().join(',')}`;
+    if (homeWidgetsLoading || (!force && homeWidgetsKey === key)) return;
+
+    homeWidgetsLoading = true;
+    try {
+      const data = await fetchHomeWidgets(sections);
+      if (authStore.selectedGuildId !== guildId) return;
+      homeWidgets = data;
+      homeWidgetsKey = key;
+    } catch {
+      homeWidgets = null;
+      homeWidgetsKey = null;
+    } finally {
+      homeWidgetsLoading = false;
+    }
+  }
+
+  function formatDuration(seconds: number): string {
+    const days = Math.floor(seconds / 86400);
+    if (days >= 1) return m.home_uptime_days({ n: days });
+    const hours = Math.floor(seconds / 3600);
+    if (hours >= 1) return m.home_uptime_hours({ n: hours });
+    return m.home_uptime_minutes({ n: Math.max(1, Math.floor(seconds / 60)) });
+  }
+
+  function formatMemory(megabytes: number): string {
+    if (megabytes >= 1024) return `${(megabytes / 1024).toFixed(1)} GB`;
+    return `${megabytes} MB`;
+  }
+
+  function formatEventDate(iso: string): string {
+    return new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
   $effect(() => {
     const guildId = authStore.selectedGuildId;
     const visibleIds = new Set(userLayout.filter((item) => item.visible).map((item) => item.id));
@@ -657,6 +723,7 @@
       if (visibleIds.has('news')) void loadChangelog();
       if (visibleIds.has('staffServer')) void loadStaffServerLinks();
       if (visibleIds.has('botLanguage')) void loadBotLanguage();
+      void loadHomeWidgets(sectionsFor(visibleIds));
     };
 
     if (typeof window.requestIdleCallback === 'function') {
@@ -784,6 +851,7 @@
     if (['liveStats', 'analytics', 'channels', 'moderation', 'members'].some((id) => visibleIds.has(id))) {
       loadAnalytics(true);
     }
+    void loadHomeWidgets(sectionsFor(visibleIds), true);
   };
 
   function formatNumber(n: number): string {
@@ -1500,6 +1568,8 @@
             ></textarea>
           </div>
         {:else if item.id === 'serverInfo'}
+          {@const serverInfo = homeWidgets?.serverInfo}
+          {@const memberCount = serverInfo?.memberCount ?? (liveStats ? liveStats.humansCount + liveStats.botsCount : null)}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1512,25 +1582,31 @@
             <div class="space-y-2 text-xs grow flex flex-col justify-center">
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">{m.home_name_label()}</span>
-                <span class="font-medium text-on-surface truncate max-w-[150px]">{dashboardStore.state.guildName || 'Kotbo'}</span>
+                <span class="font-medium text-on-surface truncate max-w-[150px]">{serverInfo?.name || dashboardStore.state.guildName || '—'}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">{m.home_members_label()}</span>
-                <span class="font-medium text-on-surface">{liveStats ? formatNumber(liveStats.humansCount + liveStats.botsCount) : '—'}</span>
+                <span class="font-medium text-on-surface">{memberCount === null ? '—' : formatNumber(memberCount)}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-outline-variant/30">
                 <span class="text-on-surface-variant">Boosts</span>
-                <span class="font-medium text-purple-400 flex items-center gap-1">
-                  <Papicon icon="star" size={10} /> {m.home_boost_level({ n: 2 })}
-                </span>
+                {#if serverInfo?.boostLevel == null}
+                  <span class="font-medium text-on-surface">—</span>
+                {:else}
+                  <span class="font-medium text-purple-400 flex items-center gap-1">
+                    <Papicon icon="star" size={10} /> {m.home_boost_level({ n: serverInfo.boostLevel })} · {serverInfo.boostCount}
+                  </span>
+                {/if}
               </div>
               <div class="flex justify-between py-1">
                 <span class="text-on-surface-variant">{m.home_owner()}</span>
-                <span class="font-medium text-on-surface font-semibold text-on-surface">{m.home_manager()}</span>
+                <span class="font-semibold text-on-surface truncate max-w-[150px]">{serverInfo?.ownerTag || '—'}</span>
               </div>
             </div>
           </div>
         {:else if item.id === 'botHosting'}
+          {@const hosting = homeWidgets?.hosting}
+          {@const memoryPercent = hosting && hosting.memoryTotalMb > 0 ? Math.min(100, Math.round((hosting.memoryUsedMb / hosting.memoryTotalMb) * 100)) : 0}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1539,32 +1615,40 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_bothosting_title()}</h3>
               </div>
-              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-500/20 text-emerald-400 font-medium">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> {m.home_online_label()}
-              </span>
+              {#if hosting}
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-500/20 text-emerald-400 font-medium">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> {m.home_online_label()}
+                </span>
+              {/if}
             </div>
             <div class="space-y-3 grow flex flex-col justify-center">
               <div>
                 <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
                   <span>{m.home_cpu()}</span>
-                  <span class="font-medium text-on-surface">12%</span>
+                  <span class="font-medium text-on-surface">{hosting?.cpuPercent == null ? '—' : `${hosting.cpuPercent}%`}</span>
                 </div>
                 <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
-                  <div class="bg-emerald-500 h-full rounded-full" style="width: 12%"></div>
+                  <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: {hosting?.cpuPercent ?? 0}%"></div>
                 </div>
               </div>
               <div>
                 <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
                   <span>{m.home_ram()}</span>
-                  <span class="font-medium text-on-surface">256 Mo / 1024 Mo</span>
+                  <span class="font-medium text-on-surface">{hosting ? `${formatMemory(hosting.memoryUsedMb)} / ${formatMemory(hosting.memoryTotalMb)}` : '—'}</span>
                 </div>
                 <div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
-                  <div class="bg-primary h-full rounded-full" style="width: 25%"></div>
+                  <div class="bg-primary h-full rounded-full transition-all duration-500" style="width: {memoryPercent}%"></div>
                 </div>
               </div>
               <div class="flex justify-between text-xs pt-1">
                 <span class="text-on-surface-variant">{m.home_api_latency()}</span>
-                <span class="font-medium text-emerald-400">18 ms</span>
+                <span class="font-medium {!hosting ? 'text-on-surface' : hosting.latencyMs < 200 ? 'text-emerald-400' : hosting.latencyMs < 500 ? 'text-amber-400' : 'text-red-400'}">
+                  {hosting ? `${hosting.latencyMs} ms` : '—'}
+                </span>
+              </div>
+              <div class="flex justify-between text-xs">
+                <span class="text-on-surface-variant">{m.home_uptime()}</span>
+                <span class="font-medium text-on-surface">{hosting ? formatDuration(hosting.uptimeSeconds) : '—'}</span>
               </div>
             </div>
           </div>
@@ -1614,6 +1698,13 @@
             </div>
           </div>
         {:else if item.id === 'quickGuide'}
+          {@const guide = homeWidgets?.quickGuide}
+          {@const guideSteps = [
+            { label: m.home_guide_invite(), done: guide?.botInvited ?? false, href: '/modules' },
+            { label: m.home_guide_logs(), done: guide?.logsConfigured ?? false, href: '/logs' },
+            { label: m.home_guide_tickets(), done: guide?.ticketsConfigured ?? false, href: '/tickets' },
+            { label: m.home_guide_roles(), done: guide?.staffRolesConfigured ?? false, href: '/staff-management/roles' },
+          ]}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center gap-2.5 mb-3 shrink-0">
               <div class="w-7 h-7 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-500">
@@ -1622,22 +1713,20 @@
               <h3 class="text-sm font-medium text-on-surface">{m.home_quick_guide()}</h3>
             </div>
             <div class="space-y-2 grow flex flex-col justify-center">
-              <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
-                <input type="checkbox" checked disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span class="line-through text-on-surface-variant">{m.home_guide_invite()}</span>
-              </label>
-              <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
-                <input type="checkbox" checked disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span class="line-through text-on-surface-variant">{m.home_guide_logs()}</span>
-              </label>
-              <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
-                <input type="checkbox" disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span>{m.home_guide_tickets()}</span>
-              </label>
-              <label class="flex items-center gap-2 text-xs text-on-surface cursor-default">
-                <input type="checkbox" disabled class="rounded border-outline-variant text-primary focus:ring-primary w-3.5 h-3.5" />
-                <span>{m.home_guide_roles()}</span>
-              </label>
+              {#each guideSteps as step}
+                <button
+                  onclick={() => router.goto(step.href)}
+                  disabled={!guide}
+                  class="flex items-center gap-2 text-xs text-on-surface text-left disabled:cursor-default {guide ? 'cursor-pointer hover:text-primary' : ''}"
+                >
+                  <span class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 {step.done ? 'bg-primary border-primary text-white' : 'border-outline-variant'}">
+                    {#if step.done}
+                      <Papicon icon="check" size={10} />
+                    {/if}
+                  </span>
+                  <span class={step.done ? 'line-through text-on-surface-variant' : ''}>{step.label}</span>
+                </button>
+              {/each}
             </div>
           </div>
         {:else if item.id === 'clockWeather'}
@@ -1648,21 +1737,13 @@
               </div>
               <h3 class="text-sm font-medium text-on-surface">{m.home_mod_clockweather_title()}</h3>
             </div>
-            <div class="flex items-center justify-between grow">
-              <div>
-                <p class="text-2xl font-bold text-on-surface tracking-tight">{currentTime}</p>
-                <p class="text-[10px] text-on-surface-variant capitalize">{currentDate}</p>
-              </div>
-              <div class="text-right shrink-0">
-                <div class="flex items-center gap-1 justify-end text-sky-400">
-                  <Papicon icon="sun" size={16} />
-                  <span class="text-sm font-semibold">22°C</span>
-                </div>
-                <p class="text-[10px] text-on-surface-variant">{m.home_nice_weather()}</p>
-              </div>
+            <div class="flex flex-col justify-center grow">
+              <p class="text-2xl font-bold text-on-surface tracking-tight">{currentTime}</p>
+              <p class="text-[10px] text-on-surface-variant capitalize">{currentDate}</p>
             </div>
           </div>
         {:else if item.id === 'economy'}
+          {@const economy = homeWidgets?.economy}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1676,18 +1757,27 @@
             <div class="space-y-2.5 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.totalBalance) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_in_circulation()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_transactions_7d()}</p>
+                  <p class="text-lg font-semibold text-on-surface">{economy ? formatNumber(economy.activePlayers) : '—'}</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">{m.home_economy_hint()}</p>
+              <p class="text-[10px] text-on-surface-variant text-center">
+                {#if !economy}
+                  {m.home_economy_hint()}
+                {:else if !economy.enabled}
+                  {m.home_economy_disabled()}
+                {:else}
+                  {m.home_economy_players({ n: economy.players })}
+                {/if}
+              </p>
             </div>
           </div>
         {:else if item.id === 'leveling'}
+          {@const leveling = homeWidgets?.leveling}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1701,18 +1791,27 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{leveling?.averageLevel ?? '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_avg_level()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
-                  <p class="text-[10px] text-on-surface-variant">{m.home_xp_gained_7d()}</p>
+                  <p class="text-lg font-semibold text-on-surface">{leveling ? formatNumber(leveling.activeMembers) : '—'}</p>
+                  <p class="text-[10px] text-on-surface-variant">{m.home_active_7d()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">{m.home_leveling_hint()}</p>
+              <p class="text-[10px] text-on-surface-variant text-center">
+                {#if !leveling}
+                  {m.home_leveling_hint()}
+                {:else if !leveling.enabled}
+                  {m.home_leveling_disabled()}
+                {:else}
+                  {m.home_leveling_ranked({ n: leveling.rankedMembers })}
+                {/if}
+              </p>
             </div>
           </div>
         {:else if item.id === 'tickets'}
+          {@const tickets = homeWidgets?.tickets}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1726,21 +1825,22 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-3 gap-2">
                 <div class="px-2 py-2 rounded-lg bg-blue-500/5 border border-blue-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.open) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_open_tickets()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.claimed) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_in_progress()}</p>
                 </div>
                 <div class="px-2 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-center">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{tickets ? formatNumber(tickets.closedRecently) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_closed_7d()}</p>
                 </div>
               </div>
             </div>
           </div>
         {:else if item.id === 'invites'}
+          {@const invites = homeWidgets?.invites}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1754,18 +1854,26 @@
             <div class="space-y-2 grow flex flex-col justify-center">
               <div class="grid grid-cols-2 gap-2">
                 <div class="px-3 py-2 rounded-lg bg-teal-500/5 border border-teal-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{invites ? formatNumber(invites.activeCodes) : '—'}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_active_invites()}</p>
                 </div>
                 <div class="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                  <p class="text-lg font-semibold text-on-surface">—</p>
+                  <p class="text-lg font-semibold text-on-surface">{invites?.retentionPercent == null ? '—' : `${invites.retentionPercent}%`}</p>
                   <p class="text-[10px] text-on-surface-variant">{m.home_retention()}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-on-surface-variant text-center">{m.home_invites_hint()}</p>
+              <p class="text-[10px] text-on-surface-variant text-center">
+                {#if invites}
+                  {m.home_invites_joined({ n: invites.joinedRecently })}
+                {:else}
+                  {m.home_invites_hint()}
+                {/if}
+              </p>
             </div>
           </div>
         {:else if item.id === 'events'}
+          {@const upcomingEvents = homeWidgets?.events?.upcoming ?? []}
+          {@const maxEvents = displayRowSpan(item) >= 2 ? 5 : 3}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1776,15 +1884,36 @@
               </div>
               <button onclick={() => router.goto('/events')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
-            <div class="space-y-2 grow flex flex-col justify-center">
-              <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
-                <Papicon icon="calendar" size={18} class="mb-1 text-rose-500/50" />
-                <p class="text-[11px]">{m.home_no_upcoming_events()}</p>
-                <p class="text-[10px] mt-0.5">{m.home_create_event_hint()}</p>
-              </div>
+            <div class="space-y-2 grow flex flex-col {upcomingEvents.length > 0 ? '' : 'justify-center'}">
+              {#if upcomingEvents.length === 0}
+                <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
+                  <Papicon icon="calendar" size={18} class="mb-1 text-rose-500/50" />
+                  <p class="text-[11px]">{m.home_no_upcoming_events()}</p>
+                  <p class="text-[10px] mt-0.5">{m.home_create_event_hint()}</p>
+                </div>
+              {:else}
+                {#each upcomingEvents.slice(0, maxEvents) as evt (evt.id)}
+                  <button
+                    onclick={() => router.goto('/events')}
+                    class="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-rose-500/5 border border-rose-500/10 hover:border-rose-500/30 transition-colors text-left cursor-pointer"
+                  >
+                    <div class="min-w-0">
+                      <p class="text-xs font-medium text-on-surface truncate">{evt.title}</p>
+                      <p class="text-[10px] text-on-surface-variant">
+                        {evt.startsAt ? formatEventDate(evt.startsAt) : evt.type}
+                      </p>
+                    </div>
+                    <span class="text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 {evt.status === 'ONGOING' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}">
+                      {evt.status === 'ONGOING' ? m.ev_status_ongoing() : m.ev_status_published()}
+                    </span>
+                  </button>
+                {/each}
+              {/if}
             </div>
           </div>
         {:else if item.id === 'polls'}
+          {@const openPolls = homeWidgets?.polls?.open ?? []}
+          {@const maxPolls = displayRowSpan(item) >= 2 ? 5 : 3}
           <div class="flex flex-col h-full justify-between">
             <div class="flex items-center justify-between mb-3 shrink-0">
               <div class="flex items-center gap-2.5">
@@ -1793,13 +1922,25 @@
                 </div>
                 <h3 class="text-sm font-medium text-on-surface">{m.home_mod_polls_title()}</h3>
               </div>
+              <button onclick={() => router.goto('/staff-management/polls')} class="text-[10px] text-primary hover:underline cursor-pointer">{m.home_see_everything()}</button>
             </div>
-            <div class="space-y-2 grow flex flex-col justify-center">
-              <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
-                <Papicon icon="bar-chart" size={18} class="mb-1 text-violet-500/50" />
-                <p class="text-[11px]">{m.home_no_active_polls()}</p>
-                <p class="text-[10px] mt-0.5">{m.home_polls_hint()}</p>
-              </div>
+            <div class="space-y-2 grow flex flex-col {openPolls.length > 0 ? '' : 'justify-center'}">
+              {#if openPolls.length === 0}
+                <div class="flex flex-col items-center justify-center py-4 text-center text-on-surface-variant/40">
+                  <Papicon icon="bar-chart" size={18} class="mb-1 text-violet-500/50" />
+                  <p class="text-[11px]">{m.home_no_active_polls()}</p>
+                  <p class="text-[10px] mt-0.5">{m.home_polls_hint()}</p>
+                </div>
+              {:else}
+                {#each openPolls.slice(0, maxPolls) as poll (poll.id)}
+                  <div class="px-2.5 py-2 rounded-lg bg-violet-500/5 border border-violet-500/10">
+                    <p class="text-xs font-medium text-on-surface truncate">{poll.title}</p>
+                    <p class="text-[10px] text-on-surface-variant">
+                      {m.home_poll_votes({ n: poll.voteCount })}{poll.closesAt ? ` · ${m.home_poll_closes({ date: formatEventDate(poll.closesAt) })}` : ''}
+                    </p>
+                  </div>
+                {/each}
+              {/if}
             </div>
           </div>
         {:else if item.id === 'staffServer'}
