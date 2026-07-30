@@ -7,6 +7,7 @@ import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions, type AdvancedAnalyticsSection } from '../lib/api';
 import AdvancedAnalyticsPanel from '../lib/components/analytics/AdvancedAnalyticsPanel.svelte';
+import GhostMembersPanel from '../lib/components/analytics/GhostMembersPanel.svelte';
 import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
 import LoadingHint from '../lib/components/LoadingHint.svelte';
 import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
@@ -405,6 +406,7 @@ import { m, dateLocale } from '../lib/i18n';
       { id: 'channels', label: m.an_tab_channels(), icon: 'ChatBubbles' },
       { id: 'social', label: m.an_tab_social(), icon: 'Users' },
       { id: 'words', label: m.an_tab_words(), icon: 'ChatCircleDots' },
+      { id: 'ghosts', label: m.ghost_tab(), icon: 'Ghost' },
     ],
     moderation: [
       { id: 'moderation', label: m.an_tab_moderation(), icon: 'Gavel' },
@@ -532,7 +534,7 @@ import { m, dateLocale } from '../lib/i18n';
           />
 
           <div class="flex flex-col gap-2">
-            <div class="flex gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 overflow-x-auto no-scrollbar">
+            <div class="analytics-period-presets flex gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 overflow-x-auto no-scrollbar">
               {#each periodPresets as p}
                 <button
                   onclick={() => changePeriod(p.value as any)}
@@ -582,7 +584,7 @@ import { m, dateLocale } from '../lib/i18n';
 
   <!-- Navigation Catégories -->
   <div class="analytics-category-nav sticky top-4 z-30 flex justify-center">
-    <div class="flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
+    <div class="analytics-category-list flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
       {#each categories as cat}
         <button 
           onclick={() => { const firstTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; gotoTab('/analytics', firstTab, 'overview'); }}
@@ -601,7 +603,7 @@ import { m, dateLocale } from '../lib/i18n';
   <!-- Navigation Onglets (sous-catégories) -->
   {#if currentTabs.length > 1}
     <div class="flex justify-center">
-      <div class="flex max-w-full gap-1 overflow-x-auto bg-surface-container p-1.5 rounded-lg border border-outline-variant no-scrollbar">
+      <div class="analytics-subcategory-list flex max-w-full gap-1 overflow-x-auto bg-surface-container p-1.5 rounded-lg border border-outline-variant no-scrollbar">
         {#each currentTabs as tab}
           <button 
             onclick={() => selectTab(tab)}
@@ -625,7 +627,10 @@ import { m, dateLocale } from '../lib/i18n';
   {/if}
 
 
-  {#if ADVANCED_TABS[activeTab]}
+  {#if activeTab === 'ghosts'}
+    <!-- Audit de présence silencieuse : autonome, charge ses propres données -->
+    <GhostMembersPanel />
+  {:else if ADVANCED_TABS[activeTab]}
     <!-- Sections avancées : autonomes, elles chargent et cachent leurs propres données -->
     <AdvancedAnalyticsPanel section={ADVANCED_TABS[activeTab]} />
   {:else if loading}
@@ -726,3 +731,77 @@ import { m, dateLocale } from '../lib/i18n';
     }}
   />
 </div>
+
+<style>
+  @media (max-width: 767px) {
+    .analytics-page__identity {
+      align-items: flex-start;
+    }
+
+    .analytics-page__actions {
+      align-items: stretch;
+    }
+
+    .analytics-custom-range > input {
+      min-width: min(100%, 12rem);
+      flex: 1 1 12rem;
+    }
+
+    .analytics-custom-range > button {
+      min-height: 2.75rem;
+      flex: 1 1 100%;
+    }
+
+    .analytics-category-nav {
+      top: calc(var(--mobile-topbar-height) + env(safe-area-inset-top) + 0.5rem);
+      margin-right: -0.5rem;
+      margin-left: -0.5rem;
+    }
+
+    /* A horizontal scroller hides how many categories exist. Wrapping them into
+       a grid shows the whole set at once, which matters more than compactness
+       when the user is hunting for one report. */
+    .analytics-period-presets,
+    .analytics-category-list {
+      display: grid;
+      width: 100%;
+      overflow: visible;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .analytics-period-presets > button {
+      min-width: 0;
+      padding-right: 0.5rem;
+      padding-left: 0.5rem;
+      white-space: normal;
+    }
+
+    .analytics-category-list > button {
+      min-width: 0;
+      justify-content: center;
+      gap: 0.25rem;
+      padding: 0.75rem 0.35rem;
+      font-size: 0.6875rem;
+      white-space: normal;
+    }
+
+    .analytics-category-list > button > div {
+      display: none;
+    }
+
+    .analytics-subcategory-list {
+      display: grid;
+      width: 100%;
+      overflow: visible;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .analytics-subcategory-list > button {
+      min-width: 0;
+      justify-content: center;
+      padding-right: 0.5rem;
+      padding-left: 0.5rem;
+      white-space: normal;
+    }
+  }
+</style>

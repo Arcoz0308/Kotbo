@@ -1,28 +1,67 @@
 import { readStatsConfig } from './statsConfig.js';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { Client, ChannelType, TextChannel, Collection, Message } from 'discord.js';
 import { getDateKey, getHourKey } from './analyticsService.js';
+import {
+  acquireGuildScrapeLock,
+  ownsGuildScrapeLock,
+  releaseGuildScrapeLock,
+  type GuildScrapeLock,
+} from './guildScrapeLock.js';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Initiates the historical message scraping in the background.
  */
-export async function startHistoricalScraping(client: Client, guildId: string, force = false): Promise<void> {
+export type HistoricalScrapeStartStatus =
+  | 'STARTED'
+  | 'ALREADY_RUNNING'
+  | 'ALREADY_COMPLETED'
+  | 'NOT_FOUND'
+  | 'NOT_ACTIVATED';
+
+export interface HistoricalScrapeStartResult {
+  status: HistoricalScrapeStartStatus;
+  completion?: Promise<void>;
+}
+
+export async function startHistoricalScraping(
+  client: Client,
+  guildId: string,
+  force = false,
+  parentLock?: GuildScrapeLock,
+): Promise<HistoricalScrapeStartResult> {
+  const lock = parentLock && ownsGuildScrapeLock(parentLock, guildId)
+    ? parentLock
+    : acquireGuildScrapeLock(guildId, 'history');
+  const ownsLock = lock !== parentLock;
+
+  if (!lock) {
+    logger.warn('MessageScraper', `Another data synchronization is already running for guild ${guildId}.`);
+    return { status: 'ALREADY_RUNNING' };
+  }
+
   const guildDb = await prisma.guild.findUnique({
     where: { id: guildId },
     select: { statsConfig: true, activated: true },
+  }).catch((error) => {
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    throw error;
   });
 
   if (!guildDb) {
     logger.error('MessageScraper', `Guild ${guildId} not found in database.`);
-    return;
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    return { status: 'NOT_FOUND' };
   }
 
   if (!guildDb.activated) {
     logger.warn('MessageScraper', `Guild ${guildId} is not activated. Scraping aborted.`);
-    return;
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    return { status: 'NOT_ACTIVATED' };
   }
 
   let statsConfig = readStatsConfig(guildDb.statsConfig);
@@ -30,32 +69,47 @@ export async function startHistoricalScraping(client: Client, guildId: string, f
 
   if (status === 'IN_PROGRESS' && !force) {
     logger.warn('MessageScraper', `Scraping already in progress for guild ${guildId}.`);
-    return;
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    return { status: 'ALREADY_RUNNING' };
   }
-  if (status === 'COMPLETED' && !force) {
+  // Un historique terminé n'est jamais rejoué : les agrégats sont incrémentaux,
+  // donc un redémarrage depuis zéro créerait des doublons.
+  if (status === 'COMPLETED') {
     logger.info('MessageScraper', `Scraping already completed for guild ${guildId}.`);
-    return;
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    return { status: 'ALREADY_COMPLETED' };
   }
 
-  // Update status to IN_PROGRESS
+  // Reprendre les curseurs existants est idempotent. `force` sert uniquement à
+  // récupérer un statut IN_PROGRESS devenu orphelin après un crash.
   statsConfig = {
     ...statsConfig,
     historicalScrapeStatus: 'IN_PROGRESS',
     historicalScrapeError: null,
-    historicalScrapedChannels: force ? [] : (statsConfig.historicalScrapedChannels || []),
-    historicalScrapedMessages: force ? 0 : (statsConfig.historicalScrapedMessages || 0),
+    historicalScrapedChannels: statsConfig.historicalScrapedChannels || [],
+    historicalScrapedMessages: statsConfig.historicalScrapedMessages || 0,
     historicalScrapedAt: new Date().toISOString(),
   };
 
-  await prisma.guild.update({
-    where: { id: guildId },
-    data: { statsConfig },
-  });
+  try {
+    await prisma.guild.update({
+      where: { id: guildId },
+      data: { statsConfig },
+    });
+  } catch (error) {
+    if (ownsLock) releaseGuildScrapeLock(lock);
+    throw error;
+  }
 
-  // Run the background task without awaiting to allow immediate response
-  runScrapeTask(client, guildId, force).catch((err) => {
-    logger.error('MessageScraper', `Uncaught error in scraping task for guild ${guildId}:`, err);
-  });
+  const completion = runScrapeTask(client, guildId, false)
+    .catch((err) => {
+      logger.error('MessageScraper', `Uncaught error in scraping task for guild ${guildId}:`, err);
+    })
+    .finally(() => {
+      if (ownsLock) releaseGuildScrapeLock(lock);
+    });
+
+  return { status: 'STARTED', completion };
 }
 
 /**
@@ -154,6 +208,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
 
       let messagesSinceLastFlush = 0;
       let hasMore = true;
+      let channelFetchFailed: unknown = null;
 
       // In-memory aggregates for the current channel to minimize database upserts
       const guildDailyMsg = new Map<string, number>();
@@ -177,32 +232,29 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
         try {
           logger.info('MessageScraper', `Flushing accumulated stats for #${channel.name} to DB (complete: ${isChannelComplete})...`);
 
-          // Flush GuildDailyStat
+          const operations: Prisma.PrismaPromise<unknown>[] = [];
+
           for (const [dateKey, count] of guildDailyMsg.entries()) {
-            await prisma.guildDailyStat.upsert({
+            operations.push(prisma.guildDailyStat.upsert({
               where: { guildId_dateKey: { guildId, dateKey } },
               create: { guildId, dateKey, messagesCount: count },
               update: { messagesCount: { increment: count } },
-            });
+            }));
           }
-          guildDailyMsg.clear();
 
-          // Flush GuildHourlyStat
           for (const [key, count] of guildHourlyMsg.entries()) {
             const [dateKey, hourStr] = key.split(':');
             const hour = parseInt(hourStr, 10);
-            await prisma.guildHourlyStat.upsert({
+            operations.push(prisma.guildHourlyStat.upsert({
               where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
               create: { guildId, dateKey, hour, messagesCount: count },
               update: { messagesCount: { increment: count } },
-            });
+            }));
           }
-          guildHourlyMsg.clear();
 
-          // Flush ChannelDailyStat
           for (const [dateKey, count] of channelDailyMsg.entries()) {
             const uniqueAuthorsCount = channelDailyAuthors.get(dateKey)?.size || 0;
-            await prisma.channelDailyStat.upsert({
+            operations.push(prisma.channelDailyStat.upsert({
               where: { guildId_channelId_dateKey: { guildId, channelId: channel.id, dateKey } },
               create: {
                 guildId,
@@ -215,58 +267,64 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
                 messagesCount: { increment: count },
                 uniqueAuthors: uniqueAuthorsCount,
               },
-            });
+            }));
           }
-          channelDailyMsg.clear();
-          channelDailyAuthors.clear();
 
-          // Flush MemberDailyStat
           for (const [key, count] of memberDailyMsg.entries()) {
             const [userId, dateKey] = key.split(':');
             const replies = memberDailyReplies.get(key) || 0;
-            await prisma.memberDailyStat.upsert({
+            operations.push(prisma.memberDailyStat.upsert({
               where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
               create: { guildId, userId, dateKey, messagesCount: count, repliesCount: replies },
               update: {
                 messagesCount: { increment: count },
                 repliesCount: { increment: replies },
               },
-            });
-          }
-          memberDailyMsg.clear();
-          memberDailyReplies.clear();
-
-          if (isChannelComplete) {
-            completedChannels.add(channel.id);
+            }));
           }
 
-          statsConfig.historicalScrapedChannels = [...completedChannels];
-          statsConfig.historicalScrapedMessages = totalMessagesScraped;
-
-          if (isChannelComplete) {
-            statsConfig.historicalScrapeProgress = {
-              scrapedChannelsCount: completedChannels.size,
+          const nextCompletedChannels = new Set(completedChannels);
+          if (isChannelComplete) nextCompletedChannels.add(channel.id);
+          const nextStatsConfig = {
+            ...statsConfig,
+            historicalScrapedChannels: [...nextCompletedChannels],
+            historicalScrapedMessages: totalMessagesScraped,
+            historicalScrapeProgress: isChannelComplete ? {
+              scrapedChannelsCount: nextCompletedChannels.size,
               totalChannelsCount: textChannels.length,
               currentChannelName: channel.name,
               scrapedMessagesCount: totalMessagesScraped,
-            };
-          } else {
-            statsConfig.historicalScrapeProgress = {
+            } : {
               scrapedChannelsCount: completedChannels.size,
               totalChannelsCount: textChannels.length,
               currentChannelName: channel.name,
               currentChannelId: channel.id,
               currentLastMessageId: lastMessageId || null,
               scrapedMessagesCount: totalMessagesScraped,
-            };
-          }
+            },
+          };
 
-          await prisma.guild.update({
+          operations.push(prisma.guild.update({
             where: { id: guildId },
-            data: { statsConfig },
-          });
+            data: { statsConfig: nextStatsConfig },
+          }));
+
+          // Les agrégats incrémentaux et leur curseur sont validés ensemble :
+          // après un crash, une page est soit entièrement rejouée, soit ignorée,
+          // jamais comptée deux fois.
+          await prisma.$transaction(operations);
+
+          if (isChannelComplete) completedChannels.add(channel.id);
+          Object.assign(statsConfig, nextStatsConfig);
+          guildDailyMsg.clear();
+          guildHourlyMsg.clear();
+          channelDailyMsg.clear();
+          channelDailyAuthors.clear();
+          memberDailyMsg.clear();
+          memberDailyReplies.clear();
         } catch (dbErr) {
           logger.error('MessageScraper', `Failed to flush stats for channel ${channel.id}:`, dbErr);
+          throw dbErr;
         }
       };
 
@@ -342,13 +400,16 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
           await delay(250);
         } catch (fetchErr) {
           logger.error('MessageScraper', `Error fetching messages in channel ${channel.id}:`, fetchErr);
-          // If we hit a permissions/unknown error, abort this channel but don't mark completed to allow retry later
+          // Conserver le curseur sans marquer le salon comme terminé afin qu'une
+          // prochaine synchronisation puisse reprendre exactement à cet endroit.
+          channelFetchFailed = fetchErr;
           hasMore = false;
         }
       }
 
       // Final flush for this channel
-      await flushStats(true);
+      await flushStats(!channelFetchFailed);
+      if (channelFetchFailed) throw channelFetchFailed;
     }
 
     // Recalculate daily active members for modified dates

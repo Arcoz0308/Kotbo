@@ -12,6 +12,7 @@ import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FAL
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const servicePath = path.resolve(__dirname, '../../services/analytics/messageScraperService.js');
+const guildDataSyncServicePath = path.resolve(__dirname, '../../services/analytics/guildDataSyncService.js');
 import { json, verifyAuth, resolveAdminAccess, collectShardSnapshots, collectShardGuilds, loadShardingConfig, saveShardingConfig, requestContainerRestart, requestShardRespawn, normalizeGlobalBannedWord, normalizeGlobalBannedWordCategory, cleanupGlobalBannedWords, getGuildName, readJsonBody, ShardSnapshot, ShardingMode, ShardingConfig } from '../shared.js';
 import {
   getModuleActivationStats,
@@ -1425,34 +1426,104 @@ export async function handleAdminRoutes(
       const force = !!(body?.force || body?.forcer);
 
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ success: boolean; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
+        const results = await client.shard.broadcastEval<{ status: string; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           try {
             const { startHistoricalScraping } = await import(context.servicePath);
-            await startHistoricalScraping(shardClient, context.guildId, context.force);
-            return { success: true };
+            const result = await startHistoricalScraping(shardClient, context.guildId, context.force);
+            return { status: result.status };
           } catch (err) {
-            return { success: false, error: err instanceof Error ? err.message : String(err) };
+            return { status: 'FAILED', error: err instanceof Error ? err.message : String(err) };
           }
         }, { context: { guildId, force, servicePath } });
 
         const result = results.find(r => r !== null);
         if (!result) {
           json(res, 404, { error: 'Serveur introuvable' });
-        } else if (result.success) {
+        } else if (result.status === 'STARTED') {
           json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
+        } else if (result.status === 'ALREADY_COMPLETED') {
+          json(res, 200, { ok: true, message: "L'historique est déjà entièrement synchronisé." });
+        } else if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
         } else {
           json(res, 500, { error: result.error || 'Erreur lors du lancement du scraping' });
         }
       } else {
         const { startHistoricalScraping } = await import('../../services/analytics/messageScraperService.js');
-        await startHistoricalScraping(client, guildId, force);
-        json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
+        const result = await startHistoricalScraping(client, guildId, force);
+        if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+        } else {
+          json(res, 200, {
+            ok: true,
+            message: result.status === 'ALREADY_COMPLETED'
+              ? "L'historique est déjà entièrement synchronisé."
+              : 'Scraping historique lancé avec succès.',
+          });
+        }
       }
     } catch (err) {
       logger.error('AdminAPI', 'POST rescan-stats error:', err);
       json(res, 500, { error: 'Erreur lors du lancement du scraping' });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/resync-all
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'resync-all' && method === 'POST') {
+    const guildId = parts[3];
+
+    try {
+      if (client.shard) {
+        const results = await client.shard.broadcastEval<
+          { status: string; error?: string } | null,
+          { guildId: string; servicePath: string }
+        >(async (shardClient, context) => {
+          if (!shardClient.guilds.cache.has(context.guildId)) return null;
+          try {
+            const { startGuildDataSync } = await import(context.servicePath);
+            const result = await startGuildDataSync(shardClient, context.guildId);
+            return { status: result.status };
+          } catch (error) {
+            return { status: 'FAILED', error: error instanceof Error ? error.message : String(error) };
+          }
+        }, { context: { guildId, servicePath: guildDataSyncServicePath } });
+
+        const result = results.find((entry) => entry !== null);
+        if (!result) {
+          json(res, 404, { error: 'Serveur introuvable' });
+        } else if (result.status === 'STARTED') {
+          json(res, 202, { ok: true, status: result.status, message: 'Synchronisation complète lancée.' });
+        } else if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+        } else if (result.status === 'NOT_ACTIVATED') {
+          json(res, 400, { error: "Le serveur doit être activé avant d'être synchronisé." });
+        } else {
+          json(res, 500, { error: result.error || 'Impossible de lancer la synchronisation complète.' });
+        }
+      } else {
+        if (!client.guilds.cache.has(guildId) && !(await client.guilds.fetch(guildId).catch(() => null))) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+
+        const { startGuildDataSync } = await import('../../services/analytics/guildDataSyncService.js');
+        const result = await startGuildDataSync(client, guildId);
+        if (result.status === 'STARTED') {
+          json(res, 202, { ok: true, status: result.status, message: 'Synchronisation complète lancée.' });
+        } else if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+        } else if (result.status === 'NOT_ACTIVATED') {
+          json(res, 400, { error: "Le serveur doit être activé avant d'être synchronisé." });
+        } else {
+          json(res, 404, { error: 'Serveur introuvable' });
+        }
+      }
+    } catch (error) {
+      logger.error('AdminAPI', 'POST resync-all error:', error);
+      json(res, 500, { error: 'Erreur lors du lancement de la synchronisation complète.' });
     }
     return true;
   }
@@ -1481,30 +1552,43 @@ export async function handleAdminRoutes(
       const memberServicePath = path.resolve(__dirname, '../../services/analytics/memberScraperService.js');
 
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ success: boolean; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
+        const results = await client.shard.broadcastEval<{ status: string; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           try {
             const { startMemberScraping } = await import(context.servicePath);
-            await startMemberScraping(shardClient, context.guildId, context.force);
-            return { success: true };
+            const result = await startMemberScraping(shardClient, context.guildId, context.force);
+            return { status: result.status };
           } catch (err) {
-            return { success: false, error: err instanceof Error ? err.message : String(err) };
+            return { status: 'FAILED', error: err instanceof Error ? err.message : String(err) };
           }
         }, { context: { guildId, force, servicePath: memberServicePath } });
 
         const result = results.find(r => r !== null);
         if (!result) {
           json(res, 404, { error: 'Serveur introuvable' });
-        } else if (result.success) {
+        } else if (result.status === 'STARTED') {
           json(res, 200, { ok: true, message: 'Scraping des membres lancé avec succès.' });
+        } else if (result.status === 'ALREADY_COMPLETED') {
+          json(res, 200, { ok: true, message: 'Les membres sont déjà synchronisés.' });
+        } else if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
         } else {
           json(res, 500, { error: result.error || 'Erreur lors du lancement du scraping membres' });
         }
       } else {
         const { startMemberScraping } = await import('../../services/analytics/memberScraperService.js');
-        await startMemberScraping(client, guildId, force);
-        json(res, 200, { ok: true, message: 'Scraping des membres lancé avec succès.' });
+        const result = await startMemberScraping(client, guildId, force);
+        if (result.status === 'ALREADY_RUNNING') {
+          json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+        } else {
+          json(res, 200, {
+            ok: true,
+            message: result.status === 'ALREADY_COMPLETED'
+              ? 'Les membres sont déjà synchronisés.'
+              : 'Scraping des membres lancé avec succès.',
+          });
+        }
       }
     } catch (err) {
       logger.error('AdminAPI', 'POST rescan-members error:', err);

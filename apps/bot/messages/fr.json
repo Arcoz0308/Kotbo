@@ -1630,5 +1630,15 @@
   "access_sub_ended_title": "Abonnement expiré",
   "access_sub_ended_desc": "L'abonnement Kotbo de **{guild}** a expiré : le bot est désormais désactivé et le dashboard verrouillé.\n\nVos données et vos réglages sont conservés. Contactez l'équipe Kotbo pour renouveler et réactiver le serveur.",
   "access_revoked_title": "Accès retiré",
-  "access_revoked_desc": "L'accès de **{guild}** à Kotbo a été retiré par l'équipe Kotbo : le bot est désormais désactivé et le dashboard verrouillé.\n\nVos données et vos réglages sont conservés en l'état. Une réactivation remet le serveur exactement comme il était.\n\nSi vous pensez qu'il s'agit d'une erreur, contactez l'équipe Kotbo."
+  "access_revoked_desc": "L'accès de **{guild}** à Kotbo a été retiré par l'équipe Kotbo : le bot est désormais désactivé et le dashboard verrouillé.\n\nVos données et vos réglages sont conservés en l'état. Une réactivation remet le serveur exactement comme il était.\n\nSi vous pensez qu'il s'agit d'une erreur, contactez l'équipe Kotbo.",
+  "sim_name": "simulation",
+  "sim_description": "Entraînement des modérateurs sur des incidents simulés",
+  "sim_start_name": "start",
+  "sim_start_description": "Démarre une session d’entraînement dans le salon de test",
+  "sim_stop_name": "stop",
+  "sim_stop_description": "Interrompt votre session en cours et publie le rapport",
+  "sim_list_name": "list",
+  "sim_list_description": "Liste les scénarios disponibles",
+  "sim_scenario_option": "scenario",
+  "sim_scenario_option_desc": "Scénario à jouer"
 }

@@ -448,6 +448,23 @@ model Guild {
   scamImageHashes      ScamImageHash[]
   inviteApprovalRequests InviteApprovalRequest[]
 
+  // Ghost Members Analyzer (audit de présence silencieuse)
+  ghostAnalyzerConfig GhostAnalyzerConfig?
+  ghostPruneRuns      GhostPruneRun[]
+
+  // Interactive Audit Logger (états avant/après + diff visuel)
+  auditLoggerConfig AuditLoggerConfig?
+  auditEvents       AuditEvent[]
+
+  // Node Workflow Builder (automatisations par blocs)
+  workflows          Workflow[]
+  workflowExecutions WorkflowExecution[]
+
+  // Staff Simulator (entraînement des modérateurs)
+  simulationConfig    SimulationConfig?
+  simulationScenarios SimulationScenario[]
+  simulationSessions  SimulationSession[]
+
   @@map("guilds")
 }
 
@@ -508,6 +525,16 @@ model MemberProfile {
   voiceLastJoinedAt DateTime?
   voiceLastLeftAt DateTime?
 
+  // Ghost Members Analyzer — signaux d'activité silencieuse (lecture, écoute,
+  // réactions) qui distinguent un spectateur fidèle d'un compte abandonné.
+  lastReactionAt DateTime?
+  lastDashboardLoginAt DateTime?
+  // Interactions non textuelles cumulées : réactions, boutons, menus, commandes
+  interactionCount Int @default(0)
+  // Classification calculée : ACTIVE | SPECTATOR | INACTIVE | NEW
+  ghostStatus String?
+  ghostComputedAt DateTime?
+
   rolesSnapshot String[] @default([])
 
   isSuspectedDC Boolean @default(false)
@@ -527,6 +554,7 @@ model MemberProfile {
   @@index([guildId, guildJoinedAt])
   @@index([guildId, messageCount])
   @@index([guildId, username])
+  @@index([guildId, ghostStatus])
   @@map("member_profiles")
 }
 

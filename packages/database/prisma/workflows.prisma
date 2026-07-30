@@ -1,0 +1,114 @@
+// ── Node Workflow Builder ────────────────────────────────────────────────────
+// Automatisations no-code par blocs interconnectés. Le graphe est stocké en
+// JSON (nœuds + fils), interprété par le moteur du bot au déclenchement d'un
+// événement du bus.
+//
+// Système parallèle à AutoResponse : les deux coexistent sans interaction.
+
+model Workflow {
+  id      String @id @default(cuid())
+  guildId String
+
+  name        String
+  description String?
+  enabled     Boolean @default(false)
+
+  // Événement du bus qui déclenche ce workflow, extrait du nœud déclencheur à
+  // l'enregistrement. Dupliqué hors du JSON pour retrouver en une requête les
+  // workflows concernés par un événement.
+  triggerEvent String
+  triggerType  String
+
+  // { nodes: [...], edges: [...] } — voir @kotbo/shared
+  graph Json
+
+  createdById String?
+
+  // ── Statistiques d'exécution ───────────────────────────────────────────────
+  runCount     Int       @default(0)
+  successCount Int       @default(0)
+  failureCount Int       @default(0)
+  lastRunAt    DateTime?
+  lastError    String?
+
+  guild      Guild               @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  executions WorkflowExecution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, enabled])
+  @@index([guildId, triggerEvent, enabled])
+  @@map("workflows")
+}
+
+model WorkflowExecution {
+  id         String @id @default(cuid())
+  workflowId String
+  guildId    String
+
+  // RUNNING | WAITING (nœud Delay) | COMPLETED | FAILED | CANCELLED
+  status String @default("RUNNING")
+
+  // Payload de l'événement déclencheur, conservé pour rejouer l'exécution
+  triggerPayload Json?
+
+  // Valeurs mémorisées des ports de données, indispensables pour reprendre
+  // après un Delay sans réévaluer un contexte Discord qui a pu changer.
+  context Json?
+
+  // Position courante lors d'une suspension
+  currentNodeId String?
+  // Pile des boucles ForEach en cours : [{ nodeId, index, items }]
+  loopStack Json?
+
+  // Échéance de reprise pour un nœud Delay ; null hors attente
+  resumeAt DateTime?
+
+  // Consommation du budget, pour diagnostiquer une exécution interrompue
+  nodeVisits Int @default(0)
+  iterations Int @default(0)
+
+  error String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  workflow Workflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  guild    Guild                   @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  steps    WorkflowExecutionStep[]
+
+  @@index([workflowId, startedAt])
+  @@index([guildId, startedAt])
+  // Sert au cron de reprise : ne remonter que les exécutions arrivées à échéance
+  @@index([status, resumeAt])
+  @@map("workflow_executions")
+}
+
+// Trace nœud par nœud, qui alimente le rejeu visuel du dashboard : chaque étape
+// conserve les valeurs entrées et sorties pour afficher ce qui a circulé sur
+// chaque fil.
+model WorkflowExecutionStep {
+  id          String @id @default(cuid())
+  executionId String
+
+  // Rang d'exécution, pour rejouer le parcours dans l'ordre
+  order    Int
+  nodeId   String
+  nodeType String
+
+  // OK | ERROR | SKIPPED
+  status String @default("OK")
+
+  inputs  Json?
+  outputs Json?
+  error   String?
+
+  durationMs Int      @default(0)
+  startedAt  DateTime @default(now())
+
+  execution WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId, order])
+  @@map("workflow_execution_steps")
+}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import Papicon from './Papicon.svelte';
   import { m } from '../i18n';
+  import { portal } from '../actions/portal';
 
   interface Props {
     open?: boolean;
@@ -71,7 +72,8 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="confirm-modal fixed inset-0 z-50 flex items-center justify-center p-4"
+    use:portal
+    class="confirm-modal fixed inset-0 z-[20000] flex items-center justify-center p-4"
     onclick={handleCancel}
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCancel(); }}
     role="dialog"

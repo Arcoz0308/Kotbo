@@ -1,0 +1,81 @@
+// ── Interactive Audit Logger & Visual Diff ───────────────────────────────────
+// Capture l'état AVANT et APRÈS de chaque modification structurelle du serveur
+// (messages édités, membres, rôles, salons, permissions) pour alimenter un
+// visualiseur de différences façon Git côté dashboard.
+//
+// Distinct de MessageLog (recherche plein texte des messages) et de
+// DashboardAuditLog (actions administratives faites depuis le dashboard) :
+// ici on conserve deux états comparables, pas une ligne de texte.
+
+model AuditLoggerConfig {
+  guildId String @id
+
+  enabled Boolean @default(false)
+
+  // Durée de conservation des événements, en jours. 0 = conservation illimitée.
+  retentionDays Int @default(90)
+
+  // Catégories capturées, activables indépendamment
+  captureMessages Boolean @default(true)
+  captureMembers  Boolean @default(true)
+  captureRoles    Boolean @default(true)
+  captureChannels Boolean @default(true)
+
+  // Bruit à exclure : salons de logs, bots de service, comptes techniques
+  ignoredChannelIds String[] @default([])
+  ignoredUserIds    String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("audit_logger_configs")
+}
+
+model AuditEvent {
+  id      String @id @default(cuid())
+  guildId String
+
+  // MESSAGE_UPDATE | MEMBER_UPDATE | ROLE_UPDATE | CHANNEL_UPDATE | CHANNEL_PERMISSIONS_UPDATE
+  eventType String
+
+  // Entité modifiée
+  targetType String // MESSAGE | MEMBER | ROLE | CHANNEL
+  targetId   String
+  targetName String?
+
+  // Auteur du changement, résolu via l'audit log Discord quand il est accessible.
+  // Null quand Discord ne l'expose pas (édition d'un message par son auteur, par exemple).
+  executorId   String?
+  executorName String?
+
+  // Contexte de localisation
+  channelId   String?
+  channelName String?
+
+  // États structurés complets, tels que capturés
+  before Json?
+  after  Json?
+
+  // Différences pré-calculées à la capture :
+  // [{ field, label, kind: 'added'|'removed'|'modified', before, after, added?, removed? }]
+  // Stockées pour que le dashboard n'ait rien à recalculer au chargement.
+  changes Json
+
+  // Noms des champs modifiés, dupliqués hors du JSON pour filtrer en SQL
+  changedFields String[] @default([])
+
+  reason String?
+
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
+  @@index([guildId, eventType, createdAt])
+  @@index([guildId, executorId, createdAt])
+  @@index([guildId, targetId])
+  @@index([guildId, channelId, createdAt])
+  @@map("audit_events")
+}

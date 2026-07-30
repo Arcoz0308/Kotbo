@@ -485,7 +485,7 @@
             {m.lv_xp_params_title()}
           </h3>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="leveling-xp-grid grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-1.5">
               <label for="xpMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_min()}</label>
               <input 

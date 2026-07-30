@@ -19,6 +19,7 @@
         "@hono/zod-openapi": "^0.19.6",
         "@kotbo/core": "workspace:*",
         "@kotbo/database": "workspace:*",
+        "@kotbo/shared": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@napi-rs/canvas": "^0.1.100",
         "@prisma/adapter-pg": "^7.8.0",
@@ -82,6 +83,10 @@
       "devDependencies": {
         "prisma": "^7.8.0",
       },
+    },
+    "packages/shared": {
+      "name": "@kotbo/shared",
+      "version": "1.0.0",
     },
   },
   "packages": {
@@ -156,6 +161,8 @@
     "@kotbo/core": ["@kotbo/core@workspace:packages/core"],
 
     "@kotbo/database": ["@kotbo/database@workspace:packages/database"],
+
+    "@kotbo/shared": ["@kotbo/shared@workspace:packages/shared"],
 
     "@kurkle/color": ["@kurkle/color@0.3.4", "", {}, "sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w=="],
 

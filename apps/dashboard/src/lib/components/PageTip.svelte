@@ -81,13 +81,13 @@
           <!-- Content -->
           <div class="flex-1 min-w-0">
             <div class="flex items-start justify-between gap-3 mb-2">
-              <div>
-                <div class="flex items-center gap-2 mb-1">
+              <div class="page-tip__heading min-w-0">
+                <div class="page-tip__badge flex items-center gap-2 mb-1">
                   <span class="text-[10px] font-semibold uppercase tracking-wider text-primary/80 bg-primary/8 px-2 py-0.5 rounded-full">
                     {m.tip_badge()}
                   </span>
                 </div>
-                <h3 class="text-base font-semibold text-on-surface">{tip.title}</h3>
+                <h3 class="page-tip__title text-base font-semibold text-on-surface">{tip.title}</h3>
               </div>
               <button
                 onclick={dismiss}
@@ -132,9 +132,12 @@
 {/if}
 
 <style>
+  /* A tip whose body is hidden is just a headline taking up space, so the
+     phone layout keeps the title and the explanation and drops the
+     supporting checklist, the eyebrow and the duplicate dismiss button. */
   @media (max-width: 767px) {
     .page-tip {
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.875rem;
     }
 
     .page-tip__card {
@@ -142,7 +145,7 @@
     }
 
     .page-tip__inner {
-      padding: 0.75rem;
+      padding: 0.875rem;
     }
 
     .page-tip__layout {
@@ -150,25 +153,25 @@
     }
 
     .page-tip__icon > div {
-      width: 2.25rem;
-      height: 2.25rem;
-      border-radius: 0.75rem;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.625rem;
     }
 
-    .page-tip__description {
-      display: -webkit-box;
-      margin: 0.25rem 0 0;
-      overflow: hidden;
-      font-size: 0.75rem;
-      line-height: 1.4;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      line-clamp: 2;
-    }
-
+    .page-tip__badge,
     .page-tip__highlights,
     .page-tip__footer {
       display: none;
+    }
+
+    .page-tip__title {
+      font-size: 0.9375rem;
+      line-height: 1.25;
+    }
+
+    .page-tip__description {
+      margin-bottom: 0;
+      font-size: 0.8125rem;
     }
   }
 </style>

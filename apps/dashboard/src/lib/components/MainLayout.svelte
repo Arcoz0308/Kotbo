@@ -7,8 +7,11 @@
   import TutorialWelcome from './TutorialWelcome.svelte';
   import TutorialChecklist from './TutorialChecklist.svelte';
   import PageTip from './PageTip.svelte';
+  import MobileTopBar from './mobile/MobileTopBar.svelte';
+  import MobileTabBar from './mobile/MobileTabBar.svelte';
+  import MobileNavSheet from './mobile/MobileNavSheet.svelte';
 
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import type { Snippet } from 'svelte';
   import { router } from 'tinro';
   import { dashboardLifecycle } from '../dashboardLifecycle';
@@ -20,7 +23,9 @@
   import { searchStore } from '../stores/search.svelte';
   import { unsavedChanges } from '../stores/unsavedChanges.svelte';
   import { confirmDialog } from '../stores/confirmDialog.svelte';
-  import { isMobile } from '../stores/media.svelte';
+  import { isMobile, isPhone } from '../stores/media.svelte';
+  import { navigationStore } from '../stores/navigation.svelte';
+  import { mobileNav } from '../stores/mobileNav.svelte';
   import { authStore } from '../stores/auth.svelte';
   import { onboardingStore } from '../stores/tutorial.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
@@ -54,6 +59,14 @@
     onboardingStore.initialize(id);
   });
 
+  // Favourites are per guild and shared by the sidebar and the mobile sheet.
+  // untrack keeps the store's own writes from re-triggering this effect.
+  $effect(() => {
+    void authStore.selectedGuildId;
+    void (dashboardStore.state as { sidebarFavorites?: unknown }).sidebarFavorites;
+    untrack(() => navigationStore.hydrateFavorites());
+  });
+
   $effect(() => {
     const path = $router.path;
     const url = $router.url;
@@ -65,13 +78,14 @@
     onboardingStore.onPageVisit(path, qs);
   });
 
-  // Intercept tinro SPA navigation when there are unsaved changes
+  // Every route change closes the mobile sheet and feeds the "recent pages"
+  // shortcut in the navigation sheet.
   $effect(() => {
     const path = $router.path;
-    // When the route changes and there were dirty changes that weren't cleared,
-    // we just clear them (the page unmounted, so changes are gone anyway).
-    // The real guard happens via the sidebar link click interception.
-    void path;
+    untrack(() => {
+      mobileNav.close();
+      navigationStore.noteVisit(path);
+    });
   });
 
   const collapsed = $derived(sidebarStore.collapsed);
@@ -148,10 +162,16 @@
 <a class="skip-link" href="#main-content">Aller au contenu</a>
 
 <div class="app-shell flex min-h-screen bg-background text-on-background transition-colors duration-200">
-  <Sidebar />
+  {#if !$isPhone}
+    <Sidebar />
+  {/if}
 
   <div class="app-content min-w-0 flex-1 flex flex-col transition-all duration-200 {$isMobile ? 'ml-0' : (collapsed ? 'ml-18' : 'ml-60')}">
-    <Navbar />
+    {#if $isPhone}
+      <MobileTopBar />
+    {:else}
+      <Navbar />
+    {/if}
 
     <main
       id="main-content"
@@ -160,7 +180,9 @@
       data-page={pageKey}
       class="app-main px-8 py-6 pb-20 max-w-[1400px] w-full mx-auto"
     >
-      <Breadcrumbs />
+      {#if !$isPhone}
+        <Breadcrumbs />
+      {/if}
       {#if pageStatus?.wip}
         <!-- Render WIP Overlay over blurred content -->
         <div class="relative w-full min-h-125">
@@ -225,6 +247,12 @@
       {/if}
     </main>
   </div>
+
+  {#if $isPhone}
+    <MobileTabBar />
+    <MobileNavSheet />
+  {/if}
+
   <ServerSwitcherModal />
   <UnsavedChangesBar />
   <TutorialWelcome />

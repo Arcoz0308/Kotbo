@@ -181,7 +181,7 @@
             </h4>
             <div class="space-y-0.5">
               {#each data.activeLeaderboard as entry, i}
-                <div class="season-leaderboard-row grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}" style="grid-template-columns: 28px 40px 1fr 80px 100px;">
+                <div class="season-leaderboard-row grid items-center py-2 px-3 rounded-lg text-sm transition-colors hover:bg-surface-container-high/10 {i < 3 ? 'bg-surface-container-high/5' : ''}">
                   <span class="text-base leading-none">{getMedal(i)}</span>
                   <span class="font-semibold text-on-surface-variant">#{entry.rank}</span>
                   <span class="font-mono text-xs text-on-surface-variant/60">{entry.userId}</span>
@@ -258,3 +258,32 @@
   {/if}
 {/if}
 </ModulePage>
+
+<style>
+  .season-leaderboard-row {
+    grid-template-columns: 28px 40px 1fr 80px 100px;
+  }
+
+  /* Level and user id compete for the same space on a phone: keep the rank,
+     the name and the score, and let the level go. */
+  @media (max-width: 767px) {
+    .season-leaderboard-row {
+      gap: 0.375rem;
+      grid-template-columns: 1.5rem 2rem minmax(0, 1fr) auto;
+    }
+
+    .season-leaderboard-row > :nth-child(3) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .season-leaderboard-row > :nth-child(4) {
+      display: none;
+    }
+
+    .season-leaderboard-row > :last-child {
+      white-space: nowrap;
+    }
+  }
+</style>

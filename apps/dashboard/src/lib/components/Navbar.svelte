@@ -1,7 +1,6 @@
 <script lang="ts">
   import { m } from '../i18n';
   import { onMount } from 'svelte';
-  import { router } from 'tinro';
   import { authStore } from '../stores/auth.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { themeStore } from '../stores/theme.svelte';
@@ -15,7 +14,6 @@
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { isMobile } from '../stores/media.svelte';
   import { userPrefs } from '../stores/userPreferences.svelte';
-  import { getPageStatus } from '../config/pages';
 
   const collapsed = $derived(sidebarStore.collapsed);
 
@@ -32,10 +30,6 @@
   const currentLanguage = $derived(
     languages.find((lang) => lang.code === userPrefs.prefs.language) ?? languages[0]
   );
-  const currentPageTitle = $derived(
-    getPageStatus($router.path, $router.url)?.name ?? m.nav_home()
-  );
-
   onMount(() => {
     (async () => {
       try {
@@ -160,13 +154,26 @@
           ? `Changer de serveur, serveur actuel ${selectedGuild?.name ?? ''}`
           : `Serveur ${selectedGuild?.name ?? ''}`}
       >
-        <span class="app-navbar__mobile-title">{currentPageTitle}</span>
-        <span class="app-navbar__mobile-server">
+        {#if guildIconUrl}
+          <img
+            src={guildIconUrl}
+            alt=""
+            width="24"
+            height="24"
+            referrerpolicy="no-referrer"
+            class="app-navbar__mobile-server-icon"
+          >
+        {:else}
+          <span class="app-navbar__mobile-server-icon app-navbar__mobile-server-fallback">
+            {selectedGuild?.name?.charAt(0) || '?'}
+          </span>
+        {/if}
+        <span class="app-navbar__mobile-server-name">
           {selectedGuild?.name ?? 'Serveur'}
-          {#if authStore.guilds.length > 1}
-            <Papicon icon="chevron-down" size={10} />
-          {/if}
         </span>
+        {#if authStore.guilds.length > 1}
+          <Papicon icon="chevron-down" size={12} class="shrink-0" />
+        {/if}
       </button>
     {/if}
     {#if !$isMobile}

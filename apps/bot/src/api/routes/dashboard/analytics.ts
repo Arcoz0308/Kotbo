@@ -43,8 +43,17 @@ export async function handleAnalyticsRoutes(
       const force = !!body?.force;
 
       const { startMemberScraping } = await import('../../../services/analytics/memberScraperService.js');
-      await startMemberScraping(client, guildId, force);
-      json(res, 200, { ok: true, message: 'Scraping des membres lancé avec succès.' });
+      const result = await startMemberScraping(client, guildId, force);
+      if (result.status === 'ALREADY_RUNNING') {
+        json(res, 409, { error: 'Une synchronisation est déjà en cours sur ce serveur.' });
+      } else {
+        json(res, 200, {
+          ok: true,
+          message: result.status === 'ALREADY_COMPLETED'
+            ? 'Les membres sont déjà synchronisés.'
+            : 'Scraping des membres lancé avec succès.',
+        });
+      }
     } catch (err) {
       logger.error('AnalyticsAPI', 'POST rescan-members error:', err);
       json(res, 500, { error: 'Erreur lors du lancement du scraping membres' });

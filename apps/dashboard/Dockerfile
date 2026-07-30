@@ -12,11 +12,13 @@ COPY apps/bot/package.json apps/bot/
 COPY packages/database/package.json packages/database/
 COPY packages/core/package.json packages/core/
 COPY packages/contracts/package.json packages/contracts/
+COPY packages/shared/package.json packages/shared/
 
 # Install dependencies (only for the dashboard)
 RUN bun install --frozen-lockfile
 
-# Copy dashboard source
+# Copy dashboard source and workspace packages
+COPY packages packages
 COPY apps/dashboard apps/dashboard
 
 # Build the Svelte app

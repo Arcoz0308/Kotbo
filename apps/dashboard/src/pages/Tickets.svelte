@@ -1000,7 +1000,7 @@
   {/snippet}
 
   <!-- Tab Switcher -->
-  <div class="flex border-b border-outline-variant/10 mb-6 overflow-x-auto scrollbar-hide">
+  <div class="tickets-primary-tabs flex border-b border-outline-variant/10 mb-6 overflow-x-auto scrollbar-hide">
     {#each [
       { key: 'tickets', label: m.e1_tickets_tab_tickets() },
       { key: 'transcripts', label: m.e1_tickets_tab_transcripts() },
@@ -2327,6 +2327,37 @@
 <style>
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  @media (max-width: 767px) {
+    .tickets-primary-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      overflow: visible;
+      border: 1px solid var(--outline-variant);
+      border-radius: 0.875rem;
+      background: var(--surface-container-low);
+      padding: 0.25rem;
+      gap: 0.25rem;
+    }
+
+    .tickets-primary-tabs :global(.tab-button) {
+      width: 100%;
+      min-width: 0;
+      border-radius: 0.625rem;
+      text-align: center;
+      white-space: normal;
+    }
+
+    .tickets-primary-tabs :global(.tab-button.active) {
+      background: var(--surface-container-lowest);
+    }
+
+    .tickets-primary-tabs :global(.tab-button > div) {
+      right: 0.75rem;
+      left: 0.75rem;
+      width: auto;
+    }
+  }
 
   /* Satisfaction Tab Styles */
   .sat-grid { display: grid; grid-template-columns: 300px 1fr; gap: 1rem; }

@@ -17,6 +17,8 @@ import { checkTicketInactivity } from '../services/features/ticketService.js';
 import { checkExpiredGiveaways } from '../services/features/giveawayService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 import { pruneOldMessageLogs } from './messageLogging.js';
+import { pruneOldAuditEvents } from '../services/analytics/auditDiffService.js';
+import { resumePendingExecutions } from '../services/features/workflow/workflowService.js';
 import { pruneOldWordStats } from '../services/analytics/wordStatsService.js';
 import { runBanHygieneScan } from '../services/moderation/banHygieneService.js';
 
@@ -259,6 +261,10 @@ export async function registerCrons(client: Client): Promise<void> {
       await runAccessLifecycleCheck(client);
     },
     'message-logs-prune': pruneOldMessageLogs,
+    'audit-events-prune': pruneOldAuditEvents,
+    'workflow-resume': async () => {
+      await resumePendingExecutions(client);
+    },
     'word-stats-prune': async () => {
       await pruneOldWordStats();
     },
@@ -348,6 +354,18 @@ export async function registerCrons(client: Client): Promise<void> {
   // 🗂️ Journalisation des messages: purge selon la rétention (tous les jours à 03:30)
   cron.schedule('30 3 * * *', async () => {
     await runCronJob('message-logs-prune', pruneOldMessageLogs, 2000);
+  });
+
+  // 📜 Audit structurel: purge des états avant/après expirés (tous les jours à 03:35)
+  cron.schedule('35 3 * * *', async () => {
+    await runCronJob('audit-events-prune', pruneOldAuditEvents, 2000);
+  });
+
+  // 🧩 Workflows: reprise des exécutions suspendues par un nœud « Attendre »
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('workflow-resume', async () => {
+      await resumePendingExecutions(client);
+    });
   });
 
   // 📊 Stats de mots: purge des agrégats de plus de 90 jours (tous les jours à 03:45)
