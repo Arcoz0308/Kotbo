@@ -69,6 +69,21 @@
   maxHeight="90dvh"
   onclose={() => mobileNav.close()}
 >
+  <!-- Account, theme and server moved behind the avatar in the top bar. The one
+       setting that belongs to this surface sits in the header, where it is read
+       before the list rather than found under eighty page links. -->
+  {#snippet header()}
+    <button
+      type="button"
+      class="navsheet__shortcuts"
+      aria-haspopup="dialog"
+      onclick={() => mobileNav.open('tabs')}
+    >
+      <Papicon icon="tune" size={15} />
+      <span>{m.nav_shortcuts()}</span>
+    </button>
+  {/snippet}
+
   <div class="navsheet">
     <!-- Search first: no tab bar can hold 80 pages, so typing is the fast path. -->
     <div class="navsheet__search">
@@ -113,21 +128,6 @@
       {#each navigationStore.groups as group (group.key)}
         {@render section(group.label, group.items)}
       {/each}
-
-      <!-- Account, theme and server live behind the avatar in the top bar now.
-           What stays here is the one setting that belongs to this surface. -->
-      <section class="navsheet__group">
-        <h3 class="navsheet__group-title">{m.nav_tabbar_title()}</h3>
-        <ul class="navsheet__list">
-          <li>
-            <button type="button" class="navsheet__row" onclick={() => mobileNav.open('tabs')}>
-              <span class="navsheet__row-icon"><Papicon icon="tune" size={17} /></span>
-              <span class="navsheet__row-label">{m.nav_customize_tabbar()}</span>
-              <Papicon icon="chevron-right" size={15} class="navsheet__chevron" />
-            </button>
-          </li>
-        </ul>
-      </section>
     {/if}
   </div>
 </BottomSheet>
@@ -383,6 +383,29 @@
     flex: none;
     color: var(--on-surface-variant);
     opacity: 0.5;
+  }
+
+  .navsheet__shortcuts {
+    display: flex;
+    min-height: 2.25rem;
+    flex: none;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--outline-variant);
+    border-radius: 999px;
+    background: var(--surface-container);
+    color: var(--on-surface);
+    font-family: var(--font-label);
+    font-size: 0.75rem;
+    font-weight: 650;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .navsheet__shortcuts:active {
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+    color: var(--primary-color);
   }
 
   .navsheet__empty {

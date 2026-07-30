@@ -61,6 +61,7 @@
   "nav_language": "Langue",
   "nav_preferences": "Réglages",
   "nav_customize_tabbar": "Choisir mes raccourcis",
+  "nav_shortcuts": "Raccourcis",
   "nav_tabbar_title": "Barre de navigation",
   "nav_tabbar_subtitle": "Jusqu'à {count} raccourcis, de gauche à droite",
   "nav_tabbar_chosen": "Dans la barre",

@@ -1263,7 +1263,11 @@
     max-height: min(68dvh, 38rem);
   }
 
+  /* Le bouton d'édition du layout est en z-100 : il passait par-dessus la
+     barre d'onglets et les feuilles mobiles. Il redescend sous les deux, la
+     position au-dessus de la barre suffit à le garder atteignable. */
   .home-floating-actions {
+    z-index: 44;
     right: 1rem;
     bottom: calc(var(--mobile-tabbar-clearance) + 0.75rem);
     max-width: calc(100vw - 2rem);

@@ -61,6 +61,7 @@
   "nav_language": "Language",
   "nav_preferences": "Settings",
   "nav_customize_tabbar": "Pick my shortcuts",
+  "nav_shortcuts": "Shortcuts",
   "nav_tabbar_title": "Navigation bar",
   "nav_tabbar_subtitle": "Up to {count} shortcuts, left to right",
   "nav_tabbar_chosen": "In the bar",
