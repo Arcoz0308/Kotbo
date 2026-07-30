@@ -8,6 +8,7 @@ import { isGuildActivated, activateGuild } from '../../../utils/activation.js';
 import { translate } from '../../../services/integrations/translationService.js';
 import { cache } from '../../../utils/cache.js';
 import { getGuildLanguageState, normalizeLocale } from '../../../utils/i18n.js';
+import { rerenderPersistentPanels } from '../../../services/core/panelRerenderService.js';
 import {
   json,
   readJsonBody,
@@ -78,12 +79,37 @@ export async function handleGeneralRoutes(
           return true;
         }
 
+        const before = await getGuildLanguageState(guildId, discordGuild?.preferredLocale ?? null);
+
         await prisma.guild.upsert({
           where: { id: guildId },
           update: { language: requested },
           create: { id: guildId, language: requested },
         });
         await cache.invalidateGuild(guildId);
+
+        const after = await getGuildLanguageState(guildId, discordGuild?.preferredLocale ?? null);
+
+        // Ecrire la langue ne reecrit pas les messages deja publies : sans ce
+        // re-rendu, les panneaux persistants restent dans l'ancienne langue et le
+        // reglage passe pour inoperant. C'est ce que fait `/languages rerender`,
+        // qui reste utile apres une modification de gabarit.
+        const rerender = after.locale === before.locale
+          ? null
+          : await rerenderPersistentPanels(client, guildId);
+
+        json(res, 200, {
+          mode: after.mode,
+          locale: after.locale,
+          detected,
+          available: ['fr', 'en'],
+          rerender: rerender && {
+            updated: rerender.updated,
+            skipped: rerender.skipped,
+            failed: rerender.failed,
+          },
+        });
+        return true;
       }
 
       const state = await getGuildLanguageState(guildId, discordGuild?.preferredLocale ?? null);
@@ -92,6 +118,7 @@ export async function handleGeneralRoutes(
         locale: state.locale,
         detected,
         available: ['fr', 'en'],
+        rerender: null,
       });
     } catch (err) {
       logger.error('GeneralAPI', `Error handling language for guild ${guildId}:`, err);

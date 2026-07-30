@@ -610,6 +610,7 @@
 
   let botLanguage = $state<GuildLanguageState | null>(null);
   let botLanguageLoading = $state(false);
+  let botLanguageRerender = $state<GuildLanguageState['rerender']>(null);
   let botLanguageGuildId: string | null = null;
 
   async function loadBotLanguage(force = false) {
@@ -627,11 +628,15 @@
   async function setBotLanguage(payload: { mode: 'auto' } | { language: 'fr' | 'en' }) {
     if (botLanguageLoading) return;
     botLanguageLoading = true;
+    botLanguageRerender = null;
     try {
-      const ok = await updateGuildLanguage(payload);
-      if (ok) {
-        botLanguage = await fetchGuildLanguage();
+      const state = await updateGuildLanguage(payload);
+      if (state) {
+        botLanguage = state;
+        botLanguageRerender = state.rerender;
       }
+    } catch {
+      // dashboardRequest a deja notifie l'echec.
     } finally {
       botLanguageLoading = false;
     }
@@ -1196,7 +1201,17 @@
                   </button>
                 </div>
 
-                <p class="text-[10px] text-on-surface-variant/70">{m.home_botlanguage_hint()}</p>
+                {#if botLanguageRerender}
+                  {#if botLanguageRerender.failed > 0}
+                    <p class="text-[10px] text-amber-400">{m.home_botlanguage_panels_failed({ n: botLanguageRerender.failed })}</p>
+                  {:else if botLanguageRerender.updated > 0}
+                    <p class="text-[10px] text-emerald-400">{m.home_botlanguage_panels_updated({ n: botLanguageRerender.updated })}</p>
+                  {:else}
+                    <p class="text-[10px] text-on-surface-variant/70">{m.home_botlanguage_panels_none()}</p>
+                  {/if}
+                {:else}
+                  <p class="text-[10px] text-on-surface-variant/70">{m.home_botlanguage_hint()}</p>
+                {/if}
               </div>
             {:else}
               <div class="h-full flex items-center justify-center text-on-surface-variant/40 text-xs">
