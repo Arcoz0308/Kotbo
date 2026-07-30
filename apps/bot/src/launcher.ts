@@ -261,7 +261,6 @@ async function spawnInstance(instance: ResolvedInstance, workerPath: string): Pr
     respawn: true,
     shardArgs: [`--instance-id=${instance.id}`],
     execArgv: [],
-    execPath: process.execPath,
   });
 
   setupShardListeners(manager, label);
