@@ -8,7 +8,6 @@ import prisma from '../../utils/db.js';
 import { successContainer, errorContainer } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { isGuildActivated, activateGuild } from '../../utils/activation.js';
-import { initializeAutoBackup } from '../../services/system/autoBackupService.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 import { v2Message } from '@arcscord/components';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
@@ -71,19 +70,6 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     // Activate
     const access = await activateGuild(guildId, codeStr);
-
-    // Initialize auto backup
-    if (interaction.guild) {
-      await initializeAutoBackup(interaction.guild).catch((err) =>
-        console.error('Failed to initialize auto backup:', err)
-      );
-    }
-
-    // Start historical message scraping
-    const { startHistoricalScraping } = await import('../../services/analytics/messageScraperService.js');
-    startHistoricalScraping(interaction.client, guildId).catch((err) =>
-      console.error('Failed to start historical scraping:', err)
-    );
 
     // Accès à durée limitée : on annonce la période dans le salon public et on
     // détaille l'échéance dans la réponse à l'admin.

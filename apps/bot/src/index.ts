@@ -1,5 +1,4 @@
 import type { Prisma } from '@prisma/client';
-import { readStatsConfig } from './services/analytics/statsConfig.js';
 import { trackGhostSignal } from './services/analytics/ghostActivityTracker.js';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -397,93 +396,64 @@ client.once(Events.ClientReady, async (c) => {
   );
   logger.info('System', 'Backups automatiques initialisés');
 
-  // Trigger historical message scraping for any activated guild that hasn't started yet
+  // Reprendre les synchronisations d'activation de manière séquentielle. Membres
+  // et historique partagent statsConfig et ne doivent donc jamais tourner ensemble.
   try {
-    const { startHistoricalScraping } = await import('./services/analytics/messageScraperService.js');
-    const activatedGuilds = await prisma.guild.findMany({
+    const { scheduleGuildDataSync } = await import('./services/analytics/guildDataSyncService.js');
+    const activatedGuildsForSync = await prisma.guild.findMany({
       where: { activated: true },
       select: { id: true, statsConfig: true }
     });
 
-    for (const g of activatedGuilds) {
-      let config = readStatsConfig(g.statsConfig);
-      
-      // If the scraping was stuck in IN_PROGRESS (e.g. bot crashed/restarted), reset it so it can be resumed
-      if (config.historicalScrapeStatus === 'IN_PROGRESS') {
-        logger.info('System', `Correction du scrap historique bloqué en IN_PROGRESS pour la guilde ${g.id}`);
-        config = {
-          ...config,
-          historicalScrapeStatus: 'FAILED',
-          historicalScrapeError: 'Interrompu par le redémarrage du bot',
-        };
-        delete config.historicalScrapeProgress;
-
-        await prisma.guild.update({
-          where: { id: g.id },
-          data: { statsConfig: config as unknown as Prisma.InputJsonValue }
-        });
-      }
-
-      if (
-        !config.historicalScrapeStatus ||
-        config.historicalScrapeStatus === 'NOT_STARTED' ||
-        config.historicalScrapeStatus === 'FAILED'
-      ) {
-        logger.info('System', `Démarrage du scrap historique automatique pour la guilde ${g.id}`);
-        startHistoricalScraping(client, g.id).catch((err) =>
-          logger.error('System', `Erreur lors du démarrage du scrap historique pour ${g.id}:`, err)
-        );
-      }
-    }
-  } catch (err) {
-    logger.error('System', 'Erreur lors de la vérification du scrap historique au démarrage:', err);
-  }
-
-  // Trigger historical member scraping for any activated guild that hasn't started yet
-  try {
-    const { startMemberScraping } = await import('./services/analytics/memberScraperService.js');
-    const activatedGuildsForMembers = await prisma.guild.findMany({
-      where: { activated: true },
-      select: { id: true, statsConfig: true }
-    });
-
-    interface MemberScrapeConfig {
+    interface StartupSyncConfig {
+      historicalScrapeStatus?: string;
+      historicalScrapeError?: string;
       memberScrapeStatus?: string;
       memberScrapeError?: string;
-      memberScrapeProgress?: unknown;
+      fullSyncStatus?: string;
+      fullSyncError?: string;
     }
 
-    for (const g of activatedGuildsForMembers) {
-      let config = { ...((g.statsConfig as MemberScrapeConfig | null) || {}) } as MemberScrapeConfig;
+    for (const g of activatedGuildsForSync) {
+      const config = { ...((g.statsConfig as StartupSyncConfig | null) || {}) } as StartupSyncConfig;
+      let configChanged = false;
 
+      if (config.historicalScrapeStatus === 'IN_PROGRESS') {
+        config.historicalScrapeStatus = 'FAILED';
+        config.historicalScrapeError = 'Interrompu par le redémarrage du bot';
+        configChanged = true;
+      }
       if (config.memberScrapeStatus === 'IN_PROGRESS') {
-        logger.info('System', `Correction du scrap membres bloqué en IN_PROGRESS pour la guilde ${g.id}`);
-        config = {
-          ...config,
-          memberScrapeStatus: 'FAILED',
-          memberScrapeError: 'Interrompu par le redémarrage du bot',
-        };
-        delete config.memberScrapeProgress;
-
+        config.memberScrapeStatus = 'FAILED';
+        config.memberScrapeError = 'Interrompu par le redémarrage du bot';
+        configChanged = true;
+      }
+      if (config.fullSyncStatus === 'IN_PROGRESS') {
+        config.fullSyncStatus = 'FAILED';
+        config.fullSyncError = 'Interrompu par le redémarrage du bot';
+        configChanged = true;
+      }
+      if (configChanged) {
         await prisma.guild.update({
           where: { id: g.id },
           data: { statsConfig: config as unknown as Prisma.InputJsonValue }
         });
       }
 
-      if (
-        !config.memberScrapeStatus ||
-        config.memberScrapeStatus === 'NOT_STARTED' ||
-        config.memberScrapeStatus === 'FAILED'
-      ) {
-        logger.info('System', `Démarrage du scrap membres automatique pour la guilde ${g.id}`);
-        startMemberScraping(client, g.id).catch((err) =>
-          logger.error('System', `Erreur lors du démarrage du scrap membres pour ${g.id}:`, err)
-        );
+      const membersNeedSync = !config.memberScrapeStatus
+        || config.memberScrapeStatus === 'NOT_STARTED'
+        || config.memberScrapeStatus === 'FAILED';
+      const historyNeedsSync = !config.historicalScrapeStatus
+        || config.historicalScrapeStatus === 'NOT_STARTED'
+        || config.historicalScrapeStatus === 'FAILED';
+
+      if (membersNeedSync || historyNeedsSync) {
+        logger.info('System', `Reprise de la synchronisation d'activation pour la guilde ${g.id}`);
+        scheduleGuildDataSync(client, g.id);
       }
     }
   } catch (err) {
-    logger.error('System', 'Erreur lors de la vérification du scrap membres au démarrage:', err);
+    logger.error('System', "Erreur lors de la reprise des synchronisations d'activation:", err);
   }
 
   logger.success('System', 'Bot opérationnel et synchronisé.');
@@ -498,17 +468,8 @@ client.on(Events.GuildCreate, async (guild) => {
   );
 
   if (isGuildActivated(guild.id)) {
-    // Start historical message scraping
-    const { startHistoricalScraping } = await import('./services/analytics/messageScraperService.js');
-    startHistoricalScraping(client, guild.id).catch((err) =>
-      logger.error('System', `Impossible de démarrer le scraping historique pour ${guild.name}:`, err)
-    );
-
-    // Start member scraping
-    const { startMemberScraping } = await import('./services/analytics/memberScraperService.js');
-    startMemberScraping(client, guild.id).catch((err) =>
-      logger.error('System', `Impossible de démarrer le scraping membres pour ${guild.name}:`, err)
-    );
+    const { scheduleGuildDataSync } = await import('./services/analytics/guildDataSyncService.js');
+    scheduleGuildDataSync(client, guild.id);
   } else {
     const channel = guild.systemChannel || guild.channels.cache.find(
       (c) => c.isTextBased() && c.permissionsFor(guild.members.me!)?.has('SendMessages')

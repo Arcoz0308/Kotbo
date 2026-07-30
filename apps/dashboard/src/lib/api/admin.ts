@@ -409,6 +409,17 @@ export async function rescanAdminGuildStats(guildId: string, force = false) {
   return response.json();
 }
 
+export async function resyncAdminGuildData(guildId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/resync-all`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.error || 'Erreur lors du lancement de la synchronisation complète');
+  }
+  return response.json();
+}
+
 export async function activateGuildWithCode(code: string, guildId = authStore.selectedGuildId) {
   const token = authStore.token;
   if (!token) {

@@ -117,6 +117,7 @@ export async function activateGuild(guildId: string, code: string): Promise<Acti
   );
 
   await broadcastActivationChange(guildId, true);
+  schedulePostActivationSync(guildId);
 
   // Ce serveur peut être le principal d'un ou plusieurs serveurs staff en attente.
   await cascadeToLinkedStaffGuilds(guildId);
@@ -135,14 +136,13 @@ async function broadcastActivationChange(guildId: string, activated: boolean): P
     const client = getClient();
     if (client.shard) {
       const activationPath = import.meta.url;
-      await client.shard.broadcastEval((c: unknown, context: { id: string; activationPath: string; activated: boolean }) => {
-        import(context.activationPath).then((m) => {
-          if (context.activated) {
-            m.activatedGuilds.add(context.id);
-          } else {
-            m.activatedGuilds.delete(context.id);
-          }
-        }).catch(() => {});
+      await client.shard.broadcastEval(async (_c: unknown, context: { id: string; activationPath: string; activated: boolean }) => {
+        const m = await import(context.activationPath);
+        if (context.activated) {
+          m.activatedGuilds.add(context.id);
+        } else {
+          m.activatedGuilds.delete(context.id);
+        }
       }, { context: { id: guildId, activationPath, activated } }).catch((err: unknown) => {
         logger.error('Activation', `Failed to broadcast activation change for ${guildId}:`, err);
       });
@@ -192,6 +192,7 @@ export async function reconcileStaffGuildActivation(staffGuildId: string): Promi
     });
 
     await broadcastActivationChange(staffGuildId, true);
+    schedulePostActivationSync(staffGuildId);
     logger.success('Activation', `Le serveur staff ${staffGuildId} a été activé automatiquement via le lien avec ${activeMain!.mainGuild.id}.`);
 
     await applyStaffServerFeatureDefaults(staffGuildId);
@@ -215,6 +216,20 @@ export async function reconcileStaffGuildActivation(staffGuildId: string): Promi
   }
 
   return 'unchanged';
+}
+
+function schedulePostActivationSync(guildId: string): void {
+  try {
+    const client = getClient();
+    void import('../services/analytics/guildDataSyncService.js')
+      .then(({ scheduleGuildDataSync }) => scheduleGuildDataSync(client, guildId))
+      .catch((error) => {
+        logger.error('Activation', `Impossible de planifier la synchronisation de ${guildId}:`, error);
+      });
+  } catch {
+    // Certains contextes sans client Discord (tests, scripts CLI) activent aussi
+    // des guildes. Le prochain ClientReady reprendra alors la synchronisation.
+  }
 }
 
 /**

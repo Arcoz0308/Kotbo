@@ -10,6 +10,7 @@
     deactivateAdminGuild,
     activateAdminGuildAuto,
     rescanAdminGuildStats,
+    resyncAdminGuildData,
     reconcileStaffServers
   } from '../../lib/api';
   import Papicon from '../../lib/components/Papicon.svelte';
@@ -45,6 +46,16 @@
         totalChannelsCount: number;
         scrapedMessagesCount: number;
       };
+      memberScrapeStatus?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+      memberScrapedCount?: number;
+      memberScrapeError?: string | null;
+      memberScrapeProgress?: {
+        scrapedCount: number;
+        totalCount: number;
+      };
+      fullSyncStatus?: 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+      fullSyncStage?: 'MEMBERS' | 'HISTORY' | null;
+      fullSyncError?: string | null;
     } | null;
     shardId: number;
   }
@@ -54,6 +65,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let searchQuery = $state('');
+  let syncingGuildIds = $state<Set<string>>(new Set());
   let interval: any;
 
   onMount(async () => {
@@ -131,13 +143,34 @@
     finally { reconciling = false; }
   }
 
-  async function handleRescanStats(guildId: string, guildName: string, force: boolean) {
-    if (force && !(await confirmDialog.ask({ title: `Recalculer les stats de « ${guildName} » ?`, description: 'Les statistiques existantes seront écrasées.', confirmLabel: 'Recalculer', variant: 'warning' }))) return;
+  async function handleRescanStats(guildId: string) {
     try {
-      const res = await rescanAdminGuildStats(guildId, force);
+      const res = await rescanAdminGuildStats(guildId, false);
       toast.success(res.message || 'Scan lancé.');
       guilds = (await fetchAdminGuilds()).guilds as AdminGuild[];
     } catch (err: any) { toast.error(err.message); }
+  }
+
+  async function handleResyncAll(guildId: string, guildName: string) {
+    if (!(await confirmDialog.ask({
+      title: `Synchroniser toutes les données de « ${guildName} » ?`,
+      description: 'Les membres seront remis à jour, puis le scan historique reprendra à son dernier curseur. Les données existantes ne seront ni supprimées ni comptées deux fois.',
+      confirmLabel: 'Tout synchroniser',
+      variant: 'warning'
+    }))) return;
+
+    syncingGuildIds = new Set(syncingGuildIds).add(guildId);
+    try {
+      const res = await resyncAdminGuildData(guildId);
+      toast.success(res.message || 'Synchronisation complète lancée.');
+      guilds = (await fetchAdminGuilds()).guilds as AdminGuild[];
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      const next = new Set(syncingGuildIds);
+      next.delete(guildId);
+      syncingGuildIds = next;
+    }
   }
 
   function scanStatusConfig(status: string | undefined) {
@@ -225,7 +258,7 @@
                 <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Serveur</th>
                 <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Shard</th>
                 <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Statut</th>
-                <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Scan Stats</th>
+                <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Synchronisation</th>
                 <th class="text-left text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Rejoint</th>
                 <th class="text-right text-xs font-medium text-on-surface-variant/30 px-5 py-3.5">Actions</th>
               </tr>
@@ -235,6 +268,10 @@
                 {@const status = guild.statsConfig?.historicalScrapeStatus}
                 {@const scanCfg = scanStatusConfig(status)}
                 {@const progress = guild.statsConfig?.historicalScrapeProgress}
+                {@const memberStatus = guild.statsConfig?.memberScrapeStatus}
+                {@const memberCfg = scanStatusConfig(memberStatus)}
+                {@const memberProgress = guild.statsConfig?.memberScrapeProgress}
+                {@const syncRunning = guild.statsConfig?.fullSyncStatus === 'IN_PROGRESS' || memberStatus === 'IN_PROGRESS' || status === 'IN_PROGRESS' || syncingGuildIds.has(guild.id)}
                 <tr class="group hover:bg-on-surface/3 transition-colors duration-150">
                   <!-- Guild info -->
                   <td class="px-5 py-4">
@@ -283,33 +320,49 @@
                     {/if}
                   </td>
 
-                  <!-- Scan stats -->
+                  <!-- Synchronisation Discord -->
                   <td class="px-5 py-4">
                     {#if guild.activated}
-                      <div class="flex flex-col gap-1.5">
-                        <span class="inline-flex items-center gap-1.5 text-xs font-medium border px-2.5 py-1 rounded-full w-fit {scanCfg.chip}">
-                          <span class="w-1.5 h-1.5 rounded-full {scanCfg.dot}"></span>
-                          {scanCfg.label}
-                        </span>
+                      <div class="flex min-w-[210px] flex-col gap-2">
+                        <div class="flex flex-wrap gap-1.5">
+                          <span class="inline-flex items-center gap-1.5 text-[11px] font-medium border px-2 py-1 rounded-full {memberCfg.chip}">
+                            <span class="w-1.5 h-1.5 rounded-full {memberCfg.dot}"></span>
+                            Membres · {memberCfg.label}
+                          </span>
+                          <span class="inline-flex items-center gap-1.5 text-[11px] font-medium border px-2 py-1 rounded-full {scanCfg.chip}">
+                            <span class="w-1.5 h-1.5 rounded-full {scanCfg.dot}"></span>
+                            Historique · {scanCfg.label}
+                          </span>
+                        </div>
+                        {#if memberStatus === 'IN_PROGRESS' && memberProgress}
+                          <p class="text-[11px] text-on-surface-variant/40 font-mono pl-1">
+                            Membres {memberProgress.scrapedCount}/{memberProgress.totalCount}
+                          </p>
+                        {/if}
                         {#if status === 'IN_PROGRESS' && progress}
                           <p class="text-[11px] text-on-surface-variant/40 font-mono pl-1">
-                            {progress.scrapedChannelsCount}/{progress.totalChannelsCount} ch · {progress.scrapedMessagesCount.toLocaleString()} msgs
+                            Historique {progress.scrapedChannelsCount}/{progress.totalChannelsCount} ch · {progress.scrapedMessagesCount.toLocaleString()} msgs
                           </p>
                         {:else if status === 'COMPLETED' && guild.statsConfig?.historicalScrapedMessages}
                           <p class="text-[11px] text-on-surface-variant/30 font-mono pl-1">
                             {guild.statsConfig.historicalScrapedMessages.toLocaleString()} msgs
                           </p>
                         {/if}
-                        {#if status !== 'IN_PROGRESS'}
-                          <div class="flex gap-1">
+                        {#if syncRunning}
+                          <p class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary">
+                            <span class="animate-spin"><Papicon icon="refresh" size={11} /></span>
+                            {guild.statsConfig?.fullSyncStage === 'HISTORY' || status === 'IN_PROGRESS' ? "Synchronisation de l'historique…" : 'Synchronisation des membres…'}
+                          </p>
+                        {:else}
+                          <div class="flex flex-wrap gap-1">
                             <button
-                              onclick={() => handleRescanStats(guild.id, guild.name, false)}
+                              onclick={() => handleRescanStats(guild.id)}
                               class="text-[11px] font-semibold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 px-2 py-0.5 rounded cursor-pointer transition-all"
-                            >Scan</button>
+                            >Reprendre l’historique</button>
                             <button
-                              onclick={() => handleRescanStats(guild.id, guild.name, true)}
-                              class="text-[11px] font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 px-2 py-0.5 rounded cursor-pointer transition-all"
-                            >Forcer</button>
+                              onclick={() => handleResyncAll(guild.id, guild.name)}
+                              class="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-2 py-0.5 rounded cursor-pointer transition-all"
+                            >Tout synchroniser</button>
                           </div>
                         {/if}
                       </div>
