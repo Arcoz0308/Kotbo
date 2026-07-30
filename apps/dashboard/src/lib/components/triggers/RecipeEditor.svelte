@@ -73,6 +73,10 @@
     }
     recipe = read;
     changingTrigger = false;
+    // Un modèle arrive avec des champs volontairement vides : on remonte l'état
+    // de validation dès l'ouverture, sans quoi l'enregistrement paraîtrait
+    // possible avant la première modification.
+    onChange(incoming, validateGraph(incoming));
   });
 
   const trigger = $derived(getTrigger(recipe.trigger.type));
