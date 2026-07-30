@@ -32,6 +32,7 @@ export * from './channelHealth';
 export * from './insights';
 export * from './quests';
 export * from './widgets';
+export * from './homeWidgets';
 export * from './userSettings';
 export * from './changelog';
 export * from './transcripts';

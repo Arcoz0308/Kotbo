@@ -36,6 +36,7 @@ import { handleChannelLinkRoutes } from './dashboard/channelLinks.js';
 import { handleStaffServerRoutes } from './dashboard/staffServer.js';
 import { handleChannelHealthRoutes } from './dashboard/channelHealth.js';
 import { handlePulseRoutes } from './dashboard/pulse.js';
+import { handleHomeWidgetsRoutes } from './dashboard/homeWidgets.js';
 import { handleReputationRoutes } from './dashboard/reputation.js';
 import { handleSatisfactionRoutes } from './dashboard/satisfaction.js';
 import { handleSeasonRoutes } from './dashboard/seasons.js';
@@ -268,6 +269,9 @@ export async function handleDashboardRoutes(
     }
     if (await handlePulseRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleHomeWidgetsRoutes(req, res, parts, url, client, user, guildId, access)) {
       return true;
     }
     if (await handleReputationRoutes(req, res, parts, url, client, user, guildId, access)) {
