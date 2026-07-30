@@ -10,6 +10,8 @@
   import MobileTopBar from './mobile/MobileTopBar.svelte';
   import MobileTabBar from './mobile/MobileTabBar.svelte';
   import MobileNavSheet from './mobile/MobileNavSheet.svelte';
+  import MobileAccountSheet from './mobile/MobileAccountSheet.svelte';
+  import MobileTabEditor from './mobile/MobileTabEditor.svelte';
 
   import { onMount, untrack } from 'svelte';
   import type { Snippet } from 'svelte';
@@ -251,6 +253,8 @@
   {#if $isPhone}
     <MobileTabBar />
     <MobileNavSheet />
+    <MobileAccountSheet />
+    <MobileTabEditor />
   {/if}
 
   <ServerSwitcherModal />

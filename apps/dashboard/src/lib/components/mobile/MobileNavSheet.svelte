@@ -2,18 +2,12 @@
   import { router } from 'tinro';
   import { m } from '../../i18n';
   import { isPageBeta, isPageWip, type PageConfig } from '../../config/pages';
-  import { resolveGuildIconSrc, resolveUserAvatarSrc } from '../../discordMedia';
   import { authStore } from '../../stores/auth.svelte';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
-  import { feedbackModal } from '../../stores/feedbackModal.svelte';
   import { mobileNav } from '../../stores/mobileNav.svelte';
   import { navigationStore, isActiveNavItem } from '../../stores/navigation.svelte';
   import { notificationsStore } from '../../stores/notifications.svelte';
-  import { serverSwitcherStore } from '../../stores/serverSwitcher.svelte';
-  import { themeStore } from '../../stores/theme.svelte';
-  import { onboardingStore } from '../../stores/tutorial.svelte';
   import { unsavedChanges } from '../../stores/unsavedChanges.svelte';
-  import { userPrefs } from '../../stores/userPreferences.svelte';
   import BottomSheet from './BottomSheet.svelte';
   import Papicon from '../Papicon.svelte';
 
@@ -26,18 +20,6 @@
   const searching = $derived(query.trim().length > 0);
 
   const guild = $derived(authStore.guilds.find((g) => g.id === authStore.selectedGuildId));
-  const guildIcon = $derived(guild ? resolveGuildIconSrc(guild.id, guild.icon) : null);
-  const userAvatar = $derived(resolveUserAvatarSrc(authStore.user?.id, authStore.user?.avatar));
-  const profileHref = $derived(authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile');
-
-  const languages = [
-    { code: 'fr', flag: '🇫🇷', label: 'Français' },
-    { code: 'en', flag: '🇬🇧', label: 'English' },
-  ] as const;
-
-  const nextLanguage = $derived(
-    languages.find((lang) => lang.code !== userPrefs.prefs.language) ?? languages[0],
-  );
 
   // Closing wipes the query so the sheet always reopens on the browse view.
   $effect(() => {
@@ -73,27 +55,6 @@
     event.preventDefault();
     event.stopPropagation();
     navigationStore.toggleFavorite(href);
-  }
-
-  function openServerSwitcher() {
-    mobileNav.close();
-    serverSwitcherStore.show();
-  }
-
-  function startTutorial() {
-    if (authStore.selectedGuildId) onboardingStore.initialize(authStore.selectedGuildId);
-    onboardingStore.restart();
-    mobileNav.close();
-  }
-
-  function openFeedback() {
-    mobileNav.close();
-    feedbackModal.show();
-  }
-
-  async function logout() {
-    mobileNav.close();
-    authStore.logout();
   }
 
   function badgeFor(item: PageConfig): number {
@@ -153,78 +114,16 @@
         {@render section(group.label, group.items)}
       {/each}
 
+      <!-- Account, theme and server live behind the avatar in the top bar now.
+           What stays here is the one setting that belongs to this surface. -->
       <section class="navsheet__group">
-        <h3 class="navsheet__group-title">{m.nav_account()}</h3>
-
-        <div class="navsheet__account">
-          <img src={userAvatar} alt="" referrerpolicy="no-referrer" width="40" height="40" />
-          <div>
-            <p class="navsheet__account-name">{authStore.user?.username ?? '…'}</p>
-            <p class="navsheet__account-role">{m.navbar_my_profile()}</p>
-          </div>
-        </div>
-
-        <div class="navsheet__quick">
-          <button type="button" onclick={themeStore.toggle}>
-            <Papicon icon={themeStore.dark ? 'sun' : 'moon'} size={17} />
-            <span>{themeStore.dark ? m.nav_theme_light() : m.nav_theme_dark()}</span>
-          </button>
-
-          <button
-            type="button"
-            onclick={() => userPrefs.set('language', nextLanguage.code)}
-            aria-label={m.navbar_lang_switch()}
-          >
-            <span class="navsheet__flag" aria-hidden="true">{nextLanguage.flag}</span>
-            <span>{nextLanguage.label}</span>
-          </button>
-        </div>
-
+        <h3 class="navsheet__group-title">{m.nav_tabbar_title()}</h3>
         <ul class="navsheet__list">
-          {#if authStore.guilds.length > 1}
-            <li>
-              <button type="button" class="navsheet__row" onclick={openServerSwitcher}>
-                {#if guildIcon}
-                  <img class="navsheet__server-icon" src={guildIcon} alt="" referrerpolicy="no-referrer" />
-                {:else}
-                  <span class="navsheet__server-icon navsheet__server-icon--fallback">
-                    {guild?.name?.charAt(0) ?? '?'}
-                  </span>
-                {/if}
-                <span class="navsheet__row-label">{m.nav_switch_server()}</span>
-                <Papicon icon="chevron-right" size={15} class="navsheet__chevron" />
-              </button>
-            </li>
-          {/if}
-
-          {@render action('user', m.navbar_my_profile(), () => go(profileHref))}
-          {@render action('history', m.navbar_my_activity(), () => go('/activity'))}
-          {@render action('settings', m.navbar_settings(), () => go('/userSettings'))}
-          {@render action('school', m.navbar_tutorial(), startTutorial)}
-          {@render action('bug_report', m.navbar_feedback(), openFeedback)}
-
           <li>
-            <a
-              class="navsheet__row"
-              href="https://docs.kotbo.fr/"
-              target="_blank"
-              rel="noopener noreferrer"
-              onclick={() => mobileNav.close()}
-            >
-              <span class="navsheet__row-icon"><Papicon icon="pronote" size={17} /></span>
-              <span class="navsheet__row-label">{m.navbar_documentation()}</span>
-              <Papicon icon="external-link" size={14} class="navsheet__chevron" />
-            </a>
-          </li>
-
-          {#if authStore.isBotAdmin}
-            {@render action('lock', m.nav_administration(), () => go('/admin'))}
-          {/if}
-
-          <li>
-            <button type="button" class="navsheet__row navsheet__row--danger" onclick={logout}>
-              <span class="navsheet__row-icon"><Papicon icon="log-out" size={17} /></span>
-              <span class="navsheet__row-label">{m.navbar_logout()}</span>
+            <button type="button" class="navsheet__row" onclick={() => mobileNav.open('tabs')}>
+              <span class="navsheet__row-icon"><Papicon icon="tune" size={17} /></span>
+              <span class="navsheet__row-label">{m.nav_customize_tabbar()}</span>
+              <Papicon icon="chevron-right" size={15} class="navsheet__chevron" />
             </button>
           </li>
         </ul>
@@ -280,16 +179,6 @@
       onclick={(event) => toggleFavorite(event, item.href)}
     >
       <Papicon icon="star" size={15} />
-    </button>
-  </li>
-{/snippet}
-
-{#snippet action(icon: string, label: string, onclick: () => void)}
-  <li>
-    <button type="button" class="navsheet__row" {onclick}>
-      <span class="navsheet__row-icon"><Papicon {icon} size={17} /></span>
-      <span class="navsheet__row-label">{label}</span>
-      <Papicon icon="chevron-right" size={15} class="navsheet__chevron" />
     </button>
   </li>
 {/snippet}
@@ -406,14 +295,6 @@
     opacity: 0.45;
   }
 
-  .navsheet__row--danger {
-    color: #dc2626;
-  }
-
-  :global(.dark) .navsheet__row--danger {
-    color: #f87171;
-  }
-
   .navsheet__row-icon {
     display: grid;
     width: 1.75rem;
@@ -511,90 +392,4 @@
     text-align: center;
   }
 
-  .navsheet__account {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-    padding: 0.625rem;
-    border: 1px solid var(--outline-variant);
-    border-radius: 1rem;
-    background: var(--surface-container);
-  }
-
-  .navsheet__account img {
-    width: 2.5rem;
-    height: 2.5rem;
-    flex: none;
-    border-radius: 0.75rem;
-    object-fit: cover;
-  }
-
-  .navsheet__account-name {
-    overflow: hidden;
-    color: var(--on-surface);
-    font-size: 0.875rem;
-    font-weight: 650;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .navsheet__account-role {
-    color: var(--on-surface-variant);
-    font-size: 0.75rem;
-  }
-
-  .navsheet__quick {
-    display: grid;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .navsheet__quick > button {
-    display: flex;
-    min-height: 2.75rem;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0 0.5rem;
-    border: 1px solid var(--outline-variant);
-    border-radius: 0.875rem;
-    background: var(--surface-container-lowest);
-    color: var(--on-surface);
-    font-size: 0.8125rem;
-    font-weight: 600;
-  }
-
-  .navsheet__quick > button:active {
-    background: var(--surface-container);
-  }
-
-  .navsheet__quick > button > span:last-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .navsheet__flag {
-    font-size: 1rem;
-    line-height: 1;
-  }
-
-  .navsheet__server-icon {
-    display: grid;
-    width: 1.75rem;
-    height: 1.75rem;
-    flex: none;
-    place-items: center;
-    border-radius: 0.5rem;
-    object-fit: cover;
-  }
-
-  .navsheet__server-icon--fallback {
-    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-    color: var(--primary-color);
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
 </style>

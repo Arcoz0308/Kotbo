@@ -3,34 +3,13 @@
   import { m } from '../../i18n';
   import { confirmDialog } from '../../stores/confirmDialog.svelte';
   import { mobileNav } from '../../stores/mobileNav.svelte';
+  import { mobileTabs } from '../../stores/mobileTabs.svelte';
   import { navigationStore, isActiveNavItem } from '../../stores/navigation.svelte';
   import { notificationsStore } from '../../stores/notifications.svelte';
   import { unsavedChanges } from '../../stores/unsavedChanges.svelte';
-  import type { PageConfig } from '../../config/pages';
   import Papicon from '../Papicon.svelte';
 
-  /**
-   * Destinations competing for the four fixed slots, best first. Whatever the
-   * user cannot reach is skipped, so a moderator and an admin get a tab bar
-   * filled with pages that are actually useful to each of them.
-   */
-  const PREFERRED_TABS = ['/', '/inbox', '/members', '/tickets', '/sanctions', '/analytics'];
-  const SLOTS = 4;
-
-  const tabs = $derived.by((): PageConfig[] => {
-    const reachable = navigationStore.allItems;
-    const byHref = new Map(reachable.map((item) => [item.href, item]));
-
-    const picked = PREFERRED_TABS.map((href) => byHref.get(href)).filter(
-      (item): item is PageConfig => !!item,
-    );
-
-    // If permissions strip the preferred set down, top up from what is left so
-    // the bar never collapses to one or two lonely icons.
-    const extras = reachable.filter((item) => !PREFERRED_TABS.includes(item.href));
-    return [...picked, ...extras].slice(0, SLOTS);
-  });
-
+  const tabs = $derived(mobileTabs.resolve(navigationStore.allItems));
   const isNavSheetOpen = $derived(mobileNav.sheet === 'nav');
 
   function isActive(href: string): boolean {
@@ -43,6 +22,7 @@
 
   async function navigate(event: MouseEvent, href: string) {
     event.preventDefault();
+    if (consumeLongPress()) return;
     mobileNav.close();
 
     if (isActiveNavItem(href, $router.path, $router.url)) {
@@ -62,6 +42,57 @@
     }
 
     router.goto(href);
+  }
+
+  function openMore() {
+    if (consumeLongPress()) return;
+    mobileNav.toggle('nav');
+  }
+
+  /**
+   * Holding the bar opens its editor, the gesture people already expect from a
+   * phone home screen. The editor also has plain rows in the account and
+   * navigation sheets, so nobody has to discover the gesture to reach it.
+   */
+  const LONG_PRESS_MS = 500;
+  const LONG_PRESS_SLOP = 10;
+
+  let pressTimer: ReturnType<typeof setTimeout> | null = null;
+  let pressOrigin = { x: 0, y: 0 };
+  let longPressFired = false;
+
+  function cancelLongPress() {
+    if (pressTimer === null) return;
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+
+  /** The tap that ends a long press must not also navigate. */
+  function consumeLongPress(): boolean {
+    if (!longPressFired) return false;
+    longPressFired = false;
+    return true;
+  }
+
+  function onPointerDown(event: PointerEvent) {
+    if (event.pointerType === 'mouse') return;
+    longPressFired = false;
+    pressOrigin = { x: event.clientX, y: event.clientY };
+    cancelLongPress();
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      longPressFired = true;
+      navigator.vibrate?.(12);
+      mobileNav.open('tabs');
+    }, LONG_PRESS_MS);
+  }
+
+  function onPointerMove(event: PointerEvent) {
+    if (pressTimer === null) return;
+    const moved =
+      Math.abs(event.clientX - pressOrigin.x) > LONG_PRESS_SLOP ||
+      Math.abs(event.clientY - pressOrigin.y) > LONG_PRESS_SLOP;
+    if (moved) cancelLongPress();
   }
 
   /**
@@ -92,6 +123,11 @@
     aria-label={m.nav_group_general()}
     aria-hidden={keyboardOpen}
     inert={keyboardOpen}
+    onpointerdown={onPointerDown}
+    onpointermove={onPointerMove}
+    onpointerup={cancelLongPress}
+    onpointercancel={cancelLongPress}
+    oncontextmenu={(event) => event.preventDefault()}
   >
     {#each tabs as tab (tab.href)}
       {@const badge = badgeFor(tab.href)}
@@ -121,7 +157,7 @@
       class:tabbar__tab--active={isNavSheetOpen}
       aria-expanded={isNavSheetOpen}
       aria-haspopup="dialog"
-      onclick={() => mobileNav.toggle('nav')}
+      onclick={openMore}
     >
       <span class="tabbar__glyph">
         <Papicon icon={isNavSheetOpen ? 'x' : 'menu'} size={21} />
@@ -142,12 +178,15 @@
     grid-auto-columns: minmax(0, 1fr);
     grid-auto-flow: column;
     align-items: stretch;
-    padding: 0.3125rem 0.25rem calc(0.3125rem + env(safe-area-inset-bottom));
+    padding: 0.25rem 0.25rem calc(0.25rem + env(safe-area-inset-bottom));
     border-top: 1px solid var(--outline-variant);
     background: color-mix(in srgb, var(--surface-container-lowest) 88%, transparent);
     transition: transform 200ms ease, opacity 200ms ease;
     -webkit-backdrop-filter: blur(20px) saturate(1.6);
     backdrop-filter: blur(20px) saturate(1.6);
+    /* A long press edits the bar, so suppress the browser's own hold menu. */
+    -webkit-touch-callout: none;
+    user-select: none;
   }
 
   .tabbar--hidden {
@@ -164,7 +203,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.1875rem;
+    gap: 0.25rem;
     border-radius: 0.75rem;
     color: var(--on-surface-variant);
     transition: color 150ms ease;
