@@ -32,7 +32,10 @@
       depth += 1;
     }
 
-    return current;
+    // Papicons rend un <svg>. Toute autre forme (composant non deroule, element
+    // vide) signifie que le depaquetage a echoue : on repasse alors sur Lucide
+    // plutot que d'emettre un SVG vide qui casse la mise en page.
+    return current?.type === "svg" ? current : null;
   }
 
   function flattenChildren(children: any) {
@@ -72,10 +75,10 @@
 </script>
 
 {#key isPapiconAvailable ? iconName : requestedIcon}
-  {#if isPapiconAvailable && reactIcon}
+  {#if isPapiconAvailable && reactIcon && svgChildren.length > 0}
     <svg
-      width={svgProps.width ?? size}
-      height={svgProps.height ?? size}
+      width={size}
+      height={size}
       viewBox={svgProps.viewBox ?? "0 0 24 24"}
       fill={svgProps.fill ?? "none"}
       xmlns="http://www.w3.org/2000/svg"
