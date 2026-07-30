@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Papicons } from "@getpapillon/papicons";
-  import { availablePapicons, toPapiconsName } from "../icons/papicons";
+  import { toPapiconsName } from "../icons/papicons";
+  import { getPapicon } from "../icons/papiconComponents";
   import { getLucideIcon } from "../icons/lucide";
 
   const {
@@ -58,12 +58,12 @@
   const requestedIcon = $derived(icon || name);
   const mergedClassName = $derived(`${className} ${classNameAlias} ${legacyClassName}`.trim());
   const iconName = $derived(toPapiconsName(requestedIcon));
-  const isPapiconAvailable = $derived(availablePapicons.has(iconName));
+  const PapiconComponent = $derived(getPapicon(iconName));
 
   const reactIcon = $derived.by(() => {
-    if (!isPapiconAvailable || !iconName) return null;
+    if (!PapiconComponent) return null;
     try {
-      return unwrapReactComponent((Papicons as any)({ name: iconName, size, className: mergedClassName }));
+      return unwrapReactComponent(PapiconComponent({ size, className: mergedClassName }));
     } catch {
       return null;
     }
@@ -74,8 +74,8 @@
   const LucideComponent = $derived(getLucideIcon(requestedIcon));
 </script>
 
-{#key isPapiconAvailable ? iconName : requestedIcon}
-  {#if isPapiconAvailable && reactIcon && svgChildren.length > 0}
+{#key PapiconComponent ? iconName : requestedIcon}
+  {#if reactIcon && svgChildren.length > 0}
     <svg
       width={size}
       height={size}
