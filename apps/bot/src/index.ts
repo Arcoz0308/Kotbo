@@ -738,10 +738,31 @@ function logErrorToDb(error: Error, source: string) {
   });
 }
 
+// Une exception isolée venant d'un écouteur Discord (souvent une requête qui
+// échoue pour un seul serveur) ne justifie pas de tuer le shard : le faire
+// coupait le bot sur tous les autres serveurs, et le redémarrage rejouait
+// aussitôt la même erreur. On ne rend la main au superviseur que si les
+// exceptions deviennent continues, signe d'un état réellement irrécupérable.
+const UNCAUGHT_BURST_WINDOW_MS = 10_000;
+const UNCAUGHT_BURST_THRESHOLD = 50;
+let uncaughtWindowStart = 0;
+let uncaughtWindowCount = 0;
+
 process.on('uncaughtException', (error) => {
   logger.error('System', 'Uncaught Exception:', error);
   logErrorToDb(error, 'uncaughtException');
-  void flushAndStop(1);
+
+  const now = Date.now();
+  if (now - uncaughtWindowStart > UNCAUGHT_BURST_WINDOW_MS) {
+    uncaughtWindowStart = now;
+    uncaughtWindowCount = 0;
+  }
+  uncaughtWindowCount++;
+
+  if (uncaughtWindowCount >= UNCAUGHT_BURST_THRESHOLD) {
+    logger.error('System', `${uncaughtWindowCount} exceptions non gérées en ${UNCAUGHT_BURST_WINDOW_MS / 1000}s : arrêt du processus.`);
+    void flushAndStop(1);
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {

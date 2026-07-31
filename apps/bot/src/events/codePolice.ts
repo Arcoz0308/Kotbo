@@ -23,17 +23,17 @@ export function registerCodePoliceListener(client: Client): void {
     if (message.channel.isThread()) return;
     if (!message.guildId) return;
 
-    const enabled = await isCodePoliceEnabled(message.guildId);
-    if (!enabled) return;
-
-    const rules = await loadCodePoliceRules(message.guildId);
-    const hasCodeIndicators = hasRawCodeIndicators(message.content, rules);
-
-    if (!hasCodeIndicators || isAlreadyFormatted(message.content)) {
-      return;
-    }
-
     try {
+      const enabled = await isCodePoliceEnabled(message.guildId);
+      if (!enabled) return;
+
+      const rules = await loadCodePoliceRules(message.guildId);
+      const hasCodeIndicators = hasRawCodeIndicators(message.content, rules);
+
+      if (!hasCodeIndicators || isAlreadyFormatted(message.content)) {
+        return;
+      }
+
       if (message.guild) {
         const botMember = await message.guild.members.fetchMe();
         if (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)) {

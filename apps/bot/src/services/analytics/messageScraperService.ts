@@ -12,6 +12,10 @@ import {
 } from './guildScrapeLock.js';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Égal à la taille d'une page Discord : chaque page est donc validée par une
+// transaction, ce qui la borne (~104 opérations) et la garde sous le timeout
+// ci-dessous. Ne pas augmenter sans découpler le curseur des agrégats : la
+// transaction grossirait proportionnellement et dépasserait ce timeout.
 const HISTORICAL_SCRAPE_FLUSH_MESSAGE_THRESHOLD = 100;
 const HISTORICAL_SCRAPE_TRANSACTION_TIMEOUT_MS = 15_000;
 
