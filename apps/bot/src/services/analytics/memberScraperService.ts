@@ -12,6 +12,11 @@ import {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Un lot de 50 upserts dépasse régulièrement le délai interactif par défaut de
+// Prisma (5 s) sur un gros serveur : la transaction expirait, le scan entier
+// basculait en FAILED et la guilde restait sans aucun profil membre nommé.
+const MEMBER_SCRAPE_TRANSACTION_TIMEOUT_MS = 15_000;
+
 export type MemberScrapeStartStatus =
   | 'STARTED'
   | 'ALREADY_RUNNING'
@@ -175,7 +180,7 @@ async function runMemberScrapeTask(client: Client, guildId: string, _force = fal
       });
 
       try {
-        await prisma.$transaction(ops);
+        await prisma.$transaction(ops, { timeout: MEMBER_SCRAPE_TRANSACTION_TIMEOUT_MS });
       } catch (error) {
         logger.error('MemberScraper', `Error upserting member batch (offset ${i}):`, error);
         throw error;
@@ -217,7 +222,7 @@ async function runMemberScrapeTask(client: Client, guildId: string, _force = fal
         });
       });
 
-      await prisma.$transaction(ops).catch((error) => {
+      await prisma.$transaction(ops, { timeout: MEMBER_SCRAPE_TRANSACTION_TIMEOUT_MS }).catch((error) => {
         logger.error('MemberScraper', `Error upserting GuildDailyStat batch (offset ${i}):`, error);
       });
     }
@@ -234,7 +239,7 @@ async function runMemberScrapeTask(client: Client, guildId: string, _force = fal
         });
       });
 
-      await prisma.$transaction(ops).catch((error) => {
+      await prisma.$transaction(ops, { timeout: MEMBER_SCRAPE_TRANSACTION_TIMEOUT_MS }).catch((error) => {
         logger.error('MemberScraper', `Error upserting GuildHourlyStat batch (offset ${i}):`, error);
       });
     }
@@ -268,7 +273,7 @@ async function runMemberScrapeTask(client: Client, guildId: string, _force = fal
           });
         });
 
-        await prisma.$transaction(ops).catch((error) => {
+        await prisma.$transaction(ops, { timeout: MEMBER_SCRAPE_TRANSACTION_TIMEOUT_MS }).catch((error) => {
           logger.error('MemberScraper', `Error updating left members batch (offset ${i}):`, error);
         });
       }
