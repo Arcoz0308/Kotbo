@@ -20,6 +20,14 @@ export type ClanLevelUpReward = {
  */
 export const MAX_CLAN_POINTS_PER_LEVEL_UP = 1_000_000;
 
+/**
+ * Plafond du total accumulé sur une saison, sous les 2 147 483 647 d'un entier
+ * 32 bits avec de la marge. Sans lui, un barème mal calibré finit par faire
+ * rejeter l'écriture par Postgres en pleine montée de niveau, et le gain part
+ * en silence dans le `catch` qui entoure l'attribution.
+ */
+export const MAX_CLAN_SEASON_POINTS = 2_000_000_000;
+
 /** Le niveau 1 n'a pas de palier précédent : la référence commence à 2. */
 export const MIN_CLAN_REFERENCE_LEVEL = 2;
 

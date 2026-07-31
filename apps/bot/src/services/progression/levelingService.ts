@@ -566,32 +566,21 @@ async function processLevelUp(
               const linkedIds = await getAllLinkedUserIds(guildId, userId).catch(() => [userId]);
               const canonicalUserId = linkedIds.sort()[0];
 
-              await prisma.clanMemberContribution.upsert({
-                where: {
-                  guildId_clanId_userId_season: {
-                    guildId,
-                    clanId: clan.id,
-                    userId: canonicalUserId,
-                    season: guildConfig.currentClanSeason
-                  }
-                },
-                update: {
-                  xp: { increment: clanPoints }
-                },
-                create: {
-                  guildId,
-                  clanId: clan.id,
-                  userId: canonicalUserId,
-                  season: guildConfig.currentClanSeason,
-                  xp: clanPoints
-                }
+              const { creditClanContribution, logClanContribution } = await import('../community/clanService.js');
+              const { granted } = await creditClanContribution({
+                guildId,
+                clanId: clan.id,
+                userId: canonicalUserId,
+                season: guildConfig.currentClanSeason,
+                amount: clanPoints,
               });
 
-              // Journaliser le gain pour le flux public « derniers scores »
-              const { logClanContribution } = await import('../community/clanService.js');
-              await logClanContribution(guildId, clan.id, canonicalUserId, clanPoints, 'XP', guildConfig.currentClanSeason);
+              if (granted > 0) {
+                // Journaliser le gain pour le flux public « derniers scores »
+                await logClanContribution(guildId, clan.id, canonicalUserId, granted, 'XP', guildConfig.currentClanSeason);
+              }
 
-              logger.info('LevelingService', `Points de clan (${clanPoints}) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
+              logger.info('LevelingService', `Points de clan (${granted}) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
             }
           }
         }

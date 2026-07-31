@@ -5,6 +5,7 @@ import {
   xpForLevel,
   DEFAULT_LEVEL_CURVE,
   MAX_CLAN_POINTS_PER_LEVEL_UP,
+  MAX_CLAN_SEASON_POINTS,
   MIN_CLAN_REFERENCE_LEVEL,
 } from '@kotbo/shared';
 
@@ -106,6 +107,13 @@ describe('garde-fous', () => {
       expect(points).toBeGreaterThan(0);
     }
     expect(MIN_CLAN_REFERENCE_LEVEL).toBe(2);
+  });
+
+  test('le total de saison reste sous l entier 32 bits', () => {
+    // `creditClanContribution` ramene le cumul a ce plafond : il doit laisser
+    // de la marge sous la limite de la colonne, meme apres un dernier gain
+    // arrive au maximum autorise par montee de niveau.
+    expect(MAX_CLAN_SEASON_POINTS + MAX_CLAN_POINTS_PER_LEVEL_UP).toBeLessThan(2_147_483_647);
   });
 
   test('ne verse rien avec un forfait nul ou negatif', () => {

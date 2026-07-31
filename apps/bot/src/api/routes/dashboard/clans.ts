@@ -176,7 +176,7 @@ export async function handleClansRoutes(
           json(res, 400, { error: 'Le nombre de points par boost doit être un entier positif.' });
           return true;
         }
-        updateData.clanXpPerBoost = Math.floor(body.clanXpPerBoost);
+        updateData.clanXpPerBoost = Math.min(MAX_CLAN_POINTS_PER_LEVEL_UP, Math.floor(body.clanXpPerBoost));
       }
       if (body?.clanAnnouncementChannelId !== undefined) updateData.clanAnnouncementChannelId = body.clanAnnouncementChannelId || null;
       if (body?.clanRewardGiveaway !== undefined) updateData.clanRewardGiveaway = body.clanRewardGiveaway;
@@ -793,31 +793,20 @@ export async function handleClansRoutes(
         targetUserId = 'system_manual_points';
       }
 
-      // 2. Upsert la contribution
-      const contribution = await prisma.clanMemberContribution.upsert({
-        where: {
-          guildId_clanId_userId_season: {
-            guildId,
-            clanId: resolvedClanId,
-            userId: targetUserId,
-            season,
-          }
-        },
-        update: {
-          xp: { increment: body.amount }
-        },
-        create: {
-          guildId,
-          clanId: resolvedClanId,
-          userId: targetUserId,
-          season,
-          xp: body.amount
-        }
+      // 2. Créditer la contribution, plafond de saison compris
+      const { creditClanContribution, logClanContribution } = await import('../../../services/community/clanService.js');
+      const { granted, contribution } = await creditClanContribution({
+        guildId,
+        clanId: resolvedClanId,
+        userId: targetUserId,
+        season,
+        amount: body.amount,
       });
 
       // Journaliser le gain pour le flux public « derniers scores »
-      const { logClanContribution } = await import('../../../services/community/clanService.js');
-      await logClanContribution(guildId, resolvedClanId, targetUserId, body.amount, 'ADMIN', season);
+      if (granted !== 0) {
+        await logClanContribution(guildId, resolvedClanId, targetUserId, granted, 'ADMIN', season);
+      }
 
       await pushAudit(guildId, {
         user: auditUser,
