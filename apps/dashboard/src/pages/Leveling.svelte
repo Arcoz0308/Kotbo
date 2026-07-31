@@ -220,9 +220,10 @@
           dailyXpCap: res.config.dailyXpCap ?? 0
         };
         savedConfig = JSON.parse(JSON.stringify(config));
-        // Une courbe reglee finement ne rentre pas dans les crans : on ouvre
-        // alors sur les coefficients pour ne pas donner l'illusion du contraire.
-        curveSimpleMode = curveFitsSimpleMode();
+        // La preference d'affichage est retenue d'une visite a l'autre, mais elle
+        // ne peut pas imposer le mode simple : une courbe reglee finement ne
+        // tombe sur aucun cran, et les curseurs en afficheraient un faux.
+        curveSimpleMode = loadCurveModePreference() === 'advanced' ? false : curveFitsSimpleMode();
         rewards = res.rewards || [];
         levels = res.levels || [];
       }
@@ -373,7 +374,26 @@
       && steep === config.curveExponent;
   }
 
+  const CURVE_MODE_KEY = 'kotbo_leveling_curve_mode';
+
+  function loadCurveModePreference(): 'simple' | 'advanced' | null {
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      const raw = localStorage.getItem(CURVE_MODE_KEY);
+      return raw === 'simple' || raw === 'advanced' ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+
   let curveSimpleMode = $state(true);
+
+  function setCurveMode(simple: boolean) {
+    curveSimpleMode = simple;
+    try {
+      localStorage.setItem(CURVE_MODE_KEY, simple ? 'simple' : 'advanced');
+    } catch { /* ignore */ }
+  }
 
   // Les curseurs sont deduits de la configuration et non l'inverse : elle reste
   // la seule source, et basculer de mode ne deplace donc jamais la courbe.
@@ -982,7 +1002,7 @@
             <div class="flex items-center gap-2">
               <button
                 type="button"
-                onclick={() => (curveSimpleMode = !curveSimpleMode)}
+                onclick={() => setCurveMode(!curveSimpleMode)}
                 class="text-[11px] font-semibold text-primary hover:text-on-surface px-3 py-1.5 rounded-lg border border-primary/30 hover:border-outline-variant/20 transition-all"
               >
                 {curveSimpleMode ? m.lv_curve_mode_advanced() : m.lv_curve_mode_simple()}
