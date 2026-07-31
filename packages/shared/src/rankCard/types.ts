@@ -38,5 +38,7 @@ export type RankCardBackgroundPreset = {
  */
 export type RankCardCustomization = {
   backgroundId: string;
+  /** Police du pseudo. Le reste de la carte garde une police neutre. */
+  fontId: string;
   emojis: string[];
 };

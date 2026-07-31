@@ -1,14 +1,18 @@
 import { Client, GuildMember } from 'discord.js';
-import { createCanvas, loadImage, type Image, type SKRSContext2D } from '@napi-rs/canvas';
+import { createCanvas, loadImage, GlobalFonts, type Image, type SKRSContext2D } from '@napi-rs/canvas';
 import type { LevelConfig } from '@prisma/client';
 import { fileURLToPath } from 'node:url';
 import {
   getRankCardBackground,
+  getRankCardFont,
   rankCardEmojiCodePoint,
+  rankCardFontStack,
+  RANK_CARD_FONTS,
   RANK_CARD_HEIGHT,
   RANK_CARD_WIDTH,
   type RankCardCustomization,
 } from '@kotbo/shared';
+import { ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { getRankCardCustomization } from './rankCardService.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -617,6 +621,9 @@ export async function renderRankCard(
   const preset = getRankCardBackground(custom.backgroundId);
   const accentStart = preset.accentBar[0].color;
   const accentEnd = preset.accentBar[preset.accentBar.length - 1].color;
+  ensureCanvasFonts();
+  ensureRankCardFonts();
+  const fontStack = rankCardFontStack(getRankCardFont(custom.fontId));
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
@@ -687,18 +694,36 @@ export async function renderRankCard(
   ctx.fillStyle = statusColor;
   ctx.fill();
 
+  // Bloc RANG / NIVEAU : mesuré avant d'être tracé, car sa bordure gauche borne
+  // la place du pseudo. Les deux partagent la même ligne, et la police du pseudo
+  // étant au choix du membre, sa largeur ne peut plus être devinée.
+  const rankVal = `#${rank}`;
+  const levelVal = `${level}`;
+  ctx.font = 'bold 38px sans-serif';
+  const rankValW = ctx.measureText(rankVal).width;
+  const levelValW = ctx.measureText(levelVal).width;
+  ctx.font = 'bold 14px sans-serif';
+  const rankLabelW = ctx.measureText('RANG ').width;
+  const levelLabelW = ctx.measureText('NIVEAU ').width;
+  const levelX = W - 45 - rankValW - rankLabelW - 28;
+  const rightBlockLeft = levelX - levelValW - levelLabelW;
+
   // Name & tag
   const nameX = 210;
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 30px sans-serif';
-  const truncatedName = subject.displayName.length > 18 ? subject.displayName.slice(0, 15) + '…' : subject.displayName;
-  ctx.fillText(truncatedName, nameX, 80);
+  ctx.font = `bold 30px ${fontStack}`;
+  ctx.fillText(fitText(ctx, subject.displayName, rightBlockLeft - nameX - 24), nameX, 80);
 
+  // Le tag garde la police neutre : seule la graisse Bold des familles du
+  // catalogue est embarquee, et un 17px normal retomberait de toute facon sur
+  // le repli. C est aussi la ligne secondaire, elle n a pas a etre decoree.
   const tagText = subject.discriminator !== '0' ? `#${subject.discriminator}` : `@${subject.username}`;
   ctx.fillStyle = '#6e7681';
   ctx.font = '17px sans-serif';
-  ctx.fillText(tagText, nameX, 106);
-  const tagWidth = ctx.measureText(tagText).width;
+  const emojiBandW = rankCardEmojiBandWidth(custom.emojis.length);
+  const fittedTag = fitText(ctx, tagText, W - 45 - nameX - emojiBandW);
+  ctx.fillText(fittedTag, nameX, 106);
+  const tagWidth = ctx.measureText(fittedTag).width;
 
   await drawRankCardEmojis(ctx, custom.emojis, nameX + tagWidth + 16, 99);
 
@@ -707,21 +732,15 @@ export async function renderRankCard(
 
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 38px sans-serif';
-  const rankVal = `#${rank}`;
   ctx.fillText(rankVal, W - 45, 72);
-  const rankValW = ctx.measureText(rankVal).width;
 
   ctx.fillStyle = accentStart;
   ctx.font = 'bold 14px sans-serif';
   ctx.fillText('RANG ', W - 45 - rankValW, 72);
-  const rankLabelW = ctx.measureText('RANG ').width;
 
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 38px sans-serif';
-  const levelVal = `${level}`;
-  const levelX = W - 45 - rankValW - rankLabelW - 28;
   ctx.fillText(levelVal, levelX, 72);
-  const levelValW = ctx.measureText(levelVal).width;
 
   ctx.fillStyle = accentEnd;
   ctx.font = 'bold 14px sans-serif';
@@ -808,6 +827,61 @@ async function loadRankCardAvatar(url: string): Promise<Image> {
   return image;
 }
 
+const RANK_FONT_DIR = fileURLToPath(new URL('../../../assets/rank-fonts/', import.meta.url));
+
+let rankFontsRegistered = false;
+
+/**
+ * Enregistre les polices du catalogue auprès du canvas. Une police absente ou
+ * illisible est seulement journalisée : la pile de familles retombe alors sur
+ * DejaVu, ce qui donne une carte moins jolie mais jamais une carte cassée.
+ */
+function ensureRankCardFonts(): void {
+  if (rankFontsRegistered) return;
+  rankFontsRegistered = true;
+
+  for (const font of RANK_CARD_FONTS) {
+    if (!font.family) continue;
+    const file = `${RANK_FONT_DIR}${font.id}.ttf`;
+    try {
+      if (!GlobalFonts.registerFromPath(file, font.family)) {
+        logger.warn('RankCard', `Police ${font.id} refusée par le canvas (${file})`);
+      }
+    } catch (error) {
+      logger.warn('RankCard', `Police ${font.id} illisible:`, error);
+    }
+  }
+}
+
+const RANK_EMOJI_SIZE = 26, RANK_EMOJI_GAP = 8;
+
+function rankCardEmojiBandWidth(count: number): number {
+  if (count <= 0) return 0;
+  // Le decalage de 16 px qui separe le tag de la bande est compte ici, pour que
+  // l appelant n ait qu une seule largeur a reserver.
+  return 16 + count * RANK_EMOJI_SIZE + (count - 1) * RANK_EMOJI_GAP;
+}
+
+/**
+ * Tronque au caractère près pour tenir dans `maxWidth`, ellipse comprise.
+ *
+ * Le découpage passe par les points de code et non par `slice` : un pseudo peut
+ * contenir des emojis, et couper au milieu d'une paire de substitution
+ * afficherait un caractère de remplacement. `ctx.font` doit être positionné
+ * avant l'appel, la mesure en dépend.
+ */
+function fitText(ctx: SKRSContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+
+  const chars = [...text];
+  while (chars.length > 1) {
+    chars.pop();
+    const candidate = `${chars.join('')}…`;
+    if (ctx.measureText(candidate).width <= maxWidth) return candidate;
+  }
+  return '…';
+}
+
 const RANK_EMOJI_DIR = fileURLToPath(new URL('../../../assets/rank-emojis/', import.meta.url));
 
 // `null` memorise un asset manquant : sans lui, un fichier absent relancait un
@@ -838,15 +912,14 @@ async function drawRankCardEmojis(
   startX: number,
   centerY: number,
 ): Promise<void> {
-  const size = 26, gap = 8;
   let x = startX;
 
   for (const emoji of emojis) {
     const image = await loadRankCardEmoji(emoji);
     if (!image) continue;
 
-    ctx.drawImage(image, x, centerY - size / 2, size, size);
-    x += size + gap;
+    ctx.drawImage(image, x, centerY - RANK_EMOJI_SIZE / 2, RANK_EMOJI_SIZE, RANK_EMOJI_SIZE);
+    x += RANK_EMOJI_SIZE + RANK_EMOJI_GAP;
   }
 }
 

@@ -1,4 +1,5 @@
 import { DEFAULT_RANK_CARD_BACKGROUND_ID, RANK_CARD_BACKGROUNDS } from './presets.js';
+import { DEFAULT_RANK_CARD_FONT_ID, RANK_CARD_FONTS } from './fonts.js';
 import type { RankCardCustomization } from './types.js';
 
 export const RANK_CARD_MAX_EMOJIS = 3;
@@ -45,6 +46,7 @@ const EMOJI_CODE_POINTS = new Map(RANK_CARD_EMOJIS.map((emoji) => [emoji.value, 
 
 export const DEFAULT_RANK_CARD_CUSTOMIZATION: RankCardCustomization = {
   backgroundId: DEFAULT_RANK_CARD_BACKGROUND_ID,
+  fontId: DEFAULT_RANK_CARD_FONT_ID,
   emojis: [],
 };
 
@@ -62,6 +64,11 @@ export function normalizeRankCardCustomization(raw: unknown): RankCardCustomizat
     ? candidate.backgroundId
     : DEFAULT_RANK_CARD_BACKGROUND_ID;
 
+  const fontId = typeof candidate.fontId === 'string'
+    && RANK_CARD_FONTS.some((preset) => preset.id === candidate.fontId)
+    ? candidate.fontId
+    : DEFAULT_RANK_CARD_FONT_ID;
+
   const seen = new Set<string>();
   const emojis: string[] = [];
   if (Array.isArray(candidate.emojis)) {
@@ -73,7 +80,7 @@ export function normalizeRankCardCustomization(raw: unknown): RankCardCustomizat
     }
   }
 
-  return { backgroundId, emojis };
+  return { backgroundId, fontId, emojis };
 }
 
 /** Point de code Twemoji, ou `null` si l'emoji n'est pas au catalogue. */

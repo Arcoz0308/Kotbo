@@ -5,6 +5,7 @@ model RankCardPreference {
   userId String @id
 
   backgroundId String @default("default")
+  fontId       String @default("default")
   emojis       Json   @default("[]")
 
   createdAt DateTime @default(now())

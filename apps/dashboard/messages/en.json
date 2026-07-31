@@ -7560,5 +7560,6 @@
   "pf_tab_rank_card": "My rank card",
   "rc_preview_error": "Preview unavailable right now.",
   "rc_reset": "Reset",
-  "rc_preview_note_real": "Preview uses your progress on the selected server."
+  "rc_preview_note_real": "Preview uses your progress on the selected server.",
+  "rc_font_title": "Username font"
 }

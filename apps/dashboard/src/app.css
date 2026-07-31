@@ -13,6 +13,22 @@
 @import "@fontsource/jetbrains-mono/latin-700.css";
 @import "tailwindcss";
 
+/*
+ * Polices proposées pour le pseudo de la carte `/rank`.
+ *
+ * Auto-hébergées plutôt qu'ajoutées en dépendances `@fontsource` : elles ne
+ * servent qu'à l'aperçu du sélecteur, et une déclaration `@font-face` n'est
+ * téléchargée que si une règle l'utilise réellement. Les mêmes familles et
+ * graisses sont embarquées en TTF côté bot pour le rendu du canvas.
+ */
+@font-face { font-family: "Lato"; font-weight: 700; font-display: swap; src: url("/rank-fonts/lato.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-weight: 700; font-display: swap; src: url("/rank-fonts/poppins.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 700; font-display: swap; src: url("/rank-fonts/barlow.woff2") format("woff2"); }
+@font-face { font-family: "Kanit"; font-weight: 700; font-display: swap; src: url("/rank-fonts/kanit.woff2") format("woff2"); }
+@font-face { font-family: "PT Serif"; font-weight: 700; font-display: swap; src: url("/rank-fonts/ptserif.woff2") format("woff2"); }
+@font-face { font-family: "Arvo"; font-weight: 700; font-display: swap; src: url("/rank-fonts/arvo.woff2") format("woff2"); }
+@font-face { font-family: "Space Mono"; font-weight: 700; font-display: swap; src: url("/rank-fonts/spacemono.woff2") format("woff2"); }
+
 @variant dark (&:where(.dark, .dark *));
 
 
