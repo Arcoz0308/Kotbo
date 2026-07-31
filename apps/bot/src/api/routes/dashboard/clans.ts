@@ -4,6 +4,7 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { json, readJsonBody, getGuildName, pushAudit, broadcastDashboardStateChange, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { clanTasks, runDistribution, runClear, runDeduplicate, runClanArtifactCleanup, handleEndSeason, buildCategoryName } from '../../../services/community/clanService.js';
+import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
 
 /** Garde-fou sur les ajustements manuels : au-delà, c'est une faute de frappe. */
 const MAX_MANUAL_POINTS = 1_000_000;
@@ -719,12 +720,6 @@ export async function handleClansRoutes(
 
       if (body.userId?.trim()) {
         const userId = body.userId.trim();
-        // S'assurer que le profil membre existe en base de données
-        await prisma.memberProfile.upsert({
-          where: { guildId_userId: { guildId, userId } },
-          update: {},
-          create: { guildId, userId },
-        }).catch(() => null);
 
         // Récupérer le membre Discord et ses rôles
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -738,6 +733,14 @@ export async function handleClansRoutes(
           json(res, 404, { error: "L'utilisateur est introuvable sur le serveur Discord." });
           return true;
         }
+
+        // S'assurer que le profil membre existe en base de données. Le membre
+        // Discord est résolu avant, pour ne jamais créer de profil anonyme.
+        await prisma.memberProfile.upsert({
+          where: { guildId_userId: { guildId, userId } },
+          update: {},
+          create: { guildId, userId, ...memberProfileIdentity(member) },
+        }).catch(() => null);
 
         const clans = await prisma.clan.findMany({ where: { guildId } });
         const memberClan = clans.find(c => member.roles.cache.has(c.roleId));

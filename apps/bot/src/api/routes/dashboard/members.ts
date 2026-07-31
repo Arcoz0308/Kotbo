@@ -5,6 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
 import * as altAccountService from '../../../services/moderation/altAccountService.js';
 import { scanGuildMembersForYoungAccounts, getDetectionEvidence } from '../../../services/moderation/dcDetectionService.js';
+import { resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import {
   json,
@@ -487,18 +488,34 @@ export async function handleMembersRoutes(
         isOnServer: boolean;
       };
 
-      let members: MemberListEntry[] = result.members.map((m) => ({
-        id: m.userId,
-        username: m.username ?? 'Utilisateur inconnu',
-        displayName: m.displayName ?? m.username ?? 'Utilisateur inconnu',
-        avatarUrl: m.avatarUrl,
-        isBot: m.isBot,
-        lastSeenAt: m.lastSeenAt?.toISOString() ?? null,
-        messageCount: m.messageCount,
-        guildJoinedAt: m.guildJoinedAt?.toISOString() ?? null,
-        guildLeftAt: m.guildLeftAt?.toISOString() ?? null,
-        isOnServer: !m.guildLeftAt,
-      }));
+      // Certaines lignes de profil sont créées sans identité (détection de
+      // doubles comptes, note de modération, adhésion à un clan) : sans ce
+      // rattrapage, elles s'affichent en « Utilisateur inconnu » alors que la
+      // fiche membre, qui interroge Discord, montre le bon compte.
+      const identities = await resolveMissingMemberIdentities(
+        client,
+        guildId,
+        result.members.filter((m) => !m.username).map((m) => m.userId),
+      ).catch((err) => {
+        logger.warn('MembersAPI', 'Identités membres non complétées:', err);
+        return new Map<string, { username: string; displayName: string; avatarUrl: string }>();
+      });
+
+      let members: MemberListEntry[] = result.members.map((m) => {
+        const identity = m.username ? undefined : identities.get(m.userId);
+        return {
+          id: m.userId,
+          username: m.username ?? identity?.username ?? 'Utilisateur inconnu',
+          displayName: m.displayName ?? identity?.displayName ?? m.username ?? 'Utilisateur inconnu',
+          avatarUrl: m.avatarUrl ?? identity?.avatarUrl ?? null,
+          isBot: m.isBot,
+          lastSeenAt: m.lastSeenAt?.toISOString() ?? null,
+          messageCount: m.messageCount,
+          guildJoinedAt: m.guildJoinedAt?.toISOString() ?? null,
+          guildLeftAt: m.guildLeftAt?.toISOString() ?? null,
+          isOnServer: !m.guildLeftAt,
+        };
+      });
 
       // Fallback Discord : si la recherche DB ne trouve rien, chercher sur Discord
       if (members.length === 0 && searchQuery && discordGuild && serverStatus !== 'left') {
@@ -880,12 +897,20 @@ export async function handleMembersRoutes(
     const body = await readJsonBody<{ note: string }>(req);
 
     try {
+      // Une note peut viser un membre encore absent de la base : on lui pose
+      // son identité Discord pour ne pas créer un profil anonyme.
+      const noteGuild = client.guilds.cache.get(guildId);
+      const noteMember = noteGuild
+        ? noteGuild.members.cache.get(userId) ?? await noteGuild.members.fetch(userId).catch(() => null)
+        : null;
+
       const profile = await prisma.memberProfile.upsert({
         where: { guildId_userId: { guildId, userId } },
         update: { moderatorNote: body?.note ?? null },
         create: {
           guildId,
           userId,
+          ...(noteMember ? memberProfileIdentity(noteMember) : {}),
           moderatorNote: body?.note ?? null,
         },
       });
