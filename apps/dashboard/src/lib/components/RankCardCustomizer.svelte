@@ -1,29 +1,43 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { rankCardEmojiImageUrl, type RankCardBackgroundPreset, type RankCardCustomization } from '@kotbo/shared';
-  import { fetchRankCardOptions, fetchRankCardPreview, saveRankCard } from '../api/rankCard';
+  import {
+    rankCardEmojiImageUrl,
+    DEFAULT_RANK_CARD_CUSTOMIZATION,
+    RANK_CARD_BACKGROUNDS,
+    RANK_CARD_EMOJIS,
+    RANK_CARD_MAX_EMOJIS,
+    type RankCardBackgroundPreset,
+    type RankCardCustomization,
+  } from '@kotbo/shared';
+  import { fetchRankCardCustomization, fetchRankCardPreview, saveRankCard } from '../api/rankCard';
+  import { authStore } from '../stores/auth.svelte';
   import { toast } from '../stores/toast.svelte';
   import { m, getLocale } from '../i18n';
   import Papicon from './Papicon.svelte';
 
+  // Catalogues compiles avec la page : c est la meme source que le canvas
+  // serveur, donc aucune divergence possible entre choix offerts et rendu.
+  const backgrounds = RANK_CARD_BACKGROUNDS;
+  const availableEmojis = RANK_CARD_EMOJIS.map((emoji) => emoji.value);
+  const maxEmojis = RANK_CARD_MAX_EMOJIS;
+
   let loading = $state(true);
   let saving = $state(false);
-  let backgrounds = $state<RankCardBackgroundPreset[]>([]);
-  let availableEmojis = $state<string[]>([]);
-  let maxEmojis = $state(3);
 
-  let backgroundId = $state('default');
+  let backgroundId = $state(DEFAULT_RANK_CARD_CUSTOMIZATION.backgroundId);
   let emojis = $state<string[]>([]);
   let savedSignature = $state('');
 
   let previewUrl = $state<string | null>(null);
   let previewLoading = $state(false);
   let previewFailed = $state(false);
+  let previewIsReal = $state(false);
   let previewTimer: ReturnType<typeof setTimeout> | null = null;
   let previewToken = 0;
 
   const draft = $derived<RankCardCustomization>({ backgroundId, emojis: [...emojis] });
   const dirty = $derived(signatureOf(draft) !== savedSignature);
+  const customized = $derived(signatureOf(draft) !== signatureOf(DEFAULT_RANK_CARD_CUSTOMIZATION));
 
   /** Signature canonique : ne pas dependre de l ordre des cles renvoyees par l API. */
   function signatureOf(customization: RankCardCustomization): string {
@@ -54,18 +68,19 @@
     previewUrl = null;
   }
 
-  async function refreshPreview(customization: RankCardCustomization) {
+  async function refreshPreview(customization: RankCardCustomization, guildId: string | null) {
     const token = ++previewToken;
     previewLoading = true;
     try {
-      const url = await fetchRankCardPreview(customization);
+      const preview = await fetchRankCardPreview(customization, guildId);
       if (token !== previewToken) {
-        if (url) URL.revokeObjectURL(url);
+        if (preview) URL.revokeObjectURL(preview.url);
         return;
       }
-      if (url) {
+      if (preview) {
         releasePreview();
-        previewUrl = url;
+        previewUrl = preview.url;
+        previewIsReal = preview.realProgression;
         previewFailed = false;
       } else {
         previewFailed = true;
@@ -87,6 +102,11 @@
       return;
     }
     emojis = [...emojis, emoji];
+  }
+
+  function reset() {
+    backgroundId = DEFAULT_RANK_CARD_CUSTOMIZATION.backgroundId;
+    emojis = [...DEFAULT_RANK_CARD_CUSTOMIZATION.emojis];
   }
 
   async function save() {
@@ -111,23 +131,25 @@
   $effect(() => {
     // Le rendu passe par le bot : on attend une pause dans les clics pour ne
     // pas enchainer un aller-retour par vignette survolee.
+    //
+    // Le serveur est lu ici et non dans `refreshPreview` : depuis le setTimeout
+    // il sortirait du suivi reactif, et changer de serveur laisserait l apercu
+    // sur la progression du precedent.
     const customization = draft;
+    const guildId = authStore.selectedGuildId;
     if (loading) return;
     if (previewTimer) clearTimeout(previewTimer);
-    previewTimer = setTimeout(() => refreshPreview(customization), 250);
+    previewTimer = setTimeout(() => refreshPreview(customization, guildId), 250);
   });
 
   $effect(() => {
     void (async () => {
       try {
-        const options = await fetchRankCardOptions();
-        if (options) {
-          backgrounds = options.backgrounds;
-          availableEmojis = options.emojis;
-          maxEmojis = options.maxEmojis;
-          backgroundId = options.customization.backgroundId;
-          emojis = options.customization.emojis;
-          savedSignature = signatureOf(options.customization);
+        const customization = await fetchRankCardCustomization();
+        if (customization) {
+          backgroundId = customization.backgroundId;
+          emojis = customization.emojis;
+          savedSignature = signatureOf(customization);
         } else {
           toast.error(m.rc_load_error());
         }
@@ -153,8 +175,6 @@
 
   {#if loading}
     <div class="h-[180px] animate-pulse rounded-xl bg-surface-container-low"></div>
-  {:else if backgrounds.length === 0}
-    <p class="text-[13px] text-on-surface-variant">{m.rc_load_error()}</p>
   {:else}
     <div class="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-low">
       {#if previewUrl}
@@ -172,7 +192,9 @@
         </div>
       {/if}
     </div>
-    <p class="text-[12px] text-on-surface-variant">{m.rc_preview_note()}</p>
+    <p class="text-[12px] text-on-surface-variant">
+      {previewIsReal ? m.rc_preview_note_real() : m.rc_preview_note()}
+    </p>
 
     <div>
       <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_background_title()}</h4>
@@ -227,6 +249,14 @@
         class="rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-on-primary transition-all hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         {saving ? m.rc_saving() : m.rc_save()}
+      </button>
+      <button
+        type="button"
+        onclick={reset}
+        disabled={saving || !customized}
+        class="rounded-lg border border-outline-variant px-4 py-2 text-[13px] font-medium text-on-surface transition-all hover:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {m.rc_reset()}
       </button>
       {#if dirty}
         <span class="text-[12px] text-on-surface-variant">{m.rc_unsaved()}</span>

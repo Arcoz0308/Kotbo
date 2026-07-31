@@ -7558,5 +7558,7 @@
   "rc_load_error": "Impossible de charger les options de personnalisation.",
   "rc_unsaved": "Modifications non enregistrées",
   "pf_tab_rank_card": "Ma carte de rang",
-  "rc_preview_error": "Aperçu indisponible pour le moment."
+  "rc_preview_error": "Aperçu indisponible pour le moment.",
+  "rc_reset": "Réinitialiser",
+  "rc_preview_note_real": "Aperçu avec votre progression sur le serveur sélectionné."
 }
