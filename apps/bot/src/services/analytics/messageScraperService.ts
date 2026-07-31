@@ -464,7 +464,6 @@ async function markScrapeFailed(guildId: string, errorMsg: string): Promise<void
     const statsConfig = readStatsConfig(guildDb?.statsConfig);
     statsConfig.historicalScrapeStatus = 'FAILED';
     statsConfig.historicalScrapeError = errorMsg;
-    delete statsConfig.historicalScrapeProgress;
 
     await prisma.guild.update({
       where: { id: guildId },

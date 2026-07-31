@@ -5,17 +5,14 @@ import path from 'node:path';
 type TransactionOptions = { timeout?: number };
 
 const transactionCalls: Array<{ operationCount: number; options?: TransactionOptions }> = [];
+let transactionError: Error | null = null;
+let storedStatsConfig: Record<string, unknown> = {};
 
 const mockDb = {
   guild: {
     findUnique: mock(async () => ({
       activated: true,
-      statsConfig: {
-        historicalScrapeStatus: 'NOT_STARTED',
-        historicalScrapedChannels: [],
-        historicalScrapedMessages: 0,
-        scrapingBoundaryDate: '2099-01-01T00:00:00.000Z',
-      },
+      statsConfig: storedStatsConfig,
     })),
     update: mock(async () => ({})),
   },
@@ -38,6 +35,7 @@ const mockDb = {
     options?: TransactionOptions,
   ) => {
     transactionCalls.push({ operationCount: operations.length, options });
+    if (transactionError) throw transactionError;
     return Promise.all(operations);
   }),
 };
@@ -86,42 +84,58 @@ function messagePage(offset: number, size: number) {
   return page;
 }
 
+function createScrapeClient(pages: Array<Collection<string, {
+  id: string;
+  author: { id: string; bot: boolean };
+  createdAt: Date;
+  reference: null;
+}>>) {
+  let pageIndex = 0;
+  const channel = {
+    id: 'channel-1',
+    name: 'general',
+    type: ChannelType.GuildText,
+    isTextBased: () => true,
+    permissionsFor: () => ({ has: () => true }),
+    messages: {
+      fetch: mock(async () => pages[pageIndex++] ?? new Collection()),
+    },
+  };
+  const channels = new Collection<string, typeof channel>();
+  channels.set(channel.id, channel);
+
+  const guild = {
+    id: 'guild-1',
+    name: 'Test Guild',
+    members: { me: { id: 'bot-1' } },
+    channels: { fetch: mock(async () => channels) },
+  };
+  const client = {
+    user: { id: 'bot-1' },
+    guilds: {
+      cache: new Collection([[guild.id, guild]]),
+      fetch: mock(async () => guild),
+    },
+  };
+
+  return { client, guild };
+}
+
 describe('message scraper transaction batching', () => {
   test('flushes every Discord page with a bounded local transaction timeout', async () => {
     transactionCalls.length = 0;
-    const pages = [
+    transactionError = null;
+    storedStatsConfig = {
+      historicalScrapeStatus: 'NOT_STARTED',
+      historicalScrapedChannels: [],
+      historicalScrapedMessages: 0,
+      scrapingBoundaryDate: '2099-01-01T00:00:00.000Z',
+    };
+    const { client, guild } = createScrapeClient([
       messagePage(0, 100),
       messagePage(100, 100),
       messagePage(200, 50),
-    ];
-    let pageIndex = 0;
-
-    const channel = {
-      id: 'channel-1',
-      name: 'general',
-      type: ChannelType.GuildText,
-      isTextBased: () => true,
-      permissionsFor: () => ({ has: () => true }),
-      messages: {
-        fetch: mock(async () => pages[pageIndex++] ?? new Collection()),
-      },
-    };
-    const channels = new Collection<string, typeof channel>();
-    channels.set(channel.id, channel);
-
-    const guild = {
-      id: 'guild-1',
-      name: 'Test Guild',
-      members: { me: { id: 'bot-1' } },
-      channels: { fetch: mock(async () => channels) },
-    };
-    const client = {
-      user: { id: 'bot-1' },
-      guilds: {
-        cache: new Collection([[guild.id, guild]]),
-        fetch: mock(async () => guild),
-      },
-    };
+    ]);
 
     const result = await startHistoricalScraping(client as never, guild.id);
     expect(result.status).toBe('STARTED');
@@ -130,5 +144,35 @@ describe('message scraper transaction batching', () => {
     expect(transactionCalls).toHaveLength(3);
     expect(transactionCalls.map((call) => call.operationCount)).toEqual([104, 104, 54]);
     expect(transactionCalls.every((call) => call.options?.timeout === 15_000)).toBe(true);
+  });
+
+  test('preserves the last committed cursor when a flush fails', async () => {
+    transactionCalls.length = 0;
+    mockDb.guild.update.mockClear();
+    transactionError = new Error('transaction expired');
+    storedStatsConfig = {
+      historicalScrapeStatus: 'FAILED',
+      historicalScrapedChannels: [],
+      historicalScrapedMessages: 100,
+      scrapingBoundaryDate: '2099-01-01T00:00:00.000Z',
+      historicalScrapeProgress: {
+        currentChannelId: 'channel-1',
+        currentLastMessageId: 'cursor-before-error',
+        scrapedMessagesCount: 100,
+      },
+    };
+    const { client, guild } = createScrapeClient([messagePage(100, 100)]);
+
+    const result = await startHistoricalScraping(client as never, guild.id);
+    expect(result.status).toBe('STARTED');
+    await result.completion;
+
+    const lastUpdate = mockDb.guild.update.mock.calls.at(-1)?.[0] as {
+      data?: { statsConfig?: Record<string, unknown> };
+    };
+    expect(lastUpdate.data?.statsConfig?.historicalScrapeStatus).toBe('FAILED');
+    expect(lastUpdate.data?.statsConfig?.historicalScrapeProgress).toEqual(
+      storedStatsConfig.historicalScrapeProgress,
+    );
   });
 });
