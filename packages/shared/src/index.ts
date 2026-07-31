@@ -11,6 +11,7 @@ export * from './workflow/catalog.js';
 export * from './workflow/validate.js';
 export * from './simulation/types.js';
 export * from './leveling/curve.js';
+export * from './leveling/clanPoints.js';
 export * from './leveling/dailyCap.js';
 export * from './rankCard/types.js';
 export * from './rankCard/presets.js';

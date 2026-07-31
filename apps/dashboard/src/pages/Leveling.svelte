@@ -35,12 +35,17 @@
   const saveAction = createAsyncActionState();
   const rewardAction = createAsyncActionState();
   let loading = $state(false);
-  const levelingTabs = ['config', 'leaderboard', 'import'] as const;
-  let activeTab = $state<'config' | 'leaderboard' | 'import'>('config');
+  // 'config' a disparu au profit de trois onglets thematiques. Il n'est pas
+  // conserve comme alias : `resolveTabFromUrl` renvoie l'onglet par defaut pour
+  // tout segment inconnu, donc les anciens liens /leveling/config atterrissent
+  // sur 'gains' au lieu de casser.
+  const levelingTabs = ['gains', 'progression', 'annonces', 'leaderboard', 'import'] as const;
+  type LevelingTab = (typeof levelingTabs)[number];
+  let activeTab = $state<LevelingTab>('gains');
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/leveling', levelingTabs, 'config') as typeof activeTab;
+    activeTab = resolveTabFromUrl('/leveling', levelingTabs, 'gains') as LevelingTab;
   });
   let copySuccess = $state(false);
 
@@ -487,16 +492,32 @@
   <!-- Navigation par onglets -->
   <nav class="tab-group w-fit">
     <button
-      id="tab-config"
-      onclick={() => gotoTab('/leveling', 'config', 'config')}
-      class="tab-button {activeTab === 'config' ? 'active' : ''}"
+      id="tab-gains"
+      onclick={() => gotoTab('/leveling', 'gains', 'gains')}
+      class="tab-button {activeTab === 'gains' ? 'active' : ''}"
     >
       <Papicon icon="Settings" size={16} />
-      {m.lv_tab_config()}
+      {m.lv_tab_gains()}
+    </button>
+    <button
+      id="tab-progression"
+      onclick={() => gotoTab('/leveling', 'progression', 'gains')}
+      class="tab-button {activeTab === 'progression' ? 'active' : ''}"
+    >
+      <Papicon icon="Grades" size={16} />
+      {m.lv_tab_progression()}
+    </button>
+    <button
+      id="tab-annonces"
+      onclick={() => gotoTab('/leveling', 'annonces', 'gains')}
+      class="tab-button {activeTab === 'annonces' ? 'active' : ''}"
+    >
+      <Papicon icon="Bell" size={16} />
+      {m.lv_tab_announcements()}
     </button>
     <button
       id="tab-leaderboard"
-      onclick={() => gotoTab('/leveling', 'leaderboard', 'config')}
+      onclick={() => gotoTab('/leveling', 'leaderboard', 'gains')}
       class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'leaderboard' ? 'bg-tertiary text-on-tertiary shadow-lg shadow-tertiary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
     >
       <Papicon icon="Grades" size={16} />
@@ -510,7 +531,7 @@
     {#if canManageSettings}
       <button
         id="tab-import"
-        onclick={() => gotoTab('/leveling', 'import', 'config')}
+        onclick={() => gotoTab('/leveling', 'import', 'gains')}
         class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'import' ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
       >
         <Papicon icon="Upload" size={16} />
@@ -520,419 +541,386 @@
   </nav>
 
   {#if loading}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div class="lg:col-span-2 space-y-8">
-        <Skeleton height="350px" radius="2.5rem" />
-        <Skeleton height="250px" radius="2.5rem" />
-      </div>
-      <Skeleton height="620px" radius="2.5rem" />
+    <div class="space-y-8">
+      <Skeleton height="350px" radius="2.5rem" />
+      <Skeleton height="250px" radius="2.5rem" />
     </div>
-  {:else if activeTab === 'config'}
-    <!-- === ONGLET CONFIGURATION === -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
-      <div class="lg:col-span-2 space-y-8">
-        <!-- Paramètres XP -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-          <h3 class="text-xl font-semibold flex items-center gap-3">
-            <Papicon icon="Settings" size={20} class="text-primary" />
-            {m.lv_xp_params_title()}
-          </h3>
+  {:else if activeTab === 'gains'}
+    <!-- === ONGLET GAINS D'XP === -->
+    <div class="space-y-8 animate-in fade-in duration-300">
+      <!-- Paramètres XP -->
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
+          <Papicon icon="Settings" size={20} class="text-primary" />
+          {m.lv_xp_params_title()}
+        </h3>
 
-          <div class="leveling-xp-grid grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-1.5">
-              <label for="xpMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_min()}</label>
-              <input 
-                id="xpMin"
-                type="number" 
-                bind:value={config.xpMin} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                disabled={!canManageSettings}
-              />
+        <div class="leveling-xp-grid grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-1.5">
+            <label for="xpMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_min()}</label>
+            <input 
+              id="xpMin"
+              type="number" 
+              bind:value={config.xpMin} 
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="xpMax" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_max()}</label>
+            <input 
+              id="xpMax"
+              type="number" 
+              bind:value={config.xpMax} 
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="cooldown" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_cooldown()}</label>
+            <input 
+              id="cooldown"
+              type="number" 
+              bind:value={config.cooldownSeconds} 
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="vocalXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_vocal_xp()}</label>
+            <input 
+              id="vocalXp"
+              type="number" 
+              bind:value={config.vocalXpPerMin} 
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <!-- Conditions d'XP vocale -->
+          <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
+            <div>
+              <span class="text-xs font-bold text-on-surface">{m.lv_voice_conditions_title()}</span>
+              <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_conditions_desc()}</p>
             </div>
 
-            <div class="space-y-1.5">
-              <label for="xpMax" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_max()}</label>
-              <input 
-                id="xpMax"
-                type="number" 
-                bind:value={config.xpMax} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                disabled={!canManageSettings}
-              />
-            </div>
-
-            <div class="space-y-1.5">
-              <label for="cooldown" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_cooldown()}</label>
-              <input 
-                id="cooldown"
-                type="number" 
-                bind:value={config.cooldownSeconds} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                disabled={!canManageSettings}
-              />
-            </div>
-
-            <div class="space-y-1.5">
-              <label for="vocalXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_vocal_xp()}</label>
-              <input 
-                id="vocalXp"
-                type="number" 
-                bind:value={config.vocalXpPerMin} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                disabled={!canManageSettings}
-              />
-            </div>
-
-            <!-- Conditions d'XP vocale -->
-            <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
-              <div>
-                <span class="text-xs font-bold text-on-surface">{m.lv_voice_conditions_title()}</span>
-                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_conditions_desc()}</p>
+            <div class="space-y-3 pt-3 border-t border-outline-variant/10">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <span class="text-xs font-semibold text-on-surface">{m.lv_voice_require_unmuted()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_require_unmuted_desc()}</p>
+                </div>
+                <ToggleSwitch
+                  checked={config.voiceRequireUnmuted}
+                  onToggle={(v: boolean) => { config.voiceRequireUnmuted = v; }}
+                  disabled={!canManageSettings}
+                />
               </div>
 
-              <div class="space-y-3 pt-3 border-t border-outline-variant/10">
-                <div class="flex items-center justify-between gap-4">
-                  <div>
-                    <span class="text-xs font-semibold text-on-surface">{m.lv_voice_require_unmuted()}</span>
-                    <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_require_unmuted_desc()}</p>
-                  </div>
-                  <ToggleSwitch
-                    checked={config.voiceRequireUnmuted}
-                    onToggle={(v: boolean) => { config.voiceRequireUnmuted = v; }}
-                    disabled={!canManageSettings}
-                  />
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <span class="text-xs font-semibold text-on-surface">{m.lv_voice_require_undeafened()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_require_undeafened_desc()}</p>
                 </div>
-
-                <div class="flex items-center justify-between gap-4">
-                  <div>
-                    <span class="text-xs font-semibold text-on-surface">{m.lv_voice_require_undeafened()}</span>
-                    <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_require_undeafened_desc()}</p>
-                  </div>
-                  <ToggleSwitch
-                    checked={config.voiceRequireUndeafened}
-                    onToggle={(v: boolean) => { config.voiceRequireUndeafened = v; }}
-                    disabled={!canManageSettings}
-                  />
-                </div>
-
-                <div class="flex items-center justify-between gap-4">
-                  <div>
-                    <span class="text-xs font-semibold text-on-surface">{m.lv_voice_ignore_afk()}</span>
-                    <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_ignore_afk_desc()}</p>
-                  </div>
-                  <ToggleSwitch
-                    checked={config.voiceIgnoreAfkChannel}
-                    onToggle={(v: boolean) => { config.voiceIgnoreAfkChannel = v; }}
-                    disabled={!canManageSettings}
-                  />
-                </div>
-
-                <div class="space-y-1.5 pt-1">
-                  <label for="voiceMinMembers" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_voice_min_members()}</label>
-                  <input
-                    id="voiceMinMembers"
-                    type="number"
-                    min="1"
-                    max="25"
-                    bind:value={config.voiceMinMembers}
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                    disabled={!canManageSettings}
-                  />
-                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_voice_min_members_hint({ count: config.voiceMinMembers })}</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Plafond d'XP quotidien -->
-            <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
-              <div>
-                <span class="text-xs font-bold text-on-surface">{m.lv_daily_cap_title()}</span>
-                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_daily_cap_desc()}</p>
+                <ToggleSwitch
+                  checked={config.voiceRequireUndeafened}
+                  onToggle={(v: boolean) => { config.voiceRequireUndeafened = v; }}
+                  disabled={!canManageSettings}
+                />
               </div>
 
-              <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
-                <label for="dailyXpCap" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_daily_cap_label()}</label>
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <span class="text-xs font-semibold text-on-surface">{m.lv_voice_ignore_afk()}</span>
+                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_ignore_afk_desc()}</p>
+                </div>
+                <ToggleSwitch
+                  checked={config.voiceIgnoreAfkChannel}
+                  onToggle={(v: boolean) => { config.voiceIgnoreAfkChannel = v; }}
+                  disabled={!canManageSettings}
+                />
+              </div>
+
+              <div class="space-y-1.5 pt-1">
+                <label for="voiceMinMembers" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_voice_min_members()}</label>
                 <input
-                  id="dailyXpCap"
+                  id="voiceMinMembers"
                   type="number"
-                  min="0"
-                  bind:value={config.dailyXpCap}
+                  min="1"
+                  max="25"
+                  bind:value={config.voiceMinMembers}
                   class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                   disabled={!canManageSettings}
                 />
-                <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_daily_cap_hint()}</p>
+                <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_voice_min_members_hint({ count: config.voiceMinMembers })}</p>
               </div>
+            </div>
+          </div>
 
-              {#if config.dailyXpCap > 0}
-                <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
-                  {m.lv_daily_cap_enabled_hint({ cap: config.dailyXpCap.toLocaleString() })}
-                </div>
-              {/if}
+          <!-- Plafond d'XP quotidien -->
+          <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
+            <div>
+              <span class="text-xs font-bold text-on-surface">{m.lv_daily_cap_title()}</span>
+              <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_daily_cap_desc()}</p>
             </div>
 
-            <!-- Bonus d'XP selon la longueur du message -->
-            <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="text-xs font-bold text-on-surface">{m.lv_length_bonus_title()}</span>
-                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_length_bonus_desc()}</p>
+            <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
+              <label for="dailyXpCap" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_daily_cap_label()}</label>
+              <input
+                id="dailyXpCap"
+                type="number"
+                min="0"
+                bind:value={config.dailyXpCap}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                disabled={!canManageSettings}
+              />
+              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_daily_cap_hint()}</p>
+            </div>
+
+            {#if config.dailyXpCap > 0}
+              <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
+                {m.lv_daily_cap_enabled_hint({ cap: config.dailyXpCap.toLocaleString() })}
+              </div>
+            {/if}
+          </div>
+
+          <!-- Bonus d'XP selon la longueur du message -->
+          <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-on-surface">{m.lv_length_bonus_title()}</span>
+                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_length_bonus_desc()}</p>
+              </div>
+              <ToggleSwitch
+                checked={config.lengthBonusEnabled}
+                onToggle={(v: boolean) => { config.lengthBonusEnabled = v; }}
+                disabled={!canManageSettings}
+              />
+            </div>
+
+            {#if config.lengthBonusEnabled}
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
+                <div class="space-y-1.5">
+                  <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_threshold()}</label>
+                  <input
+                    id="lengthBonusThreshold"
+                    type="number"
+                    min="1"
+                    bind:value={config.lengthBonusThreshold}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_threshold_hint({ count: config.lengthBonusThreshold })}</p>
                 </div>
-                <ToggleSwitch
-                  checked={config.lengthBonusEnabled}
-                  onToggle={(v: boolean) => { config.lengthBonusEnabled = v; }}
-                  disabled={!canManageSettings}
+
+                <div class="space-y-1.5">
+                  <label for="lengthBonusMaxMultiplier" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_max()}</label>
+                  <input
+                    id="lengthBonusMaxMultiplier"
+                    type="number"
+                    min="1"
+                    max="10"
+                    step="0.1"
+                    bind:value={config.lengthBonusMaxMultiplier}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_max_hint({ max: config.lengthBonusMaxMultiplier })}</p>
+                </div>
+              </div>
+
+              <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
+                {m.lv_length_bonus_example({ half: Math.round((config.lengthBonusThreshold || 1) / 2), midMult: (1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2), threshold: config.lengthBonusThreshold, maxMult: Number(config.lengthBonusMaxMultiplier).toFixed(2) })}
+              </div>
+            {/if}
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- Exclusions et multiplicateurs -->
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
+          <Papicon icon="Filter" size={20} class="text-primary" />
+          {m.lv_exclusions_title()}
+        </h3>
+
+        <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.lv_exclusions_desc()}</p>
+
+        <div class="grid grid-cols-1 gap-6">
+          <!-- Salons exclus -->
+          <div class="space-y-2">
+            <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_channels()}</p>
+            <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
+              {#each config.ignoredChannels as channelId}
+                {@const channel = availableChannels.find(c => c.id === channelId)}
+                <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
+                  #{channel ? channel.name : channelId}
+                  {#if canManageSettings}
+                    <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error transition-transform">✕</button>
+                  {/if}
+                </span>
+              {:else}
+                <span class="text-xs text-on-surface-variant/40 ml-2 font-medium">{m.lv_no_ignored_channel()}</span>
+              {/each}
+            </div>
+            {#if canManageSettings}
+              <div class="relative w-full">
+                <SearchableSelect 
+                  bind:value={pendingIgnoreChannelId}
+                  options={availableChannels.filter(c => !config.ignoredChannels.includes(c.id)).map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
+                  placeholder={m.lv_add_ignored_channel()} 
+                  className="w-full"
+                  clearable={false}
                 />
               </div>
+            {/if}
+          </div>
 
-              {#if config.lengthBonusEnabled}
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
-                  <div class="space-y-1.5">
-                    <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_threshold()}</label>
-                    <input
-                      id="lengthBonusThreshold"
-                      type="number"
-                      min="1"
-                      bind:value={config.lengthBonusThreshold}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                      disabled={!canManageSettings}
-                    />
-                    <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_threshold_hint({ count: config.lengthBonusThreshold })}</p>
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label for="lengthBonusMaxMultiplier" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_max()}</label>
-                    <input
-                      id="lengthBonusMaxMultiplier"
-                      type="number"
-                      min="1"
-                      max="10"
-                      step="0.1"
-                      bind:value={config.lengthBonusMaxMultiplier}
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                      disabled={!canManageSettings}
-                    />
-                    <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_max_hint({ max: config.lengthBonusMaxMultiplier })}</p>
-                  </div>
-                </div>
-
-                <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
-                  {m.lv_length_bonus_example({ half: Math.round((config.lengthBonusThreshold || 1) / 2), midMult: (1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2), threshold: config.lengthBonusThreshold, maxMult: Number(config.lengthBonusMaxMultiplier).toFixed(2) })}
-                </div>
-              {/if}
+          <!-- Rôles exclus -->
+          <div class="space-y-2 pt-2 border-t border-outline-variant/10">
+            <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_roles()}</p>
+            <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
+              {#each config.ignoredRoles as roleId}
+                {@const role = availableRoles.find(r => r.id === roleId)}
+                <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
+                  @{role ? role.name : roleId}
+                  {#if canManageSettings}
+                    <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error transition-transform">✕</button>
+                  {/if}
+                </span>
+              {:else}
+                <span class="text-xs text-on-surface-variant/40 ml-2 font-medium">{m.lv_no_ignored_role()}</span>
+              {/each}
             </div>
-
-            <!-- Toggle cumul récompenses -->
-            <div class="space-y-1.5 flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 col-span-2 mt-2">
-              <div>
-                <span class="text-xs font-bold text-on-surface">{m.lv_stack_title()}</span>
-                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_stack_desc()}</p>
+            {#if canManageSettings}
+              <div class="relative w-full">
+                <SearchableSelect 
+                  bind:value={pendingIgnoreRoleId}
+                  options={availableRoles.filter(r => !config.ignoredRoles.includes(r.id)).map(r => ({ id: r.id, name: `@${r.name}` }))} 
+                  placeholder={m.lv_add_ignored_role()} 
+                  className="w-full"
+                  clearable={false}
+                />
               </div>
-              <ToggleSwitch 
-                checked={config.stackRewards} 
-                onToggle={(v: boolean) => { config.stackRewards = v; }} 
-                disabled={!canManageSettings}
-              />
-            </div>
+            {/if}
+          </div>
 
-            <!-- Salons exclus -->
-            <div class="space-y-2 col-span-2 pt-2 border-t border-outline-variant/10">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_channels()}</p>
-              <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
-                {#each config.ignoredChannels as channelId}
-                  {@const channel = availableChannels.find(c => c.id === channelId)}
-                  <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
-                    #{channel ? channel.name : channelId}
-                    {#if canManageSettings}
-                      <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error transition-transform">✕</button>
-                    {/if}
-                  </span>
-                {:else}
-                  <span class="text-xs text-on-surface-variant/40 ml-2 font-medium">{m.lv_no_ignored_channel()}</span>
-                {/each}
-              </div>
-              {#if canManageSettings}
-                <div class="relative w-full">
+          <!-- Multiplicateurs par rôle -->
+          <div class="space-y-4 pt-4 border-t border-outline-variant/20">
+            <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_multipliers_title()}</h4>
+      
+            {#if canManageSettings}
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
+                <div class="space-y-1.5">
+                  <label for="multRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_role()}</label>
                   <SearchableSelect 
-                    bind:value={pendingIgnoreChannelId}
-                    options={availableChannels.filter(c => !config.ignoredChannels.includes(c.id)).map(c => ({ id: c.id, name: channelDisplayName(c) }))} 
-                    placeholder={m.lv_add_ignored_channel()} 
-                    className="w-full"
-                    clearable={false}
+                    id="multRole"
+                    bind:value={newMultRoleId}
+                    options={availableRoles.filter(r => !Object.keys(config.xpMultipliers).includes(r.id) && !(clanRewardXpBoost && lastWinningClanId && lastWinningClanId.split(',').some(id => clans.find(c => c.id === id)?.roleId === r.id))).map(r => ({ id: r.id, name: `@${r.name}` }))}
+                    placeholder={m.lv_choose_role()}
+                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg"
+                    clearable={true}
                   />
                 </div>
-              {/if}
-            </div>
 
-            <!-- Rôles exclus -->
-            <div class="space-y-2 col-span-2 pt-2 border-t border-outline-variant/10">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_roles()}</p>
-              <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
-                {#each config.ignoredRoles as roleId}
-                  {@const role = availableRoles.find(r => r.id === roleId)}
-                  <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
-                    @{role ? role.name : roleId}
-                    {#if canManageSettings}
-                      <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error transition-transform">✕</button>
-                    {/if}
-                  </span>
-                {:else}
-                  <span class="text-xs text-on-surface-variant/40 ml-2 font-medium">{m.lv_no_ignored_role()}</span>
-                {/each}
-              </div>
-              {#if canManageSettings}
-                <div class="relative w-full">
-                  <SearchableSelect 
-                    bind:value={pendingIgnoreRoleId}
-                    options={availableRoles.filter(r => !config.ignoredRoles.includes(r.id)).map(r => ({ id: r.id, name: `@${r.name}` }))} 
-                    placeholder={m.lv_add_ignored_role()} 
-                    className="w-full"
-                    clearable={false}
+                <div class="space-y-1.5">
+                  <label for="multValue" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_multiplier()}</label>
+                  <input 
+                    id="multValue"
+                    type="number" 
+                    step="0.1"
+                    min="0.1"
+                    max="10"
+                    bind:value={newMultValue} 
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                   />
                 </div>
-              {/if}
-            </div>
 
-            <!-- Multiplicateurs par rôle -->
-            <div class="space-y-4 pt-4 border-t border-outline-variant/20 col-span-2">
-              <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_multipliers_title()}</h4>
-              
-              {#if canManageSettings}
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
-                  <div class="space-y-1.5">
-                    <label for="multRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_role()}</label>
-                    <SearchableSelect 
-                      id="multRole"
-                      bind:value={newMultRoleId}
-                      options={availableRoles.filter(r => !Object.keys(config.xpMultipliers).includes(r.id) && !(clanRewardXpBoost && lastWinningClanId && lastWinningClanId.split(',').some(id => clans.find(c => c.id === id)?.roleId === r.id))).map(r => ({ id: r.id, name: `@${r.name}` }))}
-                      placeholder={m.lv_choose_role()}
-                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg"
-                      clearable={true}
-                    />
-                  </div>
+                <button 
+                  type="button"
+                  onclick={handleAddMultiplier}
+                  disabled={!newMultRoleId || !newMultValue}
+                  class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
+                >
+                  {m.common_add()}
+                </button>
+              </div>
+            {/if}
 
-                  <div class="space-y-1.5">
-                    <label for="multValue" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_multiplier()}</label>
-                    <input 
-                      id="multValue"
-                      type="number" 
-                      step="0.1"
-                      min="0.1"
-                      max="10"
-                      bind:value={newMultValue} 
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                    />
-                  </div>
+            <div class="overflow-hidden rounded-lg border border-outline-variant/10 bg-surface-container-low/10">
+              <table class="w-full border-collapse text-left">
+                <thead>
+                  <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
+                    <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_role()}</th>
+                    <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_multiplier()}</th>
+                    {#if canManageSettings}
+                      <th class="px-6 py-3 text-right text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_actions()}</th>
+                    {/if}
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/5">
+                  {#if clanRewardXpBoost && lastWinningClanId}
+                    {@const winnerIds = lastWinningClanId.split(',')}
+                    {@const winningClansList = clans.filter(c => winnerIds.includes(c.id))}
+                    {#each winningClansList as winningClan}
+                      {#if winningClan.roleId}
+                        <tr class="bg-amber-500/10 border-l-4 border-amber-500 transition-all font-semibold">
+                          <td class="px-6 py-3.5 text-sm font-semibold flex items-center gap-2">
+                            <span>🏆 {getRoleName(winningClan.roleId)}</span>
+                            <span class="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">{m.lv_winning_clan_badge()}</span>
+                          </td>
+                          <td class="px-6 py-3.5 text-sm font-semibold text-amber-500">{clanRewardXpBoostRate}x</td>
+                          {#if canManageSettings}
+                            <td class="px-6 py-3.5 text-right text-xs text-on-surface-variant/60 font-medium italic">
+                              {m.lv_auto_managed()}
+                            </td>
+                          {/if}
+                        </tr>
+                      {/if}
+                    {/each}
+                  {/if}
 
-                  <button 
-                    type="button"
-                    onclick={handleAddMultiplier}
-                    disabled={!newMultRoleId || !newMultValue}
-                    class="w-full py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
-                  >
-                    {m.common_add()}
-                  </button>
-                </div>
-              {/if}
-
-              <div class="overflow-hidden rounded-lg border border-outline-variant/10 bg-surface-container-low/10">
-                <table class="w-full border-collapse text-left">
-                  <thead>
-                    <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
-                      <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_role()}</th>
-                      <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_multiplier()}</th>
+                  {#each Object.entries(config.xpMultipliers) as [roleId, mult]}
+                    <tr class="hover:bg-surface-hover/20 transition-all font-semibold">
+                      <td class="px-6 py-3.5 text-sm font-semibold">{getRoleName(roleId)}</td>
+                      <td class="px-6 py-3.5 text-sm font-semibold text-primary">{mult}x</td>
                       {#if canManageSettings}
-                        <th class="px-6 py-3 text-right text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">{m.lv_actions()}</th>
+                        <td class="px-6 py-3.5 text-right">
+                          <button 
+                            type="button"
+                            onclick={() => handleRemoveMultiplier(roleId)}
+                            class="p-2 text-error hover:bg-error/10 rounded-xl transition-all"
+                            title={m.common_delete()}
+                          >
+                            <Papicon icon="Trash" size={14} />
+                          </button>
+                        </td>
                       {/if}
                     </tr>
-                  </thead>
-                  <tbody class="divide-y divide-outline-variant/5">
-                    {#if clanRewardXpBoost && lastWinningClanId}
-                      {@const winnerIds = lastWinningClanId.split(',')}
-                      {@const winningClansList = clans.filter(c => winnerIds.includes(c.id))}
-                      {#each winningClansList as winningClan}
-                        {#if winningClan.roleId}
-                          <tr class="bg-amber-500/10 border-l-4 border-amber-500 transition-all font-semibold">
-                            <td class="px-6 py-3.5 text-sm font-semibold flex items-center gap-2">
-                              <span>🏆 {getRoleName(winningClan.roleId)}</span>
-                              <span class="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">{m.lv_winning_clan_badge()}</span>
-                            </td>
-                            <td class="px-6 py-3.5 text-sm font-semibold text-amber-500">{clanRewardXpBoostRate}x</td>
-                            {#if canManageSettings}
-                              <td class="px-6 py-3.5 text-right text-xs text-on-surface-variant/60 font-medium italic">
-                                {m.lv_auto_managed()}
-                              </td>
-                            {/if}
-                          </tr>
-                        {/if}
-                      {/each}
-                    {/if}
+                  {/each}
 
-                    {#each Object.entries(config.xpMultipliers) as [roleId, mult]}
-                      <tr class="hover:bg-surface-hover/20 transition-all font-semibold">
-                        <td class="px-6 py-3.5 text-sm font-semibold">{getRoleName(roleId)}</td>
-                        <td class="px-6 py-3.5 text-sm font-semibold text-primary">{mult}x</td>
-                        {#if canManageSettings}
-                          <td class="px-6 py-3.5 text-right">
-                            <button 
-                              type="button"
-                              onclick={() => handleRemoveMultiplier(roleId)}
-                              class="p-2 text-error hover:bg-error/10 rounded-xl transition-all"
-                              title={m.common_delete()}
-                            >
-                              <Papicon icon="Trash" size={14} />
-                            </button>
-                          </td>
-                        {/if}
-                      </tr>
-                    {/each}
-
-                    {#if Object.keys(config.xpMultipliers).length === 0 && !(clanRewardXpBoost && lastWinningClanId && lastWinningClanId.split(',').some(id => clans.find(c => c.id === id)?.roleId))}
-                      <tr>
-                        <td colspan={canManageSettings ? 3 : 2} class="px-6 py-6 text-center text-xs text-on-surface-variant/60 font-medium">{m.lv_no_multiplier()}</td>
-                      </tr>
-                    {/if}
-                  </tbody>
-                </table>
-              </div>
+                  {#if Object.keys(config.xpMultipliers).length === 0 && !(clanRewardXpBoost && lastWinningClanId && lastWinningClanId.split(',').some(id => clans.find(c => c.id === id)?.roleId))}
+                    <tr>
+                      <td colspan={canManageSettings ? 3 : 2} class="px-6 py-6 text-center text-xs text-on-surface-variant/60 font-medium">{m.lv_no_multiplier()}</td>
+                    </tr>
+                  {/if}
+                </tbody>
+              </table>
             </div>
           </div>
+        </div>
+      </section>
+    </div>
 
-          <div class="space-y-6 pt-4 border-t border-outline-variant/20">
-            <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_levelup_notifs()}</h4>
-            
-            <div class="space-y-1.5">
-              <label for="lvlChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_channel()}</label>
-              <SearchableSelect 
-                id="lvlChannel"
-                bind:value={config.levelUpChannelId} 
-                options={[
-                  { id: '', name: m.lv_levelup_origin_channel() },
-                  { id: 'DM', name: m.lv_levelup_dm() },
-                  ...availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))
-                ]} 
-                placeholder={m.lv_select_placeholder()} 
-                className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
-                disabled={!canManageSettings}
-              />
-            </div>
-
-            <div class="space-y-1.5">
-              <label for="lvlMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_message()}</label>
-              <input 
-                id="lvlMsg"
-                type="text" 
-                bind:value={config.levelUpMessage} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                placeholder={m.lv_levelup_message_ph({ user: '{user}', level: '{level}' })}
-                disabled={!canManageSettings}
-              />
-              <p class="text-[11px] text-on-surface-variant/40 ml-2">{m.lv_variables_label()} <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> {m.lv_variables_mention()}, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
-            </div>
-          </div>
-
-          <!-- Save button removed since global bottom bar handles saving -->
-        </section>
-
+  {:else if activeTab === 'progression'}
+    <!-- === ONGLET PROGRESSION === -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
+      <div class="lg:col-span-2 space-y-8">
         <!-- Courbe de progression -->
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-start justify-between gap-4">
@@ -1117,6 +1105,18 @@
           {m.lv_rewards_title()}
         </h3>
 
+        <div class="space-y-1.5 flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4">
+          <div>
+            <span class="text-xs font-bold text-on-surface">{m.lv_stack_title()}</span>
+            <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_stack_desc()}</p>
+          </div>
+          <ToggleSwitch 
+            checked={config.stackRewards} 
+            onToggle={(v: boolean) => { config.stackRewards = v; }} 
+            disabled={!canManageSettings}
+          />
+        </div>
+
         {#if canManageSettings}
           <form onsubmit={(e) => { e.preventDefault(); handleAddReward(); }} class="space-y-4 bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
             <div class="space-y-1.5">
@@ -1188,6 +1188,48 @@
               {/each}
             </tbody>
           </table>
+        </div>
+      </section>
+    </div>
+
+  {:else if activeTab === 'annonces'}
+    <!-- === ONGLET ANNONCES === -->
+    <div class="space-y-8 animate-in fade-in duration-300">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
+          <Papicon icon="Bell" size={20} class="text-primary" />
+          {m.lv_levelup_notifs()}
+        </h3>
+        <div class="space-y-6">
+  
+          <div class="space-y-1.5">
+            <label for="lvlChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_channel()}</label>
+            <SearchableSelect 
+              id="lvlChannel"
+              bind:value={config.levelUpChannelId} 
+              options={[
+                { id: '', name: m.lv_levelup_origin_channel() },
+                { id: 'DM', name: m.lv_levelup_dm() },
+                ...availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))
+              ]} 
+              placeholder={m.lv_select_placeholder()} 
+              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="lvlMsg" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_levelup_message()}</label>
+            <input 
+              id="lvlMsg"
+              type="text" 
+              bind:value={config.levelUpMessage} 
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              placeholder={m.lv_levelup_message_ph({ user: '{user}', level: '{level}' })}
+              disabled={!canManageSettings}
+            />
+            <p class="text-[11px] text-on-surface-variant/40 ml-2">{m.lv_variables_label()} <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> {m.lv_variables_mention()}, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
+          </div>
         </div>
       </section>
     </div>
