@@ -238,7 +238,6 @@ model Guild {
   guildHourlyStats GuildHourlyStat[]
   channelDailyStats ChannelDailyStat[]
   memberDailyStats MemberDailyStat[]
-  memberDailyXp MemberDailyXp[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
   suspendedInviters SuspendedInviter[]

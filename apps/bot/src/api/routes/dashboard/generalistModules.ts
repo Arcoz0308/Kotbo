@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
@@ -122,6 +122,8 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
+        const previousConfig = await getOrCreateLevelConfig(guildId).catch(() => null);
+
         // Les valeurs absentes du corps reprennent le défaut de la courbe, mais
         // ne sont réinjectées dans l'`update` que si le client les a envoyées :
         // un PATCH partiel ne doit pas réinitialiser la courbe de la guilde.
@@ -173,6 +175,26 @@ export async function handleGeneralistModulesRoutes(
         });
 
         await invalidateLevelConfigCache(guildId);
+
+        // Un changement de courbe redistribue les niveaux : la colonne `level`
+        // est réalignée tout de suite, sinon les membres inactifs la gardent
+        // périmée jusqu'à leur prochain gain d'XP.
+        const curveChanged = !previousConfig
+          || previousConfig.curveBaseXp !== config.curveBaseXp
+          || previousConfig.curveLinearXp !== config.curveLinearXp
+          || previousConfig.curveExponent !== config.curveExponent
+          || previousConfig.maxLevel !== config.maxLevel;
+
+        if (curveChanged) {
+          const resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config))
+            .catch((err) => {
+              logger.error('LevelingAPI', `Réalignement des niveaux échoué pour ${guildId}:`, err);
+              return 0;
+            });
+          if (resynced > 0) {
+            logger.info('LevelingAPI', `Courbe modifiée sur ${guildId} : ${resynced} niveaux réalignés.`);
+          }
+        }
 
         await pushAudit(guildId, {
           user: auditUser,

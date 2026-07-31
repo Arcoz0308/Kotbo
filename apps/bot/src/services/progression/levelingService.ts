@@ -134,6 +134,45 @@ export async function getOrCreateLevelConfig(guildId: string) {
 }
 
 /**
+ * Réaligne la colonne `level` sur l'XP totale après un changement de courbe.
+ *
+ * Le niveau est normalement auto-réparé, mais seulement quand le membre regagne
+ * de l'XP ou consulte son rang. Sans ce rattrapage, tout ce qui lit la colonne
+ * telle quelle - les archives de fin de saison en particulier - resterait sur
+ * l'ancienne courbe pour les membres devenus inactifs.
+ *
+ * Le réalignement se fait par tranche de niveau et non membre par membre : une
+ * guilde de 50 000 membres tient dans une requête par niveau occupé.
+ */
+export async function resyncGuildLevels(guildId: string, curve: LevelCurve): Promise<number> {
+  const top = await prisma.memberLevel.findFirst({
+    where: { guildId },
+    orderBy: { xp: 'desc' },
+    select: { xp: true },
+  });
+  if (!top) return 0;
+
+  const highestLevel = getLevelFromXp(top.xp, curve);
+  let updated = 0;
+
+  for (let level = 1; level <= highestLevel; level++) {
+    // La dernière tranche reste ouverte : au niveau maximum d'une guilde
+    // plafonnée, l'XP continue de monter sans borne supérieure.
+    const xpRange = level === highestLevel
+      ? { gte: getXpForLevel(level - 1, curve) }
+      : { gte: getXpForLevel(level - 1, curve), lt: getXpForLevel(level, curve) };
+
+    const result = await prisma.memberLevel.updateMany({
+      where: { guildId, level: { not: level }, xp: xpRange },
+      data: { level },
+    });
+    updated += result.count;
+  }
+
+  return updated;
+}
+
+/**
  * À appeler après toute écriture de `LevelConfig` : la courbe et le plafond
  * quotidien sont lus à chaque gain d'XP, laisser expirer le TTL ferait tourner
  * la guilde sur ses anciens réglages pendant une minute.
@@ -231,45 +270,39 @@ function utcDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-const DAILY_XP_RETENTION_DAYS = 3;
-let dailyXpPurgeChecks = 0;
-
-/**
- * Les compteurs de la veille ne servent plus à rien une fois le jour passé :
- * on les purge au fil de l'eau plutôt que d'ajouter une tâche planifiée.
- */
-async function purgeStaleDailyXp(): Promise<void> {
-  dailyXpPurgeChecks++;
-  if (dailyXpPurgeChecks % 500 !== 0) return;
-  const cutoff = new Date(Date.now() - DAILY_XP_RETENTION_DAYS * 86_400_000);
-  await prisma.memberDailyXp.deleteMany({ where: { dateKey: { lt: utcDateKey(cutoff) } } }).catch(() => null);
-}
-
 /**
  * Décompte `amount` du quota quotidien et renvoie la part réellement accordée.
  *
- * Le compteur est incrémenté d'abord puis ramené au plafond en cas de
- * dépassement : deux gains concurrents ne peuvent donc pas franchir le plafond
- * ensemble, alors qu'un `read then write` le permettrait.
+ * Le compteur vit sur la ligne du membre : elle est déjà écrite à chaque gain,
+ * et une table dédiée aurait eu la même cardinalité tout en demandant sa propre
+ * purge. Le compteur d'un autre jour est remis à zéro avant l'incrément, puis
+ * le total est ramené au plafond en cas de dépassement : deux gains concurrents
+ * ne peuvent donc pas le franchir ensemble, là où un `read then write` le
+ * permettrait.
  */
 async function consumeDailyXpAllowance(guildId: string, userId: string, amount: number, cap: number): Promise<number> {
   if (cap <= 0) return amount;
 
-  await purgeStaleDailyXp();
-
   const dateKey = utcDateKey(new Date());
-  const where = { guildId_userId_dateKey: { guildId, userId, dateKey } };
+  const where = { guildId_userId: { guildId, userId } };
 
-  const counter = await prisma.memberDailyXp.upsert({
-    where,
-    update: { xp: { increment: amount } },
-    create: { guildId, userId, dateKey, xp: amount },
+  // `not` seul ne retiendrait pas les lignes à NULL : en SQL, `NULL <> 'x'`
+  // ne vaut pas vrai. Les deux cas sont donc listés explicitement.
+  await prisma.memberLevel.updateMany({
+    where: { guildId, userId, OR: [{ dailyXpDate: null }, { dailyXpDate: { not: dateKey } }] },
+    data: { dailyXp: 0, dailyXpDate: dateKey },
   });
 
-  if (counter.xp <= cap) return amount;
+  const counter = await prisma.memberLevel.upsert({
+    where,
+    update: { dailyXp: { increment: amount } },
+    create: { guildId, userId, xp: 0, level: 0, dailyXp: amount, dailyXpDate: dateKey },
+  });
 
-  await prisma.memberDailyXp.update({ where, data: { xp: cap } }).catch(() => null);
-  return grantedWithinDailyCap(counter.xp, amount, cap);
+  if (counter.dailyXp <= cap) return amount;
+
+  await prisma.memberLevel.update({ where, data: { dailyXp: cap } }).catch(() => null);
+  return grantedWithinDailyCap(counter.dailyXp, amount, cap);
 }
 
 /**

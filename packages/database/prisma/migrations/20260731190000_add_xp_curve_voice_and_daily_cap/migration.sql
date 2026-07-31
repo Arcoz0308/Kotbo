@@ -19,19 +19,10 @@ ALTER TABLE "level_configs"
 ALTER TABLE "level_configs"
   ADD COLUMN IF NOT EXISTS "dailyXpCap" INTEGER NOT NULL DEFAULT 0;
 
-CREATE TABLE IF NOT EXISTS "member_daily_xp" (
-  "guildId" TEXT NOT NULL,
-  "userId" TEXT NOT NULL,
-  "dateKey" TEXT NOT NULL,
-  "xp" INTEGER NOT NULL DEFAULT 0,
-
-  CONSTRAINT "member_daily_xp_pkey" PRIMARY KEY ("guildId", "userId", "dateKey")
-);
-
-CREATE INDEX IF NOT EXISTS "member_daily_xp_dateKey_idx" ON "member_daily_xp" ("dateKey");
-
-ALTER TABLE "member_daily_xp"
-  DROP CONSTRAINT IF EXISTS "member_daily_xp_guildId_fkey";
-ALTER TABLE "member_daily_xp"
-  ADD CONSTRAINT "member_daily_xp_guildId_fkey" FOREIGN KEY ("guildId")
-  REFERENCES "guilds" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- Compteur du plafond, porté par la ligne du membre : elle est déjà écrite à
+-- chaque gain d'XP et a la même cardinalité qu'une table dédiée, qui aurait
+-- demandé sa propre purge. `dailyXpDate` est le jour UTC auquel `dailyXp` se
+-- rapporte ; laissé à NULL, le compteur est considéré comme périmé.
+ALTER TABLE "member_levels"
+  ADD COLUMN IF NOT EXISTS "dailyXp" INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "dailyXpDate" TEXT;
