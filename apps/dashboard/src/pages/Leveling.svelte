@@ -386,7 +386,9 @@
     }
   }
 
-  let curveSimpleMode = $state(true);
+  // Initialise des le rendu : sans ca, un echec de chargement laissait les
+  // curseurs a l'ecran alors que la preference retenue etait le mode detaille.
+  let curveSimpleMode = $state(loadCurveModePreference() !== 'advanced');
 
   function setCurveMode(simple: boolean) {
     curveSimpleMode = simple;
@@ -399,6 +401,12 @@
   // la seule source, et basculer de mode ne deplace donc jamais la courbe.
   const curvePaceStep = $derived(nearestStep(CURVE_PACE_FACTORS, (config.curveBaseXp || DEFAULT_LEVEL_CURVE.baseXp) / DEFAULT_LEVEL_CURVE.baseXp));
   const curveSteepStep = $derived(nearestStep(CURVE_EXPONENT_STEPS, config.curveExponent || DEFAULT_LEVEL_CURVE.exponent));
+
+  // Le chargement ouvre en mode detaille quand la courbe ne tombe sur aucun
+  // cran, mais rien n'empeche d'y basculer a la main : les curseurs affichent
+  // alors le cran le plus proche, qui n'est pas la valeur enregistree. On le dit
+  // plutot que de laisser croire le contraire ou de modifier la courbe d'office.
+  const curveOffGrid = $derived(curveSimpleMode && !curveFitsSimpleMode());
 
   function applyCurvePace(step: number) {
     const factor = CURVE_PACE_FACTORS[Math.min(CURVE_PACE_FACTORS.length, Math.max(1, step)) - 1];
@@ -1019,7 +1027,9 @@
             </div>
           </div>
 
-          <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.lv_curve_desc()}</p>
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            {curveSimpleMode ? m.lv_curve_simple_desc() : m.lv_curve_desc()}
+          </p>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             {#if curveSimpleMode}
@@ -1061,6 +1071,12 @@
                   />
                   <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_steep_hint()}</p>
                 </div>
+
+                {#if curveOffGrid}
+                  <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                    {m.lv_curve_off_grid()}
+                  </p>
+                {/if}
               </div>
             {:else}
             <div class="space-y-1.5">

@@ -3009,6 +3009,8 @@
   "lv_length_bonus_example": "💡 The bonus ramps up with length. Example: a {half}-character message applies ≈ ×{midMult}, a {threshold}+ character message applies ×{maxMult}.",
   "lv_curve_title": "Progression curve",
   "lv_curve_desc": "Sets the XP needed for each level: XP = base × level^exponent + linear × level.",
+  "lv_curve_simple_desc": "Two settings are enough to tune how fast the server progresses. The preview below shows the effect right away.",
+  "lv_curve_off_grid": "The saved curve does not match any notch: the sliders show the closest one. Moving either of them will align the curve to it.",
   "lv_curve_base": "Base coefficient",
   "lv_curve_base_hint": "Weighs the exponential part: the higher it is, the more expensive high levels get.",
   "lv_curve_linear": "Linear coefficient",

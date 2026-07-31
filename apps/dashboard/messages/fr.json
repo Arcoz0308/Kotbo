@@ -3009,6 +3009,8 @@
   "lv_length_bonus_example": "💡 Le bonus augmente progressivement avec la longueur. Exemple : un message de {half} caractères applique ≈ ×{midMult}, un message de {threshold}+ caractères applique ×{maxMult}.",
   "lv_curve_title": "Courbe de progression",
   "lv_curve_desc": "Détermine l'XP nécessaire à chaque niveau : XP = base × niveau^exposant + linéaire × niveau.",
+  "lv_curve_simple_desc": "Deux réglages suffisent pour ajuster la vitesse de progression du serveur. L'aperçu ci-dessous montre l'effet immédiatement.",
+  "lv_curve_off_grid": "La courbe enregistrée ne correspond à aucun cran : les curseurs affichent le palier le plus proche. En déplacer un alignera la courbe dessus.",
   "lv_curve_base": "Coefficient de base",
   "lv_curve_base_hint": "Pèse la partie exponentielle : plus il est haut, plus les hauts niveaux coûtent cher.",
   "lv_curve_linear": "Coefficient linéaire",
