@@ -1007,14 +1007,27 @@
               <Papicon icon="Grades" size={20} class="text-primary" />
               {m.lv_curve_title()}
             </h3>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                onclick={() => setCurveMode(!curveSimpleMode)}
-                class="text-[11px] font-semibold text-primary hover:text-on-surface px-3 py-1.5 rounded-lg border border-primary/30 hover:border-outline-variant/20 transition-all"
-              >
-                {curveSimpleMode ? m.lv_curve_mode_advanced() : m.lv_curve_mode_simple()}
-              </button>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <!-- Meme pave que les onglets de la page : les deux options sont
+                   visibles cote a cote, avec icone, et l'active se detache. -->
+              <nav class="tab-group w-fit">
+                <button
+                  type="button"
+                  onclick={() => setCurveMode(true)}
+                  class="tab-button {curveSimpleMode ? 'active' : ''}"
+                >
+                  <Papicon icon="SlidersHorizontal" size={15} />
+                  {m.lv_curve_mode_simple()}
+                </button>
+                <button
+                  type="button"
+                  onclick={() => setCurveMode(false)}
+                  class="tab-button {curveSimpleMode ? '' : 'active'}"
+                >
+                  <Papicon icon="Hash" size={15} />
+                  {m.lv_curve_mode_advanced()}
+                </button>
+              </nav>
               {#if canManageSettings}
                 <button
                   type="button"
@@ -1050,7 +1063,6 @@
                     class="w-full accent-primary"
                     disabled={!canManageSettings}
                   />
-                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_pace_hint()}</p>
                 </div>
 
                 <div class="space-y-2">
@@ -1069,7 +1081,6 @@
                     class="w-full accent-primary"
                     disabled={!canManageSettings}
                   />
-                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_steep_hint()}</p>
                 </div>
 
                 {#if curveOffGrid}
