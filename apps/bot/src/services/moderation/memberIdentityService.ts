@@ -53,6 +53,52 @@ function withTimeout<T>(promise: Promise<T>): Promise<T | null> {
  * La réécriture en base est volontairement restreinte aux lignes dont le pseudo
  * est absent : une identité déjà connue n'est jamais écrasée.
  */
+/**
+ * Identités affichables pour une liste d'identifiants.
+ *
+ * Le profil en base répond pour la plupart des membres sans solliciter Discord ;
+ * seuls ceux qu'il ne nomme pas encore passent par la résolution Discord, qui
+ * réécrit au passage le profil. Sans ça, les vues qui n'affichent qu'un
+ * identifiant brut - le classement de réputation notamment - restent
+ * illisibles.
+ */
+export async function getMemberIdentities(
+  client: Client,
+  guildId: string,
+  userIds: string[],
+): Promise<Map<string, MemberIdentity>> {
+  const identities = new Map<string, MemberIdentity>();
+  const unique = [...new Set(userIds)].filter((id): id is string => Boolean(id));
+  if (unique.length === 0) return identities;
+
+  const profiles = await prisma.memberProfile
+    .findMany({
+      where: { guildId, userId: { in: unique } },
+      select: { userId: true, username: true, displayName: true, globalName: true, avatarUrl: true },
+    })
+    .catch(() => []);
+
+  for (const profile of profiles) {
+    const displayName = profile.displayName ?? profile.globalName ?? profile.username;
+    // Un profil cree a partir du seul identifiant n'a pas de pseudo : on le
+    // laisse a la resolution Discord plutot que d'afficher un vide.
+    if (!displayName) continue;
+    identities.set(profile.userId, {
+      username: profile.username ?? displayName,
+      displayName,
+      avatarUrl: profile.avatarUrl ?? '',
+    });
+  }
+
+  const missing = unique.filter((id) => !identities.has(id));
+  if (missing.length > 0) {
+    const resolved = await resolveMissingMemberIdentities(client, guildId, missing).catch(() => new Map());
+    for (const [userId, identity] of resolved) identities.set(userId, identity);
+  }
+
+  return identities;
+}
+
 export async function resolveMissingMemberIdentities(
   client: Client,
   guildId: string,
