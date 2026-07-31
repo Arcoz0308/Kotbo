@@ -753,7 +753,7 @@
 
         <div class="grid grid-cols-1 gap-6">
           <!-- Salons exclus -->
-          <div class="space-y-2 pt-2 border-t border-outline-variant/10">
+          <div class="space-y-2">
             <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_ignored_channels()}</p>
             <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
               {#each config.ignoredChannels as channelId}
