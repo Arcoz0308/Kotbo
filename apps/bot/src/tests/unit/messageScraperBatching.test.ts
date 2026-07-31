@@ -171,6 +171,7 @@ describe('message scraper transaction batching', () => {
     await result.completion;
 
     const lastUpdate = mockDb.guild.update.mock.calls.at(-1)?.[0];
+    if (!lastUpdate) throw new Error('Expected the failed scrape status to be persisted.');
     expect(lastUpdate.data?.statsConfig?.historicalScrapeStatus).toBe('FAILED');
     expect(lastUpdate.data?.statsConfig?.historicalScrapeProgress).toEqual(
       storedStatsConfig.historicalScrapeProgress,
