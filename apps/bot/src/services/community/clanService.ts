@@ -3,6 +3,8 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
 import { getClient } from '../../utils/client.js';
+import type { ClanMemberContribution } from '@prisma/client';
+import { MAX_CLAN_SEASON_POINTS } from '@kotbo/shared';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
 
@@ -32,6 +34,50 @@ function busyTaskError(guildId: string): Error {
 
 /** Origines possibles d'un gain de points de clan, telles qu'affichées côté public. */
 export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
+
+/**
+ * Crédite des points de clan pour une saison et renvoie le montant réellement
+ * inscrit.
+ *
+ * Le total d'une saison vit dans une colonne `Int`. Sans plafond, un barème mal
+ * calibré finit par déborder l'entier 32 bits : Postgres rejette alors
+ * l'écriture au milieu de l'attribution, et le `catch` qui entoure les appelants
+ * fait disparaître le gain sans trace exploitable. On incrémente puis on ramène
+ * au plafond, ce qui reste juste quand deux gains arrivent en même temps.
+ *
+ * Seule la borne haute est appliquée ici : les appelants qui interdisent les
+ * montants négatifs le font déjà à leur niveau.
+ */
+export async function creditClanContribution(params: {
+  guildId: string;
+  clanId: string;
+  userId: string;
+  season: number;
+  amount: number;
+}): Promise<{ granted: number; contribution: ClanMemberContribution | null }> {
+  const { guildId, clanId, userId, season, amount } = params;
+  if (!Number.isFinite(amount) || amount === 0) return { granted: 0, contribution: null };
+
+  const where = { guildId_clanId_userId_season: { guildId, clanId, userId, season } };
+
+  const contribution = await prisma.clanMemberContribution.upsert({
+    where,
+    update: { xp: { increment: amount } },
+    create: { guildId, clanId, userId, season, xp: amount },
+  });
+
+  if (contribution.xp <= MAX_CLAN_SEASON_POINTS) return { granted: amount, contribution };
+
+  const clamped = await prisma.clanMemberContribution
+    .update({ where, data: { xp: MAX_CLAN_SEASON_POINTS } })
+    .catch(() => null);
+  logger.warn('ClanService', `Plafond de points de saison atteint pour ${userId} dans le clan ${clanId}, gain rogné.`);
+
+  return {
+    granted: Math.max(0, amount - (contribution.xp - MAX_CLAN_SEASON_POINTS)),
+    contribution: clamped ?? contribution,
+  };
+}
 
 /**
  * Journalise un gain de points de clan pour le flux « derniers scores » public.
@@ -123,23 +169,12 @@ export async function awardClanPointsToMembers(params: {
       const linkedIds = await getAllLinkedUserIds(params.guildId, member.id).catch(() => [member.id]);
       const canonicalUserId = linkedIds.sort()[0] ?? member.id;
 
-      await prisma.clanMemberContribution.upsert({
-        where: {
-          guildId_clanId_userId_season: {
-            guildId: params.guildId,
-            clanId: clan.id,
-            userId: canonicalUserId,
-            season: guildConfig.currentClanSeason,
-          },
-        },
-        update: { xp: { increment: award.amount } },
-        create: {
-          guildId: params.guildId,
-          clanId: clan.id,
-          userId: canonicalUserId,
-          season: guildConfig.currentClanSeason,
-          xp: award.amount,
-        },
+      await creditClanContribution({
+        guildId: params.guildId,
+        clanId: clan.id,
+        userId: canonicalUserId,
+        season: guildConfig.currentClanSeason,
+        amount: award.amount,
       });
 
       await logClanContribution(
@@ -977,28 +1012,18 @@ export async function awardClanPointsOnBoost(guildId: string, member: GuildMembe
     const linkedIds = await getAllLinkedUserIds(guildId, member.id).catch(() => [member.id]);
     const canonicalUserId = linkedIds.sort()[0];
 
-    await prisma.clanMemberContribution.upsert({
-      where: {
-        guildId_clanId_userId_season: {
-          guildId,
-          clanId: clan.id,
-          userId: canonicalUserId,
-          season: guildConfig.currentClanSeason,
-        },
-      },
-      update: { xp: { increment: guildConfig.clanXpPerBoost } },
-      create: {
-        guildId,
-        clanId: clan.id,
-        userId: canonicalUserId,
-        season: guildConfig.currentClanSeason,
-        xp: guildConfig.clanXpPerBoost,
-      },
+    const { granted: grantedBoostPoints } = await creditClanContribution({
+      guildId,
+      clanId: clan.id,
+      userId: canonicalUserId,
+      season: guildConfig.currentClanSeason,
+      amount: guildConfig.clanXpPerBoost,
     });
+    if (grantedBoostPoints <= 0) return;
 
-    await logClanContribution(guildId, clan.id, canonicalUserId, guildConfig.clanXpPerBoost, 'BOOST', guildConfig.currentClanSeason);
+    await logClanContribution(guildId, clan.id, canonicalUserId, grantedBoostPoints, 'BOOST', guildConfig.currentClanSeason);
 
-    logger.info('ClanService', `Points de clan (${guildConfig.clanXpPerBoost} XP) attribués à ${member.user.tag} pour son boost du serveur dans le clan "${clan.name}"`);
+    logger.info('ClanService', `Points de clan (${grantedBoostPoints}) attribués à ${member.user.tag} pour son boost du serveur dans le clan "${clan.name}"`);
     broadcastDashboardStateChange(guildId, 'clans_updated');
   } catch (err) {
     logger.error('ClanService', `Erreur lors de l'attribution des points de boost pour ${member.user.tag}:`, err);

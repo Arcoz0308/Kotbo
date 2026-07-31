@@ -11,6 +11,7 @@ import {
   RANK_CARD_HEIGHT,
   RANK_CARD_WIDTH,
   DEFAULT_LEVEL_CURVE,
+  computeClanLevelUpPoints,
   grantedWithinDailyCap,
   levelFromXp,
   normalizeLevelCurve,
@@ -414,7 +415,7 @@ export async function addXp(
 
       // Notification + récompenses annexes (rôles, points de clan) : best-effort, le
       // niveau et les pièces sont déjà garantis commis à ce stade.
-      await processLevelUp(guildId, userId, newLevel, client, channelId, coinReward);
+      await processLevelUp(guildId, userId, previousLevel, newLevel, curve, client, { fallbackChannelId: channelId, coinReward });
     } else {
       await prisma.memberLevel.update({
         where: { guildId_userId: { guildId, userId } },
@@ -464,7 +465,8 @@ export async function setXp(guildId: string, userId: string, newXp: number, clie
   });
 
   const previousLevel = memberLevel.level;
-  const newLevel = getLevelFromXp(clampedXp, await getGuildLevelCurve(guildId));
+  const curve = await getGuildLevelCurve(guildId);
+  const newLevel = getLevelFromXp(clampedXp, curve);
 
   if (newLevel !== previousLevel) {
     if (newLevel > previousLevel) {
@@ -495,7 +497,7 @@ export async function setXp(guildId: string, userId: string, newXp: number, clie
           });
         }
       });
-      await processLevelUp(guildId, userId, newLevel, client, channelId, coinReward);
+      await processLevelUp(guildId, userId, previousLevel, newLevel, curve, client, { fallbackChannelId: channelId, coinReward, creditClanPoints: false });
     } else {
       await prisma.memberLevel.update({
         where: { guildId_userId: { guildId, userId } },
@@ -511,7 +513,26 @@ export async function setXp(guildId: string, userId: string, newXp: number, clie
 /**
  * Gère les notifications de level up et l'attribution des rôles récompenses
  */
-async function processLevelUp(guildId: string, userId: string, newLevel: number, client: Client, fallbackChannelId?: string, coinReward?: { amount: number; currencyEmoji: string; currencyName: string } | null) {
+async function processLevelUp(
+  guildId: string,
+  userId: string,
+  previousLevel: number,
+  newLevel: number,
+  curve: LevelCurve,
+  client: Client,
+  options: {
+    fallbackChannelId?: string;
+    coinReward?: { amount: number; currencyEmoji: string; currencyName: string } | null;
+    /**
+     * Les points de clan récompensent l'activité. Un ajustement manuel du staff
+     * fait franchir des dizaines de niveaux d'un coup : en mode proportionnel,
+     * les verser reviendrait à offrir au clan du membre des milliers de points
+     * pour une correction administrative.
+     */
+    creditClanPoints?: boolean;
+  } = {},
+) {
+  const { fallbackChannelId, coinReward, creditClanPoints = true } = options;
   try {
     const config = await getOrCreateLevelConfig(guildId);
     const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -524,9 +545,23 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
     try {
       const guildConfig = await prisma.guild.findUnique({
         where: { id: guildId },
-        select: { clansEnabled: true, currentClanSeason: true, clanXpFromLevelUp: true, clanXpPerLevelUp: true }
+        select: {
+          clansEnabled: true,
+          currentClanSeason: true,
+          clanXpFromLevelUp: true,
+          clanXpPerLevelUp: true,
+          clanXpLevelUpProportional: true,
+          clanXpReferenceLevel: true,
+        }
       });
-      if (guildConfig?.clansEnabled && guildConfig?.clanXpFromLevelUp && guildConfig?.clanXpPerLevelUp > 0) {
+      const clanPoints = guildConfig
+        ? computeClanLevelUpPoints(previousLevel, newLevel, {
+            flatPerLevelUp: guildConfig.clanXpPerLevelUp,
+            proportional: guildConfig.clanXpLevelUpProportional === true,
+            referenceLevel: guildConfig.clanXpReferenceLevel ?? 25,
+          }, curve)
+        : 0;
+      if (creditClanPoints && guildConfig?.clansEnabled && guildConfig?.clanXpFromLevelUp && clanPoints > 0) {
         const clans = await prisma.clan.findMany({
           where: { guildId },
           select: { id: true, roleId: true }
@@ -541,32 +576,21 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
               const linkedIds = await getAllLinkedUserIds(guildId, userId).catch(() => [userId]);
               const canonicalUserId = linkedIds.sort()[0];
 
-              await prisma.clanMemberContribution.upsert({
-                where: {
-                  guildId_clanId_userId_season: {
-                    guildId,
-                    clanId: clan.id,
-                    userId: canonicalUserId,
-                    season: guildConfig.currentClanSeason
-                  }
-                },
-                update: {
-                  xp: { increment: guildConfig.clanXpPerLevelUp }
-                },
-                create: {
-                  guildId,
-                  clanId: clan.id,
-                  userId: canonicalUserId,
-                  season: guildConfig.currentClanSeason,
-                  xp: guildConfig.clanXpPerLevelUp
-                }
+              const { creditClanContribution, logClanContribution } = await import('../community/clanService.js');
+              const { granted } = await creditClanContribution({
+                guildId,
+                clanId: clan.id,
+                userId: canonicalUserId,
+                season: guildConfig.currentClanSeason,
+                amount: clanPoints,
               });
 
-              // Journaliser le gain pour le flux public « derniers scores »
-              const { logClanContribution } = await import('../community/clanService.js');
-              await logClanContribution(guildId, clan.id, canonicalUserId, guildConfig.clanXpPerLevelUp, 'XP', guildConfig.currentClanSeason);
+              if (granted > 0) {
+                // Journaliser le gain pour le flux public « derniers scores »
+                await logClanContribution(guildId, clan.id, canonicalUserId, granted, 'XP', guildConfig.currentClanSeason);
+              }
 
-              logger.info('LevelingService', `Points de clan (${guildConfig.clanXpPerLevelUp} XP) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
+              logger.info('LevelingService', `Points de clan (${granted}) attribués à ${member.user.tag} pour son passage au niveau ${newLevel} dans le clan "${clan.id}"`);
             }
           }
         }
