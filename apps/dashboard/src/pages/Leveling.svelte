@@ -1008,24 +1008,26 @@
               {m.lv_curve_title()}
             </h3>
             <div class="flex flex-wrap items-center justify-end gap-2">
-              <!-- Meme pastille que le commutateur de langue des pages publiques :
-                   les deux options restent visibles, l'active est surelevee. -->
-              <div class="inline-flex items-center rounded-full border border-outline-variant/20 bg-surface-container/60 p-0.5 text-[11px] font-bold">
+              <!-- Meme pave que les onglets de la page : les deux options sont
+                   visibles cote a cote, avec icone, et l'active se detache. -->
+              <nav class="tab-group w-fit">
                 <button
                   type="button"
                   onclick={() => setCurveMode(true)}
-                  class="px-3 py-1 rounded-full transition-colors {curveSimpleMode ? 'bg-surface-container-highest text-primary shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface'}"
+                  class="tab-button {curveSimpleMode ? 'active' : ''}"
                 >
+                  <Papicon icon="SlidersHorizontal" size={15} />
                   {m.lv_curve_mode_simple()}
                 </button>
                 <button
                   type="button"
                   onclick={() => setCurveMode(false)}
-                  class="px-3 py-1 rounded-full transition-colors {curveSimpleMode ? 'text-on-surface-variant/60 hover:text-on-surface' : 'bg-surface-container-highest text-primary shadow-sm'}"
+                  class="tab-button {curveSimpleMode ? '' : 'active'}"
                 >
+                  <Papicon icon="Hash" size={15} />
                   {m.lv_curve_mode_advanced()}
                 </button>
-              </div>
+              </nav>
               {#if canManageSettings}
                 <button
                   type="button"
