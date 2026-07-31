@@ -415,7 +415,7 @@ export async function addXp(
 
       // Notification + récompenses annexes (rôles, points de clan) : best-effort, le
       // niveau et les pièces sont déjà garantis commis à ce stade.
-      await processLevelUp(guildId, userId, previousLevel, newLevel, curve, client, channelId, coinReward);
+      await processLevelUp(guildId, userId, previousLevel, newLevel, curve, client, { fallbackChannelId: channelId, coinReward });
     } else {
       await prisma.memberLevel.update({
         where: { guildId_userId: { guildId, userId } },
@@ -497,7 +497,7 @@ export async function setXp(guildId: string, userId: string, newXp: number, clie
           });
         }
       });
-      await processLevelUp(guildId, userId, previousLevel, newLevel, curve, client, channelId, coinReward);
+      await processLevelUp(guildId, userId, previousLevel, newLevel, curve, client, { fallbackChannelId: channelId, coinReward, creditClanPoints: false });
     } else {
       await prisma.memberLevel.update({
         where: { guildId_userId: { guildId, userId } },
@@ -520,9 +520,19 @@ async function processLevelUp(
   newLevel: number,
   curve: LevelCurve,
   client: Client,
-  fallbackChannelId?: string,
-  coinReward?: { amount: number; currencyEmoji: string; currencyName: string } | null,
+  options: {
+    fallbackChannelId?: string;
+    coinReward?: { amount: number; currencyEmoji: string; currencyName: string } | null;
+    /**
+     * Les points de clan récompensent l'activité. Un ajustement manuel du staff
+     * fait franchir des dizaines de niveaux d'un coup : en mode proportionnel,
+     * les verser reviendrait à offrir au clan du membre des milliers de points
+     * pour une correction administrative.
+     */
+    creditClanPoints?: boolean;
+  } = {},
 ) {
+  const { fallbackChannelId, coinReward, creditClanPoints = true } = options;
   try {
     const config = await getOrCreateLevelConfig(guildId);
     const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -551,7 +561,7 @@ async function processLevelUp(
             referenceLevel: guildConfig.clanXpReferenceLevel ?? 25,
           }, curve)
         : 0;
-      if (guildConfig?.clansEnabled && guildConfig?.clanXpFromLevelUp && clanPoints > 0) {
+      if (creditClanPoints && guildConfig?.clansEnabled && guildConfig?.clanXpFromLevelUp && clanPoints > 0) {
         const clans = await prisma.clan.findMany({
           where: { guildId },
           select: { id: true, roleId: true }

@@ -98,7 +98,7 @@
   let savedClanXpFromLevelUp = $state(false);
   let savedClanXpPerLevelUp = $state(50);
   let savedClanXpLevelUpProportional = $state(false);
-  let savedClanXpPer1000Xp = $state(10);
+  let savedClanXpReferenceLevel = $state(25);
   let savedClanXpFromBoost = $state(false);
   let savedClanXpPerBoost = $state(100);
   let savedClanAnnouncementChannelId = $state<string | null>(null);
@@ -290,7 +290,7 @@
       || clanXpFromLevelUp !== savedClanXpFromLevelUp
       || clanXpPerLevelUp !== savedClanXpPerLevelUp
       || clanXpLevelUpProportional !== savedClanXpLevelUpProportional
-      || clanXpReferenceLevel !== savedClanXpPer1000Xp
+      || clanXpReferenceLevel !== savedClanXpReferenceLevel
       || clanXpFromBoost !== savedClanXpFromBoost
       || clanXpPerBoost !== savedClanXpPerBoost
       || clanAnnouncementChannelId !== savedClanAnnouncementChannelId
@@ -308,7 +308,7 @@
             clanXpFromLevelUp = savedClanXpFromLevelUp;
             clanXpPerLevelUp = savedClanXpPerLevelUp;
             clanXpLevelUpProportional = savedClanXpLevelUpProportional;
-            clanXpReferenceLevel = savedClanXpPer1000Xp;
+            clanXpReferenceLevel = savedClanXpReferenceLevel;
             clanXpFromBoost = savedClanXpFromBoost;
             clanXpPerBoost = savedClanXpPerBoost;
             clanAnnouncementChannelId = savedClanAnnouncementChannelId;
@@ -425,7 +425,7 @@
         savedClanXpFromLevelUp = res.clanXpFromLevelUp;
         savedClanXpPerLevelUp = res.clanXpPerLevelUp;
         savedClanXpLevelUpProportional = res.clanXpLevelUpProportional ?? false;
-        savedClanXpPer1000Xp = res.clanXpReferenceLevel ?? 25;
+        savedClanXpReferenceLevel = res.clanXpReferenceLevel ?? 25;
         savedClanXpFromBoost = res.clanXpFromBoost;
         savedClanXpPerBoost = res.clanXpPerBoost;
         savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;
@@ -497,7 +497,7 @@
       savedClanXpFromLevelUp = res.clanXpFromLevelUp;
       savedClanXpPerLevelUp = res.clanXpPerLevelUp;
       savedClanXpLevelUpProportional = res.clanXpLevelUpProportional ?? false;
-      savedClanXpPer1000Xp = res.clanXpReferenceLevel ?? 25;
+      savedClanXpReferenceLevel = res.clanXpReferenceLevel ?? 25;
       savedClanXpFromBoost = res.clanXpFromBoost;
       savedClanXpPerBoost = res.clanXpPerBoost;
       savedClanAnnouncementChannelId = res.clanAnnouncementChannelId;

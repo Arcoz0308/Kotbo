@@ -3,6 +3,7 @@ import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { pushAudit, broadcastDashboardStateChange } from '../../api/shared.js';
 import { getClient } from '../../utils/client.js';
+import type { ClanMemberContribution } from '@prisma/client';
 import { MAX_CLAN_SEASON_POINTS } from '@kotbo/shared';
 
 export const clanTasks = new Map<string, { type: 'distribute' | 'clear' | 'dedupe'; processed: number; total: number }>();
@@ -44,8 +45,8 @@ export type ClanContributionSource = 'XP' | 'ADMIN' | 'BOOST' | 'DAILY_ALGO';
  * fait disparaître le gain sans trace exploitable. On incrémente puis on ramène
  * au plafond, ce qui reste juste quand deux gains arrivent en même temps.
  *
- * Les montants négatifs (retrait manuel par un admin) sont laissés passer tels
- * quels : seule la borne haute est appliquée ici.
+ * Seule la borne haute est appliquée ici : les appelants qui interdisent les
+ * montants négatifs le font déjà à leur niveau.
  */
 export async function creditClanContribution(params: {
   guildId: string;
@@ -53,7 +54,7 @@ export async function creditClanContribution(params: {
   userId: string;
   season: number;
   amount: number;
-}): Promise<{ granted: number; contribution: Awaited<ReturnType<typeof prisma.clanMemberContribution.upsert>> | null }> {
+}): Promise<{ granted: number; contribution: ClanMemberContribution | null }> {
   const { guildId, clanId, userId, season, amount } = params;
   if (!Number.isFinite(amount) || amount === 0) return { granted: 0, contribution: null };
 
