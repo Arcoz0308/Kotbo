@@ -408,6 +408,19 @@
   // plutot que de laisser croire le contraire ou de modifier la courbe d'office.
   const curveOffGrid = $derived(curveSimpleMode && !curveFitsSimpleMode());
 
+  // Les crans restent abstraits tant qu'on ne voit pas ce qu'ils changent : ces
+  // deux mesures traduisent chaque curseur en XP et en rapport entre niveaux.
+  const CURVE_EFFECT_LOW_LEVEL = 10;
+  const CURVE_EFFECT_HIGH_LEVEL = 50;
+
+  const curveEffectVisible = $derived(levelCurve.maxLevel === 0 || levelCurve.maxLevel >= CURVE_EFFECT_HIGH_LEVEL);
+  const curveEffectPaceXp = $derived(xpForLevel(CURVE_EFFECT_LOW_LEVEL, levelCurve));
+  const curveEffectSteepRatio = $derived.by(() => {
+    const costOf = (level: number) => xpForLevel(level, levelCurve) - xpForLevel(level - 1, levelCurve);
+    const low = costOf(CURVE_EFFECT_LOW_LEVEL);
+    return low > 0 ? costOf(CURVE_EFFECT_HIGH_LEVEL) / low : 0;
+  });
+
   function applyCurvePace(step: number) {
     const factor = CURVE_PACE_FACTORS[Math.min(CURVE_PACE_FACTORS.length, Math.max(1, step)) - 1];
     config.curveBaseXp = Math.max(1, Math.round(DEFAULT_LEVEL_CURVE.baseXp * factor));
@@ -1007,14 +1020,23 @@
               <Papicon icon="Grades" size={20} class="text-primary" />
               {m.lv_curve_title()}
             </h3>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                onclick={() => setCurveMode(!curveSimpleMode)}
-                class="text-[11px] font-semibold text-primary hover:text-on-surface px-3 py-1.5 rounded-lg border border-primary/30 hover:border-outline-variant/20 transition-all"
-              >
-                {curveSimpleMode ? m.lv_curve_mode_advanced() : m.lv_curve_mode_simple()}
-              </button>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <div class="inline-flex items-center gap-0.5 p-0.5 rounded-lg border border-outline-variant/20 bg-surface-container-high/30">
+                <button
+                  type="button"
+                  onclick={() => setCurveMode(true)}
+                  class="px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all {curveSimpleMode ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+                >
+                  {m.lv_curve_mode_simple()}
+                </button>
+                <button
+                  type="button"
+                  onclick={() => setCurveMode(false)}
+                  class="px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all {curveSimpleMode ? 'text-on-surface-variant/70 hover:text-on-surface' : 'bg-primary text-on-primary shadow-sm'}"
+                >
+                  {m.lv_curve_mode_advanced()}
+                </button>
+              </div>
               {#if canManageSettings}
                 <button
                   type="button"
@@ -1071,6 +1093,13 @@
                   />
                   <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_steep_hint()}</p>
                 </div>
+
+                {#if curveEffectVisible}
+                  <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed space-y-1">
+                    <p>{m.lv_curve_effect_pace({ level: CURVE_EFFECT_LOW_LEVEL, xp: curveEffectPaceXp.toLocaleString() })}</p>
+                    <p>{m.lv_curve_effect_steep({ high: CURVE_EFFECT_HIGH_LEVEL, low: CURVE_EFFECT_LOW_LEVEL, ratio: curveEffectSteepRatio.toFixed(1) })}</p>
+                  </div>
+                {/if}
 
                 {#if curveOffGrid}
                   <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
