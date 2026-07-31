@@ -12,6 +12,11 @@ export const RANK_CARD_HEIGHT = 282;
  * doit donc correspondre à un asset Twemoji connu. Les points de code sont
  * figés ici plutôt que dérivés du caractère, pour éviter les surprises des
  * sélecteurs de variante et des séquences ZWJ.
+ *
+ * Les PNG correspondants (Twemoji 16.0.1) sont versionnés dans les deux
+ * applications : `apps/bot/assets/rank-emojis` pour le canvas, et
+ * `apps/dashboard/public/rank-emojis` pour la grille de sélection. Ajouter une
+ * entrée ici sans y déposer le fichier fait disparaître l'emoji du rendu.
  */
 export const RANK_CARD_EMOJIS: Array<{ value: string; codePoint: string }> = [
   { value: '🔥', codePoint: '1f525' },
@@ -71,9 +76,14 @@ export function normalizeRankCardCustomization(raw: unknown): RankCardCustomizat
   return { backgroundId, emojis };
 }
 
-/** URL de l'asset Twemoji correspondant, ou `null` si l'emoji n'est pas au catalogue. */
+/** Point de code Twemoji, ou `null` si l'emoji n'est pas au catalogue. */
+export function rankCardEmojiCodePoint(value: string): string | null {
+  return EMOJI_CODE_POINTS.get(value) ?? null;
+}
+
+/** Chemin de l'asset servi par le dashboard, ou `null` hors catalogue. */
 export function rankCardEmojiImageUrl(value: string): string | null {
   const codePoint = EMOJI_CODE_POINTS.get(value);
   if (!codePoint) return null;
-  return `https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/72x72/${codePoint}.png`;
+  return `/rank-emojis/${codePoint}.png`;
 }

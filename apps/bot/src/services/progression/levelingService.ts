@@ -1,9 +1,10 @@
 import { Client, GuildMember } from 'discord.js';
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from '@napi-rs/canvas';
 import type { LevelConfig } from '@prisma/client';
+import { fileURLToPath } from 'node:url';
 import {
   getRankCardBackground,
-  rankCardEmojiImageUrl,
+  rankCardEmojiCodePoint,
   RANK_CARD_HEIGHT,
   RANK_CARD_WIDTH,
   type RankCardCustomization,
@@ -614,6 +615,8 @@ export async function renderRankCard(
   const W = RANK_CARD_WIDTH, H = RANK_CARD_HEIGHT;
   const custom = customization ?? await getRankCardCustomization(subject.userId);
   const preset = getRankCardBackground(custom.backgroundId);
+  const accentStart = preset.accentBar[0].color;
+  const accentEnd = preset.accentBar[preset.accentBar.length - 1].color;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
@@ -644,8 +647,8 @@ export async function renderRankCard(
 
   // Avatar ring
   const ringGrad = ctx.createLinearGradient(avatarCX - avatarR, avatarCY - avatarR, avatarCX + avatarR, avatarCY + avatarR);
-  ringGrad.addColorStop(0, preset.accentBar[0].color);
-  ringGrad.addColorStop(1, preset.accentBar[preset.accentBar.length - 1].color);
+  ringGrad.addColorStop(0, accentStart);
+  ringGrad.addColorStop(1, accentEnd);
   ctx.beginPath();
   ctx.arc(avatarCX, avatarCY, avatarR + 4, 0, Math.PI * 2);
   ctx.fillStyle = ringGrad;
@@ -657,7 +660,7 @@ export async function renderRankCard(
   ctx.fill();
 
   try {
-    const avatarImg = await loadImage(avatarUrl);
+    const avatarImg = await loadRankCardAvatar(avatarUrl);
     ctx.save();
     ctx.beginPath();
     ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
@@ -666,7 +669,7 @@ export async function renderRankCard(
     ctx.drawImage(avatarImg, avatarCX - avatarR, avatarCY - avatarR, avatarR * 2, avatarR * 2);
     ctx.restore();
   } catch {
-    ctx.fillStyle = '#5865f2';
+    ctx.fillStyle = accentStart;
     ctx.beginPath();
     ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
     ctx.fill();
@@ -708,7 +711,7 @@ export async function renderRankCard(
   ctx.fillText(rankVal, W - 45, 72);
   const rankValW = ctx.measureText(rankVal).width;
 
-  ctx.fillStyle = '#5865f2';
+  ctx.fillStyle = accentStart;
   ctx.font = 'bold 14px sans-serif';
   ctx.fillText('RANG ', W - 45 - rankValW, 72);
   const rankLabelW = ctx.measureText('RANG ').width;
@@ -720,7 +723,7 @@ export async function renderRankCard(
   ctx.fillText(levelVal, levelX, 72);
   const levelValW = ctx.measureText(levelVal).width;
 
-  ctx.fillStyle = '#57f287';
+  ctx.fillStyle = accentEnd;
   ctx.font = 'bold 14px sans-serif';
   ctx.fillText('NIVEAU ', levelX - levelValW, 72);
 
@@ -747,8 +750,8 @@ export async function renderRankCard(
   if (progressPercent > 0) {
     const filledW = Math.max(barH, barW * progressPercent);
     const grad = ctx.createLinearGradient(barX, 0, barX + filledW, 0);
-    grad.addColorStop(0, '#5865f2');
-    grad.addColorStop(1, '#57f287');
+    grad.addColorStop(0, accentStart);
+    grad.addColorStop(1, accentEnd);
     roundRect(ctx, barX, barY, filledW, barH, barR, grad);
   }
 
@@ -776,7 +779,58 @@ export async function renderRankCard(
   return canvas.toBuffer('image/png');
 }
 
-const emojiImageCache = new Map<string, Image>();
+// L URL porte deja le hash d avatar : un changement de photo produit une autre
+// cle, le TTL ne sert qu a borner la taille du cache. L apercu du dashboard
+// rerend a chaque frappe, sans quoi chaque rendu repayait un aller-retour CDN.
+const AVATAR_CACHE_TTL_MS = 10 * 60 * 1000;
+const AVATAR_CACHE_MAX = 200;
+const avatarImageCache = new Map<string, { image: Image; expiresAt: number }>();
+
+async function loadRankCardAvatar(url: string): Promise<Image> {
+  const now = Date.now();
+  const cached = avatarImageCache.get(url);
+  if (cached && cached.expiresAt > now) return cached.image;
+
+  const image = await loadImage(url);
+
+  if (avatarImageCache.size >= AVATAR_CACHE_MAX) {
+    for (const [key, entry] of avatarImageCache) {
+      if (entry.expiresAt <= now) avatarImageCache.delete(key);
+    }
+    // Insertion ordonnee : a defaut d entrees expirees, on evince la plus ancienne.
+    if (avatarImageCache.size >= AVATAR_CACHE_MAX) {
+      const oldest = avatarImageCache.keys().next().value;
+      if (oldest !== undefined) avatarImageCache.delete(oldest);
+    }
+  }
+
+  avatarImageCache.set(url, { image, expiresAt: now + AVATAR_CACHE_TTL_MS });
+  return image;
+}
+
+const RANK_EMOJI_DIR = fileURLToPath(new URL('../../../assets/rank-emojis/', import.meta.url));
+
+// `null` memorise un asset manquant : sans lui, un fichier absent relancait un
+// acces disque a chaque carte rendue.
+const emojiImageCache = new Map<string, Image | null>();
+
+async function loadRankCardEmoji(emoji: string): Promise<Image | null> {
+  const codePoint = rankCardEmojiCodePoint(emoji);
+  if (!codePoint) return null;
+
+  const cached = emojiImageCache.get(codePoint);
+  if (cached !== undefined) return cached;
+
+  try {
+    const image = await loadImage(`${RANK_EMOJI_DIR}${codePoint}.png`);
+    emojiImageCache.set(codePoint, image);
+    return image;
+  } catch (error) {
+    logger.warn('RankCard', `Asset emoji ${codePoint}.png illisible:`, error);
+    emojiImageCache.set(codePoint, null);
+    return null;
+  }
+}
 
 async function drawRankCardEmojis(
   ctx: SKRSContext2D,
@@ -788,18 +842,8 @@ async function drawRankCardEmojis(
   let x = startX;
 
   for (const emoji of emojis) {
-    const url = rankCardEmojiImageUrl(emoji);
-    if (!url) continue;
-
-    let image = emojiImageCache.get(url);
-    if (!image) {
-      try {
-        image = await loadImage(url);
-        emojiImageCache.set(url, image);
-      } catch {
-        continue;
-      }
-    }
+    const image = await loadRankCardEmoji(emoji);
+    if (!image) continue;
 
     ctx.drawImage(image, x, centerY - size / 2, size, size);
     x += size + gap;

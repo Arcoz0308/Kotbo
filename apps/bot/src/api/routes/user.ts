@@ -5,6 +5,8 @@ import { isGuildActivated } from '../../utils/activation.js';
 import {
   json,
   readJsonBody,
+  checkRateLimit,
+  rankCardPreviewRateLimiter,
   verifyAuth,
   resolveAdminAccess,
   resolveDashboardAccess,
@@ -14,20 +16,55 @@ import {
 import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceContext.js';
 import prisma from '../../utils/db.js';
 import { fetchExternal } from '../../utils/http.js';
-import {
-  normalizeRankCardCustomization,
-  RANK_CARD_BACKGROUNDS,
-  RANK_CARD_EMOJIS,
-  RANK_CARD_MAX_EMOJIS,
-} from '@kotbo/shared';
+import { normalizeRankCardCustomization } from '@kotbo/shared';
 import { getRankCardCustomization, saveRankCardCustomization } from '../../services/progression/rankCardService.js';
-import { renderRankCard } from '../../services/progression/levelingService.js';
+import { getLevelFromXp, renderRankCard } from '../../services/progression/levelingService.js';
 
-// Valeurs d'exemple de l'aperçu : la vraie progression dépend du serveur, la
-// personnalisation elle est globale.
+// Repli de l'aperçu quand aucune progression réelle n'est disponible : la
+// personnalisation est globale, la progression dépend du serveur.
 const PREVIEW_LEVEL = 12;
 const PREVIEW_XP = 16_800;
 const PREVIEW_RANK = 7;
+
+/**
+ * Progression du membre dans le serveur sélectionné, pour que l'aperçu montre
+ * la carte telle qu'elle sortira de `/rank`.
+ *
+ * Contrairement à `getMemberRankData`, on ne charge pas tout le classement de
+ * la guilde : deux requêtes indexées suffisent, et l'aperçu est rendu à chaque
+ * pause de frappe. L'absence de ligne vaut absence de progression, donc repli
+ * sur les valeurs d'exemple - c'est aussi ce qui empêche de sonder un serveur
+ * où le membre n'a jamais écrit.
+ *
+ * À XP égal, compter les membres strictement devant donne le même rang à tous
+ * les ex æquo, là où `getMemberRankData` les départage par l'ordre que rend la
+ * base. L'aperçu peut donc afficher un rang inférieur d'un cran à celui de
+ * `/rank` sur une égalité : le classement de `/rank` n'étant lui-même pas
+ * déterministe dans ce cas, mieux vaut ici une valeur stable.
+ */
+async function resolvePreviewProgression(
+  userId: string,
+  rawGuildId: unknown,
+): Promise<{ level: number; xp: number; rank: number } | null> {
+  if (typeof rawGuildId !== 'string' || !/^\d{17,20}$/.test(rawGuildId)) return null;
+
+  try {
+    const memberLevel = await prisma.memberLevel.findUnique({
+      where: { guildId_userId: { guildId: rawGuildId, userId } },
+      select: { xp: true },
+    });
+    if (!memberLevel) return null;
+
+    const ahead = await prisma.memberLevel.count({
+      where: { guildId: rawGuildId, xp: { gt: memberLevel.xp } },
+    });
+
+    return { level: getLevelFromXp(memberLevel.xp), xp: memberLevel.xp, rank: ahead + 1 };
+  } catch (err) {
+    logger.warn('API', `Progression d'aperçu illisible pour ${userId}:`, err);
+    return null;
+  }
+}
 
 async function mapWithConcurrency<T, R>(
   values: T[],
@@ -104,15 +141,11 @@ export async function handleUserRoutes(
     return true;
   }
 
-  // GET /api/user/rank-card
+  // GET /api/user/rank-card — seulement la préférence : le catalogue des fonds
+  // et des emojis vient de `@kotbo/shared`, que le dashboard compile déjà.
   if (parts[2] === 'rank-card' && parts.length === 3 && method === 'GET') {
     const customization = await getRankCardCustomization(user.userId);
-    json(res, 200, {
-      customization,
-      backgrounds: RANK_CARD_BACKGROUNDS,
-      emojis: RANK_CARD_EMOJIS.map((emoji) => emoji.value),
-      maxEmojis: RANK_CARD_MAX_EMOJIS,
-    });
+    json(res, 200, { customization });
     return true;
   }
 
@@ -132,9 +165,15 @@ export async function handleUserRoutes(
   // POST /api/user/rank-card/preview — rendu réel, pour éviter de réimplémenter
   // le dessin de la carte côté dashboard.
   if (parts[2] === 'rank-card' && parts[3] === 'preview' && parts.length === 4 && method === 'POST') {
+    if (!checkRateLimit(rankCardPreviewRateLimiter, user.userId, 120, 60 * 1000)) {
+      json(res, 429, { error: "Trop d'aperçus demandés. Patientez une minute avant de réessayer." });
+      return true;
+    }
+
     try {
       const body = await readJsonBody(req);
       const customization = normalizeRankCardCustomization(body);
+      const progression = await resolvePreviewProgression(user.userId, body?.guildId);
       const buffer = await renderRankCard(
         {
           userId: user.userId,
@@ -146,13 +185,17 @@ export async function handleUserRoutes(
             : 'https://cdn.discordapp.com/embed/avatars/0.png',
           status: 'online',
         },
-        PREVIEW_LEVEL,
-        PREVIEW_XP,
-        PREVIEW_RANK,
+        progression?.level ?? PREVIEW_LEVEL,
+        progression?.xp ?? PREVIEW_XP,
+        progression?.rank ?? PREVIEW_RANK,
         customization,
       );
 
-      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+      res.writeHead(200, {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'no-store',
+        'X-Rank-Card-Preview': progression ? 'real' : 'sample',
+      });
       res.end(buffer);
     } catch (err) {
       logger.error('API', `Erreur d'aperçu de la carte de rang pour ${user.userId}:`, err);
