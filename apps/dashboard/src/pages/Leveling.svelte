@@ -220,6 +220,10 @@
           dailyXpCap: res.config.dailyXpCap ?? 0
         };
         savedConfig = JSON.parse(JSON.stringify(config));
+        // La preference d'affichage est retenue d'une visite a l'autre, mais elle
+        // ne peut pas imposer le mode simple : une courbe reglee finement ne
+        // tombe sur aucun cran, et les curseurs en afficheraient un faux.
+        curveSimpleMode = loadCurveModePreference() === 'advanced' ? false : curveFitsSimpleMode();
         rewards = res.rewards || [];
         levels = res.levels || [];
       }
@@ -338,6 +342,81 @@
       : [5, 10, 25, 50]
   );
   const curveMilestones = $derived(curveMilestoneLevels.map(level => ({ level, totalXp: xpForLevel(level, levelCurve) })));
+
+  // Mode simple : deux curseurs a cinq crans plutot que trois coefficients. Les
+  // paliers sont volontairement grossiers, le cran du milieu reproduisant
+  // exactement la courbe par defaut. On y perd en finesse, on y gagne un reglage
+  // comprehensible sans connaitre la formule.
+  const CURVE_PACE_FACTORS = [0.35, 0.6, 1, 1.7, 3];
+  const CURVE_EXPONENT_STEPS = [1.2, 1.6, 2, 2.5, 3];
+
+  const CURVE_PACE_LABELS = [
+    m.lv_curve_pace_1, m.lv_curve_pace_2, m.lv_curve_pace_3, m.lv_curve_pace_4, m.lv_curve_pace_5,
+  ];
+  const CURVE_STEEP_LABELS = [
+    m.lv_curve_steep_1, m.lv_curve_steep_2, m.lv_curve_steep_3, m.lv_curve_steep_4, m.lv_curve_steep_5,
+  ];
+
+  function nearestStep(values: number[], value: number): number {
+    let best = 0;
+    for (let i = 1; i < values.length; i++) {
+      if (Math.abs(values[i] - value) < Math.abs(values[best] - value)) best = i;
+    }
+    return best + 1;
+  }
+
+  /** La courbe courante tombe-t-elle exactement sur un cran des curseurs ? */
+  function curveFitsSimpleMode(): boolean {
+    const pace = CURVE_PACE_FACTORS[nearestStep(CURVE_PACE_FACTORS, (config.curveBaseXp || 0) / DEFAULT_LEVEL_CURVE.baseXp) - 1];
+    const steep = CURVE_EXPONENT_STEPS[nearestStep(CURVE_EXPONENT_STEPS, config.curveExponent) - 1];
+    return Math.round(DEFAULT_LEVEL_CURVE.baseXp * pace) === config.curveBaseXp
+      && Math.round(DEFAULT_LEVEL_CURVE.linearXp * pace) === config.curveLinearXp
+      && steep === config.curveExponent;
+  }
+
+  const CURVE_MODE_KEY = 'kotbo_leveling_curve_mode';
+
+  function loadCurveModePreference(): 'simple' | 'advanced' | null {
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      const raw = localStorage.getItem(CURVE_MODE_KEY);
+      return raw === 'simple' || raw === 'advanced' ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Initialise des le rendu : sans ca, un echec de chargement laissait les
+  // curseurs a l'ecran alors que la preference retenue etait le mode detaille.
+  let curveSimpleMode = $state(loadCurveModePreference() !== 'advanced');
+
+  function setCurveMode(simple: boolean) {
+    curveSimpleMode = simple;
+    try {
+      localStorage.setItem(CURVE_MODE_KEY, simple ? 'simple' : 'advanced');
+    } catch { /* ignore */ }
+  }
+
+  // Les curseurs sont deduits de la configuration et non l'inverse : elle reste
+  // la seule source, et basculer de mode ne deplace donc jamais la courbe.
+  const curvePaceStep = $derived(nearestStep(CURVE_PACE_FACTORS, (config.curveBaseXp || DEFAULT_LEVEL_CURVE.baseXp) / DEFAULT_LEVEL_CURVE.baseXp));
+  const curveSteepStep = $derived(nearestStep(CURVE_EXPONENT_STEPS, config.curveExponent || DEFAULT_LEVEL_CURVE.exponent));
+
+  // Le chargement ouvre en mode detaille quand la courbe ne tombe sur aucun
+  // cran, mais rien n'empeche d'y basculer a la main : les curseurs affichent
+  // alors le cran le plus proche, qui n'est pas la valeur enregistree. On le dit
+  // plutot que de laisser croire le contraire ou de modifier la courbe d'office.
+  const curveOffGrid = $derived(curveSimpleMode && !curveFitsSimpleMode());
+
+  function applyCurvePace(step: number) {
+    const factor = CURVE_PACE_FACTORS[Math.min(CURVE_PACE_FACTORS.length, Math.max(1, step)) - 1];
+    config.curveBaseXp = Math.max(1, Math.round(DEFAULT_LEVEL_CURVE.baseXp * factor));
+    config.curveLinearXp = Math.round(DEFAULT_LEVEL_CURVE.linearXp * factor);
+  }
+
+  function applyCurveSteepness(step: number) {
+    config.curveExponent = CURVE_EXPONENT_STEPS[Math.min(CURVE_EXPONENT_STEPS.length, Math.max(1, step)) - 1];
+  }
 
   function resetCurve() {
     config.curveBaseXp = DEFAULT_LEVEL_CURVE.baseXp;
@@ -928,20 +1007,78 @@
               <Papicon icon="Grades" size={20} class="text-primary" />
               {m.lv_curve_title()}
             </h3>
-            {#if canManageSettings}
+            <div class="flex items-center gap-2">
               <button
                 type="button"
-                onclick={resetCurve}
-                class="text-[11px] font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
+                onclick={() => setCurveMode(!curveSimpleMode)}
+                class="text-[11px] font-semibold text-primary hover:text-on-surface px-3 py-1.5 rounded-lg border border-primary/30 hover:border-outline-variant/20 transition-all"
               >
-                {m.lv_curve_reset()}
+                {curveSimpleMode ? m.lv_curve_mode_advanced() : m.lv_curve_mode_simple()}
               </button>
-            {/if}
+              {#if canManageSettings}
+                <button
+                  type="button"
+                  onclick={resetCurve}
+                  class="text-[11px] font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
+                >
+                  {m.lv_curve_reset()}
+                </button>
+              {/if}
+            </div>
           </div>
 
-          <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.lv_curve_desc()}</p>
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            {curveSimpleMode ? m.lv_curve_simple_desc() : m.lv_curve_desc()}
+          </p>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {#if curveSimpleMode}
+              <div class="md:col-span-2 space-y-6">
+                <div class="space-y-2">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <label for="curvePace" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_pace_label()}</label>
+                    <span class="text-xs font-semibold text-primary">{CURVE_PACE_LABELS[curvePaceStep - 1]()}</span>
+                  </div>
+                  <input
+                    id="curvePace"
+                    type="range"
+                    min="1"
+                    max="5"
+                    step="1"
+                    value={curvePaceStep}
+                    oninput={(e) => applyCurvePace(Number(e.currentTarget.value))}
+                    class="w-full accent-primary"
+                    disabled={!canManageSettings}
+                  />
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_pace_hint()}</p>
+                </div>
+
+                <div class="space-y-2">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <label for="curveSteep" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_steep_label()}</label>
+                    <span class="text-xs font-semibold text-primary">{CURVE_STEEP_LABELS[curveSteepStep - 1]()}</span>
+                  </div>
+                  <input
+                    id="curveSteep"
+                    type="range"
+                    min="1"
+                    max="5"
+                    step="1"
+                    value={curveSteepStep}
+                    oninput={(e) => applyCurveSteepness(Number(e.currentTarget.value))}
+                    class="w-full accent-primary"
+                    disabled={!canManageSettings}
+                  />
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_steep_hint()}</p>
+                </div>
+
+                {#if curveOffGrid}
+                  <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                    {m.lv_curve_off_grid()}
+                  </p>
+                {/if}
+              </div>
+            {:else}
             <div class="space-y-1.5">
               <label for="curveBaseXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_base()}</label>
               <input
@@ -984,6 +1121,8 @@
               />
               <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_exponent_hint()}</p>
             </div>
+
+            {/if}
 
             <div class="space-y-1.5">
               <label for="maxLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_max_level()}</label>
