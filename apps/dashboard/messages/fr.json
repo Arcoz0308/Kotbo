@@ -7542,5 +7542,21 @@
   "sm_action_kick": "Expulser",
   "sm_action_ban": "Bannir",
   "sm_action_escalate": "Escalader",
-  "sm_action_reply": "Répondre"
+  "sm_action_reply": "Répondre",
+  "rc_title": "Ma carte de rang",
+  "rc_subtitle": "Cette carte vous suit sur tous les serveurs. Le niveau, l'XP et le rang affichés dessus restent propres à chaque serveur.",
+  "rc_preview_alt": "Aperçu de la carte de rang",
+  "rc_preview_loading": "Rendu…",
+  "rc_preview_note": "Aperçu avec des valeurs d'exemple : votre progression réelle dépend du serveur.",
+  "rc_background_title": "Fond",
+  "rc_emojis_title": "Emojis",
+  "rc_emoji_limit": "Vous pouvez choisir {count} emojis au maximum.",
+  "rc_save": "Enregistrer la carte",
+  "rc_saving": "Enregistrement…",
+  "rc_saved": "Carte de rang mise à jour.",
+  "rc_save_error": "Impossible d'enregistrer la carte.",
+  "rc_load_error": "Impossible de charger les options de personnalisation.",
+  "rc_unsaved": "Modifications non enregistrées",
+  "pf_tab_rank_card": "Ma carte de rang",
+  "rc_preview_error": "Aperçu indisponible pour le moment."
 }
