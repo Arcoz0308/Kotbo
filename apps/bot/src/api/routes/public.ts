@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { Client } from 'discord.js';
 import { Prisma } from '@prisma/client';
+import { normalizeLevelCurve } from '@kotbo/shared';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache } from '../../utils/cache.js';
@@ -619,6 +620,14 @@ export async function handlePublicRoutes(
         enabled: true,
         guildName: discordGuild?.name || 'Kotbo Server',
         guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+        // La courbe voyage avec le classement : la page publique en dérive les
+        // paliers, elle afficherait sinon la progression d'une autre guilde.
+        curve: normalizeLevelCurve({
+          baseXp: config.curveBaseXp,
+          linearXp: config.curveLinearXp,
+          exponent: config.curveExponent,
+          maxLevel: config.maxLevel,
+        }),
         levels: levelsWithUserData
       });
     } catch (err: unknown) {

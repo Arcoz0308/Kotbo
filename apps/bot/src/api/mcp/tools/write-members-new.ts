@@ -2,6 +2,7 @@
 import { adminDeleteShopItem } from '../../../services/features/economyService.js';
 import { clearWidgetForUser, pushWidgetForUser, refreshAllStaffWidgets } from '../../../services/integrations/widgetService.js';
 import { guardAdminGrant, roleGrantsAdministrator } from '../../../services/moderation/adminLockService.js';
+import { invalidateLevelConfigCache } from '../../../services/progression/levelingService.js';
 import { generateAllStaffEvaluations, generateStaffEvaluation, updateEvaluationNote } from '../../../services/staff/staffEvaluationService.js';
 import { updateCallPermissionConfig } from '../../../services/staff/staffLeadershipService.js';
 import { addStaffMember, removeStaffMember } from '../../../services/staff/staffManagementService.js';
@@ -586,6 +587,8 @@ export function registerWriteMembersNewTools(ctx: McpToolContext) {
               ...(stack_rewards !== undefined ? { stackRewards: stack_rewards } : {}),
             }
           });
+
+          await invalidateLevelConfigCache(guildId);
 
           await audit(key_name, 'Configuration progression MCP', 'Mise à jour de la config de progression', '');
           return ok({ ok: true });

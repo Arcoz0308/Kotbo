@@ -2,7 +2,8 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels } from '../../../services/progression/levelingService.js';
+import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
@@ -105,12 +106,33 @@ export async function handleGeneralistModulesRoutes(
           lengthBonusEnabled?: boolean;
           lengthBonusThreshold?: number;
           lengthBonusMaxMultiplier?: number;
+          curveBaseXp?: number;
+          curveLinearXp?: number;
+          curveExponent?: number;
+          maxLevel?: number;
+          voiceRequireUnmuted?: boolean;
+          voiceRequireUndeafened?: boolean;
+          voiceIgnoreAfkChannel?: boolean;
+          voiceMinMembers?: number;
+          dailyXpCap?: number;
         }>(req);
 
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant' });
           return true;
         }
+
+        const previousConfig = await getOrCreateLevelConfig(guildId).catch(() => null);
+
+        // Les valeurs absentes du corps reprennent le défaut de la courbe, mais
+        // ne sont réinjectées dans l'`update` que si le client les a envoyées :
+        // un PATCH partiel ne doit pas réinitialiser la courbe de la guilde.
+        const curve = normalizeLevelCurve({
+          baseXp: body.curveBaseXp,
+          linearXp: body.curveLinearXp,
+          exponent: body.curveExponent,
+          maxLevel: body.maxLevel,
+        });
 
         const config = await prisma.levelConfig.update({
           where: { guildId },
@@ -133,8 +155,46 @@ export async function handleGeneralistModulesRoutes(
             lengthBonusMaxMultiplier: body.lengthBonusMaxMultiplier !== undefined
               ? Math.min(10, Math.max(1, body.lengthBonusMaxMultiplier))
               : undefined,
+            // `!= null` et non `!== undefined` : un champ numérique vidé dans le
+            // dashboard arrive à null, et le borner reviendrait à écrire la
+            // valeur minimale au lieu de laisser le réglage en place.
+            curveBaseXp: body.curveBaseXp != null ? curve.baseXp : undefined,
+            curveLinearXp: body.curveLinearXp != null ? curve.linearXp : undefined,
+            curveExponent: body.curveExponent != null ? curve.exponent : undefined,
+            maxLevel: body.maxLevel != null ? curve.maxLevel : undefined,
+            voiceRequireUnmuted: body.voiceRequireUnmuted,
+            voiceRequireUndeafened: body.voiceRequireUndeafened,
+            voiceIgnoreAfkChannel: body.voiceIgnoreAfkChannel,
+            voiceMinMembers: body.voiceMinMembers != null
+              ? Math.min(25, Math.max(1, Math.floor(body.voiceMinMembers)))
+              : undefined,
+            dailyXpCap: body.dailyXpCap != null
+              ? Math.min(1_000_000, Math.max(0, Math.floor(body.dailyXpCap)))
+              : undefined,
           },
         });
+
+        await invalidateLevelConfigCache(guildId);
+
+        // Un changement de courbe redistribue les niveaux : la colonne `level`
+        // est réalignée tout de suite, sinon les membres inactifs la gardent
+        // périmée jusqu'à leur prochain gain d'XP.
+        const curveChanged = !previousConfig
+          || previousConfig.curveBaseXp !== config.curveBaseXp
+          || previousConfig.curveLinearXp !== config.curveLinearXp
+          || previousConfig.curveExponent !== config.curveExponent
+          || previousConfig.maxLevel !== config.maxLevel;
+
+        if (curveChanged) {
+          const resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config))
+            .catch((err) => {
+              logger.error('LevelingAPI', `Réalignement des niveaux échoué pour ${guildId}:`, err);
+              return 0;
+            });
+          if (resynced > 0) {
+            logger.info('LevelingAPI', `Courbe modifiée sur ${guildId} : ${resynced} niveaux réalignés.`);
+          }
+        }
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -282,6 +342,7 @@ export async function handleGeneralistModulesRoutes(
         }
 
         const importedSuccessfully: Array<{ userId: string; level: number; xp: number }> = [];
+        const importCurve = await getGuildLevelCurve(guildId);
 
         for (const item of validItems) {
           let userId: string | undefined;
@@ -307,7 +368,7 @@ export async function handleGeneralistModulesRoutes(
 
           // Si seul le niveau est fourni, on déduit l'XP minimale de ce niveau.
           if (xp === undefined && level !== undefined) {
-            xp = getXpForLevel(Math.max(0, level) - 1);
+            xp = getXpForLevel(Math.max(0, level) - 1, importCurve);
           }
 
           // L'XP est la source de vérité : on clampe les négatifs et on recalcule
@@ -315,7 +376,7 @@ export async function handleGeneralistModulesRoutes(
           // (ex. niveau importé d'un autre bot avec une autre courbe).
           if (xp !== undefined) {
             xp = Math.max(0, xp);
-            level = getLevelFromXp(xp);
+            level = getLevelFromXp(xp, importCurve);
           }
 
           if (xp === undefined || level === undefined) {

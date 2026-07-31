@@ -1,6 +1,7 @@
 import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas';
 import prisma from '../../utils/db.js';
 import { ensureCanvasFonts, canvasFont } from '../../utils/canvasFonts.js';
+import { xpForLevel, type LevelCurve } from '@kotbo/shared';
 
 // ─────────────────────────────────────────────────────────────
 // Kotbo Design System — Chalkboard / Tableau Noir Aesthetic
@@ -832,6 +833,7 @@ export async function generateProfileCard(options: {
   streak?: number;
   tier?: string;
   isPrivate?: boolean;
+  curve?: LevelCurve;
 }): Promise<Buffer> {
   ensureCanvasFonts();
   const W = 934, H = 520;
@@ -948,9 +950,8 @@ export async function generateProfileCard(options: {
     const xpBarY = statsY + statH + 20;
     const xpBarX = 40, xpBarW = W - 80, xpBarH = 14;
 
-    const getXpForLevel = (l: number) => l < 0 ? 0 : 100 * l * l + 200 * l;
-    const prevXp = getXpForLevel(options.level - 1);
-    const nextXp = getXpForLevel(options.level);
+    const prevXp = xpForLevel(options.level - 1, options.curve);
+    const nextXp = xpForLevel(options.level, options.curve);
     const progress = Math.min(1, Math.max(0, (options.xp - prevXp) / (nextXp - prevXp || 1)));
 
     roundRect(ctx, xpBarX, xpBarY, xpBarW, xpBarH, 4, 'rgba(255,255,255,0.06)');
@@ -963,8 +964,10 @@ export async function generateProfileCard(options: {
     ctx.font = canvasFont(12, 'bold');
     ctx.fillText(`Niv. ${options.level}`, xpBarX, xpBarY + xpBarH + 16);
     ctx.textAlign = 'right';
-    const xpInLevel = Math.max(0, options.xp - prevXp);
     const xpNeeded = nextXp - prevXp || 1;
+    // Bornée au palier : au niveau maximum d'une guilde plafonnée, l'XP monte
+    // encore alors que le palier suivant n'existe plus.
+    const xpInLevel = Math.min(Math.max(0, options.xp - prevXp), xpNeeded);
     ctx.fillText(`${xpInLevel.toLocaleString('fr-FR')} / ${xpNeeded.toLocaleString('fr-FR')} XP`, xpBarX + xpBarW, xpBarY + xpBarH + 16);
     ctx.textAlign = 'left';
   }
