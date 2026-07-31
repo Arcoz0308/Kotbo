@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import {
   json,
+  readJsonBody,
   verifyAuth,
   resolveAdminAccess,
   resolveDashboardAccess,
@@ -13,6 +14,20 @@ import {
 import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceContext.js';
 import prisma from '../../utils/db.js';
 import { fetchExternal } from '../../utils/http.js';
+import {
+  normalizeRankCardCustomization,
+  RANK_CARD_BACKGROUNDS,
+  RANK_CARD_EMOJIS,
+  RANK_CARD_MAX_EMOJIS,
+} from '@kotbo/shared';
+import { getRankCardCustomization, saveRankCardCustomization } from '../../services/progression/rankCardService.js';
+import { renderRankCard } from '../../services/progression/levelingService.js';
+
+// Valeurs d'exemple de l'aperçu : la vraie progression dépend du serveur, la
+// personnalisation elle est globale.
+const PREVIEW_LEVEL = 12;
+const PREVIEW_XP = 16_800;
+const PREVIEW_RANK = 7;
 
 async function mapWithConcurrency<T, R>(
   values: T[],
@@ -86,6 +101,63 @@ export async function handleUserRoutes(
   if (parts[2] === 'me' && method === 'GET') {
     const isBotAdmin = await resolveAdminAccess(client, user.userId);
     json(res, 200, { id: user.userId, username: user.username, avatar: user.avatar, isBotAdmin });
+    return true;
+  }
+
+  // GET /api/user/rank-card
+  if (parts[2] === 'rank-card' && parts.length === 3 && method === 'GET') {
+    const customization = await getRankCardCustomization(user.userId);
+    json(res, 200, {
+      customization,
+      backgrounds: RANK_CARD_BACKGROUNDS,
+      emojis: RANK_CARD_EMOJIS.map((emoji) => emoji.value),
+      maxEmojis: RANK_CARD_MAX_EMOJIS,
+    });
+    return true;
+  }
+
+  // PUT /api/user/rank-card
+  if (parts[2] === 'rank-card' && parts.length === 3 && method === 'PUT') {
+    try {
+      const body = await readJsonBody(req);
+      const customization = await saveRankCardCustomization(user.userId, body);
+      json(res, 200, { customization });
+    } catch (err) {
+      logger.error('API', `Erreur de sauvegarde de la carte de rang pour ${user.userId}:`, err);
+      json(res, 500, { error: 'Une erreur interne est survenue' });
+    }
+    return true;
+  }
+
+  // POST /api/user/rank-card/preview — rendu réel, pour éviter de réimplémenter
+  // le dessin de la carte côté dashboard.
+  if (parts[2] === 'rank-card' && parts[3] === 'preview' && parts.length === 4 && method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const customization = normalizeRankCardCustomization(body);
+      const buffer = await renderRankCard(
+        {
+          userId: user.userId,
+          displayName: user.username ?? 'Membre',
+          username: user.username ?? 'membre',
+          discriminator: '0',
+          avatarUrl: user.avatar
+            ? `https://cdn.discordapp.com/avatars/${user.userId}/${user.avatar}.png?size=256`
+            : 'https://cdn.discordapp.com/embed/avatars/0.png',
+          status: 'online',
+        },
+        PREVIEW_LEVEL,
+        PREVIEW_XP,
+        PREVIEW_RANK,
+        customization,
+      );
+
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+      res.end(buffer);
+    } catch (err) {
+      logger.error('API', `Erreur d'aperçu de la carte de rang pour ${user.userId}:`, err);
+      json(res, 500, { error: 'Une erreur interne est survenue' });
+    }
     return true;
   }
 

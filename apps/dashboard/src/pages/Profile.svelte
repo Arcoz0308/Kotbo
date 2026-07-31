@@ -19,6 +19,7 @@
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import RankCardCustomizer from '../lib/components/RankCardCustomizer.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
@@ -50,7 +51,7 @@
   
   let loading = $state(true);
   let error = $state('');
-  const profileTabs = ['staff_overview', 'staff_activity', 'community_overview', 'api_keys'] as const;
+  const profileTabs = ['staff_overview', 'staff_activity', 'community_overview', 'rank_card', 'api_keys'] as const;
   let activeTab = $state('staff_overview');
 
   const profileBase = $derived(userId ? `/profile/${userId}` : '/profile');
@@ -89,6 +90,9 @@
     ...(publicProfile ? [
       { id: 'community_overview', label: m.pf_tab_community(), icon: 'User' }
     ] : []),
+    ...(isOwnProfile ? [
+      { id: 'rank_card', label: m.pf_tab_rank_card(), icon: 'Sparkles' }
+    ] : []),
     ...(staffMember && isOwnProfile ? [
       { id: 'api_keys', label: m.pf_tab_api_keys(), icon: 'Lock' }
     ] : [])
@@ -100,6 +104,12 @@
       loadProfile(targetUserId);
     }
   });
+
+  // L onglet choisi dans l URL prime sur le defaut deduit du type de profil,
+  // sinon un lien direct vers un onglet serait ecrase a la fin du chargement.
+  function applyDefaultTab(fallback: string) {
+    activeTab = resolveTabFromUrl(profileBase, profileTabs, fallback);
+  }
 
   async function loadProfile(id: string) {
     loading = true;
@@ -138,10 +148,10 @@
         
         // Default active tab
         if (staffMember) {
-          activeTab = 'staff_overview';
+          applyDefaultTab('staff_overview');
           await loadScorecard(staffMember.guildId, id);
         } else {
-          activeTab = 'community_overview';
+          applyDefaultTab('community_overview');
         }
 
         // Load pending resignation if own profile
@@ -157,14 +167,23 @@
         if (pubRes.ok) {
           publicProfile = await pubRes.json();
           staffMember = null;
-          activeTab = 'community_overview';
+          applyDefaultTab('community_overview');
         } else {
           throw new Error(m.pf_load_error());
         }
       }
     } catch (err: any) {
       console.error('Erreur lors du chargement du profil:', err);
-      error = err.message || 'Erreur lors du chargement du profil';
+      // Un membre sans fiche staff ni profil de serveur n'a rien a afficher ici,
+      // mais sa carte de rang ne depend d'aucun des deux : sur son propre profil
+      // on garde la page accessible au lieu de la remplacer par une erreur.
+      if (isOwnProfile) {
+        staffMember = null;
+        publicProfile = null;
+        applyDefaultTab('rank_card');
+      } else {
+        error = err.message || 'Erreur lors du chargement du profil';
+      }
     } finally {
       loading = false;
     }
@@ -193,6 +212,9 @@
   const getUserAvatar = () => {
     if (staffMember?.avatarUrl) return staffMember.avatarUrl;
     if (publicProfile?.avatar) return publicProfile.avatar;
+    if (isOwnProfile && authStore.user?.avatar) {
+      return `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`;
+    }
     return 'https://cdn.discordapp.com/embed/avatars/0.png';
   };
 
@@ -1124,6 +1146,11 @@
               </div>
             </div>
           </div>
+        </div>
+
+      {:else if activeTab === 'rank_card' && isOwnProfile}
+        <div class="rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm">
+          <RankCardCustomizer />
         </div>
 
       {:else if activeTab === 'api_keys' && staffMember && isOwnProfile}

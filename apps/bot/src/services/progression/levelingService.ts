@@ -1,6 +1,14 @@
 import { Client, GuildMember } from 'discord.js';
-import { createCanvas, loadImage, type SKRSContext2D } from '@napi-rs/canvas';
+import { createCanvas, loadImage, type Image, type SKRSContext2D } from '@napi-rs/canvas';
 import type { LevelConfig } from '@prisma/client';
+import {
+  getRankCardBackground,
+  rankCardEmojiImageUrl,
+  RANK_CARD_HEIGHT,
+  RANK_CARD_WIDTH,
+  type RankCardCustomization,
+} from '@kotbo/shared';
+import { getRankCardCustomization } from './rankCardService.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache, getCachedGuild } from '../../utils/cache.js';
@@ -560,47 +568,84 @@ export async function getMemberRankData(guildId: string, userId: string) {
   };
 }
 
-export async function generateRankCard(member: GuildMember, level: number, xp: number, rank: number): Promise<Buffer> {
-  const W = 934, H = 282;
+export type RankCardSubject = {
+  userId: string;
+  displayName: string;
+  username: string;
+  discriminator: string;
+  avatarUrl: string;
+  status: string;
+};
+
+export async function generateRankCard(
+  member: GuildMember,
+  level: number,
+  xp: number,
+  rank: number,
+  customization?: RankCardCustomization,
+): Promise<Buffer> {
+  return renderRankCard(
+    {
+      userId: member.id,
+      displayName: member.displayName,
+      username: member.user.username,
+      discriminator: member.user.discriminator,
+      avatarUrl: member.user.displayAvatarURL({ extension: 'png', size: 256 }),
+      status: member.presence?.status ?? 'offline',
+    },
+    level,
+    xp,
+    rank,
+    customization,
+  );
+}
+
+/**
+ * Rendu détaché de discord.js : le dashboard prévisualise la même carte sans
+ * qu'un `GuildMember` soit disponible.
+ */
+export async function renderRankCard(
+  subject: RankCardSubject,
+  level: number,
+  xp: number,
+  rank: number,
+  customization?: RankCardCustomization,
+): Promise<Buffer> {
+  const W = RANK_CARD_WIDTH, H = RANK_CARD_HEIGHT;
+  const custom = customization ?? await getRankCardCustomization(subject.userId);
+  const preset = getRankCardBackground(custom.backgroundId);
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
   // Background
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#0a0d13');
-  bg.addColorStop(0.5, '#0f1219');
-  bg.addColorStop(1, '#0a0d13');
+  for (const stop of preset.gradient) bg.addColorStop(stop.offset, stop.color);
   roundRect(ctx, 0, 0, W, H, 22, bg);
 
   // Accent bar (top)
   const topBar = ctx.createLinearGradient(0, 0, W, 0);
-  topBar.addColorStop(0, '#5865f2');
-  topBar.addColorStop(0.5, '#7b68ee');
-  topBar.addColorStop(1, '#57f287');
+  for (const stop of preset.accentBar) topBar.addColorStop(stop.offset, stop.color);
   ctx.fillStyle = topBar;
   ctx.fillRect(0, 0, W, 3);
 
   // Glows
-  const glow1 = ctx.createRadialGradient(W * 0.75, H * 0.4, 0, W * 0.75, H * 0.4, 300);
-  glow1.addColorStop(0, 'rgba(88, 101, 242, 0.1)');
-  glow1.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow1;
-  ctx.fillRect(0, 0, W, H);
-
-  const glow2 = ctx.createRadialGradient(150, 140, 0, 150, 140, 200);
-  glow2.addColorStop(0, 'rgba(87, 242, 135, 0.06)');
-  glow2.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow2;
-  ctx.fillRect(0, 0, W, H);
+  for (const glow of preset.glows) {
+    const cx = W * glow.x, cy = H * glow.y;
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, glow.radius);
+    gradient.addColorStop(0, glow.color);
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // Avatar
-  const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 256 });
+  const avatarUrl = subject.avatarUrl;
   const avatarCX = 115, avatarCY = 130, avatarR = 62;
 
   // Avatar ring
   const ringGrad = ctx.createLinearGradient(avatarCX - avatarR, avatarCY - avatarR, avatarCX + avatarR, avatarCY + avatarR);
-  ringGrad.addColorStop(0, '#5865f2');
-  ringGrad.addColorStop(1, '#57f287');
+  ringGrad.addColorStop(0, preset.accentBar[0].color);
+  ringGrad.addColorStop(1, preset.accentBar[preset.accentBar.length - 1].color);
   ctx.beginPath();
   ctx.arc(avatarCX, avatarCY, avatarR + 4, 0, Math.PI * 2);
   ctx.fillStyle = ringGrad;
@@ -608,7 +653,7 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
 
   ctx.beginPath();
   ctx.arc(avatarCX, avatarCY, avatarR + 1, 0, Math.PI * 2);
-  ctx.fillStyle = '#0a0d13';
+  ctx.fillStyle = preset.avatarBackdrop;
   ctx.fill();
 
   try {
@@ -628,11 +673,11 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
   }
 
   // Status indicator
-  const status = member.presence?.status || 'offline';
+  const status = subject.status;
   const statusColor = status === 'online' ? '#3ba55d' : status === 'idle' ? '#faa81a' : status === 'dnd' ? '#ed4245' : '#747f8d';
   ctx.beginPath();
   ctx.arc(avatarCX + 45, avatarCY + 45, 14, 0, Math.PI * 2);
-  ctx.fillStyle = '#0a0d13';
+  ctx.fillStyle = preset.avatarBackdrop;
   ctx.fill();
   ctx.beginPath();
   ctx.arc(avatarCX + 45, avatarCY + 45, 10, 0, Math.PI * 2);
@@ -643,13 +688,16 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
   const nameX = 210;
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 30px sans-serif';
-  const truncatedName = member.displayName.length > 18 ? member.displayName.slice(0, 15) + '…' : member.displayName;
+  const truncatedName = subject.displayName.length > 18 ? subject.displayName.slice(0, 15) + '…' : subject.displayName;
   ctx.fillText(truncatedName, nameX, 80);
 
-  const tagText = member.user.discriminator !== '0' ? `#${member.user.discriminator}` : `@${member.user.username}`;
+  const tagText = subject.discriminator !== '0' ? `#${subject.discriminator}` : `@${subject.username}`;
   ctx.fillStyle = '#6e7681';
   ctx.font = '17px sans-serif';
   ctx.fillText(tagText, nameX, 106);
+  const tagWidth = ctx.measureText(tagText).width;
+
+  await drawRankCardEmojis(ctx, custom.emojis, nameX + tagWidth + 16, 99);
 
   // Rank & Level (right side)
   ctx.textAlign = 'right';
@@ -716,14 +764,46 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
 
   // Bottom accent bar
   const bottomBar = ctx.createLinearGradient(0, 0, W, 0);
-  bottomBar.addColorStop(0, 'rgba(88, 101, 242, 0)');
-  bottomBar.addColorStop(0.3, 'rgba(88, 101, 242, 0.3)');
-  bottomBar.addColorStop(0.7, 'rgba(87, 242, 135, 0.3)');
-  bottomBar.addColorStop(1, 'rgba(87, 242, 135, 0)');
+  for (const stop of preset.accentBar) bottomBar.addColorStop(stop.offset, stop.color);
+  ctx.save();
+  // Le liseré du bas s'estompe sur les bords : on reprend le dégradé du haut
+  // avec un masque d'opacité plutôt que de dupliquer les couleurs en rgba.
+  ctx.globalAlpha = 0.35;
   ctx.fillStyle = bottomBar;
   ctx.fillRect(0, H - 2, W, 2);
+  ctx.restore();
 
   return canvas.toBuffer('image/png');
+}
+
+const emojiImageCache = new Map<string, Image>();
+
+async function drawRankCardEmojis(
+  ctx: SKRSContext2D,
+  emojis: string[],
+  startX: number,
+  centerY: number,
+): Promise<void> {
+  const size = 26, gap = 8;
+  let x = startX;
+
+  for (const emoji of emojis) {
+    const url = rankCardEmojiImageUrl(emoji);
+    if (!url) continue;
+
+    let image = emojiImageCache.get(url);
+    if (!image) {
+      try {
+        image = await loadImage(url);
+        emojiImageCache.set(url, image);
+      } catch {
+        continue;
+      }
+    }
+
+    ctx.drawImage(image, x, centerY - size / 2, size, size);
+    x += size + gap;
+  }
 }
 
 // Helper pour dessiner des rectangles arrondis

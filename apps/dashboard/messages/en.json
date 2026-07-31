@@ -7542,5 +7542,21 @@
   "sm_action_kick": "Kick",
   "sm_action_ban": "Ban",
   "sm_action_escalate": "Escalate",
-  "sm_action_reply": "Reply"
+  "sm_action_reply": "Reply",
+  "rc_title": "My rank card",
+  "rc_subtitle": "This card follows you across every server. The level, XP and rank shown on it stay specific to each server.",
+  "rc_preview_alt": "Rank card preview",
+  "rc_preview_loading": "Rendering…",
+  "rc_preview_note": "Preview uses sample values: your actual progress depends on the server.",
+  "rc_background_title": "Background",
+  "rc_emojis_title": "Emojis",
+  "rc_emoji_limit": "You can pick at most {count} emojis.",
+  "rc_save": "Save card",
+  "rc_saving": "Saving…",
+  "rc_saved": "Rank card updated.",
+  "rc_save_error": "Could not save the card.",
+  "rc_load_error": "Could not load the customization options.",
+  "rc_unsaved": "Unsaved changes",
+  "pf_tab_rank_card": "My rank card",
+  "rc_preview_error": "Preview unavailable right now."
 }
