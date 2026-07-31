@@ -3,6 +3,9 @@ import { Collection, ChannelType } from 'discord.js';
 import path from 'node:path';
 
 type TransactionOptions = { timeout?: number };
+type GuildUpdateArgs = {
+  data?: { statsConfig?: Record<string, unknown> };
+};
 
 const transactionCalls: Array<{ operationCount: number; options?: TransactionOptions }> = [];
 let transactionError: Error | null = null;
@@ -14,7 +17,7 @@ const mockDb = {
       activated: true,
       statsConfig: storedStatsConfig,
     })),
-    update: mock(async () => ({})),
+    update: mock(async (_args: GuildUpdateArgs) => ({})),
   },
   guildDailyStat: {
     upsert: mock(async () => ({})),
@@ -167,9 +170,7 @@ describe('message scraper transaction batching', () => {
     expect(result.status).toBe('STARTED');
     await result.completion;
 
-    const lastUpdate = mockDb.guild.update.mock.calls.at(-1)?.[0] as {
-      data?: { statsConfig?: Record<string, unknown> };
-    };
+    const lastUpdate = mockDb.guild.update.mock.calls.at(-1)?.[0];
     expect(lastUpdate.data?.statsConfig?.historicalScrapeStatus).toBe('FAILED');
     expect(lastUpdate.data?.statsConfig?.historicalScrapeProgress).toEqual(
       storedStatsConfig.historicalScrapeProgress,
