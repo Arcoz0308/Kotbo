@@ -23,6 +23,14 @@
     fetchClansData,
     updateClanSettings
   } from '../lib/api';
+  import {
+    DEFAULT_LEVEL_CURVE,
+    LEVEL_CURVE_LIMITS,
+    levelCurvePreview,
+    levelFromXp,
+    normalizeLevelCurve,
+    xpForLevel,
+  } from '@kotbo/shared';
 
   const saveAction = createAsyncActionState();
   const rewardAction = createAsyncActionState();
@@ -65,7 +73,16 @@
     xpMultipliers: {} as Record<string, number>,
     lengthBonusEnabled: false,
     lengthBonusThreshold: 200,
-    lengthBonusMaxMultiplier: 2.0
+    lengthBonusMaxMultiplier: 2.0,
+    curveBaseXp: DEFAULT_LEVEL_CURVE.baseXp,
+    curveLinearXp: DEFAULT_LEVEL_CURVE.linearXp,
+    curveExponent: DEFAULT_LEVEL_CURVE.exponent,
+    maxLevel: DEFAULT_LEVEL_CURVE.maxLevel,
+    voiceRequireUnmuted: true,
+    voiceRequireUndeafened: true,
+    voiceIgnoreAfkChannel: true,
+    voiceMinMembers: 1,
+    dailyXpCap: 0
   });
 
   // Snapshot of last-saved state
@@ -83,7 +100,16 @@
     xpMultipliers: {} as Record<string, number>,
     lengthBonusEnabled: false,
     lengthBonusThreshold: 200,
-    lengthBonusMaxMultiplier: 2.0
+    lengthBonusMaxMultiplier: 2.0,
+    curveBaseXp: DEFAULT_LEVEL_CURVE.baseXp,
+    curveLinearXp: DEFAULT_LEVEL_CURVE.linearXp,
+    curveExponent: DEFAULT_LEVEL_CURVE.exponent,
+    maxLevel: DEFAULT_LEVEL_CURVE.maxLevel,
+    voiceRequireUnmuted: true,
+    voiceRequireUndeafened: true,
+    voiceIgnoreAfkChannel: true,
+    voiceMinMembers: 1,
+    dailyXpCap: 0
   })));
 
   // Clan states for boost configuration
@@ -177,7 +203,16 @@
           xpMultipliers: res.config.xpMultipliers ?? {},
           lengthBonusEnabled: res.config.lengthBonusEnabled ?? false,
           lengthBonusThreshold: res.config.lengthBonusThreshold ?? 200,
-          lengthBonusMaxMultiplier: res.config.lengthBonusMaxMultiplier ?? 2.0
+          lengthBonusMaxMultiplier: res.config.lengthBonusMaxMultiplier ?? 2.0,
+          curveBaseXp: res.config.curveBaseXp ?? DEFAULT_LEVEL_CURVE.baseXp,
+          curveLinearXp: res.config.curveLinearXp ?? DEFAULT_LEVEL_CURVE.linearXp,
+          curveExponent: res.config.curveExponent ?? DEFAULT_LEVEL_CURVE.exponent,
+          maxLevel: res.config.maxLevel ?? DEFAULT_LEVEL_CURVE.maxLevel,
+          voiceRequireUnmuted: res.config.voiceRequireUnmuted ?? true,
+          voiceRequireUndeafened: res.config.voiceRequireUndeafened ?? true,
+          voiceIgnoreAfkChannel: res.config.voiceIgnoreAfkChannel ?? true,
+          voiceMinMembers: res.config.voiceMinMembers ?? 1,
+          dailyXpCap: res.config.dailyXpCap ?? 0
         };
         savedConfig = JSON.parse(JSON.stringify(config));
         rewards = res.rewards || [];
@@ -273,19 +308,30 @@
     config.xpMultipliers = updated;
   }
 
-  function getXpForLevel(level: number): number {
-    if (level < 0) return 0;
-    return 100 * Math.pow(level, 2) + 200 * level;
-  }
+  // Normalisée pour l'affichage : un champ vidé ou une valeur hors bornes ne
+  // doit pas produire un aperçu incohérent, et le serveur applique de toute
+  // façon les mêmes bornes à l'enregistrement.
+  const levelCurve = $derived(normalizeLevelCurve({
+    baseXp: config.curveBaseXp,
+    linearXp: config.curveLinearXp,
+    exponent: config.curveExponent,
+    maxLevel: config.maxLevel
+  }));
 
-  // L'XP est la source de vérité : le niveau en est dérivé, identique au bot.
-  function getLevelFromXp(xp: number): number {
-    if (xp < 0) return 0;
-    let level = 0;
-    while (xp >= getXpForLevel(level)) {
-      level++;
-    }
-    return level;
+  // Même calcul que le bot, courbe de la guilde comprise : les deux importent
+  // la logique de `@kotbo/shared`.
+  const getXpForLevel = (level: number) => xpForLevel(level, levelCurve);
+  const getLevelFromXp = (xp: number) => levelFromXp(xp, levelCurve);
+
+  const curvePreview = $derived(levelCurvePreview(levelCurve, 30));
+  const curvePreviewMax = $derived(Math.max(...curvePreview.map(p => p.deltaXp), 1));
+  const curveMilestones = $derived([5, 10, 25, 50].map(level => ({ level, totalXp: xpForLevel(level, levelCurve) })));
+
+  function resetCurve() {
+    config.curveBaseXp = DEFAULT_LEVEL_CURVE.baseXp;
+    config.curveLinearXp = DEFAULT_LEVEL_CURVE.linearXp;
+    config.curveExponent = DEFAULT_LEVEL_CURVE.exponent;
+    config.maxLevel = DEFAULT_LEVEL_CURVE.maxLevel;
   }
 
   async function copyPublicUrl() {
@@ -528,6 +574,93 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
+            </div>
+
+            <!-- Conditions d'XP vocale -->
+            <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
+              <div>
+                <span class="text-xs font-bold text-on-surface">{m.lv_voice_conditions_title()}</span>
+                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_conditions_desc()}</p>
+              </div>
+
+              <div class="space-y-3 pt-3 border-t border-outline-variant/10">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <span class="text-xs font-semibold text-on-surface">{m.lv_voice_require_unmuted()}</span>
+                    <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_require_unmuted_desc()}</p>
+                  </div>
+                  <ToggleSwitch
+                    checked={config.voiceRequireUnmuted}
+                    onToggle={(v: boolean) => { config.voiceRequireUnmuted = v; }}
+                    disabled={!canManageSettings}
+                  />
+                </div>
+
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <span class="text-xs font-semibold text-on-surface">{m.lv_voice_require_undeafened()}</span>
+                    <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_require_undeafened_desc()}</p>
+                  </div>
+                  <ToggleSwitch
+                    checked={config.voiceRequireUndeafened}
+                    onToggle={(v: boolean) => { config.voiceRequireUndeafened = v; }}
+                    disabled={!canManageSettings}
+                  />
+                </div>
+
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <span class="text-xs font-semibold text-on-surface">{m.lv_voice_ignore_afk()}</span>
+                    <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_voice_ignore_afk_desc()}</p>
+                  </div>
+                  <ToggleSwitch
+                    checked={config.voiceIgnoreAfkChannel}
+                    onToggle={(v: boolean) => { config.voiceIgnoreAfkChannel = v; }}
+                    disabled={!canManageSettings}
+                  />
+                </div>
+
+                <div class="space-y-1.5 pt-1">
+                  <label for="voiceMinMembers" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_voice_min_members()}</label>
+                  <input
+                    id="voiceMinMembers"
+                    type="number"
+                    min="1"
+                    max="25"
+                    bind:value={config.voiceMinMembers}
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                    disabled={!canManageSettings}
+                  />
+                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_voice_min_members_hint({ count: config.voiceMinMembers })}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Plafond d'XP quotidien -->
+            <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
+              <div>
+                <span class="text-xs font-bold text-on-surface">{m.lv_daily_cap_title()}</span>
+                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_daily_cap_desc()}</p>
+              </div>
+
+              <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
+                <label for="dailyXpCap" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_daily_cap_label()}</label>
+                <input
+                  id="dailyXpCap"
+                  type="number"
+                  min="0"
+                  bind:value={config.dailyXpCap}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                  disabled={!canManageSettings}
+                />
+                <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_daily_cap_hint()}</p>
+              </div>
+
+              {#if config.dailyXpCap > 0}
+                <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
+                  {m.lv_daily_cap_enabled_hint({ cap: config.dailyXpCap.toLocaleString() })}
+                </div>
+              {/if}
             </div>
 
             <!-- Bonus d'XP selon la longueur du message -->
@@ -791,6 +924,116 @@
           </div>
 
           <!-- Save button removed since global bottom bar handles saving -->
+        </section>
+
+        <!-- Courbe de progression -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-start justify-between gap-4">
+            <h3 class="text-xl font-semibold flex items-center gap-3">
+              <Papicon icon="Grades" size={20} class="text-primary" />
+              {m.lv_curve_title()}
+            </h3>
+            {#if canManageSettings}
+              <button
+                type="button"
+                onclick={resetCurve}
+                class="text-[11px] font-semibold text-on-surface-variant/70 hover:text-on-surface px-3 py-1.5 rounded-lg border border-outline-variant/20 transition-all"
+              >
+                {m.lv_curve_reset()}
+              </button>
+            {/if}
+          </div>
+
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">{m.lv_curve_desc()}</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-1.5">
+              <label for="curveBaseXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_base()}</label>
+              <input
+                id="curveBaseXp"
+                type="number"
+                min={LEVEL_CURVE_LIMITS.baseXp.min}
+                max={LEVEL_CURVE_LIMITS.baseXp.max}
+                bind:value={config.curveBaseXp}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                disabled={!canManageSettings}
+              />
+              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_base_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="curveLinearXp" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_linear()}</label>
+              <input
+                id="curveLinearXp"
+                type="number"
+                min={LEVEL_CURVE_LIMITS.linearXp.min}
+                max={LEVEL_CURVE_LIMITS.linearXp.max}
+                bind:value={config.curveLinearXp}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                disabled={!canManageSettings}
+              />
+              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_linear_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="curveExponent" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_exponent()}</label>
+              <input
+                id="curveExponent"
+                type="number"
+                min={LEVEL_CURVE_LIMITS.exponent.min}
+                max={LEVEL_CURVE_LIMITS.exponent.max}
+                step="0.1"
+                bind:value={config.curveExponent}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                disabled={!canManageSettings}
+              />
+              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_exponent_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="maxLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_curve_max_level()}</label>
+              <input
+                id="maxLevel"
+                type="number"
+                min={LEVEL_CURVE_LIMITS.maxLevel.min}
+                max={LEVEL_CURVE_LIMITS.maxLevel.max}
+                bind:value={config.maxLevel}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                disabled={!canManageSettings}
+              />
+              <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_curve_max_level_hint()}</p>
+            </div>
+          </div>
+
+          <div class="space-y-3 pt-4 border-t border-outline-variant/10">
+            <div>
+              <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_curve_preview_title()}</h4>
+              <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_curve_preview_desc()}</p>
+            </div>
+
+            <div class="flex items-end gap-[3px] h-32 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+              {#each curvePreview as point}
+                <div
+                  class="flex-1 bg-primary/60 rounded-t-sm min-h-[2px]"
+                  style="height: {Math.max(2, (point.deltaXp / curvePreviewMax) * 100)}%"
+                  title={m.lv_curve_milestone({ level: point.level }) + ' : ' + point.deltaXp.toLocaleString() + ' XP'}
+                ></div>
+              {/each}
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {#each curveMilestones as milestone}
+                <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_curve_milestone({ level: milestone.level })}</p>
+                  <p class="text-sm font-semibold text-on-surface">{m.lv_curve_milestone_total({ xp: milestone.totalXp.toLocaleString() })}</p>
+                </div>
+              {/each}
+            </div>
+
+            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+              {m.lv_curve_warning()}
+            </div>
+          </div>
         </section>
 
         <!-- Boost de Saison de Clan -->

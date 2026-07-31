@@ -16,9 +16,9 @@ import {
 import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceContext.js';
 import prisma from '../../utils/db.js';
 import { fetchExternal } from '../../utils/http.js';
-import { normalizeRankCardCustomization } from '@kotbo/shared';
+import { normalizeRankCardCustomization, type LevelCurve } from '@kotbo/shared';
 import { getRankCardCustomization, saveRankCardCustomization } from '../../services/progression/rankCardService.js';
-import { getLevelFromXp, renderRankCard } from '../../services/progression/levelingService.js';
+import { getGuildLevelCurve, getLevelFromXp, renderRankCard } from '../../services/progression/levelingService.js';
 
 // Repli de l'aperçu quand aucune progression réelle n'est disponible : la
 // personnalisation est globale, la progression dépend du serveur.
@@ -45,7 +45,7 @@ const PREVIEW_RANK = 7;
 async function resolvePreviewProgression(
   userId: string,
   rawGuildId: unknown,
-): Promise<{ level: number; xp: number; rank: number } | null> {
+): Promise<{ level: number; xp: number; rank: number; curve: LevelCurve } | null> {
   if (typeof rawGuildId !== 'string' || !/^\d{17,20}$/.test(rawGuildId)) return null;
 
   try {
@@ -59,7 +59,8 @@ async function resolvePreviewProgression(
       where: { guildId: rawGuildId, xp: { gt: memberLevel.xp } },
     });
 
-    return { level: getLevelFromXp(memberLevel.xp), xp: memberLevel.xp, rank: ahead + 1 };
+    const curve = await getGuildLevelCurve(rawGuildId);
+    return { level: getLevelFromXp(memberLevel.xp, curve), xp: memberLevel.xp, rank: ahead + 1, curve };
   } catch (err) {
     logger.warn('API', `Progression d'aperçu illisible pour ${userId}:`, err);
     return null;
@@ -189,6 +190,7 @@ export async function handleUserRoutes(
         progression?.xp ?? PREVIEW_XP,
         progression?.rank ?? PREVIEW_RANK,
         customization,
+        progression?.curve,
       );
 
       res.writeHead(200, {

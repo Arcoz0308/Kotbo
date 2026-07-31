@@ -46,9 +46,46 @@ model LevelConfig {
   lengthBonusThreshold     Int     @default(200)
   lengthBonusMaxMultiplier Float   @default(2.0)
 
+  // Courbe d'XP : `curveBaseXp * niveau^curveExponent + curveLinearXp * niveau`.
+  // Les valeurs par défaut reproduisent la courbe historique codée en dur, pour
+  // que l'activation du réglage ne déplace aucun niveau existant.
+  curveBaseXp    Int   @default(100)
+  curveLinearXp  Int   @default(200)
+  curveExponent  Float @default(2.0)
+  /// 0 = pas de plafond de niveau.
+  maxLevel       Int   @default(0)
+
+  // Conditions d'attribution de l'XP vocale.
+  voiceRequireUnmuted    Boolean @default(true)
+  voiceRequireUndeafened Boolean @default(true)
+  voiceIgnoreAfkChannel  Boolean @default(true)
+  /// Nombre minimum d'humains connectés au salon pour que l'XP soit accordée.
+  voiceMinMembers        Int     @default(1)
+
+  /// Plafond d'XP gagnable par jour et par membre. 0 = illimité.
+  dailyXpCap Int @default(0)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("level_configs")
+}
+
+/// Compteur d'XP du jour, uniquement destiné à appliquer `LevelConfig.dailyXpCap`.
+/// Séparé de `MemberDailyStat` : ces statistiques-là sont écrites via un buffer
+/// différé, alors que le plafond doit être lu et incrémenté à chaque gain.
+model MemberDailyXp {
+  guildId String
+  userId  String
+  /// Jour UTC au format YYYY-MM-DD.
+  dateKey String
+
+  xp Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId, dateKey])
+  @@index([dateKey])
+  @@map("member_daily_xp")
 }
 
 model AutoLeaderboard {

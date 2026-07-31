@@ -14,6 +14,7 @@ import {
   setXp,
   getMemberRankData,
   getXpForLevel,
+  getGuildLevelCurve,
 } from '../../services/progression/levelingService.js';
 import { getEffectiveLocale, getCommandMetadata } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
@@ -276,7 +277,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         const amount = interaction.options.getInteger('montant', true);
         const rankData = await getMemberRankData(guildId, targetUser.id);
         const targetLevel = Math.max(0, rankData.level + (subcommand === 'add' ? amount : -amount));
-        const targetXp = getXpForLevel(targetLevel - 1);
+        const targetXp = getXpForLevel(targetLevel - 1, await getGuildLevelCurve(guildId));
         const result = await setXp(guildId, targetUser.id, targetXp, interaction.client);
 
         await interaction.reply({
@@ -293,7 +294,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         });
       } else if (subcommand === 'set') {
         const level = interaction.options.getInteger('niveau', true);
-        const targetXp = getXpForLevel(level - 1);
+        const targetXp = getXpForLevel(level - 1, await getGuildLevelCurve(guildId));
         const result = await setXp(guildId, targetUser.id, targetXp, interaction.client);
 
         await interaction.reply({

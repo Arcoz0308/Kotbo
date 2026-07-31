@@ -3,6 +3,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicLeveling } from '../lib/api';
+  import { DEFAULT_LEVEL_CURVE, levelFromXp, normalizeLevelCurve, xpForLevel, type LevelCurve } from '@kotbo/shared';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
@@ -26,6 +27,7 @@
   let levels = $state<Array<{ userId: string; xp: number; level: number; username?: string; displayName?: string; avatarUrl?: string }>>([]);
   let searchQuery = $state('');
   let highlightedUserId = $state<string | null>(null);
+  let curve = $state<LevelCurve>(DEFAULT_LEVEL_CURVE);
 
   onMount(async () => {
     try {
@@ -35,6 +37,7 @@
         guildName = res.guildName ?? 'Kotbo Server';
         guildIcon = res.guildIcon ?? null;
         levels = res.levels || [];
+        curve = normalizeLevelCurve(res.curve);
       }
     } catch (err: any) {
       console.error(err);
@@ -44,20 +47,10 @@
     }
   });
 
-  function getXpForLevel(level: number): number {
-    if (level < 0) return 0;
-    return 100 * Math.pow(level, 2) + 200 * level;
-  }
-
-  // L'XP est la source de vérité : le niveau en est dérivé, identique au bot.
-  function getLevelFromXp(xp: number): number {
-    if (xp < 0) return 0;
-    let level = 0;
-    while (xp >= getXpForLevel(level)) {
-      level++;
-    }
-    return level;
-  }
+  // Même calcul que le bot, courbe de la guilde comprise : les deux importent
+  // la logique de `@kotbo/shared`.
+  const getXpForLevel = (level: number) => xpForLevel(level, curve);
+  const getLevelFromXp = (xp: number) => levelFromXp(xp, curve);
 
   const filteredLevels = $derived(
     levels.filter(u => {

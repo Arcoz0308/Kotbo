@@ -10,6 +10,12 @@ import {
   RANK_CARD_FONTS,
   RANK_CARD_HEIGHT,
   RANK_CARD_WIDTH,
+  DEFAULT_LEVEL_CURVE,
+  grantedWithinDailyCap,
+  levelFromXp,
+  normalizeLevelCurve,
+  xpForLevel,
+  type LevelCurve,
   type RankCardCustomization,
 } from '@kotbo/shared';
 import { ensureCanvasFonts } from '../../utils/canvasFonts.js';
@@ -39,11 +45,13 @@ function maintainXpCooldowns(now: number): void {
 
 /**
  * Calcul l'XP nécessaire pour atteindre un niveau donné.
- * Formule standard : 100 * (level^2) + 200 * level
+ *
+ * La courbe est propre à chaque guilde : tout appel qui connaît la guilde doit
+ * lui passer sa courbe (`getGuildLevelCurve`). Sans courbe, on retombe sur la
+ * formule historique, qui reste le défaut de `LevelConfig`.
  */
-export function getXpForLevel(level: number): number {
-  if (level < 0) return 0;
-  return 100 * Math.pow(level, 2) + 200 * level;
+export function getXpForLevel(level: number, curve: LevelCurve = DEFAULT_LEVEL_CURVE): number {
+  return xpForLevel(level, curve);
 }
 
 /**
@@ -52,13 +60,26 @@ export function getXpForLevel(level: number): number {
  * permet d'auto-réparer les lignes incohérentes (ex. données importées d'un
  * autre bot avec une courbe différente).
  */
-export function getLevelFromXp(xp: number): number {
-  if (xp < 0) return 0;
-  let level = 0;
-  while (xp >= getXpForLevel(level)) {
-    level++;
-  }
-  return level;
+export function getLevelFromXp(xp: number, curve: LevelCurve = DEFAULT_LEVEL_CURVE): number {
+  return levelFromXp(xp, curve);
+}
+
+export function levelCurveFromConfig(config: Pick<LevelConfig, 'curveBaseXp' | 'curveLinearXp' | 'curveExponent' | 'maxLevel'>): LevelCurve {
+  return normalizeLevelCurve({
+    baseXp: config.curveBaseXp,
+    linearXp: config.curveLinearXp,
+    exponent: config.curveExponent,
+    maxLevel: config.maxLevel,
+  });
+}
+
+/**
+ * Courbe d'une guilde, tolérante à l'échec : un module qui n'arrive pas à lire
+ * la config doit afficher un niveau plausible plutôt que planter.
+ */
+export async function getGuildLevelCurve(guildId: string): Promise<LevelCurve> {
+  const config = await getOrCreateLevelConfig(guildId).catch(() => null);
+  return config ? levelCurveFromConfig(config) : DEFAULT_LEVEL_CURVE;
 }
 
 export async function getOrCreateLevelConfig(guildId: string) {
@@ -95,12 +116,30 @@ export async function getOrCreateLevelConfig(guildId: string) {
         lengthBonusEnabled: false,
         lengthBonusThreshold: 200,
         lengthBonusMaxMultiplier: 2.0,
+        curveBaseXp: DEFAULT_LEVEL_CURVE.baseXp,
+        curveLinearXp: DEFAULT_LEVEL_CURVE.linearXp,
+        curveExponent: DEFAULT_LEVEL_CURVE.exponent,
+        maxLevel: DEFAULT_LEVEL_CURVE.maxLevel,
+        voiceRequireUnmuted: true,
+        voiceRequireUndeafened: true,
+        voiceIgnoreAfkChannel: true,
+        voiceMinMembers: 1,
+        dailyXpCap: 0,
       },
     });
   }
 
   await cache.set(cacheKey, config, 60);
   return config;
+}
+
+/**
+ * À appeler après toute écriture de `LevelConfig` : la courbe et le plafond
+ * quotidien sont lus à chaque gain d'XP, laisser expirer le TTL ferait tourner
+ * la guilde sur ses anciens réglages pendant une minute.
+ */
+export async function invalidateLevelConfigCache(guildId: string): Promise<void> {
+  await cache.delete(`guild:${guildId}:level_config`);
 }
 
 /**
@@ -181,18 +220,76 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
     const xpGain = Math.floor(baseGain * multiplier * lengthFactor);
 
     if (xpGain > 0) {
-      await addXp(guildId, userId, xpGain, client, channelId);
+      await addXp(guildId, userId, xpGain, client, channelId, { applyDailyCap: true });
     }
   } catch (err) {
     logger.error('LevelingService', `Erreur lors de l'ajout d'XP texte pour ${userId} sur ${guildId}:`, err);
   }
 }
 
+function utcDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+const DAILY_XP_RETENTION_DAYS = 3;
+let dailyXpPurgeChecks = 0;
+
 /**
- * Ajoute de l'XP brute à un utilisateur et gère le passage de niveau
+ * Les compteurs de la veille ne servent plus à rien une fois le jour passé :
+ * on les purge au fil de l'eau plutôt que d'ajouter une tâche planifiée.
  */
-export async function addXp(guildId: string, userId: string, amount: number, client: Client, channelId?: string) {
+async function purgeStaleDailyXp(): Promise<void> {
+  dailyXpPurgeChecks++;
+  if (dailyXpPurgeChecks % 500 !== 0) return;
+  const cutoff = new Date(Date.now() - DAILY_XP_RETENTION_DAYS * 86_400_000);
+  await prisma.memberDailyXp.deleteMany({ where: { dateKey: { lt: utcDateKey(cutoff) } } }).catch(() => null);
+}
+
+/**
+ * Décompte `amount` du quota quotidien et renvoie la part réellement accordée.
+ *
+ * Le compteur est incrémenté d'abord puis ramené au plafond en cas de
+ * dépassement : deux gains concurrents ne peuvent donc pas franchir le plafond
+ * ensemble, alors qu'un `read then write` le permettrait.
+ */
+async function consumeDailyXpAllowance(guildId: string, userId: string, amount: number, cap: number): Promise<number> {
+  if (cap <= 0) return amount;
+
+  const dateKey = utcDateKey(new Date());
+  const where = { guildId_userId_dateKey: { guildId, userId, dateKey } };
+
+  const counter = await prisma.memberDailyXp.upsert({
+    where,
+    update: { xp: { increment: amount } },
+    create: { guildId, userId, dateKey, xp: amount },
+  });
+
+  if (counter.xp <= cap) return amount;
+
+  await prisma.memberDailyXp.update({ where, data: { xp: cap } }).catch(() => null);
+  await purgeStaleDailyXp();
+  return grantedWithinDailyCap(counter.xp, amount, cap);
+}
+
+/**
+ * Ajoute de l'XP brute à un utilisateur et gère le passage de niveau.
+ *
+ * `applyDailyCap` n'est activé que pour les gains d'activité (texte, vocal) :
+ * un octroi manuel de staff ou une récompense de quête ne doit pas être rogné
+ * par le plafond quotidien.
+ */
+export async function addXp(
+  guildId: string,
+  userId: string,
+  amount: number,
+  client: Client,
+  channelId?: string,
+  options: { applyDailyCap?: boolean } = {},
+) {
   if (amount <= 0) return;
+
+  const config = await getOrCreateLevelConfig(guildId).catch(() => null);
+  const curve = config ? levelCurveFromConfig(config) : DEFAULT_LEVEL_CURVE;
 
   let finalAmount = amount;
   try {
@@ -221,6 +318,13 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
     logger.error('LevelingService', `Erreur lors de l'application du multiplicateur d'XP de clan pour ${userId}:`, err);
   }
 
+  // Le plafond se décompte après le boost de clan : il porte sur l'XP réellement
+  // créditée, sinon un membre boosté le dépasserait de son propre multiplicateur.
+  if (options.applyDailyCap && config && config.dailyXpCap > 0) {
+    finalAmount = await consumeDailyXpAllowance(guildId, userId, finalAmount, config.dailyXpCap);
+    if (finalAmount <= 0) return;
+  }
+
   const memberLevel = await prisma.memberLevel.upsert({
     where: { guildId_userId: { guildId, userId } },
     update: {
@@ -240,7 +344,7 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
   const previousLevel = memberLevel.level;
   // Le niveau est toujours recalculé depuis l'XP totale : ça gère les montées
   // de niveau et auto-répare les lignes dont le niveau était incohérent.
-  const newLevel = getLevelFromXp(memberLevel.xp);
+  const newLevel = getLevelFromXp(memberLevel.xp, curve);
 
   if (newLevel !== previousLevel) {
     if (newLevel > previousLevel) {
@@ -326,7 +430,7 @@ export async function setXp(guildId: string, userId: string, newXp: number, clie
   });
 
   const previousLevel = memberLevel.level;
-  const newLevel = getLevelFromXp(clampedXp);
+  const newLevel = getLevelFromXp(clampedXp, await getGuildLevelCurve(guildId));
 
   if (newLevel !== previousLevel) {
     if (newLevel > previousLevel) {
@@ -546,7 +650,8 @@ export async function getMemberRankData(guildId: string, userId: string) {
 
   // L'XP est la source de vérité : on recalcule le niveau et on auto-répare la
   // ligne si elle est incohérente (ex. niveau importé d'un autre bot).
-  const correctLevel = getLevelFromXp(memberLevel.xp);
+  const curve = await getGuildLevelCurve(guildId);
+  const correctLevel = getLevelFromXp(memberLevel.xp, curve);
   if (memberLevel.id && correctLevel !== memberLevel.level) {
     memberLevel.level = correctLevel;
     prisma.memberLevel
@@ -557,9 +662,9 @@ export async function getMemberRankData(guildId: string, userId: string) {
       .catch(err => logger.error('LevelingService', `Auto-réparation du niveau échouée pour ${userId}:`, err));
   }
 
-  const currentLevelXp = getXpForLevel(memberLevel.level - 1);
-  const nextLevelXp = getXpForLevel(memberLevel.level);
-  
+  const currentLevelXp = getXpForLevel(memberLevel.level - 1, curve);
+  const nextLevelXp = getXpForLevel(memberLevel.level, curve);
+
   const xpInCurrentLevel = memberLevel.xp - currentLevelXp;
   const xpRequiredForNextLevel = nextLevelXp - currentLevelXp;
 
@@ -588,6 +693,7 @@ export async function generateRankCard(
   xp: number,
   rank: number,
   customization?: RankCardCustomization,
+  curve?: LevelCurve,
 ): Promise<Buffer> {
   return renderRankCard(
     {
@@ -602,6 +708,7 @@ export async function generateRankCard(
     xp,
     rank,
     customization,
+    curve ?? await getGuildLevelCurve(member.guild.id),
   );
 }
 
@@ -615,6 +722,7 @@ export async function renderRankCard(
   xp: number,
   rank: number,
   customization?: RankCardCustomization,
+  curve: LevelCurve = DEFAULT_LEVEL_CURVE,
 ): Promise<Buffer> {
   const W = RANK_CARD_WIDTH, H = RANK_CARD_HEIGHT;
   const custom = customization ?? await getRankCardCustomization(subject.userId);
@@ -749,9 +857,9 @@ export async function renderRankCard(
   ctx.textAlign = 'left';
 
   // XP text
-  const safeLevel = getLevelFromXp(xp);
-  const prevXpNeeded = getXpForLevel(safeLevel - 1);
-  const nextXpNeeded = getXpForLevel(safeLevel);
+  const safeLevel = getLevelFromXp(xp, curve);
+  const prevXpNeeded = getXpForLevel(safeLevel - 1, curve);
+  const nextXpNeeded = getXpForLevel(safeLevel, curve);
   const xpInCurrentLevel = Math.max(0, xp - prevXpNeeded);
   const xpRequiredForNextLevel = Math.max(1, nextXpNeeded - prevXpNeeded);
   const progressPercent = Math.min(1, Math.max(0, xpInCurrentLevel / xpRequiredForNextLevel));

@@ -27,14 +27,22 @@ export function registerLevelingListener(client: Client) {
           // Vérifier si le salon vocal est exclu
           if (config.ignoredChannels && config.ignoredChannels.includes(channel.id)) continue;
 
+          // Le salon AFK est un salon d'attente : y rester n'est pas de l'activité.
+          if (config.voiceIgnoreAfkChannel && guild.afkChannelId === channel.id) continue;
+
+          // Le seuil se compte en humains : sinon un bot de musique suffirait à
+          // faire passer un salon où le membre est seul pour une conversation.
+          const humanCount = channel.members.filter(m => !m.user.bot).size;
+          if (humanCount < Math.max(1, config.voiceMinMembers)) continue;
+
           // Parcourir tous les membres connectés
           for (const [_memberId, member] of channel.members) {
             if (member.user.bot) continue;
 
-            // Ne pas donner d'XP s'il est muet ou sourd (auto-muet, sourd d'oreille, etc.)
             const isMuted = member.voice.selfMute || member.voice.serverMute;
             const isDeafened = member.voice.selfDeaf || member.voice.serverDeaf;
-            if (isMuted || isDeafened) continue;
+            if (config.voiceRequireUnmuted && isMuted) continue;
+            if (config.voiceRequireUndeafened && isDeafened) continue;
 
             // Vérifier si le membre possède un rôle exclu
             if (config.ignoredRoles && (config.ignoredRoles as string[]).some(roleId => member.roles.cache.has(roleId))) continue;
@@ -57,7 +65,7 @@ export function registerLevelingListener(client: Client) {
 
             // Ajouter l'XP vocale (batching: max 50 opérations en parallèle)
             xpPromises.push(
-              addXp(guildId, member.id, voiceXp, client).catch(err =>
+              addXp(guildId, member.id, voiceXp, client, undefined, { applyDailyCap: true }).catch(err =>
                 logger.error('LevelingService', `Erreur lors de l'attribution XP vocal à ${member.id}:`, err)
               )
             );
