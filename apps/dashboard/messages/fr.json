@@ -3007,7 +3007,7 @@
   "lv_curve_max_level_hint": "0 pour ne pas plafonner. Au plafond, l'XP continue de s'accumuler mais le niveau ne bouge plus.",
   "lv_curve_reset": "Revenir à la courbe par défaut",
   "lv_curve_preview_title": "Aperçu : XP à gagner par niveau",
-  "lv_curve_preview_desc": "Chaque barre représente l'XP nécessaire pour passer du niveau précédent au niveau indiqué (30 premiers niveaux).",
+  "lv_curve_preview_desc": "Chaque barre représente l'XP nécessaire pour passer du niveau précédent au niveau indiqué.",
   "lv_curve_milestone": "Niveau {level}",
   "lv_curve_milestone_total": "{xp} XP au total",
   "lv_curve_warning": "⚠️ Le niveau est toujours recalculé depuis l'XP totale : modifier la courbe redistribue immédiatement les niveaux de tous les membres, sans leur faire perdre d'XP.",

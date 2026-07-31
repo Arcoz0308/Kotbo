@@ -255,6 +255,8 @@ async function purgeStaleDailyXp(): Promise<void> {
 async function consumeDailyXpAllowance(guildId: string, userId: string, amount: number, cap: number): Promise<number> {
   if (cap <= 0) return amount;
 
+  await purgeStaleDailyXp();
+
   const dateKey = utcDateKey(new Date());
   const where = { guildId_userId_dateKey: { guildId, userId, dateKey } };
 
@@ -267,7 +269,6 @@ async function consumeDailyXpAllowance(guildId: string, userId: string, amount: 
   if (counter.xp <= cap) return amount;
 
   await prisma.memberDailyXp.update({ where, data: { xp: cap } }).catch(() => null);
-  await purgeStaleDailyXp();
   return grantedWithinDailyCap(counter.xp, amount, cap);
 }
 
@@ -665,13 +666,16 @@ export async function getMemberRankData(guildId: string, userId: string) {
   const currentLevelXp = getXpForLevel(memberLevel.level - 1, curve);
   const nextLevelXp = getXpForLevel(memberLevel.level, curve);
 
-  const xpInCurrentLevel = memberLevel.xp - currentLevelXp;
   const xpRequiredForNextLevel = nextLevelXp - currentLevelXp;
+  // Au niveau maximum l'XP continue de monter sans palier suivant : borner la
+  // part du niveau en cours évite que les barres de progression construites
+  // depuis ce ratio dépassent 100 %.
+  const xpInCurrentLevel = Math.min(Math.max(0, memberLevel.xp - currentLevelXp), xpRequiredForNextLevel);
 
   return {
     level: memberLevel.level,
     xp: memberLevel.xp,
-    xpInCurrentLevel: Math.max(0, xpInCurrentLevel),
+    xpInCurrentLevel,
     xpRequiredForNextLevel,
     rank,
     totalXp: memberLevel.xp,
@@ -860,8 +864,10 @@ export async function renderRankCard(
   const safeLevel = getLevelFromXp(xp, curve);
   const prevXpNeeded = getXpForLevel(safeLevel - 1, curve);
   const nextXpNeeded = getXpForLevel(safeLevel, curve);
-  const xpInCurrentLevel = Math.max(0, xp - prevXpNeeded);
   const xpRequiredForNextLevel = Math.max(1, nextXpNeeded - prevXpNeeded);
+  // Bornée au palier : au niveau maximum l'XP continue de monter alors que le
+  // palier suivant n'existe plus, et la carte afficherait « 150 000 / 30 000 ».
+  const xpInCurrentLevel = Math.min(Math.max(0, xp - prevXpNeeded), xpRequiredForNextLevel);
   const progressPercent = Math.min(1, Math.max(0, xpInCurrentLevel / xpRequiredForNextLevel));
 
   ctx.fillStyle = '#6e7681';

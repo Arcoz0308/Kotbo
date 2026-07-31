@@ -325,7 +325,14 @@
 
   const curvePreview = $derived(levelCurvePreview(levelCurve, 30));
   const curvePreviewMax = $derived(Math.max(...curvePreview.map(p => p.deltaXp), 1));
-  const curveMilestones = $derived([5, 10, 25, 50].map(level => ({ level, totalXp: xpForLevel(level, levelCurve) })));
+  // Les paliers au-delà du plafond afficheraient tous la même XP : ils sont
+  // remplacés par le plafond lui-même, qui est l'information utile.
+  const curveMilestoneLevels = $derived(
+    levelCurve.maxLevel > 0
+      ? [...new Set([5, 10, 25, 50].filter(level => level < levelCurve.maxLevel).concat(levelCurve.maxLevel))]
+      : [5, 10, 25, 50]
+  );
+  const curveMilestones = $derived(curveMilestoneLevels.map(level => ({ level, totalXp: xpForLevel(level, levelCurve) })));
 
   function resetCurve() {
     config.curveBaseXp = DEFAULT_LEVEL_CURVE.baseXp;
@@ -1412,8 +1419,8 @@
             {@const lvl = getLevelFromXp(userLvl.xp)}
             {@const nextLvlXp = getXpForLevel(lvl)}
             {@const prevLvlXp = getXpForLevel(lvl - 1)}
-            {@const currentProgress = Math.max(0, userLvl.xp - prevLvlXp)}
             {@const neededProgress = Math.max(1, nextLvlXp - prevLvlXp)}
+            {@const currentProgress = Math.min(Math.max(0, userLvl.xp - prevLvlXp), neededProgress)}
             {@const percent = Math.min(100, Math.max(0, (currentProgress / neededProgress) * 100))}
             
             <div class="flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/15 border border-outline-variant/5 hover:bg-surface-container-high/30 hover:border-outline-variant/15 transition-all duration-350 group">

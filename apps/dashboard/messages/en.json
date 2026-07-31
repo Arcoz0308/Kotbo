@@ -3007,7 +3007,7 @@
   "lv_curve_max_level_hint": "0 for no cap. At the cap, XP keeps accumulating but the level no longer moves.",
   "lv_curve_reset": "Back to the default curve",
   "lv_curve_preview_title": "Preview: XP needed per level",
-  "lv_curve_preview_desc": "Each bar is the XP needed to go from the previous level to the one shown (first 30 levels).",
+  "lv_curve_preview_desc": "Each bar is the XP needed to go from the previous level to the one shown.",
   "lv_curve_milestone": "Level {level}",
   "lv_curve_milestone_total": "{xp} XP in total",
   "lv_curve_warning": "⚠️ Levels are always recomputed from total XP: changing the curve immediately redistributes every member's level, without any of them losing XP.",

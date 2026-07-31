@@ -85,7 +85,10 @@ export function levelFromXp(xp: number, curve: LevelCurve = DEFAULT_LEVEL_CURVE)
  * montrer l'effet d'un réglage avant enregistrement, donc sans appel réseau.
  */
 export function levelCurvePreview(curve: LevelCurve, levels: number): Array<{ level: number; totalXp: number; deltaXp: number }> {
-  const count = Math.max(1, Math.min(100, Math.floor(levels)));
+  const requested = Math.max(1, Math.min(100, Math.floor(levels)));
+  // Au-delà du plafond tous les paliers coûteraient 0 : l'aperçu s'arrête là
+  // plutôt que d'aligner des barres vides.
+  const count = curve.maxLevel > 0 ? Math.min(requested, curve.maxLevel) : requested;
   const points: Array<{ level: number; totalXp: number; deltaXp: number }> = [];
   for (let level = 1; level <= count; level++) {
     const totalXp = xpForLevel(level, curve);

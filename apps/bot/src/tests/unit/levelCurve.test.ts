@@ -102,6 +102,10 @@ describe('levelCurvePreview', () => {
     expect(levelCurvePreview(DEFAULT_LEVEL_CURVE, 0)).toHaveLength(1);
     expect(levelCurvePreview(DEFAULT_LEVEL_CURVE, 5_000)).toHaveLength(100);
   });
+
+  test('s arrete au niveau maximum', () => {
+    expect(levelCurvePreview(normalizeLevelCurve({ maxLevel: 8 }), 30)).toHaveLength(8);
+  });
 });
 
 describe('grantedWithinDailyCap', () => {

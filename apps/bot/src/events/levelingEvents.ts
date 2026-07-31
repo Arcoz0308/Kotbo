@@ -27,13 +27,16 @@ export function registerLevelingListener(client: Client) {
           // Vérifier si le salon vocal est exclu
           if (config.ignoredChannels && config.ignoredChannels.includes(channel.id)) continue;
 
-          // Le salon AFK est un salon d'attente : y rester n'est pas de l'activité.
-          if (config.voiceIgnoreAfkChannel && guild.afkChannelId === channel.id) continue;
+          // Les conditions actives par défaut sont comparées à `false` plutôt que
+          // testées pour leur véracité : une config encore en cache depuis avant
+          // la migration n'a pas ces colonnes, et l'absence doit valoir le défaut
+          // (condition appliquée) et non l'inverse.
+          if (config.voiceIgnoreAfkChannel !== false && guild.afkChannelId === channel.id) continue;
 
           // Le seuil se compte en humains : sinon un bot de musique suffirait à
           // faire passer un salon où le membre est seul pour une conversation.
           const humanCount = channel.members.filter(m => !m.user.bot).size;
-          if (humanCount < Math.max(1, config.voiceMinMembers)) continue;
+          if (humanCount < Math.max(1, config.voiceMinMembers ?? 1)) continue;
 
           // Parcourir tous les membres connectés
           for (const [_memberId, member] of channel.members) {
@@ -41,8 +44,8 @@ export function registerLevelingListener(client: Client) {
 
             const isMuted = member.voice.selfMute || member.voice.serverMute;
             const isDeafened = member.voice.selfDeaf || member.voice.serverDeaf;
-            if (config.voiceRequireUnmuted && isMuted) continue;
-            if (config.voiceRequireUndeafened && isDeafened) continue;
+            if (config.voiceRequireUnmuted !== false && isMuted) continue;
+            if (config.voiceRequireUndeafened !== false && isDeafened) continue;
 
             // Vérifier si le membre possède un rôle exclu
             if (config.ignoredRoles && (config.ignoredRoles as string[]).some(roleId => member.roles.cache.has(roleId))) continue;

@@ -964,8 +964,10 @@ export async function generateProfileCard(options: {
     ctx.font = canvasFont(12, 'bold');
     ctx.fillText(`Niv. ${options.level}`, xpBarX, xpBarY + xpBarH + 16);
     ctx.textAlign = 'right';
-    const xpInLevel = Math.max(0, options.xp - prevXp);
     const xpNeeded = nextXp - prevXp || 1;
+    // Bornée au palier : au niveau maximum d'une guilde plafonnée, l'XP monte
+    // encore alors que le palier suivant n'existe plus.
+    const xpInLevel = Math.min(Math.max(0, options.xp - prevXp), xpNeeded);
     ctx.fillText(`${xpInLevel.toLocaleString('fr-FR')} / ${xpNeeded.toLocaleString('fr-FR')} XP`, xpBarX + xpBarW, xpBarY + xpBarH + 16);
     ctx.textAlign = 'left';
   }

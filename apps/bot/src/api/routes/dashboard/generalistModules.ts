@@ -153,17 +153,20 @@ export async function handleGeneralistModulesRoutes(
             lengthBonusMaxMultiplier: body.lengthBonusMaxMultiplier !== undefined
               ? Math.min(10, Math.max(1, body.lengthBonusMaxMultiplier))
               : undefined,
-            curveBaseXp: body.curveBaseXp !== undefined ? curve.baseXp : undefined,
-            curveLinearXp: body.curveLinearXp !== undefined ? curve.linearXp : undefined,
-            curveExponent: body.curveExponent !== undefined ? curve.exponent : undefined,
-            maxLevel: body.maxLevel !== undefined ? curve.maxLevel : undefined,
+            // `!= null` et non `!== undefined` : un champ numérique vidé dans le
+            // dashboard arrive à null, et le borner reviendrait à écrire la
+            // valeur minimale au lieu de laisser le réglage en place.
+            curveBaseXp: body.curveBaseXp != null ? curve.baseXp : undefined,
+            curveLinearXp: body.curveLinearXp != null ? curve.linearXp : undefined,
+            curveExponent: body.curveExponent != null ? curve.exponent : undefined,
+            maxLevel: body.maxLevel != null ? curve.maxLevel : undefined,
             voiceRequireUnmuted: body.voiceRequireUnmuted,
             voiceRequireUndeafened: body.voiceRequireUndeafened,
             voiceIgnoreAfkChannel: body.voiceIgnoreAfkChannel,
-            voiceMinMembers: body.voiceMinMembers !== undefined
+            voiceMinMembers: body.voiceMinMembers != null
               ? Math.min(25, Math.max(1, Math.floor(body.voiceMinMembers)))
               : undefined,
-            dailyXpCap: body.dailyXpCap !== undefined
+            dailyXpCap: body.dailyXpCap != null
               ? Math.min(1_000_000, Math.max(0, Math.floor(body.dailyXpCap)))
               : undefined,
           },
