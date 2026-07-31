@@ -28,7 +28,11 @@ export async function getRankCardCustomization(userId: string): Promise<RankCard
   try {
     const preference = await prisma.rankCardPreference.findUnique({ where: { userId } });
     const customization = preference
-      ? normalizeRankCardCustomization({ backgroundId: preference.backgroundId, emojis: preference.emojis })
+      ? normalizeRankCardCustomization({
+        backgroundId: preference.backgroundId,
+        fontId: preference.fontId,
+        emojis: preference.emojis,
+      })
       : DEFAULT_RANK_CARD_CUSTOMIZATION;
 
     await cache.set(key, customization, CACHE_TTL_SECONDS);
@@ -42,10 +46,16 @@ export async function getRankCardCustomization(userId: string): Promise<RankCard
 export async function saveRankCardCustomization(userId: string, raw: unknown): Promise<RankCardCustomization> {
   const customization = normalizeRankCardCustomization(raw);
 
+  const columns = {
+    backgroundId: customization.backgroundId,
+    fontId: customization.fontId,
+    emojis: customization.emojis,
+  };
+
   await prisma.rankCardPreference.upsert({
     where: { userId },
-    update: { backgroundId: customization.backgroundId, emojis: customization.emojis },
-    create: { userId, backgroundId: customization.backgroundId, emojis: customization.emojis },
+    update: columns,
+    create: { userId, ...columns },
   });
 
   await cache.set(cacheKey(userId), customization, CACHE_TTL_SECONDS);

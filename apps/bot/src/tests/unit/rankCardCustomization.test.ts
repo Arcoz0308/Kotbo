@@ -5,10 +5,13 @@ import {
   normalizeRankCardCustomization,
   rankCardEmojiCodePoint,
   rankCardEmojiImageUrl,
+  rankCardFontStack,
   getRankCardBackground,
+  getRankCardFont,
   DEFAULT_RANK_CARD_CUSTOMIZATION,
   RANK_CARD_BACKGROUNDS,
   RANK_CARD_EMOJIS,
+  RANK_CARD_FONTS,
   RANK_CARD_MAX_EMOJIS,
 } from '@kotbo/shared';
 
@@ -59,7 +62,19 @@ describe('normalizeRankCardCustomization', () => {
 
   test('ne recopie pas les cles inconnues du corps de requete', () => {
     const result = normalizeRankCardCustomization({ backgroundId: 'midnight', injecte: 'oui' });
-    expect(Object.keys(result).sort()).toEqual(['backgroundId', 'emojis']);
+    expect(Object.keys(result).sort()).toEqual(['backgroundId', 'emojis', 'fontId']);
+  });
+
+  test('conserve une police du catalogue', () => {
+    const font = RANK_CARD_FONTS[RANK_CARD_FONTS.length - 1];
+    expect(normalizeRankCardCustomization({ fontId: font.id }).fontId).toBe(font.id);
+  });
+
+  test('remplace une police hors catalogue par le defaut', () => {
+    for (const raw of ['Comic Sans MS', '', 42, null]) {
+      expect(normalizeRankCardCustomization({ fontId: raw }).fontId)
+        .toBe(DEFAULT_RANK_CARD_CUSTOMIZATION.fontId);
+    }
   });
 });
 
@@ -101,6 +116,43 @@ describe('catalogue de la carte de rang', () => {
   test('ne resout rien hors catalogue', () => {
     expect(rankCardEmojiCodePoint('🍕')).toBeNull();
     expect(rankCardEmojiImageUrl('🍕')).toBeNull();
+  });
+
+  test('la police par defaut existe et n a aucun fichier a charger', () => {
+    const defaut = getRankCardFont(DEFAULT_RANK_CARD_CUSTOMIZATION.fontId);
+    expect(defaut.id).toBe(DEFAULT_RANK_CARD_CUSTOMIZATION.fontId);
+    expect(defaut.family).toBeNull();
+  });
+
+  test('les identifiants de police sont uniques', () => {
+    const ids = RANK_CARD_FONTS.map((font) => font.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test('getRankCardFont retombe sur le defaut hors catalogue', () => {
+    expect(getRankCardFont('inconnue').id).toBe(DEFAULT_RANK_CARD_CUSTOMIZATION.fontId);
+    expect(getRankCardFont(null).id).toBe(DEFAULT_RANK_CARD_CUSTOMIZATION.fontId);
+  });
+
+  test('toute pile de familles se termine par le repli', () => {
+    // Le repli rattrape les caracteres que les familles latines ne couvrent
+    // pas : une pile qui s en passerait afficherait des tofus.
+    for (const font of RANK_CARD_FONTS) {
+      expect(rankCardFontStack(font)).toContain('sans-serif');
+      if (font.family) expect(rankCardFontStack(font)).toStartWith(`"${font.family}"`);
+    }
+  });
+
+  test('chaque police non systeme a son fichier dans les deux applications', () => {
+    const ttfDir = fileURLToPath(new URL('../../../assets/rank-fonts/', import.meta.url));
+    const woffDir = fileURLToPath(new URL('../../../../dashboard/public/rank-fonts/', import.meta.url));
+    const manquants: string[] = [];
+    for (const font of RANK_CARD_FONTS) {
+      if (!font.family) continue;
+      if (!existsSync(`${ttfDir}${font.id}.ttf`)) manquants.push(`bot/${font.id}.ttf`);
+      if (!existsSync(`${woffDir}${font.id}.woff2`)) manquants.push(`dashboard/${font.id}.woff2`);
+    }
+    expect(manquants).toEqual([]);
   });
 
   test('chaque emoji du catalogue a son asset sur disque', () => {

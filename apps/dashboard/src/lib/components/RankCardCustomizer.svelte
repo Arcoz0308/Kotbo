@@ -2,9 +2,11 @@
   import { onDestroy } from 'svelte';
   import {
     rankCardEmojiImageUrl,
+    rankCardFontStack,
     DEFAULT_RANK_CARD_CUSTOMIZATION,
     RANK_CARD_BACKGROUNDS,
     RANK_CARD_EMOJIS,
+    RANK_CARD_FONTS,
     RANK_CARD_MAX_EMOJIS,
     type RankCardBackgroundPreset,
     type RankCardCustomization,
@@ -18,6 +20,7 @@
   // Catalogues compiles avec la page : c est la meme source que le canvas
   // serveur, donc aucune divergence possible entre choix offerts et rendu.
   const backgrounds = RANK_CARD_BACKGROUNDS;
+  const fonts = RANK_CARD_FONTS;
   const availableEmojis = RANK_CARD_EMOJIS.map((emoji) => emoji.value);
   const maxEmojis = RANK_CARD_MAX_EMOJIS;
 
@@ -25,6 +28,7 @@
   let saving = $state(false);
 
   let backgroundId = $state(DEFAULT_RANK_CARD_CUSTOMIZATION.backgroundId);
+  let fontId = $state(DEFAULT_RANK_CARD_CUSTOMIZATION.fontId);
   let emojis = $state<string[]>([]);
   let savedSignature = $state('');
 
@@ -35,13 +39,13 @@
   let previewTimer: ReturnType<typeof setTimeout> | null = null;
   let previewToken = 0;
 
-  const draft = $derived<RankCardCustomization>({ backgroundId, emojis: [...emojis] });
+  const draft = $derived<RankCardCustomization>({ backgroundId, fontId, emojis: [...emojis] });
   const dirty = $derived(signatureOf(draft) !== savedSignature);
   const customized = $derived(signatureOf(draft) !== signatureOf(DEFAULT_RANK_CARD_CUSTOMIZATION));
 
   /** Signature canonique : ne pas dependre de l ordre des cles renvoyees par l API. */
   function signatureOf(customization: RankCardCustomization): string {
-    return JSON.stringify([customization.backgroundId, customization.emojis]);
+    return JSON.stringify([customization.backgroundId, customization.fontId, customization.emojis]);
   }
 
   /** Reconstruit la vignette d un fond a partir de la meme recette que le canvas serveur. */
@@ -106,6 +110,7 @@
 
   function reset() {
     backgroundId = DEFAULT_RANK_CARD_CUSTOMIZATION.backgroundId;
+    fontId = DEFAULT_RANK_CARD_CUSTOMIZATION.fontId;
     emojis = [...DEFAULT_RANK_CARD_CUSTOMIZATION.emojis];
   }
 
@@ -118,6 +123,7 @@
         return;
       }
       backgroundId = result.backgroundId;
+      fontId = result.fontId;
       emojis = result.emojis;
       savedSignature = signatureOf(result);
       toast.success(m.rc_saved());
@@ -148,6 +154,7 @@
         const customization = await fetchRankCardCustomization();
         if (customization) {
           backgroundId = customization.backgroundId;
+          fontId = customization.fontId;
           emojis = customization.emojis;
           savedSignature = signatureOf(customization);
         } else {
@@ -215,6 +222,32 @@
                 <Papicon icon="Check" size={13} class="text-primary" />
               {/if}
             </div>
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div>
+      <h4 class="mb-2 text-[13px] font-medium text-on-surface">{m.rc_font_title()}</h4>
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {#each fonts as preset (preset.id)}
+          <button
+            type="button"
+            onclick={() => (fontId = preset.id)}
+            aria-pressed={fontId === preset.id}
+            class="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition-all {fontId === preset.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:border-primary/50'}"
+          >
+            <!-- L echantillon est ecrit dans la police proposee : un nom de
+                 famille ne dit rien de son allure. -->
+            <span
+              class="truncate text-[15px] font-bold text-on-surface"
+              style="font-family: {rankCardFontStack(preset)};"
+            >
+              {getLocale() === 'fr' ? preset.label.fr : preset.label.en}
+            </span>
+            {#if fontId === preset.id}
+              <Papicon icon="Check" size={13} class="shrink-0 text-primary" />
+            {/if}
           </button>
         {/each}
       </div>
