@@ -78,6 +78,7 @@ import { registerWelcomeGoodbyeBusSubscribers } from './modules/welcomeGoodbye.m
 import { registerModerationBusSubscribers } from './modules/moderation.module.js';
 import { registerTicketsBusSubscribers } from './modules/tickets.module.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
+import { resolveEventGuildId } from './utils/eventGuild.js';
 import { initializeAutoBackupForAllGuilds, initializeAutoBackup, stopAutoBackup } from './services/system/autoBackupService.js';
 import {
   commands as slashCommandDefinitions,
@@ -141,6 +142,10 @@ const PASSTHROUGH_EVENTS = new Set<string | symbol>([
   Events.ShardReady,
   Events.GuildCreate,
   Events.GuildDelete,
+  // discord.js consomme lui-même cet événement pour résoudre
+  // `guild.members.fetch()` : le filtrer ferait expirer les récupérations de
+  // membres au lieu de bloquer un traitement métier.
+  Events.GuildMembersChunk,
 ]);
 const OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
 
@@ -150,47 +155,25 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
     return originalEmit.call(client, eventName, ...args);
   }
 
-  // Fast path: extract guildId from first arg (covers 99% of Discord events)
-  // Les evenements Discord transportent des objets heterogenes : on ne lit ici
-  // que les proprietes permettant de remonter a un identifiant de serveur.
-  type GuildBearing = {
-    guild?: { id?: unknown } | null;
-    guildId?: unknown;
-    id?: unknown;
-    name?: unknown;
-    roles?: unknown;
+  // Les evenements Discord transportent des objets heterogenes : la resolution
+  // balaye tous les arguments, la guilde n'etant pas toujours portee par le
+  // premier (`GuildAuditLogEntryCreate` emet `(entry, guild)`).
+  type InteractionBearing = {
     // Presents sur les interactions uniquement.
     commandName?: unknown;
     user?: { id?: unknown } | null;
     author?: { id?: unknown } | null;
   };
 
-  const arg = args[0] as GuildBearing | null | undefined;
+  const arg = args[0] as InteractionBearing | null | undefined;
   if (!arg || typeof arg !== 'object') {
     return originalEmit.call(client, eventName, ...args);
   }
 
-  let guildId: string | null = null;
   let isActivateCommand = false;
   let isOwnerInteraction = false;
 
-  if (arg.guild && typeof arg.guild.id === 'string') {
-    guildId = arg.guild.id;
-  } else if (typeof arg.guildId === 'string') {
-    guildId = arg.guildId;
-  } else if (typeof arg.id === 'string' && (arg.constructor?.name === 'Guild' || (arg.name && arg.roles))) {
-    guildId = arg.id;
-  }
-
-  // Fallback: check remaining args only if first didn't yield a guildId
-  if (!guildId) {
-    for (let i = 1; i < args.length; i++) {
-      const a = args[i] as GuildBearing | null | undefined;
-      if (!a || typeof a !== 'object') continue;
-      if (a.guild && typeof a.guild.id === 'string') { guildId = a.guild.id; break; }
-      if (typeof a.guildId === 'string') { guildId = a.guildId; break; }
-    }
-  }
+  const guildId = resolveEventGuildId(args);
 
   if (guildId) {
     // `/activate` doit franchir la garde ci-dessous, sinon un serveur non activé
