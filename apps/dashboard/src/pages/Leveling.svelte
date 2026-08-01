@@ -26,6 +26,7 @@
     findLevelingPreset,
     levelingPresetValues,
     type LevelingPreset,
+    type LevelingPresetValues,
   } from '../lib/levelingPresets';
   import { 
     fetchLevelingData,
@@ -588,10 +589,23 @@
     curveMode.resolve(curveFitsSimpleMode());
   }
 
-  function openPresetDetail(preset: LevelingPreset) {
-    applyLevelingPreset(preset);
+  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
+  // configuration courante, elle ouvre juste les onglets.
+  function openPresetDetail(preset: LevelingPreset | null) {
+    if (preset) applyLevelingPreset(preset);
     gotoTab('/leveling', 'gains', DEFAULT_TAB);
   }
+
+  const customPresetValues = $derived<LevelingPresetValues>({
+    xpMin: config.xpMin,
+    xpMax: config.xpMax,
+    cooldownSeconds: config.cooldownSeconds,
+    vocalXpPerMin: config.vocalXpPerMin,
+    curveBaseXp: config.curveBaseXp,
+    curveLinearXp: config.curveLinearXp,
+    curveExponent: config.curveExponent,
+    maxLevel: config.maxLevel,
+  });
 
   // Estimation de duree : les curseurs repondent chacun a un fragment, aucun ne
   // dit combien de temps il faut pour atteindre un niveau. Le calcul combine le
@@ -1001,6 +1015,7 @@
     <LevelingPresetPicker
       selectedId={selectedPreset?.id ?? null}
       activeId={activePreset?.id ?? null}
+      customValues={customPresetValues}
       disabled={!canManageSettings}
       dirty={configDirty}
       saving={saveAction.state.loading}
