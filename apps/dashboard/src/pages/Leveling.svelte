@@ -1261,8 +1261,9 @@
                 </div>
               {/if}
 
-              <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
-                {m.lv_length_bonus_example({ half: Math.round((config.lengthBonusThreshold || 1) / 2), midMult: (1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2), threshold: config.lengthBonusThreshold, maxMult: Number(config.lengthBonusMaxMultiplier).toFixed(2) })}
+              <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed flex items-start gap-2">
+                <Papicon icon="Info" size={13} class="shrink-0 mt-0.5" />
+                <span>{m.lv_length_bonus_example({ half: Math.round((config.lengthBonusThreshold || 1) / 2), midMult: (1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2), threshold: config.lengthBonusThreshold, maxMult: Number(config.lengthBonusMaxMultiplier).toFixed(2) })}</span>
               </div>
             {/if}
           </div>
@@ -1400,7 +1401,8 @@
                       {#if winningClan.roleId}
                         <tr class="bg-amber-500/10 border-l-4 border-amber-500 transition-all font-semibold">
                           <td class="px-6 py-3.5 text-sm font-semibold flex items-center gap-2">
-                            <span>🏆 {getRoleName(winningClan.roleId)}</span>
+                            <Papicon icon="Trophy" size={15} class="shrink-0 text-amber-500" />
+                            <span>{getRoleName(winningClan.roleId)}</span>
                             <span class="text-[9px] uppercase tracking-wider bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">{m.lv_winning_clan_badge()}</span>
                           </td>
                           <td class="px-6 py-3.5 text-sm font-semibold text-amber-500">{clanRewardXpBoostRate}x</td>
@@ -1674,7 +1676,9 @@
               {/each}
             </div>
 
-            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed flex items-start gap-2">
+              <Papicon icon="AlertTriangle" size={13} class="shrink-0 mt-0.5" />
+              <div class="min-w-0 flex-1">
               {#if curveDirty && curveStats}
                 <p class="font-bold mb-1">{curveImpactLabel}</p>
               {/if}
@@ -1694,6 +1698,7 @@
                 </ul>
                 <p class="mt-1 opacity-80">{m.lv_reward_impact_desc()}</p>
               {/if}
+              </div>
             </div>
 
             {#if roleResync.pending > 0}
@@ -1764,7 +1769,7 @@
                   <div class="space-y-1.5">
                     <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_clan_target_role()}</span>
                     <div class="px-4 py-3 bg-primary/10 rounded-lg text-sm text-primary font-semibold border border-primary/20 flex items-center gap-2">
-                      <span>👑</span>
+                      <Papicon icon="Crown" size={15} class="shrink-0" />
                       {#if lastWinningClanId}
                         {@const winningClan = clans.find(c => c.id === lastWinningClanId)}
                         {@const targetRole = availableRoles.find(r => r.id === winningClan?.roleId)}
