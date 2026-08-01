@@ -15,6 +15,39 @@ import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type Dash
 import { fetchAllMembers } from '../../../utils/discord.js';
 import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
 
+const LEADERBOARD_PAGE_SIZE = 25;
+/** Plafond des profils retenus par une recherche, avant pagination. */
+const LEADERBOARD_SEARCH_LIMIT = 500;
+
+/**
+ * Complète des lignes de classement avec de quoi les afficher : le profil connu
+ * en base, et le membre Discord quand il est en cache, qui a toujours raison sur
+ * le profil (pseudo serveur, avatar à jour).
+ */
+async function withMemberIdentity(
+  guildId: string,
+  client: Client,
+  rows: Array<{ userId: string }>,
+) {
+  const profiles = await prisma.memberProfile.findMany({
+    where: { guildId, userId: { in: rows.map((row) => row.userId) } },
+  });
+  const profileMap = new Map(profiles.map((profile) => [profile.userId, profile]));
+  const discordGuild = client.guilds.cache.get(guildId);
+
+  return rows.map((row) => {
+    const profile = profileMap.get(row.userId);
+    const discordMember = discordGuild?.members.cache.get(row.userId);
+
+    return {
+      ...row,
+      username: discordMember?.user?.username || profile?.username || null,
+      displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
+      avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null,
+    };
+  });
+}
+
 export async function handleGeneralistModulesRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -45,11 +78,6 @@ export async function handleGeneralistModulesRoutes(
           where: { guildId },
           orderBy: { level: 'asc' },
         });
-        const levels = await prisma.memberLevel.findMany({
-          where: { guildId },
-          orderBy: { xp: 'desc' },
-        });
-
         // Les compteurs du classement sortent de la base, qui les tient déjà :
         // les recalculer membre par membre dans le navigateur revenait à
         // reparcourir toute la guilde à chaque affichage.
@@ -67,39 +95,75 @@ export async function handleGeneralistModulesRoutes(
           maxLevel: totals._max.level ?? 0,
         };
 
-        // Charger les profils de membres de la base de données
-        const userIds = levels.map(l => l.userId);
-        const dbProfiles = await prisma.memberProfile.findMany({
-          where: {
-            guildId,
-            userId: { in: userIds }
-          }
-        });
-        const profileMap = new Map(dbProfiles.map(p => [p.userId, p]));
-
-        // Charger les membres depuis le cache du serveur Discord si présent
-        const discordGuild = client.guilds.cache.get(guildId);
-
-        const levelsWithUserData = levels.map(l => {
-          const profile = profileMap.get(l.userId);
-          const discordMember = discordGuild?.members.cache.get(l.userId);
-
-          const username = discordMember?.user?.username || profile?.username || null;
-          const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${l.userId}`;
-          const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
-
-          return {
-            ...l,
-            username,
-            displayName,
-            avatarUrl
-          };
-        });
-
-        json(res, 200, { config, rewards, levels: levelsWithUserData, stats });
+        json(res, 200, { config, rewards, stats });
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leveling data:', err);
         json(res, 500, { error: 'Erreur lors de la récupération du leveling' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/leveling/leaderboard (Page de classement)
+    if (parts.length === 6 && parts[5] === 'leaderboard' && method === 'GET') {
+      try {
+        const search = (url.searchParams.get('search') ?? '').trim();
+        const page = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
+
+        // La recherche part sur les profils, seul endroit où les pseudos sont
+        // stockés : `MemberLevel` ne connaît que des identifiants. Le plafond
+        // borne la liste d'identifiants remise à la requête suivante.
+        let matchedUserIds: string[] | null = null;
+        if (search) {
+          const like = { contains: search, mode: 'insensitive' as const };
+          const profiles = await prismaRead.memberProfile.findMany({
+            where: {
+              guildId,
+              OR: [{ username: like }, { displayName: like }, { globalName: like }, { userTag: like }],
+            },
+            select: { userId: true },
+            take: LEADERBOARD_SEARCH_LIMIT,
+          });
+          const ids = new Set(profiles.map((profile) => profile.userId));
+          // Une recherche par identifiant Discord ne passe par aucun profil.
+          if (/^\d{5,}$/.test(search)) ids.add(search);
+          matchedUserIds = [...ids];
+        }
+
+        const where = matchedUserIds ? { guildId, userId: { in: matchedUserIds } } : { guildId };
+        const total = await prismaRead.memberLevel.count({ where });
+        const pageCount = Math.max(1, Math.ceil(total / LEADERBOARD_PAGE_SIZE));
+        const currentPage = Math.min(page, pageCount);
+        const skip = (currentPage - 1) * LEADERBOARD_PAGE_SIZE;
+
+        const rows = await prismaRead.memberLevel.findMany({
+          where,
+          orderBy: { xp: 'desc' },
+          skip,
+          take: LEADERBOARD_PAGE_SIZE,
+        });
+
+        // Hors recherche, le rang est la position dans le tri : la base l'a déjà
+        // donné. Filtré, il faut le compter, mais seulement pour les lignes
+        // affichées.
+        const ranks = matchedUserIds
+          ? await Promise.all(rows.map((row) => prismaRead.memberLevel
+              .count({ where: { guildId, xp: { gt: row.xp } } })
+              .then((higher) => higher + 1)))
+          : rows.map((_, index) => skip + index + 1);
+
+        const members = await withMemberIdentity(guildId, client, rows);
+
+        json(res, 200, {
+          rows: members.map((member, index) => ({ ...member, rank: ranks[index] })),
+          total,
+          page: currentPage,
+          pageCount,
+          pageSize: LEADERBOARD_PAGE_SIZE,
+          searchLimited: matchedUserIds !== null && matchedUserIds.length >= LEADERBOARD_SEARCH_LIMIT,
+        });
+      } catch (err) {
+        logger.error('LevelingAPI', 'Error fetching leaderboard page:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération du classement' });
       }
       return true;
     }

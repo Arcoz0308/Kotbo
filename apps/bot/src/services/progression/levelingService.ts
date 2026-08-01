@@ -200,6 +200,8 @@ export interface CurveImpact {
   distribution: number[];
   /** Membres au-delà de la fenêtre couverte par `distribution`. */
   beyond: number;
+  /** Rôles de récompense qui changent de main, du plus mouvementé au moins. */
+  rewardMoves: Array<{ roleId: string; gained: number; lost: number }>;
 }
 
 /**
@@ -231,7 +233,31 @@ export async function countCurveImpact(
     lowered: 0,
     distribution: new Array<number>(columns).fill(0),
     beyond: 0,
+    rewardMoves: [],
   };
+
+  // Le nombre de niveaux qui bougent ne dit pas ce que les membres verront :
+  // ce sont les rôles qui changent de main. Les récompenses et le cumul sont
+  // lus ici plutôt que transmis, la base les tient déjà.
+  const rewards = await prismaRead.levelRoleReward.findMany({
+    where: { guildId },
+    orderBy: { level: 'asc' },
+  });
+  const stackRewards = (await getOrCreateLevelConfig(guildId).catch(() => null))?.stackRewards === true;
+  const rolesByLevel = new Map<number, string[]>();
+  const rolesAtLevel = (level: number): string[] => {
+    const known = rolesByLevel.get(level);
+    if (known) return known;
+    const earned = rewards.filter((reward) => reward.level <= level);
+    // Sans cumul, seul le palier le plus haut est porté - `rewards` est trié.
+    const roles = earned.length === 0
+      ? []
+      : stackRewards ? earned.map((reward) => reward.roleId) : [earned[earned.length - 1].roleId];
+    rolesByLevel.set(level, roles);
+    return roles;
+  };
+  const gained = new Map<string, number>();
+  const lost = new Map<string, number>();
 
   // Par paquets plutôt qu'une tranche après l'autre : une guilde dont le
   // meilleur membre est très haut en compte des centaines, et les enchaîner
@@ -253,6 +279,17 @@ export async function countCurveImpact(
         if (group.level === band.level) continue;
         impact.changed += count;
         if (group.level > band.level) impact.lowered += count;
+
+        if (rewards.length > 0) {
+          const before = rolesAtLevel(group.level);
+          const after = rolesAtLevel(band.level);
+          for (const roleId of after) {
+            if (!before.includes(roleId)) gained.set(roleId, (gained.get(roleId) ?? 0) + count);
+          }
+          for (const roleId of before) {
+            if (!after.includes(roleId)) lost.set(roleId, (lost.get(roleId) ?? 0) + count);
+          }
+        }
       }
 
       impact.total += inBand;
@@ -263,6 +300,10 @@ export async function countCurveImpact(
       }
     });
   }
+
+  impact.rewardMoves = [...new Set([...gained.keys(), ...lost.keys()])]
+    .map((roleId) => ({ roleId, gained: gained.get(roleId) ?? 0, lost: lost.get(roleId) ?? 0 }))
+    .sort((a, b) => (b.gained + b.lost) - (a.gained + a.lost));
 
   return impact;
 }
