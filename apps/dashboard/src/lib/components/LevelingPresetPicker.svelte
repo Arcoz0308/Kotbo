@@ -85,6 +85,45 @@
       preset: null,
     },
   ]);
+
+  // Les six courbes partagent une echelle commune, sinon leurs silhouettes se
+  // ressemblent toutes. Cette echelle est logarithmique : en lineaire, Marathon
+  // (127 000 XP au niveau 10) ecrase les autres courbes sur la ligne du bas.
+  const CURVE_LEVELS = 20;
+
+  function curveScale(values: LevelingPresetValues): number[] {
+    return Array.from({ length: CURVE_LEVELS }, (_, index) =>
+      Math.log10(1 + levelingValuesXpForLevel(values, index + 1)));
+  }
+
+  // L'echelle est bornee par les seuls prereglages : une configuration
+  // personnalisee extreme deformerait sinon les cinq autres courbes. La sienne
+  // est donc ramenee dans le cadre.
+  const CURVE_BOUNDS = (() => {
+    const points = LEVELING_PRESETS.flatMap((preset) => curveScale(levelingPresetValues(preset)));
+    return { min: Math.min(...points), max: Math.max(...points) };
+  })();
+
+  function curvePoints(values: LevelingPresetValues): string {
+    const span = Math.max(0.001, CURVE_BOUNDS.max - CURVE_BOUNDS.min);
+    return curveScale(values)
+      .map((point, index) => {
+        const x = (index / (CURVE_LEVELS - 1)) * 100;
+        const ratio = Math.min(1, Math.max(0, (point - CURVE_BOUNDS.min) / span));
+        return `${x.toFixed(2)},${(32 - ratio * 30).toFixed(2)}`;
+      })
+      .join(' ');
+  }
+
+  // La carte enregistree garde un contour, la carte choisie un fond plein :
+  // l'ecart entre « ce qui tourne » et « ce qui remplacera » reste lisible.
+  function cardTone(card: PresetCard, selected: boolean, active: boolean): string {
+    const outline = card.preset ? '' : ' border-dashed';
+    if (selected) return 'bg-primary/8 border-primary/50 shadow-lg shadow-primary/10' + outline;
+    if (active) return 'bg-surface-container-low/30 border-tertiary/40 hover:border-tertiary/60 hover:bg-surface-container-high/20' + outline;
+    if (card.preset) return 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20';
+    return 'bg-surface-container-low/20 border-outline-variant/25 hover:border-outline-variant/40 hover:bg-surface-container-high/20' + outline;
+  }
 </script>
 
 <div class="space-y-8 animate-in fade-in duration-300">
@@ -104,6 +143,9 @@
       {@const values = card.values}
       {@const selected = card.preset ? selectedId === card.preset.id : selectedId === null}
       {@const active = card.preset ? activeId === card.preset.id : activeId === null}
+      <!-- La carte « Personnalise » inactive n'a pas de valeurs a montrer :
+           elle repeterait celles du prereglage en cours. -->
+      {@const detailed = !!card.preset || active}
       <!-- Le liseré et la teinte ne marquent que le préréglage choisi. Le
            recommandé se signale par son seul badge : deux cartes colorées se
            disputeraient le regard. -->
@@ -112,62 +154,85 @@
         onclick={() => (card.preset ? onselect(card.preset) : ondetail())}
         {disabled}
         aria-pressed={card.preset ? selected : undefined}
-        class="relative overflow-hidden text-left p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {selected
-          ? 'bg-primary/8 border-primary/50 shadow-lg shadow-primary/10'
-          : card.preset
-            ? 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'
-            : 'bg-surface-container-low/20 border-dashed border-outline-variant/25 hover:border-outline-variant/40 hover:bg-surface-container-high/20'}"
+        class="relative overflow-hidden text-left p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {cardTone(card, selected, active)}"
       >
         {#if selected}
           <span class="absolute inset-x-0 top-0 h-[3px] bg-primary" aria-hidden="true"></span>
         {/if}
 
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {selected ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
-              <Papicon icon={card.icon} size={18} class={selected ? 'text-primary' : 'text-on-surface-variant/70'} />
+        {#if detailed}
+          <svg
+            class="absolute inset-x-0 bottom-0 w-full h-20 {selected ? 'text-primary/30' : 'text-on-surface-variant/15'}"
+            viewBox="0 0 100 32"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <polyline
+              points={curvePoints(values)}
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+              vector-effect="non-scaling-stroke"
+            />
+          </svg>
+        {/if}
+
+        <div class="relative">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {selected ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
+                <Papicon icon={card.icon} size={18} class={selected ? 'text-primary' : 'text-on-surface-variant/70'} />
+              </div>
+              <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
             </div>
-            <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
+            {#if active}
+              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
+                {m.lv_presets_active()}
+              </span>
+            {:else if selected}
+              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
+                {m.lv_presets_selected()}
+              </span>
+            {:else if card.recommended}
+              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
+                {m.lv_presets_recommended()}
+              </span>
+            {/if}
           </div>
-          {#if active}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
-              {m.lv_presets_active()}
-            </span>
-          {:else if selected}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
-              {m.lv_presets_selected()}
-            </span>
-          {:else if card.recommended}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
-              {m.lv_presets_recommended()}
-            </span>
+
+          <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{card.desc}</p>
+
+          {#if detailed}
+            <div class="grid grid-cols-2 gap-2.5 mt-5">
+              <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
+                <p class="text-sm font-semibold text-on-surface">{values.xpMin} – {values.xpMax}</p>
+              </div>
+              <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
+                <p class="text-sm font-semibold text-on-surface">{values.cooldownSeconds} s</p>
+              </div>
+              <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
+                <p class="text-sm font-semibold text-on-surface">≈ {levelingValuesHourlyXp(values).toLocaleString()}</p>
+              </div>
+              <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_presets_tile_level_10()}</p>
+                <p class="text-sm font-semibold text-on-surface">{levelingValuesXpForLevel(values, 10).toLocaleString()} XP</p>
+              </div>
+            </div>
+
+            <p class="text-[11px] text-on-surface-variant/50 mt-3">
+              {values.maxLevel > 0 ? m.lv_presets_max_level({ level: values.maxLevel }) : m.lv_presets_no_max_level()}
+            </p>
+          {:else}
+            <p class="flex items-center gap-1.5 mt-5 text-[13px] font-semibold text-primary/80">
+              {m.lv_presets_open_advanced()}
+              <Papicon icon="ArrowRight" size={14} />
+            </p>
           {/if}
         </div>
-
-        <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{card.desc}</p>
-
-        <div class="grid grid-cols-2 gap-2.5 mt-5">
-          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
-            <p class="text-sm font-semibold text-on-surface">{values.xpMin} – {values.xpMax}</p>
-          </div>
-          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
-            <p class="text-sm font-semibold text-on-surface">{values.cooldownSeconds} s</p>
-          </div>
-          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
-            <p class="text-sm font-semibold text-on-surface">≈ {levelingValuesHourlyXp(values).toLocaleString()}</p>
-          </div>
-          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_presets_tile_level_10()}</p>
-            <p class="text-sm font-semibold text-on-surface">{levelingValuesXpForLevel(values, 10).toLocaleString()} XP</p>
-          </div>
-        </div>
-
-        <p class="text-[11px] text-on-surface-variant/50 mt-3">
-          {values.maxLevel > 0 ? m.lv_presets_max_level({ level: values.maxLevel }) : m.lv_presets_no_max_level()}
-        </p>
       </button>
     {/each}
   </div>
