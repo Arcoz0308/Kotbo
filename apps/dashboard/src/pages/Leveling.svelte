@@ -259,6 +259,16 @@
       if (!res) throw new Error(m.lv_err_save());
       config = res.config;
       savedConfig = JSON.parse(JSON.stringify(res.config));
+      // Le serveur realigne la colonne `level` sur la courbe enregistree. Sans
+      // le refaire ici, le classement affiche encore les anciens niveaux et un
+      // second reglage se chiffrerait contre eux.
+      const savedCurve = normalizeLevelCurve({
+        baseXp: res.config.curveBaseXp,
+        linearXp: res.config.curveLinearXp,
+        exponent: res.config.curveExponent,
+        maxLevel: res.config.maxLevel
+      });
+      levels = levels.map(member => ({ ...member, level: levelFromXp(member.xp, savedCurve) }));
 
       // 2. Enregistrer la configuration du boost d'XP de clan si modifiée
       if (clanRewardXpBoost !== savedClanRewardXpBoost || clanRewardXpBoostRate !== savedClanRewardXpBoostRate) {
@@ -512,6 +522,45 @@
     if (days < 730) return m.lv_estimate_months({ months: Math.round(days / 30) });
     return m.lv_estimate_years({ years: (days / 365).toFixed(1) });
   }
+
+  // Changer la courbe redistribue les niveaux de tout le serveur, et
+  // l'avertissement generique ne disait pas dans quelle mesure. Le classement
+  // est deja charge en entier, donc l'effet se chiffre sans appel reseau, comme
+  // le reste des apercus de cette carte.
+  const curveDirty = $derived(
+    config.curveBaseXp !== savedConfig.curveBaseXp
+      || config.curveLinearXp !== savedConfig.curveLinearXp
+      || config.curveExponent !== savedConfig.curveExponent
+      || config.maxLevel !== savedConfig.maxLevel
+  );
+
+  // Comparaison avec le niveau enregistre et non avec celui de la courbe
+  // sauvegardee : c'est exactement ce que le serveur reecrira au prochain
+  // realignement.
+  const curveImpact = $derived.by(() => {
+    let changed = 0;
+    let lowered = 0;
+    for (const member of levels) {
+      const next = getLevelFromXp(member.xp);
+      if (next === member.level) continue;
+      changed++;
+      if (next < member.level) lowered++;
+    }
+    return { changed, lowered };
+  });
+
+  const curveImpactLabel = $derived.by(() => {
+    const { changed, lowered } = curveImpact;
+    if (changed === 0) return m.lv_curve_impact_none();
+    const total = levels.length.toLocaleString();
+    if (changed === 1) {
+      return lowered === 1 ? m.lv_curve_impact_one_lowered({ total }) : m.lv_curve_impact_one({ total });
+    }
+    const count = changed.toLocaleString();
+    return lowered > 0
+      ? m.lv_curve_impact_many_lowered({ changed: count, total, lowered: lowered.toLocaleString() })
+      : m.lv_curve_impact_many({ changed: count, total });
+  });
 
   function resetCurve() {
     config.curveBaseXp = DEFAULT_LEVEL_CURVE.baseXp;
@@ -1339,6 +1388,9 @@
             </div>
 
             <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+              {#if curveDirty && levels.length > 0}
+                <p class="font-bold mb-1">{curveImpactLabel}</p>
+              {/if}
               {m.lv_curve_warning()}
             </div>
           </div>
