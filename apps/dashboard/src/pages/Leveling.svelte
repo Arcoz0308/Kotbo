@@ -591,8 +591,7 @@
 
   // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
   // configuration courante, elle ouvre juste les onglets.
-  function openPresetDetail(preset: LevelingPreset | null) {
-    if (preset) applyLevelingPreset(preset);
+  function openPresetDetail() {
     gotoTab('/leveling', 'gains', DEFAULT_TAB);
   }
 
