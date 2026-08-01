@@ -233,28 +233,35 @@ export async function countCurveImpact(
     beyond: 0,
   };
 
-  for (const band of bands) {
-    const groups = await prismaRead.memberLevel.groupBy({
+  // Par paquets plutôt qu'une tranche après l'autre : une guilde dont le
+  // meilleur membre est très haut en compte des centaines, et les enchaîner
+  // ferait attendre le dashboard bien plus longtemps que la base ne travaille.
+  const BATCH_SIZE = 8;
+  for (let start = 0; start < bands.length; start += BATCH_SIZE) {
+    const batch = bands.slice(start, start + BATCH_SIZE);
+    const results = await Promise.all(batch.map((band) => prismaRead.memberLevel.groupBy({
       by: ['level'],
       where: { guildId, xp: band.xp },
       _count: { _all: true },
+    })));
+
+    batch.forEach((band, index) => {
+      let inBand = 0;
+      for (const group of results[index]) {
+        const count = group._count._all;
+        inBand += count;
+        if (group.level === band.level) continue;
+        impact.changed += count;
+        if (group.level > band.level) impact.lowered += count;
+      }
+
+      impact.total += inBand;
+      if (band.level <= impact.distribution.length) {
+        impact.distribution[band.level - 1] = inBand;
+      } else {
+        impact.beyond += inBand;
+      }
     });
-
-    let inBand = 0;
-    for (const group of groups) {
-      const count = group._count._all;
-      inBand += count;
-      if (group.level === band.level) continue;
-      impact.changed += count;
-      if (group.level > band.level) impact.lowered += count;
-    }
-
-    impact.total += inBand;
-    if (band.level <= impact.distribution.length) {
-      impact.distribution[band.level - 1] = inBand;
-    } else {
-      impact.beyond += inBand;
-    }
   }
 
   return impact;
@@ -511,6 +518,47 @@ export async function addXp(
       // Correction vers le bas : on retire les rôles attribués en trop, sans message
       await updateMemberLevelRoles(guildId, userId, newLevel, client).catch(() => null);
     }
+  }
+}
+
+/**
+ * Retire de l'XP à un membre, sans jamais descendre sous zéro.
+ *
+ * `addXp` refuse les montants négatifs et c'est très bien ainsi : elle tourne à
+ * chaque message, un signe inversé y viderait des comptes. Le retrait a donc sa
+ * propre porte, où le décrément reste atomique - le plancher et le niveau sont
+ * réécrits juste après, sur la valeur effectivement obtenue.
+ */
+export async function removeXp(guildId: string, userId: string, amount: number, client: Client) {
+  if (amount <= 0) return;
+
+  const updated = await prisma.memberLevel.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: { xp: { decrement: Math.floor(amount) } },
+  }).catch((err: { code?: string }) => {
+    // P2025 : pas de ligne, donc rien à retirer - le membre n'a jamais gagné
+    // d'XP. Tout le reste est une panne et n'a rien à faire dans le silence.
+    if (err?.code !== 'P2025') {
+      logger.error('LevelingService', `Retrait d'XP impossible pour ${userId} sur ${guildId}:`, err);
+    }
+    return null;
+  });
+  if (!updated) return;
+
+  const curve = await getGuildLevelCurve(guildId);
+  const xp = Math.max(0, updated.xp);
+  const newLevel = getLevelFromXp(xp, curve);
+  if (xp === updated.xp && newLevel === updated.level) return;
+
+  await prisma.memberLevel.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: { xp, level: newLevel },
+  });
+
+  // Descente de niveau : les rôles de récompense acquis au-dessus repartent,
+  // sans message - personne n'a besoin d'être prévenu qu'il a perdu un niveau.
+  if (newLevel < updated.level) {
+    await updateMemberLevelRoles(guildId, userId, newLevel, client).catch(() => null);
   }
 }
 
