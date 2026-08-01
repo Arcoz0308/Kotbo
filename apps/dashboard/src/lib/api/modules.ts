@@ -14,6 +14,21 @@ export async function updateLevelingConfig(config, guildId = authStore.selectedG
   return dashboardRequest('/leveling', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Leveling):' });
 }
 
+export async function fetchLevelingCurveImpact(
+  curve: { baseXp: number; linearXp: number; exponent: number; maxLevel: number },
+  guildId = authStore.selectedGuildId,
+) {
+  const query = new URLSearchParams({
+    baseXp: String(curve.baseXp),
+    linearXp: String(curve.linearXp),
+    exponent: String(curve.exponent),
+    maxLevel: String(curve.maxLevel),
+  });
+  // `silent` : appel de fond declenche par les curseurs, un bot indisponible ne
+  // doit pas empiler les toasts d'erreur pendant qu'on regle la courbe.
+  return dashboardRequest(`/leveling/curve-impact?${query}`, { method: 'GET', guildId, silent: true, errorContext: 'API Error (Curve Impact):' });
+}
+
 export async function addLevelingReward(level: number, roleId: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/leveling/rewards', { method: 'POST', payload: { level, roleId }, guildId, errorContext: 'API Error (Add Leveling Reward):' });
 }

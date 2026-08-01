@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
@@ -83,6 +83,23 @@ export async function handleGeneralistModulesRoutes(
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leveling data:', err);
         json(res, 500, { error: 'Erreur lors de la récupération du leveling' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/leveling/curve-impact (Effet d'une courbe)
+    if (parts.length === 6 && parts[5] === 'curve-impact' && method === 'GET') {
+      try {
+        const curve = normalizeLevelCurve({
+          baseXp: Number(url.searchParams.get('baseXp')),
+          linearXp: Number(url.searchParams.get('linearXp')),
+          exponent: Number(url.searchParams.get('exponent')),
+          maxLevel: Number(url.searchParams.get('maxLevel')),
+        });
+        json(res, 200, await countCurveImpact(guildId, curve));
+      } catch (err) {
+        logger.error('LevelingAPI', 'Error counting curve impact:', err);
+        json(res, 500, { error: "Erreur lors du calcul de l'effet de la courbe" });
       }
       return true;
     }
@@ -185,13 +202,17 @@ export async function handleGeneralistModulesRoutes(
           || previousConfig.curveExponent !== config.curveExponent
           || previousConfig.maxLevel !== config.maxLevel;
 
+        // `null` distingue l'échec du réalignement de l'absence de réalignement :
+        // le dashboard annonce un chiffre avant l'enregistrement, il ne doit pas
+        // confirmer « 0 niveau réaligné » quand la requête a en fait échoué.
+        let resynced: number | null = 0;
         if (curveChanged) {
-          const resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config))
+          resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config))
             .catch((err) => {
               logger.error('LevelingAPI', `Réalignement des niveaux échoué pour ${guildId}:`, err);
-              return 0;
+              return null;
             });
-          if (resynced > 0) {
+          if (resynced && resynced > 0) {
             logger.info('LevelingAPI', `Courbe modifiée sur ${guildId} : ${resynced} niveaux réalignés.`);
           }
         }
@@ -206,7 +227,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null
         });
 
-        json(res, 200, { config });
+        json(res, 200, { config, resynced });
       } catch (err) {
         logger.error('LevelingAPI', 'Error updating leveling config:', err);
         json(res, 500, { error: 'Erreur lors de la mise à jour du leveling' });

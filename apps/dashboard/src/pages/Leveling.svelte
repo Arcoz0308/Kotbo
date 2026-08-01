@@ -18,8 +18,9 @@
   import SimpleModeNotice from '../lib/components/SimpleModeNotice.svelte';
   import { createSimpleModePreference, nearestStep } from '../lib/simpleMode.svelte';
   import { 
-    fetchLevelingData, 
-    updateLevelingConfig, 
+    fetchLevelingData,
+    fetchLevelingCurveImpact,
+    updateLevelingConfig,
     addLevelingReward, 
     deleteLevelingReward,
     importLevelingData,
@@ -28,6 +29,7 @@
   } from '../lib/api';
   import {
     DEFAULT_LEVEL_CURVE,
+    LEVEL_CURVE_HARD_CAP,
     LEVEL_CURVE_LIMITS,
     levelCurvePreview,
     levelFromXp,
@@ -253,12 +255,27 @@
   async function handleSaveConfig(): Promise<boolean> {
     if (!canManageSettings) return false;
     let success = false;
+    let resynced: number | null = 0;
     await saveAction.run(async () => {
       // 1. Enregistrer la configuration du leveling
       const res = await updateLevelingConfig(config);
       if (!res) throw new Error(m.lv_err_save());
       config = res.config;
       savedConfig = JSON.parse(JSON.stringify(res.config));
+      resynced = res.resynced === undefined ? 0 : res.resynced;
+      // Le serveur a realigne la colonne `level` sur la courbe enregistree.
+      // Sans le refaire ici, le classement affiche encore les anciens niveaux
+      // et un second reglage se chiffrerait contre eux. En cas d'echec du
+      // realignement la base garde les anciens niveaux : le local aussi.
+      if (resynced !== null) {
+        const savedCurve = normalizeLevelCurve({
+          baseXp: res.config.curveBaseXp,
+          linearXp: res.config.curveLinearXp,
+          exponent: res.config.curveExponent,
+          maxLevel: res.config.maxLevel
+        });
+        levels = levels.map(member => ({ ...member, level: levelFromXp(member.xp, savedCurve) }));
+      }
 
       // 2. Enregistrer la configuration du boost d'XP de clan si modifiée
       if (clanRewardXpBoost !== savedClanRewardXpBoost || clanRewardXpBoostRate !== savedClanRewardXpBoostRate) {
@@ -276,6 +293,18 @@
       success = true;
       return true;
     }, { successMessage: m.lv_toast_saved() });
+
+    // Le compte rendu du serveur remplace le message generique : il confirme
+    // l'estimation affichee avant l'enregistrement, ou signale que le
+    // realignement a echoue alors que la courbe, elle, est bien enregistree.
+    if (success && resynced === null) {
+      saveAction.setError(m.lv_toast_resync_failed());
+    } else if (success && resynced > 0) {
+      saveAction.setMessage(
+        resynced === 1 ? m.lv_toast_resynced_one() : m.lv_toast_resynced({ count: resynced.toLocaleString() })
+      );
+    }
+
     return success;
   }
 
@@ -333,7 +362,33 @@
   // Même calcul que le bot, courbe de la guilde comprise : les deux importent
   // la logique de `@kotbo/shared`.
   const getXpForLevel = (level: number) => xpForLevel(level, levelCurve);
-  const getLevelFromXp = (xp: number) => levelFromXp(xp, levelCurve);
+
+  // `levelFromXp` remonte la courbe niveau par niveau, avec un `Math.pow` a
+  // chaque pas. La page l'appelle une fois par membre, plusieurs fois par
+  // reglage : les seuils sont tabules une fois par courbe, et le niveau se
+  // trouve ensuite par dichotomie. Resultat identique, cout independant du
+  // niveau atteint.
+  const curveThresholds = $derived.by(() => {
+    const cap = levelCurve.maxLevel > 0
+      ? Math.min(levelCurve.maxLevel, LEVEL_CURVE_HARD_CAP)
+      : LEVEL_CURVE_HARD_CAP;
+    const thresholds = new Array<number>(cap + 1);
+    for (let level = 0; level <= cap; level++) thresholds[level] = xpForLevel(level, levelCurve);
+    return thresholds;
+  });
+
+  function getLevelFromXp(xp: number): number {
+    if (!Number.isFinite(xp) || xp < 0) return 0;
+    const thresholds = curveThresholds;
+    let low = 0;
+    let high = thresholds.length - 1;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (xp >= thresholds[mid]) low = mid;
+      else high = mid - 1;
+    }
+    return Math.min(low + 1, thresholds.length - 1);
+  }
 
   const curvePreview = $derived(levelCurvePreview(levelCurve, 30));
   const curvePreviewMax = $derived(Math.max(...curvePreview.map(p => p.deltaXp), 1));
@@ -512,6 +567,96 @@
     if (days < 730) return m.lv_estimate_months({ months: Math.round(days / 30) });
     return m.lv_estimate_years({ years: (days / 365).toFixed(1) });
   }
+
+  // Changer la courbe redistribue les niveaux de tout le serveur, et
+  // l'avertissement generique ne disait pas dans quelle mesure.
+  const curveDirty = $derived(
+    config.curveBaseXp !== savedConfig.curveBaseXp
+      || config.curveLinearXp !== savedConfig.curveLinearXp
+      || config.curveExponent !== savedConfig.curveExponent
+      || config.maxLevel !== savedConfig.maxLevel
+  );
+
+  type CurveStats = {
+    total: number;
+    changed: number;
+    lowered: number;
+    /** Nombre de membres par niveau, index 0 pour le niveau 1. */
+    distribution: number[];
+    beyond: number;
+  };
+
+  // Effet de la courbe en cours d'edition : combien de membres changent de
+  // niveau, combien en perdent, et ou ils se repartissent. La courbe se
+  // reglait jusqu'ici sans rien savoir de tout ca - durcir les niveaux 40 ne
+  // change rien si tout le monde plafonne au niveau 12.
+  //
+  // Le classement complet est deja charge dans la page : tant qu'il est la, le
+  // calcul se fait en local, donc instantanement pendant qu'on bouge les
+  // curseurs. Les colonnes suivent l'apercu de la courbe juste au-dessus, pour
+  // que les deux graphiques se lisent ensemble.
+  const localCurveStats = $derived.by((): CurveStats | null => {
+    if (levels.length === 0) return null;
+    const columns = curvePreview.length;
+    const distribution = new Array<number>(columns).fill(0);
+    let changed = 0;
+    let lowered = 0;
+    let beyond = 0;
+    for (const member of levels) {
+      const level = getLevelFromXp(member.xp);
+      // Le niveau enregistre, et non celui de la courbe sauvegardee : c'est
+      // exactement ce que le serveur reecrira au prochain realignement.
+      if (level !== member.level) {
+        changed++;
+        if (level < member.level) lowered++;
+      }
+      if (level > columns) beyond++;
+      else if (level >= 1) distribution[level - 1]++;
+    }
+    return { total: levels.length, changed, lowered, distribution, beyond };
+  });
+
+  // Repli quand la page n'a pas la liste des membres : le bot compte les memes
+  // chiffres par tranche d'XP directement en base, sans faire voyager une seule
+  // ligne de membre. Debounce, sinon un curseur tire une requete par cran.
+  let remoteCurveStats = $state<CurveStats | null>(null);
+
+  $effect(() => {
+    if (loading || levels.length > 0) return;
+    const curve = { ...levelCurve };
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const stats = await fetchLevelingCurveImpact(curve).catch(() => null);
+      // Un bot plus ancien repond 404 sur cette route : on garde null plutot
+      // que d'aller lire une repartition absente.
+      if (!cancelled) remoteCurveStats = Array.isArray(stats?.distribution) ? stats : null;
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  });
+
+  // Une guilde sans membre n'a rien a montrer : ni histogramme vide, ni
+  // « aucun membre ne changera de niveau », qui se lirait comme un resultat.
+  const curveStats = $derived.by(() => {
+    const stats = localCurveStats ?? remoteCurveStats;
+    return stats && stats.total > 0 ? stats : null;
+  });
+  const curveStatsMax = $derived(Math.max(...(curveStats?.distribution ?? []), 1));
+
+  const curveImpactLabel = $derived.by(() => {
+    const { changed, lowered, total: members } = curveStats ?? { changed: 0, lowered: 0, total: 0 };
+    if (changed === 0) return m.lv_curve_impact_none();
+    const total = members.toLocaleString();
+    if (changed === 1) {
+      return lowered === 1 ? m.lv_curve_impact_one_lowered({ total }) : m.lv_curve_impact_one({ total });
+    }
+    const count = changed.toLocaleString();
+    return lowered > 0
+      ? m.lv_curve_impact_many_lowered({ changed: count, total, lowered: lowered.toLocaleString() })
+      : m.lv_curve_impact_many({ changed: count, total });
+  });
 
   function resetCurve() {
     config.curveBaseXp = DEFAULT_LEVEL_CURVE.baseXp;
@@ -1313,6 +1458,29 @@
               {/each}
             </div>
 
+            {#if curveStats}
+              <div>
+                <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_curve_population_title()}</h4>
+                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_curve_population_desc()}</p>
+              </div>
+
+              <div class="flex items-end gap-[3px] h-16 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                {#each curveStats.distribution as count, index}
+                  <div
+                    class="flex-1 rounded-t-sm min-h-[2px] {count > 0 ? 'bg-tertiary/60' : 'bg-outline-variant/20'}"
+                    style="height: {count > 0 ? Math.max(4, (count / curveStatsMax) * 100) : 0}%"
+                    title={m.lv_curve_population_bar({ level: index + 1, count: count.toLocaleString() })}
+                  ></div>
+                {/each}
+              </div>
+
+              {#if curveStats.beyond > 0}
+                <p class="text-[10px] text-on-surface-variant/60 ml-2">
+                  {m.lv_curve_population_beyond({ count: curveStats.beyond.toLocaleString(), level: curveStats.distribution.length })}
+                </p>
+              {/if}
+            {/if}
+
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
               <p class="text-[11px] text-on-surface-variant/70">{m.lv_estimate_intro()}</p>
               <nav class="tab-group w-fit">
@@ -1339,6 +1507,9 @@
             </div>
 
             <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+              {#if curveDirty && curveStats}
+                <p class="font-bold mb-1">{curveImpactLabel}</p>
+              {/if}
               {m.lv_curve_warning()}
             </div>
           </div>
