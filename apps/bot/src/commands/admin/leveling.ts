@@ -11,6 +11,7 @@ import { text, successContainer, errorContainer, v2, COLORS_RAW } from '../../ut
 import { E } from '../../utils/emojis.js';
 import {
   addXp,
+  removeXp,
   setXp,
   getMemberRankData,
   getXpForLevel,
@@ -233,8 +234,11 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       const amount = interaction.options.getInteger('montant', true);
 
       if (subcommand === 'add' || subcommand === 'remove') {
-        const delta = subcommand === 'add' ? amount : -amount;
-        await addXp(guildId, targetUser.id, delta, interaction.client);
+        if (subcommand === 'add') {
+          await addXp(guildId, targetUser.id, amount, interaction.client);
+        } else {
+          await removeXp(guildId, targetUser.id, amount, interaction.client);
+        }
         const updated = await prisma.memberLevel.findUnique({
           where: { guildId_userId: { guildId, userId: targetUser.id } },
           select: { xp: true, level: true },

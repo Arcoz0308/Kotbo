@@ -515,6 +515,47 @@ export async function addXp(
 }
 
 /**
+ * Retire de l'XP à un membre, sans jamais descendre sous zéro.
+ *
+ * `addXp` refuse les montants négatifs et c'est très bien ainsi : elle tourne à
+ * chaque message, un signe inversé y viderait des comptes. Le retrait a donc sa
+ * propre porte, où le décrément reste atomique - le plancher et le niveau sont
+ * réécrits juste après, sur la valeur effectivement obtenue.
+ */
+export async function removeXp(guildId: string, userId: string, amount: number, client: Client) {
+  if (amount <= 0) return;
+
+  const updated = await prisma.memberLevel.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: { xp: { decrement: Math.floor(amount) } },
+  }).catch((err: { code?: string }) => {
+    // P2025 : pas de ligne, donc rien à retirer - le membre n'a jamais gagné
+    // d'XP. Tout le reste est une panne et n'a rien à faire dans le silence.
+    if (err?.code !== 'P2025') {
+      logger.error('LevelingService', `Retrait d'XP impossible pour ${userId} sur ${guildId}:`, err);
+    }
+    return null;
+  });
+  if (!updated) return;
+
+  const curve = await getGuildLevelCurve(guildId);
+  const xp = Math.max(0, updated.xp);
+  const newLevel = getLevelFromXp(xp, curve);
+  if (xp === updated.xp && newLevel === updated.level) return;
+
+  await prisma.memberLevel.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: { xp, level: newLevel },
+  });
+
+  // Descente de niveau : les rôles de récompense acquis au-dessus repartent,
+  // sans message - personne n'a besoin d'être prévenu qu'il a perdu un niveau.
+  if (newLevel < updated.level) {
+    await updateMemberLevelRoles(guildId, userId, newLevel, client).catch(() => null);
+  }
+}
+
+/**
  * Calcule (sans l'appliquer) la récompense en KotboCoins due pour une montée de niveau.
  */
 async function getLevelUpCoinReward(guildId: string, newLevel: number): Promise<{ amount: number; currencyEmoji: string; currencyName: string } | null> {
