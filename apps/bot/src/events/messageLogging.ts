@@ -218,19 +218,27 @@ export async function pruneOldMessageLogs(): Promise<void> {
 
 export function registerMessageLoggingListener(client: Client): void {
   client.on(Events.MessageCreate, (message: Message) => {
-    void logMessage(message);
+    void logMessage(message).catch((err) => {
+      logger.error('MessageLogging', 'Erreur lors de la journalisation du message:', err);
+    });
   });
 
   client.on(Events.MessageUpdate, (_old, newMessage) => {
-    void updateLoggedMessage(newMessage);
+    void updateLoggedMessage(newMessage).catch((err) => {
+      logger.error('MessageLogging', "Erreur lors de la mise à jour d'un message journalisé:", err);
+    });
   });
 
   client.on(Events.MessageDelete, (message: Message | PartialMessage) => {
-    void markMessageDeleted([message.id]);
+    void markMessageDeleted([message.id]).catch((err) => {
+      logger.error('MessageLogging', "Erreur lors du marquage de suppression d'un message:", err);
+    });
   });
 
   client.on(Events.MessageBulkDelete, (messages) => {
-    void markMessageDeleted([...messages.keys()]);
+    void markMessageDeleted([...messages.keys()]).catch((err) => {
+      logger.error('MessageLogging', 'Erreur lors du marquage de suppression groupée:', err);
+    });
   });
 
   logger.success('MessageLogging', 'Écouteur de journalisation des messages enregistré');

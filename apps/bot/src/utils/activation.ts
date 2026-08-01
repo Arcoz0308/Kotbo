@@ -3,6 +3,7 @@ import prisma from './db.js';
 import { logger } from './logger.js';
 import { getClient } from './client.js';
 import { buildAccessFields, type AccessType } from '../services/system/accessService.js';
+import { invalidateLevelConfigCache } from '../services/progression/levelingService.js';
 
 function hashActivationCode(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex');
@@ -249,6 +250,7 @@ async function applyStaffServerFeatureDefaults(guildId: string): Promise<void> {
     update: { enabled: false },
     create: { guildId, enabled: false },
   }).catch((err) => logger.warn('Activation', `Impossible d'appliquer les défauts leveling sur ${guildId}:`, err));
+  await invalidateLevelConfigCache(guildId).catch(() => null);
 }
 
 /**

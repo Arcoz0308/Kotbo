@@ -172,6 +172,15 @@ model Guild {
   clanSeasonEndsAt   DateTime?
   clanXpFromLevelUp  Boolean @default(false)
   clanXpPerLevelUp   Int     @default(50)
+  /// Verse un montant proportionnel à l'XP réellement franchie au lieu du
+  /// forfait `clanXpPerLevelUp`. Avec une courbe quadratique, le forfait fait
+  /// rapporter à un vétéran plusieurs fois moins de points par message qu'à un
+  /// débutant, alors que les deux fournissent le même effort.
+  clanXpLevelUpProportional Boolean @default(false)
+  /// Niveau auquel `clanXpPerLevelUp` reste versé tel quel en mode
+  /// proportionnel. En dessous le versement est plus faible, au-dessus plus
+  /// élevé, à proportion de l'XP réellement franchie.
+  clanXpReferenceLevel Int   @default(25)
   clanXpFromBoost    Boolean @default(false)
   clanXpPerBoost     Int     @default(100)
   lastWinningClanId  String?

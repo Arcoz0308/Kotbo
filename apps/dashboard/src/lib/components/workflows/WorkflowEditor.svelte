@@ -407,9 +407,15 @@
       {:else}
         <div class="space-y-1.5">
           {#each filteredCatalog as def}
+            <!-- L'enveloppe ne porte que le glisser-deposer : le bouton
+                 qu'elle entoure fait deja le meme ajout au clic, donc elle
+                 n'apporte aucune semantique et se declare comme telle. Le
+                 draggable reste ici plutot que sur le bouton : WebKit ne fait
+                 pas glisser les controles de formulaire. -->
             <div
               draggable="true"
               ondragstart={(e) => handleDragStart(e, def.type)}
+              role="presentation"
               class="group relative"
             >
               <button
@@ -435,6 +441,8 @@
     <div
       ondragover={handleCanvasDragOver}
       ondrop={handleCanvasDrop}
+      role="region"
+      aria-label={m.wf_canvas_label()}
       class="flex-1 rounded-2xl overflow-hidden border border-outline-variant/10 bg-surface-container-low relative"
     >
       <SvelteFlow

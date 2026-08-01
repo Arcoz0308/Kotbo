@@ -26,6 +26,11 @@ type Target = {
 };
 
 async function touchSanctionTargetIdentity(params: { guildId: string; userId: string; userTag: string }): Promise<void> {
+  // Le tag reste la seule identité disponible ici : on en tire aussi le pseudo,
+  // sans quoi le profil créé s'affiche en « Utilisateur inconnu » dans la liste
+  // des membres. Les tags hérités portent encore un discriminant `#0000`.
+  const username = params.userTag.split('#')[0] || null;
+
   await prisma.memberProfile.upsert({
     where: {
       guildId_userId: {
@@ -37,6 +42,7 @@ async function touchSanctionTargetIdentity(params: { guildId: string; userId: st
       guildId: params.guildId,
       userId: params.userId,
       userTag: params.userTag,
+      username,
       lastSeenAt: new Date(),
     },
     update: {

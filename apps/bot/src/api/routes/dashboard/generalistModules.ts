@@ -1,8 +1,9 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
-import prisma from '../../../utils/db.js';
+import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
+import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
@@ -13,6 +14,79 @@ import { resolveSuggestion } from '../../../services/features/suggestionService.
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { fetchAllMembers } from '../../../utils/discord.js';
 import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
+
+const LEADERBOARD_PAGE_SIZE = 25;
+/** Plafond des profils retenus par une recherche, avant pagination. */
+const LEADERBOARD_SEARCH_LIMIT = 500;
+
+/**
+ * Identifiants des membres dont un pseudo ressemble à la recherche.
+ *
+ * Passe par `unaccent` (installée par migration) : les pseudos sont saisis à la
+ * main, « jose » doit trouver « José ». Une base qui n'a pas l'extension - droits
+ * insuffisants au déploiement - retombe sur une recherche sensible aux accents,
+ * ce qui vaut toujours mieux que zéro résultat.
+ */
+async function findProfilesByName(guildId: string, search: string): Promise<string[]> {
+  // `%` et `_` saisis dans la barre de recherche sont des caractères de
+  // `ILIKE` : sans échappement, chercher « % » listerait toute la guilde.
+  const pattern = `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  try {
+    const rows = await prismaRead.$queryRaw<Array<{ userId: string }>>`
+      SELECT "userId" FROM "member_profiles"
+      WHERE "guildId" = ${guildId}
+        AND (
+          unaccent(coalesce("username", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("displayName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("globalName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("userTag", '')) ILIKE unaccent(${pattern})
+        )
+      LIMIT ${LEADERBOARD_SEARCH_LIMIT}
+    `;
+    return rows.map((row) => row.userId);
+  } catch (err) {
+    logger.warn('LevelingAPI', 'Recherche sans unaccent (extension absente ?) :', err);
+    const like = { contains: search, mode: 'insensitive' as const };
+    const profiles = await prismaRead.memberProfile.findMany({
+      where: {
+        guildId,
+        OR: [{ username: like }, { displayName: like }, { globalName: like }, { userTag: like }],
+      },
+      select: { userId: true },
+      take: LEADERBOARD_SEARCH_LIMIT,
+    });
+    return profiles.map((profile) => profile.userId);
+  }
+}
+
+/**
+ * Complète des lignes de classement avec de quoi les afficher : le profil connu
+ * en base, et le membre Discord quand il est en cache, qui a toujours raison sur
+ * le profil (pseudo serveur, avatar à jour).
+ */
+async function withMemberIdentity(
+  guildId: string,
+  client: Client,
+  rows: Array<{ userId: string }>,
+) {
+  const profiles = await prisma.memberProfile.findMany({
+    where: { guildId, userId: { in: rows.map((row) => row.userId) } },
+  });
+  const profileMap = new Map(profiles.map((profile) => [profile.userId, profile]));
+  const discordGuild = client.guilds.cache.get(guildId);
+
+  return rows.map((row) => {
+    const profile = profileMap.get(row.userId);
+    const discordMember = discordGuild?.members.cache.get(row.userId);
+
+    return {
+      ...row,
+      username: discordMember?.user?.username || profile?.username || null,
+      displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
+      avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null,
+    };
+  });
+}
 
 export async function handleGeneralistModulesRoutes(
   req: IncomingMessage,
@@ -44,44 +118,132 @@ export async function handleGeneralistModulesRoutes(
           where: { guildId },
           orderBy: { level: 'asc' },
         });
-        const levels = await prisma.memberLevel.findMany({
+        // Les compteurs du classement sortent de la base, qui les tient déjà :
+        // les recalculer membre par membre dans le navigateur revenait à
+        // reparcourir toute la guilde à chaque affichage.
+        const totals = await prismaRead.memberLevel.aggregate({
           where: { guildId },
-          orderBy: { xp: 'desc' },
+          _count: { _all: true },
+          _sum: { xp: true },
+          _avg: { level: true },
+          _max: { level: true },
         });
+        const stats = {
+          memberCount: totals._count._all,
+          totalXp: totals._sum.xp ?? 0,
+          avgLevel: Math.round(totals._avg.level ?? 0),
+          maxLevel: totals._max.level ?? 0,
+        };
 
-        // Charger les profils de membres de la base de données
-        const userIds = levels.map(l => l.userId);
-        const dbProfiles = await prisma.memberProfile.findMany({
-          where: {
-            guildId,
-            userId: { in: userIds }
-          }
-        });
-        const profileMap = new Map(dbProfiles.map(p => [p.userId, p]));
-
-        // Charger les membres depuis le cache du serveur Discord si présent
-        const discordGuild = client.guilds.cache.get(guildId);
-
-        const levelsWithUserData = levels.map(l => {
-          const profile = profileMap.get(l.userId);
-          const discordMember = discordGuild?.members.cache.get(l.userId);
-
-          const username = discordMember?.user?.username || profile?.username || null;
-          const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${l.userId}`;
-          const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
-
-          return {
-            ...l,
-            username,
-            displayName,
-            avatarUrl
-          };
-        });
-
-        json(res, 200, { config, rewards, levels: levelsWithUserData });
+        json(res, 200, { config, rewards, stats });
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leveling data:', err);
         json(res, 500, { error: 'Erreur lors de la récupération du leveling' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/leveling/leaderboard (Page de classement)
+    if (parts.length === 6 && parts[5] === 'leaderboard' && method === 'GET') {
+      try {
+        const search = (url.searchParams.get('search') ?? '').trim();
+        const page = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
+
+        // La recherche part sur les profils, seul endroit où les pseudos sont
+        // stockés : `MemberLevel` ne connaît que des identifiants. Le plafond
+        // borne la liste d'identifiants remise à la requête suivante.
+        let matchedUserIds: string[] | null = null;
+        if (search) {
+          const ids = new Set(await findProfilesByName(guildId, search));
+          // Une recherche par identifiant Discord ne passe par aucun profil.
+          if (/^\d{5,}$/.test(search)) ids.add(search);
+          matchedUserIds = [...ids];
+        }
+
+        const where = matchedUserIds ? { guildId, userId: { in: matchedUserIds } } : { guildId };
+        const total = await prismaRead.memberLevel.count({ where });
+        const pageCount = Math.max(1, Math.ceil(total / LEADERBOARD_PAGE_SIZE));
+        const currentPage = Math.min(page, pageCount);
+        const skip = (currentPage - 1) * LEADERBOARD_PAGE_SIZE;
+
+        const rows = await prismaRead.memberLevel.findMany({
+          where,
+          orderBy: { xp: 'desc' },
+          skip,
+          take: LEADERBOARD_PAGE_SIZE,
+        });
+
+        // Hors recherche, le rang est la position dans le tri : la base l'a déjà
+        // donné. Filtré, il faut le compter, mais seulement pour les lignes
+        // affichées.
+        const ranks = matchedUserIds
+          ? await Promise.all(rows.map((row) => prismaRead.memberLevel
+              .count({ where: { guildId, xp: { gt: row.xp } } })
+              .then((higher) => higher + 1)))
+          : rows.map((_, index) => skip + index + 1);
+
+        const members = await withMemberIdentity(guildId, client, rows);
+
+        json(res, 200, {
+          rows: members.map((member, index) => ({ ...member, rank: ranks[index] })),
+          total,
+          page: currentPage,
+          pageCount,
+          pageSize: LEADERBOARD_PAGE_SIZE,
+          searchLimited: matchedUserIds !== null && matchedUserIds.length >= LEADERBOARD_SEARCH_LIMIT,
+        });
+      } catch (err) {
+        logger.error('LevelingAPI', 'Error fetching leaderboard page:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération du classement' });
+      }
+      return true;
+    }
+
+    // GET|POST /api/dashboard/guilds/:guildId/leveling/role-resync (Rangement des rôles)
+    if (parts.length === 6 && parts[5] === 'role-resync') {
+      if (method === 'GET') {
+        json(res, 200, getRoleResyncStatus(guildId));
+        return true;
+      }
+
+      if (method === 'POST') {
+        const body = await readJsonBody<{ stop?: boolean }>(req);
+        if (body?.stop) {
+          const stopped = stopRoleResync(guildId);
+          json(res, 200, { stopped, ...getRoleResyncStatus(guildId) });
+          return true;
+        }
+
+        const started = startRoleResync(guildId, client);
+        if (started.started) {
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Rangement des rôles de niveau',
+            context: getGuildName(client, guildId),
+            module: 'Leveling',
+            eventType: 'Manuel',
+            details: `${started.pending} membres à revoir`,
+            channelId: null,
+          });
+        }
+        json(res, 200, { ...started, ...getRoleResyncStatus(guildId) });
+        return true;
+      }
+    }
+
+    // GET /api/dashboard/guilds/:guildId/leveling/curve-impact (Effet d'une courbe)
+    if (parts.length === 6 && parts[5] === 'curve-impact' && method === 'GET') {
+      try {
+        const curve = normalizeLevelCurve({
+          baseXp: Number(url.searchParams.get('baseXp')),
+          linearXp: Number(url.searchParams.get('linearXp')),
+          exponent: Number(url.searchParams.get('exponent')),
+          maxLevel: Number(url.searchParams.get('maxLevel')),
+        });
+        json(res, 200, await countCurveImpact(guildId, curve));
+      } catch (err) {
+        logger.error('LevelingAPI', 'Error counting curve impact:', err);
+        json(res, 500, { error: "Erreur lors du calcul de l'effet de la courbe" });
       }
       return true;
     }
@@ -105,12 +267,33 @@ export async function handleGeneralistModulesRoutes(
           lengthBonusEnabled?: boolean;
           lengthBonusThreshold?: number;
           lengthBonusMaxMultiplier?: number;
+          curveBaseXp?: number;
+          curveLinearXp?: number;
+          curveExponent?: number;
+          maxLevel?: number;
+          voiceRequireUnmuted?: boolean;
+          voiceRequireUndeafened?: boolean;
+          voiceIgnoreAfkChannel?: boolean;
+          voiceMinMembers?: number;
+          dailyXpCap?: number;
         }>(req);
 
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant' });
           return true;
         }
+
+        const previousConfig = await getOrCreateLevelConfig(guildId).catch(() => null);
+
+        // Les valeurs absentes du corps reprennent le défaut de la courbe, mais
+        // ne sont réinjectées dans l'`update` que si le client les a envoyées :
+        // un PATCH partiel ne doit pas réinitialiser la courbe de la guilde.
+        const curve = normalizeLevelCurve({
+          baseXp: body.curveBaseXp,
+          linearXp: body.curveLinearXp,
+          exponent: body.curveExponent,
+          maxLevel: body.maxLevel,
+        });
 
         const config = await prisma.levelConfig.update({
           where: { guildId },
@@ -133,8 +316,52 @@ export async function handleGeneralistModulesRoutes(
             lengthBonusMaxMultiplier: body.lengthBonusMaxMultiplier !== undefined
               ? Math.min(10, Math.max(1, body.lengthBonusMaxMultiplier))
               : undefined,
+            // `!= null` et non `!== undefined` : un champ numérique vidé dans le
+            // dashboard arrive à null, et le borner reviendrait à écrire la
+            // valeur minimale au lieu de laisser le réglage en place.
+            curveBaseXp: body.curveBaseXp != null ? curve.baseXp : undefined,
+            curveLinearXp: body.curveLinearXp != null ? curve.linearXp : undefined,
+            curveExponent: body.curveExponent != null ? curve.exponent : undefined,
+            maxLevel: body.maxLevel != null ? curve.maxLevel : undefined,
+            voiceRequireUnmuted: body.voiceRequireUnmuted,
+            voiceRequireUndeafened: body.voiceRequireUndeafened,
+            voiceIgnoreAfkChannel: body.voiceIgnoreAfkChannel,
+            voiceMinMembers: body.voiceMinMembers != null
+              ? Math.min(25, Math.max(1, Math.floor(body.voiceMinMembers)))
+              : undefined,
+            dailyXpCap: body.dailyXpCap != null
+              ? Math.min(1_000_000, Math.max(0, Math.floor(body.dailyXpCap)))
+              : undefined,
           },
         });
+
+        await invalidateLevelConfigCache(guildId);
+
+        // Un changement de courbe redistribue les niveaux : la colonne `level`
+        // est réalignée tout de suite, sinon les membres inactifs la gardent
+        // périmée jusqu'à leur prochain gain d'XP.
+        const curveChanged = !previousConfig
+          || previousConfig.curveBaseXp !== config.curveBaseXp
+          || previousConfig.curveLinearXp !== config.curveLinearXp
+          || previousConfig.curveExponent !== config.curveExponent
+          || previousConfig.maxLevel !== config.maxLevel;
+
+        // `null` distingue l'échec du réalignement de l'absence de réalignement :
+        // le dashboard annonce un chiffre avant l'enregistrement, il ne doit pas
+        // confirmer « 0 niveau réaligné » quand la requête a en fait échoué.
+        let resynced: number | null = 0;
+        if (curveChanged) {
+          // `client` : le réalignement enchaîne sur une passe de rôles, sans
+          // laquelle les récompenses resteraient sur l'ancienne courbe.
+          resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config), { client })
+            .catch((err) => {
+              logger.error('LevelingAPI', `Réalignement des niveaux échoué pour ${guildId}:`, err);
+              return null;
+            });
+          if (resynced && resynced > 0) {
+            logger.info('LevelingAPI', `Courbe modifiée sur ${guildId} : ${resynced} niveaux réalignés.`);
+          }
+        }
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -146,7 +373,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null
         });
 
-        json(res, 200, { config });
+        json(res, 200, { config, resynced, roleResync: getRoleResyncStatus(guildId) });
       } catch (err) {
         logger.error('LevelingAPI', 'Error updating leveling config:', err);
         json(res, 500, { error: 'Erreur lors de la mise à jour du leveling' });
@@ -171,6 +398,7 @@ export async function handleGeneralistModulesRoutes(
           },
         });
 
+        await invalidateLevelRewardsCache(guildId);
         json(res, 200, { reward });
       } catch (err) {
         logger.error('LevelingAPI', 'Error creating reward:', err);
@@ -186,6 +414,7 @@ export async function handleGeneralistModulesRoutes(
         await prisma.levelRoleReward.delete({
           where: { id: rewardId },
         });
+        await invalidateLevelRewardsCache(guildId);
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('LevelingAPI', 'Error deleting reward:', err);
@@ -202,6 +431,11 @@ export async function handleGeneralistModulesRoutes(
           json(res, 400, { error: "Le corps de la requête doit être un tableau d'utilisateurs." });
           return true;
         }
+
+        // L'import écrase l'XP des membres reconnus : en mode analyse, tout est
+        // calculé et rapporté à l'identique mais rien n'est écrit, pour qu'un
+        // pseudo non reconnu se découvre avant l'écrasement et non après.
+        const dryRun = url.searchParams.get('dry_run') === '1';
 
         const validItems: Array<{
           username?: string;
@@ -282,6 +516,7 @@ export async function handleGeneralistModulesRoutes(
         }
 
         const importedSuccessfully: Array<{ userId: string; level: number; xp: number }> = [];
+        const importCurve = await getGuildLevelCurve(guildId);
 
         for (const item of validItems) {
           let userId: string | undefined;
@@ -307,7 +542,7 @@ export async function handleGeneralistModulesRoutes(
 
           // Si seul le niveau est fourni, on déduit l'XP minimale de ce niveau.
           if (xp === undefined && level !== undefined) {
-            xp = getXpForLevel(Math.max(0, level) - 1);
+            xp = getXpForLevel(Math.max(0, level) - 1, importCurve);
           }
 
           // L'XP est la source de vérité : on clampe les négatifs et on recalcule
@@ -315,7 +550,7 @@ export async function handleGeneralistModulesRoutes(
           // (ex. niveau importé d'un autre bot avec une autre courbe).
           if (xp !== undefined) {
             xp = Math.max(0, xp);
-            level = getLevelFromXp(xp);
+            level = getLevelFromXp(xp, importCurve);
           }
 
           if (xp === undefined || level === undefined) {
@@ -328,6 +563,51 @@ export async function handleGeneralistModulesRoutes(
           }
 
           importedSuccessfully.push({ userId, level, xp });
+        }
+
+        // Ce que l'import va remplacer, mesuré avant d'écrire : sans ça, un
+        // classement importé depuis un autre bot écrase des niveaux plus hauts
+        // et personne ne s'en aperçoit.
+        // Par paquets : un fichier d'import peut couvrir toute la guilde, et un
+        // `IN` de plusieurs dizaines de milliers d'identifiants dépasse ce que
+        // Postgres accepte de paramètres liés.
+        const currentByUser = new Map<string, { xp: number; level: number }>();
+        for (let start = 0; start < importedSuccessfully.length; start += 1000) {
+          const userIds = importedSuccessfully.slice(start, start + 1000).map((record) => record.userId);
+          const rows = await prisma.memberLevel.findMany({
+            where: { guildId, userId: { in: userIds } },
+            select: { userId: true, xp: true, level: true },
+          });
+          for (const row of rows) currentByUser.set(row.userId, { xp: row.xp, level: row.level });
+        }
+
+        let createdCount = 0;
+        let levelChangeCount = 0;
+        let xpLoweredCount = 0;
+        for (const record of importedSuccessfully) {
+          const existing = currentByUser.get(record.userId);
+          if (!existing) {
+            createdCount++;
+            continue;
+          }
+          if (existing.level !== record.level) levelChangeCount++;
+          if (record.xp < existing.xp) xpLoweredCount++;
+        }
+
+        const report = {
+          success: true,
+          dryRun,
+          importedCount: importedSuccessfully.length,
+          failedCount: failedMembers.length,
+          failedMembers,
+          createdCount,
+          levelChangeCount,
+          xpLoweredCount,
+        };
+
+        if (dryRun) {
+          json(res, 200, report);
+          return true;
         }
 
         for (const record of importedSuccessfully) {
@@ -369,12 +649,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null
         });
 
-        json(res, 200, {
-          success: true,
-          importedCount: importedSuccessfully.length,
-          failedCount: failedMembers.length,
-          failedMembers
-        });
+        json(res, 200, report);
       } catch (err) {
         logger.error('LevelingAPI', 'Error during leveling import:', err);
         json(res, 500, { error: "Erreur lors de l'importation des données" });

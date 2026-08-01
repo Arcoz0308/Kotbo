@@ -3,6 +3,7 @@ import { guardAdminGrant, roleGrantsAdministrator } from '../../../services/mode
 import prisma from '../../../utils/db.js';
 import { z } from 'zod';
 import { type McpToolContext, SNOWFLAKE, err, ok, resolveMember } from '../toolkit.js';
+import { memberProfileIdentity } from '../../../services/moderation/memberIdentityService.js';
 
 export function registerWriteMembersTools(ctx: McpToolContext) {
   const { server, guildId, client, shouldRegister, guard, audit, toolMeta } = ctx;
@@ -23,10 +24,23 @@ export function registerWriteMembersTools(ctx: McpToolContext) {
         const resolved = await resolveMember(guildId, member);
         if (!resolved.ok) return resolved.response;
 
+        // Profil encore absent : on lui pose son identité Discord plutôt que de
+        // créer une ligne anonyme, illisible dans la liste des membres.
+        const noteGuild = client.guilds.cache.get(guildId);
+        const noteMember = noteGuild
+          ? noteGuild.members.cache.get(resolved.userId) ?? await noteGuild.members.fetch(resolved.userId).catch(() => null)
+          : null;
+
         await prisma.memberProfile.upsert({
           where: { guildId_userId: { guildId, userId: resolved.userId } },
           update: { moderatorNote: note || null },
-          create: { guildId, userId: resolved.userId, moderatorNote: note || null, lastSeenAt: new Date() },
+          create: {
+            guildId,
+            userId: resolved.userId,
+            ...(noteMember ? memberProfileIdentity(noteMember) : {}),
+            moderatorNote: note || null,
+            lastSeenAt: new Date(),
+          },
         });
 
         await audit(key_name, 'Note modérateur MCP', `Membre: ${resolved.label} (${resolved.userId})`, note.slice(0, 200) || '(note effacée)');

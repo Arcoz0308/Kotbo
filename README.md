@@ -281,3 +281,10 @@ Les images du bot et du dashboard se construisent séparément, via `DockerfileB
 ## 📝 Licence
 
 Développement privé sous licence libre. Le code source de **Kotbo** est en libre accès pour consultation mais son exploitation commerciale ou le déploiement public d'instances alternatives est restreint sans l'autorisation préalable de son auteur, **[Klaynight](https://github.com/Klaynight-dev)**.
+
+### Ressources tierces redistribuées
+
+Kotbo embarque des ressources qu'il n'a pas produites. Leurs licences sont propres à elles et s'appliquent en plus de celle ci-dessus, y compris dans une distribution commerciale.
+
+* **Emojis des cartes de rang** : [Twemoji](https://github.com/jdecked/twemoji) par Twitter, Inc. et les contributeurs du projet, graphismes sous licence [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/), qui **exige cette attribution**. Détails dans `apps/bot/assets/rank-emojis/NOTICE.md`.
+* **Polices des cartes de rang** : Lato, Poppins, Barlow, Kanit, PT Serif, Arvo et Space Mono, sous licence [SIL Open Font License 1.1](https://openfontlicense.org/), qui autorise leur redistribution et leur vente avec un logiciel. Détails et noms réservés dans `apps/bot/assets/rank-fonts/NOTICE.md`.
