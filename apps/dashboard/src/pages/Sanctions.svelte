@@ -41,6 +41,7 @@
     getRulesFromBrokenRules,
   } from '../lib/sanctions/reportRules';
   import EvidenceInputList from '../lib/components/sanctions/EvidenceInputList.svelte';
+  import ImportSanctionsModal from '../lib/components/sanctions/ImportSanctionsModal.svelte';
   import { normalizeEvidenceLinks, sanitizeEvidenceLinks } from '../lib/sanctions/evidenceLinks';
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption, type Sanction } from '../lib/sanctions/filterSort';
@@ -760,6 +761,8 @@
       .filter((rule): rule is (typeof reportRuleOptions)[number] => Boolean(rule))
   );
   const canDeleteSanctions = $derived(dashboardStore.state.access?.level === 'admin');
+  const canImportSanctions = $derived(Boolean(dashboardStore.state.access?.canModerateContent));
+  let importModalOpen = $state(false);
   const canCreateSelectedReport = $derived(
     Boolean(selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id && reportRuleOptions.length > 0)
   );
@@ -1069,6 +1072,14 @@
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">
+      {#if canImportSanctions}
+        <ActionButton
+          onClick={() => (importModalOpen = true)}
+          variant="neutral"
+          icon="upload"
+          label={m.sc_import_sanctions()}
+        />
+      {/if}
       <RefreshButton
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
@@ -1867,4 +1878,6 @@
     </div>
   </div>
 {/if}
+
+<ImportSanctionsModal bind:open={importModalOpen} />
 </ModulePage>
