@@ -20,6 +20,46 @@ const LEADERBOARD_PAGE_SIZE = 25;
 const LEADERBOARD_SEARCH_LIMIT = 500;
 
 /**
+ * Identifiants des membres dont un pseudo ressemble à la recherche.
+ *
+ * Passe par `unaccent` (installée par migration) : les pseudos sont saisis à la
+ * main, « jose » doit trouver « José ». Une base qui n'a pas l'extension - droits
+ * insuffisants au déploiement - retombe sur une recherche sensible aux accents,
+ * ce qui vaut toujours mieux que zéro résultat.
+ */
+async function findProfilesByName(guildId: string, search: string): Promise<string[]> {
+  // `%` et `_` saisis dans la barre de recherche sont des caractères de
+  // `ILIKE` : sans échappement, chercher « % » listerait toute la guilde.
+  const pattern = `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  try {
+    const rows = await prismaRead.$queryRaw<Array<{ userId: string }>>`
+      SELECT "userId" FROM "member_profiles"
+      WHERE "guildId" = ${guildId}
+        AND (
+          unaccent(coalesce("username", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("displayName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("globalName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("userTag", '')) ILIKE unaccent(${pattern})
+        )
+      LIMIT ${LEADERBOARD_SEARCH_LIMIT}
+    `;
+    return rows.map((row) => row.userId);
+  } catch (err) {
+    logger.warn('LevelingAPI', 'Recherche sans unaccent (extension absente ?) :', err);
+    const like = { contains: search, mode: 'insensitive' as const };
+    const profiles = await prismaRead.memberProfile.findMany({
+      where: {
+        guildId,
+        OR: [{ username: like }, { displayName: like }, { globalName: like }, { userTag: like }],
+      },
+      select: { userId: true },
+      take: LEADERBOARD_SEARCH_LIMIT,
+    });
+    return profiles.map((profile) => profile.userId);
+  }
+}
+
+/**
  * Complète des lignes de classement avec de quoi les afficher : le profil connu
  * en base, et le membre Discord quand il est en cache, qui a toujours raison sur
  * le profil (pseudo serveur, avatar à jour).
@@ -114,16 +154,7 @@ export async function handleGeneralistModulesRoutes(
         // borne la liste d'identifiants remise à la requête suivante.
         let matchedUserIds: string[] | null = null;
         if (search) {
-          const like = { contains: search, mode: 'insensitive' as const };
-          const profiles = await prismaRead.memberProfile.findMany({
-            where: {
-              guildId,
-              OR: [{ username: like }, { displayName: like }, { globalName: like }, { userTag: like }],
-            },
-            select: { userId: true },
-            take: LEADERBOARD_SEARCH_LIMIT,
-          });
-          const ids = new Set(profiles.map((profile) => profile.userId));
+          const ids = new Set(await findProfilesByName(guildId, search));
           // Une recherche par identifiant Discord ne passe par aucun profil.
           if (/^\d{5,}$/.test(search)) ids.add(search);
           matchedUserIds = [...ids];
