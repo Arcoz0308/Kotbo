@@ -14,6 +14,15 @@ export async function updateLevelingConfig(config, guildId = authStore.selectedG
   return dashboardRequest('/leveling', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Leveling):' });
 }
 
+export async function fetchLevelingLeaderboard(
+  { page = 1, search = '' }: { page?: number; search?: string } = {},
+  guildId = authStore.selectedGuildId,
+) {
+  const query = new URLSearchParams({ page: String(page) });
+  if (search) query.set('search', search);
+  return dashboardRequest(`/leveling/leaderboard?${query}`, { method: 'GET', guildId, silent: true, errorContext: 'API Error (Leveling Leaderboard):' });
+}
+
 export async function fetchLevelingCurveImpact(
   curve: { baseXp: number; linearXp: number; exponent: number; maxLevel: number },
   guildId = authStore.selectedGuildId,
