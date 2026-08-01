@@ -16,7 +16,17 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import SimpleModeToggle from '../lib/components/SimpleModeToggle.svelte';
   import SimpleModeNotice from '../lib/components/SimpleModeNotice.svelte';
+  import LevelingPresetPicker from '../lib/components/LevelingPresetPicker.svelte';
   import { createSimpleModePreference, nearestStep } from '../lib/simpleMode.svelte';
+  import {
+    CURVE_EXPONENT_STEPS,
+    CURVE_PACE_FACTORS,
+    GAIN_STEPS,
+    curvePaceValues,
+    findLevelingPreset,
+    levelingPresetValues,
+    type LevelingPreset,
+  } from '../lib/levelingPresets';
   import { 
     fetchLevelingData,
     fetchLevelingCurveImpact,
@@ -41,17 +51,20 @@
   const saveAction = createAsyncActionState();
   const rewardAction = createAsyncActionState();
   let loading = $state(false);
-  // 'config' a disparu au profit de trois onglets thematiques. Il n'est pas
-  // conserve comme alias : `resolveTabFromUrl` renvoie l'onglet par defaut pour
-  // tout segment inconnu, donc les anciens liens /leveling/config atterrissent
-  // sur 'gains' au lieu de casser.
-  const levelingTabs = ['gains', 'progression', 'annonces', 'leaderboard', 'import'] as const;
+  // 'config' a disparu au profit d'onglets thematiques. Il n'est pas conserve
+  // comme alias : `resolveTabFromUrl` renvoie l'onglet par defaut pour tout
+  // segment inconnu, donc les anciens liens /leveling/config atterrissent sur
+  // l'accueil au lieu de casser.
+  // 'accueil' est la porte d'entree : la page s'ouvre sur les prereglages, la
+  // configuration detaillee reste a un clic derriere.
+  const levelingTabs = ['accueil', 'gains', 'progression', 'annonces', 'leaderboard', 'import'] as const;
   type LevelingTab = (typeof levelingTabs)[number];
-  let activeTab = $state<LevelingTab>('gains');
+  const DEFAULT_TAB: LevelingTab = 'accueil';
+  let activeTab = $state<LevelingTab>(DEFAULT_TAB);
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/leveling', levelingTabs, 'gains') as LevelingTab;
+    activeTab = resolveTabFromUrl('/leveling', levelingTabs, DEFAULT_TAB) as LevelingTab;
   });
   let copySuccess = $state(false);
 
@@ -134,10 +147,14 @@
   let savedClanRewardXpBoost = $state(false);
   let savedClanRewardXpBoostRate = $state(1.2);
 
-  $effect(() => {
-    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig)
+  const configDirty = $derived(
+    JSON.stringify(config) !== JSON.stringify(savedConfig)
       || clanRewardXpBoost !== savedClanRewardXpBoost
-      || clanRewardXpBoostRate !== savedClanRewardXpBoostRate;
+      || clanRewardXpBoostRate !== savedClanRewardXpBoostRate
+  );
+
+  $effect(() => {
+    const dirty = configDirty;
 
     if (dirty && canManageSettings) {
       untrack(() => {
@@ -439,10 +456,9 @@
   // Mode simple : deux curseurs a cinq crans plutot que trois coefficients. Les
   // paliers sont volontairement grossiers, le cran du milieu reproduisant
   // exactement la courbe par defaut. On y perd en finesse, on y gagne un reglage
-  // comprehensible sans connaitre la formule.
-  const CURVE_PACE_FACTORS = [0.35, 0.6, 1, 1.7, 3];
-  const CURVE_EXPONENT_STEPS = [1.2, 1.6, 2, 2.5, 3];
-
+  // comprehensible sans connaitre la formule. Les crans eux-memes vivent dans
+  // `levelingPresets`, qui compose les prereglages de la page d'accueil a partir
+  // d'eux.
   const CURVE_PACE_LABELS = [
     m.lv_curve_pace_1, m.lv_curve_pace_2, m.lv_curve_pace_3, m.lv_curve_pace_4, m.lv_curve_pace_5,
   ];
@@ -462,14 +478,6 @@
   // Reglage simple des gains : les quatre nombres qui decident de la vitesse
   // d'accumulation bougent ensemble. Le cran median reprend exactement les
   // valeurs par defaut, comme pour la courbe.
-  const GAIN_PRESETS = [
-    { xpMin: 5, xpMax: 10, cooldownSeconds: 120, vocalXpPerMin: 2 },
-    { xpMin: 10, xpMax: 15, cooldownSeconds: 90, vocalXpPerMin: 3 },
-    { xpMin: 15, xpMax: 25, cooldownSeconds: 60, vocalXpPerMin: 5 },
-    { xpMin: 25, xpMax: 40, cooldownSeconds: 45, vocalXpPerMin: 8 },
-    { xpMin: 40, xpMax: 60, cooldownSeconds: 30, vocalXpPerMin: 12 },
-  ];
-
   const GAIN_LABELS = [
     m.lv_gains_level_1, m.lv_gains_level_2, m.lv_gains_level_3, m.lv_gains_level_4, m.lv_gains_level_5,
   ];
@@ -478,7 +486,7 @@
 
   /** Le reglage courant tombe-t-il exactement sur un cran ? */
   function gainsFitSimpleMode(): boolean {
-    return GAIN_PRESETS.some((preset) =>
+    return GAIN_STEPS.some((preset) =>
       preset.xpMin === config.xpMin
       && preset.xpMax === config.xpMax
       && preset.cooldownSeconds === config.cooldownSeconds
@@ -487,7 +495,7 @@
 
   // Cran le plus proche, mesure sur l'XP moyenne par message.
   const gainsStep = $derived(nearestStep(
-    GAIN_PRESETS.map((preset) => (preset.xpMin + preset.xpMax) / 2),
+    GAIN_STEPS.map((preset) => (preset.xpMin + preset.xpMax) / 2),
     ((config.xpMin || 0) + (config.xpMax || 0)) / 2,
   ));
   const gainsOffGrid = $derived(xpMode.simple && !gainsFitSimpleMode());
@@ -535,7 +543,7 @@
   ));
 
   function applyGainsStep(step: number) {
-    const preset = GAIN_PRESETS[Math.min(GAIN_PRESETS.length, Math.max(1, step)) - 1];
+    const preset = GAIN_STEPS[Math.min(GAIN_STEPS.length, Math.max(1, step)) - 1];
     config.xpMin = preset.xpMin;
     config.xpMax = preset.xpMax;
     config.cooldownSeconds = preset.cooldownSeconds;
@@ -556,13 +564,28 @@
   const curveOffGrid = $derived(curveMode.simple && !curveFitsSimpleMode());
 
   function applyCurvePace(step: number) {
-    const factor = CURVE_PACE_FACTORS[Math.min(CURVE_PACE_FACTORS.length, Math.max(1, step)) - 1];
-    config.curveBaseXp = Math.max(1, Math.round(DEFAULT_LEVEL_CURVE.baseXp * factor));
-    config.curveLinearXp = Math.round(DEFAULT_LEVEL_CURVE.linearXp * factor);
+    const pace = curvePaceValues(step);
+    config.curveBaseXp = pace.baseXp;
+    config.curveLinearXp = pace.linearXp;
   }
 
   function applyCurveSteepness(step: number) {
     config.curveExponent = CURVE_EXPONENT_STEPS[Math.min(CURVE_EXPONENT_STEPS.length, Math.max(1, step)) - 1];
+  }
+
+  // Prereglages de la page d'accueil : ils ne touchent qu'aux gains et a la
+  // courbe. Le salon d'annonce et les roles de recompense restent a regler dans
+  // les onglets, un prereglage n'ayant aucun moyen de deviner lesquels.
+  const selectedPreset = $derived(findLevelingPreset(config));
+  const activePreset = $derived(findLevelingPreset(savedConfig));
+
+  function applyLevelingPreset(preset: LevelingPreset) {
+    if (!canManageSettings) return;
+    Object.assign(config, levelingPresetValues(preset));
+    // Le prereglage pose des valeurs qui tombent toutes sur les crans : les
+    // cartes detaillees peuvent s'ouvrir en mode simple.
+    xpMode.resolve(gainsFitSimpleMode() && lengthBonusFitsSimpleMode());
+    curveMode.resolve(curveFitsSimpleMode());
   }
 
   // Estimation de duree : les curseurs repondent chacun a un fragment, aucun ne
@@ -884,6 +907,14 @@
 >
   {#snippet actions()}
     {#if !loading}
+      <button
+        type="button"
+        onclick={() => gotoTab('/leveling', activeTab === 'accueil' ? 'gains' : 'accueil', DEFAULT_TAB)}
+        class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold border border-outline-variant/10 bg-surface-container-high/40 text-on-surface-variant/80 hover:text-on-surface hover:bg-surface-container-high/70 transition-all"
+      >
+        <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
+        {activeTab === 'accueil' ? m.lv_presets_open_advanced() : m.lv_presets_back()}
+      </button>
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">{m.lv_module_status()}</span>
         <ToggleSwitch
@@ -901,10 +932,11 @@
   <InlineFeedback state={rewardAction} />
 
   <!-- Navigation par onglets -->
+  {#if activeTab !== 'accueil'}
   <nav class="tab-group w-fit">
     <button
       id="tab-gains"
-      onclick={() => gotoTab('/leveling', 'gains', 'gains')}
+      onclick={() => gotoTab('/leveling', 'gains', DEFAULT_TAB)}
       class="tab-button {activeTab === 'gains' ? 'active' : ''}"
     >
       <Papicon icon="Settings" size={16} />
@@ -912,7 +944,7 @@
     </button>
     <button
       id="tab-progression"
-      onclick={() => gotoTab('/leveling', 'progression', 'gains')}
+      onclick={() => gotoTab('/leveling', 'progression', DEFAULT_TAB)}
       class="tab-button {activeTab === 'progression' ? 'active' : ''}"
     >
       <Papicon icon="Grades" size={16} />
@@ -920,7 +952,7 @@
     </button>
     <button
       id="tab-annonces"
-      onclick={() => gotoTab('/leveling', 'annonces', 'gains')}
+      onclick={() => gotoTab('/leveling', 'annonces', DEFAULT_TAB)}
       class="tab-button {activeTab === 'annonces' ? 'active' : ''}"
     >
       <Papicon icon="Bell" size={16} />
@@ -928,7 +960,7 @@
     </button>
     <button
       id="tab-leaderboard"
-      onclick={() => gotoTab('/leveling', 'leaderboard', 'gains')}
+      onclick={() => gotoTab('/leveling', 'leaderboard', DEFAULT_TAB)}
       class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'leaderboard' ? 'bg-tertiary text-on-tertiary shadow-lg shadow-tertiary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
     >
       <Papicon icon="Grades" size={16} />
@@ -942,7 +974,7 @@
     {#if canManageSettings}
       <button
         id="tab-import"
-        onclick={() => gotoTab('/leveling', 'import', 'gains')}
+        onclick={() => gotoTab('/leveling', 'import', DEFAULT_TAB)}
         class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'import' ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
       >
         <Papicon icon="Upload" size={16} />
@@ -950,12 +982,24 @@
       </button>
     {/if}
   </nav>
+  {/if}
 
   {#if loading}
     <div class="space-y-8">
       <Skeleton height="350px" radius="2.5rem" />
       <Skeleton height="250px" radius="2.5rem" />
     </div>
+  {:else if activeTab === 'accueil'}
+    <LevelingPresetPicker
+      selectedId={selectedPreset?.id ?? null}
+      activeId={activePreset?.id ?? null}
+      disabled={!canManageSettings}
+      dirty={configDirty}
+      saving={saveAction.state.loading}
+      moduleEnabled={config.enabled}
+      onselect={applyLevelingPreset}
+      onsave={handleSaveConfig}
+    />
   {:else if activeTab === 'gains'}
     <!-- === ONGLET GAINS D'XP === -->
     <div class="space-y-8 animate-in fade-in duration-300">
