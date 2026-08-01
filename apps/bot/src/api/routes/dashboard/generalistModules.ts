@@ -420,11 +420,18 @@ export async function handleGeneralistModulesRoutes(
         // Ce que l'import va remplacer, mesuré avant d'écrire : sans ça, un
         // classement importé depuis un autre bot écrase des niveaux plus hauts
         // et personne ne s'en aperçoit.
-        const current = await prisma.memberLevel.findMany({
-          where: { guildId, userId: { in: importedSuccessfully.map((record) => record.userId) } },
-          select: { userId: true, xp: true, level: true },
-        });
-        const currentByUser = new Map(current.map((row) => [row.userId, row]));
+        // Par paquets : un fichier d'import peut couvrir toute la guilde, et un
+        // `IN` de plusieurs dizaines de milliers d'identifiants dépasse ce que
+        // Postgres accepte de paramètres liés.
+        const currentByUser = new Map<string, { xp: number; level: number }>();
+        for (let start = 0; start < importedSuccessfully.length; start += 1000) {
+          const userIds = importedSuccessfully.slice(start, start + 1000).map((record) => record.userId);
+          const rows = await prisma.memberLevel.findMany({
+            where: { guildId, userId: { in: userIds } },
+            select: { userId: true, xp: true, level: true },
+          });
+          for (const row of rows) currentByUser.set(row.userId, { xp: row.xp, level: row.level });
+        }
 
         let createdCount = 0;
         let levelChangeCount = 0;
