@@ -10,6 +10,7 @@ export * from './workflow/types.js';
 export * from './workflow/catalog.js';
 export * from './workflow/validate.js';
 export * from './workflow/recipe.js';
+export * from './workflow/recipeTemplates.js';
 export * from './workflow/library.js';
 export * from './workflow/compile.js';
 export * from './workflow/decompile.js';
