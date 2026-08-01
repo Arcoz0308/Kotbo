@@ -28,6 +28,7 @@
   } from '../lib/api';
   import {
     DEFAULT_LEVEL_CURVE,
+    LEVEL_CURVE_HARD_CAP,
     LEVEL_CURVE_LIMITS,
     levelCurvePreview,
     levelFromXp,
@@ -360,7 +361,33 @@
   // Même calcul que le bot, courbe de la guilde comprise : les deux importent
   // la logique de `@kotbo/shared`.
   const getXpForLevel = (level: number) => xpForLevel(level, levelCurve);
-  const getLevelFromXp = (xp: number) => levelFromXp(xp, levelCurve);
+
+  // `levelFromXp` remonte la courbe niveau par niveau, avec un `Math.pow` a
+  // chaque pas. La page l'appelle une fois par membre, plusieurs fois par
+  // reglage : les seuils sont tabules une fois par courbe, et le niveau se
+  // trouve ensuite par dichotomie. Resultat identique, cout independant du
+  // niveau atteint.
+  const curveThresholds = $derived.by(() => {
+    const cap = levelCurve.maxLevel > 0
+      ? Math.min(levelCurve.maxLevel, LEVEL_CURVE_HARD_CAP)
+      : LEVEL_CURVE_HARD_CAP;
+    const thresholds = new Array<number>(cap + 1);
+    for (let level = 0; level <= cap; level++) thresholds[level] = xpForLevel(level, levelCurve);
+    return thresholds;
+  });
+
+  function getLevelFromXp(xp: number): number {
+    if (!Number.isFinite(xp) || xp < 0) return 0;
+    const thresholds = curveThresholds;
+    let low = 0;
+    let high = thresholds.length - 1;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (xp >= thresholds[mid]) low = mid;
+      else high = mid - 1;
+    }
+    return Math.min(low + 1, thresholds.length - 1);
+  }
 
   const curvePreview = $derived(levelCurvePreview(levelCurve, 30));
   const curvePreviewMax = $derived(Math.max(...curvePreview.map(p => p.deltaXp), 1));
