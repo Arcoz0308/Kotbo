@@ -24,7 +24,7 @@
   }: {
     selectedId?: string | null;
     activeId?: string | null;
-    /** Valeurs actuelles de la guilde, affichees par la carte « Personnalise ». */
+    /** Valeurs hors prereglage a montrer sur la carte « Personnalise ». */
     customValues: LevelingPresetValues;
     disabled?: boolean;
     dirty?: boolean;
@@ -146,13 +146,18 @@
       <!-- La carte « Personnalise » inactive n'a pas de valeurs a montrer :
            elle repeterait celles du prereglage en cours. -->
       {@const detailed = !!card.preset || active}
+      <!-- La carte « Personnalise » choisie montre les valeurs en attente, pas
+           celles qui tournent : elle ne peut pas se dire « active » tant qu'un
+           enregistrement reste a faire. -->
+      {@const running = active && !(!card.preset && selected && dirty)}
       <!-- Le liseré et la teinte ne marquent que le préréglage choisi. Le
            recommandé se signale par son seul badge : deux cartes colorées se
-           disputeraient le regard. -->
+           disputeraient le regard. La carte « Personnalise » reste cliquable
+           sans droit de modification : elle ne fait que naviguer. -->
       <button
         type="button"
         onclick={() => (card.preset ? onselect(card.preset) : ondetail())}
-        {disabled}
+        disabled={!!card.preset && disabled}
         aria-pressed={card.preset ? selected : undefined}
         class="relative overflow-hidden text-left p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {cardTone(card, selected, active)}"
       >
@@ -186,7 +191,7 @@
               </div>
               <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
             </div>
-            {#if active}
+            {#if running}
               <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
                 {m.lv_presets_active()}
               </span>
