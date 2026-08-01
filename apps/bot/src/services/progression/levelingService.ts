@@ -141,36 +141,119 @@ export async function getOrCreateLevelConfig(guildId: string) {
  * de l'XP ou consulte son rang. Sans ce rattrapage, tout ce qui lit la colonne
  * telle quelle - les archives de fin de saison en particulier - resterait sur
  * l'ancienne courbe pour les membres devenus inactifs.
- *
- * Le réalignement se fait par tranche de niveau et non membre par membre : une
- * guilde de 50 000 membres tient dans une requête par niveau occupé.
  */
 export async function resyncGuildLevels(guildId: string, curve: LevelCurve): Promise<number> {
-  const top = await prisma.memberLevel.findFirst({
-    where: { guildId },
-    orderBy: { xp: 'desc' },
-    select: { xp: true },
-  });
-  if (!top) return 0;
-
-  const highestLevel = getLevelFromXp(top.xp, curve);
+  const bands = await guildLevelBands(guildId, curve);
   let updated = 0;
 
-  for (let level = 1; level <= highestLevel; level++) {
-    // La dernière tranche reste ouverte : au niveau maximum d'une guilde
-    // plafonnée, l'XP continue de monter sans borne supérieure.
-    const xpRange = level === highestLevel
-      ? { gte: getXpForLevel(level - 1, curve) }
-      : { gte: getXpForLevel(level - 1, curve), lt: getXpForLevel(level, curve) };
-
+  for (const band of bands) {
     const result = await prisma.memberLevel.updateMany({
-      where: { guildId, level: { not: level }, xp: xpRange },
-      data: { level },
+      where: { guildId, level: { not: band.level }, xp: band.xp },
+      data: { level: band.level },
     });
     updated += result.count;
   }
 
   return updated;
+}
+
+/**
+ * Tranches d'XP de la guilde, une par niveau occupé : `[seuil du niveau, seuil
+ * du suivant[`. Sert de plan de travail aux passes qui doivent traiter tous les
+ * membres sans en charger un seul - une guilde de 50 000 membres tient dans une
+ * requête par niveau occupé, l'index `(guildId, xp)` faisant le reste.
+ */
+async function guildLevelBands(
+  guildId: string,
+  curve: LevelCurve,
+): Promise<Array<{ level: number; xp: { gte: number; lt?: number } }>> {
+  const top = await prisma.memberLevel.findFirst({
+    where: { guildId },
+    orderBy: { xp: 'desc' },
+    select: { xp: true },
+  });
+  if (!top) return [];
+
+  const highestLevel = getLevelFromXp(top.xp, curve);
+  const bands: Array<{ level: number; xp: { gte: number; lt?: number } }> = [];
+
+  for (let level = 1; level <= highestLevel; level++) {
+    // La dernière tranche reste ouverte : au niveau maximum d'une guilde
+    // plafonnée, l'XP continue de monter sans borne supérieure.
+    bands.push({
+      level,
+      xp: level === highestLevel
+        ? { gte: getXpForLevel(level - 1, curve) }
+        : { gte: getXpForLevel(level - 1, curve), lt: getXpForLevel(level, curve) },
+    });
+  }
+
+  return bands;
+}
+
+export interface CurveImpact {
+  total: number;
+  changed: number;
+  lowered: number;
+  /** Nombre de membres par niveau, index 0 pour le niveau 1. */
+  distribution: number[];
+  /** Membres au-delà de la fenêtre couverte par `distribution`. */
+  beyond: number;
+}
+
+/**
+ * Ce que donnerait `resyncGuildLevels` avec cette courbe, sans rien réécrire :
+ * combien de membres changent de niveau, combien en perdent, et où ils se
+ * répartissent. Le dashboard peut ainsi annoncer l'effet d'un réglage avant
+ * l'enregistrement même quand il n'a pas la liste des membres sous la main.
+ *
+ * Le comptage se fait par tranche, comme le réalignement : `groupBy` donne la
+ * répartition des niveaux enregistrés à l'intérieur d'une tranche, donc de quoi
+ * comparer l'ancien niveau au nouveau sans sortir une ligne de la base.
+ */
+export async function countCurveImpact(
+  guildId: string,
+  curve: LevelCurve,
+  windowSize = 30,
+): Promise<CurveImpact> {
+  const bands = await guildLevelBands(guildId, curve);
+  // Mêmes colonnes que l'aperçu de la courbe côté dashboard, sinon les deux
+  // graphiques ne s'alignent plus : la fenêtre suit le plafond, pas la
+  // population.
+  const columns = curve.maxLevel > 0 ? Math.min(windowSize, curve.maxLevel) : windowSize;
+  const impact: CurveImpact = {
+    total: 0,
+    changed: 0,
+    lowered: 0,
+    distribution: new Array<number>(columns).fill(0),
+    beyond: 0,
+  };
+
+  for (const band of bands) {
+    const groups = await prisma.memberLevel.groupBy({
+      by: ['level'],
+      where: { guildId, xp: band.xp },
+      _count: { _all: true },
+    });
+
+    let inBand = 0;
+    for (const group of groups) {
+      const count = group._count._all;
+      inBand += count;
+      if (group.level === band.level) continue;
+      impact.changed += count;
+      if (group.level > band.level) impact.lowered += count;
+    }
+
+    impact.total += inBand;
+    if (band.level <= impact.distribution.length) {
+      impact.distribution[band.level - 1] = inBand;
+    } else {
+      impact.beyond += inBand;
+    }
+  }
+
+  return impact;
 }
 
 /**
