@@ -759,9 +759,13 @@
     setTimeout(() => { copySuccess = false; }, 2000);
   }
 
+  // La normalisation de la recherche etait refaite pour chaque membre, soit
+  // autant de fois que la guilde compte de lignes, a chaque frappe.
+  const normalizedQuery = $derived(searchQuery.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, ''));
+
   const filteredLevels = $derived(
     levels.filter(u => {
-      const q = searchQuery.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+      const q = normalizedQuery;
       const name = u.displayName?.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '') || '';
       const username = u.username?.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '') || '';
       return name.includes(q) || username.includes(q) || u.userId.includes(searchQuery);
@@ -771,7 +775,15 @@
   // Stats du classement
   const totalXp = $derived(levels.reduce((sum, u) => sum + u.xp, 0));
   const avgLevel = $derived(levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + getLevelFromXp(u.xp), 0) / levels.length) : 0);
-  const maxLevel = $derived(levels.length > 0 ? Math.max(...levels.map(u => getLevelFromXp(u.xp))) : 0);
+  // `Math.max(...)` par etalement : au-dela de quelques dizaines de milliers
+  // d'arguments, l'appel depasse la pile et leve. Sur une grosse guilde, c'est
+  // la page entiere qui tombait, pas seulement cette tuile.
+  const maxLevel = $derived(levels.reduce((top, u) => Math.max(top, getLevelFromXp(u.xp)), 0));
+
+  // Le rang de chaque ligne, resolu une fois pour toutes : le calculer dans la
+  // boucle d'affichage relisait la liste entiere a chaque ligne, soit le carre
+  // du nombre de membres.
+  const rankByUserId = $derived(new Map(levels.map((member, index) => [member.userId, index])));
 
   // Import states
   let importRawJson = $state('');
@@ -2102,7 +2114,7 @@
         <!-- Liste complète des membres avec design en cartes premiums -->
         <div class="space-y-3 max-h-[600px] overflow-y-auto pr-1">
           {#each filteredLevels as userLvl}
-            {@const index = levels.findIndex(l => l.userId === userLvl.userId)}
+            {@const index = rankByUserId.get(userLvl.userId) ?? 0}
             {@const lvl = getLevelFromXp(userLvl.xp)}
             {@const nextLvlXp = getXpForLevel(lvl)}
             {@const prevLvlXp = getXpForLevel(lvl - 1)}
