@@ -284,6 +284,11 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
+        // L'import écrase l'XP des membres reconnus : en mode analyse, tout est
+        // calculé et rapporté à l'identique mais rien n'est écrit, pour qu'un
+        // pseudo non reconnu se découvre avant l'écrasement et non après.
+        const dryRun = url.searchParams.get('dry_run') === '1';
+
         const validItems: Array<{
           username?: string;
           displayName?: string;
@@ -412,6 +417,51 @@ export async function handleGeneralistModulesRoutes(
           importedSuccessfully.push({ userId, level, xp });
         }
 
+        // Ce que l'import va remplacer, mesuré avant d'écrire : sans ça, un
+        // classement importé depuis un autre bot écrase des niveaux plus hauts
+        // et personne ne s'en aperçoit.
+        // Par paquets : un fichier d'import peut couvrir toute la guilde, et un
+        // `IN` de plusieurs dizaines de milliers d'identifiants dépasse ce que
+        // Postgres accepte de paramètres liés.
+        const currentByUser = new Map<string, { xp: number; level: number }>();
+        for (let start = 0; start < importedSuccessfully.length; start += 1000) {
+          const userIds = importedSuccessfully.slice(start, start + 1000).map((record) => record.userId);
+          const rows = await prisma.memberLevel.findMany({
+            where: { guildId, userId: { in: userIds } },
+            select: { userId: true, xp: true, level: true },
+          });
+          for (const row of rows) currentByUser.set(row.userId, { xp: row.xp, level: row.level });
+        }
+
+        let createdCount = 0;
+        let levelChangeCount = 0;
+        let xpLoweredCount = 0;
+        for (const record of importedSuccessfully) {
+          const existing = currentByUser.get(record.userId);
+          if (!existing) {
+            createdCount++;
+            continue;
+          }
+          if (existing.level !== record.level) levelChangeCount++;
+          if (record.xp < existing.xp) xpLoweredCount++;
+        }
+
+        const report = {
+          success: true,
+          dryRun,
+          importedCount: importedSuccessfully.length,
+          failedCount: failedMembers.length,
+          failedMembers,
+          createdCount,
+          levelChangeCount,
+          xpLoweredCount,
+        };
+
+        if (dryRun) {
+          json(res, 200, report);
+          return true;
+        }
+
         for (const record of importedSuccessfully) {
           await prisma.memberLevel.upsert({
             where: { guildId_userId: { guildId, userId: record.userId } },
@@ -451,12 +501,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null
         });
 
-        json(res, 200, {
-          success: true,
-          importedCount: importedSuccessfully.length,
-          failedCount: failedMembers.length,
-          failedMembers
-        });
+        json(res, 200, report);
       } catch (err) {
         logger.error('LevelingAPI', 'Error during leveling import:', err);
         json(res, 500, { error: "Erreur lors de l'importation des données" });
