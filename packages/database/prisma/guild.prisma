@@ -342,6 +342,7 @@ model Guild {
   rpgProfiles              RpgProfile[]
   rpgGuilds                RpgGuild[]
   rpgItems                 RpgItem[]
+  rpgRecipes               RpgRecipe[]
   rpgAdventureEvents       RpgAdventureEvent[]
   rpgDrops                 RpgDrop[]
   rpgMonsters              RpgMonster[]
