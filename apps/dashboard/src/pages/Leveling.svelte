@@ -649,6 +649,57 @@
   });
   const curveStatsMax = $derived(Math.max(...(curveStats?.distribution ?? []), 1));
 
+  // Une recompense posee au-dessus du plafond ne sera jamais attribuee, et rien
+  // ne le disait au moment de la creer.
+  const unreachableRewardIds = $derived(new Set(
+    levelCurve.maxLevel > 0
+      ? rewards.filter(reward => reward.level > levelCurve.maxLevel).map(reward => reward.id)
+      : []
+  ));
+
+  /** Roles de recompense qu'un membre doit porter a ce niveau. */
+  function rewardRolesAtLevel(level: number): string[] {
+    const earned = rewards.filter(reward => reward.level <= level);
+    if (earned.length === 0) return [];
+    if (config.stackRewards) return earned.map(reward => reward.roleId);
+    // Sans cumul, seul le palier le plus haut est porte.
+    return [earned.reduce((top, reward) => (reward.level > top.level ? reward : top)).roleId];
+  }
+
+  // Le chiffre des niveaux ne dit pas ce que les membres vont voir : ce sont
+  // les roles qui changent de main. Les membres sont regroupes par transition
+  // (ancien niveau vers nouveau), quelques dizaines la ou il y a des milliers
+  // de membres, et le calcul des roles ne se fait qu'une fois par transition.
+  const rewardImpact = $derived.by(() => {
+    if (!curveDirty || rewards.length === 0 || levels.length === 0) return [];
+
+    const transitions = new Map<string, number>();
+    for (const member of levels) {
+      const next = getLevelFromXp(member.xp);
+      if (next === member.level) continue;
+      const key = `${member.level}:${next}`;
+      transitions.set(key, (transitions.get(key) ?? 0) + 1);
+    }
+
+    const gained = new Map<string, number>();
+    const lost = new Map<string, number>();
+    for (const [key, count] of transitions) {
+      const [from, to] = key.split(':').map(Number);
+      const before = new Set(rewardRolesAtLevel(from));
+      const after = new Set(rewardRolesAtLevel(to));
+      for (const roleId of after) {
+        if (!before.has(roleId)) gained.set(roleId, (gained.get(roleId) ?? 0) + count);
+      }
+      for (const roleId of before) {
+        if (!after.has(roleId)) lost.set(roleId, (lost.get(roleId) ?? 0) + count);
+      }
+    }
+
+    return [...new Set([...gained.keys(), ...lost.keys()])]
+      .map(roleId => ({ roleId, gained: gained.get(roleId) ?? 0, lost: lost.get(roleId) ?? 0 }))
+      .sort((a, b) => (b.gained + b.lost) - (a.gained + a.lost));
+  });
+
   const curveImpactLabel = $derived.by(() => {
     const { changed, lowered, total: members } = curveStats ?? { changed: 0, lowered: 0, total: 0 };
     if (changed === 0) return m.lv_curve_impact_none();
@@ -1522,6 +1573,21 @@
                 <p class="font-bold mb-1">{curveImpactLabel}</p>
               {/if}
               {m.lv_curve_warning()}
+              {#if rewardImpact.length > 0}
+                <p class="font-bold mt-2">{m.lv_reward_impact_title()}</p>
+                <ul class="space-y-0.5">
+                  {#each rewardImpact as row}
+                    <li class="flex justify-between gap-3">
+                      <span>{getRoleName(row.roleId)}</span>
+                      <span class="font-semibold tabular-nums flex gap-2">
+                        {#if row.gained > 0}<span class="text-green-500">+{row.gained.toLocaleString()}</span>{/if}
+                        {#if row.lost > 0}<span class="text-error">−{row.lost.toLocaleString()}</span>{/if}
+                      </span>
+                    </li>
+                  {/each}
+                </ul>
+                <p class="mt-1 opacity-80">{m.lv_reward_impact_desc()}</p>
+              {/if}
             </div>
           </div>
         </section>
@@ -1662,7 +1728,15 @@
             <tbody class="divide-y divide-outline-variant/5">
               {#each rewards as reward}
                 <tr class="hover:bg-surface-hover/20 transition-all">
-                  <td class="px-5 py-4 font-semibold text-primary text-sm">Lvl {reward.level}</td>
+                  <td class="px-5 py-4 font-semibold text-primary text-sm">
+                    Lvl {reward.level}
+                    {#if unreachableRewardIds.has(reward.id)}
+                      <span
+                        class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold align-middle"
+                        title={m.lv_reward_unreachable_hint({ level: levelCurve.maxLevel })}
+                      >{m.lv_reward_unreachable()}</span>
+                    {/if}
+                  </td>
                   <td class="px-5 py-4 text-xs font-semibold">{getRoleName(reward.roleId)}</td>
                   {#if canManageSettings}
                     <td class="px-5 py-4 text-right">
