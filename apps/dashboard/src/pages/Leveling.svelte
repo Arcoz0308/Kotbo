@@ -526,6 +526,41 @@
     config.curveExponent = CURVE_EXPONENT_STEPS[Math.min(CURVE_EXPONENT_STEPS.length, Math.max(1, step)) - 1];
   }
 
+  // Estimation de duree : les curseurs repondent chacun a un fragment, aucun ne
+  // dit combien de temps il faut pour atteindre un niveau. Le calcul combine le
+  // rythme des gains, le bonus de longueur et le plafond quotidien, sur une
+  // hypothese d'activite que l'utilisateur choisit lui-meme.
+  const ACTIVITY_PRESETS = [10, 30, 100];
+  const ACTIVITY_LABELS = [m.lv_estimate_activity_low, m.lv_estimate_activity_mid, m.lv_estimate_activity_high];
+  /** Longueur retenue pour un message courant, quand le bonus de longueur est actif. */
+  const TYPICAL_MESSAGE_LENGTH = 100;
+
+  let activityStep = $state(2);
+
+  const estimatedXpPerDay = $derived.by(() => {
+    const bonus = config.lengthBonusEnabled && config.lengthBonusThreshold > 0 && config.lengthBonusMaxMultiplier > 1
+      ? 1 + Math.min(1, TYPICAL_MESSAGE_LENGTH / config.lengthBonusThreshold) * (config.lengthBonusMaxMultiplier - 1)
+      : 1;
+    const perMessage = ((config.xpMin || 0) + (config.xpMax || 0)) / 2 * bonus;
+    // Le delai borne le nombre de messages qui rapportent dans une journee.
+    const counted = Math.min(ACTIVITY_PRESETS[activityStep - 1], Math.floor(86400 / Math.max(1, config.cooldownSeconds || 1)));
+    const perDay = perMessage * counted;
+    return config.dailyXpCap > 0 ? Math.min(perDay, config.dailyXpCap) : perDay;
+  });
+
+  function estimateDays(level: number): number {
+    if (estimatedXpPerDay <= 0) return Infinity;
+    return xpForLevel(level - 1, levelCurve) / estimatedXpPerDay;
+  }
+
+  function formatDuration(days: number): string {
+    if (!Number.isFinite(days)) return '—';
+    if (days < 1) return m.lv_estimate_under_a_day();
+    if (days < 60) return m.lv_estimate_days({ days: Math.round(days) });
+    if (days < 730) return m.lv_estimate_months({ months: Math.round(days / 30) });
+    return m.lv_estimate_years({ years: (days / 365).toFixed(1) });
+  }
+
   function resetCurve() {
     config.curveBaseXp = DEFAULT_LEVEL_CURVE.baseXp;
     config.curveLinearXp = DEFAULT_LEVEL_CURVE.linearXp;
@@ -1366,11 +1401,27 @@
               {/each}
             </div>
 
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <p class="text-[11px] text-on-surface-variant/70">{m.lv_estimate_intro()}</p>
+              <nav class="tab-group w-fit">
+                {#each ACTIVITY_LABELS as label, i}
+                  <button
+                    type="button"
+                    onclick={() => (activityStep = i + 1)}
+                    class="tab-button {activityStep === i + 1 ? 'active' : ''}"
+                  >
+                    {label()}
+                  </button>
+                {/each}
+              </nav>
+            </div>
+
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {#each curveMilestones as milestone}
                 <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
                   <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_curve_milestone({ level: milestone.level })}</p>
                   <p class="text-sm font-semibold text-on-surface">{m.lv_curve_milestone_total({ xp: milestone.totalXp.toLocaleString() })}</p>
+                  <p class="text-[11px] font-semibold text-primary">{formatDuration(estimateDays(milestone.level))}</p>
                 </div>
               {/each}
             </div>
