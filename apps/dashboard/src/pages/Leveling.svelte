@@ -695,14 +695,18 @@
   let importFileError = $state<string | null>(null);
   const importActionState = createAsyncActionState();
   let importResults = $state<{
+    dryRun?: boolean;
     importedCount: number;
     failedCount: number;
     failedMembers: Array<{ username?: string; display_name?: string; reason: string }>;
+    createdCount?: number;
+    levelChangeCount?: number;
+    xpLoweredCount?: number;
   } | null>(null);
 
   let isDragging = $state(false);
 
-  async function handleImportSubmit() {
+  async function handleImportSubmit(dryRun = false) {
     importFileError = null;
     importResults = null;
     if (!importRawJson.trim()) {
@@ -724,16 +728,19 @@
     }
 
     await importActionState.run(async () => {
-      const res = await importLevelingData(parsed);
+      const res = await importLevelingData(parsed, { dryRun });
       if (!res) throw new Error(m.lv_import_err_failed());
       importResults = res;
-      // Refresh leveling data after import to reflect the new leaderboard
-      const updatedData = await fetchLevelingData();
-      if (updatedData) {
-        levels = updatedData.levels || [];
+      // Rien n'a ete ecrit en mode analyse : le classement affiche est encore
+      // le bon, le recharger ne ferait que le faire clignoter.
+      if (!dryRun) {
+        const updatedData = await fetchLevelingData();
+        if (updatedData) {
+          levels = updatedData.levels || [];
+        }
       }
       return true;
-    }, { successMessage: m.lv_import_toast_ok() });
+    }, { successMessage: dryRun ? m.lv_import_toast_dry_run() : m.lv_import_toast_ok() });
   }
 
   function handleFileDrop(e: DragEvent) {
@@ -2109,7 +2116,15 @@
               </button>
               <button
                 type="button"
-                onclick={handleImportSubmit}
+                onclick={() => handleImportSubmit(true)}
+                disabled={!importRawJson.trim()}
+                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-[13px] rounded-lg hover:bg-surface-container-high transition-all disabled:opacity-50"
+              >
+                {m.lv_import_dry_run()}
+              </button>
+              <button
+                type="button"
+                onclick={() => handleImportSubmit(false)}
                 disabled={!importRawJson.trim()}
                 class="px-8 py-3.5 bg-secondary text-on-secondary font-medium text-[13px] rounded-lg transition-all disabled:opacity-50"
               >
@@ -2199,19 +2214,44 @@
             <section class="bg-linear-to-b from-secondary/15 to-transparent border border-secondary/20 p-8 rounded-xl space-y-4">
               <h3 class="text-base font-semibold flex items-center gap-2 text-secondary">
                 <Papicon icon="Check" size={18} />
-                {m.lv_import_result()}
+                {importResults.dryRun ? m.lv_import_result_dry_run() : m.lv_import_result()}
               </h3>
-              
+
               <div class="grid grid-cols-2 gap-4">
                 <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
                   <p class="text-2xl font-semibold text-green-400">{importResults.importedCount}</p>
-                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lv_success()}</p>
+                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">
+                    {importResults.dryRun ? m.lv_import_matched() : m.lv_success()}
+                  </p>
                 </div>
                 <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
                   <p class="text-2xl font-semibold {importResults.failedCount > 0 ? 'text-error' : 'text-on-surface-variant/40'}">{importResults.failedCount}</p>
                   <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">{m.lv_failures()}</p>
                 </div>
               </div>
+
+              {#if importResults.levelChangeCount !== undefined}
+                <dl class="text-[11px] text-on-surface-variant/70 space-y-1">
+                  <div class="flex justify-between gap-4">
+                    <dt>{m.lv_import_stat_created()}</dt>
+                    <dd class="font-semibold text-on-surface">{importResults.createdCount?.toLocaleString()}</dd>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                    <dt>{m.lv_import_stat_level_changes()}</dt>
+                    <dd class="font-semibold text-on-surface">{importResults.levelChangeCount.toLocaleString()}</dd>
+                  </div>
+                  <div class="flex justify-between gap-4">
+                    <dt>{m.lv_import_stat_xp_lowered()}</dt>
+                    <dd class="font-semibold {importResults.xpLoweredCount ? 'text-amber-500' : 'text-on-surface'}">{importResults.xpLoweredCount?.toLocaleString()}</dd>
+                  </div>
+                </dl>
+              {/if}
+
+              {#if importResults.dryRun}
+                <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                  {m.lv_import_dry_run_notice()}
+                </p>
+              {/if}
             </section>
           {/if}
         </div>

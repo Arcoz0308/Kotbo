@@ -37,8 +37,13 @@ export async function deleteLevelingReward(rewardId: string, guildId = authStore
   return dashboardMutation(`/leveling/rewards/${rewardId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Leveling Reward):' });
 }
 
-export async function importLevelingData(data: unknown[], guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/leveling/import', { method: 'POST', payload: data, guildId, errorContext: 'API Error (Import Leveling):' });
+export async function importLevelingData(
+  data: unknown[],
+  options: { dryRun?: boolean } = {},
+  guildId = authStore.selectedGuildId,
+) {
+  const path = options.dryRun ? '/leveling/import?dry_run=1' : '/leveling/import';
+  return dashboardRequest(path, { method: 'POST', payload: data, guildId, silent: options.dryRun, errorContext: 'API Error (Import Leveling):' });
 }
 
 
