@@ -79,9 +79,11 @@
     },
   ]);
 
+  // Libelles courts : les intitules des onglets (« Exclusion temporaire (Mute
+  // 10 min) ») debordent d'une tuile de carte.
   const SPAM_ACTIONS: Record<string, () => string> = {
-    WARN: m.am_action_warn,
-    TIMEOUT: m.am_action_timeout_10,
+    WARN: m.am_presets_sanction_warn,
+    TIMEOUT: m.am_presets_sanction_timeout,
   };
 
   function spamSummary(filters: Partial<AutomodFilterValues>): string {
@@ -116,7 +118,7 @@
     <p class="text-sm text-on-surface-variant/70">{m.am_presets_desc()}</p>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
     {#each cards as card (card.key)}
       {@const selected = card.preset ? selectedId === card.preset.id : selectedId === null}
       {@const active = card.preset ? activeId === card.preset.id : activeId === null}
@@ -178,7 +180,7 @@
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
               <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_sanction()}</p>
-              <p class="text-sm font-semibold text-on-surface truncate">{sanctionSummary(card.filters)}</p>
+              <p class="text-sm font-semibold text-on-surface">{sanctionSummary(card.filters)}</p>
             </div>
             <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
               <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.am_presets_tile_raid()}</p>

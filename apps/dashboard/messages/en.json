@@ -2846,6 +2846,8 @@
   "am_presets_tile_raid": "Anti-raid",
   "am_presets_tile_off": "Off",
   "am_presets_tile_joins": "{count} joins / {seconds} s",
+  "am_presets_sanction_warn": "Warning",
+  "am_presets_sanction_timeout": "Timeout",
   "am_preset_light_name": "Light",
   "am_preset_light_desc": "The bare minimum: obvious spam, mass mentions and scams. Everything else gets through.",
   "am_preset_standard_name": "Standard",

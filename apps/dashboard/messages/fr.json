@@ -2846,6 +2846,8 @@
   "am_presets_tile_raid": "Anti-raid",
   "am_presets_tile_off": "Désactivé",
   "am_presets_tile_joins": "{count} arrivées / {seconds} s",
+  "am_presets_sanction_warn": "Avertissement",
+  "am_presets_sanction_timeout": "Exclusion",
   "am_preset_light_name": "Souple",
   "am_preset_light_desc": "Le strict nécessaire : spam évident, mentions en masse et arnaques. Laisse passer le reste.",
   "am_preset_standard_name": "Standard",
