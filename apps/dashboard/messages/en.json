@@ -3053,7 +3053,7 @@
   "lv_curve_steep_4": "Large",
   "lv_curve_steep_5": "Very large",
   "lv_curve_preview_title": "Preview: XP needed per level",
-  "lv_curve_preview_desc": "Each bar is the XP needed to go from the previous level to the one shown.",
+  "lv_curve_preview_desc": "Each bar is the XP to earn while at the level shown, in order to reach the next one.",
   "lv_curve_milestone": "Level {level}",
   "lv_curve_milestone_total": "{xp} XP in total",
   "lv_curve_warning": "⚠️ Levels are always recomputed from total XP: changing the curve immediately redistributes every member's level, without any of them losing XP.",

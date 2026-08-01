@@ -344,7 +344,10 @@
       ? [...new Set([5, 10, 25, 50].filter(level => level < levelCurve.maxLevel).concat(levelCurve.maxLevel))]
       : [5, 10, 25, 50]
   );
-  const curveMilestones = $derived(curveMilestoneLevels.map(level => ({ level, totalXp: xpForLevel(level, levelCurve) })));
+  // `xpForLevel(n)` est le seuil auquel on QUITTE le niveau n : pour afficher
+  // l'XP a laquelle on l'atteint, il faut le palier precedent. Sans ce decalage,
+  // la tuile « niveau 5 » montrait l'XP d'un membre deja niveau 6.
+  const curveMilestones = $derived(curveMilestoneLevels.map(level => ({ level, totalXp: xpForLevel(level - 1, levelCurve) })));
 
   // Mode simple : deux curseurs a cinq crans plutot que trois coefficients. Les
   // paliers sont volontairement grossiers, le cran du milieu reproduisant
