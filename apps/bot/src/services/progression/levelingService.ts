@@ -191,6 +191,52 @@ export async function resyncGuildLevels(
   return updated;
 }
 
+/**
+ * Remet les rôles de récompense d'un membre en accord avec son niveau, à
+ * l'occasion d'un gain d'XP.
+ *
+ * Le rattrapage historique ne se déclenchait qu'au *changement* de niveau. Après
+ * un réalignement de courbe, la colonne est déjà juste : le membre garde donc
+ * les rôles de son ancien niveau jusqu'à ce qu'il franchisse un palier, ce qui
+ * peut prendre des semaines. Ici la comparaison se fait à chaque gain, mais
+ * uniquement en mémoire - les rôles du membre sont déjà dans le cache de la
+ * guilde - et ne coûte un appel à Discord que s'il y a vraiment un écart.
+ */
+async function reconcileRewardRoles(
+  guildId: string,
+  userId: string,
+  level: number,
+  client: Client,
+): Promise<void> {
+  const cacheKey = `guild:${guildId}:level_rewards`;
+  let rewards = await cache.get<Array<{ level: number; roleId: string }>>(cacheKey);
+  if (!rewards) {
+    rewards = await prisma.levelRoleReward.findMany({
+      where: { guildId },
+      orderBy: { level: 'asc' },
+      select: { level: true, roleId: true },
+    });
+    await cache.set(cacheKey, rewards, 60);
+  }
+  if (rewards.length === 0) return;
+
+  // Cache seulement : aller chercher le membre à chaque message coûterait un
+  // appel réseau par message, pour un écart qui n'arrive presque jamais.
+  const member = client.guilds.cache.get(guildId)?.members.cache.get(userId);
+  if (!member) return;
+
+  const config = await getOrCreateLevelConfig(guildId).catch(() => null);
+  const earned = rewards.filter((reward) => reward.level <= level);
+  const expected = new Set(
+    earned.length === 0
+      ? []
+      : config?.stackRewards ? earned.map((reward) => reward.roleId) : [earned[earned.length - 1].roleId],
+  );
+
+  const wrong = rewards.some((reward) => expected.has(reward.roleId) !== member.roles.cache.has(reward.roleId));
+  if (wrong) await updateMemberLevelRoles(guildId, userId, level, client).catch(() => null);
+}
+
 /** Plafond de membres suivis par une passe de rôles, pour la borner. */
 const ROLE_RESYNC_MEMBER_LIMIT = 5000;
 /** Pause entre deux membres : l'API Discord n'aime pas les rafales de rôles. */
@@ -469,6 +515,11 @@ export async function countCurveImpact(
   return impact;
 }
 
+/** À appeler après toute écriture de `LevelRoleReward`. */
+export async function invalidateLevelRewardsCache(guildId: string): Promise<void> {
+  await cache.delete(`guild:${guildId}:level_rewards`);
+}
+
 /**
  * À appeler après toute écriture de `LevelConfig` : la courbe et le plafond
  * quotidien sont lus à chaque gain d'XP, laisser expirer le TTL ferait tourner
@@ -720,7 +771,12 @@ export async function addXp(
       // Correction vers le bas : on retire les rôles attribués en trop, sans message
       await updateMemberLevelRoles(guildId, userId, newLevel, client).catch(() => null);
     }
+    return;
   }
+
+  // Niveau inchangé, mais les rôles peuvent l'être : c'est le cas de tous les
+  // membres après un changement de courbe, dont la colonne a déjà été réalignée.
+  await reconcileRewardRoles(guildId, userId, newLevel, client);
 }
 
 /**

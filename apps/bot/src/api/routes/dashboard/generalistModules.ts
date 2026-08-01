@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
 import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
@@ -398,6 +398,7 @@ export async function handleGeneralistModulesRoutes(
           },
         });
 
+        await invalidateLevelRewardsCache(guildId);
         json(res, 200, { reward });
       } catch (err) {
         logger.error('LevelingAPI', 'Error creating reward:', err);
@@ -413,6 +414,7 @@ export async function handleGeneralistModulesRoutes(
         await prisma.levelRoleReward.delete({
           where: { id: rewardId },
         });
+        await invalidateLevelRewardsCache(guildId);
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('LevelingAPI', 'Error deleting reward:', err);
