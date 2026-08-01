@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
 import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
@@ -199,6 +199,38 @@ export async function handleGeneralistModulesRoutes(
       return true;
     }
 
+    // GET|POST /api/dashboard/guilds/:guildId/leveling/role-resync (Rangement des rôles)
+    if (parts.length === 6 && parts[5] === 'role-resync') {
+      if (method === 'GET') {
+        json(res, 200, getRoleResyncStatus(guildId));
+        return true;
+      }
+
+      if (method === 'POST') {
+        const body = await readJsonBody<{ stop?: boolean }>(req);
+        if (body?.stop) {
+          const stopped = stopRoleResync(guildId);
+          json(res, 200, { stopped, ...getRoleResyncStatus(guildId) });
+          return true;
+        }
+
+        const started = startRoleResync(guildId, client);
+        if (started.started) {
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Rangement des rôles de niveau',
+            context: getGuildName(client, guildId),
+            module: 'Leveling',
+            eventType: 'Manuel',
+            details: `${started.pending} membres à revoir`,
+            channelId: null,
+          });
+        }
+        json(res, 200, { ...started, ...getRoleResyncStatus(guildId) });
+        return true;
+      }
+    }
+
     // GET /api/dashboard/guilds/:guildId/leveling/curve-impact (Effet d'une courbe)
     if (parts.length === 6 && parts[5] === 'curve-impact' && method === 'GET') {
       try {
@@ -341,7 +373,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null
         });
 
-        json(res, 200, { config, resynced });
+        json(res, 200, { config, resynced, roleResync: getRoleResyncStatus(guildId) });
       } catch (err) {
         logger.error('LevelingAPI', 'Error updating leveling config:', err);
         json(res, 500, { error: 'Erreur lors de la mise à jour du leveling' });

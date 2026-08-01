@@ -14,6 +14,14 @@ export async function updateLevelingConfig(config, guildId = authStore.selectedG
   return dashboardRequest('/leveling', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Leveling):' });
 }
 
+export async function fetchLevelingRoleResync(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling/role-resync', { method: 'GET', guildId, silent: true, errorContext: 'API Error (Role Resync):' });
+}
+
+export async function runLevelingRoleResync(options: { stop?: boolean } = {}, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling/role-resync', { method: 'POST', payload: options, guildId, silent: true, errorContext: 'API Error (Role Resync):' });
+}
+
 export async function fetchLevelingLeaderboard(
   { page = 1, search = '' }: { page?: number; search?: string } = {},
   guildId = authStore.selectedGuildId,

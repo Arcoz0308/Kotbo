@@ -21,6 +21,8 @@
     fetchLevelingData,
     fetchLevelingCurveImpact,
     fetchLevelingLeaderboard,
+    fetchLevelingRoleResync,
+    runLevelingRoleResync,
     updateLevelingConfig,
     addLevelingReward, 
     deleteLevelingReward,
@@ -242,6 +244,13 @@
         xpMode.resolve(gainsFitSimpleMode() && lengthBonusFitsSimpleMode());
         rewards = res.rewards || [];
         leaderboardStats = res.stats ?? null;
+        // Un rangement de roles peut avoir ete prepare par un enregistrement
+        // precedent, ou etre en cours : la page le reprend a son ouverture.
+        const pendingRoles = await fetchLevelingRoleResync().catch(() => null);
+        if (pendingRoles) {
+          roleResync = pendingRoles;
+          if (roleResync.running) watchRoleResync();
+        }
       }
 
       // Récupérer les paramètres de clan pour le boost d'XP de saison
@@ -281,6 +290,7 @@
       if (curveWasDirty && resynced !== null) {
         const refreshed = await fetchLevelingData().catch(() => null);
         if (refreshed) leaderboardStats = refreshed.stats ?? null;
+        if (res.roleResync) roleResync = res.roleResync;
         await loadLeaderboard();
       }
 
@@ -644,6 +654,40 @@
   // Mouvements de roles : comptes par le bot en meme temps que le reste, la
   // page n'ayant plus la liste des membres pour les deduire elle-meme.
   const rewardImpact = $derived(curveDirty ? (curveStats?.rewardMoves ?? []) : []);
+
+  // Rangement des roles apres un changement de courbe : prepare par le bot,
+  // jamais lance tout seul. Sur un gros serveur, reaccorder les recompenses fait
+  // bouger des milliers de roles d'un coup - c'est une decision, pas un effet de
+  // bord d'un curseur enregistre.
+  let roleResync = $state<{ pending: number; done: number; running: boolean }>({ pending: 0, done: 0, running: false });
+  let roleResyncTimer: ReturnType<typeof setInterval> | null = null;
+
+  function watchRoleResync() {
+    if (roleResyncTimer) return;
+    roleResyncTimer = setInterval(async () => {
+      const status = await fetchLevelingRoleResync().catch(() => null);
+      if (status) roleResync = status;
+      if (!roleResync.running && roleResyncTimer) {
+        clearInterval(roleResyncTimer);
+        roleResyncTimer = null;
+      }
+    }, 3000);
+  }
+
+  async function startRoleResync() {
+    const status = await runLevelingRoleResync().catch(() => null);
+    if (status) roleResync = status;
+    watchRoleResync();
+  }
+
+  async function stopRoleResync() {
+    const status = await runLevelingRoleResync({ stop: true }).catch(() => null);
+    if (status) roleResync = status;
+  }
+
+  onDestroy(() => {
+    if (roleResyncTimer) clearInterval(roleResyncTimer);
+  });
 
   const curveImpactLabel = $derived.by(() => {
     const { changed, lowered, total: members } = curveStats ?? { changed: 0, lowered: 0, total: 0 };
@@ -1604,6 +1648,38 @@
                 <p class="mt-1 opacity-80">{m.lv_reward_impact_desc()}</p>
               {/if}
             </div>
+
+            {#if roleResync.pending > 0}
+              <div class="p-4 bg-surface-container-high/25 border border-outline-variant/10 rounded-lg space-y-3">
+                <div>
+                  <p class="text-sm font-bold text-on-surface">{m.lv_role_resync_title({ count: roleResync.pending.toLocaleString() })}</p>
+                  <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">{m.lv_role_resync_desc()}</p>
+                </div>
+
+                {#if roleResync.running}
+                  <div class="flex items-center justify-between gap-4">
+                    <span class="text-[11px] font-semibold text-on-surface-variant tabular-nums">
+                      {m.lv_role_resync_progress({ done: roleResync.done.toLocaleString(), total: roleResync.pending.toLocaleString() })}
+                    </span>
+                    <button
+                      type="button"
+                      onclick={stopRoleResync}
+                      class="px-4 py-2 bg-error/10 text-error font-medium text-xs rounded-lg hover:bg-error/20 transition-all"
+                    >
+                      {m.lv_role_resync_stop()}
+                    </button>
+                  </div>
+                {:else if canManageSettings}
+                  <button
+                    type="button"
+                    onclick={startRoleResync}
+                    class="px-5 py-2.5 bg-secondary text-on-secondary font-medium text-xs rounded-lg transition-all"
+                  >
+                    {m.lv_role_resync_start()}
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </div>
         </section>
 
