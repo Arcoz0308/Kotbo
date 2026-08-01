@@ -16,6 +16,7 @@ import { requireSingleSelectedValue } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/moderation/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/staff/recruitmentService.js';
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
+import { handleRpgButton, handleRpgModalSubmit, handleRpgSelectMenu } from '../services/features/rpgPanelService.js';
 import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/moderation/dcDetectionService.js';
 import { handleVerifyButtonClick, handleVerificationStaffAction } from '../services/moderation/securityVerificationService.js';
@@ -478,6 +479,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   // Ticket system buttons
   if (customId.startsWith('ticket:')) {
     await handleTicketButton(client, customId, interaction);
+    return;
+  }
+
+  // Hub RPG (/rpg) — navigation, voyage, combat, guilde, boutons Payer/Vendre/Admin
+  if (customId.startsWith('rpg:')) {
+    await handleRpgButton(client, customId, interaction);
     return;
   }
 
@@ -1208,6 +1215,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     return;
   }
 
+  // Hub RPG (/rpg) — sélection d'objet en boutique/inventaire, choix de boss, reset admin
+  if (customId.startsWith('rpg:')) {
+    if (!interaction.isStringSelectMenu()) return;
+    await handleRpgSelectMenu(client, customId, interaction);
+    return;
+  }
+
   const caseRoute = parseUserCaseRoute(customId);
   if (caseRoute?.action === 'section') {
     if (!interaction.isStringSelectMenu()) return;
@@ -1334,6 +1348,12 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   }
 
   if (!guildId) return;
+
+  // Hub RPG (/rpg) — création/rejoindre guilde, dépôt, payer, vendre, admin
+  if (customId.startsWith('rpg:')) {
+    await handleRpgModalSubmit(client, customId, interaction);
+    return;
+  }
 
   // Modals des actions du hub des menus contextuels
   if (customId.startsWith('ctxhub_modal:')) {
