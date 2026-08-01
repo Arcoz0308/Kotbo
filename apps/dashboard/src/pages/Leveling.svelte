@@ -253,22 +253,27 @@
   async function handleSaveConfig(): Promise<boolean> {
     if (!canManageSettings) return false;
     let success = false;
+    let resynced: number | null = 0;
     await saveAction.run(async () => {
       // 1. Enregistrer la configuration du leveling
       const res = await updateLevelingConfig(config);
       if (!res) throw new Error(m.lv_err_save());
       config = res.config;
       savedConfig = JSON.parse(JSON.stringify(res.config));
-      // Le serveur realigne la colonne `level` sur la courbe enregistree. Sans
-      // le refaire ici, le classement affiche encore les anciens niveaux et un
-      // second reglage se chiffrerait contre eux.
-      const savedCurve = normalizeLevelCurve({
-        baseXp: res.config.curveBaseXp,
-        linearXp: res.config.curveLinearXp,
-        exponent: res.config.curveExponent,
-        maxLevel: res.config.maxLevel
-      });
-      levels = levels.map(member => ({ ...member, level: levelFromXp(member.xp, savedCurve) }));
+      resynced = res.resynced === undefined ? 0 : res.resynced;
+      // Le serveur a realigne la colonne `level` sur la courbe enregistree.
+      // Sans le refaire ici, le classement affiche encore les anciens niveaux
+      // et un second reglage se chiffrerait contre eux. En cas d'echec du
+      // realignement la base garde les anciens niveaux : le local aussi.
+      if (resynced !== null) {
+        const savedCurve = normalizeLevelCurve({
+          baseXp: res.config.curveBaseXp,
+          linearXp: res.config.curveLinearXp,
+          exponent: res.config.curveExponent,
+          maxLevel: res.config.maxLevel
+        });
+        levels = levels.map(member => ({ ...member, level: levelFromXp(member.xp, savedCurve) }));
+      }
 
       // 2. Enregistrer la configuration du boost d'XP de clan si modifiée
       if (clanRewardXpBoost !== savedClanRewardXpBoost || clanRewardXpBoostRate !== savedClanRewardXpBoostRate) {
@@ -286,6 +291,18 @@
       success = true;
       return true;
     }, { successMessage: m.lv_toast_saved() });
+
+    // Le compte rendu du serveur remplace le message generique : il confirme
+    // l'estimation affichee avant l'enregistrement, ou signale que le
+    // realignement a echoue alors que la courbe, elle, est bien enregistree.
+    if (success && resynced === null) {
+      saveAction.setError(m.lv_toast_resync_failed());
+    } else if (success && resynced > 0) {
+      saveAction.setMessage(
+        resynced === 1 ? m.lv_toast_resynced_one() : m.lv_toast_resynced({ count: resynced.toLocaleString() })
+      );
+    }
+
     return success;
   }
 
