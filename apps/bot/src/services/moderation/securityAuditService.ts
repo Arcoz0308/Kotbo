@@ -29,7 +29,7 @@ const DANGEROUS_PERMISSIONS = [
 
 /**
  * Analyse la configuration de sécurité du serveur et retourne un score
- * accompagné de recommandations, à la manière du /audit de RaidProtect.
+ * accompagné de recommandations.
  */
 export async function runSecurityAudit(guild: Guild): Promise<SecurityAuditResult> {
   const findings: AuditFinding[] = [];
