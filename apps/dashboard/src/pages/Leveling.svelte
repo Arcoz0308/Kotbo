@@ -595,16 +595,23 @@
     gotoTab('/leveling', 'gains', DEFAULT_TAB);
   }
 
-  const customPresetValues = $derived<LevelingPresetValues>({
-    xpMin: config.xpMin,
-    xpMax: config.xpMax,
-    cooldownSeconds: config.cooldownSeconds,
-    vocalXpPerMin: config.vocalXpPerMin,
-    curveBaseXp: config.curveBaseXp,
-    curveLinearXp: config.curveLinearXp,
-    curveExponent: config.curveExponent,
-    maxLevel: config.maxLevel,
-  });
+  function levelingValuesOf(source: typeof config): LevelingPresetValues {
+    return {
+      xpMin: source.xpMin,
+      xpMax: source.xpMax,
+      cooldownSeconds: source.cooldownSeconds,
+      vocalXpPerMin: source.vocalXpPerMin,
+      curveBaseXp: source.curveBaseXp,
+      curveLinearXp: source.curveLinearXp,
+      curveExponent: source.curveExponent,
+      maxLevel: source.maxLevel,
+    };
+  }
+
+  // Des qu'un prereglage est choisi, la configuration courante est la sienne :
+  // la carte « Personnalise » doit alors montrer la configuration enregistree,
+  // sans quoi elle devient le sosie de la carte qu'on vient de cliquer.
+  const customPresetValues = $derived(levelingValuesOf(selectedPreset ? savedConfig : config));
 
   // Estimation de duree : les curseurs repondent chacun a un fragment, aucun ne
   // dit combien de temps il faut pour atteindre un niveau. Le calcul combine le
