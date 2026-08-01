@@ -272,12 +272,20 @@ async function prepareRoleResync(
   guildId: string,
   moves: Array<{ userId: string; from: number; to: number }>,
 ): Promise<number> {
+  // Une passe en cours ne doit jamais être effacée de la table : elle deviendrait
+  // impossible à suivre et surtout à arrêter, alors qu'elle continue à modifier
+  // des rôles.
+  const running = roleResyncJobs.get(guildId)?.running === true;
+  const forget = () => {
+    if (!running) roleResyncJobs.delete(guildId);
+  };
+
   const rewards = await prisma.levelRoleReward.findMany({
     where: { guildId },
     orderBy: { level: 'asc' },
   });
   if (rewards.length === 0) {
-    roleResyncJobs.delete(guildId);
+    forget();
     return 0;
   }
 
@@ -304,13 +312,12 @@ async function prepareRoleResync(
   }
 
   if (affected.length === 0) {
-    roleResyncJobs.delete(guildId);
+    forget();
     return 0;
   }
 
-  const running = roleResyncJobs.get(guildId)?.running === true;
   if (running) {
-    logger.warn('LevelingService', `Rangement de rôles en cours sur ${guildId} : le nouveau relevé attendra.`);
+    logger.warn('LevelingService', `Rangement de rôles en cours sur ${guildId} : les membres deplaces cette fois-ci suivront a leur prochain gain d'XP.`);
     return affected.length;
   }
 
@@ -328,7 +335,10 @@ async function prepareRoleResync(
 /** Ce qui attend d'être rangé sur cette guilde, et où en est la passe. */
 export function getRoleResyncStatus(guildId: string) {
   const job = roleResyncJobs.get(guildId);
-  if (!job || Date.now() - job.preparedAt > ROLE_RESYNC_TTL_MS) {
+  if (!job) return { pending: 0, done: 0, running: false };
+  // Un relevé périmé est jeté ici : sans lecture, il resterait en mémoire.
+  if (!job.running && Date.now() - job.preparedAt > ROLE_RESYNC_TTL_MS) {
+    roleResyncJobs.delete(guildId);
     return { pending: 0, done: 0, running: false };
   }
   return { pending: job.moves.length, done: job.done, running: job.running };
@@ -358,7 +368,8 @@ export function startRoleResync(guildId: string, client: Client): { started: boo
 
   job.running = true;
   job.stopping = false;
-  job.done = 0;
+  // `done` est conservé : un rangement arrêté puis relancé reprend où il en
+  // était plutôt que de revisiter des membres déjà en règle.
   void runRoleResync(guildId, client, job);
   return { started: true, pending: job.moves.length };
 }
@@ -370,7 +381,8 @@ async function runRoleResync(guildId: string, client: Client, job: RoleResyncJob
 
     logger.info('LevelingService', `Rangement des rôles de récompense sur ${guildId} : ${job.moves.length} membres.`);
 
-    for (const move of job.moves) {
+    for (let index = job.done; index < job.moves.length; index++) {
+      const move = job.moves[index];
       if (job.stopping) {
         logger.info('LevelingService', `Rangement des rôles interrompu sur ${guildId} après ${job.done} membres.`);
         break;
@@ -389,7 +401,9 @@ async function runRoleResync(guildId: string, client: Client, job: RoleResyncJob
       await new Promise((resolve) => setTimeout(resolve, ROLE_RESYNC_PAUSE_MS));
     }
 
-    logger.info('LevelingService', `Rangement des rôles terminé sur ${guildId} : ${job.done} membres visités.`);
+    if (!job.stopping) {
+      logger.info('LevelingService', `Rangement des rôles terminé sur ${guildId} : ${job.done} membres visités.`);
+    }
   } catch (err) {
     logger.error('LevelingService', `Rangement des rôles interrompu sur ${guildId}:`, err);
   } finally {
