@@ -256,6 +256,8 @@
     if (!canManageSettings) return false;
     let success = false;
     let resynced: number | null = 0;
+    // Lu avant l'enregistrement : `savedConfig` aura bouge ensuite.
+    const curveWasDirty = curveDirty;
     await saveAction.run(async () => {
       // 1. Enregistrer la configuration du leveling
       const res = await updateLevelingConfig(config);
@@ -265,9 +267,10 @@
       resynced = res.resynced === undefined ? 0 : res.resynced;
       // Le serveur a realigne la colonne `level` sur la courbe enregistree.
       // Sans le refaire ici, le classement affiche encore les anciens niveaux
-      // et un second reglage se chiffrerait contre eux. En cas d'echec du
-      // realignement la base garde les anciens niveaux : le local aussi.
-      if (resynced !== null) {
+      // et un second reglage se chiffrerait contre eux. Le realignement suit
+      // exactement celui de la base : rien sans changement de courbe, rien non
+      // plus s'il a echoue, sinon des lignes perimees passeraient pour saines.
+      if (curveWasDirty && resynced !== null) {
         const savedCurve = normalizeLevelCurve({
           baseXp: res.config.curveBaseXp,
           linearXp: res.config.curveLinearXp,
@@ -297,11 +300,12 @@
     // Le compte rendu du serveur remplace le message generique : il confirme
     // l'estimation affichee avant l'enregistrement, ou signale que le
     // realignement a echoue alors que la courbe, elle, est bien enregistree.
-    if (success && resynced === null) {
+    const outcome: number | null = resynced;
+    if (success && outcome === null) {
       saveAction.setError(m.lv_toast_resync_failed());
-    } else if (success && resynced > 0) {
+    } else if (success && outcome !== null && outcome > 0) {
       saveAction.setMessage(
-        resynced === 1 ? m.lv_toast_resynced_one() : m.lv_toast_resynced({ count: resynced.toLocaleString() })
+        outcome === 1 ? m.lv_toast_resynced_one() : m.lv_toast_resynced({ count: outcome.toLocaleString() })
       );
     }
 

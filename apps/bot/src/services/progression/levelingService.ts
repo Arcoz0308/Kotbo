@@ -233,28 +233,35 @@ export async function countCurveImpact(
     beyond: 0,
   };
 
-  for (const band of bands) {
-    const groups = await prismaRead.memberLevel.groupBy({
+  // Par paquets plutôt qu'une tranche après l'autre : une guilde dont le
+  // meilleur membre est très haut en compte des centaines, et les enchaîner
+  // ferait attendre le dashboard bien plus longtemps que la base ne travaille.
+  const BATCH_SIZE = 8;
+  for (let start = 0; start < bands.length; start += BATCH_SIZE) {
+    const batch = bands.slice(start, start + BATCH_SIZE);
+    const results = await Promise.all(batch.map((band) => prismaRead.memberLevel.groupBy({
       by: ['level'],
       where: { guildId, xp: band.xp },
       _count: { _all: true },
+    })));
+
+    batch.forEach((band, index) => {
+      let inBand = 0;
+      for (const group of results[index]) {
+        const count = group._count._all;
+        inBand += count;
+        if (group.level === band.level) continue;
+        impact.changed += count;
+        if (group.level > band.level) impact.lowered += count;
+      }
+
+      impact.total += inBand;
+      if (band.level <= impact.distribution.length) {
+        impact.distribution[band.level - 1] = inBand;
+      } else {
+        impact.beyond += inBand;
+      }
     });
-
-    let inBand = 0;
-    for (const group of groups) {
-      const count = group._count._all;
-      inBand += count;
-      if (group.level === band.level) continue;
-      impact.changed += count;
-      if (group.level > band.level) impact.lowered += count;
-    }
-
-    impact.total += inBand;
-    if (band.level <= impact.distribution.length) {
-      impact.distribution[band.level - 1] = inBand;
-    } else {
-      impact.beyond += inBand;
-    }
   }
 
   return impact;
