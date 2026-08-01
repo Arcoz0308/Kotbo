@@ -319,7 +319,9 @@ export async function handleGeneralistModulesRoutes(
         // confirmer « 0 niveau réaligné » quand la requête a en fait échoué.
         let resynced: number | null = 0;
         if (curveChanged) {
-          resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config))
+          // `client` : le réalignement enchaîne sur une passe de rôles, sans
+          // laquelle les récompenses resteraient sur l'ancienne courbe.
+          resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config), { client })
             .catch((err) => {
               logger.error('LevelingAPI', `Réalignement des niveaux échoué pour ${guildId}:`, err);
               return null;

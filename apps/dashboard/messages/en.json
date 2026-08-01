@@ -3080,7 +3080,7 @@
   "lv_curve_impact_many": "{changed} members out of {total} will change level once saved.",
   "lv_curve_impact_many_lowered": "{changed} members out of {total} will change level once saved, {lowered} of them downward.",
   "lv_reward_impact_title": "Reward roles changing hands:",
-  "lv_reward_impact_desc": "+ granted, − removed, once the curve is saved.",
+  "lv_reward_impact_desc": "+ granted, − removed. Roles are re-applied in the background right after saving.",
   "lv_reward_unreachable": "Out of reach",
   "lv_reward_unreachable_hint": "The server's maximum level is {level}: this reward will never be granted.",
   "lv_curve_warning": "⚠️ Levels are always recomputed from total XP: changing the curve immediately redistributes every member's level, without any of them losing XP.",

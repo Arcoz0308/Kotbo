@@ -142,11 +142,33 @@ export async function getOrCreateLevelConfig(guildId: string) {
  * telle quelle - les archives de fin de saison en particulier - resterait sur
  * l'ancienne courbe pour les membres devenus inactifs.
  */
-export async function resyncGuildLevels(guildId: string, curve: LevelCurve): Promise<number> {
+export async function resyncGuildLevels(
+  guildId: string,
+  curve: LevelCurve,
+  options: { client?: Client } = {},
+): Promise<number> {
   const bands = await guildLevelBands(guildId, curve);
+  const moves: Array<{ userId: string; from: number; to: number }> = [];
+  // Sans récompense configurée, aucun rôle ne dépend du niveau : rien à relever.
+  const tracksRoles = options.client
+    ? (await prisma.levelRoleReward.count({ where: { guildId } })) > 0
+    : false;
   let updated = 0;
 
   for (const band of bands) {
+    // Qui bouge, relevé avant l'écriture : après, l'ancien niveau a disparu et
+    // il n'y a plus moyen de savoir quels rôles de récompense sont à revoir.
+    if (tracksRoles && moves.length < ROLE_RESYNC_MEMBER_LIMIT) {
+      const movers = await prisma.memberLevel.findMany({
+        where: { guildId, level: { not: band.level }, xp: band.xp },
+        select: { userId: true, level: true },
+        take: ROLE_RESYNC_MEMBER_LIMIT - moves.length,
+      });
+      for (const mover of movers) {
+        moves.push({ userId: mover.userId, from: mover.level, to: band.level });
+      }
+    }
+
     const result = await prisma.memberLevel.updateMany({
       where: { guildId, level: { not: band.level }, xp: band.xp },
       data: { level: band.level },
@@ -154,7 +176,93 @@ export async function resyncGuildLevels(guildId: string, curve: LevelCurve): Pro
     updated += result.count;
   }
 
+  if (options.client && moves.length > 0) {
+    if (moves.length >= ROLE_RESYNC_MEMBER_LIMIT) {
+      logger.warn('LevelingService', `Plus de ${ROLE_RESYNC_MEMBER_LIMIT} membres déplacés sur ${guildId} : les rôles au-delà suivront au prochain gain d'XP.`);
+    }
+    // Détaché : la requête du dashboard n'a pas à attendre des centaines
+    // d'appels à l'API Discord pour répondre.
+    void syncRewardRolesForMoves(guildId, options.client, moves);
+  }
+
   return updated;
+}
+
+/** Plafond de membres suivis par une passe de rôles, pour la borner. */
+const ROLE_RESYNC_MEMBER_LIMIT = 5000;
+/** Pause entre deux membres : l'API Discord n'aime pas les rafales de rôles. */
+const ROLE_RESYNC_PAUSE_MS = 250;
+const roleResyncRunning = new Set<string>();
+
+/**
+ * Réaccorde les rôles de récompense après un changement de courbe.
+ *
+ * Le réalignement ne touche que la colonne `level` ; sans cette passe, un membre
+ * garde le rôle de son ancien niveau jusqu'à son prochain gain d'XP - donc pour
+ * toujours s'il est inactif, alors que le dashboard vient d'annoncer le
+ * mouvement. Seuls les membres dont l'ensemble de rôles change vraiment sont
+ * visités, et un seul passage à la fois par guilde.
+ */
+async function syncRewardRolesForMoves(
+  guildId: string,
+  client: Client,
+  moves: Array<{ userId: string; from: number; to: number }>,
+): Promise<void> {
+  if (roleResyncRunning.has(guildId)) {
+    logger.warn('LevelingService', `Passe de rôles déjà en cours sur ${guildId}, celle-ci est abandonnée.`);
+    return;
+  }
+
+  const rewards = await prisma.levelRoleReward.findMany({
+    where: { guildId },
+    orderBy: { level: 'asc' },
+  });
+  if (rewards.length === 0) return;
+
+  const stackRewards = (await getOrCreateLevelConfig(guildId).catch(() => null))?.stackRewards === true;
+  const rolesByLevel = new Map<number, string[]>();
+  const rolesAtLevel = (level: number): string[] => {
+    const known = rolesByLevel.get(level);
+    if (known) return known;
+    const earned = rewards.filter((reward) => reward.level <= level);
+    const roles = earned.length === 0
+      ? []
+      : stackRewards ? earned.map((reward) => reward.roleId) : [earned[earned.length - 1].roleId];
+    rolesByLevel.set(level, roles);
+    return roles;
+  };
+
+  const affected = moves.filter((move) => rolesAtLevel(move.from).join(',') !== rolesAtLevel(move.to).join(','));
+  if (affected.length === 0) return;
+
+  roleResyncRunning.add(guildId);
+  try {
+    const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!discordGuild) return;
+
+    const rewardRoleIds = rewards.map((reward) => reward.roleId);
+    logger.info('LevelingService', `Rôles de récompense à revoir sur ${guildId} : ${affected.length} membres.`);
+    let touched = 0;
+
+    for (const move of affected) {
+      const member = await discordGuild.members.fetch(move.userId).catch(() => null);
+      if (member) {
+        const target = new Set(rolesAtLevel(move.to));
+        const toAdd = [...target].filter((roleId) => !member.roles.cache.has(roleId));
+        const toRemove = rewardRoleIds.filter((roleId) => !target.has(roleId) && member.roles.cache.has(roleId));
+        if (toRemove.length > 0) await member.roles.remove(toRemove).catch(() => null);
+        if (toAdd.length > 0) await member.roles.add(toAdd).catch(() => null);
+        if (toAdd.length > 0 || toRemove.length > 0) touched++;
+      }
+      await new Promise((resolve) => setTimeout(resolve, ROLE_RESYNC_PAUSE_MS));
+    }
+
+    logger.info('LevelingService', `Rôles de récompense réaccordés sur ${guildId} : ${touched} membres modifiés.`);
+  } catch (err) {
+    logger.error('LevelingService', `Passe de rôles interrompue sur ${guildId}:`, err);
+  } finally {
+    roleResyncRunning.delete(guildId);
+  }
 }
 
 /**
