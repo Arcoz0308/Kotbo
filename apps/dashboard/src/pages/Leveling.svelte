@@ -566,6 +566,23 @@
     return { changed, lowered };
   });
 
+  // Repartition des membres sur la courbe en cours d'edition. La courbe se
+  // reglait jusqu'ici sans savoir ou vit reellement le serveur : durcir les
+  // niveaux 40 ne change rien si tout le monde plafonne au niveau 12. Memes
+  // colonnes que l'apercu au-dessus, pour que les deux graphiques se lisent
+  // ensemble.
+  const levelDistribution = $derived.by(() => {
+    const lastLevel = curvePreview.length;
+    const counts = new Array<number>(lastLevel).fill(0);
+    let beyond = 0;
+    for (const member of levels) {
+      const level = getLevelFromXp(member.xp);
+      if (level > lastLevel) beyond++;
+      else if (level >= 1) counts[level - 1]++;
+    }
+    return { counts, beyond, max: Math.max(...counts, 1) };
+  });
+
   const curveImpactLabel = $derived.by(() => {
     const { changed, lowered } = curveImpact;
     if (changed === 0) return m.lv_curve_impact_none();
@@ -1378,6 +1395,29 @@
                 ></div>
               {/each}
             </div>
+
+            {#if levels.length > 0}
+              <div>
+                <h4 class="text-sm font-bold text-on-surface-variant">{m.lv_curve_population_title()}</h4>
+                <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_curve_population_desc()}</p>
+              </div>
+
+              <div class="flex items-end gap-[3px] h-16 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                {#each levelDistribution.counts as count, index}
+                  <div
+                    class="flex-1 rounded-t-sm min-h-[2px] {count > 0 ? 'bg-tertiary/60' : 'bg-outline-variant/20'}"
+                    style="height: {count > 0 ? Math.max(4, (count / levelDistribution.max) * 100) : 0}%"
+                    title={m.lv_curve_population_bar({ level: index + 1, count: count.toLocaleString() })}
+                  ></div>
+                {/each}
+              </div>
+
+              {#if levelDistribution.beyond > 0}
+                <p class="text-[10px] text-on-surface-variant/60 ml-2">
+                  {m.lv_curve_population_beyond({ count: levelDistribution.beyond.toLocaleString(), level: levelDistribution.counts.length })}
+                </p>
+              {/if}
+            {/if}
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
               <p class="text-[11px] text-on-surface-variant/70">{m.lv_estimate_intro()}</p>
