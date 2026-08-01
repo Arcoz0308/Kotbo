@@ -428,14 +428,15 @@
   ));
 
   // Reperes de l'axe : le premier niveau, le dernier, et un sur cinq entre les
-  // deux. Numeroter chaque colonne les rendrait illisibles.
-  const curveAxisTicks = $derived.by(() => {
-    const last = curvePreview.length;
-    const step = last <= 10 ? 2 : 5;
-    const ticks = new Set<number>([1, last]);
-    for (let level = step; level < last; level += step) ticks.add(level);
+  // deux. Numeroter chaque colonne les rendrait illisibles. Deduits du nombre
+  // de colonnes reellement rendues, pour que les deux graphiques restent
+  // d'accord meme si l'un d'eux est momentanement en retard sur l'autre.
+  function axisTicks(columns: number): Set<number> {
+    const step = columns <= 10 ? 2 : 5;
+    const ticks = new Set<number>([1, columns]);
+    for (let level = step; level < columns; level += step) ticks.add(level);
     return ticks;
-  });
+  }
   // Les paliers au-delà du plafond afficheraient tous la même XP : ils sont
   // remplacés par le plafond lui-même, qui est l'information utile.
   const curveMilestoneLevels = $derived(
@@ -881,12 +882,13 @@
 <!-- Axe des deux graphiques de la courbe : memes colonnes, meme gouttiere, donc
      les reperes tombent sous les barres correspondantes des deux graphiques. -->
 {#snippet levelAxis(columns: number)}
+  {@const ticks = axisTicks(columns)}
   <!-- `border-transparent` : le graphique au-dessus a une bordure d'1px, sans
        quoi les reperes seraient decales d'un pixel par rapport aux colonnes. -->
   <div class="flex gap-[3px] px-2 border border-transparent" aria-hidden="true">
     {#each Array.from({ length: columns }) as _, index}
       <span class="flex-1 text-center text-[9px] leading-none tabular-nums text-on-surface-variant/50">
-        {curveAxisTicks.has(index + 1) ? index + 1 : ''}
+        {ticks.has(index + 1) ? index + 1 : ''}
       </span>
     {/each}
   </div>
