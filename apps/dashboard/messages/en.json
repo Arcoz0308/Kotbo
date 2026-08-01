@@ -3021,7 +3021,7 @@
   "lv_curve_max_level_hint": "0 for no cap. At the cap, XP keeps accumulating but the level no longer moves.",
   "lv_curve_reset": "Back to the default curve",
   "lv_curve_mode_simple": "Simple",
-  "lv_curve_mode_advanced": "Detailed",
+  "lv_curve_mode_advanced": "Advanced",
   "lv_curve_pace_label": "Progression pace",
   "lv_curve_pace_1": "Very fast",
   "lv_curve_pace_2": "Fast",

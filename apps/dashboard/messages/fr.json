@@ -3021,7 +3021,7 @@
   "lv_curve_max_level_hint": "0 pour ne pas plafonner. Au plafond, l'XP continue de s'accumuler mais le niveau ne bouge plus.",
   "lv_curve_reset": "Revenir à la courbe par défaut",
   "lv_curve_mode_simple": "Simple",
-  "lv_curve_mode_advanced": "Détaillé",
+  "lv_curve_mode_advanced": "Avancé",
   "lv_curve_pace_label": "Rythme de progression",
   "lv_curve_pace_1": "Très rapide",
   "lv_curve_pace_2": "Rapide",
