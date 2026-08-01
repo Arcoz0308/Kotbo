@@ -977,35 +977,35 @@
                   {/if}
                 </div>
               {:else}
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
-                <div class="space-y-1.5">
-                  <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_threshold()}</label>
-                  <input
-                    id="lengthBonusThreshold"
-                    type="number"
-                    min="1"
-                    bind:value={config.lengthBonusThreshold}
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                    disabled={!canManageSettings}
-                  />
-                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_threshold_hint({ count: config.lengthBonusThreshold })}</p>
-                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
+                  <div class="space-y-1.5">
+                    <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_threshold()}</label>
+                    <input
+                      id="lengthBonusThreshold"
+                      type="number"
+                      min="1"
+                      bind:value={config.lengthBonusThreshold}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                      disabled={!canManageSettings}
+                    />
+                    <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_threshold_hint({ count: config.lengthBonusThreshold })}</p>
+                  </div>
 
-                <div class="space-y-1.5">
-                  <label for="lengthBonusMaxMultiplier" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_max()}</label>
-                  <input
-                    id="lengthBonusMaxMultiplier"
-                    type="number"
-                    min="1"
-                    max="10"
-                    step="0.1"
-                    bind:value={config.lengthBonusMaxMultiplier}
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
-                    disabled={!canManageSettings}
-                  />
-                  <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_max_hint({ max: config.lengthBonusMaxMultiplier })}</p>
+                  <div class="space-y-1.5">
+                    <label for="lengthBonusMaxMultiplier" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_max()}</label>
+                    <input
+                      id="lengthBonusMaxMultiplier"
+                      type="number"
+                      min="1"
+                      max="10"
+                      step="0.1"
+                      bind:value={config.lengthBonusMaxMultiplier}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                      disabled={!canManageSettings}
+                    />
+                    <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_max_hint({ max: config.lengthBonusMaxMultiplier })}</p>
+                  </div>
                 </div>
-              </div>
               {/if}
 
               <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
