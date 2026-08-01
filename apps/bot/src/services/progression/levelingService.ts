@@ -237,6 +237,41 @@ async function reconcileRewardRoles(
   if (wrong) await updateMemberLevelRoles(guildId, userId, level, client).catch(() => null);
 }
 
+/**
+ * Tranches d'XP de la guilde, une par niveau occupé : `[seuil du niveau, seuil
+ * du suivant[`. Sert de plan de travail aux passes qui doivent traiter tous les
+ * membres sans en charger un seul - une guilde de 50 000 membres tient dans une
+ * requête par niveau occupé, l'index `(guildId, xp)` faisant le reste.
+ */
+async function guildLevelBands(
+  guildId: string,
+  curve: LevelCurve,
+  db = prisma,
+): Promise<Array<{ level: number; xp: { gte: number; lt?: number } }>> {
+  const top = await db.memberLevel.findFirst({
+    where: { guildId },
+    orderBy: { xp: 'desc' },
+    select: { xp: true },
+  });
+  if (!top) return [];
+
+  const highestLevel = getLevelFromXp(top.xp, curve);
+  const bands: Array<{ level: number; xp: { gte: number; lt?: number } }> = [];
+
+  for (let level = 1; level <= highestLevel; level++) {
+    // La dernière tranche reste ouverte : au niveau maximum d'une guilde
+    // plafonnée, l'XP continue de monter sans borne supérieure.
+    bands.push({
+      level,
+      xp: level === highestLevel
+        ? { gte: getXpForLevel(level - 1, curve) }
+        : { gte: getXpForLevel(level - 1, curve), lt: getXpForLevel(level, curve) },
+    });
+  }
+
+  return bands;
+}
+
 /** Plafond de membres suivis par une passe de rôles, pour la borner. */
 const ROLE_RESYNC_MEMBER_LIMIT = 5000;
 /** Pause entre deux membres : l'API Discord n'aime pas les rafales de rôles. */
