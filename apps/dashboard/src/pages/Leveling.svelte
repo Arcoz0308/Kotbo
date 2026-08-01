@@ -910,10 +910,13 @@
       <button
         type="button"
         onclick={() => gotoTab('/leveling', activeTab === 'accueil' ? 'gains' : 'accueil', DEFAULT_TAB)}
-        class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold border border-outline-variant/10 bg-surface-container-high/40 text-on-surface-variant/80 hover:text-on-surface hover:bg-surface-container-high/70 transition-all"
+        class="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 transition-all"
       >
         <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
         {activeTab === 'accueil' ? m.lv_presets_open_advanced() : m.lv_presets_back()}
+        {#if activeTab === 'accueil'}
+          <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
+        {/if}
       </button>
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">{m.lv_module_status()}</span>
