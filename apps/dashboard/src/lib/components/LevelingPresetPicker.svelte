@@ -32,7 +32,8 @@
     moduleEnabled?: boolean;
     onselect: (preset: LevelingPreset) => void;
     onsave: () => void;
-    ondetail: (preset: LevelingPreset | null) => void;
+    /** Ouvre la configuration detaillee : seule action de la carte « Personnalise ». */
+    ondetail: () => void;
   } = $props();
 
   // Un prereglage ajoute sans sa traduction doit afficher une carte muette,
@@ -107,92 +108,77 @@
            recommandé, et celui qu'on vient de choisir. Colorer les six cartes
            les rendrait indistinctes. -->
       {@const accented = selected || card.recommended}
-      <!-- Le lien "Détail" doit rester cliquable separement de la carte : un
-           bouton imbrique dans un bouton n'est pas du HTML valide, d'ou le
-           conteneur relatif et le positionnement absolu. -->
-      <div class="relative">
-        <button
-          type="button"
-          onclick={() => (card.preset ? onselect(card.preset) : ondetail(null))}
-          {disabled}
-          aria-pressed={card.preset ? selected : undefined}
-          class="relative overflow-hidden text-left w-full h-full p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {selected
-            ? 'bg-primary/8 border-primary/50 shadow-lg shadow-primary/10'
-            : card.recommended
-              ? 'bg-primary/3 border-primary/25 hover:border-primary/40 hover:bg-primary/6'
-              : card.preset
-                ? 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'
-                : 'bg-surface-container-low/20 border-dashed border-outline-variant/25 hover:border-outline-variant/40 hover:bg-surface-container-high/20'}"
-        >
-          {#if accented}
-            <span class="absolute inset-x-0 top-0 h-[3px] bg-primary {selected ? '' : 'opacity-50'}" aria-hidden="true"></span>
+      <button
+        type="button"
+        onclick={() => (card.preset ? onselect(card.preset) : ondetail())}
+        {disabled}
+        aria-pressed={card.preset ? selected : undefined}
+        class="relative overflow-hidden text-left p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {selected
+          ? 'bg-primary/8 border-primary/50 shadow-lg shadow-primary/10'
+          : card.recommended
+            ? 'bg-primary/3 border-primary/25 hover:border-primary/40 hover:bg-primary/6'
+            : card.preset
+              ? 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'
+              : 'bg-surface-container-low/20 border-dashed border-outline-variant/25 hover:border-outline-variant/40 hover:bg-surface-container-high/20'}"
+      >
+        {#if accented}
+          <span class="absolute inset-x-0 top-0 h-[3px] bg-primary {selected ? '' : 'opacity-50'}" aria-hidden="true"></span>
+        {/if}
+
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {accented ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
+              <Papicon icon={card.icon} size={18} class={accented ? 'text-primary' : 'text-on-surface-variant/70'} />
+            </div>
+            <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
+          </div>
+          {#if active}
+            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
+              {m.lv_presets_active()}
+            </span>
+          {:else if selected}
+            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
+              {m.lv_presets_selected()}
+            </span>
+          {:else if card.recommended}
+            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
+              {m.lv_presets_recommended()}
+            </span>
           {/if}
+        </div>
 
-          <div class="flex items-start justify-between gap-3">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {accented ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
-                <Papicon icon={card.icon} size={18} class={accented ? 'text-primary' : 'text-on-surface-variant/70'} />
-              </div>
-              <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
-            </div>
-            {#if active}
-              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
-                {m.lv_presets_active()}
-              </span>
-            {:else if selected}
-              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
-                {m.lv_presets_selected()}
-              </span>
-            {:else if card.recommended}
-              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
-                {m.lv_presets_recommended()}
-              </span>
-            {/if}
+        <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{card.desc}</p>
+
+        <div class="grid grid-cols-2 gap-2.5 mt-5">
+          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
+            <p class="text-sm font-semibold text-on-surface">{values.xpMin} – {values.xpMax}</p>
           </div>
-
-          <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{card.desc}</p>
-
-          <div class="grid grid-cols-2 gap-2.5 mt-5">
-            <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
-              <p class="text-sm font-semibold text-on-surface">{values.xpMin} – {values.xpMax}</p>
-            </div>
-            <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
-              <p class="text-sm font-semibold text-on-surface">{values.cooldownSeconds} s</p>
-            </div>
-            <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
-              <p class="text-sm font-semibold text-on-surface">≈ {levelingValuesHourlyXp(values).toLocaleString()}</p>
-            </div>
-            <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_presets_tile_level_10()}</p>
-              <p class="text-sm font-semibold text-on-surface">{levelingValuesXpForLevel(values, 10).toLocaleString()} XP</p>
-            </div>
+          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
+            <p class="text-sm font-semibold text-on-surface">{values.cooldownSeconds} s</p>
           </div>
+          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
+            <p class="text-sm font-semibold text-on-surface">≈ {levelingValuesHourlyXp(values).toLocaleString()}</p>
+          </div>
+          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_presets_tile_level_10()}</p>
+            <p class="text-sm font-semibold text-on-surface">{levelingValuesXpForLevel(values, 10).toLocaleString()} XP</p>
+          </div>
+        </div>
 
-          <p class="text-[11px] text-on-surface-variant/50 mt-3 pr-20">
-            {values.maxLevel > 0 ? m.lv_presets_max_level({ level: values.maxLevel }) : m.lv_presets_no_max_level()}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onclick={() => ondetail(card.preset)}
-          {disabled}
-          class="group absolute bottom-6 right-6 flex items-center gap-1 text-[11px] font-semibold text-on-surface-variant/60 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {m.lv_presets_card_detail()}
-          <Papicon icon="ArrowRight" size={12} class="transition-transform group-hover:translate-x-0.5" />
-        </button>
-      </div>
+        <p class="text-[11px] text-on-surface-variant/50 mt-3">
+          {values.maxLevel > 0 ? m.lv_presets_max_level({ level: values.maxLevel }) : m.lv_presets_no_max_level()}
+        </p>
+      </button>
     {/each}
   </div>
 
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
     <p class="text-[13px] text-on-surface-variant/70">
-      <!-- Le bouton est desactive tant que rien n'a bouge : sans ce troisieme
-           cas, la phrase promettait un enregistrement impossible a declencher. -->
+      <!-- Le bouton est desactive tant que rien n'a bouge : sans ce cas, la
+           phrase promettait un enregistrement impossible a declencher. -->
       {#if !dirty}
         {m.lv_presets_already_saved()}
       {:else}
