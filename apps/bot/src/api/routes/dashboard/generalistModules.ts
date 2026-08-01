@@ -1,8 +1,8 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
-import prisma from '../../../utils/db.js';
+import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
@@ -14,6 +14,79 @@ import { resolveSuggestion } from '../../../services/features/suggestionService.
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { fetchAllMembers } from '../../../utils/discord.js';
 import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
+
+const LEADERBOARD_PAGE_SIZE = 25;
+/** Plafond des profils retenus par une recherche, avant pagination. */
+const LEADERBOARD_SEARCH_LIMIT = 500;
+
+/**
+ * Identifiants des membres dont un pseudo ressemble à la recherche.
+ *
+ * Passe par `unaccent` (installée par migration) : les pseudos sont saisis à la
+ * main, « jose » doit trouver « José ». Une base qui n'a pas l'extension - droits
+ * insuffisants au déploiement - retombe sur une recherche sensible aux accents,
+ * ce qui vaut toujours mieux que zéro résultat.
+ */
+async function findProfilesByName(guildId: string, search: string): Promise<string[]> {
+  // `%` et `_` saisis dans la barre de recherche sont des caractères de
+  // `ILIKE` : sans échappement, chercher « % » listerait toute la guilde.
+  const pattern = `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  try {
+    const rows = await prismaRead.$queryRaw<Array<{ userId: string }>>`
+      SELECT "userId" FROM "member_profiles"
+      WHERE "guildId" = ${guildId}
+        AND (
+          unaccent(coalesce("username", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("displayName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("globalName", '')) ILIKE unaccent(${pattern})
+          OR unaccent(coalesce("userTag", '')) ILIKE unaccent(${pattern})
+        )
+      LIMIT ${LEADERBOARD_SEARCH_LIMIT}
+    `;
+    return rows.map((row) => row.userId);
+  } catch (err) {
+    logger.warn('LevelingAPI', 'Recherche sans unaccent (extension absente ?) :', err);
+    const like = { contains: search, mode: 'insensitive' as const };
+    const profiles = await prismaRead.memberProfile.findMany({
+      where: {
+        guildId,
+        OR: [{ username: like }, { displayName: like }, { globalName: like }, { userTag: like }],
+      },
+      select: { userId: true },
+      take: LEADERBOARD_SEARCH_LIMIT,
+    });
+    return profiles.map((profile) => profile.userId);
+  }
+}
+
+/**
+ * Complète des lignes de classement avec de quoi les afficher : le profil connu
+ * en base, et le membre Discord quand il est en cache, qui a toujours raison sur
+ * le profil (pseudo serveur, avatar à jour).
+ */
+async function withMemberIdentity(
+  guildId: string,
+  client: Client,
+  rows: Array<{ userId: string }>,
+) {
+  const profiles = await prisma.memberProfile.findMany({
+    where: { guildId, userId: { in: rows.map((row) => row.userId) } },
+  });
+  const profileMap = new Map(profiles.map((profile) => [profile.userId, profile]));
+  const discordGuild = client.guilds.cache.get(guildId);
+
+  return rows.map((row) => {
+    const profile = profileMap.get(row.userId);
+    const discordMember = discordGuild?.members.cache.get(row.userId);
+
+    return {
+      ...row,
+      username: discordMember?.user?.username || profile?.username || null,
+      displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
+      avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null,
+    };
+  });
+}
 
 export async function handleGeneralistModulesRoutes(
   req: IncomingMessage,
@@ -45,46 +118,117 @@ export async function handleGeneralistModulesRoutes(
           where: { guildId },
           orderBy: { level: 'asc' },
         });
-        const levels = await prisma.memberLevel.findMany({
+        // Les compteurs du classement sortent de la base, qui les tient déjà :
+        // les recalculer membre par membre dans le navigateur revenait à
+        // reparcourir toute la guilde à chaque affichage.
+        const totals = await prismaRead.memberLevel.aggregate({
           where: { guildId },
-          orderBy: { xp: 'desc' },
+          _count: { _all: true },
+          _sum: { xp: true },
+          _avg: { level: true },
+          _max: { level: true },
         });
+        const stats = {
+          memberCount: totals._count._all,
+          totalXp: totals._sum.xp ?? 0,
+          avgLevel: Math.round(totals._avg.level ?? 0),
+          maxLevel: totals._max.level ?? 0,
+        };
 
-        // Charger les profils de membres de la base de données
-        const userIds = levels.map(l => l.userId);
-        const dbProfiles = await prisma.memberProfile.findMany({
-          where: {
-            guildId,
-            userId: { in: userIds }
-          }
-        });
-        const profileMap = new Map(dbProfiles.map(p => [p.userId, p]));
-
-        // Charger les membres depuis le cache du serveur Discord si présent
-        const discordGuild = client.guilds.cache.get(guildId);
-
-        const levelsWithUserData = levels.map(l => {
-          const profile = profileMap.get(l.userId);
-          const discordMember = discordGuild?.members.cache.get(l.userId);
-
-          const username = discordMember?.user?.username || profile?.username || null;
-          const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${l.userId}`;
-          const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
-
-          return {
-            ...l,
-            username,
-            displayName,
-            avatarUrl
-          };
-        });
-
-        json(res, 200, { config, rewards, levels: levelsWithUserData });
+        json(res, 200, { config, rewards, stats });
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leveling data:', err);
         json(res, 500, { error: 'Erreur lors de la récupération du leveling' });
       }
       return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/leveling/leaderboard (Page de classement)
+    if (parts.length === 6 && parts[5] === 'leaderboard' && method === 'GET') {
+      try {
+        const search = (url.searchParams.get('search') ?? '').trim();
+        const page = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
+
+        // La recherche part sur les profils, seul endroit où les pseudos sont
+        // stockés : `MemberLevel` ne connaît que des identifiants. Le plafond
+        // borne la liste d'identifiants remise à la requête suivante.
+        let matchedUserIds: string[] | null = null;
+        if (search) {
+          const ids = new Set(await findProfilesByName(guildId, search));
+          // Une recherche par identifiant Discord ne passe par aucun profil.
+          if (/^\d{5,}$/.test(search)) ids.add(search);
+          matchedUserIds = [...ids];
+        }
+
+        const where = matchedUserIds ? { guildId, userId: { in: matchedUserIds } } : { guildId };
+        const total = await prismaRead.memberLevel.count({ where });
+        const pageCount = Math.max(1, Math.ceil(total / LEADERBOARD_PAGE_SIZE));
+        const currentPage = Math.min(page, pageCount);
+        const skip = (currentPage - 1) * LEADERBOARD_PAGE_SIZE;
+
+        const rows = await prismaRead.memberLevel.findMany({
+          where,
+          orderBy: { xp: 'desc' },
+          skip,
+          take: LEADERBOARD_PAGE_SIZE,
+        });
+
+        // Hors recherche, le rang est la position dans le tri : la base l'a déjà
+        // donné. Filtré, il faut le compter, mais seulement pour les lignes
+        // affichées.
+        const ranks = matchedUserIds
+          ? await Promise.all(rows.map((row) => prismaRead.memberLevel
+              .count({ where: { guildId, xp: { gt: row.xp } } })
+              .then((higher) => higher + 1)))
+          : rows.map((_, index) => skip + index + 1);
+
+        const members = await withMemberIdentity(guildId, client, rows);
+
+        json(res, 200, {
+          rows: members.map((member, index) => ({ ...member, rank: ranks[index] })),
+          total,
+          page: currentPage,
+          pageCount,
+          pageSize: LEADERBOARD_PAGE_SIZE,
+          searchLimited: matchedUserIds !== null && matchedUserIds.length >= LEADERBOARD_SEARCH_LIMIT,
+        });
+      } catch (err) {
+        logger.error('LevelingAPI', 'Error fetching leaderboard page:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération du classement' });
+      }
+      return true;
+    }
+
+    // GET|POST /api/dashboard/guilds/:guildId/leveling/role-resync (Rangement des rôles)
+    if (parts.length === 6 && parts[5] === 'role-resync') {
+      if (method === 'GET') {
+        json(res, 200, getRoleResyncStatus(guildId));
+        return true;
+      }
+
+      if (method === 'POST') {
+        const body = await readJsonBody<{ stop?: boolean }>(req);
+        if (body?.stop) {
+          const stopped = stopRoleResync(guildId);
+          json(res, 200, { stopped, ...getRoleResyncStatus(guildId) });
+          return true;
+        }
+
+        const started = startRoleResync(guildId, client);
+        if (started.started) {
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Rangement des rôles de niveau',
+            context: getGuildName(client, guildId),
+            module: 'Leveling',
+            eventType: 'Manuel',
+            details: `${started.pending} membres à revoir`,
+            channelId: null,
+          });
+        }
+        json(res, 200, { ...started, ...getRoleResyncStatus(guildId) });
+        return true;
+      }
     }
 
     // GET /api/dashboard/guilds/:guildId/leveling/curve-impact (Effet d'une courbe)
@@ -207,7 +351,9 @@ export async function handleGeneralistModulesRoutes(
         // confirmer « 0 niveau réaligné » quand la requête a en fait échoué.
         let resynced: number | null = 0;
         if (curveChanged) {
-          resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config))
+          // `client` : le réalignement enchaîne sur une passe de rôles, sans
+          // laquelle les récompenses resteraient sur l'ancienne courbe.
+          resynced = await resyncGuildLevels(guildId, levelCurveFromConfig(config), { client })
             .catch((err) => {
               logger.error('LevelingAPI', `Réalignement des niveaux échoué pour ${guildId}:`, err);
               return null;
@@ -227,7 +373,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null
         });
 
-        json(res, 200, { config, resynced });
+        json(res, 200, { config, resynced, roleResync: getRoleResyncStatus(guildId) });
       } catch (err) {
         logger.error('LevelingAPI', 'Error updating leveling config:', err);
         json(res, 500, { error: 'Erreur lors de la mise à jour du leveling' });
@@ -252,6 +398,7 @@ export async function handleGeneralistModulesRoutes(
           },
         });
 
+        await invalidateLevelRewardsCache(guildId);
         json(res, 200, { reward });
       } catch (err) {
         logger.error('LevelingAPI', 'Error creating reward:', err);
@@ -267,6 +414,7 @@ export async function handleGeneralistModulesRoutes(
         await prisma.levelRoleReward.delete({
           where: { id: rewardId },
         });
+        await invalidateLevelRewardsCache(guildId);
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('LevelingAPI', 'Error deleting reward:', err);

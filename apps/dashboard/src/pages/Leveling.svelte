@@ -20,6 +20,9 @@
   import { 
     fetchLevelingData,
     fetchLevelingCurveImpact,
+    fetchLevelingLeaderboard,
+    fetchLevelingRoleResync,
+    runLevelingRoleResync,
     updateLevelingConfig,
     addLevelingReward, 
     deleteLevelingReward,
@@ -29,10 +32,8 @@
   } from '../lib/api';
   import {
     DEFAULT_LEVEL_CURVE,
-    LEVEL_CURVE_HARD_CAP,
     LEVEL_CURVE_LIMITS,
     levelCurvePreview,
-    levelFromXp,
     normalizeLevelCurve,
     xpForLevel,
   } from '@kotbo/shared';
@@ -166,7 +167,19 @@
   });
 
   let rewards = $state<Array<{ id: string; level: number; roleId: string }>>([]);
-  let levels = $state<Array<{ userId: string; xp: number; level: number; lastXpGain: string; username?: string; displayName?: string; avatarUrl?: string }>>([]);
+  // Le classement arrive page par page : une guilde de cinquante mille membres
+  // n'a aucune raison de traverser le reseau pour en afficher vingt-cinq.
+  type LeaderboardRow = {
+    userId: string; xp: number; level: number; lastXpGain: string; rank: number;
+    username?: string | null; displayName?: string | null; avatarUrl?: string | null;
+  };
+  let leaderboardRows = $state<LeaderboardRow[]>([]);
+  let leaderboardPage = $state(1);
+  let leaderboardPageCount = $state(1);
+  let leaderboardTotal = $state(0);
+  let leaderboardLoading = $state(false);
+  let searchLimited = $state(false);
+  let leaderboardStats = $state<{ memberCount: number; totalXp: number; avgLevel: number; maxLevel: number } | null>(null);
 
   // Form states for adding reward
   let newRewardLevel = $state<number | null>(null);
@@ -230,7 +243,14 @@
         // contient est representable par ses crans.
         xpMode.resolve(gainsFitSimpleMode() && lengthBonusFitsSimpleMode());
         rewards = res.rewards || [];
-        levels = res.levels || [];
+        leaderboardStats = res.stats ?? null;
+        // Un rangement de roles peut avoir ete prepare par un enregistrement
+        // precedent, ou etre en cours : la page le reprend a son ouverture.
+        const pendingRoles = await fetchLevelingRoleResync().catch(() => null);
+        if (pendingRoles) {
+          roleResync = pendingRoles;
+          if (roleResync.running) watchRoleResync();
+        }
       }
 
       // Récupérer les paramètres de clan pour le boost d'XP de saison
@@ -265,19 +285,13 @@
       config = res.config;
       savedConfig = JSON.parse(JSON.stringify(res.config));
       resynced = res.resynced === undefined ? 0 : res.resynced;
-      // Le serveur a realigne la colonne `level` sur la courbe enregistree.
-      // Sans le refaire ici, le classement affiche encore les anciens niveaux
-      // et un second reglage se chiffrerait contre eux. Le realignement suit
-      // exactement celui de la base : rien sans changement de courbe, rien non
-      // plus s'il a echoue, sinon des lignes perimees passeraient pour saines.
+      // Le serveur vient de realigner la colonne `level` : les compteurs et la
+      // page de classement affiches parlent encore de l'ancienne courbe.
       if (curveWasDirty && resynced !== null) {
-        const savedCurve = normalizeLevelCurve({
-          baseXp: res.config.curveBaseXp,
-          linearXp: res.config.curveLinearXp,
-          exponent: res.config.curveExponent,
-          maxLevel: res.config.maxLevel
-        });
-        levels = levels.map(member => ({ ...member, level: levelFromXp(member.xp, savedCurve) }));
+        const refreshed = await fetchLevelingData().catch(() => null);
+        if (refreshed) leaderboardStats = refreshed.stats ?? null;
+        if (res.roleResync) roleResync = res.roleResync;
+        await loadLeaderboard();
       }
 
       // 2. Enregistrer la configuration du boost d'XP de clan si modifiée
@@ -367,35 +381,49 @@
   // la logique de `@kotbo/shared`.
   const getXpForLevel = (level: number) => xpForLevel(level, levelCurve);
 
-  // `levelFromXp` remonte la courbe niveau par niveau, avec un `Math.pow` a
-  // chaque pas. La page l'appelle une fois par membre, plusieurs fois par
-  // reglage : les seuils sont tabules une fois par courbe, et le niveau se
-  // trouve ensuite par dichotomie. Resultat identique, cout independant du
-  // niveau atteint.
-  const curveThresholds = $derived.by(() => {
-    const cap = levelCurve.maxLevel > 0
-      ? Math.min(levelCurve.maxLevel, LEVEL_CURVE_HARD_CAP)
-      : LEVEL_CURVE_HARD_CAP;
-    const thresholds = new Array<number>(cap + 1);
-    for (let level = 0; level <= cap; level++) thresholds[level] = xpForLevel(level, levelCurve);
-    return thresholds;
-  });
-
-  function getLevelFromXp(xp: number): number {
-    if (!Number.isFinite(xp) || xp < 0) return 0;
-    const thresholds = curveThresholds;
-    let low = 0;
-    let high = thresholds.length - 1;
-    while (low < high) {
-      const mid = Math.ceil((low + high) / 2);
-      if (xp >= thresholds[mid]) low = mid;
-      else high = mid - 1;
-    }
-    return Math.min(low + 1, thresholds.length - 1);
-  }
-
   const curvePreview = $derived(levelCurvePreview(levelCurve, 30));
-  const curvePreviewMax = $derived(Math.max(...curvePreview.map(p => p.deltaXp), 1));
+
+  // Changer la courbe redistribue les niveaux de tout le serveur, et
+  // l'avertissement generique ne disait pas dans quelle mesure.
+  const curveDirty = $derived(
+    config.curveBaseXp !== savedConfig.curveBaseXp
+      || config.curveLinearXp !== savedConfig.curveLinearXp
+      || config.curveExponent !== savedConfig.curveExponent
+      || config.maxLevel !== savedConfig.maxLevel
+  );
+
+  // La courbe enregistree, tracee derriere celle qu'on edite : sans elle, le
+  // graphique montre un etat sans jamais montrer ce qu'il remplace.
+  const savedLevelCurve = $derived(normalizeLevelCurve({
+    baseXp: savedConfig.curveBaseXp,
+    linearXp: savedConfig.curveLinearXp,
+    exponent: savedConfig.curveExponent,
+    maxLevel: savedConfig.maxLevel
+  }));
+  // Tronquee aux colonnes affichees : un plafond enregistre plus haut que
+  // celui qu'on edite tirerait l'echelle vers une colonne qu'on ne voit pas.
+  const savedCurvePreview = $derived(
+    curveDirty ? levelCurvePreview(savedLevelCurve, 30).slice(0, curvePreview.length) : []
+  );
+
+  // Une seule echelle pour les deux series : comparer deux courbes chacune
+  // ramenee a son propre maximum ne comparerait rien du tout.
+  const curvePreviewMax = $derived(Math.max(
+    ...curvePreview.map(p => p.deltaXp),
+    ...savedCurvePreview.map(p => p.deltaXp),
+    1,
+  ));
+
+  // Reperes de l'axe : le premier niveau, le dernier, et un sur cinq entre les
+  // deux. Numeroter chaque colonne les rendrait illisibles. Deduits du nombre
+  // de colonnes reellement rendues, pour que les deux graphiques restent
+  // d'accord meme si l'un d'eux est momentanement en retard sur l'autre.
+  function axisTicks(columns: number): Set<number> {
+    const step = columns <= 10 ? 2 : 5;
+    const ticks = new Set<number>([1, columns]);
+    for (let level = step; level < columns; level += step) ticks.add(level);
+    return ticks;
+  }
   // Les paliers au-delà du plafond afficheraient tous la même XP : ils sont
   // remplacés par le plafond lui-même, qui est l'information utile.
   const curveMilestoneLevels = $derived(
@@ -572,15 +600,6 @@
     return m.lv_estimate_years({ years: (days / 365).toFixed(1) });
   }
 
-  // Changer la courbe redistribue les niveaux de tout le serveur, et
-  // l'avertissement generique ne disait pas dans quelle mesure.
-  const curveDirty = $derived(
-    config.curveBaseXp !== savedConfig.curveBaseXp
-      || config.curveLinearXp !== savedConfig.curveLinearXp
-      || config.curveExponent !== savedConfig.curveExponent
-      || config.maxLevel !== savedConfig.maxLevel
-  );
-
   type CurveStats = {
     total: number;
     changed: number;
@@ -588,52 +607,30 @@
     /** Nombre de membres par niveau, index 0 pour le niveau 1. */
     distribution: number[];
     beyond: number;
+    rewardMoves: Array<{ roleId: string; gained: number; lost: number }>;
   };
 
   // Effet de la courbe en cours d'edition : combien de membres changent de
-  // niveau, combien en perdent, et ou ils se repartissent. La courbe se
-  // reglait jusqu'ici sans rien savoir de tout ca - durcir les niveaux 40 ne
-  // change rien si tout le monde plafonne au niveau 12.
+  // niveau, combien en perdent, ou ils se repartissent, et quels roles de
+  // recompense changent de main. La courbe se reglait jusqu'ici sans rien
+  // savoir de tout ca - durcir les niveaux 40 ne change rien si tout le monde
+  // plafonne au niveau 12.
   //
-  // Le classement complet est deja charge dans la page : tant qu'il est la, le
-  // calcul se fait en local, donc instantanement pendant qu'on bouge les
-  // curseurs. Les colonnes suivent l'apercu de la courbe juste au-dessus, pour
+  // Tout est compte par le bot, tranche d'XP par tranche d'XP, sans qu'une
+  // ligne de membre quitte la base. Debounce, sinon un curseur tire une requete
+  // par cran. Les colonnes suivent l'apercu de la courbe juste au-dessus, pour
   // que les deux graphiques se lisent ensemble.
-  const localCurveStats = $derived.by((): CurveStats | null => {
-    if (levels.length === 0) return null;
-    const columns = curvePreview.length;
-    const distribution = new Array<number>(columns).fill(0);
-    let changed = 0;
-    let lowered = 0;
-    let beyond = 0;
-    for (const member of levels) {
-      const level = getLevelFromXp(member.xp);
-      // Le niveau enregistre, et non celui de la courbe sauvegardee : c'est
-      // exactement ce que le serveur reecrira au prochain realignement.
-      if (level !== member.level) {
-        changed++;
-        if (level < member.level) lowered++;
-      }
-      if (level > columns) beyond++;
-      else if (level >= 1) distribution[level - 1]++;
-    }
-    return { total: levels.length, changed, lowered, distribution, beyond };
-  });
-
-  // Repli quand la page n'a pas la liste des membres : le bot compte les memes
-  // chiffres par tranche d'XP directement en base, sans faire voyager une seule
-  // ligne de membre. Debounce, sinon un curseur tire une requete par cran.
-  let remoteCurveStats = $state<CurveStats | null>(null);
+  let curveStatsRaw = $state<CurveStats | null>(null);
 
   $effect(() => {
-    if (loading || levels.length > 0) return;
+    if (loading) return;
     const curve = { ...levelCurve };
     let cancelled = false;
     const timer = setTimeout(async () => {
       const stats = await fetchLevelingCurveImpact(curve).catch(() => null);
       // Un bot plus ancien repond 404 sur cette route : on garde null plutot
       // que d'aller lire une repartition absente.
-      if (!cancelled) remoteCurveStats = Array.isArray(stats?.distribution) ? stats : null;
+      if (!cancelled) curveStatsRaw = Array.isArray(stats?.distribution) ? stats : null;
     }, 300);
     return () => {
       cancelled = true;
@@ -643,10 +640,7 @@
 
   // Une guilde sans membre n'a rien a montrer : ni histogramme vide, ni
   // « aucun membre ne changera de niveau », qui se lirait comme un resultat.
-  const curveStats = $derived.by(() => {
-    const stats = localCurveStats ?? remoteCurveStats;
-    return stats && stats.total > 0 ? stats : null;
-  });
+  const curveStats = $derived(curveStatsRaw && curveStatsRaw.total > 0 ? curveStatsRaw : null);
   const curveStatsMax = $derived(Math.max(...(curveStats?.distribution ?? []), 1));
 
   // Une recompense posee au-dessus du plafond ne sera jamais attribuee, et rien
@@ -657,47 +651,42 @@
       : []
   ));
 
-  /** Roles de recompense qu'un membre doit porter a ce niveau. */
-  function rewardRolesAtLevel(level: number): string[] {
-    const earned = rewards.filter(reward => reward.level <= level);
-    if (earned.length === 0) return [];
-    if (config.stackRewards) return earned.map(reward => reward.roleId);
-    // Sans cumul, seul le palier le plus haut est porte.
-    return [earned.reduce((top, reward) => (reward.level > top.level ? reward : top)).roleId];
+  // Mouvements de roles : comptes par le bot en meme temps que le reste, la
+  // page n'ayant plus la liste des membres pour les deduire elle-meme.
+  const rewardImpact = $derived(curveDirty ? (curveStats?.rewardMoves ?? []) : []);
+
+  // Rangement des roles apres un changement de courbe : prepare par le bot,
+  // jamais lance tout seul. Sur un gros serveur, reaccorder les recompenses fait
+  // bouger des milliers de roles d'un coup - c'est une decision, pas un effet de
+  // bord d'un curseur enregistre.
+  let roleResync = $state<{ pending: number; done: number; running: boolean }>({ pending: 0, done: 0, running: false });
+  let roleResyncTimer: ReturnType<typeof setInterval> | null = null;
+
+  function watchRoleResync() {
+    if (roleResyncTimer) return;
+    roleResyncTimer = setInterval(async () => {
+      const status = await fetchLevelingRoleResync().catch(() => null);
+      if (status) roleResync = status;
+      if (!roleResync.running && roleResyncTimer) {
+        clearInterval(roleResyncTimer);
+        roleResyncTimer = null;
+      }
+    }, 3000);
   }
 
-  // Le chiffre des niveaux ne dit pas ce que les membres vont voir : ce sont
-  // les roles qui changent de main. Les membres sont regroupes par transition
-  // (ancien niveau vers nouveau), quelques dizaines la ou il y a des milliers
-  // de membres, et le calcul des roles ne se fait qu'une fois par transition.
-  const rewardImpact = $derived.by(() => {
-    if (!curveDirty || rewards.length === 0 || levels.length === 0) return [];
+  async function startRoleResync() {
+    const status = await runLevelingRoleResync().catch(() => null);
+    if (status) roleResync = status;
+    watchRoleResync();
+  }
 
-    const transitions = new Map<string, number>();
-    for (const member of levels) {
-      const next = getLevelFromXp(member.xp);
-      if (next === member.level) continue;
-      const key = `${member.level}:${next}`;
-      transitions.set(key, (transitions.get(key) ?? 0) + 1);
-    }
+  async function stopRoleResync() {
+    const status = await runLevelingRoleResync({ stop: true }).catch(() => null);
+    if (status) roleResync = status;
+  }
 
-    const gained = new Map<string, number>();
-    const lost = new Map<string, number>();
-    for (const [key, count] of transitions) {
-      const [from, to] = key.split(':').map(Number);
-      const before = new Set(rewardRolesAtLevel(from));
-      const after = new Set(rewardRolesAtLevel(to));
-      for (const roleId of after) {
-        if (!before.has(roleId)) gained.set(roleId, (gained.get(roleId) ?? 0) + count);
-      }
-      for (const roleId of before) {
-        if (!after.has(roleId)) lost.set(roleId, (lost.get(roleId) ?? 0) + count);
-      }
-    }
-
-    return [...new Set([...gained.keys(), ...lost.keys()])]
-      .map(roleId => ({ roleId, gained: gained.get(roleId) ?? 0, lost: lost.get(roleId) ?? 0 }))
-      .sort((a, b) => (b.gained + b.lost) - (a.gained + a.lost));
+  onDestroy(() => {
+    if (roleResyncTimer) clearInterval(roleResyncTimer);
   });
 
   const curveImpactLabel = $derived.by(() => {
@@ -727,19 +716,46 @@
     setTimeout(() => { copySuccess = false; }, 2000);
   }
 
-  const filteredLevels = $derived(
-    levels.filter(u => {
-      const q = searchQuery.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-      const name = u.displayName?.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '') || '';
-      const username = u.username?.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '') || '';
-      return name.includes(q) || username.includes(q) || u.userId.includes(searchQuery);
-    })
-  );
+  // Le podium n'a de sens que sur la premiere page non filtree : ailleurs, les
+  // trois premieres lignes ne sont pas les trois premiers du serveur.
+  const podium = $derived(!searchQuery.trim() && leaderboardPage === 1 ? leaderboardRows.slice(0, 3) : []);
 
-  // Stats du classement
-  const totalXp = $derived(levels.reduce((sum, u) => sum + u.xp, 0));
-  const avgLevel = $derived(levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + getLevelFromXp(u.xp), 0) / levels.length) : 0);
-  const maxLevel = $derived(levels.length > 0 ? Math.max(...levels.map(u => getLevelFromXp(u.xp))) : 0);
+  async function loadLeaderboard(page = leaderboardPage) {
+    leaderboardLoading = true;
+    try {
+      const res = await fetchLevelingLeaderboard({ page, search: searchQuery.trim() }).catch(() => null);
+      if (!res || !Array.isArray(res.rows)) return;
+      leaderboardRows = res.rows;
+      leaderboardPage = res.page ?? 1;
+      leaderboardPageCount = res.pageCount ?? 1;
+      leaderboardTotal = res.total ?? 0;
+      searchLimited = res.searchLimited === true;
+    } finally {
+      leaderboardLoading = false;
+    }
+  }
+
+  // La recherche interroge la base, donc on attend une pause de frappe, et on
+  // revient a la premiere page : rester page 4 d'un resultat qui n'en a qu'une
+  // n'aurait rien affiche.
+  $effect(() => {
+    const search = searchQuery;
+    if (loading) return;
+    const timer = setTimeout(() => {
+      untrack(() => loadLeaderboard(1));
+    }, search ? 300 : 0);
+    return () => clearTimeout(timer);
+  });
+
+  // Stats du classement : la base les tient deja (`_count`, `_sum`, `_avg`,
+  // `_max` sur des colonnes indexees), donc elles arrivent avec la reponse
+  // plutot que d'etre reconstituees membre par membre ici - ce que la page ne
+  // pourrait plus faire de toute facon, puisqu'elle n'a plus qu'une page de
+  // classement a la fois.
+  const memberCount = $derived(leaderboardStats?.memberCount ?? 0);
+  const totalXp = $derived(leaderboardStats?.totalXp ?? 0);
+  const avgLevel = $derived(leaderboardStats?.avgLevel ?? 0);
+  const maxLevel = $derived(leaderboardStats?.maxLevel ?? 0);
 
   // Import states
   let importRawJson = $state('');
@@ -786,9 +802,8 @@
       // le bon, le recharger ne ferait que le faire clignoter.
       if (!dryRun) {
         const updatedData = await fetchLevelingData();
-        if (updatedData) {
-          levels = updatedData.levels || [];
-        }
+        if (updatedData) leaderboardStats = updatedData.stats ?? null;
+        await loadLeaderboard(1);
       }
       return true;
     }, { successMessage: dryRun ? m.lv_import_toast_dry_run() : m.lv_import_toast_ok() });
@@ -847,6 +862,21 @@
   }
 </script>
 
+<!-- Axe des deux graphiques de la courbe : memes colonnes, meme gouttiere, donc
+     les reperes tombent sous les barres correspondantes des deux graphiques. -->
+{#snippet levelAxis(columns: number)}
+  {@const ticks = axisTicks(columns)}
+  <!-- `border-transparent` : le graphique au-dessus a une bordure d'1px, sans
+       quoi les reperes seraient decales d'un pixel par rapport aux colonnes. -->
+  <div class="flex gap-[3px] px-2 border border-transparent" aria-hidden="true">
+    {#each Array.from({ length: columns }) as _, index}
+      <span class="flex-1 text-center text-[9px] leading-none tabular-nums text-on-surface-variant/50">
+        {ticks.has(index + 1) ? index + 1 : ''}
+      </span>
+    {/each}
+  </div>
+{/snippet}
+
 <ModulePage
   title="Leveling & XP"
   description={m.lv_page_description()}
@@ -903,9 +933,9 @@
     >
       <Papicon icon="Grades" size={16} />
       {m.lv_tab_leaderboard()}
-      {#if levels.length > 0}
+      {#if memberCount > 0}
         <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-lg {activeTab === 'leaderboard' ? 'bg-on-tertiary/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
-          {levels.length}
+          {memberCount.toLocaleString()}
         </span>
       {/if}
     </button>
@@ -1510,15 +1540,42 @@
               <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_curve_preview_desc()}</p>
             </div>
 
+            {#if savedCurvePreview.length > 0}
+              <div class="flex items-center gap-4 text-[10px] font-medium text-on-surface-variant/70">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-2 rounded-sm bg-primary/60"></span>{m.lv_curve_legend_edited()}
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-[2px] bg-on-surface-variant/70"></span>{m.lv_curve_legend_saved()}
+                </span>
+              </div>
+            {/if}
+
             <div class="flex items-end gap-[3px] h-32 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              {#each curvePreview as point}
+              {#each curvePreview as point, index}
+                {@const savedDelta = savedCurvePreview[index]?.deltaXp}
                 <div
-                  class="flex-1 bg-primary/60 rounded-t-sm min-h-[2px]"
-                  style="height: {Math.max(2, (point.deltaXp / curvePreviewMax) * 100)}%"
-                  title={m.lv_curve_milestone({ level: point.level }) + ' : ' + point.deltaXp.toLocaleString() + ' XP'}
-                ></div>
+                  class="relative flex-1 h-full flex items-end"
+                  title={m.lv_curve_milestone({ level: point.level }) + ' : ' + point.deltaXp.toLocaleString() + ' XP'
+                    + (savedDelta === undefined ? '' : ' · ' + m.lv_curve_legend_saved() + ' ' + savedDelta.toLocaleString() + ' XP')}
+                >
+                  <div
+                    class="w-full bg-primary/60 rounded-t-sm min-h-[2px]"
+                    style="height: {Math.max(2, (point.deltaXp / curvePreviewMax) * 100)}%"
+                  ></div>
+                  {#if savedDelta !== undefined}
+                    <!-- Anneau de la couleur du fond : le repere reste lisible
+                         quand il tombe au milieu de la barre. -->
+                    <div
+                      class="absolute inset-x-0 h-[2px] bg-on-surface-variant/70 pointer-events-none"
+                      style="bottom: calc({Math.min(100, (savedDelta / curvePreviewMax) * 100)}% - 1px); box-shadow: 0 0 0 1px var(--color-surface-container-low, transparent);"
+                    ></div>
+                  {/if}
+                </div>
               {/each}
             </div>
+
+            {@render levelAxis(curvePreview.length)}
 
             {#if curveStats}
               <div>
@@ -1529,12 +1586,14 @@
               <div class="flex items-end gap-[3px] h-16 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
                 {#each curveStats.distribution as count, index}
                   <div
-                    class="flex-1 rounded-t-sm min-h-[2px] {count > 0 ? 'bg-tertiary/60' : 'bg-outline-variant/20'}"
+                    class="flex-1 rounded-t-sm min-h-[2px] {count > 0 ? 'bg-teal-600' : 'bg-outline-variant/20'}"
                     style="height: {count > 0 ? Math.max(4, (count / curveStatsMax) * 100) : 0}%"
                     title={m.lv_curve_population_bar({ level: index + 1, count: count.toLocaleString() })}
                   ></div>
                 {/each}
               </div>
+
+              {@render levelAxis(curveStats.distribution.length)}
 
               {#if curveStats.beyond > 0}
                 <p class="text-[10px] text-on-surface-variant/60 ml-2">
@@ -1589,6 +1648,38 @@
                 <p class="mt-1 opacity-80">{m.lv_reward_impact_desc()}</p>
               {/if}
             </div>
+
+            {#if roleResync.pending > 0}
+              <div class="p-4 bg-surface-container-high/25 border border-outline-variant/10 rounded-lg space-y-3">
+                <div>
+                  <p class="text-sm font-bold text-on-surface">{m.lv_role_resync_title({ count: roleResync.pending.toLocaleString() })}</p>
+                  <p class="text-[11px] text-on-surface-variant/70 leading-relaxed">{m.lv_role_resync_desc()}</p>
+                </div>
+
+                {#if roleResync.running}
+                  <div class="flex items-center justify-between gap-4">
+                    <span class="text-[11px] font-semibold text-on-surface-variant tabular-nums">
+                      {m.lv_role_resync_progress({ done: roleResync.done.toLocaleString(), total: roleResync.pending.toLocaleString() })}
+                    </span>
+                    <button
+                      type="button"
+                      onclick={stopRoleResync}
+                      class="px-4 py-2 bg-error/10 text-error font-medium text-xs rounded-lg hover:bg-error/20 transition-all"
+                    >
+                      {m.lv_role_resync_stop()}
+                    </button>
+                  </div>
+                {:else if canManageSettings}
+                  <button
+                    type="button"
+                    onclick={startRoleResync}
+                    class="px-5 py-2.5 bg-secondary text-on-secondary font-medium text-xs rounded-lg transition-all"
+                  >
+                    {m.lv_role_resync_start()}
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </div>
         </section>
 
@@ -1845,10 +1936,10 @@
       </div>
 
       <!-- Stats globales -->
-      {#if levels.length > 0}
+      {#if memberCount > 0}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-primary/20 transition-all duration-300 group">
-            <p class="text-2xl font-semibold text-primary transition-transform duration-300">{levels.length}</p>
+            <p class="text-2xl font-semibold text-primary transition-transform duration-300">{memberCount.toLocaleString()}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_stat_members()}</p>
           </div>
           <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-secondary/20 transition-all duration-300 group">
@@ -1871,7 +1962,7 @@
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Grades" size={20} class="text-tertiary" />
-            {m.lv_leaderboard_title({ count: levels.length })}
+            {m.lv_leaderboard_title({ count: memberCount })}
           </h3>
 
           <!-- Barre de recherche -->
@@ -1897,16 +1988,16 @@
         </div>
 
         <!-- Section Top 3 Sleek Cards -->
-        {#if !searchQuery && levels.length > 0}
+        {#if podium.length > 0}
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto pt-4 pb-8 border-b border-outline-variant/10">
             
             <!-- Rank 2 Card -->
-            {#if levels[1]}
+            {#if podium[1]}
               <div class="relative bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 flex flex-col justify-between hover:border-primary/25 transition-all duration-300 group shadow-sm order-2 sm:order-1">
                 <div class="flex items-start justify-between">
                   <div class="relative">
                     <img
-                      src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
+                      src={podium[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
                       alt=""
                       class="w-16 h-16 rounded-lg object-cover border border-outline-variant/10 shadow-inner"
                     />
@@ -1923,24 +2014,24 @@
                 
                 <div class="mt-6 space-y-4">
                   <div class="space-y-0.5">
-                    <p class="font-bold text-on-surface truncate group-hover:text-primary transition-colors" title={levels[1].displayName}>
-                      {levels[1].displayName || levels[1].username || m.lv_unknown_member()}
+                    <p class="font-bold text-on-surface truncate group-hover:text-primary transition-colors" title={podium[1].displayName}>
+                      {podium[1].displayName || podium[1].username || m.lv_unknown_member()}
                     </p>
-                    {#if levels[1].username && levels[1].displayName !== levels[1].username}
-                      <p class="text-xs text-on-surface-variant/50 font-medium truncate">@{levels[1].username}</p>
+                    {#if podium[1].username && podium[1].displayName !== podium[1].username}
+                      <p class="text-xs text-on-surface-variant/50 font-medium truncate">@{podium[1].username}</p>
                     {/if}
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-outline-variant/5 pt-3 text-xs">
-                    <span class="text-on-surface-variant/70 font-semibold">{m.lv_level_n({ level: getLevelFromXp(levels[1].xp) })}</span>
-                    <span class="text-on-surface-variant/80 font-mono font-medium">{levels[1].xp.toLocaleString()} XP</span>
+                    <span class="text-on-surface-variant/70 font-semibold">{m.lv_level_n({ level: podium[1].level })}</span>
+                    <span class="text-on-surface-variant/80 font-mono font-medium">{podium[1].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
               </div>
             {/if}
 
             <!-- Rank 1 Card (Highlighted) -->
-            {#if levels[0]}
+            {#if podium[0]}
               <div class="relative bg-surface-container-low/60 border border-tertiary/20 rounded-xl overflow-hidden p-6 flex flex-col justify-between hover:border-tertiary/40 transition-all duration-300 group shadow-md ring-1 ring-tertiary/5 order-1 sm:order-2">
                 <!-- Top accent bar -->
                 <div class="absolute top-0 inset-x-0 h-1 bg-linear-to-r from-tertiary to-secondary"></div>
@@ -1948,7 +2039,7 @@
                 <div class="flex items-start justify-between mt-1">
                   <div class="relative">
                     <img
-                      src={levels[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                      src={podium[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
                       alt=""
                       class="w-20 h-20 rounded-lg object-cover border border-tertiary/20 shadow-inner"
                     />
@@ -1965,29 +2056,29 @@
                 
                 <div class="mt-6 space-y-4">
                   <div class="space-y-0.5">
-                    <p class="font-semibold text-on-surface text-lg truncate group-hover:text-tertiary transition-colors" title={levels[0].displayName}>
-                      {levels[0].displayName || levels[0].username || m.lv_unknown_member()}
+                    <p class="font-semibold text-on-surface text-lg truncate group-hover:text-tertiary transition-colors" title={podium[0].displayName}>
+                      {podium[0].displayName || podium[0].username || m.lv_unknown_member()}
                     </p>
-                    {#if levels[0].username && levels[0].displayName !== levels[0].username}
-                      <p class="text-xs text-tertiary/70 font-medium truncate">@{levels[0].username}</p>
+                    {#if podium[0].username && podium[0].displayName !== podium[0].username}
+                      <p class="text-xs text-tertiary/70 font-medium truncate">@{podium[0].username}</p>
                     {/if}
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-tertiary/10 pt-3 text-sm">
-                    <span class="text-tertiary font-semibold">{m.lv_level_n({ level: getLevelFromXp(levels[0].xp) })}</span>
-                    <span class="text-tertiary/90 font-mono font-bold">{levels[0].xp.toLocaleString()} XP</span>
+                    <span class="text-tertiary font-semibold">{m.lv_level_n({ level: podium[0].level })}</span>
+                    <span class="text-tertiary/90 font-mono font-bold">{podium[0].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
               </div>
             {/if}
 
             <!-- Rank 3 Card -->
-            {#if levels[2]}
+            {#if podium[2]}
               <div class="relative bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 flex flex-col justify-between hover:border-primary/25 transition-all duration-300 group shadow-sm order-3">
                 <div class="flex items-start justify-between">
                   <div class="relative">
                     <img
-                      src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
+                      src={podium[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
                       alt=""
                       class="w-16 h-16 rounded-lg object-cover border border-outline-variant/10 shadow-inner"
                     />
@@ -2004,17 +2095,17 @@
                 
                 <div class="mt-6 space-y-4">
                   <div class="space-y-0.5">
-                    <p class="font-bold text-on-surface truncate group-hover:text-primary transition-colors" title={levels[2].displayName}>
-                      {levels[2].displayName || levels[2].username || m.lv_unknown_member()}
+                    <p class="font-bold text-on-surface truncate group-hover:text-primary transition-colors" title={podium[2].displayName}>
+                      {podium[2].displayName || podium[2].username || m.lv_unknown_member()}
                     </p>
-                    {#if levels[2].username && levels[2].displayName !== levels[2].username}
-                      <p class="text-xs text-on-surface-variant/50 font-medium truncate">@{levels[2].username}</p>
+                    {#if podium[2].username && podium[2].displayName !== podium[2].username}
+                      <p class="text-xs text-on-surface-variant/50 font-medium truncate">@{podium[2].username}</p>
                     {/if}
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-outline-variant/5 pt-3 text-xs">
-                    <span class="text-on-surface-variant/70 font-semibold">{m.lv_level_n({ level: getLevelFromXp(levels[2].xp) })}</span>
-                    <span class="text-on-surface-variant/80 font-mono font-medium">{levels[2].xp.toLocaleString()} XP</span>
+                    <span class="text-on-surface-variant/70 font-semibold">{m.lv_level_n({ level: podium[2].level })}</span>
+                    <span class="text-on-surface-variant/80 font-mono font-medium">{podium[2].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
               </div>
@@ -2025,9 +2116,9 @@
 
         <!-- Liste complète des membres avec design en cartes premiums -->
         <div class="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-          {#each filteredLevels as userLvl}
-            {@const index = levels.findIndex(l => l.userId === userLvl.userId)}
-            {@const lvl = getLevelFromXp(userLvl.xp)}
+          {#each leaderboardRows as userLvl (userLvl.userId)}
+            {@const index = userLvl.rank - 1}
+            {@const lvl = userLvl.level}
             {@const nextLvlXp = getXpForLevel(lvl)}
             {@const prevLvlXp = getXpForLevel(lvl - 1)}
             {@const neededProgress = Math.max(1, nextLvlXp - prevLvlXp)}
@@ -2108,6 +2199,34 @@
             </div>
           {/each}
         </div>
+
+        {#if searchLimited}
+          <p class="text-[11px] text-amber-600 dark:text-amber-400 font-medium">{m.lv_search_limited()}</p>
+        {/if}
+
+        {#if leaderboardPageCount > 1}
+          <div class="flex items-center justify-between gap-4 pt-2">
+            <button
+              type="button"
+              onclick={() => loadLeaderboard(leaderboardPage - 1)}
+              disabled={leaderboardPage <= 1 || leaderboardLoading}
+              class="px-4 py-2.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-xs rounded-lg hover:bg-surface-container-high transition-all disabled:opacity-40"
+            >
+              {m.lv_page_previous()}
+            </button>
+            <span class="text-[11px] font-medium text-on-surface-variant/70 tabular-nums">
+              {m.lv_page_position({ page: leaderboardPage, pageCount: leaderboardPageCount, total: leaderboardTotal.toLocaleString() })}
+            </span>
+            <button
+              type="button"
+              onclick={() => loadLeaderboard(leaderboardPage + 1)}
+              disabled={leaderboardPage >= leaderboardPageCount || leaderboardLoading}
+              class="px-4 py-2.5 bg-surface-container-high/50 text-on-surface-variant font-medium text-xs rounded-lg hover:bg-surface-container-high transition-all disabled:opacity-40"
+            >
+              {m.lv_page_next()}
+            </button>
+          </div>
+        {/if}
       </section>
     </div>
   {:else if activeTab === 'import'}
