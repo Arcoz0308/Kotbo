@@ -17,11 +17,22 @@ export interface RecipeTemplate {
   build: () => Recipe;
 }
 
+/*
+ * Chaque `build` ci-dessous annote explicitement son retour `(): Recipe`.
+ * Sans cette annotation, TypeScript unifie les étapes du tableau `steps` en un
+ * type commun où les clés absentes d'une étape deviennent `?: undefined`
+ * (`role?: undefined` sur une étape SendMessage, par exemple). Cette forme n'est
+ * plus assignable à `Record<string, ValueRef>`, dont l'index refuse `undefined`.
+ * L'annotation force le contrôle étape par étape et fait disparaître le problème.
+ * Invisible ici (le dashboard compile sans `strict`), mais bloquant pour le test
+ * du bot qui relit ces modèles depuis leur source.
+ */
+
 export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   {
     id: 'welcome',
     icon: 'User',
-    build: () => ({
+    build: (): Recipe => ({
       trigger: { type: 'OnMemberJoin' },
       steps: [
         {
@@ -48,7 +59,7 @@ export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   {
     id: 'young-account',
     icon: 'Shield',
-    build: () => ({
+    build: (): Recipe => ({
       trigger: { type: 'OnMemberJoin' },
       steps: [
         {
@@ -77,7 +88,7 @@ export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   {
     id: 'anti-invite',
     icon: 'AlertTriangle',
-    build: () => ({
+    build: (): Recipe => ({
       trigger: { type: 'OnMessageSend' },
       steps: [
         {
@@ -107,7 +118,7 @@ export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   {
     id: 'level-reward',
     icon: 'Sparkles',
-    build: () => ({
+    build: (): Recipe => ({
       trigger: { type: 'OnLevelUp' },
       steps: [
         {
@@ -125,7 +136,7 @@ export const RECIPE_TEMPLATES: RecipeTemplate[] = [
   {
     id: 'ticket-welcome',
     icon: 'TextBubble',
-    build: () => ({
+    build: (): Recipe => ({
       trigger: { type: 'OnTicketCreated' },
       steps: [
         {

@@ -16,8 +16,10 @@ const mockDb = {
     update: mock(async () => ({})),
   },
   memberProfile: {
-    upsert: mock(async () => ({})),
-    update: mock(async () => ({})),
+    // Le paramètre est déclaré (même inutilisé) pour que `mock.calls` porte bien
+    // l'argument : sans lui le tuple d'appel est vide et `calls[0][0]` ne compile pas.
+    upsert: mock(async (_args: unknown) => ({})),
+    update: mock(async (_args: unknown) => ({})),
     findMany: mock(async () => []),
   },
   guildDailyStat: {

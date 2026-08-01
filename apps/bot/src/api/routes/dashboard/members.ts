@@ -5,7 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
 import * as altAccountService from '../../../services/moderation/altAccountService.js';
 import { scanGuildMembersForYoungAccounts, getDetectionEvidence } from '../../../services/moderation/dcDetectionService.js';
-import { resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
+import { memberProfileIdentity, resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import {
   json,
