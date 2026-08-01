@@ -167,6 +167,7 @@
 
   let rewards = $state<Array<{ id: string; level: number; roleId: string }>>([]);
   let levels = $state<Array<{ userId: string; xp: number; level: number; lastXpGain: string; username?: string; displayName?: string; avatarUrl?: string }>>([]);
+  let leaderboardStats = $state<{ memberCount: number; totalXp: number; avgLevel: number; maxLevel: number } | null>(null);
 
   // Form states for adding reward
   let newRewardLevel = $state<number | null>(null);
@@ -231,6 +232,7 @@
         xpMode.resolve(gainsFitSimpleMode() && lengthBonusFitsSimpleMode());
         rewards = res.rewards || [];
         levels = res.levels || [];
+        leaderboardStats = res.stats ?? null;
       }
 
       // Récupérer les paramètres de clan pour le boost d'XP de saison
@@ -278,6 +280,9 @@
           maxLevel: res.config.maxLevel
         });
         levels = levels.map(member => ({ ...member, level: levelFromXp(member.xp, savedCurve) }));
+        // Les compteurs recus a l'ouverture parlaient de l'ancienne courbe : ils
+        // sont abandonnes au profit du calcul local, qui vient d'etre realigne.
+        leaderboardStats = null;
       }
 
       // 2. Enregistrer la configuration du boost d'XP de clan si modifiée
@@ -772,13 +777,20 @@
     })
   );
 
-  // Stats du classement
-  const totalXp = $derived(levels.reduce((sum, u) => sum + u.xp, 0));
-  const avgLevel = $derived(levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + getLevelFromXp(u.xp), 0) / levels.length) : 0);
+  // Stats du classement : la base les tient deja (`_sum`, `_avg`, `_max` sur des
+  // colonnes indexees), donc elles arrivent avec la reponse plutot que d'etre
+  // reconstituees membre par membre ici. Le repli local ne sert qu'a un bot qui
+  // ne les envoie pas encore, et apres un realignement de courbe, ou la base
+  // vient de changer sous les chiffres recus.
+  const totalXp = $derived(leaderboardStats?.totalXp ?? levels.reduce((sum, u) => sum + u.xp, 0));
+  const avgLevel = $derived(leaderboardStats
+    ? leaderboardStats.avgLevel
+    : (levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + getLevelFromXp(u.xp), 0) / levels.length) : 0));
   // `Math.max(...)` par etalement : au-dela de quelques dizaines de milliers
   // d'arguments, l'appel depasse la pile et leve. Sur une grosse guilde, c'est
   // la page entiere qui tombait, pas seulement cette tuile.
-  const maxLevel = $derived(levels.reduce((top, u) => Math.max(top, getLevelFromXp(u.xp)), 0));
+  const maxLevel = $derived(leaderboardStats?.maxLevel
+    ?? levels.reduce((top, u) => Math.max(top, getLevelFromXp(u.xp)), 0));
 
   // Le rang de chaque ligne, resolu une fois pour toutes : le calculer dans la
   // boucle d'affichage relisait la liste entiere a chaque ligne, soit le carre
@@ -832,6 +844,7 @@
         const updatedData = await fetchLevelingData();
         if (updatedData) {
           levels = updatedData.levels || [];
+          leaderboardStats = updatedData.stats ?? null;
         }
       }
       return true;

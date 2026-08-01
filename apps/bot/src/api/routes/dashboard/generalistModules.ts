@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
-import prisma from '../../../utils/db.js';
+import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
@@ -50,6 +50,23 @@ export async function handleGeneralistModulesRoutes(
           orderBy: { xp: 'desc' },
         });
 
+        // Les compteurs du classement sortent de la base, qui les tient déjà :
+        // les recalculer membre par membre dans le navigateur revenait à
+        // reparcourir toute la guilde à chaque affichage.
+        const totals = await prismaRead.memberLevel.aggregate({
+          where: { guildId },
+          _count: { _all: true },
+          _sum: { xp: true },
+          _avg: { level: true },
+          _max: { level: true },
+        });
+        const stats = {
+          memberCount: totals._count._all,
+          totalXp: totals._sum.xp ?? 0,
+          avgLevel: Math.round(totals._avg.level ?? 0),
+          maxLevel: totals._max.level ?? 0,
+        };
+
         // Charger les profils de membres de la base de données
         const userIds = levels.map(l => l.userId);
         const dbProfiles = await prisma.memberProfile.findMany({
@@ -79,7 +96,7 @@ export async function handleGeneralistModulesRoutes(
           };
         });
 
-        json(res, 200, { config, rewards, levels: levelsWithUserData });
+        json(res, 200, { config, rewards, levels: levelsWithUserData, stats });
       } catch (err) {
         logger.error('LevelingAPI', 'Error fetching leveling data:', err);
         json(res, 500, { error: 'Erreur lors de la récupération du leveling' });
