@@ -829,48 +829,40 @@ export async function getMemberRankData(guildId: string, userId: string) {
   const rankIndex = levels.findIndex(l => l.userId === userId);
   const rank = rankIndex === -1 ? levels.length + 1 : rankIndex + 1;
 
-  let memberLevel = levels.find(l => l.userId === userId);
-  if (!memberLevel) {
-    memberLevel = {
-      id: '',
-      guildId,
-      userId,
-      xp: 0,
-      level: 0,
-      lastXpGain: new Date(),
-    };
-  }
+  const memberLevel = levels.find(l => l.userId === userId) ?? null;
+  const xp = memberLevel?.xp ?? 0;
 
   // L'XP est la source de vérité : on recalcule le niveau et on auto-répare la
-  // ligne si elle est incohérente (ex. niveau importé d'un autre bot).
+  // ligne si elle est incohérente (ex. niveau importé d'un autre bot). Sans
+  // ligne du tout, le membre reste au niveau 0 : il n'a jamais gagné d'XP, et
+  // le niveau 1 que 0 XP vaut sur la courbe se lirait comme une progression.
   const curve = await getGuildLevelCurve(guildId);
-  const correctLevel = getLevelFromXp(memberLevel.xp, curve);
-  if (memberLevel.id && correctLevel !== memberLevel.level) {
-    memberLevel.level = correctLevel;
+  const level = memberLevel ? getLevelFromXp(memberLevel.xp, curve) : 0;
+  if (memberLevel && level !== memberLevel.level) {
     prisma.memberLevel
       .update({
         where: { guildId_userId: { guildId, userId } },
-        data: { level: correctLevel },
+        data: { level },
       })
       .catch(err => logger.error('LevelingService', `Auto-réparation du niveau échouée pour ${userId}:`, err));
   }
 
-  const currentLevelXp = getXpForLevel(memberLevel.level - 1, curve);
-  const nextLevelXp = getXpForLevel(memberLevel.level, curve);
+  const currentLevelXp = getXpForLevel(level - 1, curve);
+  const nextLevelXp = getXpForLevel(level, curve);
 
   const xpRequiredForNextLevel = nextLevelXp - currentLevelXp;
   // Au niveau maximum l'XP continue de monter sans palier suivant : borner la
   // part du niveau en cours évite que les barres de progression construites
   // depuis ce ratio dépassent 100 %.
-  const xpInCurrentLevel = Math.min(Math.max(0, memberLevel.xp - currentLevelXp), xpRequiredForNextLevel);
+  const xpInCurrentLevel = Math.min(Math.max(0, xp - currentLevelXp), xpRequiredForNextLevel);
 
   return {
-    level: memberLevel.level,
-    xp: memberLevel.xp,
+    level,
+    xp,
     xpInCurrentLevel,
     xpRequiredForNextLevel,
     rank,
-    totalXp: memberLevel.xp,
+    totalXp: xp,
   };
 }
 
