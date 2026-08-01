@@ -395,7 +395,47 @@
   }
 
   const curvePreview = $derived(levelCurvePreview(levelCurve, 30));
-  const curvePreviewMax = $derived(Math.max(...curvePreview.map(p => p.deltaXp), 1));
+
+  // Changer la courbe redistribue les niveaux de tout le serveur, et
+  // l'avertissement generique ne disait pas dans quelle mesure.
+  const curveDirty = $derived(
+    config.curveBaseXp !== savedConfig.curveBaseXp
+      || config.curveLinearXp !== savedConfig.curveLinearXp
+      || config.curveExponent !== savedConfig.curveExponent
+      || config.maxLevel !== savedConfig.maxLevel
+  );
+
+  // La courbe enregistree, tracee derriere celle qu'on edite : sans elle, le
+  // graphique montre un etat sans jamais montrer ce qu'il remplace.
+  const savedLevelCurve = $derived(normalizeLevelCurve({
+    baseXp: savedConfig.curveBaseXp,
+    linearXp: savedConfig.curveLinearXp,
+    exponent: savedConfig.curveExponent,
+    maxLevel: savedConfig.maxLevel
+  }));
+  // Tronquee aux colonnes affichees : un plafond enregistre plus haut que
+  // celui qu'on edite tirerait l'echelle vers une colonne qu'on ne voit pas.
+  const savedCurvePreview = $derived(
+    curveDirty ? levelCurvePreview(savedLevelCurve, 30).slice(0, curvePreview.length) : []
+  );
+
+  // Une seule echelle pour les deux series : comparer deux courbes chacune
+  // ramenee a son propre maximum ne comparerait rien du tout.
+  const curvePreviewMax = $derived(Math.max(
+    ...curvePreview.map(p => p.deltaXp),
+    ...savedCurvePreview.map(p => p.deltaXp),
+    1,
+  ));
+
+  // Reperes de l'axe : le premier niveau, le dernier, et un sur cinq entre les
+  // deux. Numeroter chaque colonne les rendrait illisibles.
+  const curveAxisTicks = $derived.by(() => {
+    const last = curvePreview.length;
+    const step = last <= 10 ? 2 : 5;
+    const ticks = new Set<number>([1, last]);
+    for (let level = step; level < last; level += step) ticks.add(level);
+    return ticks;
+  });
   // Les paliers au-delà du plafond afficheraient tous la même XP : ils sont
   // remplacés par le plafond lui-même, qui est l'information utile.
   const curveMilestoneLevels = $derived(
@@ -571,15 +611,6 @@
     if (days < 730) return m.lv_estimate_months({ months: Math.round(days / 30) });
     return m.lv_estimate_years({ years: (days / 365).toFixed(1) });
   }
-
-  // Changer la courbe redistribue les niveaux de tout le serveur, et
-  // l'avertissement generique ne disait pas dans quelle mesure.
-  const curveDirty = $derived(
-    config.curveBaseXp !== savedConfig.curveBaseXp
-      || config.curveLinearXp !== savedConfig.curveLinearXp
-      || config.curveExponent !== savedConfig.curveExponent
-      || config.maxLevel !== savedConfig.maxLevel
-  );
 
   type CurveStats = {
     total: number;
@@ -846,6 +877,20 @@
     reader.readAsText(file);
   }
 </script>
+
+<!-- Axe des deux graphiques de la courbe : memes colonnes, meme gouttiere, donc
+     les reperes tombent sous les barres correspondantes des deux graphiques. -->
+{#snippet levelAxis(columns: number)}
+  <!-- `border-transparent` : le graphique au-dessus a une bordure d'1px, sans
+       quoi les reperes seraient decales d'un pixel par rapport aux colonnes. -->
+  <div class="flex gap-[3px] px-2 border border-transparent" aria-hidden="true">
+    {#each Array.from({ length: columns }) as _, index}
+      <span class="flex-1 text-center text-[9px] leading-none tabular-nums text-on-surface-variant/50">
+        {curveAxisTicks.has(index + 1) ? index + 1 : ''}
+      </span>
+    {/each}
+  </div>
+{/snippet}
 
 <ModulePage
   title="Leveling & XP"
@@ -1510,15 +1555,42 @@
               <p class="text-[10px] text-on-surface-variant/60 font-medium">{m.lv_curve_preview_desc()}</p>
             </div>
 
+            {#if savedCurvePreview.length > 0}
+              <div class="flex items-center gap-4 text-[10px] font-medium text-on-surface-variant/70">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-2 rounded-sm bg-primary/60"></span>{m.lv_curve_legend_edited()}
+                </span>
+                <span class="flex items-center gap-1.5">
+                  <span class="w-3 h-[2px] bg-on-surface-variant/70"></span>{m.lv_curve_legend_saved()}
+                </span>
+              </div>
+            {/if}
+
             <div class="flex items-end gap-[3px] h-32 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-              {#each curvePreview as point}
+              {#each curvePreview as point, index}
+                {@const savedDelta = savedCurvePreview[index]?.deltaXp}
                 <div
-                  class="flex-1 bg-primary/60 rounded-t-sm min-h-[2px]"
-                  style="height: {Math.max(2, (point.deltaXp / curvePreviewMax) * 100)}%"
-                  title={m.lv_curve_milestone({ level: point.level }) + ' : ' + point.deltaXp.toLocaleString() + ' XP'}
-                ></div>
+                  class="relative flex-1 h-full flex items-end"
+                  title={m.lv_curve_milestone({ level: point.level }) + ' : ' + point.deltaXp.toLocaleString() + ' XP'
+                    + (savedDelta === undefined ? '' : ' · ' + m.lv_curve_legend_saved() + ' ' + savedDelta.toLocaleString() + ' XP')}
+                >
+                  <div
+                    class="w-full bg-primary/60 rounded-t-sm min-h-[2px]"
+                    style="height: {Math.max(2, (point.deltaXp / curvePreviewMax) * 100)}%"
+                  ></div>
+                  {#if savedDelta !== undefined}
+                    <!-- Anneau de la couleur du fond : le repere reste lisible
+                         quand il tombe au milieu de la barre. -->
+                    <div
+                      class="absolute inset-x-0 h-[2px] bg-on-surface-variant/70 pointer-events-none"
+                      style="bottom: calc({Math.min(100, (savedDelta / curvePreviewMax) * 100)}% - 1px); box-shadow: 0 0 0 1px var(--color-surface-container-low, transparent);"
+                    ></div>
+                  {/if}
+                </div>
               {/each}
             </div>
+
+            {@render levelAxis(curvePreview.length)}
 
             {#if curveStats}
               <div>
@@ -1529,12 +1601,14 @@
               <div class="flex items-end gap-[3px] h-16 px-2 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
                 {#each curveStats.distribution as count, index}
                   <div
-                    class="flex-1 rounded-t-sm min-h-[2px] {count > 0 ? 'bg-tertiary/60' : 'bg-outline-variant/20'}"
+                    class="flex-1 rounded-t-sm min-h-[2px] {count > 0 ? 'bg-teal-600' : 'bg-outline-variant/20'}"
                     style="height: {count > 0 ? Math.max(4, (count / curveStatsMax) * 100) : 0}%"
                     title={m.lv_curve_population_bar({ level: index + 1, count: count.toLocaleString() })}
                   ></div>
                 {/each}
               </div>
+
+              {@render levelAxis(curveStats.distribution.length)}
 
               {#if curveStats.beyond > 0}
                 <p class="text-[10px] text-on-surface-variant/60 ml-2">

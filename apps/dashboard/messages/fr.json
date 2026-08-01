@@ -3058,6 +3058,8 @@
   "lv_curve_steep_5": "Très fort",
   "lv_curve_preview_title": "Aperçu : XP à gagner par niveau",
   "lv_curve_preview_desc": "Chaque barre représente l'XP à gagner pendant le niveau indiqué pour passer au suivant.",
+  "lv_curve_legend_edited": "Courbe en cours",
+  "lv_curve_legend_saved": "Courbe enregistrée",
   "lv_curve_milestone": "Niveau {level}",
   "lv_curve_milestone_total": "{xp} XP au total",
   "lv_estimate_intro": "Temps estimé pour un membre qui écrit :",

@@ -3058,6 +3058,8 @@
   "lv_curve_steep_5": "Very large",
   "lv_curve_preview_title": "Preview: XP needed per level",
   "lv_curve_preview_desc": "Each bar is the XP to earn while at the level shown, in order to reach the next one.",
+  "lv_curve_legend_edited": "Current edit",
+  "lv_curve_legend_saved": "Saved curve",
   "lv_curve_milestone": "Level {level}",
   "lv_curve_milestone_total": "{xp} XP in total",
   "lv_estimate_intro": "Estimated time for a member writing:",
