@@ -22,8 +22,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: bun run db:generate
+
       - name: Run bot quality gate
         env:
+          DATABASE_URL: postgresql://kotbo:kotbo@127.0.0.1:5432/kotbo_test
           KOTBO_COVERAGE_LINES: "90"
           KOTBO_COVERAGE_FUNCS: "80"
         run: bun run quality:bot

@@ -131,16 +131,42 @@ export const cache = {
 };
 
 /**
+ * Durée pendant laquelle on cesse d'interroger la base pour un serveur dont la
+ * ligne est illisible. Sans ce garde-fou, une seule ligne corrompue (ex. chunk
+ * TOAST manquant) est réinterrogée à chaque message, sur chaque module.
+ */
+const GUILD_READ_FAILURE_BACKOFF_MS = 60_000;
+const guildReadFailures = new Map<string, number>();
+
+/**
  * Retrieves the cached Guild configuration, or queries the database and caches it.
+ *
+ * Une lecture qui échoue ne remonte pas : les appelants sont des écouteurs
+ * d'événements Discord, et propager l'erreur ferait tomber le shard entier
+ * pour un seul serveur en défaut. On renvoie `null`, ce que tous les appelants
+ * traitent déjà comme « configuration absente, module inactif ».
  */
 export async function getCachedGuild(guildId: string) {
   const cacheKey = `guild:${guildId}:config`;
   let guild = await cache.get<Guild>(cacheKey);
 
   if (!guild) {
-    guild = await prisma.guild.findUnique({
-      where: { id: guildId },
-    });
+    const failedAt = guildReadFailures.get(guildId);
+    if (failedAt && Date.now() - failedAt < GUILD_READ_FAILURE_BACKOFF_MS) {
+      return null;
+    }
+
+    try {
+      guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+      });
+      guildReadFailures.delete(guildId);
+    } catch (err) {
+      guildReadFailures.set(guildId, Date.now());
+      logger.error('Cache', `Lecture de la configuration du serveur ${guildId} impossible (nouvelle tentative dans ${GUILD_READ_FAILURE_BACKOFF_MS / 1000}s)`, err);
+      return null;
+    }
+
     if (guild) {
       await cache.set(cacheKey, guild, 60); // Cache for 60 seconds
     }

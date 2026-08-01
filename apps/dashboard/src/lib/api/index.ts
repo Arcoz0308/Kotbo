@@ -42,3 +42,4 @@ export * from './clans';
 export * from './ghostMembers';
 export * from './auditEvents';
 export * from './workflows';
+export * from './rankCard';

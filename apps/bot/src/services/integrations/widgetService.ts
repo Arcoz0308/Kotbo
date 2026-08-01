@@ -1,7 +1,7 @@
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { getStaffMember } from '../staff/staffManagementService.js';
-import { getLevelFromXp } from '../progression/levelingService.js';
+import { getGuildLevelCurve, getLevelFromXp } from '../progression/levelingService.js';
 import { getClient } from '../../utils/client.js';
 import { fetchExternal } from '../../utils/http.js';
 
@@ -104,7 +104,7 @@ export async function getWidgetStats(guildId: string, userId: string): Promise<W
 
   if (!staffMember) return null;
 
-  const level = memberLevel ? getLevelFromXp(memberLevel.xp) : 0;
+  const level = memberLevel ? getLevelFromXp(memberLevel.xp, await getGuildLevelCurve(guildId)) : 0;
   const messageCount = memberProfile?.messageCount ?? 0;
   const voiceSeconds = memberProfile?.voiceTimeSeconds ?? 0;
   const username = guild.members.cache.get(userId)?.user.username ?? memberProfile?.username ?? userId;

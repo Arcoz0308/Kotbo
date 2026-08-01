@@ -1,6 +1,6 @@
 /** Outils MCP — write server assets (permission WRITE_MEMBERS). */
 import { guardAdminGrant, roleGrantsAdministrator } from '../../../services/moderation/adminLockService.js';
-import { addXp } from '../../../services/progression/levelingService.js';
+import { addXp, removeXp } from '../../../services/progression/levelingService.js';
 import prisma from '../../../utils/db.js';
 import { PermissionFlagsBits } from 'discord.js';
 import { z } from 'zod';
@@ -798,7 +798,11 @@ export function registerWriteServerAssetsTools(ctx: McpToolContext) {
         if (!resolved.ok) return resolved.response;
 
         try {
-          await addXp(guildId, resolved.userId, amount, client);
+          if (amount >= 0) {
+            await addXp(guildId, resolved.userId, amount, client);
+          } else {
+            await removeXp(guildId, resolved.userId, -amount, client);
+          }
           const currentLevel = await prisma.memberLevel.findUnique({
             where: { guildId_userId: { guildId, userId: resolved.userId } },
             select: { level: true, xp: true }

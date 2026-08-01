@@ -175,6 +175,7 @@ export {
   partnershipRateLimiter,
   dashboardWriteRateLimiter,
   dashboardSensitiveRateLimiter,
+  rankCardPreviewRateLimiter,
 } from '../limiters.js';
 
 export const checkRateLimit = (limiterMap: Map<string, number[]>, ip: string, limit: number, windowMs: number): boolean => {

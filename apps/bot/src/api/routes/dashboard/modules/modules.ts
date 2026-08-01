@@ -1,6 +1,7 @@
 /** Routes dashboard du module `modules`. */
 import { getModuleActivationStats, getModulePerformanceStats, getModuleStatsSummary, getModuleUsageStats, KOTBO_MODULES, type KotboModule, setModuleActivation } from '../../../../services/analytics/moduleStatsService.js';
 import prisma from '../../../../utils/db.js';
+import { invalidateLevelConfigCache } from '../../../../services/progression/levelingService.js';
 import { logger } from '../../../../utils/logger.js';
 import { getGuildName, json, type ModuleStatus, pushAudit, readJsonBody } from '../../../shared.js';
 import { type ModuleRouteContext } from './_shared.js';
@@ -31,6 +32,7 @@ export async function handleModuleToggleRoutes(ctx: ModuleRouteContext): Promise
           create: { guildId, enabled: body.status === 'active' },
           update: { enabled: body.status === 'active' }
         });
+        await invalidateLevelConfigCache(guildId);
       }
 
       if (Object.keys(updates).length > 0) {

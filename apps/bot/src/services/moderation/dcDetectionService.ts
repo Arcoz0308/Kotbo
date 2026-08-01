@@ -6,6 +6,7 @@ import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import * as altAccountService from './altAccountService.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
 import { fetchAllMembers } from '../../utils/discord.js';
+import { memberProfileIdentity } from './memberIdentityService.js';
 import {
   runDeepAnalysis,
   computeWeightedScore,
@@ -563,7 +564,14 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<DetectionE
   await prisma.memberProfile.upsert({
     where: { guildId_userId: { guildId, userId } },
     update: { isSuspectedDC: true, dcScore: totalScore, lastDcAlertAt: new Date() },
-    create: { guildId, userId, isSuspectedDC: true, dcScore: totalScore, lastDcAlertAt: new Date() }
+    create: {
+      guildId,
+      userId,
+      ...memberProfileIdentity(member),
+      isSuspectedDC: true,
+      dcScore: totalScore,
+      lastDcAlertAt: new Date(),
+    }
   }).catch(() => null);
 
   // Boucle d'apprentissage : enregistre le vecteur de features (label fixé plus tard par le staff).
@@ -749,7 +757,12 @@ export async function scanGuildMembersForYoungAccounts(guild: Guild, thresholdMs
     await prisma.memberProfile.upsert({
       where: { guildId_userId: { guildId: guild.id, userId: member.id } },
       update: { isSuspectedDC: true },
-      create: { guildId: guild.id, userId: member.id, isSuspectedDC: true }
+      create: {
+        guildId: guild.id,
+        userId: member.id,
+        ...memberProfileIdentity(member),
+        isSuspectedDC: true,
+      }
     }).catch(() => null);
 
     const evidence: DetectionEvidence = {

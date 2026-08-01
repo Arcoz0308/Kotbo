@@ -3,7 +3,7 @@ import { SlashCommandBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, Mes
 import { getPublicProfileSnapshot } from '../../services/progression/profileService.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { generateProfileCard } from '../../services/core/imageService.js';
-import { getMemberRankData } from '../../services/progression/levelingService.js';
+import { getGuildLevelCurve, getMemberRankData } from '../../services/progression/levelingService.js';
 import { kotboContainer, truncate } from '../../utils/embeds.js';
 import { E, rankEmoji } from '../../utils/emojis.js';
 import { actionRow, ContainerChild, mediaGallery, separator, v2Message } from '@arcscord/components';
@@ -164,6 +164,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       roles: profile.rolesSnapshot.slice(0, 10),
       streak: currentStreak,
       tier: currentTier,
+      curve: await getGuildLevelCurve(guildId),
     });
 
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile.png' });

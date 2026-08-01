@@ -18,6 +18,7 @@ import { handleRecruitmentButton } from '../services/staff/recruitmentService.js
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
 import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/moderation/dcDetectionService.js';
+import { memberProfileIdentity } from '../services/moderation/memberIdentityService.js';
 import { handleVerifyButtonClick, handleVerificationStaffAction } from '../services/moderation/securityVerificationService.js';
 import { showModeratorNoteModal } from '../commands/moderation/note.js';
 import { sendReportToAdmin } from '../commands/moderation/signal.js';
@@ -1854,6 +1855,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
     if (!targetUserId) return;
 
+    // Le profil peut ne pas exister encore : on lui pose son identité Discord
+    // plutôt que de créer une ligne anonyme, illisible dans la liste des membres.
+    const noteMember = interaction.guild
+      ? interaction.guild.members.cache.get(targetUserId)
+        ?? await interaction.guild.members.fetch(targetUserId).catch(() => null)
+      : null;
+
     await prisma.memberProfile.upsert({
       where: {
         guildId_userId: {
@@ -1865,6 +1873,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       create: {
         guildId,
         userId: targetUserId,
+        ...(noteMember ? memberProfileIdentity(noteMember) : {}),
         moderatorNote: noteContent,
       },
     });

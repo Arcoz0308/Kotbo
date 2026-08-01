@@ -14,6 +14,38 @@ export async function updateLevelingConfig(config, guildId = authStore.selectedG
   return dashboardRequest('/leveling', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Leveling):' });
 }
 
+export async function fetchLevelingRoleResync(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling/role-resync', { method: 'GET', guildId, silent: true, errorContext: 'API Error (Role Resync):' });
+}
+
+export async function runLevelingRoleResync(options: { stop?: boolean } = {}, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling/role-resync', { method: 'POST', payload: options, guildId, silent: true, errorContext: 'API Error (Role Resync):' });
+}
+
+export async function fetchLevelingLeaderboard(
+  { page = 1, search = '' }: { page?: number; search?: string } = {},
+  guildId = authStore.selectedGuildId,
+) {
+  const query = new URLSearchParams({ page: String(page) });
+  if (search) query.set('search', search);
+  return dashboardRequest(`/leveling/leaderboard?${query}`, { method: 'GET', guildId, silent: true, errorContext: 'API Error (Leveling Leaderboard):' });
+}
+
+export async function fetchLevelingCurveImpact(
+  curve: { baseXp: number; linearXp: number; exponent: number; maxLevel: number },
+  guildId = authStore.selectedGuildId,
+) {
+  const query = new URLSearchParams({
+    baseXp: String(curve.baseXp),
+    linearXp: String(curve.linearXp),
+    exponent: String(curve.exponent),
+    maxLevel: String(curve.maxLevel),
+  });
+  // `silent` : appel de fond declenche par les curseurs, un bot indisponible ne
+  // doit pas empiler les toasts d'erreur pendant qu'on regle la courbe.
+  return dashboardRequest(`/leveling/curve-impact?${query}`, { method: 'GET', guildId, silent: true, errorContext: 'API Error (Curve Impact):' });
+}
+
 export async function addLevelingReward(level: number, roleId: string, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/leveling/rewards', { method: 'POST', payload: { level, roleId }, guildId, errorContext: 'API Error (Add Leveling Reward):' });
 }
@@ -22,8 +54,13 @@ export async function deleteLevelingReward(rewardId: string, guildId = authStore
   return dashboardMutation(`/leveling/rewards/${rewardId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Leveling Reward):' });
 }
 
-export async function importLevelingData(data: unknown[], guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/leveling/import', { method: 'POST', payload: data, guildId, errorContext: 'API Error (Import Leveling):' });
+export async function importLevelingData(
+  data: unknown[],
+  options: { dryRun?: boolean } = {},
+  guildId = authStore.selectedGuildId,
+) {
+  const path = options.dryRun ? '/leveling/import?dry_run=1' : '/leveling/import';
+  return dashboardRequest(path, { method: 'POST', payload: data, guildId, silent: options.dryRun, errorContext: 'API Error (Import Leveling):' });
 }
 
 

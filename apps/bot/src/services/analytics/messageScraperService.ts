@@ -12,6 +12,12 @@ import {
 } from './guildScrapeLock.js';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Égal à la taille d'une page Discord : chaque page est donc validée par une
+// transaction, ce qui la borne (~104 opérations) et la garde sous le timeout
+// ci-dessous. Ne pas augmenter sans découpler le curseur des agrégats : la
+// transaction grossirait proportionnellement et dépasserait ce timeout.
+const HISTORICAL_SCRAPE_FLUSH_MESSAGE_THRESHOLD = 100;
+const HISTORICAL_SCRAPE_TRANSACTION_TIMEOUT_MS = 15_000;
 
 /**
  * Initiates the historical message scraping in the background.
@@ -170,8 +176,6 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
 
     const modifiedDates = new Set<string>();
 
-    const FLUSH_MESSAGE_THRESHOLD = 2000;
-
     for (const channel of textChannels) {
       if (completedChannels.has(channel.id)) {
         continue;
@@ -312,7 +316,9 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
           // Les agrégats incrémentaux et leur curseur sont validés ensemble :
           // après un crash, une page est soit entièrement rejouée, soit ignorée,
           // jamais comptée deux fois.
-          await prisma.$transaction(operations);
+          await prisma.$transaction(operations, {
+            timeout: HISTORICAL_SCRAPE_TRANSACTION_TIMEOUT_MS,
+          });
 
           if (isChannelComplete) completedChannels.add(channel.id);
           Object.assign(statsConfig, nextStatsConfig);
@@ -391,7 +397,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
           }
 
           // Periodic flush to prevent too many accumulated DB upserts and OOM/timeouts
-          if (messagesSinceLastFlush >= FLUSH_MESSAGE_THRESHOLD) {
+          if (messagesSinceLastFlush >= HISTORICAL_SCRAPE_FLUSH_MESSAGE_THRESHOLD) {
             await flushStats(false);
             messagesSinceLastFlush = 0;
           }
@@ -462,7 +468,6 @@ async function markScrapeFailed(guildId: string, errorMsg: string): Promise<void
     const statsConfig = readStatsConfig(guildDb?.statsConfig);
     statsConfig.historicalScrapeStatus = 'FAILED';
     statsConfig.historicalScrapeError = errorMsg;
-    delete statsConfig.historicalScrapeProgress;
 
     await prisma.guild.update({
       where: { id: guildId },
