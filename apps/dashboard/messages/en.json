@@ -7595,6 +7595,7 @@
   "wf_palette_data": "Data",
   "wf_palette_logic": "Logic",
   "wf_palette_hint": "Drag a block onto the canvas.",
+  "wf_canvas_label": "Workflow canvas",
   "wf_issues": "Issues",
   "wf_no_issues": "The graph is valid.",
   "wf_issue_count": "{n} issue(s) to fix",

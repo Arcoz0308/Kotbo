@@ -7595,6 +7595,7 @@
   "wf_palette_data": "Données",
   "wf_palette_logic": "Logique",
   "wf_palette_hint": "Glissez un bloc sur le canvas.",
+  "wf_canvas_label": "Canevas du workflow",
   "wf_issues": "Problèmes",
   "wf_no_issues": "Le graphe est valide.",
   "wf_issue_count": "{n} problème(s) à corriger",

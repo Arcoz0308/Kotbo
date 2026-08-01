@@ -476,9 +476,10 @@ const PREFERRED_KEY = 'kotbo_theme_preferred';
 function createThemeStore() {
   const savedId = (typeof localStorage !== 'undefined' ? localStorage.getItem(THEME_KEY) : null) as ThemeId | null;
 
-  let themeId = $state<ThemeId>(
-    savedId && (THEME_PRESETS.some(p => p.id === savedId) || savedId === 'custom') ? savedId : 'dark'
-  );
+  const initialThemeId: ThemeId =
+    savedId && (THEME_PRESETS.some(p => p.id === savedId) || savedId === 'custom') ? savedId : 'dark';
+
+  let themeId = $state<ThemeId>(initialThemeId);
   let customColors = $state<CustomThemeColors>(loadCustomColors());
   let currentAccent = $state<AccentColorId>('violet');
   let preferredByMode = $state<Record<ThemeMode, ThemeId>>(loadPreferred());
@@ -614,7 +615,7 @@ function createThemeStore() {
     }
   }
 
-  rememberPreferred(themeId);
+  rememberPreferred(initialThemeId);
   applyAll();
 
   return {
