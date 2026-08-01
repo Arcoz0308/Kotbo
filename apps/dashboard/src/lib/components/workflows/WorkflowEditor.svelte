@@ -407,25 +407,23 @@
       {:else}
         <div class="space-y-1.5">
           {#each filteredCatalog as def}
-            <div
+            <!-- Le glisser-deposer est porte par le bouton lui-meme : sur une
+                 enveloppe non interactive, il serait injoignable au clavier. -->
+            <button
               draggable="true"
               ondragstart={(e) => handleDragStart(e, def.type)}
-              class="group relative"
+              onclick={() => addNode(def.type)}
+              title={def.description}
+              class="group relative w-full text-left px-2.5 py-2 rounded-xl text-xs bg-surface-container-highest/60 hover:bg-surface-container-highest text-on-surface border border-outline-variant/10 hover:border-primary/30 transition-all flex items-center justify-between cursor-grab active:cursor-grabbing"
             >
-              <button
-                onclick={() => addNode(def.type)}
-                title={def.description}
-                class="w-full text-left px-2.5 py-2 rounded-xl text-xs bg-surface-container-highest/60 hover:bg-surface-container-highest text-on-surface border border-outline-variant/10 hover:border-primary/30 transition-all flex items-center justify-between cursor-grab active:cursor-grabbing"
-              >
-                <div class="flex items-center gap-2 min-w-0">
-                  <span class="p-1 rounded-lg bg-surface-container/60 text-primary shrink-0">
-                    <Papicon icon={CATEGORY_ICONS[def.category]} size={12} />
-                  </span>
-                  <span class="font-medium truncate text-[11px]">{def.label}</span>
-                </div>
-                <Papicon icon="Plus" size={12} class="text-on-surface-variant/40 group-hover:text-primary shrink-0 transition-colors" />
-              </button>
-            </div>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="p-1 rounded-lg bg-surface-container/60 text-primary shrink-0">
+                  <Papicon icon={CATEGORY_ICONS[def.category]} size={12} />
+                </span>
+                <span class="font-medium truncate text-[11px]">{def.label}</span>
+              </div>
+              <Papicon icon="Plus" size={12} class="text-on-surface-variant/40 group-hover:text-primary shrink-0 transition-colors" />
+            </button>
           {/each}
         </div>
       {/if}
@@ -435,6 +433,8 @@
     <div
       ondragover={handleCanvasDragOver}
       ondrop={handleCanvasDrop}
+      role="region"
+      aria-label={m.wf_canvas_label()}
       class="flex-1 rounded-2xl overflow-hidden border border-outline-variant/10 bg-surface-container-low relative"
     >
       <SvelteFlow
