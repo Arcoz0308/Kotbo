@@ -104,10 +104,9 @@
       {@const values = card.values}
       {@const selected = card.preset ? selectedId === card.preset.id : selectedId === null}
       {@const active = card.preset ? activeId === card.preset.id : activeId === null}
-      <!-- Le liseré et la teinte ne servent qu'à deux états : le préréglage
-           recommandé, et celui qu'on vient de choisir. Colorer les six cartes
-           les rendrait indistinctes. -->
-      {@const accented = selected || card.recommended}
+      <!-- Le liseré et la teinte ne marquent que le préréglage choisi. Le
+           recommandé se signale par son seul badge : deux cartes colorées se
+           disputeraient le regard. -->
       <button
         type="button"
         onclick={() => (card.preset ? onselect(card.preset) : ondetail())}
@@ -115,20 +114,18 @@
         aria-pressed={card.preset ? selected : undefined}
         class="relative overflow-hidden text-left p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {selected
           ? 'bg-primary/8 border-primary/50 shadow-lg shadow-primary/10'
-          : card.recommended
-            ? 'bg-primary/3 border-primary/25 hover:border-primary/40 hover:bg-primary/6'
-            : card.preset
-              ? 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'
-              : 'bg-surface-container-low/20 border-dashed border-outline-variant/25 hover:border-outline-variant/40 hover:bg-surface-container-high/20'}"
+          : card.preset
+            ? 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'
+            : 'bg-surface-container-low/20 border-dashed border-outline-variant/25 hover:border-outline-variant/40 hover:bg-surface-container-high/20'}"
       >
-        {#if accented}
-          <span class="absolute inset-x-0 top-0 h-[3px] bg-primary {selected ? '' : 'opacity-50'}" aria-hidden="true"></span>
+        {#if selected}
+          <span class="absolute inset-x-0 top-0 h-[3px] bg-primary" aria-hidden="true"></span>
         {/if}
 
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-3 min-w-0">
-            <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {accented ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
-              <Papicon icon={card.icon} size={18} class={accented ? 'text-primary' : 'text-on-surface-variant/70'} />
+            <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {selected ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
+              <Papicon icon={card.icon} size={18} class={selected ? 'text-primary' : 'text-on-surface-variant/70'} />
             </div>
             <h3 class="text-base font-semibold text-on-surface truncate">{card.name}</h3>
           </div>
