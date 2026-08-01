@@ -29,23 +29,24 @@
     onsave: () => void;
   } = $props();
 
-  const presetName: Record<string, () => string> = {
-    basic: m.lv_preset_basic_name,
-    fast: m.lv_preset_fast_name,
-    progressive: m.lv_preset_progressive_name,
-    calm: m.lv_preset_calm_name,
-    marathon: m.lv_preset_marathon_name,
-    prestige: m.lv_preset_prestige_name,
+  // Un prereglage ajoute sans sa traduction doit afficher une carte muette,
+  // pas faire tomber la page entiere sur un appel de fonction absente.
+  const PRESET_LABELS: Record<string, { name: () => string; desc: () => string }> = {
+    basic: { name: m.lv_preset_basic_name, desc: m.lv_preset_basic_desc },
+    fast: { name: m.lv_preset_fast_name, desc: m.lv_preset_fast_desc },
+    progressive: { name: m.lv_preset_progressive_name, desc: m.lv_preset_progressive_desc },
+    calm: { name: m.lv_preset_calm_name, desc: m.lv_preset_calm_desc },
+    marathon: { name: m.lv_preset_marathon_name, desc: m.lv_preset_marathon_desc },
+    prestige: { name: m.lv_preset_prestige_name, desc: m.lv_preset_prestige_desc },
   };
 
-  const presetDesc: Record<string, () => string> = {
-    basic: m.lv_preset_basic_desc,
-    fast: m.lv_preset_fast_desc,
-    progressive: m.lv_preset_progressive_desc,
-    calm: m.lv_preset_calm_desc,
-    marathon: m.lv_preset_marathon_desc,
-    prestige: m.lv_preset_prestige_desc,
-  };
+  function presetName(id: string): string {
+    return PRESET_LABELS[id]?.name() ?? id;
+  }
+
+  function presetDesc(id: string): string {
+    return PRESET_LABELS[id]?.desc() ?? '';
+  }
 </script>
 
 <div class="space-y-8 animate-in fade-in duration-300">
@@ -88,7 +89,7 @@
             <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {accented ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
               <Papicon icon={preset.icon} size={18} class={accented ? 'text-primary' : 'text-on-surface-variant/70'} />
             </div>
-            <h3 class="text-base font-semibold text-on-surface truncate">{presetName[preset.id]()}</h3>
+            <h3 class="text-base font-semibold text-on-surface truncate">{presetName(preset.id)}</h3>
           </div>
           {#if activeId === preset.id}
             <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
@@ -105,7 +106,7 @@
           {/if}
         </div>
 
-        <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{presetDesc[preset.id]()}</p>
+        <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{presetDesc(preset.id)}</p>
 
         <div class="grid grid-cols-2 gap-2.5 mt-5">
           <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
@@ -135,7 +136,15 @@
 
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
     <p class="text-[13px] text-on-surface-variant/70">
-      {selectedId ? m.lv_presets_save_hint() : m.lv_presets_custom()}
+      <!-- Le bouton est desactive tant que rien n'a bouge : sans ce troisieme
+           cas, la phrase promettait un enregistrement impossible a declencher. -->
+      {#if !selectedId}
+        {m.lv_presets_custom()}
+      {:else if !dirty}
+        {m.lv_presets_already_saved()}
+      {:else}
+        {m.lv_presets_save_hint()}
+      {/if}
     </p>
     <button
       type="button"

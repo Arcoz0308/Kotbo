@@ -3002,6 +3002,7 @@
   "lv_presets_recommended": "Recommandé",
   "lv_presets_save": "Enregistrer",
   "lv_presets_save_hint": "Rien n'est appliqué tant que vous n'avez pas enregistré.",
+  "lv_presets_already_saved": "Ce préréglage est déjà celui enregistré.",
   "lv_presets_custom": "Votre configuration ne correspond à aucun préréglage. En choisir un remplacera les gains d'XP et la courbe de progression.",
   "lv_presets_module_off": "Le module est désactivé : activez-le en haut de la page pour que l'XP soit distribuée.",
   "lv_presets_tile_level_10": "Niveau 10",
