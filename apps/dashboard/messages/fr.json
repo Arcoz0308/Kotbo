@@ -3021,6 +3021,7 @@
   "lv_presets_title": "Choisissez un préréglage",
   "lv_presets_desc": "Un préréglage règle d'un coup les gains d'XP et la courbe de progression. Cliquez sur celui qui vous convient, puis enregistrez. Le salon d'annonce et les rôles de récompense restent à régler dans la configuration détaillée.",
   "lv_presets_open_advanced": "Configuration détaillée",
+  "lv_presets_card_detail": "Détail",
   "lv_presets_back": "Préréglages",
   "lv_presets_active": "Actif",
   "lv_presets_selected": "Sélectionné",
