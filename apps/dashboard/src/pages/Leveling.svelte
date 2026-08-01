@@ -14,6 +14,9 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import SimpleModeToggle from '../lib/components/SimpleModeToggle.svelte';
+  import SimpleModeNotice from '../lib/components/SimpleModeNotice.svelte';
+  import { createSimpleModePreference, nearestStep } from '../lib/simpleMode.svelte';
   import { 
     fetchLevelingData, 
     updateLevelingConfig, 
@@ -220,13 +223,10 @@
           dailyXpCap: res.config.dailyXpCap ?? 0
         };
         savedConfig = JSON.parse(JSON.stringify(config));
-        // La preference d'affichage est retenue d'une visite a l'autre, mais elle
-        // ne peut pas imposer le mode simple : une courbe reglee finement ne
-        // tombe sur aucun cran, et les curseurs en afficheraient un faux.
-        curveSimpleMode = loadCurveModePreference() === 'advanced' ? false : curveFitsSimpleMode();
-        xpSimpleMode = loadXpModePreference() === 'advanced'
-          ? false
-          : gainsFitSimpleMode() && lengthBonusFitsSimpleMode();
+        curveMode.resolve(curveFitsSimpleMode());
+        // La carte des parametres XP n'ouvre en simple que si tout ce qu'elle
+        // contient est representable par ses crans.
+        xpMode.resolve(gainsFitSimpleMode() && lengthBonusFitsSimpleMode());
         rewards = res.rewards || [];
         levels = res.levels || [];
       }
@@ -363,14 +363,6 @@
     m.lv_curve_steep_1, m.lv_curve_steep_2, m.lv_curve_steep_3, m.lv_curve_steep_4, m.lv_curve_steep_5,
   ];
 
-  function nearestStep(values: number[], value: number): number {
-    let best = 0;
-    for (let i = 1; i < values.length; i++) {
-      if (Math.abs(values[i] - value) < Math.abs(values[best] - value)) best = i;
-    }
-    return best + 1;
-  }
-
   /** La courbe courante tombe-t-elle exactement sur un cran des curseurs ? */
   function curveFitsSimpleMode(): boolean {
     const pace = CURVE_PACE_FACTORS[nearestStep(CURVE_PACE_FACTORS, (config.curveBaseXp || 0) / DEFAULT_LEVEL_CURVE.baseXp) - 1];
@@ -395,26 +387,7 @@
     m.lv_gains_level_1, m.lv_gains_level_2, m.lv_gains_level_3, m.lv_gains_level_4, m.lv_gains_level_5,
   ];
 
-  const XP_MODE_KEY = 'kotbo_leveling_xp_mode';
-
-  function loadXpModePreference(): 'simple' | 'advanced' | null {
-    try {
-      if (typeof localStorage === 'undefined') return null;
-      const raw = localStorage.getItem(XP_MODE_KEY);
-      return raw === 'simple' || raw === 'advanced' ? raw : null;
-    } catch {
-      return null;
-    }
-  }
-
-  let xpSimpleMode = $state(loadXpModePreference() !== 'advanced');
-
-  function setXpMode(simple: boolean) {
-    xpSimpleMode = simple;
-    try {
-      localStorage.setItem(XP_MODE_KEY, simple ? 'simple' : 'advanced');
-    } catch { /* ignore */ }
-  }
+  const xpMode = createSimpleModePreference('kotbo_leveling_xp_mode');
 
   /** Le reglage courant tombe-t-il exactement sur un cran ? */
   function gainsFitSimpleMode(): boolean {
@@ -430,7 +403,7 @@
     GAIN_PRESETS.map((preset) => (preset.xpMin + preset.xpMax) / 2),
     ((config.xpMin || 0) + (config.xpMax || 0)) / 2,
   ));
-  const gainsOffGrid = $derived(xpSimpleMode && !gainsFitSimpleMode());
+  const gainsOffGrid = $derived(xpMode.simple && !gainsFitSimpleMode());
 
   // Bonus de longueur : le seuil et le multiplicateur maximum vont de pair,
   // l'un sans l'autre ne veut rien dire. Un cran les pose ensemble, du bonus a
@@ -459,7 +432,7 @@
     LENGTH_BONUS_PRESETS.map((preset) => preset.max),
     config.lengthBonusMaxMultiplier || LENGTH_BONUS_PRESETS[2].max,
   ));
-  const lengthBonusOffGrid = $derived(xpSimpleMode && !lengthBonusFitsSimpleMode());
+  const lengthBonusOffGrid = $derived(xpMode.simple && !lengthBonusFitsSimpleMode());
 
   function applyLengthBonusStep(step: number) {
     const preset = LENGTH_BONUS_PRESETS[Math.min(LENGTH_BONUS_PRESETS.length, Math.max(1, step)) - 1];
@@ -482,28 +455,7 @@
     config.vocalXpPerMin = preset.vocalXpPerMin;
   }
 
-  const CURVE_MODE_KEY = 'kotbo_leveling_curve_mode';
-
-  function loadCurveModePreference(): 'simple' | 'advanced' | null {
-    try {
-      if (typeof localStorage === 'undefined') return null;
-      const raw = localStorage.getItem(CURVE_MODE_KEY);
-      return raw === 'simple' || raw === 'advanced' ? raw : null;
-    } catch {
-      return null;
-    }
-  }
-
-  // Initialise des le rendu : sans ca, un echec de chargement laissait les
-  // curseurs a l'ecran alors que la preference retenue etait le mode detaille.
-  let curveSimpleMode = $state(loadCurveModePreference() !== 'advanced');
-
-  function setCurveMode(simple: boolean) {
-    curveSimpleMode = simple;
-    try {
-      localStorage.setItem(CURVE_MODE_KEY, simple ? 'simple' : 'advanced');
-    } catch { /* ignore */ }
-  }
+  const curveMode = createSimpleModePreference('kotbo_leveling_curve_mode');
 
   // Les curseurs sont deduits de la configuration et non l'inverse : elle reste
   // la seule source, et basculer de mode ne deplace donc jamais la courbe.
@@ -514,7 +466,7 @@
   // cran, mais rien n'empeche d'y basculer a la main : les curseurs affichent
   // alors le cran le plus proche, qui n'est pas la valeur enregistree. On le dit
   // plutot que de laisser croire le contraire ou de modifier la courbe d'office.
-  const curveOffGrid = $derived(curveSimpleMode && !curveFitsSimpleMode());
+  const curveOffGrid = $derived(curveMode.simple && !curveFitsSimpleMode());
 
   function applyCurvePace(step: number) {
     const factor = CURVE_PACE_FACTORS[Math.min(CURVE_PACE_FACTORS.length, Math.max(1, step)) - 1];
@@ -777,28 +729,11 @@
             <Papicon icon="Settings" size={20} class="text-primary" />
             {m.lv_xp_params_title()}
           </h3>
-          <nav class="tab-group w-fit">
-            <button
-              type="button"
-              onclick={() => setXpMode(true)}
-              class="tab-button {xpSimpleMode ? 'active' : ''}"
-            >
-              <Papicon icon="SlidersHorizontal" size={15} />
-              {m.lv_curve_mode_simple()}
-            </button>
-            <button
-              type="button"
-              onclick={() => setXpMode(false)}
-              class="tab-button {xpSimpleMode ? '' : 'active'}"
-            >
-              <Papicon icon="Hash" size={15} />
-              {m.lv_curve_mode_advanced()}
-            </button>
-          </nav>
+          <SimpleModeToggle simple={xpMode.simple} onchange={(v) => xpMode.set(v)} />
         </div>
 
         <div class="leveling-xp-grid grid grid-cols-1 md:grid-cols-2 gap-6">
-          {#if xpSimpleMode}
+          {#if xpMode.simple}
             <div class="md:col-span-2 space-y-2">
               <div class="flex items-baseline justify-between gap-3">
                 <label for="gainsLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_gains_level_label()}</label>
@@ -836,9 +771,7 @@
               </div>
 
               {#if gainsOffGrid}
-                <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
-                  {m.lv_gains_off_grid()}
-                </p>
+                <SimpleModeNotice message={m.lv_gains_off_grid()} />
               {/if}
             </div>
           {:else}
@@ -990,7 +923,7 @@
             </div>
 
             {#if config.lengthBonusEnabled}
-              {#if xpSimpleMode}
+              {#if xpMode.simple}
                 <div class="space-y-2 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
                   <div class="flex items-baseline justify-between gap-3">
                     <label for="lengthBonusStep" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_step_label()}</label>
@@ -1009,9 +942,7 @@
                   />
 
                   {#if lengthBonusOffGrid}
-                    <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
-                      {m.lv_length_bonus_off_grid()}
-                    </p>
+                    <SimpleModeNotice message={m.lv_length_bonus_off_grid()} />
                   {/if}
                 </div>
               {:else}
@@ -1245,24 +1176,7 @@
             <div class="flex flex-wrap items-center justify-end gap-2">
               <!-- Meme pave que les onglets de la page : les deux options sont
                    visibles cote a cote, avec icone, et l'active se detache. -->
-              <nav class="tab-group w-fit">
-                <button
-                  type="button"
-                  onclick={() => setCurveMode(true)}
-                  class="tab-button {curveSimpleMode ? 'active' : ''}"
-                >
-                  <Papicon icon="SlidersHorizontal" size={15} />
-                  {m.lv_curve_mode_simple()}
-                </button>
-                <button
-                  type="button"
-                  onclick={() => setCurveMode(false)}
-                  class="tab-button {curveSimpleMode ? '' : 'active'}"
-                >
-                  <Papicon icon="Hash" size={15} />
-                  {m.lv_curve_mode_advanced()}
-                </button>
-              </nav>
+              <SimpleModeToggle simple={curveMode.simple} onchange={(v) => curveMode.set(v)} />
               {#if canManageSettings}
                 <button
                   type="button"
@@ -1276,11 +1190,11 @@
           </div>
 
           <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            {curveSimpleMode ? m.lv_curve_simple_desc() : m.lv_curve_desc()}
+            {curveMode.simple ? m.lv_curve_simple_desc() : m.lv_curve_desc()}
           </p>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {#if curveSimpleMode}
+            {#if curveMode.simple}
               <div class="md:col-span-2 space-y-6">
                 <div class="space-y-2">
                   <div class="flex items-baseline justify-between gap-3">
@@ -1319,9 +1233,7 @@
                 </div>
 
                 {#if curveOffGrid}
-                  <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
-                    {m.lv_curve_off_grid()}
-                  </p>
+                  <SimpleModeNotice message={m.lv_curve_off_grid()} />
                 {/if}
               </div>
             {:else}
