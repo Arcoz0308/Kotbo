@@ -3021,6 +3021,7 @@
   "lv_presets_title": "Pick a preset",
   "lv_presets_desc": "A preset sets XP gains and the progression curve in one go. Click the one that suits you, then save. The announcement channel and reward roles are still set in the detailed configuration.",
   "lv_presets_open_advanced": "Detailed configuration",
+  "lv_presets_card_detail": "Details",
   "lv_presets_back": "Presets",
   "lv_presets_active": "Active",
   "lv_presets_selected": "Selected",

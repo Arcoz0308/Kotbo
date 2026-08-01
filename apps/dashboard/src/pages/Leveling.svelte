@@ -588,6 +588,11 @@
     curveMode.resolve(curveFitsSimpleMode());
   }
 
+  function openPresetDetail(preset: LevelingPreset) {
+    applyLevelingPreset(preset);
+    gotoTab('/leveling', 'gains', DEFAULT_TAB);
+  }
+
   // Estimation de duree : les curseurs repondent chacun a un fragment, aucun ne
   // dit combien de temps il faut pour atteindre un niveau. Le calcul combine le
   // rythme des gains, le bonus de longueur et le plafond quotidien, sur une
@@ -1002,6 +1007,7 @@
       moduleEnabled={config.enabled}
       onselect={applyLevelingPreset}
       onsave={handleSaveConfig}
+      ondetail={openPresetDetail}
     />
   {:else if activeTab === 'gains'}
     <!-- === ONGLET GAINS D'XP === -->

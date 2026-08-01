@@ -18,6 +18,7 @@
     moduleEnabled = true,
     onselect,
     onsave,
+    ondetail,
   }: {
     selectedId?: string | null;
     activeId?: string | null;
@@ -27,6 +28,7 @@
     moduleEnabled?: boolean;
     onselect: (preset: LevelingPreset) => void;
     onsave: () => void;
+    ondetail: (preset: LevelingPreset) => void;
   } = $props();
 
   // Un prereglage ajoute sans sa traduction doit afficher une carte muette,
@@ -69,68 +71,83 @@
            recommandé, et celui qu'on vient de choisir. Colorer les six cartes
            les rendrait indistinctes. -->
       {@const accented = selected || !!preset.recommended}
-      <button
-        type="button"
-        onclick={() => onselect(preset)}
-        {disabled}
-        aria-pressed={selected}
-        class="relative overflow-hidden text-left p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {selected
-          ? 'bg-primary/8 border-primary/50 shadow-lg shadow-primary/10'
-          : preset.recommended
-            ? 'bg-primary/3 border-primary/25 hover:border-primary/40 hover:bg-primary/6'
-            : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'}"
-      >
-        {#if accented}
-          <span class="absolute inset-x-0 top-0 h-[3px] bg-primary {selected ? '' : 'opacity-50'}" aria-hidden="true"></span>
-        {/if}
-
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {accented ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
-              <Papicon icon={preset.icon} size={18} class={accented ? 'text-primary' : 'text-on-surface-variant/70'} />
-            </div>
-            <h3 class="text-base font-semibold text-on-surface truncate">{presetName(preset.id)}</h3>
-          </div>
-          {#if activeId === preset.id}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
-              {m.lv_presets_active()}
-            </span>
-          {:else if selected}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
-              {m.lv_presets_selected()}
-            </span>
-          {:else if preset.recommended}
-            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
-              {m.lv_presets_recommended()}
-            </span>
+      <!-- Le lien "Détail" doit rester cliquable separement de la carte : un
+           bouton imbrique dans un bouton n'est pas du HTML valide, d'ou le
+           conteneur relatif et le positionnement absolu. -->
+      <div class="relative">
+        <button
+          type="button"
+          onclick={() => onselect(preset)}
+          {disabled}
+          aria-pressed={selected}
+          class="relative overflow-hidden text-left w-full h-full p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {selected
+            ? 'bg-primary/8 border-primary/50 shadow-lg shadow-primary/10'
+            : preset.recommended
+              ? 'bg-primary/3 border-primary/25 hover:border-primary/40 hover:bg-primary/6'
+              : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'}"
+        >
+          {#if accented}
+            <span class="absolute inset-x-0 top-0 h-[3px] bg-primary {selected ? '' : 'opacity-50'}" aria-hidden="true"></span>
           {/if}
-        </div>
 
-        <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{presetDesc(preset.id)}</p>
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {accented ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
+                <Papicon icon={preset.icon} size={18} class={accented ? 'text-primary' : 'text-on-surface-variant/70'} />
+              </div>
+              <h3 class="text-base font-semibold text-on-surface truncate">{presetName(preset.id)}</h3>
+            </div>
+            {#if activeId === preset.id}
+              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-tertiary/15 text-tertiary">
+                {m.lv_presets_active()}
+              </span>
+            {:else if selected}
+              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
+                {m.lv_presets_selected()}
+              </span>
+            {:else if preset.recommended}
+              <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
+                {m.lv_presets_recommended()}
+              </span>
+            {/if}
+          </div>
 
-        <div class="grid grid-cols-2 gap-2.5 mt-5">
-          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
-            <p class="text-sm font-semibold text-on-surface">{values.xpMin} – {values.xpMax}</p>
-          </div>
-          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
-            <p class="text-sm font-semibold text-on-surface">{values.cooldownSeconds} s</p>
-          </div>
-          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
-            <p class="text-sm font-semibold text-on-surface">≈ {levelingPresetHourlyXp(preset).toLocaleString()}</p>
-          </div>
-          <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
-            <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_presets_tile_level_10()}</p>
-            <p class="text-sm font-semibold text-on-surface">{levelingPresetXpForLevel(preset, 10).toLocaleString()} XP</p>
-          </div>
-        </div>
+          <p class="text-[13px] text-on-surface-variant/70 mt-3 leading-relaxed">{presetDesc(preset.id)}</p>
 
-        <p class="text-[11px] text-on-surface-variant/50 mt-3">
-          {values.maxLevel > 0 ? m.lv_presets_max_level({ level: values.maxLevel }) : m.lv_presets_no_max_level()}
-        </p>
-      </button>
+          <div class="grid grid-cols-2 gap-2.5 mt-5">
+            <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
+              <p class="text-sm font-semibold text-on-surface">{values.xpMin} – {values.xpMax}</p>
+            </div>
+            <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
+              <p class="text-sm font-semibold text-on-surface">{values.cooldownSeconds} s</p>
+            </div>
+            <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
+              <p class="text-sm font-semibold text-on-surface">≈ {levelingPresetHourlyXp(preset).toLocaleString()}</p>
+            </div>
+            <div class="px-3 py-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+              <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_presets_tile_level_10()}</p>
+              <p class="text-sm font-semibold text-on-surface">{levelingPresetXpForLevel(preset, 10).toLocaleString()} XP</p>
+            </div>
+          </div>
+
+          <p class="text-[11px] text-on-surface-variant/50 mt-3 pr-24">
+            {values.maxLevel > 0 ? m.lv_presets_max_level({ level: values.maxLevel }) : m.lv_presets_no_max_level()}
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onclick={() => ondetail(preset)}
+          {disabled}
+          class="group absolute bottom-5 right-5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-on-surface-variant/70 border border-outline-variant/15 bg-surface-container-high/30 hover:text-primary hover:border-primary/40 hover:bg-primary/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {m.lv_presets_card_detail()}
+          <Papicon icon="ArrowRight" size={12} class="transition-transform group-hover:translate-x-0.5" />
+        </button>
+      </div>
     {/each}
   </div>
 
