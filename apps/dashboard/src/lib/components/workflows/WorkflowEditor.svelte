@@ -407,23 +407,31 @@
       {:else}
         <div class="space-y-1.5">
           {#each filteredCatalog as def}
-            <!-- Le glisser-deposer est porte par le bouton lui-meme : sur une
-                 enveloppe non interactive, il serait injoignable au clavier. -->
-            <button
+            <!-- L'enveloppe ne porte que le glisser-deposer : le bouton
+                 qu'elle entoure fait deja le meme ajout au clic, donc elle
+                 n'apporte aucune semantique et se declare comme telle. Le
+                 draggable reste ici plutot que sur le bouton : WebKit ne fait
+                 pas glisser les controles de formulaire. -->
+            <div
               draggable="true"
               ondragstart={(e) => handleDragStart(e, def.type)}
-              onclick={() => addNode(def.type)}
-              title={def.description}
-              class="group relative w-full text-left px-2.5 py-2 rounded-xl text-xs bg-surface-container-highest/60 hover:bg-surface-container-highest text-on-surface border border-outline-variant/10 hover:border-primary/30 transition-all flex items-center justify-between cursor-grab active:cursor-grabbing"
+              role="presentation"
+              class="group relative"
             >
-              <div class="flex items-center gap-2 min-w-0">
-                <span class="p-1 rounded-lg bg-surface-container/60 text-primary shrink-0">
-                  <Papicon icon={CATEGORY_ICONS[def.category]} size={12} />
-                </span>
-                <span class="font-medium truncate text-[11px]">{def.label}</span>
-              </div>
-              <Papicon icon="Plus" size={12} class="text-on-surface-variant/40 group-hover:text-primary shrink-0 transition-colors" />
-            </button>
+              <button
+                onclick={() => addNode(def.type)}
+                title={def.description}
+                class="w-full text-left px-2.5 py-2 rounded-xl text-xs bg-surface-container-highest/60 hover:bg-surface-container-highest text-on-surface border border-outline-variant/10 hover:border-primary/30 transition-all flex items-center justify-between cursor-grab active:cursor-grabbing"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="p-1 rounded-lg bg-surface-container/60 text-primary shrink-0">
+                    <Papicon icon={CATEGORY_ICONS[def.category]} size={12} />
+                  </span>
+                  <span class="font-medium truncate text-[11px]">{def.label}</span>
+                </div>
+                <Papicon icon="Plus" size={12} class="text-on-surface-variant/40 group-hover:text-primary shrink-0 transition-colors" />
+              </button>
+            </div>
           {/each}
         </div>
       {/if}
