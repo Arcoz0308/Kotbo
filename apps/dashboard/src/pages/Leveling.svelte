@@ -427,6 +427,13 @@
   ));
   const gainsOffGrid = $derived(gainsSimpleMode && !gainsFitSimpleMode());
 
+  // Le curseur de la courbe a son graphique en dessous ; celui des gains n'avait
+  // rien. Ces quatre tuiles montrent les valeurs reellement posees, plus le
+  // rythme qui en decoule, seule facon de comparer deux crans entre eux.
+  const gainsHourlyXp = $derived(Math.round(
+    ((config.xpMin || 0) + (config.xpMax || 0)) / 2 * (3600 / Math.max(1, config.cooldownSeconds || 1)),
+  ));
+
   function applyGainsStep(step: number) {
     const preset = GAIN_PRESETS[Math.min(GAIN_PRESETS.length, Math.max(1, step)) - 1];
     config.xpMin = preset.xpMin;
@@ -733,6 +740,25 @@
                 class="w-full accent-primary"
                 disabled={!canManageSettings}
               />
+
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_message()}</p>
+                  <p class="text-sm font-semibold text-on-surface">{config.xpMin} – {config.xpMax}</p>
+                </div>
+                <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_cooldown()}</p>
+                  <p class="text-sm font-semibold text-on-surface">{config.cooldownSeconds} s</p>
+                </div>
+                <div class="px-3 py-2.5 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg">
+                  <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.lv_gains_tile_voice()}</p>
+                  <p class="text-sm font-semibold text-on-surface">{config.vocalXpPerMin} / min</p>
+                </div>
+                <div class="px-3 py-2.5 bg-primary/5 border border-primary/15 rounded-lg">
+                  <p class="text-[10px] font-bold text-primary/70 uppercase tracking-widest">{m.lv_gains_tile_hourly()}</p>
+                  <p class="text-sm font-semibold text-primary">≈ {gainsHourlyXp.toLocaleString()} XP</p>
+                </div>
+              </div>
 
               {#if gainsOffGrid}
                 <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
