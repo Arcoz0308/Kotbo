@@ -24,7 +24,9 @@ export async function fetchLevelingCurveImpact(
     exponent: String(curve.exponent),
     maxLevel: String(curve.maxLevel),
   });
-  return dashboardRequest(`/leveling/curve-impact?${query}`, { method: 'GET', guildId, errorContext: 'API Error (Curve Impact):' });
+  // `silent` : appel de fond declenche par les curseurs, un bot indisponible ne
+  // doit pas empiler les toasts d'erreur pendant qu'on regle la courbe.
+  return dashboardRequest(`/leveling/curve-impact?${query}`, { method: 'GET', guildId, silent: true, errorContext: 'API Error (Curve Impact):' });
 }
 
 export async function addLevelingReward(level: number, roleId: string, guildId = authStore.selectedGuildId) {

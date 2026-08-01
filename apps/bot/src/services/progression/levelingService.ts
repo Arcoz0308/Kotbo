@@ -21,7 +21,7 @@ import {
 } from '@kotbo/shared';
 import { ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { getRankCardCustomization } from './rankCardService.js';
-import prisma from '../../utils/db.js';
+import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache, getCachedGuild } from '../../utils/cache.js';
 
@@ -166,8 +166,9 @@ export async function resyncGuildLevels(guildId: string, curve: LevelCurve): Pro
 async function guildLevelBands(
   guildId: string,
   curve: LevelCurve,
+  db = prisma,
 ): Promise<Array<{ level: number; xp: { gte: number; lt?: number } }>> {
-  const top = await prisma.memberLevel.findFirst({
+  const top = await db.memberLevel.findFirst({
     where: { guildId },
     orderBy: { xp: 'desc' },
     select: { xp: true },
@@ -216,7 +217,10 @@ export async function countCurveImpact(
   curve: LevelCurve,
   windowSize = 30,
 ): Promise<CurveImpact> {
-  const bands = await guildLevelBands(guildId, curve);
+  // Lecture pure, déclenchée par un curseur du dashboard : elle part sur la
+  // réplique de lecture quand il y en a une, pour ne pas peser sur la base qui
+  // encaisse les gains d'XP.
+  const bands = await guildLevelBands(guildId, curve, prismaRead);
   // Mêmes colonnes que l'aperçu de la courbe côté dashboard, sinon les deux
   // graphiques ne s'alignent plus : la fenêtre suit le plafond, pas la
   // population.
@@ -230,7 +234,7 @@ export async function countCurveImpact(
   };
 
   for (const band of bands) {
-    const groups = await prisma.memberLevel.groupBy({
+    const groups = await prismaRead.memberLevel.groupBy({
       by: ['level'],
       where: { guildId, xp: band.xp },
       _count: { _all: true },

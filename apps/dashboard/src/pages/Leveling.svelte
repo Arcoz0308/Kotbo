@@ -595,7 +595,7 @@
   // calcul se fait en local, donc instantanement pendant qu'on bouge les
   // curseurs. Les colonnes suivent l'apercu de la courbe juste au-dessus, pour
   // que les deux graphiques se lisent ensemble.
-  const localCurveStats = $derived.by<CurveStats | null>(() => {
+  const localCurveStats = $derived.by((): CurveStats | null => {
     if (levels.length === 0) return null;
     const columns = curvePreview.length;
     const distribution = new Array<number>(columns).fill(0);
@@ -627,7 +627,9 @@
     let cancelled = false;
     const timer = setTimeout(async () => {
       const stats = await fetchLevelingCurveImpact(curve).catch(() => null);
-      if (!cancelled) remoteCurveStats = stats;
+      // Un bot plus ancien repond 404 sur cette route : on garde null plutot
+      // que d'aller lire une repartition absente.
+      if (!cancelled) remoteCurveStats = Array.isArray(stats?.distribution) ? stats : null;
     }, 300);
     return () => {
       cancelled = true;
