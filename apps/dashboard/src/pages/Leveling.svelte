@@ -224,7 +224,9 @@
         // ne peut pas imposer le mode simple : une courbe reglee finement ne
         // tombe sur aucun cran, et les curseurs en afficheraient un faux.
         curveSimpleMode = loadCurveModePreference() === 'advanced' ? false : curveFitsSimpleMode();
-        gainsSimpleMode = loadGainsModePreference() === 'advanced' ? false : gainsFitSimpleMode();
+        xpSimpleMode = loadXpModePreference() === 'advanced'
+          ? false
+          : gainsFitSimpleMode() && lengthBonusFitsSimpleMode();
         rewards = res.rewards || [];
         levels = res.levels || [];
       }
@@ -390,24 +392,24 @@
     m.lv_gains_level_1, m.lv_gains_level_2, m.lv_gains_level_3, m.lv_gains_level_4, m.lv_gains_level_5,
   ];
 
-  const GAINS_MODE_KEY = 'kotbo_leveling_gains_mode';
+  const XP_MODE_KEY = 'kotbo_leveling_xp_mode';
 
-  function loadGainsModePreference(): 'simple' | 'advanced' | null {
+  function loadXpModePreference(): 'simple' | 'advanced' | null {
     try {
       if (typeof localStorage === 'undefined') return null;
-      const raw = localStorage.getItem(GAINS_MODE_KEY);
+      const raw = localStorage.getItem(XP_MODE_KEY);
       return raw === 'simple' || raw === 'advanced' ? raw : null;
     } catch {
       return null;
     }
   }
 
-  let gainsSimpleMode = $state(loadGainsModePreference() !== 'advanced');
+  let xpSimpleMode = $state(loadXpModePreference() !== 'advanced');
 
-  function setGainsMode(simple: boolean) {
-    gainsSimpleMode = simple;
+  function setXpMode(simple: boolean) {
+    xpSimpleMode = simple;
     try {
-      localStorage.setItem(GAINS_MODE_KEY, simple ? 'simple' : 'advanced');
+      localStorage.setItem(XP_MODE_KEY, simple ? 'simple' : 'advanced');
     } catch { /* ignore */ }
   }
 
@@ -425,7 +427,42 @@
     GAIN_PRESETS.map((preset) => (preset.xpMin + preset.xpMax) / 2),
     ((config.xpMin || 0) + (config.xpMax || 0)) / 2,
   ));
-  const gainsOffGrid = $derived(gainsSimpleMode && !gainsFitSimpleMode());
+  const gainsOffGrid = $derived(xpSimpleMode && !gainsFitSimpleMode());
+
+  // Bonus de longueur : le seuil et le multiplicateur maximum vont de pair,
+  // l'un sans l'autre ne veut rien dire. Un cran les pose ensemble, du bonus a
+  // peine perceptible a celui qui double largement un message fourni.
+  const LENGTH_BONUS_PRESETS = [
+    { threshold: 300, max: 1.3 },
+    { threshold: 250, max: 1.5 },
+    { threshold: 200, max: 2 },
+    { threshold: 150, max: 2.5 },
+    { threshold: 100, max: 3 },
+  ];
+
+  const LENGTH_BONUS_LABELS = [
+    m.lv_length_bonus_step_1, m.lv_length_bonus_step_2, m.lv_length_bonus_step_3,
+    m.lv_length_bonus_step_4, m.lv_length_bonus_step_5,
+  ];
+
+  function lengthBonusFitsSimpleMode(): boolean {
+    // Desactive, ses valeurs ne s'affichent pas : elles n'ont pas a coller.
+    if (!config.lengthBonusEnabled) return true;
+    return LENGTH_BONUS_PRESETS.some((preset) =>
+      preset.threshold === config.lengthBonusThreshold && preset.max === config.lengthBonusMaxMultiplier);
+  }
+
+  const lengthBonusStep = $derived(nearestStep(
+    LENGTH_BONUS_PRESETS.map((preset) => preset.max),
+    config.lengthBonusMaxMultiplier || LENGTH_BONUS_PRESETS[2].max,
+  ));
+  const lengthBonusOffGrid = $derived(xpSimpleMode && !lengthBonusFitsSimpleMode());
+
+  function applyLengthBonusStep(step: number) {
+    const preset = LENGTH_BONUS_PRESETS[Math.min(LENGTH_BONUS_PRESETS.length, Math.max(1, step)) - 1];
+    config.lengthBonusThreshold = preset.threshold;
+    config.lengthBonusMaxMultiplier = preset.max;
+  }
 
   // Le curseur de la courbe a son graphique en dessous ; celui des gains n'avait
   // rien. Ces quatre tuiles montrent les valeurs reellement posees, plus le
@@ -705,16 +742,16 @@
           <nav class="tab-group w-fit">
             <button
               type="button"
-              onclick={() => setGainsMode(true)}
-              class="tab-button {gainsSimpleMode ? 'active' : ''}"
+              onclick={() => setXpMode(true)}
+              class="tab-button {xpSimpleMode ? 'active' : ''}"
             >
               <Papicon icon="SlidersHorizontal" size={15} />
               {m.lv_curve_mode_simple()}
             </button>
             <button
               type="button"
-              onclick={() => setGainsMode(false)}
-              class="tab-button {gainsSimpleMode ? '' : 'active'}"
+              onclick={() => setXpMode(false)}
+              class="tab-button {xpSimpleMode ? '' : 'active'}"
             >
               <Papicon icon="Hash" size={15} />
               {m.lv_curve_mode_advanced()}
@@ -723,7 +760,7 @@
         </div>
 
         <div class="leveling-xp-grid grid grid-cols-1 md:grid-cols-2 gap-6">
-          {#if gainsSimpleMode}
+          {#if xpSimpleMode}
             <div class="md:col-span-2 space-y-2">
               <div class="flex items-baseline justify-between gap-3">
                 <label for="gainsLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_gains_level_label()}</label>
@@ -915,6 +952,31 @@
             </div>
 
             {#if config.lengthBonusEnabled}
+              {#if xpSimpleMode}
+                <div class="space-y-2 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <label for="lengthBonusStep" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_step_label()}</label>
+                    <span class="text-xs font-semibold text-primary">{LENGTH_BONUS_LABELS[lengthBonusStep - 1]()}</span>
+                  </div>
+                  <input
+                    id="lengthBonusStep"
+                    type="range"
+                    min="1"
+                    max="5"
+                    step="1"
+                    value={lengthBonusStep}
+                    oninput={(e) => applyLengthBonusStep(Number(e.currentTarget.value))}
+                    class="w-full accent-primary"
+                    disabled={!canManageSettings}
+                  />
+
+                  {#if lengthBonusOffGrid}
+                    <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                      {m.lv_length_bonus_off_grid()}
+                    </p>
+                  {/if}
+                </div>
+              {:else}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-outline-variant/10 animate-in fade-in duration-200">
                 <div class="space-y-1.5">
                   <label for="lengthBonusThreshold" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_length_bonus_threshold()}</label>
@@ -944,6 +1006,7 @@
                   <p class="text-[10px] text-on-surface-variant/50 ml-2">{m.lv_length_bonus_max_hint({ max: config.lengthBonusMaxMultiplier })}</p>
                 </div>
               </div>
+              {/if}
 
               <div class="p-3 bg-primary/5 border border-primary/15 rounded-lg text-[11px] text-primary/90 leading-relaxed">
                 {m.lv_length_bonus_example({ half: Math.round((config.lengthBonusThreshold || 1) / 2), midMult: (1 + 0.5 * ((config.lengthBonusMaxMultiplier || 1) - 1)).toFixed(2), threshold: config.lengthBonusThreshold, maxMult: Number(config.lengthBonusMaxMultiplier).toFixed(2) })}
