@@ -317,17 +317,58 @@ export { categoryEmoji, feedStatusEmoji } from './emojis.js';
 // ─────────────────────────────────────────────────────────────
 // Platform Embeds (YouTube / Twitch / News)
 // ─────────────────────────────────────────────────────────────
+/** Logo servi par YouTube lui-meme : pas d'asset a heberger de notre cote. */
+const YOUTUBE_ICON_URL = 'https://www.youtube.com/img/desktop/yt_1200.png';
+
+/** Longueur de description reprise du flux, au-dela on coupe comme Pingcord. */
+const YOUTUBE_DESCRIPTION_MAX = 350;
+
+const YOUTUBE_HEADLINE = {
+  live: (channel: string) => `${channel} est en direct sur YouTube !`,
+  video: (channel: string) => `${channel} a publié une vidéo sur YouTube !`,
+  short: (channel: string) => `${channel} a publié un Short sur YouTube !`,
+} as const;
+
+/**
+ * Notification de publication YouTube, calquee sur la mise en page Pingcord :
+ * avatar de la chaine en auteur et en vignette, miniature de la video en grand,
+ * extrait de description, pied « YouTube » horodate a la publication.
+ */
 export function buildYouTubeEmbed(params: {
   title: string;
   videoId: string;
   channelName: string;
   publishedAt: Date;
+  kind?: 'live' | 'video' | 'short';
+  description?: string | null;
+  channelUrl?: string | null;
+  channelAvatarUrl?: string | null;
+  thumbnailUrl?: string | null;
 }) {
-  return baseEmbed(0xff0000)
+  const embed = new EmbedBuilder()
+    .setColor(0xff0000)
     .setTitle(truncate(params.title, 256))
     .setURL(`https://www.youtube.com/watch?v=${params.videoId}`)
-    .setAuthor({ name: params.channelName })
+    .setAuthor({
+      name: truncate(params.channelName, 256),
+      url: params.channelUrl ?? undefined,
+      iconURL: params.channelAvatarUrl ?? undefined,
+    })
+    .setFooter({ text: 'YouTube', iconURL: YOUTUBE_ICON_URL })
     .setTimestamp(params.publishedAt);
+
+  const headline = YOUTUBE_HEADLINE[params.kind ?? 'video'](params.channelName);
+  const description = params.description?.trim();
+  embed.setDescription(
+    description
+      ? `${headline}\n\n**Description**\n${truncate(description, YOUTUBE_DESCRIPTION_MAX)}`
+      : headline,
+  );
+
+  if (params.channelAvatarUrl) embed.setThumbnail(params.channelAvatarUrl);
+  if (params.thumbnailUrl) embed.setImage(params.thumbnailUrl);
+
+  return embed;
 }
 
 export function buildTwitchEmbed(params: {

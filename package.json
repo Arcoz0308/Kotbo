@@ -41,7 +41,7 @@
     "lint": "bun run lint:bot && bun run lint:dashboard"
   },
   "dependencies": {
-    "@prisma/client-runtime-utils": "^7.9.0",
+    "@prisma/client-runtime-utils": "^7.9.1",
     "vite": "^8.1.5"
   },
   "devDependencies": {

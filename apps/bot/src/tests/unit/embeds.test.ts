@@ -42,7 +42,43 @@ describe('embeds utils', () => {
 
     const json = embed.toJSON();
     expect(json.url).toBe('https://www.youtube.com/watch?v=xyz');
-    expect(json.footer?.text).toContain('Kotbo');
+    expect(json.footer?.text).toBe('YouTube');
+    expect(json.description).toBe('Kotbo TV a publié une vidéo sur YouTube !');
+  });
+
+  test('embed youtube : avatar, miniature et extrait de description', () => {
+    const embed = buildYouTubeEmbed({
+      title: 'Video test',
+      videoId: 'xyz',
+      channelName: 'Kotbo TV',
+      publishedAt: new Date('2026-04-04T10:00:00.000Z'),
+      description: 'Un resume de la video.',
+      channelUrl: 'https://www.youtube.com/channel/UC123',
+      channelAvatarUrl: 'https://yt3.googleusercontent.com/avatar.jpg',
+      thumbnailUrl: 'https://i.ytimg.com/vi/xyz/maxresdefault.jpg',
+    });
+
+    const json = embed.toJSON();
+    expect(json.author?.url).toBe('https://www.youtube.com/channel/UC123');
+    expect(json.author?.icon_url).toBe('https://yt3.googleusercontent.com/avatar.jpg');
+    expect(json.thumbnail?.url).toBe('https://yt3.googleusercontent.com/avatar.jpg');
+    expect(json.image?.url).toBe('https://i.ytimg.com/vi/xyz/maxresdefault.jpg');
+    expect(json.description).toContain('**Description**');
+    expect(json.description).toContain('Un resume de la video.');
+  });
+
+  test('embed youtube : accroche adaptee au type d annonce', () => {
+    const base = {
+      title: 'Video test',
+      videoId: 'xyz',
+      channelName: 'Kotbo TV',
+      publishedAt: new Date('2026-04-04T10:00:00.000Z'),
+    };
+
+    expect(buildYouTubeEmbed({ ...base, kind: 'live' }).toJSON().description)
+      .toBe('Kotbo TV est en direct sur YouTube !');
+    expect(buildYouTubeEmbed({ ...base, kind: 'short' }).toJSON().description)
+      .toBe('Kotbo TV a publié un Short sur YouTube !');
   });
 
   test('helpers utilitaires', () => {

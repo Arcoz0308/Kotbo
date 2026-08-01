@@ -31,7 +31,6 @@ import { sanctionCommand, sanctionContextCommand } from './commands/moderation/s
 import { requestVerificationCommand, requestVerificationContextCommand } from './commands/moderation/request-verification.js';
 import { sayCommand } from './commands/fun/say.js';
 import { mpsayCommand } from './commands/fun/mpsay.js';
-import { buyCommand } from './commands/economy/buy.js';
 import { dailyCommand } from './commands/economy/daily.js';
 import { coinsCommand } from './commands/economy/coins.js';
 import { diceCommand } from './commands/economy/dice.js';
@@ -46,9 +45,7 @@ import { removeItemCommand } from './commands/economy/removeItem.js';
 import { richestCommand } from './commands/economy/richest.js';
 import { rpsCommand } from './commands/economy/rps.js';
 import { rouletteCommand } from './commands/economy/roulette.js';
-import { shopCommand } from './commands/economy/shop.js';
 import { spawnItemCommand } from './commands/economy/spawnItem.js';
-import { useCommand } from './commands/economy/use.js';
 import { workCommand } from './commands/economy/work.js';
 import { levelingCommand } from './commands/admin/leveling.js';
 import { serverstatsCommand } from './commands/utility/serverstats.js';
@@ -71,9 +68,8 @@ import { repCommand } from './commands/community/rep.js';
 import { marketCommand } from './commands/economy/market.js';
 import { questsCommand } from './commands/community/quests.js';
 import { clanCommand } from './commands/community/clan.js';
-import { rpgProfileCommand, rpgDailyCommand, rpgTravelCommand, rpgShopCommand, rpgInventoryCommand, rpgGuildCommand, rpgPayCommand, rpgSellCommand, rpgDropCommand, rpgAdminCommand, rpgFightCommand, rpgBossCommand, rpgBestiaryCommand, fishCommand } from './commands/fun/rpgEconomy.js';
+import { rpgCommand } from './commands/fun/rpg.js';
 import { topCommand } from './commands/profile/top.js';
-import { inventaireCommand } from './commands/economy/inventaire.js';
 import { widgetCommand } from './commands/profile/widget.js';
 import { seasonsCommand } from './commands/community/seasons.js';
 import { pulseCommand } from './commands/admin/pulse.js';
@@ -145,7 +141,6 @@ export const commands: SlashCommandDefinition[] = [
   signalCommand,
   roleCommand,
   dashboardCommand,
-  buyCommand,
   dailyCommand,
   coinsCommand,
   diceCommand,
@@ -160,9 +155,7 @@ export const commands: SlashCommandDefinition[] = [
   richestCommand,
   rpsCommand,
   rouletteCommand,
-  shopCommand,
   spawnItemCommand,
-  useCommand,
   workCommand,
   linkCommand,
   staffserverCommand,
@@ -172,22 +165,8 @@ export const commands: SlashCommandDefinition[] = [
   marketCommand,
   questsCommand,
   clanCommand,
-  rpgProfileCommand,
-  rpgDailyCommand,
-  rpgTravelCommand,
-  rpgShopCommand,
-  rpgInventoryCommand,
-  rpgGuildCommand,
-  rpgPayCommand,
-  rpgSellCommand,
-  rpgDropCommand,
-  rpgAdminCommand,
-  rpgFightCommand,
-  rpgBossCommand,
-  rpgBestiaryCommand,
-  fishCommand,
+  rpgCommand,
   topCommand,
-  inventaireCommand,
   widgetCommand,
   seasonsCommand,
   pulseCommand,

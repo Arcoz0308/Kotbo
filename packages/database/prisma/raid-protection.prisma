@@ -1,4 +1,4 @@
-// ── Protection anti-raid & sécurité (inspiré de RaidProtect) ──────────────────
+// ── Protection anti-raid & sécurité ──────────────────
 // Captcha, anti-raid, join/DM lock, reports communautaires, tag role, scam filter.
 
 model RaidProtectionConfig {

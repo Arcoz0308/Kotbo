@@ -1,4 +1,4 @@
-import type { NodeDef, PortDataType, PortDef, WorkflowGraph, WorkflowNode } from './types.js';
+import type { NodeDef, PortDataType, PortDef, TextSlot, WorkflowGraph, WorkflowNode } from './types.js';
 
 /**
  * Catalogue des nœuds disponibles.
@@ -366,6 +366,21 @@ const DATA: NodeDef[] = [
     config: [{ key: 'value', label: 'Vrai ?', type: 'boolean', defaultValue: false }],
   },
   {
+    type: 'FormatText',
+    label: 'Texte composé',
+    category: 'data',
+    description: 'Un texte dans lequel des valeurs du contexte viennent s\'insérer.',
+    // Les entrées sont dérivées des emplacements déclarés en configuration :
+    // un texte « Bienvenue {slot0} » n'a qu'une entrée, deux jetons en créent
+    // deux. Passer par `resolveNodeInputs` est donc obligatoire pour ce nœud.
+    inputs: [],
+    outputs: [{ id: 'value', label: 'Valeur', type: 'String' }],
+    config: [
+      { key: 'template', label: 'Texte', type: 'textarea', defaultValue: '' },
+      { key: 'slots', label: 'Emplacements', type: 'slots', defaultValue: [] },
+    ],
+  },
+  {
     type: 'SelectRole',
     label: 'Un rôle',
     category: 'data',
@@ -472,6 +487,18 @@ const LOGIC: NodeDef[] = [
     inputs: [
       { id: 'text', label: 'Texte', type: 'String' },
       { id: 'search', label: 'Recherche', type: 'String' },
+    ],
+    outputs: [{ id: 'result', label: 'Résultat', type: 'Boolean' }],
+    config: [{ key: 'caseSensitive', label: 'Sensible à la casse', type: 'boolean', defaultValue: false }],
+  },
+  {
+    type: 'TextEquals',
+    label: 'Texte est égal à',
+    category: 'logic',
+    description: 'Vrai si les deux textes sont identiques.',
+    inputs: [
+      { id: 'a', label: 'Texte', type: 'String' },
+      { id: 'b', label: 'Comparé à', type: 'String' },
     ],
     outputs: [{ id: 'result', label: 'Résultat', type: 'Boolean' }],
     config: [{ key: 'caseSensitive', label: 'Sensible à la casse', type: 'boolean', defaultValue: false }],
@@ -620,6 +647,30 @@ export function resolveExecOutputs(type: string, config?: Record<string, unknown
   }
 
   return def.outputs.filter((port) => port.type === 'Exec');
+}
+
+/**
+ * Ports d'entrée effectifs d'un nœud, une fois sa configuration prise en compte.
+ *
+ * Seul `FormatText` a des entrées variables : une par emplacement de son texte.
+ * L'éditeur, la validation et le moteur doivent passer par ici plutôt que par
+ * `def.inputs`, sinon un texte composé apparaîtrait sans aucune entrée.
+ */
+export function resolveNodeInputs(node: WorkflowNode): PortDef[] {
+  const def = getNodeDef(node.type);
+  if (!def) return [];
+
+  if (node.type === 'FormatText') {
+    const slots = Array.isArray(node.config?.slots) ? (node.config.slots as TextSlot[]) : [];
+    return [
+      ...def.inputs,
+      ...slots
+        .filter((slot) => slot && typeof slot.id === 'string')
+        .map((slot) => ({ id: slot.id, label: slot.label || slot.id, type: 'String' as const })),
+    ];
+  }
+
+  return def.inputs;
 }
 
 /**
