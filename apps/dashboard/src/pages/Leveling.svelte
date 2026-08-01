@@ -224,6 +224,7 @@
         // ne peut pas imposer le mode simple : une courbe reglee finement ne
         // tombe sur aucun cran, et les curseurs en afficheraient un faux.
         curveSimpleMode = loadCurveModePreference() === 'advanced' ? false : curveFitsSimpleMode();
+        gainsSimpleMode = loadGainsModePreference() === 'advanced' ? false : gainsFitSimpleMode();
         rewards = res.rewards || [];
         levels = res.levels || [];
       }
@@ -372,6 +373,66 @@
     return Math.round(DEFAULT_LEVEL_CURVE.baseXp * pace) === config.curveBaseXp
       && Math.round(DEFAULT_LEVEL_CURVE.linearXp * pace) === config.curveLinearXp
       && steep === config.curveExponent;
+  }
+
+  // Reglage simple des gains : les quatre nombres qui decident de la vitesse
+  // d'accumulation bougent ensemble. Le cran median reprend exactement les
+  // valeurs par defaut, comme pour la courbe.
+  const GAIN_PRESETS = [
+    { xpMin: 5, xpMax: 10, cooldownSeconds: 120, vocalXpPerMin: 2 },
+    { xpMin: 10, xpMax: 15, cooldownSeconds: 90, vocalXpPerMin: 3 },
+    { xpMin: 15, xpMax: 25, cooldownSeconds: 60, vocalXpPerMin: 5 },
+    { xpMin: 25, xpMax: 40, cooldownSeconds: 45, vocalXpPerMin: 8 },
+    { xpMin: 40, xpMax: 60, cooldownSeconds: 30, vocalXpPerMin: 12 },
+  ];
+
+  const GAIN_LABELS = [
+    m.lv_gains_level_1, m.lv_gains_level_2, m.lv_gains_level_3, m.lv_gains_level_4, m.lv_gains_level_5,
+  ];
+
+  const GAINS_MODE_KEY = 'kotbo_leveling_gains_mode';
+
+  function loadGainsModePreference(): 'simple' | 'advanced' | null {
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      const raw = localStorage.getItem(GAINS_MODE_KEY);
+      return raw === 'simple' || raw === 'advanced' ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+
+  let gainsSimpleMode = $state(loadGainsModePreference() !== 'advanced');
+
+  function setGainsMode(simple: boolean) {
+    gainsSimpleMode = simple;
+    try {
+      localStorage.setItem(GAINS_MODE_KEY, simple ? 'simple' : 'advanced');
+    } catch { /* ignore */ }
+  }
+
+  /** Le reglage courant tombe-t-il exactement sur un cran ? */
+  function gainsFitSimpleMode(): boolean {
+    return GAIN_PRESETS.some((preset) =>
+      preset.xpMin === config.xpMin
+      && preset.xpMax === config.xpMax
+      && preset.cooldownSeconds === config.cooldownSeconds
+      && preset.vocalXpPerMin === config.vocalXpPerMin);
+  }
+
+  // Cran le plus proche, mesure sur l'XP moyenne par message.
+  const gainsStep = $derived(nearestStep(
+    GAIN_PRESETS.map((preset) => (preset.xpMin + preset.xpMax) / 2),
+    ((config.xpMin || 0) + (config.xpMax || 0)) / 2,
+  ));
+  const gainsOffGrid = $derived(gainsSimpleMode && !gainsFitSimpleMode());
+
+  function applyGainsStep(step: number) {
+    const preset = GAIN_PRESETS[Math.min(GAIN_PRESETS.length, Math.max(1, step)) - 1];
+    config.xpMin = preset.xpMin;
+    config.xpMax = preset.xpMax;
+    config.cooldownSeconds = preset.cooldownSeconds;
+    config.vocalXpPerMin = preset.vocalXpPerMin;
   }
 
   const CURVE_MODE_KEY = 'kotbo_leveling_curve_mode';
@@ -629,12 +690,57 @@
     <div class="space-y-8 animate-in fade-in duration-300">
       <!-- Paramètres XP -->
       <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
-        <h3 class="text-xl font-semibold flex items-center gap-3">
-          <Papicon icon="Settings" size={20} class="text-primary" />
-          {m.lv_xp_params_title()}
-        </h3>
+        <div class="flex items-start justify-between gap-4">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
+            <Papicon icon="Settings" size={20} class="text-primary" />
+            {m.lv_xp_params_title()}
+          </h3>
+          <nav class="tab-group w-fit">
+            <button
+              type="button"
+              onclick={() => setGainsMode(true)}
+              class="tab-button {gainsSimpleMode ? 'active' : ''}"
+            >
+              <Papicon icon="SlidersHorizontal" size={15} />
+              {m.lv_curve_mode_simple()}
+            </button>
+            <button
+              type="button"
+              onclick={() => setGainsMode(false)}
+              class="tab-button {gainsSimpleMode ? '' : 'active'}"
+            >
+              <Papicon icon="Hash" size={15} />
+              {m.lv_curve_mode_advanced()}
+            </button>
+          </nav>
+        </div>
 
         <div class="leveling-xp-grid grid grid-cols-1 md:grid-cols-2 gap-6">
+          {#if gainsSimpleMode}
+            <div class="md:col-span-2 space-y-2">
+              <div class="flex items-baseline justify-between gap-3">
+                <label for="gainsLevel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_gains_level_label()}</label>
+                <span class="text-xs font-semibold text-primary">{GAIN_LABELS[gainsStep - 1]()}</span>
+              </div>
+              <input
+                id="gainsLevel"
+                type="range"
+                min="1"
+                max="5"
+                step="1"
+                value={gainsStep}
+                oninput={(e) => applyGainsStep(Number(e.currentTarget.value))}
+                class="w-full accent-primary"
+                disabled={!canManageSettings}
+              />
+
+              {#if gainsOffGrid}
+                <p class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                  {m.lv_gains_off_grid()}
+                </p>
+              {/if}
+            </div>
+          {:else}
           <div class="space-y-1.5">
             <label for="xpMin" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.lv_xp_min()}</label>
             <input 
@@ -678,6 +784,8 @@
               disabled={!canManageSettings}
             />
           </div>
+
+          {/if}
 
           <!-- Conditions d'XP vocale -->
           <div class="col-span-2 mt-2 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 space-y-4">
