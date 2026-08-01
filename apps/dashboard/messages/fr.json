@@ -2999,6 +2999,7 @@
   "lv_presets_back": "Préréglages",
   "lv_presets_active": "Actif",
   "lv_presets_selected": "Sélectionné",
+  "lv_presets_recommended": "Recommandé",
   "lv_presets_save": "Enregistrer",
   "lv_presets_save_hint": "Rien n'est appliqué tant que vous n'avez pas enregistré.",
   "lv_presets_custom": "Votre configuration ne correspond à aucun préréglage. En choisir un remplacera les gains d'XP et la courbe de progression.",

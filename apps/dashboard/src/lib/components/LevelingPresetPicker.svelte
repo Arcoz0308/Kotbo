@@ -64,19 +64,29 @@
     {#each LEVELING_PRESETS as preset (preset.id)}
       {@const values = levelingPresetValues(preset)}
       {@const selected = selectedId === preset.id}
+      <!-- Le liseré et la teinte ne servent qu'à deux états : le préréglage
+           recommandé, et celui qu'on vient de choisir. Colorer les six cartes
+           les rendrait indistinctes. -->
+      {@const accented = selected || !!preset.recommended}
       <button
         type="button"
         onclick={() => onselect(preset)}
         {disabled}
         aria-pressed={selected}
-        class="text-left p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {selected
-          ? 'bg-primary/5 border-primary/40 shadow-lg shadow-primary/10'
-          : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'}"
+        class="relative overflow-hidden text-left p-6 rounded-xl border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed {selected
+          ? 'bg-primary/8 border-primary/50 shadow-lg shadow-primary/10'
+          : preset.recommended
+            ? 'bg-primary/3 border-primary/25 hover:border-primary/40 hover:bg-primary/6'
+            : 'bg-surface-container-low/30 border-outline-variant/10 hover:border-outline-variant/30 hover:bg-surface-container-high/20'}"
       >
+        {#if accented}
+          <span class="absolute inset-x-0 top-0 h-[3px] bg-primary {selected ? '' : 'opacity-50'}" aria-hidden="true"></span>
+        {/if}
+
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-3 min-w-0">
-            <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {selected ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
-              <Papicon icon={preset.icon} size={18} class={selected ? 'text-primary' : 'text-on-surface-variant/70'} />
+            <div class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center {accented ? 'bg-primary/15' : 'bg-surface-container-high/40'}">
+              <Papicon icon={preset.icon} size={18} class={accented ? 'text-primary' : 'text-on-surface-variant/70'} />
             </div>
             <h3 class="text-base font-semibold text-on-surface truncate">{presetName[preset.id]()}</h3>
           </div>
@@ -87,6 +97,10 @@
           {:else if selected}
             <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary">
               {m.lv_presets_selected()}
+            </span>
+          {:else if preset.recommended}
+            <span class="shrink-0 text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg border border-primary/30 text-primary/80">
+              {m.lv_presets_recommended()}
             </span>
           {/if}
         </div>
@@ -127,7 +141,7 @@
       type="button"
       onclick={onsave}
       disabled={disabled || !dirty || saving}
-      class="shrink-0 px-6 py-3 bg-primary hover:bg-primary-hover text-on-primary text-[13px] font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
     >
       <Papicon icon="Check" size={16} />
       {m.lv_presets_save()}

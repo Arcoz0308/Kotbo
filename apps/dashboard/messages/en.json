@@ -2999,6 +2999,7 @@
   "lv_presets_back": "Presets",
   "lv_presets_active": "Active",
   "lv_presets_selected": "Selected",
+  "lv_presets_recommended": "Recommended",
   "lv_presets_save": "Save",
   "lv_presets_save_hint": "Nothing is applied until you save.",
   "lv_presets_custom": "Your configuration matches no preset. Picking one will replace the XP gains and the progression curve.",

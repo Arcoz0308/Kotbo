@@ -46,10 +46,12 @@ export type LevelingPreset = {
   paceStep: number;
   steepStep: number;
   maxLevel: number;
+  /** Mis en avant dans la grille : le choix sur pour une guilde qui debute. */
+  recommended?: boolean;
 };
 
 export const LEVELING_PRESETS: readonly LevelingPreset[] = [
-  { id: 'basic', icon: 'Star', gainStep: 3, paceStep: 3, steepStep: 3, maxLevel: 0 },
+  { id: 'basic', icon: 'Star', gainStep: 3, paceStep: 3, steepStep: 3, maxLevel: 0, recommended: true },
   { id: 'fast', icon: 'Zap', gainStep: 5, paceStep: 2, steepStep: 2, maxLevel: 0 },
   { id: 'progressive', icon: 'TrendingUp', gainStep: 3, paceStep: 3, steepStep: 4, maxLevel: 0 },
   { id: 'calm', icon: 'Clock', gainStep: 2, paceStep: 3, steepStep: 2, maxLevel: 0 },
