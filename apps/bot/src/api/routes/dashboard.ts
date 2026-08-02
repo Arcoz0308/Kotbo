@@ -193,7 +193,7 @@ export async function handleDashboardRoutes(
           && ['distribute', 'clear', 'reset-season', 'reset-all', 'rollback-season'].includes(parts[5] ?? ''));
 
       if (isSensitiveWrite && !checkRateLimit(dashboardSensitiveRateLimiter, rateKey, 10, 60 * 1000)) {
-        json(res, 429, { error: 'Trop d\'enregistrements successifs. Patientez une minute avant de réessayer.' });
+        json(res, 429, { error: 'Trop d\'enregistrements successifs. Réessayez dans une minute.' });
         return true;
       }
     }

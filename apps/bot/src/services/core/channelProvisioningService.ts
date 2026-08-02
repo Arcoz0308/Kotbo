@@ -102,13 +102,17 @@ export async function startProvisionCooldown(key: string, by: string): Promise<v
 }
 
 /**
- * Message de refus commun. `subject` est la proposition complete que l'appelant
- * ecrit lui-meme - « La mise en route a déjà été lancée » - le francais
- * n'accordant pas de la meme facon selon le sujet.
+ * Message de refus commun, sur la meme forme que les autres refus du
+ * dashboard : ce qui s'est passe, puis quand reessayer. Depuis quand le delai
+ * court n'est pas dit, le temps restant le donne deja.
+ *
+ * `subject` est la proposition complete que l'appelant ecrit lui-meme - « La
+ * mise en route a déjà été lancée » - le francais n'accordant pas de la meme
+ * facon selon le sujet.
  */
 export function provisionCooldownMessage(cooldown: { seconds: number; by: string }, subject: string): string {
   const minutes = Math.max(1, Math.ceil(cooldown.seconds / 60));
-  return `${subject} par ${cooldown.by} il y a moins de ${PROVISION_COOLDOWN_SECONDS / 60} min. Réessayez dans ${minutes} min.`;
+  return `${subject} par ${cooldown.by}. Réessayez dans ${minutes} min.`;
 }
 
 async function resolveChannel(guild: Guild, id: string | null | undefined): Promise<GuildBasedChannel | null> {

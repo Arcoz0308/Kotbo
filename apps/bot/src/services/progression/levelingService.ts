@@ -24,6 +24,8 @@ import { getRankCardCustomization } from './rankCardService.js';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache, getCachedGuild } from '../../utils/cache.js';
+import { resolveGuildLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
 
 // Cooldown map: key is "guildId:userId", value is timestamp when cooldown expires
 const xpCooldowns = new Map<string, number>();
@@ -101,6 +103,11 @@ export async function getOrCreateLevelConfig(guildId: string) {
       create: { id: guildId },
     });
 
+    // Langue explicitement choisie pour le serveur. Celui qui est reste en
+    // detection automatique retombe sur le francais : sans client Discord a ce
+    // niveau, sa langue native est hors de portee.
+    const locale = await resolveGuildLocale(guildId);
+
     config = await prisma.levelConfig.create({
       data: {
         guildId,
@@ -109,7 +116,10 @@ export async function getOrCreateLevelConfig(guildId: string) {
         xpMax: 25,
         cooldownSeconds: 60,
         vocalXpPerMin: 5,
-        levelUpMessage: "Félicitations {user} ! Tu passes au niveau **{level}** ! 🎉",
+        // `{user}` et `{level}` sont les jetons du modele, pas des valeurs a
+        // substituer : ils traversent la traduction tels quels pour finir en
+        // base, ou le bot les remplacera a chaque montee de niveau.
+        levelUpMessage: m.leveling_levelup_default_message({ user: '{user}', level: '{level}' }, { locale }),
         stackRewards: false,
         ignoredChannels: [],
         ignoredRoles: [],
@@ -1092,9 +1102,19 @@ async function processLevelUp(
 
     // 1.5. Le crédit des KotboCoins a déjà été commis atomiquement avec le niveau (voir
     // addXp/setXp) ; on ne fait ici que construire le texte de notification.
-    const coinRewardText = coinReward
-      ? ` Tu as également gagné **${coinReward.amount}** ${coinReward.currencyEmoji} **${coinReward.currencyName}** !`
-      : '';
+    //
+    // Cette phrase est collée au modèle de l'admin sans qu'il puisse la
+    // toucher : elle suit donc la langue du serveur, sinon un serveur
+    // anglophone qui traduit son message garde une phrase française au bout.
+    let coinRewardText = '';
+    if (coinReward) {
+      const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+      coinRewardText = ` ${m.leveling_coin_reward({
+        amount: coinReward.amount,
+        emoji: coinReward.currencyEmoji,
+        currency: coinReward.currencyName,
+      }, { locale })}`;
+    }
 
     // 2. Envoi du message de félicitations
     const msgTemplate = config.levelUpMessage;

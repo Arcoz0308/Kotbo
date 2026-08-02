@@ -444,7 +444,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         // etre repris tout de suite, la reprise par identifiant garantissant
         // qu'aucun salon ne sera cree une seconde fois.
         if (items.some(item => item.created)) {
-          await startProvisionCooldown(lockKey, auditUser);
+          // Le pseudo seul : l'identifiant Discord alourdit un message d'interface,
+          // et le journal d'audit le porte deja pour qui veut remonter la trace.
+          await startProvisionCooldown(lockKey, user.username ?? 'Utilisateur');
         }
 
         await pushAudit(guildId, {
