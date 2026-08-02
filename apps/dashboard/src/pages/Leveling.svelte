@@ -1,5 +1,6 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
+  import { isMissingReference } from '../lib/discordReferences';
   import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
@@ -422,6 +423,7 @@
       rewards = rewards.filter(r => r.id !== id);
     }
   }
+
 
   function getRoleName(roleId: string) {
     const role = availableRoles.find(r => r.id === roleId);
@@ -1424,7 +1426,11 @@
             <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
               {#each config.ignoredChannels as channelId}
                 {@const channel = availableChannels.find(c => c.id === channelId)}
-                <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
+                {@const missing = isMissingReference(channelId, availableChannels)}
+                <span
+                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border shadow-sm {missing ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10'}"
+                  title={missing ? m.lv_missing_ref_hint() : undefined}
+                >
                   #{channel ? channel.name : channelId}
                   {#if canManageSettings}
                     <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error transition-transform">✕</button>
@@ -1453,7 +1459,11 @@
             <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
               {#each config.ignoredRoles as roleId}
                 {@const role = availableRoles.find(r => r.id === roleId)}
-                <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
+                {@const missing = isMissingReference(roleId, availableRoles)}
+                <span
+                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border shadow-sm {missing ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10'}"
+                  title={missing ? m.lv_missing_ref_hint() : undefined}
+                >
                   @{role ? role.name : roleId}
                   {#if canManageSettings}
                     <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error transition-transform">✕</button>
@@ -1554,7 +1564,11 @@
 
                   {#each Object.entries(config.xpMultipliers) as [roleId, mult]}
                     <tr class="hover:bg-surface-hover/20 transition-all font-semibold">
-                      <td class="px-6 py-3.5 text-sm font-semibold">{getRoleName(roleId)}</td>
+                      {@const missing = isMissingReference(roleId, availableRoles)}
+                      <td
+                        class="px-6 py-3.5 text-sm font-semibold {missing ? 'text-amber-600 dark:text-amber-400' : ''}"
+                        title={missing ? m.lv_missing_ref_hint() : undefined}
+                      >{getRoleName(roleId)}</td>
                       <td class="px-6 py-3.5 text-sm font-semibold text-primary">{mult}x</td>
                       {#if canManageSettings}
                         <td class="px-6 py-3.5 text-right">
@@ -2016,7 +2030,11 @@
                       >{m.lv_reward_unreachable()}</span>
                     {/if}
                   </td>
-                  <td class="px-5 py-4 text-xs font-semibold">{getRoleName(reward.roleId)}</td>
+                  {@const missingRole = isMissingReference(reward.roleId, availableRoles)}
+                  <td
+                    class="px-5 py-4 text-xs font-semibold {missingRole ? 'text-amber-600 dark:text-amber-400' : ''}"
+                    title={missingRole ? m.lv_missing_ref_hint() : undefined}
+                  >{getRoleName(reward.roleId)}</td>
                   {#if canManageSettings}
                     <td class="px-5 py-4 text-right">
                       <button 
@@ -2064,6 +2082,9 @@
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
+            {#if levelUpChannelState === 'missing'}
+              <p class="text-[10px] text-amber-500 mt-1.5">{m.lv_missing_ref_hint()}</p>
+            {/if}
             {#if canManageSettings && canCreateLevelUpChannel}
               <div class="flex items-center gap-3 pt-1">
                 <button

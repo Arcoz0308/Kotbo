@@ -5,6 +5,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { isMissingReference } from '../lib/discordReferences';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
@@ -277,6 +278,7 @@
   const discordChannels = $derived(dashboardStore.state.discordChannels || []);
   const discordCategories = $derived(dashboardStore.state.discordCategories || []);
   const discordRoles = $derived(dashboardStore.state.discordRoles || []);
+
 
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();
@@ -1516,22 +1518,37 @@
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_category()}</span>
                 <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketCategoryId, discordCategories)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_panel_channel()}</span>
                 <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_log_channel()}</span>
                 <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketLogChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_staff_role()}</span>
                 <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketStaffRoleId, discordRoles)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block col-span-1 md:col-span-2">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_dm_relay()}</span>
                 <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_channel_ph()} className="w-full" />
+                {#if isMissingReference(ticketDmRelayChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
             </div>
 
@@ -1902,10 +1919,16 @@
                         <label class="block">
                           <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_category()}</span>
                           <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
+                          {#if isMissingReference(ticketType.categoryId, discordCategories)}
+                            <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                          {/if}
                         </label>
                         <label class="block">
                           <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_staff_role()}</span>
                           <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
+                          {#if isMissingReference(ticketType.staffRoleId, discordRoles)}
+                            <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                          {/if}
                         </label>
                       </div>
 
@@ -1943,6 +1966,9 @@
                             <label class="block">
                               <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_staff_server_category()}</span>
                               <SearchableSelect bind:value={ticketType.staffServerCategoryId} options={staffServerInfo.categories.map((c: any) => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_category_ph()} className="w-full" />
+                              {#if isMissingReference(ticketType.staffServerCategoryId, staffServerInfo.categories)}
+                                <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                              {/if}
                             </label>
                           {/if}
                         </div>
