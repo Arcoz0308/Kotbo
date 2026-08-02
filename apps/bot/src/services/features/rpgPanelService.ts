@@ -283,7 +283,7 @@ function buildHubButtons(ownerId: string, locale: Locale): ActionRowBuilder<Butt
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:guild`).setLabel(m.rpg_hub_btn_guild({}, { locale })).setEmoji('🛡️').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:bestiary`).setLabel(m.rpg_hub_btn_bestiary({}, { locale })).setEmoji('📖').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:more`).setLabel(m.rpg_hub_btn_more({}, { locale })).setEmoji('⋯').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rpg:nav:${ownerId}:more`).setLabel(m.rpg_hub_btn_more({}, { locale })).setEmoji('➕').setStyle(ButtonStyle.Secondary),
   );
 
   return [row1, row2, row3];
