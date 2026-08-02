@@ -7,7 +7,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
-  import { m } from '../lib/i18n';
+  import { m, getLocale } from '../lib/i18n';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -18,9 +18,15 @@
     addBannedWord,
     deleteBannedWord,
     toggleBannedWord,
+    fetchGuildLanguage,
   } from '../lib/api';
 
   let wsListener: ((e: CustomEvent) => void) | null = null;
+
+  // Le pseudo de remplacement suit la langue du bot sur ce serveur, pas celle du
+  // dashboard : afficher la version francaise a qui administre un serveur en
+  // anglais annoncerait un pseudo qui ne sera jamais applique.
+  let botLocale = $state<'fr' | 'en'>(getLocale() as 'fr' | 'en');
 
   // ---------------------------------------------------------------------------
   // Types
@@ -125,6 +131,9 @@
 
   onMount(async () => {
     await loadData(true);
+
+    const language = await fetchGuildLanguage();
+    if (language?.locale) botLocale = language.locale;
 
     wsListener = (e: CustomEvent) => {
       const payload = e.detail;
@@ -418,7 +427,7 @@
           <h2 class="text-base font-semibold tracking-tight text-on-surface">{m.nm_activation()}</h2>
           <p class="text-sm text-on-surface-variant/70">
             {m.nm_activation_desc_1()}
-            <code class="font-mono text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-1.5 py-0.5 rounded-lg text-xs">pseudo non conforme | automod</code>.
+            <code class="font-mono text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-1.5 py-0.5 rounded-lg text-xs">{m.nm_safe_nickname({}, { locale: botLocale })}</code>.
             <br />
             {m.nm_activation_desc_2()} <code class="font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-lg text-xs">/rescan pseudo rescan</code>
           </p>

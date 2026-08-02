@@ -1777,5 +1777,14 @@
   "rpg_inventory_field_materials": "🧱 Materials (crafting)",
   "rpg_shop_type_accessory": "💍 Accessories",
   "rpg_shop_stat_spd": " · 💨 +{v} SPD",
-  "rpg_shop_stat_maxhp": " · ❤️ +{v} max HP"
+  "rpg_shop_stat_maxhp": " · ❤️ +{v} max HP",
+  "nickmod_safe_nickname": "non-compliant nickname | automod",
+  "nickmod_rename_reason": "Automod: non-compliant nickname - original: \"{original}\"",
+  "nickmod_log_title_auto": "Non-compliant nickname | Automod",
+  "nickmod_log_title_rescan": "Non-compliant nickname | Rescan",
+  "nickmod_log_member": "Member",
+  "nickmod_log_original": "Original nickname",
+  "nickmod_log_applied": "Applied nickname",
+  "nickmod_log_footer_auto": "Automod | Nickname moderation",
+  "nickmod_log_footer_rescan": "Automod | Nickname rescan"
 }

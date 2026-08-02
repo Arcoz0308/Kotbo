@@ -4236,6 +4236,7 @@
   "nm_bypass_removed": "Exemption pour le membre {id} retirée.",
   "nm_bypass_restored": "Exemption pour le membre {id} rétablie.",
   "nm_activation": "Activation",
+  "nm_safe_nickname": "pseudo non conforme | automod",
   "nm_activation_desc_1": "Lorsqu'activé, le bot vérifie les pseudos à l'arrivée et lors des modifications. Un pseudo non conforme est remplacé par",
   "nm_activation_desc_2": "Commande Discord de vérification :",
   "nm_watches": "Ce que le bot surveille",

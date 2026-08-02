@@ -8,6 +8,7 @@ import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
 import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
+import { isReservedByNicknameModeration } from '../../services/moderation/nicknameModerationService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -521,7 +522,7 @@ export async function handleAdminRoutes(
           const word = normalizeGlobalBannedWord(entry?.word);
           if (!word) continue;
 
-          if (word.includes('automod') || word.includes('pseudo non conforme')) {
+          if (isReservedByNicknameModeration(word)) {
             continue;
           }
 
@@ -623,7 +624,7 @@ export async function handleAdminRoutes(
             return true;
           }
 
-          if (nextWord.includes('automod') || nextWord.includes('pseudo non conforme')) {
+          if (isReservedByNicknameModeration(nextWord)) {
             json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
             return true;
           }
