@@ -9,14 +9,15 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import { m } from '../lib/i18n';
+  import { memberAvatarSrc } from '../lib/discordMedia';
 
   import type { AccentColor, DateFormat, Language, SidebarBehavior } from '../lib/stores/userPreferences.svelte';
 
   const getUserAvatar = () => {
-    if (!authStore.user || !authStore.user.id || !authStore.user.avatar) {
-      return 'https://cdn.discordapp.com/embed/avatars/0.png';
-    }
-    return `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`;
+    const hash = authStore.user?.avatar;
+    const id = authStore.user?.id;
+    const url = id && hash ? `https://cdn.discordapp.com/avatars/${id}/${hash}.png` : null;
+    return memberAvatarSrc(url, authStore.user?.username, id);
   };
 
   const SETTINGS_BASE = '/userSettings';

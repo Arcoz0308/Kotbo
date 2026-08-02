@@ -5,7 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
 import * as altAccountService from '../../../services/moderation/altAccountService.js';
 import { scanGuildMembersForYoungAccounts, getDetectionEvidence } from '../../../services/moderation/dcDetectionService.js';
-import { memberProfileIdentity, resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
+import { memberProfileIdentity, resolveMemberAvatarUrl, resolveMissingMemberIdentities } from '../../../services/moderation/memberIdentityService.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import {
   json,
@@ -278,7 +278,7 @@ export async function handleMembersRoutes(
             suspectedAlts.push({
               userId: altId,
               username: altProfile?.username ?? altDiscord?.user?.username ?? null,
-              avatarUrl: altProfile?.avatarUrl ?? altDiscord?.user?.displayAvatarURL({ size: 64 }) ?? null,
+              avatarUrl: altProfile?.avatarUrl ?? resolveMemberAvatarUrl(altDiscord, 64),
             });
           }
         }
@@ -287,7 +287,7 @@ export async function handleMembersRoutes(
           id: member.userId,
           username: member.username ?? null,
           displayName: member.displayName ?? member.userTag ?? member.username ?? null,
-          avatarUrl: member.avatarUrl ?? discordMember?.user.displayAvatarURL({ size: 256 }) ?? null,
+          avatarUrl: resolveMemberAvatarUrl(discordMember, 256) ?? member.avatarUrl ?? null,
           isBot: member.isBot,
           accountCreatedAt, guildJoinedAt,
           guildLeftAt: member.guildLeftAt?.toISOString() ?? null,
@@ -526,7 +526,7 @@ export async function handleMembersRoutes(
             id: dm.id,
             username: dm.user.username,
             displayName: dm.displayName ?? dm.user.username,
-            avatarUrl: dm.user.displayAvatarURL({ size: 128 }),
+            avatarUrl: resolveMemberAvatarUrl(dm, 128),
             isBot: dm.user.bot,
             lastSeenAt: null,
             messageCount: 0,
@@ -723,7 +723,8 @@ export async function handleMembersRoutes(
 
         const { createVerificationSession, buildVerificationUrl, buildVerificationEmbed } = await import('../../../services/moderation/securityVerificationService.js');
         const token = await createVerificationSession(guildId, userId);
-        
+
+
         // 28 days timeout to force verification
         const TIMEOUT_DURATION = 28 * 24 * 60 * 60 * 1000;
         await targetMember.timeout(TIMEOUT_DURATION, `Vérification de sécurité requise par ${moderator.tag}`).catch((err) => {

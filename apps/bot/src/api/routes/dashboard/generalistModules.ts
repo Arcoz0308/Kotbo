@@ -5,6 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
+import { resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
@@ -83,7 +84,7 @@ async function withMemberIdentity(
       ...row,
       username: discordMember?.user?.username || profile?.username || null,
       displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
-      avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null,
+      avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
     };
   });
 }

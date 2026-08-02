@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { memberAvatarSrc } from '../../discordMedia';
   import { portal } from '../../actions/portal';
   import { router } from 'tinro';
   import Papicon from '../Papicon.svelte';
@@ -375,7 +376,7 @@
                   onclick={() => openMember(join.userId)}
                 >
                   <div class="flex items-center gap-4">
-                    <img src={join.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" class="w-10 h-10 rounded-xl object-cover" />
+                    <img src={memberAvatarSrc(join.avatarUrl, join.userTag, join.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                     <div>
                       <p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">{join.userTag}</p>
                       <p class="text-[10px] text-on-surface-variant/50 font-mono">{join.userId} • {formatDateTime(join.joinedAt)}</p>

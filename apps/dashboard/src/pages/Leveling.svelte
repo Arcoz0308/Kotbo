@@ -7,6 +7,7 @@
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -2076,7 +2077,7 @@
                 <div class="flex items-start justify-between">
                   <div class="relative">
                     <img
-                      src={podium[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
+                      src={memberAvatarSrc(podium[1].avatarUrl, podium[1].displayName || podium[1].username, podium[1].userId)}
                       alt=""
                       class="w-16 h-16 rounded-lg object-cover border border-outline-variant/10 shadow-inner"
                     />
@@ -2118,7 +2119,7 @@
                 <div class="flex items-start justify-between mt-1">
                   <div class="relative">
                     <img
-                      src={podium[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                      src={memberAvatarSrc(podium[0].avatarUrl, podium[0].displayName || podium[0].username, podium[0].userId)}
                       alt=""
                       class="w-20 h-20 rounded-lg object-cover border border-tertiary/20 shadow-inner"
                     />
@@ -2157,7 +2158,7 @@
                 <div class="flex items-start justify-between">
                   <div class="relative">
                     <img
-                      src={podium[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
+                      src={memberAvatarSrc(podium[2].avatarUrl, podium[2].displayName || podium[2].username, podium[2].userId)}
                       alt=""
                       class="w-16 h-16 rounded-lg object-cover border border-outline-variant/10 shadow-inner"
                     />
@@ -2216,7 +2217,7 @@
 
               <!-- Avatar -->
               <img 
-                src={userLvl.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} 
+                src={memberAvatarSrc(userLvl.avatarUrl, userLvl.displayName || userLvl.username, userLvl.userId)} 
                 alt="" 
                 class="w-11 h-11 rounded-xl border border-outline-variant/10 shadow-inner object-cover shrink-0"
               />

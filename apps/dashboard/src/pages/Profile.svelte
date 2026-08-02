@@ -1,5 +1,6 @@
 <script lang="ts">
   import { m, dateLocale } from '../lib/i18n';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { resolveTabFromUrl, gotoTab } from '../lib/tabRouting';
@@ -210,12 +211,16 @@
   }
 
   const getUserAvatar = () => {
-    if (staffMember?.avatarUrl) return staffMember.avatarUrl;
-    if (publicProfile?.avatar) return publicProfile.avatar;
-    if (isOwnProfile && authStore.user?.avatar) {
-      return `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`;
-    }
-    return 'https://cdn.discordapp.com/embed/avatars/0.png';
+    const own = isOwnProfile && authStore.user?.avatar
+      ? `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`
+      : null;
+    // Sans photo, l'avatar Discord par defaut est identique pour tout le monde :
+    // memberAvatarSrc rend alors une initiale coloree par l'identifiant.
+    return memberAvatarSrc(
+      staffMember?.avatarUrl || publicProfile?.avatar || own,
+      staffMember?.displayName || publicProfile?.displayName || publicProfile?.username || authStore.user?.username,
+      targetUserId,
+    );
   };
 
   const gradeIcon = (grade: string) => {

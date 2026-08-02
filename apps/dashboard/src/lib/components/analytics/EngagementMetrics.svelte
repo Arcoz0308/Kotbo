@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { memberAvatarSrc } from '../../discordMedia';
   import Chart from '../charts/Chart.svelte';
   import ExportDropdown from './ExportDropdown.svelte';
   import { toast } from '../../stores/toast.svelte';
@@ -125,7 +126,11 @@
     }
   });
 
-  const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  // Un repli sur l'avatar Discord generique donnerait la meme vignette a tous
+  // les membres sans photo : on passe le nom et l'id pour obtenir une
+  // initiale coloree distincte (issue #211).
+  const getAvatar = (url: string | null, name?: string | null, userId?: string | null) =>
+    memberAvatarSrc(url, name, userId);
 
   function triggerDownload(content: BlobPart, fileName: string, mimeType: string) {
     const blob = new Blob([content], { type: mimeType });
@@ -243,7 +248,7 @@
             <div class="flex items-center gap-4">
               <div class="w-8 text-center text-xs font-semibold text-on-surface-variant/40">{globalIndex}</div>
               <div class="relative">
-                <img src={getAvatar(item.avatarUrl)} alt="" class="w-10 h-10 rounded-xl object-cover" />
+                <img src={getAvatar(item.avatarUrl, item.name || item.username, item.userId)} alt="" class="w-10 h-10 rounded-xl object-cover" />
                 <div class="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-surface {mode === 'messages' ? 'bg-primary' : 'bg-emerald-500'}"></div>
               </div>
               <p class="text-base font-semibold text-on-surface">@{item.name || item.username}</p>
@@ -349,7 +354,7 @@
           >
             <div class="flex items-center gap-3">
               <div class="relative">
-                <img src={getAvatar(member.avatarUrl)} alt="" class="w-8 h-8 rounded-lg object-cover" />
+                <img src={getAvatar(member.avatarUrl, member.name || member.username, member.userId)} alt="" class="w-8 h-8 rounded-lg object-cover" />
                 <div class="absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-surface {mode === 'messages' ? 'bg-primary' : 'bg-emerald-500'}"></div>
               </div>
               <p class="text-sm font-semibold text-on-surface">@{member.name || member.username}</p>

@@ -32,6 +32,7 @@ import { generateRssXml } from '../../services/core/newsService.js';
 import { handleFormTrigger } from '../../services/features/autoResponseService.js';
 import { submitCustomForm } from '../../services/features/customFormService.js';
 import { sanitizeCustomCss, sanitizeFormTheme } from '../../utils/formCustomization.js';
+import { resolveMemberAvatarUrl, resolveUserAvatarUrl } from '../../services/moderation/memberIdentityService.js';
 
 const gzipAsync = promisify(gzip);
 
@@ -265,7 +266,7 @@ export async function handlePublicRoutes(
           username: discordUser.username,
           globalName: discordUser.globalName || null,
           displayName: discordUser.globalName || discordUser.username,
-          avatarUrl: discordUser.displayAvatarURL(),
+          avatarUrl: resolveUserAvatarUrl(discordUser, 256),
           bannerUrl: null,
           accentColor: discordUser.accentColor || null,
           locale: null,
@@ -604,7 +605,7 @@ export async function handlePublicRoutes(
 
         const username = discordMember?.user?.username || profile?.username || null;
         const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${l.userId}`;
-        const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+        const avatarUrl = resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null;
 
         return {
           userId: l.userId,
@@ -801,7 +802,7 @@ export async function handlePublicRoutes(
             const discordMember = discordGuild?.members.cache.get(c.userId);
 
             const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${c.userId}`;
-            const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+            const avatarUrl = resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null;
 
             if (c.xp !== previousXp) rank = i + 1;
             previousXp = c.xp;
@@ -867,7 +868,7 @@ export async function handlePublicRoutes(
             const profile = profileMap.get(e.userId);
             const discordMember = discordGuild?.members.cache.get(e.userId);
             displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${e.userId}`;
-            avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+            avatarUrl = resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null;
           }
 
           return {
@@ -1048,7 +1049,7 @@ export async function handlePublicRoutes(
             rank,
             xp: row.xp,
             displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
-            avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null,
+            avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
           };
         });
 
@@ -1069,7 +1070,7 @@ export async function handlePublicRoutes(
             rank: null,
             xp: 0,
             displayName: discordMember?.displayName || `Utilisateur ${userId}`,
-            avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) ?? null,
+            avatarUrl: resolveMemberAvatarUrl(discordMember, 128) ?? null,
           });
         }
       }
@@ -1104,7 +1105,7 @@ export async function handlePublicRoutes(
           const profile = profileMap.get(e.userId);
           const discordMember = discordGuild?.members.cache.get(e.userId);
           displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${e.userId}`;
-          avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+          avatarUrl = resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null;
         }
 
         return {

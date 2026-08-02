@@ -76,6 +76,9 @@ function fakeMember(index: number) {
     id: `user-${index}`,
     displayName: `Membre ${index}`,
     joinedAt: new Date('2026-01-15T12:00:00.000Z'),
+    // `avatarURL` (et non `displayAvatarURL`) : le scraper ne doit plus stocker
+    // l'avatar Discord générique des membres sans photo (issue #211).
+    avatarURL: () => null,
     user: {
       bot: false,
       tag: `membre${index}`,
@@ -83,6 +86,7 @@ function fakeMember(index: number) {
       globalName: null,
       accentColor: null,
       createdAt: new Date('2025-01-15T12:00:00.000Z'),
+      avatarURL: () => `https://cdn.example/${index}.png`,
       displayAvatarURL: () => `https://cdn.example/${index}.png`,
     },
     roles: { cache: new Collection<string, { id: string }>() },

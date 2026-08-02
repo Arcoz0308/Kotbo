@@ -23,6 +23,7 @@ import type {
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { getCandidatureHistory } from '../../services/staff/recruitmentService.js';
 import * as altAccountService from '../../services/moderation/altAccountService.js';
+import { resolveMemberAvatarUrl, resolveUserAvatarUrl } from '../../services/moderation/memberIdentityService.js';
 import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from '../../services/moderation/crossServerSanctionService.js';
 import { extractMessageId, extractMessagePreview, fetchMemberConnections, mapGuildRolePermissions, parseInviteFromDetails, safeIsoDate } from './core.js';
 import type { AuthClaims } from './core.js';
@@ -220,7 +221,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
     const cachedUser = client.users.cache.get(invite.inviterId);
     if (cachedUser) {
       invite.inviterTag = cachedUser.tag || cachedUser.username;
-      invite.inviterAvatarUrl = cachedUser.displayAvatarURL({ size: 64 }) || null;
+      invite.inviterAvatarUrl = resolveUserAvatarUrl(cachedUser, 64);
     } else {
       const fetchedUser = await client.users.fetch(invite.inviterId).catch(() => null);
       if (fetchedUser) {
@@ -293,7 +294,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         id: actualUserId,
         label: displayLabel,
         type: 'user',
-        avatar: profile?.avatarUrl ?? user?.displayAvatarURL?.({ size: 128 }) ?? null,
+        avatar: profile?.avatarUrl ?? resolveUserAvatarUrl(user, 128),
       },
     ];
     const edges: MemberCaseInteractionEdge[] = [];
@@ -391,7 +392,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       const cachedUser = client.users.cache.get(targetId);
       if (cachedUser) {
         targetLabel = cachedUser.tag;
-        targetAvatar = cachedUser.displayAvatarURL({ size: 128 });
+        targetAvatar = resolveUserAvatarUrl(cachedUser, 128);
       }
 
       nodes.push({ id: targetId, label: targetLabel, type: 'target', avatar: targetAvatar });
@@ -469,7 +470,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         username: user?.username ?? profile?.username ?? null,
         globalName: user?.globalName ?? profile?.globalName ?? null,
         displayName: member?.displayName ?? profile?.displayName ?? user?.globalName ?? user?.username ?? null,
-        avatarUrl: profile?.avatarUrl ?? user?.displayAvatarURL?.({ size: 256 }) ?? null,
+        avatarUrl: resolveMemberAvatarUrl(member, 256) ?? profile?.avatarUrl ?? resolveUserAvatarUrl(user, 256),
         bannerUrl: profile?.bannerUrl ?? null,
         accentColor: profile?.accentColor ?? user?.accentColor ?? null,
         locale: profile?.locale ?? null,
