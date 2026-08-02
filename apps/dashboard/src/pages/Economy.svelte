@@ -14,6 +14,8 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
+  import EconomyPresetPicker from '../lib/components/EconomyPresetPicker.svelte';
+  import { findEconomyPreset, type EconomyPreset, type EconomyPresetValues } from '../lib/economyPresets';
   import {
     fetchEconomyConfig,
     updateEconomyConfig,
@@ -28,12 +30,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  const economyTabs = ['config', 'items', 'players'] as const;
-  let activeTab = $state('config');
+  const economyTabs = ['accueil', 'config', 'items', 'players'] as const;
+  const DEFAULT_TAB = 'accueil';
+  let activeTab = $state(DEFAULT_TAB);
 
   $effect(() => {
     const _path = $router.path;
-    activeTab = resolveTabFromUrl('/economy', economyTabs, 'config');
+    activeTab = resolveTabFromUrl('/economy', economyTabs, DEFAULT_TAB);
   });
 
   const canManageSettings = $derived(
@@ -104,9 +107,43 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     }, { successMessage: m.eco_toast_reset_success() });
   }
 
+  // Rythmes de la page d'accueil : ils ne touchent qu'aux gains et a l'energie.
+  // Le nom de la monnaie et les modules RPG, boutique et guildes restent a
+  // regler dans les onglets, un rythme n'ayant aucun moyen de les deviner.
+  const selectedPreset = $derived(findEconomyPreset(config));
+  const activePreset = $derived(findEconomyPreset(savedConfig));
+  const configDirty = $derived(JSON.stringify(config) !== JSON.stringify(savedConfig));
+
+  function economyValuesOf(source: typeof config): EconomyPresetValues {
+    return {
+      dailyRewardMin: source.dailyRewardMin,
+      dailyRewardMax: source.dailyRewardMax,
+      dailyCooldownHour: source.dailyCooldownHour,
+      adventureCooldownMin: source.adventureCooldownMin,
+      maxEnergy: source.maxEnergy,
+      energyRecoveryPerHour: source.energyRecoveryPerHour,
+    };
+  }
+
+  // Des qu'un rythme est choisi, la configuration courante est la sienne : la
+  // carte « Personnalise » doit alors montrer la configuration enregistree,
+  // sans quoi elle devient le sosie de la carte qu'on vient de cliquer.
+  const customPresetValues = $derived(economyValuesOf(selectedPreset ? savedConfig : config));
+
+  function applyEconomyPreset(preset: EconomyPreset) {
+    if (!canManageSettings) return;
+    Object.assign(config, preset.values);
+  }
+
+  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
+  // configuration en place, elle ouvre juste les onglets.
+  function openPresetDetail() {
+    gotoTab('/economy', 'config', DEFAULT_TAB);
+  }
+
   // Unsaved changes tracker
   $effect(() => {
-    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+    const dirty = configDirty;
     if (dirty && canManageSettings) {
       untrack(() => {
         unsavedChanges.register({
@@ -292,6 +329,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 >
   {#snippet actions()}
     {#if !loading}
+      <button
+        type="button"
+        onclick={() => gotoTab('/economy', activeTab === 'accueil' ? 'config' : 'accueil', DEFAULT_TAB)}
+        class="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 transition-all"
+      >
+        <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
+        {activeTab === 'accueil' ? m.eco_presets_open_advanced() : m.eco_presets_back()}
+        {#if activeTab === 'accueil'}
+          <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
+        {/if}
+      </button>
       <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
         <span class="text-xs font-bold text-on-surface-variant/80">{m.eco_module_status()}</span>
         <ToggleSwitch
@@ -308,35 +356,51 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <InlineFeedback state={actionState} />
 
   <!-- Navigation Tabs -->
+  {#if activeTab !== 'accueil'}
   <div class="tab-group w-fit">
     <button 
-      onclick={() => gotoTab('/economy', 'config', 'config')}
+      onclick={() => gotoTab('/economy', 'config', DEFAULT_TAB)}
       class="tab-button {activeTab === 'config' ? 'active' : ''}"
     >
       <Papicon icon="settings" size={14} />
       {m.eco_tab_config()}
     </button>
     <button
-      onclick={() => gotoTab('/economy', 'items', 'config')}
+      onclick={() => gotoTab('/economy', 'items', DEFAULT_TAB)}
       class="tab-button {activeTab === 'items' ? 'active' : ''}"
     >
       <Papicon icon="package" size={14} />
       {m.eco_tab_items()}
     </button>
     <button
-      onclick={() => gotoTab('/economy', 'players', 'config')}
+      onclick={() => gotoTab('/economy', 'players', DEFAULT_TAB)}
       class="tab-button {activeTab === 'players' ? 'active' : ''}"
     >
       <Papicon icon="users" size={14} />
       {m.eco_tab_players()}
     </button>
   </div>
+  {/if}
 
   {#if loading}
     <Skeleton height="350px" radius="2.5rem" />
     <div class="flex justify-center mt-4">
       <LoadingHint context="config" />
     </div>
+  {:else if activeTab === 'accueil'}
+    <EconomyPresetPicker
+      selectedId={selectedPreset?.id ?? null}
+      activeId={activePreset?.id ?? null}
+      customValues={customPresetValues}
+      currencyName={config.currencyName}
+      disabled={!canManageSettings}
+      dirty={configDirty}
+      saving={actionState.state.loading}
+      moduleEnabled={config.enabled}
+      onselect={applyEconomyPreset}
+      onsave={handleSaveConfig}
+      ondetail={openPresetDetail}
+    />
   {:else}
     <!-- Tab 1: Configuration -->
     {#if activeTab === 'config'}
