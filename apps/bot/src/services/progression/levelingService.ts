@@ -103,14 +103,6 @@ export async function getOrCreateLevelConfig(guildId: string) {
       create: { id: guildId },
     });
 
-    // `resolveGuildLocale` n'est pas utilisable ici : son repli est l'anglais,
-    // et sans client Discord a ce niveau, sa deuxieme marche - la langue
-    // declaree du serveur - est hors de portee. Tous les serveurs restes en
-    // detection automatique tomberaient donc en anglais, alors que le modele
-    // qu'ils recevaient jusqu'ici etait francais.
-    const guild = await getCachedGuild(guildId);
-    const locale = guild?.language === 'en' ? 'en' : 'fr';
-
     config = await prisma.levelConfig.create({
       data: {
         guildId,
@@ -119,10 +111,11 @@ export async function getOrCreateLevelConfig(guildId: string) {
         xpMax: 25,
         cooldownSeconds: 60,
         vocalXpPerMin: 5,
-        // `{user}` et `{level}` sont les jetons du modele, pas des valeurs a
-        // substituer : ils traversent la traduction tels quels pour finir en
-        // base, ou le bot les remplacera a chaque montee de niveau.
-        levelUpMessage: m.leveling_levelup_default_message({ user: '{user}', level: '{level}' }, { locale }),
+        // Vide, et non un texte fige : le message par defaut est compose a
+        // l'envoi, dans la langue du serveur a ce moment-la. Un texte ecrit ici
+        // resterait dans la langue du jour de la creation, meme apres un
+        // passage du bot en anglais.
+        levelUpMessage: '',
         stackRewards: false,
         ignoredChannels: [],
         ignoredRoles: [],
@@ -1109,18 +1102,22 @@ async function processLevelUp(
     // Cette phrase est collée au modèle de l'admin sans qu'il puisse la
     // toucher : elle suit donc la langue du serveur, sinon un serveur
     // anglophone qui traduit son message garde une phrase française au bout.
-    let coinRewardText = '';
-    if (coinReward) {
-      const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
-      coinRewardText = ` ${m.leveling_coin_reward({
-        amount: coinReward.amount,
-        emoji: coinReward.currencyEmoji,
-        currency: coinReward.currencyName,
-      }, { locale })}`;
-    }
+    const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+    const coinRewardText = coinReward
+      ? ` ${m.leveling_coin_reward({
+          amount: coinReward.amount,
+          emoji: coinReward.currencyEmoji,
+          currency: coinReward.currencyName,
+        }, { locale })}`
+      : '';
 
     // 2. Envoi du message de félicitations
-    const msgTemplate = config.levelUpMessage;
+    //
+    // Un message vide veut dire « celui par defaut », jamais « n'annonce
+    // rien » : il est alors compose maintenant, dans la langue du serveur, et
+    // suit donc le bot si celui-ci change de langue plus tard.
+    const msgTemplate = config.levelUpMessage?.trim()
+      || m.leveling_levelup_default_message({ user: '{user}', level: '{level}' }, { locale });
     const msg = msgTemplate
       .replace(/{user}/g, `<@${userId}>`)
       .replace(/{username}/g, member.user.username)

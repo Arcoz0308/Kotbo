@@ -3215,6 +3215,7 @@
   "lv_err_create_channel": "Erreur lors de la création du salon",
   "lv_select_placeholder": "— Sélectionner —",
   "lv_levelup_message": "Message de Level-Up",
+  "lv_levelup_message_hint": "Laissez vide pour le message par défaut, écrit dans la langue du serveur.",
   "lv_levelup_message_ph": "Ex: Bravo {user} ! Tu es niveau {level} !",
   "lv_variables_label": "Variables utilisables :",
   "lv_variables_mention": "(mention)",

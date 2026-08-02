@@ -3215,6 +3215,7 @@
   "lv_err_create_channel": "Error while creating the channel",
   "lv_select_placeholder": "— Select —",
   "lv_levelup_message": "Level-up message",
+  "lv_levelup_message_hint": "Leave empty for the default message, written in the server language.",
   "lv_levelup_message_ph": "e.g. Well done {user}! You reached level {level}!",
   "lv_variables_label": "Available variables:",
   "lv_variables_mention": "(mention)",
