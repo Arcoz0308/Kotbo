@@ -4236,6 +4236,7 @@
   "nm_bypass_removed": "Exemption for member {id} removed.",
   "nm_bypass_restored": "Exemption for member {id} restored.",
   "nm_activation": "Activation",
+  "nm_safe_nickname": "non-compliant nickname | automod",
   "nm_activation_desc_1": "When enabled, the bot checks nicknames on join and on change. A non-compliant nickname is replaced with",
   "nm_activation_desc_2": "Discord check command:",
   "nm_watches": "What the bot watches",

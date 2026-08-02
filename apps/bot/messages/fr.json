@@ -1777,5 +1777,14 @@
   "rpg_inventory_field_materials": "🧱 Matériaux (artisanat)",
   "rpg_shop_type_accessory": "💍 Accessoires",
   "rpg_shop_stat_spd": " · 💨 +{v} VIT",
-  "rpg_shop_stat_maxhp": " · ❤️ +{v} PV max"
+  "rpg_shop_stat_maxhp": " · ❤️ +{v} PV max",
+  "nickmod_safe_nickname": "pseudo non conforme | automod",
+  "nickmod_rename_reason": "Automod : pseudo non conforme - original : \"{original}\"",
+  "nickmod_log_title_auto": "Pseudo non conforme | Automod",
+  "nickmod_log_title_rescan": "Pseudo non conforme | Rescan",
+  "nickmod_log_member": "Membre",
+  "nickmod_log_original": "Pseudo original",
+  "nickmod_log_applied": "Pseudo appliqué",
+  "nickmod_log_footer_auto": "Automod | Modération des pseudos",
+  "nickmod_log_footer_rescan": "Automod | Rescan des pseudos"
 }
