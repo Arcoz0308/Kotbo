@@ -381,8 +381,9 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         // langue du serveur : la mise en route doit laisser des champs remplis
         // et modifiables. Ceux qu'il a ecrits ne sont jamais touches.
         const { ticketDefaultTexts } = await import('../../../../services/features/ticketService.js');
+        const currentTexts = guildConfig as Record<string, unknown> | null;
         for (const [field, text] of Object.entries(ticketDefaultTexts(locale))) {
-          const current = guildConfig?.[field as keyof typeof guildConfig];
+          const current = currentTexts?.[field];
           if (typeof current !== 'string' || !current.trim()) {
             (data as Record<string, string>)[field] = text;
           }

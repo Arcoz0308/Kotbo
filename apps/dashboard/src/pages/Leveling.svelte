@@ -337,8 +337,14 @@
       // par defaut est depose au meme moment, la reponse le porte.
       config.levelUpChannelId = res.channelId;
       savedConfig.levelUpChannelId = res.channelId;
-      config.levelUpMessage = res.levelUpMessage ?? config.levelUpMessage;
-      savedConfig.levelUpMessage = config.levelUpMessage;
+
+      // `savedConfig` prend ce que la base contient maintenant. Le champ, lui,
+      // n'est rempli que s'il etait vide : un texte en cours de saisie, pas
+      // encore enregistre, ne doit pas disparaitre sous le clic.
+      savedConfig.levelUpMessage = res.levelUpMessage ?? savedConfig.levelUpMessage;
+      if (!config.levelUpMessage?.trim()) {
+        config.levelUpMessage = savedConfig.levelUpMessage;
+      }
       return true;
     }, { successMessage: m.lv_channel_created() });
   }
