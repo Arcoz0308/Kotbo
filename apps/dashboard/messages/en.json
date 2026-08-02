@@ -7434,6 +7434,7 @@
   "e1_tickets_field_log_channel": "Logs / transcripts channel",
   "e1_tickets_field_staff_role": "Default support staff role",
   "e1_tickets_field_dm_relay": "Direct message relay channel (DM mode)",
+  "e1_tickets_missing_ref": "Not found on the server: deleted, or no longer visible to the bot. This module will not work while it points here.",
   "e1_tickets_select_ph": "Select",
   "e1_tickets_select_channel_ph": "Select a channel",
   "e1_tickets_overclaim_label": "Allow overclaiming",

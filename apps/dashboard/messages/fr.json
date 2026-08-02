@@ -7434,6 +7434,7 @@
   "e1_tickets_field_log_channel": "Salon des logs / transcripts",
   "e1_tickets_field_staff_role": "Rôle Staff Support par défaut",
   "e1_tickets_field_dm_relay": "Salon de relais des messages privés (Mode MP)",
+  "e1_tickets_missing_ref": "Introuvable sur le serveur : supprimé, ou plus visible du bot. Ce module ne fonctionnera pas tant qu'il pointe dessus.",
   "e1_tickets_select_ph": "Sélectionner",
   "e1_tickets_select_channel_ph": "Sélectionner un salon",
   "e1_tickets_overclaim_label": "Autoriser la sur-revendication",

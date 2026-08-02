@@ -278,6 +278,19 @@
   const discordCategories = $derived(dashboardStore.state.discordCategories || []);
   const discordRoles = $derived(dashboardStore.state.discordRoles || []);
 
+  /**
+   * Une reference enregistree qui ne correspond a plus rien dans la liste : le
+   * salon ou le role a ete supprime, ou le bot ne le voit plus. Le selecteur ne
+   * peut pas le dire - faute de retrouver la valeur dans ses options, il affiche
+   * son texte d'invite comme s'il etait vide, alors que la valeur est toujours
+   * la et sera reenregistree telle quelle.
+   *
+   * Une liste vide veut dire « pas encore chargee », pas « reference perdue ».
+   */
+  function isMissingReference(id: string, options: Array<{ id: string }>): boolean {
+    return !!id && options.length > 0 && !options.some((option) => option.id === id);
+  }
+
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();
   const setupAction = createAsyncActionState();
@@ -1516,22 +1529,37 @@
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_category()}</span>
                 <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketCategoryId, discordCategories)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_panel_channel()}</span>
                 <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_log_channel()}</span>
                 <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketLogChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_staff_role()}</span>
                 <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketStaffRoleId, discordRoles)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block col-span-1 md:col-span-2">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_dm_relay()}</span>
                 <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_channel_ph()} className="w-full" />
+                {#if isMissingReference(ticketDmRelayChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
             </div>
 
