@@ -14,6 +14,10 @@ export async function updateLevelingConfig(config, guildId = authStore.selectedG
   return dashboardRequest('/leveling', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Leveling):' });
 }
 
+export async function createLevelUpChannel(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling/level-up-channel', { method: 'POST', guildId, silent: true, errorContext: 'API Error (Create Level-Up Channel):' });
+}
+
 export async function fetchLevelingRoleResync(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/leveling/role-resync', { method: 'GET', guildId, silent: true, errorContext: 'API Error (Role Resync):' });
 }

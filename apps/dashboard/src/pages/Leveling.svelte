@@ -36,7 +36,8 @@
     fetchLevelingRoleResync,
     runLevelingRoleResync,
     updateLevelingConfig,
-    addLevelingReward, 
+    createLevelUpChannel,
+    addLevelingReward,
     deleteLevelingReward,
     importLevelingData,
     fetchClansData,
@@ -52,6 +53,7 @@
 
   const saveAction = createAsyncActionState();
   const rewardAction = createAsyncActionState();
+  const createChannelAction = createAsyncActionState();
   let loading = $state(false);
   // 'config' a disparu au profit d'onglets thematiques. Il n'est pas conserve
   // comme alias : `resolveTabFromUrl` renvoie l'onglet par defaut pour tout
@@ -148,6 +150,12 @@
   // Saved versions for dirty checking
   let savedClanRewardXpBoost = $state(false);
   let savedClanRewardXpBoostRate = $state(1.2);
+
+  // `levelUpChannelId` vaut aussi vide (salon d'origine) ou `DM` : dans ces
+  // deux cas aucun salon n'est designe, et en proposer un a creer a un sens.
+  const levelUpChannelSelected = $derived(
+    !!config.levelUpChannelId && config.levelUpChannelId !== 'DM'
+  );
 
   const configDirty = $derived(
     JSON.stringify(config) !== JSON.stringify(savedConfig)
@@ -290,6 +298,21 @@
       loading = false;
     }
   });
+
+  async function handleCreateLevelUpChannel() {
+    if (!canManageSettings) return;
+    await createChannelAction.run(async () => {
+      const res = await createLevelUpChannel();
+      if (!res?.channelId) throw new Error(m.lv_err_create_channel());
+
+      // Le salon est deja enregistre cote serveur : `savedConfig` suit, sinon
+      // la page se croirait modifiee par un changement deja en base.
+      config.levelUpChannelId = res.channelId;
+      savedConfig.levelUpChannelId = res.channelId;
+      await dashboardStore.refresh();
+      return true;
+    }, { successMessage: m.lv_channel_created() });
+  }
 
   async function handleSaveConfig(): Promise<boolean> {
     if (!canManageSettings) return false;
@@ -1956,6 +1979,21 @@
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
+            {#if canManageSettings && !levelUpChannelSelected}
+              <div class="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onclick={handleCreateLevelUpChannel}
+                  disabled={createChannelAction.state.loading}
+                  class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high/40 border border-outline-variant/10 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
+                >
+                  <Papicon icon="sparkles" size={13} />
+                  {createChannelAction.state.loading ? m.lv_creating_channel() : m.lv_create_channel()}
+                </button>
+                <span class="text-[10px] text-on-surface-variant/50">{m.lv_create_channel_hint()}</span>
+              </div>
+            {/if}
+            <InlineFeedback state={createChannelAction} />
           </div>
 
           <div class="space-y-1.5">

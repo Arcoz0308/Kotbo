@@ -280,6 +280,7 @@
 
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();
+  const setupAction = createAsyncActionState();
   const renameAction = createAsyncActionState();
 
   function createTicketTypeDraft(index = 0, legacy?: any) {
@@ -834,6 +835,37 @@
       return true;
     }, { successMessage: m.e1_tickets_config_saved() });
     return success;
+  }
+
+  async function runTicketSetup() {
+    if (!(await confirmDialog.ask({
+      title: m.e1_tickets_confirm_setup_title(),
+      description: m.e1_tickets_confirm_setup_desc(),
+      confirmLabel: m.e1_tickets_confirm_setup_btn()
+    }))) return;
+
+    // `run` range l'erreur dans son etat au lieu de la relancer, et cette page
+    // n'affiche aucun InlineFeedback : sans ce relais, un refus de permission
+    // ou un delai d'attente ne se verrait nulle part.
+    const ok = await setupAction.run(async () => {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config/setup`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || m.e1_tickets_err_setup());
+
+      const created = (payload?.items ?? []).filter((item: any) => item.created).map((item: any) => `#${item.name}`);
+      toast.success(created.length > 0
+        ? m.e1_tickets_setup_created({ names: created.join(', ') })
+        : m.e1_tickets_setup_nothing());
+
+      await dashboardStore.refresh();
+      await loadTicketsAndConfig();
+      return true;
+    });
+
+    if (!ok) toast.error(setupAction.state.error || m.e1_tickets_err_setup());
   }
 
   // Send Panel to Discord
@@ -1440,14 +1472,24 @@
           <h3 class="text-lg font-semibold text-on-surface">{m.e1_tickets_config_title()}</h3>
           <p class="text-on-surface-variant text-xs mt-0.5">{m.e1_tickets_config_desc()}</p>
         </div>
-        <button
-          onclick={sendEmbedPanel}
-          disabled={sendEmbedAction.state.loading || !ticketChannelId}
-          class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
-        >
-          <Papicon icon="send" size={13} />
-          {sendEmbedAction.state.loading ? m.e1_tickets_sending() : m.e1_tickets_send_embed()}
-        </button>
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            onclick={runTicketSetup}
+            disabled={setupAction.state.loading}
+            class="px-4 py-2.5 bg-surface-container-high text-on-surface rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+          >
+            <Papicon icon="sparkles" size={13} />
+            {setupAction.state.loading ? m.e1_tickets_setup_running() : m.e1_tickets_setup()}
+          </button>
+          <button
+            onclick={sendEmbedPanel}
+            disabled={sendEmbedAction.state.loading || !ticketChannelId}
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+          >
+            <Papicon icon="send" size={13} />
+            {sendEmbedAction.state.loading ? m.e1_tickets_sending() : m.e1_tickets_send_embed()}
+          </button>
+        </div>
       </div>
 
       <!-- ─── Section 1: Salons & Rôles ──────────────────────────────────── -->
