@@ -57,7 +57,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     dailyCooldownHour: 20,
     adventureCooldownMin: 30,
     maxEnergy: 100,
-    energyRecoveryPerHour: 10
+    energyRecoveryPerHour: 10,
+    maxBetAmount: 1000,
+    maxDailyBets: 20,
+    maxTransferAmount: 5000,
+    transferCooldownMin: 15
   };
 
   // Configuration state
@@ -547,6 +551,40 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="space-y-1.5">
               <label for="energyRecovery" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_energy_recovery()}</label>
               <input id="energyRecovery" type="number" bind:value={config.energyRecoveryPerHour} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+            </div>
+          </div>
+        </div>
+
+        <!-- Les quatre plafonds que le bot applique deja aux jeux d'argent et
+             aux transferts : ils vivaient en base sans aucun ecran pour les
+             regler. -->
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit">
+          <div class="border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold">{m.eco_limits_title()}</h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1">{m.eco_limits_desc()}</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="space-y-1.5">
+              <label for="maxBet" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_max_bet()}</label>
+              <input id="maxBet" type="number" min="1" bind:value={config.maxBetAmount} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-[11px] text-on-surface-variant/40">{m.eco_max_bet_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="maxDailyBets" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_max_daily_bets()}</label>
+              <input id="maxDailyBets" type="number" min="0" bind:value={config.maxDailyBets} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="maxTransfer" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_max_transfer()}</label>
+              <input id="maxTransfer" type="number" min="1" bind:value={config.maxTransferAmount} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <p class="text-[11px] text-on-surface-variant/40">{m.eco_max_transfer_hint()}</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="transferCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">{m.eco_transfer_cd()}</label>
+              <input id="transferCd" type="number" min="0" bind:value={config.transferCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
           </div>
         </div>
