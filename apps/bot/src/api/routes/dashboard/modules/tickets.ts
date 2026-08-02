@@ -13,7 +13,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorRe
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
 
 export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
-  const { req, res, parts, url, client, user, guildId, access, method, moduleKey } = ctx;
+  const { req, res, parts, url, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
 
   // Tickets routes
   if (moduleKey === 'tickets') {
