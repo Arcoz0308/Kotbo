@@ -151,11 +151,33 @@
   let savedClanRewardXpBoost = $state(false);
   let savedClanRewardXpBoostRate = $state(1.2);
 
-  // `levelUpChannelId` vaut aussi vide (salon d'origine) ou `DM` : dans ces
-  // deux cas aucun salon n'est designe, et en proposer un a creer a un sens.
-  const levelUpChannelSelected = $derived(
-    !!config.levelUpChannelId && config.levelUpChannelId !== 'DM'
+  /**
+   * `levelUpChannelId` porte trois choix distincts : vide pour le salon
+   * d'origine, `DM` pour le message prive, un identifiant pour un salon. Le
+   * quatrieme etat n'en est pas un : l'identifiant enregistre ne designe plus
+   * aucun salon, le module annonce alors dans le vide.
+   */
+  const levelUpChannelState = $derived.by(() => {
+    const id = config.levelUpChannelId;
+    if (!id) return 'origin';
+    if (id === 'DM') return 'dm';
+    // Liste vide = pas encore chargee, ce qui n'est pas un salon disparu.
+    if (availableChannels.length > 0 && !availableChannels.some((c: any) => c.id === id)) return 'missing';
+    return 'channel';
+  });
+
+  /**
+   * Creer un salon n'a de sens que quand aucun ne tient le role. Le message
+   * prive en est exclu : c'est un choix delibere, pas un reglage a completer.
+   */
+  const canCreateLevelUpChannel = $derived(
+    levelUpChannelState === 'origin' || levelUpChannelState === 'missing'
   );
+
+  const levelUpChannelLabel = $derived.by(() => {
+    const channel = availableChannels.find((c: any) => c.id === config.levelUpChannelId);
+    return channel ? channelDisplayName(channel) : (config.levelUpChannelId ?? '');
+  });
 
   const configDirty = $derived(
     JSON.stringify(config) !== JSON.stringify(savedConfig)
@@ -305,11 +327,15 @@
       const res = await createLevelUpChannel();
       if (!res?.channelId) throw new Error(m.lv_err_create_channel());
 
+      // La liste des salons d'abord : le champ pointerait sinon sur un salon
+      // qu'elle ne connait pas encore, et la page afficherait son identifiant
+      // brut le temps du rafraichissement.
+      await dashboardStore.refresh();
+
       // Le salon est deja enregistre cote serveur : `savedConfig` suit, sinon
       // la page se croirait modifiee par un changement deja en base.
       config.levelUpChannelId = res.channelId;
       savedConfig.levelUpChannelId = res.channelId;
-      await dashboardStore.refresh();
       return true;
     }, { successMessage: m.lv_channel_created() });
   }
@@ -982,6 +1008,7 @@
 
   <InlineFeedback state={saveAction} />
   <InlineFeedback state={rewardAction} />
+  <InlineFeedback state={createChannelAction} />
 
   <!-- Navigation par onglets -->
   {#if activeTab !== 'accueil'}
@@ -1042,18 +1069,58 @@
       <Skeleton height="250px" radius="2.5rem" />
     </div>
   {:else if activeTab === 'accueil'}
-    <LevelingPresetPicker
-      selectedId={selectedPreset?.id ?? null}
-      activeId={activePreset?.id ?? null}
-      customValues={customPresetValues}
-      disabled={!canManageSettings}
-      dirty={configDirty}
-      saving={saveAction.state.loading}
-      moduleEnabled={config.enabled}
-      onselect={applyLevelingPreset}
-      onsave={handleSaveConfig}
-      ondetail={openPresetDetail}
-    />
+    <div class="space-y-8">
+      <LevelingPresetPicker
+        selectedId={selectedPreset?.id ?? null}
+        activeId={activePreset?.id ?? null}
+        customValues={customPresetValues}
+        disabled={!canManageSettings}
+        dirty={configDirty}
+        saving={saveAction.state.loading}
+        moduleEnabled={config.enabled}
+        onselect={applyLevelingPreset}
+        onsave={handleSaveConfig}
+        ondetail={openPresetDetail}
+      />
+
+      <!-- Un rythme choisi ne dit pas encore ou les montees de niveau
+           s'annoncent : la carte porte cette derniere etape la ou l'oeil
+           arrive, au lieu de la laisser au fond de l'onglet Notifications. -->
+      {#if canManageSettings}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Papicon icon="Bell" size={18} />
+            </div>
+            <div class="space-y-0.5">
+              <p class="text-sm font-semibold text-on-surface">{m.lv_setup_channel_title()}</p>
+              <p class="text-[13px] text-on-surface-variant/70">
+                {#if levelUpChannelState === 'channel'}
+                  {m.lv_setup_channel_done({ channel: levelUpChannelLabel })}
+                {:else if levelUpChannelState === 'dm'}
+                  {m.lv_setup_channel_dm()}
+                {:else if levelUpChannelState === 'missing'}
+                  {m.lv_setup_channel_missing()}
+                {:else}
+                  {m.lv_setup_channel_desc()}
+                {/if}
+              </p>
+            </div>
+          </div>
+          {#if canCreateLevelUpChannel}
+            <button
+              type="button"
+              onclick={handleCreateLevelUpChannel}
+              disabled={createChannelAction.state.loading}
+              class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+            >
+              <Papicon icon="sparkles" size={16} />
+              {createChannelAction.state.loading ? m.lv_creating_channel() : m.lv_create_channel()}
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
   {:else if activeTab === 'gains'}
     <!-- === ONGLET GAINS D'XP === -->
     <div class="space-y-8 animate-in fade-in duration-300">
@@ -1979,7 +2046,7 @@
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
-            {#if canManageSettings && !levelUpChannelSelected}
+            {#if canManageSettings && canCreateLevelUpChannel}
               <div class="flex items-center gap-3 pt-1">
                 <button
                   type="button"
@@ -1993,7 +2060,6 @@
                 <span class="text-[10px] text-on-surface-variant/50">{m.lv_create_channel_hint()}</span>
               </div>
             {/if}
-            <InlineFeedback state={createChannelAction} />
           </div>
 
           <div class="space-y-1.5">
