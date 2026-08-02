@@ -5,6 +5,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { isMissingReference } from '../lib/discordReferences';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
@@ -278,18 +279,6 @@
   const discordCategories = $derived(dashboardStore.state.discordCategories || []);
   const discordRoles = $derived(dashboardStore.state.discordRoles || []);
 
-  /**
-   * Une reference enregistree qui ne correspond a plus rien dans la liste : le
-   * salon ou le role a ete supprime, ou le bot ne le voit plus. Le selecteur ne
-   * peut pas le dire - faute de retrouver la valeur dans ses options, il affiche
-   * son texte d'invite comme s'il etait vide, alors que la valeur est toujours
-   * la et sera reenregistree telle quelle.
-   *
-   * Une liste vide veut dire « pas encore chargee », pas « reference perdue ».
-   */
-  function isMissingReference(id: string, options: Array<{ id: string }>): boolean {
-    return !!id && options.length > 0 && !options.some((option) => option.id === id);
-  }
 
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();

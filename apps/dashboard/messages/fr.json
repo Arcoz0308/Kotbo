@@ -3164,7 +3164,6 @@
   "lv_role_resync_progress": "{done} sur {total} membres traités",
   "lv_reward_impact_title": "Rôles de récompense qui changent de main :",
   "lv_reward_impact_desc": "+ attribués, − retirés. Chaque membre reçoit ses rôles à son prochain gain d'XP ; le rangement ci-dessous les applique tout de suite.",
-  "lv_missing_ref": "Introuvable",
   "lv_missing_ref_hint": "Supprimé du serveur, ou plus visible du bot. Ce réglage ne s'applique plus à personne.",
   "lv_reward_unreachable": "Hors d'atteinte",
   "lv_reward_unreachable_hint": "Le niveau maximum du serveur est {level} : cette récompense ne sera jamais attribuée.",

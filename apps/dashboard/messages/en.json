@@ -3164,7 +3164,6 @@
   "lv_role_resync_progress": "{done} of {total} members done",
   "lv_reward_impact_title": "Reward roles changing hands:",
   "lv_reward_impact_desc": "+ granted, − removed. Each member gets their roles on their next XP gain; the panel below applies them right away.",
-  "lv_missing_ref": "Not found",
   "lv_missing_ref_hint": "Deleted from the server, or no longer visible to the bot. This setting no longer applies to anyone.",
   "lv_reward_unreachable": "Out of reach",
   "lv_reward_unreachable_hint": "The server's maximum level is {level}: this reward will never be granted.",

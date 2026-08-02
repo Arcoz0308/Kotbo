@@ -1,5 +1,6 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
+  import { isMissingReference } from '../lib/discordReferences';
   import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
@@ -423,16 +424,6 @@
     }
   }
 
-  /**
-   * Une reference enregistree qui ne correspond a plus rien : salon ou role
-   * supprime, ou devenu invisible au bot. Le reglage reste en base et sera
-   * reenregistre tel quel, alors qu'il ne s'applique plus a personne.
-   *
-   * Une liste vide veut dire « pas encore chargee », pas « reference perdue ».
-   */
-  function isMissingReference(id: string, options: Array<{ id: string }>): boolean {
-    return !!id && options.length > 0 && !options.some((option) => option.id === id);
-  }
 
   function getRoleName(roleId: string) {
     const role = availableRoles.find(r => r.id === roleId);
@@ -1573,15 +1564,11 @@
 
                   {#each Object.entries(config.xpMultipliers) as [roleId, mult]}
                     <tr class="hover:bg-surface-hover/20 transition-all font-semibold">
-                      <td class="px-6 py-3.5 text-sm font-semibold">
-                        {getRoleName(roleId)}
-                        {#if isMissingReference(roleId, availableRoles)}
-                          <span
-                            class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold align-middle"
-                            title={m.lv_missing_ref_hint()}
-                          >{m.lv_missing_ref()}</span>
-                        {/if}
-                      </td>
+                      {@const missing = isMissingReference(roleId, availableRoles)}
+                      <td
+                        class="px-6 py-3.5 text-sm font-semibold {missing ? 'text-amber-600 dark:text-amber-400' : ''}"
+                        title={missing ? m.lv_missing_ref_hint() : undefined}
+                      >{getRoleName(roleId)}</td>
                       <td class="px-6 py-3.5 text-sm font-semibold text-primary">{mult}x</td>
                       {#if canManageSettings}
                         <td class="px-6 py-3.5 text-right">
@@ -2043,15 +2030,11 @@
                       >{m.lv_reward_unreachable()}</span>
                     {/if}
                   </td>
-                  <td class="px-5 py-4 text-xs font-semibold">
-                    {getRoleName(reward.roleId)}
-                    {#if isMissingReference(reward.roleId, availableRoles)}
-                      <span
-                        class="ml-2 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold align-middle"
-                        title={m.lv_missing_ref_hint()}
-                      >{m.lv_missing_ref()}</span>
-                    {/if}
-                  </td>
+                  {@const missingRole = isMissingReference(reward.roleId, availableRoles)}
+                  <td
+                    class="px-5 py-4 text-xs font-semibold {missingRole ? 'text-amber-600 dark:text-amber-400' : ''}"
+                    title={missingRole ? m.lv_missing_ref_hint() : undefined}
+                  >{getRoleName(reward.roleId)}</td>
                   {#if canManageSettings}
                     <td class="px-5 py-4 text-right">
                       <button 
