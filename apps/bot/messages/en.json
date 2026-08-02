@@ -1660,6 +1660,8 @@
   "panel_tickets_default_footer": "Kotbo • Ticket system",
   "panel_tickets_types_heading": "**Ticket types**",
   "panel_tickets_select_placeholder": "Select a ticket type...",
+  "leveling_coin_reward": "You also earned **{amount}** {emoji} **{currency}**!",
+  "leveling_levelup_default_message": "Congratulations {user}! You reached level **{level}**! 🎉",
   "setup_channel_tickets_category": "Tickets",
   "setup_channel_tickets_panel": "open-a-ticket",
   "setup_channel_tickets_logs": "ticket-logs",
