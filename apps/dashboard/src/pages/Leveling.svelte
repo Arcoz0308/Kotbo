@@ -1085,7 +1085,7 @@
 
       <!-- Un rythme choisi ne dit pas encore ou les montees de niveau
            s'annoncent : la carte porte cette derniere etape la ou l'oeil
-           arrive, au lieu de la laisser au fond de l'onglet Notifications. -->
+           arrive, au lieu de la laisser au fond de l'onglet Annonces. -->
       {#if canManageSettings}
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
           <div class="flex items-start gap-3">
@@ -1097,6 +1097,15 @@
               <p class="text-[13px] text-on-surface-variant/70">
                 {#if levelUpChannelState === 'channel'}
                   {m.lv_setup_channel_done({ channel: levelUpChannelLabel })}
+                  <!-- Le nom de l'onglet vient de sa propre traduction : le lien
+                       et la barre d'onglets ne peuvent pas se contredire. -->
+                  <button
+                    type="button"
+                    onclick={() => gotoTab('/leveling', 'annonces', DEFAULT_TAB)}
+                    class="text-primary font-medium hover:underline"
+                  >
+                    {m.lv_setup_channel_change({ tab: m.lv_tab_announcements() })}
+                  </button>
                 {:else if levelUpChannelState === 'dm'}
                   {m.lv_setup_channel_dm()}
                 {:else if levelUpChannelState === 'missing'}
