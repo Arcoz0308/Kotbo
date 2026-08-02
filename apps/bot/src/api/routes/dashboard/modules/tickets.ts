@@ -3,8 +3,11 @@ import { cache } from '../../../../utils/cache.js';
 import prisma from '../../../../utils/db.js';
 import { COLORS, successEmbed } from '../../../../utils/embeds.js';
 import { errorMessage, errorStack } from '../../../../utils/errors.js';
+import { resolveGuildLocale } from '../../../../utils/i18n.js';
 import { logger } from '../../../../utils/logger.js';
-import { extractMediaUrls, getGuildName, json, parseDiscordMarkdown, readJsonBody } from '../../../shared.js';
+import * as m from '../../../../lib/paraglide/messages.js';
+import { extractMediaUrls, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody } from '../../../shared.js';
+import { type ProvisionedEntry, acquireProvisionLock, ensureCategory, ensureTextChannel, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../../services/core/channelProvisioningService.js';
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
@@ -302,6 +305,166 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error sending ticket setup embed: ${errorMessage(err)}`);
         json(res, 500, { error: errorMessage(err) || "Erreur lors de l'envoi de l'embed" });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/config/setup
+    if (parts.length === 7 && parts[5] === 'config' && parts[6] === 'setup' && method === 'POST') {
+      if (access.level !== 'admin') {
+        json(res, 403, { error: 'Seuls les administrateurs peuvent mettre le module en route.' });
+        return true;
+      }
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      if (!discordGuild) {
+        json(res, 404, { error: 'Serveur Discord introuvable.' });
+        return true;
+      }
+
+      const lockKey = `tickets:${guildId}`;
+      if (!acquireProvisionLock(lockKey)) {
+        json(res, 409, { error: 'Une mise en route est déjà en cours sur ce serveur.' });
+        return true;
+      }
+
+      const items: ProvisionedEntry[] = [];
+      const data: Prisma.GuildUpdateInput = {};
+      // Ecrits au fil de l'eau : si une creation echoue en cours de route, la
+      // tentative suivante reprend ce qui existe deja au lieu de le dupliquer.
+      const persist = async () => {
+        if (Object.keys(data).length > 0) {
+          await prisma.guild.update({ where: { id: guildId }, data });
+        }
+      };
+
+      try {
+        const cooldown = await provisionCooldown(lockKey);
+        if (cooldown) {
+          json(res, 429, { error: provisionCooldownMessage(cooldown, 'La mise en route a déjà été lancée') });
+          return true;
+        }
+
+        const guildConfig = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            ticketCategoryId: true,
+            ticketChannelId: true,
+            ticketLogChannelId: true,
+          }
+        });
+
+        const missing = await missingProvisionPermissions(discordGuild, [PermissionFlagsBits.ManageChannels]);
+        if (missing.length > 0) {
+          json(res, 400, { error: `Le bot n'a pas les permissions nécessaires : ${missing.join(', ')}.` });
+          return true;
+        }
+
+        // Les salons crees portent le nom dans la langue du serveur : ils sont
+        // lus par ses membres, pas par l'admin qui clique depuis le dashboard.
+        // Le motif inscrit au journal d'audit Discord la suit pour la meme
+        // raison, c'est le serveur qui le relit.
+        const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+        const reason = m.setup_reason_tickets({ user: auditUser }, { locale });
+
+        const everyoneId = discordGuild.roles.everyone.id;
+        // Le refus pose sur @everyone s'applique aussi au bot : sans surcharge a
+        // son nom, il ne verrait pas la categorie ni les tickets ouverts dedans
+        // des lors qu'il n'est pas administrateur du serveur.
+        const botId = discordGuild.members.me?.id;
+        const botOverwrite: OverwriteResolvable[] = botId
+          ? [{
+              id: botId,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.ManageChannels,
+              ]
+            }]
+          : [];
+
+        // Fermee : c'est elle qui rend prives les salons de ticket ouverts
+        // dedans, chacun n'etant rouvert qu'a son auteur et au staff.
+        const category = await ensureCategory(discordGuild, {
+          key: 'category',
+          existingId: guildConfig?.ticketCategoryId,
+          name: m.setup_channel_tickets_category({}, { locale }),
+          permissionOverwrites: [
+            { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] },
+            ...botOverwrite,
+          ],
+          reason,
+        });
+        items.push(category.entry);
+        if (category.entry.created) data.ticketCategoryId = category.channel.id;
+
+        // Seul salon de la categorie a etre rouvert a tous : ses propres
+        // surcharges priment sur celles de la categorie, qui reste fermee.
+        const panel = await ensureTextChannel(discordGuild, {
+          key: 'panelChannel',
+          existingId: guildConfig?.ticketChannelId,
+          name: m.setup_channel_tickets_panel({}, { locale }),
+          parentId: category.channel.id,
+          permissionOverwrites: [
+            {
+              id: everyoneId,
+              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+              deny: [PermissionFlagsBits.SendMessages],
+            },
+            ...botOverwrite,
+          ],
+          reason,
+        });
+        items.push(panel.entry);
+        if (panel.entry.created) data.ticketChannelId = panel.channel.id;
+
+        const logs = await ensureTextChannel(discordGuild, {
+          key: 'logChannel',
+          existingId: guildConfig?.ticketLogChannelId,
+          name: m.setup_channel_tickets_logs({}, { locale }),
+          parentId: category.channel.id,
+          reason,
+        });
+        items.push(logs.entry);
+        if (logs.entry.created) data.ticketLogChannelId = logs.channel.id;
+
+        await persist();
+
+        // Seulement sur un salon qu'on vient de creer : le renvoyer dans un
+        // salon existant y empilerait un second panel.
+        let panelSent = false;
+        if (panel.entry.created) {
+          const { sendTicketSetupEmbed } = await import('../../../../services/features/ticketService.js');
+          await sendTicketSetupEmbed(client, guildId);
+          panelSent = true;
+        }
+
+        // Arme apres l'envoi du panel : un echec a cette etape doit pouvoir
+        // etre repris tout de suite, la reprise par identifiant garantissant
+        // qu'aucun salon ne sera cree une seconde fois.
+        if (items.some(item => item.created)) {
+          await startProvisionCooldown(lockKey, auditUser);
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise en route tickets',
+          context: getGuildName(client, guildId),
+          module: 'Tickets',
+          eventType: 'Manuel',
+          details: `Créés : ${items.filter(i => i.created).map(i => i.name).join(', ') || 'aucun'}. Repris : ${items.filter(i => !i.created).map(i => i.name).join(', ') || 'aucun'}.`,
+          channelId: panel.channel.id,
+        });
+
+        await cache.invalidateGuild(guildId);
+        json(res, 200, { success: true, items, panelSent });
+      } catch (err: unknown) {
+        await persist().catch(() => null);
+        logger.error('TicketsAPI', `Error provisioning ticket module: ${errorMessage(err)}`, errorStack(err));
+        json(res, 500, { error: `Mise en route interrompue : ${errorMessage(err)}`, items });
+      } finally {
+        releaseProvisionLock(lockKey);
       }
       return true;
     }

@@ -182,10 +182,13 @@ export async function handleDashboardRoutes(
       }
 
       // Actions coûteuses ou irréversibles : enregistrement de réglages, clôture
-      // de semaine Daily Algo, remises à zéro et distributions de clans.
+      // de semaine Daily Algo, mise en route d'un module (qui crée des salons
+      // Discord), remises à zéro et distributions de clans.
       const isSensitiveWrite =
         (parts[4] === 'settings' && (method === 'PATCH' || method === 'PUT'))
         || (parts[4] === 'daily-algo-weeks' && parts[5] === 'close')
+        || (parts[4] === 'tickets' && parts[5] === 'config' && parts[6] === 'setup')
+        || (parts[4] === 'leveling' && parts[5] === 'level-up-channel')
         || (parts[4] === 'clans'
           && ['distribute', 'clear', 'reset-season', 'reset-all', 'rollback-season'].includes(parts[5] ?? ''));
 
