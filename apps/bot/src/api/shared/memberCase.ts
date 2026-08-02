@@ -24,6 +24,7 @@ import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { getCandidatureHistory } from '../../services/staff/recruitmentService.js';
 import * as altAccountService from '../../services/moderation/altAccountService.js';
 import { resolveMemberAvatarUrl, resolveUserAvatarUrl } from '../../services/moderation/memberIdentityService.js';
+import { getVerificationHistory } from '../../services/moderation/securityVerificationService.js';
 import { getCrossServerSanctionSummary, type CrossServerSanctionSummary } from '../../services/moderation/crossServerSanctionService.js';
 import { extractMessageId, extractMessagePreview, fetchMemberConnections, mapGuildRolePermissions, parseInviteFromDetails, safeIsoDate } from './core.js';
 import type { AuthClaims } from './core.js';
@@ -72,6 +73,46 @@ function resolveMemberDisplayLabel(
     ?? profile?.username
     ?? `Utilisateur ${userId}`
   );
+}
+
+/**
+ * Historique des demandes de vérification, sérialisé pour la fiche membre.
+ *
+ * Un échec de lecture ne doit pas priver le staff de toute la fiche : on
+ * retombe alors sur un historique vide, qui laisse simplement le bouton actif.
+ */
+async function buildVerificationsPayload(
+  guildId: string,
+  userId: string,
+): Promise<MemberCaseResponse['verifications']> {
+  try {
+    const history = await getVerificationHistory(guildId, userId);
+    return {
+      entries: history.entries.map((entry) => ({
+        id: entry.id,
+        status: entry.status,
+        level: entry.level,
+        requestedAt: safeIsoDate(entry.requestedAt) ?? new Date(0).toISOString(),
+        verifiedAt: safeIsoDate(entry.verifiedAt),
+        expiresAt: safeIsoDate(entry.expiresAt),
+      })),
+      total: history.total,
+      lastRequestedAt: safeIsoDate(history.lastRequestedAt),
+      lastVerifiedAt: safeIsoDate(history.lastVerifiedAt),
+      hasPending: history.hasPending,
+      cooldownUntil: safeIsoDate(history.cooldownUntil),
+    };
+  } catch (err) {
+    logger.warn('MemberCase', `Historique de vérification illisible pour ${userId} sur ${guildId}:`, err);
+    return {
+      entries: [],
+      total: 0,
+      lastRequestedAt: null,
+      lastVerifiedAt: null,
+      hasPending: false,
+      cooldownUntil: null,
+    };
+  }
 }
 
 export async function buildMemberCaseData(client: Client, guildId: string, userId: string, auth: AuthClaims): Promise<MemberCaseResponse | null> {
@@ -593,7 +634,8 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
               };
             }
           })
-      )
+      ),
+      verifications: await buildVerificationsPayload(guildId, actualUserId),
     };
 
     return result;

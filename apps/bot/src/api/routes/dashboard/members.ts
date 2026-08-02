@@ -721,7 +721,33 @@ export async function handleMembersRoutes(
           return true;
         }
 
-        const { createVerificationSession, buildVerificationUrl, buildVerificationEmbed } = await import('../../../services/moderation/securityVerificationService.js');
+        const {
+          createVerificationSession,
+          buildVerificationUrl,
+          buildVerificationEmbed,
+          getVerificationHistory,
+        } = await import('../../../services/moderation/securityVerificationService.js');
+
+        // Anti-spam : chaque demande timeout le membre 28 jours et lui envoie un
+        // MP. Deux modérateurs qui cliquent coup sur coup le harcèlent sans rien
+        // apprendre de plus (issue #216).
+        const history = await getVerificationHistory(guildId, userId);
+        if (history.hasPending) {
+          json(res, 409, {
+            error: 'Une demande de vérification est déjà en cours pour ce membre.',
+            verifications: { hasPending: true, cooldownUntil: history.cooldownUntil?.toISOString() ?? null },
+          });
+          return true;
+        }
+        if (history.cooldownUntil) {
+          const waitMinutes = Math.max(1, Math.ceil((history.cooldownUntil.getTime() - Date.now()) / 60000));
+          json(res, 429, {
+            error: `Une vérification vient d'être demandée pour ce membre. Réessayez dans ${waitMinutes} min.`,
+            verifications: { hasPending: false, cooldownUntil: history.cooldownUntil.toISOString() },
+          });
+          return true;
+        }
+
         const token = await createVerificationSession(guildId, userId);
 
 

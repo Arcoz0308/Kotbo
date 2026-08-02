@@ -40,6 +40,8 @@ export type {
   CrossServerSanctionSummaryPayload,
   MemberCaseCandidature,
   MemberCaseConnection,
+  MemberCaseVerificationEntry,
+  MemberCaseVerifications,
   MemberCaseResponse,
 } from './types/memberCase.js';
 
