@@ -103,10 +103,13 @@ export async function getOrCreateLevelConfig(guildId: string) {
       create: { id: guildId },
     });
 
-    // Langue explicitement choisie pour le serveur. Celui qui est reste en
-    // detection automatique retombe sur le francais : sans client Discord a ce
-    // niveau, sa langue native est hors de portee.
-    const locale = await resolveGuildLocale(guildId);
+    // `resolveGuildLocale` n'est pas utilisable ici : son repli est l'anglais,
+    // et sans client Discord a ce niveau, sa deuxieme marche - la langue
+    // declaree du serveur - est hors de portee. Tous les serveurs restes en
+    // detection automatique tomberaient donc en anglais, alors que le modele
+    // qu'ils recevaient jusqu'ici etait francais.
+    const guild = await getCachedGuild(guildId);
+    const locale = guild?.language === 'en' ? 'en' : 'fr';
 
     config = await prisma.levelConfig.create({
       data: {
