@@ -101,6 +101,12 @@
   --mobile-tabbar-clearance: calc(var(--mobile-tabbar-height) + var(--mobile-safe-bottom));
   --mobile-gutter: 1rem;
 
+  /* Hauteur et plan de la navbar fixe du dashboard (.app-navbar, h-14/z-40).
+     Toute barre `sticky` d'une page doit s'aligner dessus, sinon elle se colle
+     en haut de la fenêtre et disparaît derrière (issue #196). */
+  --app-navbar-height: 3.5rem;
+  --app-navbar-z: 40;
+
   --background: #ffffff;
   --surface: #ffffff;
   --on-background: #111827;
