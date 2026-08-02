@@ -228,9 +228,12 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketLogChannelId: body.ticketLogChannelId || null,
             ticketStaffRoleId: body.ticketStaffRoleId || null,
             ticketChannelId: body.ticketChannelId || null,
-            ticketEmbedTitle: body.ticketEmbedTitle || 'Support Technique',
-            ticketEmbedDesc: body.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket de support.',
-            ticketEmbedButtonText: body.ticketEmbedButtonText || 'Ouvrir un ticket',
+            // Un champ vide est conserve tel quel : c'est ainsi que le bot sait
+            // qu'il doit composer le texte par defaut dans la langue du serveur.
+            // Y reecrire un texte francais le figerait a chaque enregistrement.
+            ticketEmbedTitle: body.ticketEmbedTitle ?? '',
+            ticketEmbedDesc: body.ticketEmbedDesc ?? '',
+            ticketEmbedButtonText: body.ticketEmbedButtonText ?? '',
             ticketEmbedColor: body.ticketEmbedColor || '#5865F2',
             ticketEmbedType: body.ticketEmbedType === 'DROPDOWN' ? 'DROPDOWN' : 'BUTTONS',
             ticketMode: body.ticketMode === 'DM' || body.ticketMode === 'THREAD' ? body.ticketMode : 'CHANNEL',
@@ -242,12 +245,12 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketEmbedFooter: body.ticketEmbedFooter || null,
             ticketEmbedAuthorName: body.ticketEmbedAuthorName || null,
             ticketEmbedAuthorIcon: body.ticketEmbedAuthorIcon || null,
-            ticketWelcomeTitle: body.ticketWelcomeTitle || "🎫 Ticket d'Assistance · {type_label}",
-            ticketWelcomeDesc: body.ticketWelcomeDesc || "Bonjour {user} !\nLe personnel {staff_mention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n{description}",
+            ticketWelcomeTitle: body.ticketWelcomeTitle ?? '',
+            ticketWelcomeDesc: body.ticketWelcomeDesc ?? '',
             ticketWelcomeColor: body.ticketWelcomeColor || "#5865F2",
             ticketWelcomeThumbnail: body.ticketWelcomeThumbnail || null,
             ticketWelcomeImage: body.ticketWelcomeImage || null,
-            ticketWelcomeFooter: body.ticketWelcomeFooter || "Kotbo · Ticket ID: {ticket_id}",
+            ticketWelcomeFooter: body.ticketWelcomeFooter ?? '',
             ...(body.ticketTypes !== undefined
               ? {
                   ticketTypes: Array.isArray(body.ticketTypes)
@@ -279,7 +282,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketOverclaimPermission: typeof body.ticketOverclaimPermission === 'string' ? body.ticketOverclaimPermission : 'ANY',
             ticketInactivityEnabled: typeof body.ticketInactivityEnabled === 'boolean' ? body.ticketInactivityEnabled : false,
             ticketInactivityHours: body.ticketInactivityHours !== undefined ? Number(body.ticketInactivityHours) : 24,
-            ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !",
+            ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : '',
           }
         });
 

@@ -7454,6 +7454,7 @@
   "e1_tickets_field_footer": "Texte de bas de page (Footer)",
   "e1_tickets_embed_title_ph": "Support Client",
   "e1_tickets_embed_button_ph": "Ouvrir un ticket",
+  "e1_tickets_default_hint": "Laissez vide pour le texte par défaut, écrit dans la langue du serveur.",
   "e1_tickets_embed_desc_ph": "Cliquez pour obtenir de l'aide...",
   "e1_tickets_embed_author_ph": "Kotbo Support",
   "e1_tickets_embed_footer_ph": "Kotbo • Système de tickets",
