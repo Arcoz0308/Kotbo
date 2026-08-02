@@ -157,6 +157,13 @@
     !!config.levelUpChannelId && config.levelUpChannelId !== 'DM'
   );
 
+  // Le salon peut avoir ete supprime sur Discord depuis : on retombe alors sur
+  // l'identifiant brut plutot que sur une phrase a trou.
+  const levelUpChannelLabel = $derived.by(() => {
+    const channel = availableChannels.find((c: any) => c.id === config.levelUpChannelId);
+    return channel ? channelDisplayName(channel) : (config.levelUpChannelId ?? '');
+  });
+
   const configDirty = $derived(
     JSON.stringify(config) !== JSON.stringify(savedConfig)
       || clanRewardXpBoost !== savedClanRewardXpBoost
@@ -982,6 +989,7 @@
 
   <InlineFeedback state={saveAction} />
   <InlineFeedback state={rewardAction} />
+  <InlineFeedback state={createChannelAction} />
 
   <!-- Navigation par onglets -->
   {#if activeTab !== 'accueil'}
@@ -1042,18 +1050,54 @@
       <Skeleton height="250px" radius="2.5rem" />
     </div>
   {:else if activeTab === 'accueil'}
-    <LevelingPresetPicker
-      selectedId={selectedPreset?.id ?? null}
-      activeId={activePreset?.id ?? null}
-      customValues={customPresetValues}
-      disabled={!canManageSettings}
-      dirty={configDirty}
-      saving={saveAction.state.loading}
-      moduleEnabled={config.enabled}
-      onselect={applyLevelingPreset}
-      onsave={handleSaveConfig}
-      ondetail={openPresetDetail}
-    />
+    <div class="space-y-8">
+      <LevelingPresetPicker
+        selectedId={selectedPreset?.id ?? null}
+        activeId={activePreset?.id ?? null}
+        customValues={customPresetValues}
+        disabled={!canManageSettings}
+        dirty={configDirty}
+        saving={saveAction.state.loading}
+        moduleEnabled={config.enabled}
+        onselect={applyLevelingPreset}
+        onsave={handleSaveConfig}
+        ondetail={openPresetDetail}
+      />
+
+      <!-- Un rythme choisi ne dit pas encore ou les montees de niveau
+           s'annoncent : la carte porte cette derniere etape la ou l'oeil
+           arrive, au lieu de la laisser au fond de l'onglet Notifications. -->
+      {#if canManageSettings}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Papicon icon="Bell" size={18} />
+            </div>
+            <div class="space-y-0.5">
+              <p class="text-sm font-semibold text-on-surface">{m.lv_setup_channel_title()}</p>
+              <p class="text-[13px] text-on-surface-variant/70">
+                {#if levelUpChannelSelected}
+                  {m.lv_setup_channel_done({ channel: levelUpChannelLabel })}
+                {:else}
+                  {m.lv_setup_channel_desc()}
+                {/if}
+              </p>
+            </div>
+          </div>
+          {#if !levelUpChannelSelected}
+            <button
+              type="button"
+              onclick={handleCreateLevelUpChannel}
+              disabled={createChannelAction.state.loading}
+              class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+            >
+              <Papicon icon="sparkles" size={16} />
+              {createChannelAction.state.loading ? m.lv_creating_channel() : m.lv_create_channel()}
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
   {:else if activeTab === 'gains'}
     <!-- === ONGLET GAINS D'XP === -->
     <div class="space-y-8 animate-in fade-in duration-300">
@@ -1993,7 +2037,6 @@
                 <span class="text-[10px] text-on-surface-variant/50">{m.lv_create_channel_hint()}</span>
               </div>
             {/if}
-            <InlineFeedback state={createChannelAction} />
           </div>
 
           <div class="space-y-1.5">
