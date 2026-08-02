@@ -2264,7 +2264,7 @@
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div 
-        class="fixed inset-0 z-[10010] flex items-center justify-center bg-surface-container-lowest/90 animate-in fade-in duration-300"
+        class="member-case-overlay fixed inset-0 flex items-center justify-center bg-surface-container-lowest/90 animate-in fade-in duration-300"
         onclick={(e) => e.stopPropagation()}
       >
         <!-- svelte-ignore a11y_click_events_have_key_events -->
