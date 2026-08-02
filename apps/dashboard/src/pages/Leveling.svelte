@@ -26,6 +26,7 @@
     findLevelingPreset,
     levelingPresetValues,
     type LevelingPreset,
+    type LevelingPresetValues,
   } from '../lib/levelingPresets';
   import { 
     fetchLevelingData,
@@ -588,6 +589,30 @@
     curveMode.resolve(curveFitsSimpleMode());
   }
 
+  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
+  // configuration courante, elle ouvre juste les onglets.
+  function openPresetDetail() {
+    gotoTab('/leveling', 'gains', DEFAULT_TAB);
+  }
+
+  function levelingValuesOf(source: typeof config): LevelingPresetValues {
+    return {
+      xpMin: source.xpMin,
+      xpMax: source.xpMax,
+      cooldownSeconds: source.cooldownSeconds,
+      vocalXpPerMin: source.vocalXpPerMin,
+      curveBaseXp: source.curveBaseXp,
+      curveLinearXp: source.curveLinearXp,
+      curveExponent: source.curveExponent,
+      maxLevel: source.maxLevel,
+    };
+  }
+
+  // Des qu'un prereglage est choisi, la configuration courante est la sienne :
+  // la carte « Personnalise » doit alors montrer la configuration enregistree,
+  // sans quoi elle devient le sosie de la carte qu'on vient de cliquer.
+  const customPresetValues = $derived(levelingValuesOf(selectedPreset ? savedConfig : config));
+
   // Estimation de duree : les curseurs repondent chacun a un fragment, aucun ne
   // dit combien de temps il faut pour atteindre un niveau. Le calcul combine le
   // rythme des gains, le bonus de longueur et le plafond quotidien, sur une
@@ -996,12 +1021,14 @@
     <LevelingPresetPicker
       selectedId={selectedPreset?.id ?? null}
       activeId={activePreset?.id ?? null}
+      customValues={customPresetValues}
       disabled={!canManageSettings}
       dirty={configDirty}
       saving={saveAction.state.loading}
       moduleEnabled={config.enabled}
       onselect={applyLevelingPreset}
       onsave={handleSaveConfig}
+      ondetail={openPresetDetail}
     />
   {:else if activeTab === 'gains'}
     <!-- === ONGLET GAINS D'XP === -->

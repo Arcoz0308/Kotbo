@@ -54,9 +54,8 @@ export const LEVELING_PRESETS: readonly LevelingPreset[] = [
   { id: 'basic', icon: 'Star', gainStep: 3, paceStep: 3, steepStep: 3, maxLevel: 0, recommended: true },
   { id: 'fast', icon: 'Zap', gainStep: 5, paceStep: 2, steepStep: 2, maxLevel: 0 },
   { id: 'progressive', icon: 'TrendingUp', gainStep: 3, paceStep: 3, steepStep: 4, maxLevel: 0 },
-  { id: 'calm', icon: 'Clock', gainStep: 2, paceStep: 3, steepStep: 2, maxLevel: 0 },
-  { id: 'marathon', icon: 'Flame', gainStep: 3, paceStep: 4, steepStep: 5, maxLevel: 0 },
   { id: 'prestige', icon: 'Crown', gainStep: 4, paceStep: 2, steepStep: 3, maxLevel: 100 },
+  { id: 'marathon', icon: 'Flame', gainStep: 3, paceStep: 4, steepStep: 5, maxLevel: 0 },
 ];
 
 export function levelingPresetValues(preset: LevelingPreset): LevelingPresetValues {
@@ -71,8 +70,7 @@ export function levelingPresetValues(preset: LevelingPreset): LevelingPresetValu
   };
 }
 
-export function levelingPresetCurve(preset: LevelingPreset): LevelCurve {
-  const values = levelingPresetValues(preset);
+export function levelingValuesCurve(values: LevelingPresetValues): LevelCurve {
   return {
     baseXp: values.curveBaseXp,
     linearXp: values.curveLinearXp,
@@ -81,13 +79,12 @@ export function levelingPresetCurve(preset: LevelingPreset): LevelCurve {
   };
 }
 
-/** XP totale a accumuler pour atteindre `level` avec la courbe du prereglage. */
-export function levelingPresetXpForLevel(preset: LevelingPreset, level: number): number {
-  return xpForLevel(level - 1, levelingPresetCurve(preset));
+/** XP totale a accumuler pour atteindre `level` avec la courbe donnee. */
+export function levelingValuesXpForLevel(values: LevelingPresetValues, level: number): number {
+  return xpForLevel(level - 1, levelingValuesCurve(values));
 }
 
-export function levelingPresetHourlyXp(preset: LevelingPreset): number {
-  const values = levelingPresetValues(preset);
+export function levelingValuesHourlyXp(values: LevelingPresetValues): number {
   return Math.round((values.xpMin + values.xpMax) / 2 * (3600 / Math.max(1, values.cooldownSeconds)));
 }
 
