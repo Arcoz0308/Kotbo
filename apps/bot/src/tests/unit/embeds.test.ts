@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { ButtonStyle } from 'discord.js';
 import {
   buildNewsEmbed,
+  buildYouTubeComponents,
   buildYouTubeEmbed,
   categoryEmoji,
   feedStatusEmoji,
@@ -79,6 +81,20 @@ describe('embeds utils', () => {
       .toBe('Kotbo TV est en direct sur YouTube !');
     expect(buildYouTubeEmbed({ ...base, kind: 'short' }).toJSON().description)
       .toBe('Kotbo TV a publié un Short sur YouTube !');
+  });
+
+  test('embed youtube : bouton de lien vers la video', () => {
+    const [row] = buildYouTubeComponents({ videoId: 'xyz' });
+    const button = row.toJSON().components[0] as { label?: string; url?: string; style: number };
+
+    expect(button.label).toBe('Voir la vidéo');
+    expect(button.url).toBe('https://www.youtube.com/watch?v=xyz');
+    expect(button.style).toBe(ButtonStyle.Link);
+
+    const [liveRow] = buildYouTubeComponents({ videoId: 'xyz', kind: 'live' });
+    expect((liveRow.toJSON().components[0] as { label?: string }).label).toBe('Regarder le live');
+    const [shortRow] = buildYouTubeComponents({ videoId: 'xyz', kind: 'short' });
+    expect((shortRow.toJSON().components[0] as { label?: string }).label).toBe('Voir le Short');
   });
 
   test('helpers utilitaires', () => {

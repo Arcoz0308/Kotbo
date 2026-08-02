@@ -1,7 +1,7 @@
 import { type Client, type EmbedBuilder } from 'discord.js';
 import pLimit from 'p-limit';
 import prisma from '../../utils/db.js';
-import { buildYouTubeEmbed } from '../../utils/embeds.js';
+import { buildYouTubeComponents, buildYouTubeEmbed, youtubeVideoUrl } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { resolveFollowMessage, templateHasVariable } from './socialTemplates.js';
 import type { DashboardFeatureConfig, Guild, YoutubeChannelFollow } from '@prisma/client';
@@ -655,7 +655,7 @@ export function buildYoutubeNotification(
   const vars = {
     title: action.title,
     channel: follow.channelName,
-    url: `https://www.youtube.com/watch?v=${action.videoId}`,
+    url: youtubeVideoUrl(action.videoId),
   };
 
   return {
@@ -673,6 +673,7 @@ async function sendNotification(
   targetChannelId: string,
   content: string,
   embed: EmbedBuilder,
+  components: ReturnType<typeof buildYouTubeComponents>,
   mention?: string | null,
 ): Promise<void> {
   const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
@@ -686,7 +687,7 @@ async function sendNotification(
     return;
   }
 
-  await channel.send({ content: mention ? `${mention} ${content}` : content, embeds: [embed] })
+  await channel.send({ content: mention ? `${mention} ${content}` : content, embeds: [embed], components })
     .catch((e: Error) => logger.error('YouTubeService', 'Envoi de la notification impossible:', e));
 }
 
@@ -754,7 +755,8 @@ async function processFollow(client: Client, follow: YoutubeFollowWithGuild, fet
           channelAvatarUrl,
           thumbnailUrl,
         });
-        await sendNotification(client, follow.guildId, targetChannelId, content, embed, follow.mention);
+        const components = buildYouTubeComponents({ videoId: action.videoId, kind: action.kind });
+        await sendNotification(client, follow.guildId, targetChannelId, content, embed, components, follow.mention);
       }
 
       await prisma.youtubeChannelFollow.update({
