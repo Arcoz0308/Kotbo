@@ -72,7 +72,7 @@
   let ticketOverclaimPermission = $state('ANY');
   let ticketInactivityEnabled = $state(false);
   let ticketInactivityHours = $state(24);
-  let ticketInactivityMessage = $state(m.e1_tickets_default_inactivity_message({ user: '{user}' }));
+  let ticketInactivityMessage = $state('');
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -477,9 +477,13 @@
       ticketLogChannelId = config.ticketLogChannelId || '';
       ticketStaffRoleId = config.ticketStaffRoleId || '';
       ticketChannelId = config.ticketChannelId || '';
-      ticketEmbedTitle = config.ticketEmbedTitle || m.e1_tickets_default_embed_title();
-      ticketEmbedDesc = config.ticketEmbedDesc || m.e1_tickets_default_embed_desc();
-      ticketEmbedButtonText = config.ticketEmbedButtonText || m.e1_tickets_default_embed_button_text();
+      // Laisses vides quand ils le sont : le bot compose alors le texte par
+      // defaut dans la langue du serveur. Les remplir ici reviendrait a figer
+      // en base la langue du dashboard de celui qui enregistre. Le champ
+      // montre le defaut en filigrane.
+      ticketEmbedTitle = config.ticketEmbedTitle || '';
+      ticketEmbedDesc = config.ticketEmbedDesc || '';
+      ticketEmbedButtonText = config.ticketEmbedButtonText || '';
       ticketEmbedColor = config.ticketEmbedColor || '#5865F2';
       ticketEmbedType = config.ticketEmbedType === 'DROPDOWN' ? 'DROPDOWN' : 'BUTTONS';
       ticketMode = config.ticketMode || 'CHANNEL';
@@ -488,19 +492,19 @@
       ticketOverclaimPermission = config.ticketOverclaimPermission || 'ANY';
       ticketInactivityEnabled = config.ticketInactivityEnabled !== undefined ? config.ticketInactivityEnabled : false;
       ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
-      ticketInactivityMessage = config.ticketInactivityMessage || m.e1_tickets_default_inactivity_message({ user: '{user}' });
+      ticketInactivityMessage = config.ticketInactivityMessage || '';
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
       ticketEmbedFooter = config.ticketEmbedFooter || '';
       ticketEmbedAuthorName = config.ticketEmbedAuthorName || '';
       ticketEmbedAuthorIcon = config.ticketEmbedAuthorIcon || '';
-      ticketWelcomeTitle = config.ticketWelcomeTitle || m.e1_tickets_default_welcome_title({ type_label: '{type_label}' });
-      ticketWelcomeDesc = config.ticketWelcomeDesc || m.e1_tickets_default_welcome_desc({ user: '{user}', staff_mention: '{staff_mention}', description: '{description}' });
+      ticketWelcomeTitle = config.ticketWelcomeTitle || '';
+      ticketWelcomeDesc = config.ticketWelcomeDesc || '';
       ticketWelcomeColor = config.ticketWelcomeColor || '#5865F2';
       ticketWelcomeThumbnail = config.ticketWelcomeThumbnail || '';
       ticketWelcomeImage = config.ticketWelcomeImage || '';
-      ticketWelcomeFooter = config.ticketWelcomeFooter || m.e1_tickets_default_welcome_footer({ ticket_id: '{ticket_id}' });
+      ticketWelcomeFooter = config.ticketWelcomeFooter || '';
       savedSettingsConfig = {
         ticketCategoryId,
         ticketLogChannelId,
@@ -1582,6 +1586,7 @@
             <label class="block">
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_description()}</span>
               <FormTextarea bind:value={ticketEmbedDesc} placeholder={m.e1_tickets_embed_desc_ph()} className="w-full h-20" />
+              <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_default_hint()}</p>
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
@@ -1667,6 +1672,7 @@
             <label class="block">
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_welcome_desc_label()}</span>
               <FormTextarea bind:value={ticketWelcomeDesc} placeholder={m.e1_tickets_welcome_desc_ph({ user: '{user}', staff_mention: '{staff_mention}' })} className="w-full h-32" />
+              <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_default_hint()}</p>
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
