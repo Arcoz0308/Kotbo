@@ -232,9 +232,9 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   const colorHex = guildConfig.ticketEmbedColor || '#5865F2';
   const color = typeof colorHex === 'string' ? parseInt(colorHex.replace('#', ''), 16) : COLORS_RAW.primary;
 
-  // `ticketEmbedTitle`, `ticketEmbedDesc` et `ticketEmbedButtonText` sont NOT NULL
-  // en base : leur contenu appartient a l'admin et est republie tel quel. Seuls
-  // les textes que le bot genere lui-meme suivent la langue du serveur.
+  // Un texte ecrit par l'admin est republie tel quel, sans traduction : il lui
+  // appartient. La langue du serveur ne sert qu'aux textes que le bot compose
+  // lui-meme, defauts compris.
   const discordGuild = client.guilds.cache.get(guildId);
   const locale = await resolveGuildLocale(guildId, discordGuild?.preferredLocale ?? null);
 
@@ -1832,6 +1832,13 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
 
       const inactivityTimeMs = guildConfig.ticketInactivityHours * 60 * 60 * 1000;
 
+      // Resolue une fois par serveur, et avec la langue declaree du serveur
+      // Discord : sans elle, la cascade saute a son repli qui est l'anglais, et
+      // un serveur francais reste en detection automatique recevrait une
+      // relance anglaise au milieu de messages francais.
+      const discordGuild = client.guilds.cache.get(guildConfig.id);
+      const locale = await resolveGuildLocale(guildConfig.id, discordGuild?.preferredLocale ?? null);
+
       for (const ticket of activeTickets) {
         if (!ticket.channelId) continue;
 
@@ -1860,7 +1867,7 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
           // Formater le message d'inactivité
           const userMention = `<@${ticket.userId}>`;
           const rawMessage = guildConfig.ticketInactivityMessage?.trim()
-            || m.ticket_default_inactivity({ user: '{user}' }, { locale: await resolveGuildLocale(ticket.guildId) });
+            || m.ticket_default_inactivity({ user: '{user}' }, { locale });
           const formattedMessage = rawMessage.replace(/{user}/g, userMention);
 
           await channel.send({ content: formattedMessage }).catch(() => null);
