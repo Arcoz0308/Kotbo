@@ -334,7 +334,7 @@ export async function handleGeneralistModulesRoutes(
             data: { levelUpChannelId: channel.id },
           });
           invalidateLevelConfigCache(guildId);
-          await startProvisionCooldown(lockKey, auditUser);
+          await startProvisionCooldown(lockKey, user.username ?? 'Utilisateur');
 
           await pushAudit(guildId, {
             user: auditUser,
