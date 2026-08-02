@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, PermissionFlagsBits, type ColorResolvable } from 'discord.js';
 import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
+import { defaultLevelUpMessage, getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
@@ -328,10 +328,18 @@ export async function handleGeneralistModulesRoutes(
 
         // Ecrit tout de suite : un salon cree que la page n'enregistrerait pas
         // resterait sur le serveur sans que rien n'y renvoie.
+        // Le message est depose en meme temps quand l'admin n'en a pas ecrit :
+        // la mise en route doit laisser un texte visible et modifiable, pas un
+        // champ vide dont on ne devine pas ce qu'il produira. Sans creation,
+        // rien n'est ecrit et la page recoit la valeur inchangee.
+        const levelUpMessage = entry.created
+          ? (config.levelUpMessage?.trim() || defaultLevelUpMessage(locale))
+          : config.levelUpMessage;
+
         if (entry.created) {
           await prisma.levelConfig.update({
             where: { guildId },
-            data: { levelUpChannelId: channel.id },
+            data: { levelUpChannelId: channel.id, levelUpMessage },
           });
           invalidateLevelConfigCache(guildId);
           await startProvisionCooldown(lockKey, user.username ?? 'Utilisateur');
@@ -347,7 +355,7 @@ export async function handleGeneralistModulesRoutes(
           });
         }
 
-        json(res, 200, { channelId: channel.id, name: channel.name, created: entry.created });
+        json(res, 200, { channelId: channel.id, name: channel.name, created: entry.created, levelUpMessage });
       } catch (err) {
         logger.error('LevelingAPI', 'Error creating level-up channel:', err);
         json(res, 500, { error: "Erreur lors de la création du salon d'annonce" });

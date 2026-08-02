@@ -24,7 +24,7 @@ import { getRankCardCustomization } from './rankCardService.js';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache, getCachedGuild } from '../../utils/cache.js';
-import { resolveGuildLocale } from '../../utils/i18n.js';
+import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 // Cooldown map: key is "guildId:userId", value is timestamp when cooldown expires
@@ -83,6 +83,19 @@ export function levelCurveFromConfig(config: Pick<LevelConfig, 'curveBaseXp' | '
 export async function getGuildLevelCurve(guildId: string): Promise<LevelCurve> {
   const config = await getOrCreateLevelConfig(guildId).catch(() => null);
   return config ? levelCurveFromConfig(config) : DEFAULT_LEVEL_CURVE;
+}
+
+/**
+ * Message compose par le bot quand l'admin n'en a pas ecrit. Expose plutot
+ * qu'ecrit deux fois : la mise en route le depose dans la configuration pour
+ * qu'il soit visible et modifiable, et l'envoi s'en sert quand le champ est
+ * reste vide.
+ *
+ * `{user}` et `{level}` traversent la traduction tels quels, ils sont
+ * remplaces au moment de l'envoi.
+ */
+export function defaultLevelUpMessage(locale: BotLocale): string {
+  return m.leveling_levelup_default_message({ user: '{user}', level: '{level}' }, { locale });
 }
 
 export async function getOrCreateLevelConfig(guildId: string) {
@@ -1116,8 +1129,7 @@ async function processLevelUp(
     // Un message vide veut dire « celui par defaut », jamais « n'annonce
     // rien » : il est alors compose maintenant, dans la langue du serveur, et
     // suit donc le bot si celui-ci change de langue plus tard.
-    const msgTemplate = config.levelUpMessage?.trim()
-      || m.leveling_levelup_default_message({ user: '{user}', level: '{level}' }, { locale });
+    const msgTemplate = config.levelUpMessage?.trim() || defaultLevelUpMessage(locale);
     const msg = msgTemplate
       .replace(/{user}/g, `<@${userId}>`)
       .replace(/{username}/g, member.user.username)

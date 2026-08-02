@@ -333,9 +333,12 @@
       await dashboardStore.refresh();
 
       // Le salon est deja enregistre cote serveur : `savedConfig` suit, sinon
-      // la page se croirait modifiee par un changement deja en base.
+      // la page se croirait modifiee par un changement deja en base. Le message
+      // par defaut est depose au meme moment, la reponse le porte.
       config.levelUpChannelId = res.channelId;
       savedConfig.levelUpChannelId = res.channelId;
+      config.levelUpMessage = res.levelUpMessage ?? config.levelUpMessage;
+      savedConfig.levelUpMessage = config.levelUpMessage;
       return true;
     }, { successMessage: m.lv_channel_created() });
   }
