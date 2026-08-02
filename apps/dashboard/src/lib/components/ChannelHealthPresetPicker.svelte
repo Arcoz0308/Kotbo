@@ -111,9 +111,9 @@
       {@const values = card.values}
       {@const selected = selectedId === card.key}
       {@const active = activeId === card.key}
-      <!-- La carte « Personnalise » inactive n'a pas de valeurs a montrer :
-           elle repeterait celles du prereglage en cours. -->
-      {@const detailed = !!values && (!!card.preset || active)}
+      <!-- La carte « Personnalise » ni choisie ni active n'a pas de valeurs a
+           montrer : elle repeterait celles du prereglage en cours. -->
+      {@const detailed = !!values && (!!card.preset || active || selected)}
       <!-- La carte « Personnalise » choisie montre les valeurs en attente, pas
            celles qui tournent : elle ne peut pas se dire « active » tant qu'un
            enregistrement reste a faire. -->
