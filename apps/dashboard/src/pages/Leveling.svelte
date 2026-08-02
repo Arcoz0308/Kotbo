@@ -151,14 +151,29 @@
   let savedClanRewardXpBoost = $state(false);
   let savedClanRewardXpBoostRate = $state(1.2);
 
-  // `levelUpChannelId` vaut aussi vide (salon d'origine) ou `DM` : dans ces
-  // deux cas aucun salon n'est designe, et en proposer un a creer a un sens.
-  const levelUpChannelSelected = $derived(
-    !!config.levelUpChannelId && config.levelUpChannelId !== 'DM'
+  /**
+   * `levelUpChannelId` porte trois choix distincts : vide pour le salon
+   * d'origine, `DM` pour le message prive, un identifiant pour un salon. Le
+   * quatrieme etat n'en est pas un : l'identifiant enregistre ne designe plus
+   * aucun salon, le module annonce alors dans le vide.
+   */
+  const levelUpChannelState = $derived.by(() => {
+    const id = config.levelUpChannelId;
+    if (!id) return 'origin';
+    if (id === 'DM') return 'dm';
+    // Liste vide = pas encore chargee, ce qui n'est pas un salon disparu.
+    if (availableChannels.length > 0 && !availableChannels.some((c: any) => c.id === id)) return 'missing';
+    return 'channel';
+  });
+
+  /**
+   * Creer un salon n'a de sens que quand aucun ne tient le role. Le message
+   * prive en est exclu : c'est un choix delibere, pas un reglage a completer.
+   */
+  const canCreateLevelUpChannel = $derived(
+    levelUpChannelState === 'origin' || levelUpChannelState === 'missing'
   );
 
-  // Le salon peut avoir ete supprime sur Discord depuis : on retombe alors sur
-  // l'identifiant brut plutot que sur une phrase a trou.
   const levelUpChannelLabel = $derived.by(() => {
     const channel = availableChannels.find((c: any) => c.id === config.levelUpChannelId);
     return channel ? channelDisplayName(channel) : (config.levelUpChannelId ?? '');
@@ -312,11 +327,15 @@
       const res = await createLevelUpChannel();
       if (!res?.channelId) throw new Error(m.lv_err_create_channel());
 
+      // La liste des salons d'abord : le champ pointerait sinon sur un salon
+      // qu'elle ne connait pas encore, et la page afficherait son identifiant
+      // brut le temps du rafraichissement.
+      await dashboardStore.refresh();
+
       // Le salon est deja enregistre cote serveur : `savedConfig` suit, sinon
       // la page se croirait modifiee par un changement deja en base.
       config.levelUpChannelId = res.channelId;
       savedConfig.levelUpChannelId = res.channelId;
-      await dashboardStore.refresh();
       return true;
     }, { successMessage: m.lv_channel_created() });
   }
@@ -1076,15 +1095,19 @@
             <div class="space-y-0.5">
               <p class="text-sm font-semibold text-on-surface">{m.lv_setup_channel_title()}</p>
               <p class="text-[13px] text-on-surface-variant/70">
-                {#if levelUpChannelSelected}
+                {#if levelUpChannelState === 'channel'}
                   {m.lv_setup_channel_done({ channel: levelUpChannelLabel })}
+                {:else if levelUpChannelState === 'dm'}
+                  {m.lv_setup_channel_dm()}
+                {:else if levelUpChannelState === 'missing'}
+                  {m.lv_setup_channel_missing()}
                 {:else}
                   {m.lv_setup_channel_desc()}
                 {/if}
               </p>
             </div>
           </div>
-          {#if !levelUpChannelSelected}
+          {#if canCreateLevelUpChannel}
             <button
               type="button"
               onclick={handleCreateLevelUpChannel}
@@ -2023,7 +2046,7 @@
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
-            {#if canManageSettings && !levelUpChannelSelected}
+            {#if canManageSettings && canCreateLevelUpChannel}
               <div class="flex items-center gap-3 pt-1">
                 <button
                   type="button"

@@ -3204,6 +3204,8 @@
   "lv_levelup_dm": "✉️ Message Privé (DM)",
   "lv_setup_channel_title": "Salon d'annonce des niveaux",
   "lv_setup_channel_desc": "Aucun salon choisi : les montées de niveau s'affichent dans le salon où le membre a écrit.",
+  "lv_setup_channel_dm": "Les montées de niveau sont envoyées en message privé.",
+  "lv_setup_channel_missing": "Le salon enregistré n'existe plus sur le serveur : plus rien n'est annoncé.",
   "lv_setup_channel_done": "Les montées de niveau sont annoncées dans {channel}. Modifiable dans l'onglet Notifications.",
   "lv_create_channel": "Créer et enregistrer",
   "lv_creating_channel": "Création…",
