@@ -354,6 +354,13 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketCategoryId: true,
             ticketChannelId: true,
             ticketLogChannelId: true,
+            ticketEmbedTitle: true,
+            ticketEmbedDesc: true,
+            ticketEmbedButtonText: true,
+            ticketWelcomeTitle: true,
+            ticketWelcomeDesc: true,
+            ticketWelcomeFooter: true,
+            ticketInactivityMessage: true,
           }
         });
 
@@ -369,6 +376,18 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         // raison, c'est le serveur qui le relit.
         const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
         const reason = m.setup_reason_tickets({ user: auditUser }, { locale });
+
+        // Les textes que l'admin n'a pas ecrits sont deposes maintenant, dans la
+        // langue du serveur : la mise en route doit laisser des champs remplis
+        // et modifiables. Ceux qu'il a ecrits ne sont jamais touches.
+        const { ticketDefaultTexts } = await import('../../../../services/features/ticketService.js');
+        const currentTexts = guildConfig as Record<string, unknown> | null;
+        for (const [field, text] of Object.entries(ticketDefaultTexts(locale))) {
+          const current = currentTexts?.[field];
+          if (typeof current !== 'string' || !current.trim()) {
+            (data as Record<string, string>)[field] = text;
+          }
+        }
 
         const everyoneId = discordGuild.roles.everyone.id;
         // Le refus pose sur @everyone s'applique aussi au bot : sans surcharge a

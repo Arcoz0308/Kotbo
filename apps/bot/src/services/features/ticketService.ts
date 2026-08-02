@@ -211,6 +211,30 @@ export function canManageTicket(member: GuildMember | APIInteractionGuildMember 
  * Sends the ticket opening embed in the configured channel using V2 components.
  * Buttons or dropdown are embedded directly inside the container.
  */
+/**
+ * Textes que le bot compose lui-meme quand l'admin n'en a pas ecrit. Exposes
+ * plutot qu'ecrits deux fois : la mise en route les depose dans la
+ * configuration pour qu'ils soient visibles et modifiables, et l'envoi s'en
+ * sert quand le champ est reste vide.
+ *
+ * Les jetons `{user}`, `{type_label}` et compagnie traversent la traduction
+ * tels quels, ils sont remplaces au moment de l'envoi.
+ */
+export function ticketDefaultTexts(locale: BotLocale) {
+  return {
+    ticketEmbedTitle: m.ticket_default_panel_title({}, { locale }),
+    ticketEmbedDesc: m.ticket_default_panel_desc({}, { locale }),
+    ticketEmbedButtonText: m.ticket_default_panel_button({}, { locale }),
+    ticketWelcomeTitle: m.ticket_default_welcome_title({ type_label: '{type_label}' }, { locale }),
+    ticketWelcomeDesc: m.ticket_default_welcome_desc(
+      { user: '{user}', staff_mention: '{staff_mention}', description: '{description}' },
+      { locale },
+    ),
+    ticketWelcomeFooter: m.ticket_default_welcome_footer({ ticket_id: '{ticket_id}' }, { locale }),
+    ticketInactivityMessage: m.ticket_default_inactivity({ user: '{user}' }, { locale }),
+  };
+}
+
 export async function sendTicketSetupEmbed(client: Client, guildId: string): Promise<void> {
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guildConfig || !guildConfig.ticketChannelId) {
@@ -241,9 +265,10 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   // Un champ vide veut dire « le texte par defaut », compose ici dans la langue
   // du serveur : le figer en base le laisserait dans la langue du jour ou la
   // configuration est nee.
-  const panelTitle = guildConfig.ticketEmbedTitle?.trim() || m.ticket_default_panel_title({}, { locale });
-  const panelDesc = guildConfig.ticketEmbedDesc?.trim() || m.ticket_default_panel_desc({}, { locale });
-  const panelButton = guildConfig.ticketEmbedButtonText?.trim() || m.ticket_default_panel_button({}, { locale });
+  const defaults = ticketDefaultTexts(locale);
+  const panelTitle = guildConfig.ticketEmbedTitle?.trim() || defaults.ticketEmbedTitle;
+  const panelDesc = guildConfig.ticketEmbedDesc?.trim() || defaults.ticketEmbedDesc;
+  const panelButton = guildConfig.ticketEmbedButtonText?.trim() || defaults.ticketEmbedButtonText;
 
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
     label: panelButton,
@@ -348,12 +373,10 @@ function buildTicketWelcomeContainer(
 
   // Les jetons `{user}`, `{type_label}` et compagnie traversent la traduction
   // tels quels : `replaceTemplates` les remplace juste apres.
-  const title = replaceTemplates(guildConfig.ticketWelcomeTitle?.trim()
-    || m.ticket_default_welcome_title({ type_label: '{type_label}' }, { locale }));
-  const desc = replaceTemplates(guildConfig.ticketWelcomeDesc?.trim()
-    || m.ticket_default_welcome_desc({ user: '{user}', staff_mention: '{staff_mention}', description: '{description}' }, { locale }));
-  const footerText = replaceTemplates(guildConfig.ticketWelcomeFooter?.trim()
-    || m.ticket_default_welcome_footer({ ticket_id: '{ticket_id}' }, { locale }));
+  const defaults = ticketDefaultTexts(locale);
+  const title = replaceTemplates(guildConfig.ticketWelcomeTitle?.trim() || defaults.ticketWelcomeTitle);
+  const desc = replaceTemplates(guildConfig.ticketWelcomeDesc?.trim() || defaults.ticketWelcomeDesc);
+  const footerText = replaceTemplates(guildConfig.ticketWelcomeFooter?.trim() || defaults.ticketWelcomeFooter);
   
   const welcomeColorHex = guildConfig.ticketWelcomeColor || '#5865F2';
   const color = typeof welcomeColorHex === 'string' ? parseInt(welcomeColorHex.replace('#', ''), 16) : COLORS_RAW.primary;
@@ -1867,7 +1890,7 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
           // Formater le message d'inactivité
           const userMention = `<@${ticket.userId}>`;
           const rawMessage = guildConfig.ticketInactivityMessage?.trim()
-            || m.ticket_default_inactivity({ user: '{user}' }, { locale });
+            || ticketDefaultTexts(locale).ticketInactivityMessage;
           const formattedMessage = rawMessage.replace(/{user}/g, userMention);
 
           await channel.send({ content: formattedMessage }).catch(() => null);
