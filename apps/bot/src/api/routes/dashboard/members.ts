@@ -14,6 +14,7 @@ import {
   getGuildMembers,
   buildMemberCaseData,
   pushAudit,
+  safePushAudit,
   broadcastDashboardStateChange,
   formatDurationFr,
   getDashboardUrl,
@@ -893,6 +894,11 @@ export async function handleMembersRoutes(
 
   // PATCH /api/dashboard/guilds/:guildId/members/:userId/note - Edit moderator note
   if (parts.length === 7 && parts[4] === 'members' && parts[6] === 'note' && method === 'PATCH') {
+    if (!access.canModerateContent) {
+      json(res, 403, { error: 'Action de modération non autorisée.' });
+      return true;
+    }
+
     const userId = parts[5].startsWith('!') ? parts[5].substring(1) : parts[5];
     const body = await readJsonBody<{ note: string }>(req);
 
@@ -915,7 +921,9 @@ export async function handleMembersRoutes(
         },
       });
 
-      await pushAudit(guildId, {
+      // La note est déjà enregistrée : un échec de journalisation ne doit pas
+      // faire remonter « Erreur lors de l'enregistrement » côté dashboard.
+      await safePushAudit(guildId, {
         user: auditUser,
         action: 'Mise à jour note modérateur',
         context: getGuildName(client, guildId),
@@ -923,7 +931,7 @@ export async function handleMembersRoutes(
         eventType: 'Manuel',
         details: `Note mise à jour pour l'utilisateur ${userId}.`,
         channelId: null,
-      });
+      }, 'member note update');
 
       json(res, 200, { ok: true, note: profile.moderatorNote });
     } catch (err) {

@@ -134,8 +134,22 @@ export async function handleDashboardRoutes(
     const isNewsAction = parts[4] === 'news'
       && (method === 'POST' || method === 'PATCH' || method === 'DELETE');
 
-    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction) {
+    // La fiche membre est un outil de modération : la note interne et les
+    // actions de modération doivent rester accessibles sans droit de
+    // configuration, sinon l'onglet « Notes Modérateur » renvoie une erreur
+    // d'enregistrement à tous les modérateurs (issue #215). Le niveau d'accès
+    // exact est revérifié dans handleMembersRoutes.
+    const isMemberModerationAction = parts.length === 7
+      && parts[4] === 'members'
+      && ((parts[6] === 'note' && method === 'PATCH') || (parts[6] === 'actions' && method === 'POST'));
+
+    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
+      return true;
+    }
+
+    if (isMemberModerationAction && access.level !== 'admin' && access.level !== 'moderator') {
+      json(res, 403, { error: 'Action de modération non autorisée.' });
       return true;
     }
 
