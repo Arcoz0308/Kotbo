@@ -217,8 +217,15 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
     throw new Error("Le salon d'embed des tickets n'est pas configuré.");
   }
 
-  const channel = client.channels.cache.get(guildConfig.ticketChannelId);
-  if (!channel || !(channel instanceof TextChannel)) {
+  // Repli sur un appel REST : le cache peut ne pas porter un salon cree a
+  // l'instant, et l'absence du cache ne veut pas dire que le salon n'existe pas.
+  //
+  // Tout salon de serveur ou l'on peut ecrire convient, y compris un salon
+  // d'annonces : c'est un choix legitime pour un panneau, et la mise en route
+  // accepte deja d'en reprendre un.
+  const channel = client.channels.cache.get(guildConfig.ticketChannelId)
+    ?? await client.channels.fetch(guildConfig.ticketChannelId).catch(() => null);
+  if (!channel || !channel.isTextBased() || channel.isDMBased()) {
     throw new Error("Le salon d'embed des tickets est introuvable ou n'est pas un salon textuel.");
   }
 
