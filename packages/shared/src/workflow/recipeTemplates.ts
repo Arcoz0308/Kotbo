@@ -1,17 +1,8 @@
-import type { Recipe } from '@kotbo/shared';
+import type { Recipe } from './recipe.js';
 
-/**
- * Recettes prêtes à l'emploi.
- *
- * Partir d'une page blanche est le moment où l'on abandonne : ces modèles
- * répondent aux besoins les plus courants et laissent volontairement les rôles
- * et salons vides. Les champs à compléter s'affichent alors en ambre, ce qui
- * transforme la mise en route en une liste de trous à combler plutôt qu'en
- * exercice de conception.
- */
-
+/** Recette prête à l'emploi proposée à la création d'un workflow. */
 export interface RecipeTemplate {
-  /** Sert aussi de clé de libellé, traduite côté page */
+  /** Sert aussi de clé de libellé, traduite côté dashboard. */
   id: string;
   icon: string;
   build: () => Recipe;

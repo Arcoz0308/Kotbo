@@ -43,4 +43,5 @@ export * from './ghostMembers';
 export * from './auditEvents';
 export * from './workflows';
 export * from './rankCard';
+export * from './simulation';
 export * from './serverTemplate';

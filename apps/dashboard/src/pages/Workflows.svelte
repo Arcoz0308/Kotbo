@@ -4,7 +4,7 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RecipeEditor from '../lib/components/triggers/RecipeEditor.svelte';
   import WorkflowEditor from '../lib/components/workflows/WorkflowEditor.svelte';
-  import { RECIPE_TEMPLATES, type RecipeTemplate } from '../lib/components/triggers/recipeTemplates';
+  import { RECIPE_TEMPLATES, type RecipeTemplate } from '@kotbo/shared';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { m, dateLocale } from '../lib/i18n';

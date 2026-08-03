@@ -176,15 +176,9 @@ describe('relecture des graphes', () => {
 });
 
 describe('modèles proposés à la création', () => {
-  /**
-   * Les modèles vivent côté dashboard mais sont du pur contenu : les recopier
-   * ici garderait deux vérités. On les relit donc depuis leur source, sans quoi
-   * un modèle cassé ne se découvrirait qu'à l'écran.
-   */
+  /** Les modèles partagés doivent rester compilables par le moteur du bot. */
   test('se compilent et se relisent tous', async () => {
-    const { RECIPE_TEMPLATES } = await import(
-      '../../../../dashboard/src/lib/components/triggers/recipeTemplates'
-    );
+    const { RECIPE_TEMPLATES } = await import('@kotbo/shared');
 
     for (const template of RECIPE_TEMPLATES) {
       const recipe = template.build();

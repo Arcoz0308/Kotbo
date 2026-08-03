@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { SvelteFlow, Background, Controls, type Edge, type Node } from '@xyflow/svelte';
+  import { SvelteFlow, Background, BackgroundVariant, Controls, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import Papicon from '../Papicon.svelte';
   import WorkflowNodeCard from './WorkflowNodeCard.svelte';
@@ -451,7 +451,7 @@
         {nodeTypes}
         {isValidConnection}
         fitView
-        deleteKeyCode={['Delete', 'Backspace']}
+        deleteKey={['Delete', 'Backspace']}
         proOptions={{ hideAttribution: true }}
         onconnect={revalidate}
         ondelete={revalidate}
@@ -460,7 +460,7 @@
         onedgeclick={({ edge }: { edge: any }) => { selectedEdgeId = edge.id; selectedId = null; }}
         onpaneclick={() => { selectedId = null; selectedEdgeId = null; }}
       >
-        <Background variant="dots" gap={18} size={1.2} color="rgba(255, 255, 255, 0.12)" />
+        <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} patternColor="rgba(255, 255, 255, 0.12)" />
         <Controls />
       </SvelteFlow>
     </div>
