@@ -34,19 +34,20 @@ import {
   releaseProvisionLock,
 } from './channelProvisioningService.js';
 import { defaultLevelUpMessage, getOrCreateLevelConfig, invalidateLevelConfigCache } from '../progression/levelingService.js';
+import { setDashboardModuleStatus } from './moduleActivationService.js';
 import type { TicketProvisionOutcome } from '../features/ticketProvisioning.js';
 
-export const SERVER_TEMPLATE_SECTIONS = ['staff', 'tickets', 'text', 'bots', 'voice'] as const;
+export const SERVER_TEMPLATE_SECTIONS = ['staff', 'tickets', 'welcome', 'text', 'bots', 'voice', 'modules'] as const;
 export type ServerTemplateSection = (typeof SERVER_TEMPLATE_SECTIONS)[number];
 
-type ItemKind = 'role' | 'category' | 'text' | 'voice';
+type ItemKind = 'role' | 'category' | 'text' | 'voice' | 'module';
 
 /**
  * Ce qu'un element branche cote Kotbo. Le dashboard traduit ce code en une
  * phrase : le service ne connait pas la langue de l'admin, seulement celle du
  * serveur, qui sert a nommer les salons.
  */
-type ItemWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | null;
+type ItemWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | null;
 
 type TemplateItem = {
   key: string;
@@ -59,11 +60,22 @@ type TemplateItem = {
   wiring: ItemWiring;
   /** Salon ferme a @everyone : la previsualisation le signale. */
   restricted: boolean;
+  /** Salon visible de tous mais ou seul le bot ecrit. */
+  readOnly: boolean;
   /**
    * Ne peut pas etre decoche tant que sa section est retenue : le module ne
    * fonctionnerait pas sans lui.
    */
   required: boolean;
+  /** Module du dashboard a activer, pour les elements de la section modules. */
+  moduleId: string | null;
+  /**
+   * Salon dont la creation vaut activation. Cocher ce salon coche le module :
+   * poser un salon de niveaux sans allumer le leveling ne produirait rien.
+   * Le lien ne joue que dans ce sens, un module se tenant tres bien sans salon
+   * dedie.
+   */
+  linkedTo: string | null;
 };
 
 const item = (
@@ -71,7 +83,15 @@ const item = (
   section: ServerTemplateSection,
   kind: ItemKind,
   name: (locale: BotLocale) => string,
-  options: { parent?: string; wiring?: ItemWiring; restricted?: boolean; required?: boolean } = {},
+  options: {
+    parent?: string;
+    wiring?: ItemWiring;
+    restricted?: boolean;
+    readOnly?: boolean;
+    required?: boolean;
+    moduleId?: string;
+    linkedTo?: string;
+  } = {},
 ): TemplateItem => ({
   key,
   section,
@@ -80,7 +100,10 @@ const item = (
   name,
   wiring: options.wiring ?? null,
   restricted: options.restricted ?? false,
+  readOnly: options.readOnly ?? false,
   required: options.required ?? false,
+  moduleId: options.moduleId ?? null,
+  linkedTo: options.linkedTo ?? null,
 });
 
 /** Ordre de la liste = ordre d'affichage dans la previsualisation et ordre de creation. */
@@ -93,8 +116,12 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   item('staff.log', 'staff', 'text', (l) => m.setup_template_channel_staff_logs({}, { locale: l }), { parent: 'staff.category', wiring: 'logs', restricted: true }),
 
   item('tickets.category', 'tickets', 'category', (l) => m.setup_channel_tickets_category({}, { locale: l }), { wiring: 'tickets', restricted: true, required: true }),
-  item('tickets.panel', 'tickets', 'text', (l) => m.setup_channel_tickets_panel({}, { locale: l }), { parent: 'tickets.category', wiring: 'tickets', required: true }),
+  item('tickets.panel', 'tickets', 'text', (l) => m.setup_channel_tickets_panel({}, { locale: l }), { parent: 'tickets.category', wiring: 'tickets', readOnly: true, required: true }),
   item('tickets.logs', 'tickets', 'text', (l) => m.setup_channel_tickets_logs({}, { locale: l }), { parent: 'tickets.category', wiring: 'tickets', restricted: true, required: true }),
+
+  item('welcome.category', 'welcome', 'category', (l) => m.setup_template_category_welcome({}, { locale: l })),
+  item('welcome.welcome', 'welcome', 'text', (l) => m.setup_template_channel_welcome({}, { locale: l }), { parent: 'welcome.category', wiring: 'welcome', readOnly: true }),
+  item('welcome.rules', 'welcome', 'text', (l) => m.setup_template_channel_rules({}, { locale: l }), { parent: 'welcome.category', wiring: 'rules', readOnly: true }),
 
   item('text.category', 'text', 'category', (l) => m.setup_template_category_text({}, { locale: l })),
   item('text.general', 'text', 'text', (l) => m.setup_template_channel_general({}, { locale: l }), { parent: 'text.category' }),
@@ -103,11 +130,19 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
 
   item('bots.category', 'bots', 'category', (l) => m.setup_template_category_bots({}, { locale: l })),
   item('bots.rpg', 'bots', 'text', (l) => m.setup_template_channel_rpg({}, { locale: l }), { parent: 'bots.category', wiring: 'rpg' }),
-  item('bots.level', 'bots', 'text', (l) => m.setup_channel_leveling({}, { locale: l }), { parent: 'bots.category', wiring: 'leveling' }),
+  item('bots.level', 'bots', 'text', (l) => m.setup_channel_leveling({}, { locale: l }), { parent: 'bots.category', wiring: 'leveling', readOnly: true }),
 
   item('voice.category', 'voice', 'category', (l) => m.setup_template_category_voice({}, { locale: l })),
   item('voice.general', 'voice', 'voice', (l) => m.setup_template_voice_general({}, { locale: l }), { parent: 'voice.category' }),
   item('voice.generator', 'voice', 'voice', (l) => m.setup_template_voice_generator({}, { locale: l }), { parent: 'voice.category', wiring: 'tempvoice' }),
+
+  // Modules allumes en meme temps. Les noms ne partent pas sur Discord : ils
+  // s'affichent dans le dashboard, qui les traduit lui-meme depuis `moduleId`.
+  // La fonction de nom sert de repli et n'a pas a suivre la langue du serveur.
+  item('module.tickets', 'modules', 'module', () => 'Tickets', { moduleId: 'tickets', linkedTo: 'tickets.category' }),
+  item('module.leveling', 'modules', 'module', () => 'Leveling', { moduleId: 'leveling', linkedTo: 'bots.level' }),
+  item('module.economy', 'modules', 'module', () => 'Economie', { moduleId: 'economy', linkedTo: 'bots.rpg' }),
+  item('module.nickname_moderation', 'modules', 'module', () => 'Moderation des pseudos', { moduleId: 'nickname_moderation' }),
 ];
 
 const ITEMS_BY_KEY = new Map(SERVER_TEMPLATE_PLAN.map((entry) => [entry.key, entry]));
@@ -123,7 +158,10 @@ export type ServerTemplatePlanItem = {
   name: string;
   wiring: ItemWiring;
   restricted: boolean;
+  readOnly: boolean;
   required: boolean;
+  moduleId: string | null;
+  linkedTo: string | null;
 };
 
 /** Le plan resolu dans la langue du serveur, tel qu'il sera pose sur Discord. */
@@ -136,7 +174,10 @@ export function buildServerTemplatePlan(locale: BotLocale): ServerTemplatePlanIt
     name: entry.name(locale),
     wiring: entry.wiring,
     restricted: entry.restricted,
+    readOnly: entry.readOnly,
     required: entry.required,
+    moduleId: entry.moduleId,
+    linkedTo: entry.linkedTo,
   }));
 }
 
@@ -220,6 +261,8 @@ async function assertStillAllowed(guild: Guild, required: bigint[]): Promise<str
 
 export type ServerTemplateResult = {
   items: ProvisionedEntry[];
+  /** Modules allumes, par identifiant du dashboard. */
+  modules: string[];
   panelSent: boolean;
   interrupted: string | null;
 };
@@ -237,6 +280,7 @@ export async function applyServerTemplate(input: {
   const reason = m.setup_reason_template({ user: auditUser }, { locale });
 
   const items: ProvisionedEntry[] = [];
+  const modules: string[] = [];
   const data: Prisma.GuildUpdateInput = {};
   const refs: StoredRefs = {};
   let panelSent = false;
@@ -247,6 +291,7 @@ export async function applyServerTemplate(input: {
       staffAnnouncementChannelId: true,
       logChannelId: true,
       economyChannelId: true,
+      regulationChannelId: true,
       ticketStaffRoleId: true,
       baseStaffRoleId: true,
       moderatorRoleId: true,
@@ -343,6 +388,26 @@ export async function applyServerTemplate(input: {
       { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] },
       ...botOverwrite,
       ...staffOverwrite,
+    ];
+
+    // Lisible de tous, ecrit par le seul bot. Sa surcharge a lui est reprecisee
+    // car le refus pose sur @everyone le viserait aussi, faute d'etre
+    // administrateur du serveur.
+    const readOnlyOverwrites: OverwriteResolvable[] = [
+      {
+        id: everyoneId,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        deny: [PermissionFlagsBits.SendMessages],
+      },
+      {
+        id: botId,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.EmbedLinks,
+        ]
+      },
     ];
 
     const ensurePlannedCategory = async (key: string, existingId: string | null | undefined, restricted: boolean) => {
@@ -444,6 +509,57 @@ export async function applyServerTemplate(input: {
       }
     }
 
+    if (selection.has('welcome.category')) {
+      await assertStillAllowed(guild, required);
+      const parentId = await ensurePlannedCategory('welcome.category', null, false);
+
+      if (selection.has('welcome.welcome')) {
+        // Charge a l'usage : le service d'accueil tire `@napi-rs/canvas` pour
+        // ses images, dont un service de socle n'a pas a dependre.
+        const { getOrCreateWelcomeConfig } = await import('../features/welcomeGoodbyeService.js');
+        const welcomeConfig = await getOrCreateWelcomeConfig(guildId);
+        const channel = await ensureTextChannel(guild, {
+          key: 'welcome.welcome',
+          existingId: welcomeConfig.welcomeChannelId ?? knownRefs['welcome.welcome'],
+          name: nameOf('welcome.welcome'),
+          parentId,
+          permissionOverwrites: readOnlyOverwrites,
+          reason,
+        });
+        record(channel.entry);
+
+        // L'accueil est allume en meme temps que son salon : un salon de
+        // bienvenue ou rien ne souhaite la bienvenue n'aurait aucun sens. Le
+        // message par defaut est deja pose par la configuration.
+        if (welcomeConfig.welcomeChannelId !== channel.channel.id || !welcomeConfig.welcomeEnabled) {
+          await prisma.welcomeConfig.update({
+            where: { guildId },
+            data: { welcomeChannelId: channel.channel.id, welcomeEnabled: true },
+          });
+        }
+      }
+
+      if (selection.has('welcome.rules')) {
+        const channel = await ensureTextChannel(guild, {
+          key: 'welcome.rules',
+          existingId: config?.regulationChannelId ?? knownRefs['welcome.rules'],
+          name: nameOf('welcome.rules'),
+          parentId,
+          permissionOverwrites: readOnlyOverwrites,
+          reason,
+        });
+        record(channel.entry);
+        if (config?.regulationChannelId !== channel.channel.id) {
+          data.regulationChannelId = channel.channel.id;
+        }
+        // Le reglement n'est pas publie ici : un serveur neuf n'a pas encore
+        // d'articles, et l'embed vide qui en sortirait devrait de toute facon
+        // etre republie depuis la page Reglement une fois le texte ecrit.
+      }
+
+      await persist();
+    }
+
     if (selection.has('text.category')) {
       await assertStillAllowed(guild, required);
       const parentId = await ensurePlannedCategory('text.category', null, false);
@@ -498,22 +614,7 @@ export async function applyServerTemplate(input: {
           existingId,
           name: nameOf('bots.level'),
           parentId,
-          permissionOverwrites: [
-            {
-              id: everyoneId,
-              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-              deny: [PermissionFlagsBits.SendMessages],
-            },
-            {
-              id: botId,
-              allow: [
-                PermissionFlagsBits.ViewChannel,
-                PermissionFlagsBits.SendMessages,
-                PermissionFlagsBits.ReadMessageHistory,
-                PermissionFlagsBits.EmbedLinks,
-              ]
-            },
-          ],
+          permissionOverwrites: readOnlyOverwrites,
           reason,
         });
         record(channel.entry);
@@ -580,15 +681,28 @@ export async function applyServerTemplate(input: {
       await persist();
     }
 
+    // Les salons d'abord, les modules ensuite : allumer le leveling avant que
+    // son salon existe laisserait passer des annonces dans le salon d'origine.
+    //
+    // Rien n'est jamais eteint ici. Un module absent de la selection est un
+    // module que l'admin n'a pas demande, pas un module qu'il veut couper : la
+    // mise en place ne doit pas defaire une configuration existante.
+    for (const entry of SERVER_TEMPLATE_PLAN) {
+      if (entry.kind !== 'module' || !entry.moduleId) continue;
+      if (!selection.has(entry.key)) continue;
+      await setDashboardModuleStatus(guildId, entry.moduleId, true);
+      modules.push(entry.moduleId);
+    }
+
     await persist();
     await cache.invalidateGuild(guildId);
-    return { items, panelSent, interrupted: null };
+    return { items, modules, panelSent, interrupted: null };
   } catch (err) {
     // Ce qui a ete cree est enregistre malgre l'echec : sans cela, une reprise
     // reposerait les memes salons a cote des precedents.
     await persist().catch(() => null);
     await cache.invalidateGuild(guildId).catch(() => null);
     logger.error('ServerTemplate', `Mise en place interrompue sur ${guildId}: ${errorMessage(err)}`);
-    return { items, panelSent, interrupted: errorMessage(err) };
+    return { items, modules, panelSent, interrupted: errorMessage(err) };
   }
 }

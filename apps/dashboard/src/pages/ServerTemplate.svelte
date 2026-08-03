@@ -24,14 +24,16 @@
 
   const applyAction = createAsyncActionState();
 
-  const SECTION_ORDER: ServerTemplateSection[] = ['staff', 'tickets', 'text', 'bots', 'voice'];
+  const SECTION_ORDER: ServerTemplateSection[] = ['staff', 'tickets', 'welcome', 'text', 'bots', 'voice'];
 
   const SECTION_LABELS: Record<ServerTemplateSection, () => string> = {
     staff: m.st_section_staff,
     tickets: m.st_section_tickets,
+    welcome: m.st_section_welcome,
     text: m.st_section_text,
     bots: m.st_section_bots,
     voice: m.st_section_voice,
+    modules: m.st_section_modules,
   };
 
   const WIRING_LABELS: Record<string, () => string> = {
@@ -41,6 +43,16 @@
     leveling: m.st_wiring_leveling,
     rpg: m.st_wiring_rpg,
     tempvoice: m.st_wiring_tempvoice,
+    welcome: m.st_wiring_welcome,
+    rules: m.st_wiring_rules,
+  };
+
+  /** Nom et role de chaque module, le service n'envoyant que son identifiant. */
+  const MODULE_LABELS: Record<string, { name: () => string; desc: () => string }> = {
+    tickets: { name: m.st_module_tickets, desc: m.st_module_tickets_desc },
+    leveling: { name: m.st_module_leveling, desc: m.st_module_leveling_desc },
+    economy: { name: m.st_module_economy, desc: m.st_module_economy_desc },
+    nickname_moderation: { name: m.st_module_nickname_moderation, desc: m.st_module_nickname_moderation_desc },
   };
 
   const plan = $derived(template?.plan ?? []);
@@ -70,6 +82,10 @@
       })
       .filter((section) => section.roles.length > 0 || section.categories.length > 0),
   );
+
+  /** Les modules vivent hors de l'arborescence : ils ont leur propre bloc. */
+  const moduleItems = $derived(plan.filter((entry) => entry.kind === 'module'));
+  const selectedModules = $derived(moduleItems.filter((entry) => selection.has(entry.key)));
 
   const selectedCount = $derived(selection.size);
   const selectedRoles = $derived(plan.filter((entry) => entry.kind === 'role' && selection.has(entry.key)));
@@ -114,8 +130,33 @@
     return next;
   }
 
-  function commit(next: Set<string>): void {
-    selection = syncCategories(syncRequired(next));
+  /**
+   * Cocher un salon coche le module qui s'en sert : poser un salon de niveaux
+   * sans allumer le leveling ne produirait rien.
+   *
+   * Le lien ne joue qu'a l'allumage, et seulement au moment ou le salon arrive
+   * dans la selection. Decocher le salon ne coupe pas le module - il se tient
+   * tres bien sans salon dedie - et une fois le module decoche a la main, il le
+   * reste : sans cette comparaison avec l'etat precedent, la case se serait
+   * recochee toute seule au clic suivant.
+   */
+  function syncLinkedModules(previous: Set<string>, next: Set<string>): Set<string> {
+    for (const entry of moduleItems) {
+      if (!entry.linkedTo) continue;
+      if (next.has(entry.linkedTo) && !previous.has(entry.linkedTo)) next.add(entry.key);
+    }
+    return next;
+  }
+
+  /**
+   * `linkModules` a false quand la selection vient d'ailleurs que d'un clic -
+   * celle enregistree lors d'une mise en place passee, par exemple. Elle fait
+   * alors foi telle quelle : la liaison recocherait un module que l'admin avait
+   * justement decoche.
+   */
+  function commit(next: Set<string>, linkModules = true): void {
+    const synced = syncCategories(syncRequired(next));
+    selection = linkModules ? syncLinkedModules(selection, synced) : synced;
   }
 
   function toggleItem(item: ServerTemplatePlanItem): void {
@@ -181,6 +222,33 @@
     return item.wiring ? WIRING_LABELS[item.wiring]?.() ?? null : null;
   }
 
+  /** Repli sur le nom envoye par le service pour un module ajoute au plan sans traduction. */
+  function moduleName(item: ServerTemplatePlanItem): string {
+    return (item.moduleId && MODULE_LABELS[item.moduleId]?.name()) || item.name;
+  }
+
+  function moduleDesc(item: ServerTemplatePlanItem): string | null {
+    return (item.moduleId && MODULE_LABELS[item.moduleId]?.desc()) || null;
+  }
+
+  /** Nom du salon qui a fait cocher ce module, quand il est bien retenu. */
+  function moduleLinkName(item: ServerTemplatePlanItem): string | null {
+    if (!item.linkedTo || !selection.has(item.linkedTo)) return null;
+    return plan.find((entry) => entry.key === item.linkedTo)?.name ?? null;
+  }
+
+  function toggleAllModules(): void {
+    const allOn = moduleItems.every((entry) => selection.has(entry.key));
+    const next = new Set(selection);
+    for (const entry of moduleItems) {
+      if (allOn) next.delete(entry.key);
+      else next.add(entry.key);
+    }
+    // `commit` ne recochera rien : la liaison ne joue qu'au moment ou un salon
+    // entre dans la selection, et ce bouton n'y touche pas.
+    commit(next);
+  }
+
   async function load() {
     loading = true;
     loadError = '';
@@ -189,7 +257,7 @@
       template = data;
       // Une mise en place deja faite est rendue telle qu'elle a ete lancee :
       // l'admin doit retrouver ce qu'il avait coche, pas la maquette complete.
-      commit(new Set(data?.applied?.selection?.length ? data.applied.selection : data?.defaultSelection ?? []));
+      commit(new Set(data?.applied?.selection?.length ? data.applied.selection : data?.defaultSelection ?? []), false);
     } catch (err) {
       loadError = err instanceof Error ? err.message : m.st_err_load();
     } finally {
@@ -201,9 +269,14 @@
 
   async function handleApply() {
     if (!canApply) return;
+    // Les modules changent le comportement du bot pour tout le serveur : ils
+    // sont annonces a part, et non noyes dans le compte des salons.
+    const moduleNames = selectedModules.map((entry) => moduleName(entry)).join(', ');
     if (!(await confirmDialog.ask({
       title: m.st_confirm_title(),
-      description: m.st_confirm_desc({ count: selectedCount }),
+      description: moduleNames
+        ? `${m.st_confirm_desc({ count: selectedCount - selectedModules.length })} ${m.st_confirm_modules({ modules: moduleNames })}`
+        : m.st_confirm_desc({ count: selectedCount - selectedModules.length }),
       confirmLabel: m.st_confirm_label(),
       variant: 'warning',
     }))) return;
@@ -218,6 +291,11 @@
         created: created.join(', ') || '—',
         reused: reused.join(', ') || '—',
       }));
+      if (result.modules?.length) {
+        // Traduits pour l'affichage : le service ne rend que des identifiants.
+        const names = result.modules.map((id) => MODULE_LABELS[id]?.name() ?? id);
+        toast.success(m.st_success_modules({ modules: names.join(', ') }));
+      }
       if (result.panelSent) toast.success(m.st_panel_sent());
 
       // Les nouveaux salons doivent apparaitre dans les selecteurs des autres
@@ -364,6 +442,59 @@
               </div>
             </div>
           {/each}
+
+          <!-- Les modules ne sont pas des salons : ils ont leur propre bloc,
+               avec ce que chacun allume et pourquoi il est deja coche. -->
+          {#if moduleItems.length > 0}
+            {@const allModulesOn = moduleItems.every((entry) => selection.has(entry.key))}
+            <div class="px-6 py-5 space-y-3 bg-surface-container-low/20">
+              <button
+                type="button"
+                onclick={toggleAllModules}
+                class="flex items-center gap-3 w-full text-left group"
+              >
+                <span class="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-colors {allModulesOn ? 'bg-primary border-primary text-on-primary' : selectedModules.length > 0 ? 'border-primary text-primary' : 'border-outline-variant/40 text-transparent group-hover:border-outline-variant'}">
+                  {#if allModulesOn}
+                    <Papicon icon="Check" size={12} />
+                  {:else if selectedModules.length > 0}
+                    <span class="w-2 h-0.5 rounded-full bg-primary"></span>
+                  {/if}
+                </span>
+                <span class="min-w-0">
+                  <span class="block text-sm font-semibold text-on-surface">{m.st_modules_title()}</span>
+                  <span class="block text-[12px] text-on-surface-variant/60">{m.st_modules_hint()}</span>
+                </span>
+              </button>
+
+              <div class="pl-8 space-y-2">
+                {#each moduleItems as mod (mod.key)}
+                  {@const linkName = moduleLinkName(mod)}
+                  {@const desc = moduleDesc(mod)}
+                  <button
+                    type="button"
+                    onclick={() => toggleItem(mod)}
+                    class="flex items-start gap-2.5 w-full text-left group"
+                  >
+                    <span class="mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors {isChecked(mod.key) ? 'bg-primary border-primary text-on-primary' : 'border-outline-variant/40 text-transparent group-hover:border-outline-variant'}">
+                      <Papicon icon="Check" size={10} />
+                    </span>
+                    <span class="min-w-0 space-y-0.5">
+                      <span class="flex items-center gap-1.5 text-[13px] font-medium text-on-surface">
+                        <Papicon icon="Package" size={12} class="shrink-0 opacity-40" />
+                        {moduleName(mod)}
+                      </span>
+                      {#if desc}
+                        <span class="block text-[12px] text-on-surface-variant/55">{desc}</span>
+                      {/if}
+                      {#if linkName}
+                        <span class="block text-[12px] text-primary/80">{m.st_module_linked({ channel: `#${linkName}` })}</span>
+                      {/if}
+                    </span>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
         </div>
       </section>
 
@@ -395,6 +526,10 @@
                           <span class="shrink-0 ml-auto opacity-40" title={m.st_restricted()}>
                             <Papicon icon="Lock" size={11} />
                           </span>
+                        {:else if channel.readOnly}
+                          <span class="shrink-0 ml-auto opacity-40" title={m.st_readonly()}>
+                            <Papicon icon="Eye" size={11} />
+                          </span>
                         {/if}
                       </div>
                     {/each}
@@ -416,8 +551,31 @@
                 {/each}
               </div>
             {/if}
+
+            {#if selectedModules.length > 0}
+              <div class="space-y-0.5 pt-2 border-t border-outline-variant/10">
+                <p class="px-1 pt-1 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant/45">
+                  {m.st_section_modules()}
+                </p>
+                {#each selectedModules as mod (mod.key)}
+                  <div class="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-on-surface-variant/70">
+                    <Papicon icon="Package" size={13} class="shrink-0 opacity-60" />
+                    <span class="text-[13px] font-medium truncate">{moduleName(mod)}</span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           {/if}
         </div>
+
+        <!-- Le seul element du plan qui demande une suite : le dire ici evite
+             qu'on cherche son reglement dans un salon reste vide. -->
+        {#if isChecked('welcome.rules')}
+          <p class="flex items-start gap-2 px-1 text-[12px] text-on-surface-variant/60">
+            <Papicon icon="Info" size={13} class="shrink-0 mt-0.5 opacity-60" />
+            {m.st_rules_notice()}
+          </p>
+        {/if}
 
         <button
           type="button"
@@ -428,7 +586,12 @@
           <Papicon icon="Sparkles" size={16} />
           {applyAction.state.loading ? m.st_applying() : m.st_apply()}
         </button>
-        <p class="text-center text-[12px] text-on-surface-variant/50">{m.st_count({ count: selectedCount })}</p>
+        <p class="text-center text-[12px] text-on-surface-variant/50">
+          {m.st_count({ count: selectedCount - selectedModules.length })}
+          {#if selectedModules.length > 0}
+            · {m.st_modules_count({ count: selectedModules.length })}
+          {/if}
+        </p>
       </aside>
     </div>
   {/if}

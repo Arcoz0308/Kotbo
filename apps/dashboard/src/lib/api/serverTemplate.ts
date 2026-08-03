@@ -2,18 +2,24 @@
 import { authStore } from '../stores/auth.svelte';
 import { dashboardRequest } from './client';
 
-export type ServerTemplateSection = 'staff' | 'tickets' | 'text' | 'bots' | 'voice';
-export type ServerTemplateWiring = 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | null;
+export type ServerTemplateSection = 'staff' | 'tickets' | 'welcome' | 'text' | 'bots' | 'voice' | 'modules';
+export type ServerTemplateWiring =
+  | 'staff' | 'logs' | 'tickets' | 'leveling' | 'rpg' | 'tempvoice' | 'welcome' | 'rules' | null;
 
 export type ServerTemplatePlanItem = {
   key: string;
   section: ServerTemplateSection;
-  kind: 'role' | 'category' | 'text' | 'voice';
+  kind: 'role' | 'category' | 'text' | 'voice' | 'module';
   parent: string | null;
   name: string;
   wiring: ServerTemplateWiring;
   restricted: boolean;
+  readOnly: boolean;
   required: boolean;
+  /** Module du dashboard active par cet element. */
+  moduleId: string | null;
+  /** Salon dont la creation coche ce module. */
+  linkedTo: string | null;
 };
 
 export type ServerTemplateState = {
@@ -29,6 +35,7 @@ export type ServerTemplateState = {
 export type ServerTemplateApplyResult = {
   success: boolean;
   items: { key: string; id: string; name: string; created: boolean }[];
+  modules: string[];
   panelSent: boolean;
 };
 
