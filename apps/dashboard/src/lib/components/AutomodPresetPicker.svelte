@@ -8,7 +8,7 @@
     type AutomodPreset,
     type AutomodFilterValues,
     type AutomodRaidValues,
-  } from '../automodPresets';
+  } from '@kotbo/shared';
 
   const {
     selectedId = null,

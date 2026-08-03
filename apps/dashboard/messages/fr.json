@@ -7987,7 +7987,7 @@
   "st_section_welcome": "Bienvenue",
   "st_section_modules": "Modules Kotbo",
   "st_modules_title": "Modules activés",
-  "st_modules_hint": "Ces fonctions du bot seront allumées pour tout le serveur. Rien n'est jamais éteint : un module décoché reste dans l'état où vous l'avez laissé.",
+  "st_modules_hint": "Les modules cochés seront activés pour tout le serveur. Décocher ne désactive rien : le module est laissé tel quel, actif ou non.",
   "st_module_linked": "Activé parce que vous créez {channel}",
   "st_module_tickets": "Tickets",
   "st_module_tickets_desc": "Ouverture de tickets d'assistance depuis le panneau.",
@@ -8003,5 +8003,11 @@
   "st_rules_notice": "Le règlement n'est pas publié tout de suite : écrivez vos articles sur la page Règlement, puis publiez-les dans ce salon.",
   "st_modules_count": "{count} module(s) à activer",
   "st_success_modules": "Modules activés : {modules}",
-  "st_confirm_modules": "Les modules suivants seront activés pour tout le serveur : {modules}."
+  "st_confirm_modules": "Les modules suivants seront activés pour tout le serveur : {modules}.",
+  "st_module_automod": "AutoMod",
+  "st_module_automod_desc": "Filtres anti-spam, liens, majuscules, insultes et invitations, sur le préréglage recommandé. Kotbo se mettra à modérer les messages.",
+  "st_module_channel_health": "Santé des salons",
+  "st_module_channel_health_desc": "Analyse les salons surchargés ou inactifs et vous conseille. Aucun salon n'est créé ni archivé sans votre accord.",
+  "st_warnings_title": "Terminé, avec des réserves",
+  "st_module_muted": "Aucun salon où écrire : cochez #log dans la section Staff, sinon ce module analysera sans jamais vous alerter."
 }

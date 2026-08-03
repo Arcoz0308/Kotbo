@@ -14,7 +14,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
   import AutomodPresetPicker from '../lib/components/AutomodPresetPicker.svelte';
-  import { findAutomodPreset, type AutomodPreset } from '../lib/automodPresets';
+  import { findAutomodPreset, type AutomodPreset } from '@kotbo/shared';
   import {
     fetchAutoModConfig,
     updateAutoModConfig,

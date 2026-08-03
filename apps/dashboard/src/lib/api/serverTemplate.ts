@@ -28,6 +28,8 @@ export type ServerTemplateState = {
   defaultSelection: string[];
   missingPermissions: string[];
   canCreateChannels: boolean;
+  /** Un salon de logs est deja configure : la sante des salons a ou parler. */
+  hasLogChannel: boolean;
   isAdministrator: boolean;
   applied: { at: string; by: string | null; selection: string[] } | null;
 };
@@ -36,6 +38,8 @@ export type ServerTemplateApplyResult = {
   success: boolean;
   items: { key: string; id: string; name: string; created: boolean }[];
   modules: string[];
+  /** Etapes facultatives qui n'ont pas abouti, sans arreter la mise en place. */
+  warnings: string[];
   panelSent: boolean;
 };
 

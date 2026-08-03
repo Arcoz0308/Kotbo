@@ -50,6 +50,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
           serverTemplateAppliedAt: true,
           serverTemplateAppliedBy: true,
           serverTemplateSections: true,
+          logChannelId: true,
         },
       });
 
@@ -66,6 +67,9 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         defaultSelection: DEFAULT_SELECTION,
         missingPermissions: missing,
         canCreateChannels: me?.permissions.has(PermissionFlagsBits.ManageChannels) ?? false,
+        // Sert de repli au salon d'alerte de la sante des salons : la page ne
+        // met en garde que si ce repli n'existe pas non plus.
+        hasLogChannel: !!guildRow?.logChannelId,
         isAdministrator: me?.permissions.has(PermissionFlagsBits.Administrator) ?? false,
         applied: guildRow?.serverTemplateAppliedAt
           ? {
@@ -153,7 +157,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         context: getGuildName(client, guildId),
         module: 'Configuration',
         eventType: 'Manuel',
-        details: `Créés : ${created.map((entry) => entry.name).join(', ') || 'aucun'}. Repris : ${result.items.filter((entry) => !entry.created).map((entry) => entry.name).join(', ') || 'aucun'}. Modules activés : ${result.modules.join(', ') || 'aucun'}.${result.interrupted ? ` Interrompu : ${result.interrupted}` : ''}`,
+        details: `Créés : ${created.map((entry) => entry.name).join(', ') || 'aucun'}. Repris : ${result.items.filter((entry) => !entry.created).map((entry) => entry.name).join(', ') || 'aucun'}. Modules activés : ${result.modules.join(', ') || 'aucun'}.${result.warnings.length ? ` Avertissements : ${result.warnings.join(' | ')}` : ''}${result.interrupted ? ` Interrompu : ${result.interrupted}` : ''}`,
         channelId: null,
       });
 
@@ -162,6 +166,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
           error: `Mise en place interrompue : ${result.interrupted}`,
           items: result.items,
           modules: result.modules,
+          warnings: result.warnings,
           panelSent: result.panelSent,
         });
         return true;
@@ -171,6 +176,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         success: true,
         items: result.items,
         modules: result.modules,
+        warnings: result.warnings,
         panelSent: result.panelSent,
       });
     } catch (err) {

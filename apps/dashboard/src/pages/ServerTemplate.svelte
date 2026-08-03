@@ -53,6 +53,8 @@
     leveling: { name: m.st_module_leveling, desc: m.st_module_leveling_desc },
     economy: { name: m.st_module_economy, desc: m.st_module_economy_desc },
     nickname_moderation: { name: m.st_module_nickname_moderation, desc: m.st_module_nickname_moderation_desc },
+    automod: { name: m.st_module_automod, desc: m.st_module_automod_desc },
+    channel_health: { name: m.st_module_channel_health, desc: m.st_module_channel_health_desc },
   };
 
   const plan = $derived(template?.plan ?? []);
@@ -237,6 +239,20 @@
     return plan.find((entry) => entry.key === item.linkedTo)?.name ?? null;
   }
 
+  /**
+   * Module retenu mais prive du salon ou il devait s'exprimer. Ne vaut que
+   * pour la sante des salons : elle est la seule a n'avoir aucun repli une fois
+   * son salon de logs ecarte, les autres se passent tres bien de salon dedie.
+   *
+   * Le repli sur un salon de logs deja configure est verifie cote serveur : sans
+   * cela la page crierait au loup sur un serveur parfaitement equipe.
+   */
+  function isModuleMuted(item: ServerTemplatePlanItem): boolean {
+    if (item.moduleId !== 'channel_health') return false;
+    if (!selection.has(item.key)) return false;
+    return !selection.has('staff.log') && !(template?.hasLogChannel ?? false);
+  }
+
   function toggleAllModules(): void {
     const allOn = moduleItems.every((entry) => selection.has(entry.key));
     const next = new Set(selection);
@@ -297,6 +313,13 @@
         toast.success(m.st_success_modules({ modules: names.join(', ') }));
       }
       if (result.panelSent) toast.success(m.st_panel_sent());
+
+      // Une etape facultative refusee - la synchronisation AutoMod native sans
+      // « Gerer le serveur », par exemple - n'arrete pas la mise en place mais
+      // ne doit pas passer inapercue : le reste a bien ete fait.
+      for (const warning of result.warnings ?? []) {
+        toast.error(`${m.st_warnings_title()} · ${warning}`);
+      }
 
       // Les nouveaux salons doivent apparaitre dans les selecteurs des autres
       // pages sans passer par un rechargement complet.
@@ -488,6 +511,12 @@
                       {/if}
                       {#if linkName}
                         <span class="block text-[12px] text-primary/80">{m.st_module_linked({ channel: `#${linkName}` })}</span>
+                      {/if}
+                      {#if isModuleMuted(mod)}
+                        <span class="flex items-start gap-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+                          <Papicon icon="AlertTriangle" size={12} class="shrink-0 mt-0.5" />
+                          {m.st_module_muted()}
+                        </span>
                       {/if}
                     </span>
                   </button>

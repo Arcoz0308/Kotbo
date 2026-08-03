@@ -7987,7 +7987,7 @@
   "st_section_welcome": "Welcome",
   "st_section_modules": "Kotbo modules",
   "st_modules_title": "Modules turned on",
-  "st_modules_hint": "These bot features will be enabled for the whole server. Nothing is ever turned off: an unchecked module stays exactly as you left it.",
+  "st_modules_hint": "Checked modules will be enabled for the whole server. Unchecking disables nothing: the module is left as it is, on or off.",
   "st_module_linked": "Turned on because you are creating {channel}",
   "st_module_tickets": "Tickets",
   "st_module_tickets_desc": "Members open support tickets from the panel.",
@@ -8003,5 +8003,11 @@
   "st_rules_notice": "The rules are not posted yet: write your articles on the Rules page, then publish them to this channel.",
   "st_modules_count": "{count} module(s) to turn on",
   "st_success_modules": "Modules turned on: {modules}",
-  "st_confirm_modules": "The following modules will be enabled for the whole server: {modules}."
+  "st_confirm_modules": "The following modules will be enabled for the whole server: {modules}.",
+  "st_module_automod": "AutoMod",
+  "st_module_automod_desc": "Anti-spam, links, caps, profanity and invite filters, on the recommended preset. Kotbo will start moderating messages.",
+  "st_module_channel_health": "Channel health",
+  "st_module_channel_health_desc": "Analyses crowded or idle channels and advises you. No channel is created or archived without your say-so.",
+  "st_warnings_title": "Done, with reservations",
+  "st_module_muted": "No channel to post in: check #log in the Staff section, otherwise this module will analyse without ever alerting you."
 }
