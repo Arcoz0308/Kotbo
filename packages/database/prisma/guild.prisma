@@ -318,6 +318,17 @@ model Guild {
   messageLoggingStatus        Json?
   messageLogs             MessageLog[]
 
+  // Mise en place guidée du serveur : une seule fois par serveur, l'horodatage
+  // faisant foi. Un administrateur du bot peut le remettre à null pour rouvrir
+  // la création.
+  serverTemplateAppliedAt DateTime?
+  serverTemplateAppliedBy String?
+  serverTemplateSections  String[] @default([])
+  // Identifiants créés, par clé du plan. Tous les salons du plan n'ont pas de
+  // champ de configuration où se ranger : sans cette trace, une reprise après
+  // échec les créerait une seconde fois.
+  serverTemplateRefs      Json?
+
   // Temporary Voice Channels
   tempVoiceEnabled        Boolean  @default(false)
   tempVoiceChannelId      String?

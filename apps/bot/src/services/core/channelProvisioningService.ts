@@ -13,6 +13,8 @@ import {
   type Guild,
   type GuildBasedChannel,
   type OverwriteResolvable,
+  type Role,
+  type VoiceChannel,
 } from 'discord.js';
 import { cache } from '../../utils/cache.js';
 
@@ -26,6 +28,8 @@ export type ProvisionedEntry = {
 
 export const PROVISION_PERMISSION_LABELS: Record<string, string> = {
   [String(PermissionFlagsBits.ManageChannels)]: 'Gérer les salons',
+  [String(PermissionFlagsBits.ManageRoles)]: 'Gérer les rôles',
+  [String(PermissionFlagsBits.Administrator)]: 'Administrateur',
 };
 
 /**
@@ -169,4 +173,58 @@ export async function ensureTextChannel(guild: Guild, input: {
     reason: input.reason,
   });
   return { channel, entry: entryOf(input.key, channel, true) };
+}
+
+export async function ensureVoiceChannel(guild: Guild, input: {
+  key: string;
+  existingId?: string | null;
+  name: string;
+  parentId?: string | null;
+  permissionOverwrites?: OverwriteResolvable[];
+  reason: string;
+}): Promise<{ channel: VoiceChannel; entry: ProvisionedEntry }> {
+  const existing = await resolveChannel(guild, input.existingId);
+  if (existing?.type === ChannelType.GuildVoice) {
+    return { channel: existing, entry: entryOf(input.key, existing, false) };
+  }
+
+  const channel = await guild.channels.create({
+    name: input.name,
+    type: ChannelType.GuildVoice,
+    parent: input.parentId ?? undefined,
+    permissionOverwrites: input.permissionOverwrites,
+    reason: input.reason,
+  });
+  return { channel, entry: entryOf(input.key, channel, true) };
+}
+
+/**
+ * Meme reprise par identifiant que les salons : un role deja enregistre est
+ * repris tel quel, sans que ses permissions soient reecrites. Le reprendre
+ * evite de doubler le role staff d'un serveur deja monte.
+ */
+export async function ensureRole(guild: Guild, input: {
+  key: string;
+  existingId?: string | null;
+  name: string;
+  color?: number;
+  hoist?: boolean;
+  permissions?: bigint[];
+  reason: string;
+}): Promise<{ role: Role; entry: ProvisionedEntry }> {
+  const existing = input.existingId
+    ? guild.roles.cache.get(input.existingId) ?? await guild.roles.fetch(input.existingId).catch(() => null)
+    : null;
+  if (existing) {
+    return { role: existing, entry: entryOf(input.key, existing, false) };
+  }
+
+  const role = await guild.roles.create({
+    name: input.name,
+    color: input.color,
+    hoist: input.hoist,
+    permissions: input.permissions,
+    reason: input.reason,
+  });
+  return { role, entry: entryOf(input.key, role, true) };
 }

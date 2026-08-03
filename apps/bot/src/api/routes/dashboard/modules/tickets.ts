@@ -7,7 +7,7 @@ import { resolveGuildLocale } from '../../../../utils/i18n.js';
 import { logger } from '../../../../utils/logger.js';
 import * as m from '../../../../lib/paraglide/messages.js';
 import { extractMediaUrls, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody } from '../../../shared.js';
-import { type ProvisionedEntry, acquireProvisionLock, ensureCategory, ensureTextChannel, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../../services/core/channelProvisioningService.js';
+import { type ProvisionedEntry, acquireProvisionLock, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../../services/core/channelProvisioningService.js';
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
@@ -348,22 +348,6 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           return true;
         }
 
-        const guildConfig = await prisma.guild.findUnique({
-          where: { id: guildId },
-          select: {
-            ticketCategoryId: true,
-            ticketChannelId: true,
-            ticketLogChannelId: true,
-            ticketEmbedTitle: true,
-            ticketEmbedDesc: true,
-            ticketEmbedButtonText: true,
-            ticketWelcomeTitle: true,
-            ticketWelcomeDesc: true,
-            ticketWelcomeFooter: true,
-            ticketInactivityMessage: true,
-          }
-        });
-
         const missing = await missingProvisionPermissions(discordGuild, [PermissionFlagsBits.ManageChannels]);
         if (missing.length > 0) {
           json(res, 400, { error: `Le bot n'a pas les permissions nécessaires : ${missing.join(', ')}.` });
@@ -377,86 +361,13 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
         const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
         const reason = m.setup_reason_tickets({ user: auditUser }, { locale });
 
-        // Les textes que l'admin n'a pas ecrits sont deposes maintenant, dans la
-        // langue du serveur : la mise en route doit laisser des champs remplis
-        // et modifiables. Ceux qu'il a ecrits ne sont jamais touches.
-        const { ticketDefaultTexts } = await import('../../../../services/features/ticketService.js');
-        const currentTexts = guildConfig as Record<string, unknown> | null;
-        for (const [field, text] of Object.entries(ticketDefaultTexts(locale))) {
-          const current = currentTexts?.[field];
-          if (typeof current !== 'string' || !current.trim()) {
-            (data as Record<string, string>)[field] = text;
-          }
-        }
-
-        const everyoneId = discordGuild.roles.everyone.id;
-        // Le refus pose sur @everyone s'applique aussi au bot : sans surcharge a
-        // son nom, il ne verrait pas la categorie ni les tickets ouverts dedans
-        // des lors qu'il n'est pas administrateur du serveur.
-        const botId = discordGuild.members.me?.id;
-        const botOverwrite: OverwriteResolvable[] = botId
-          ? [{
-              id: botId,
-              allow: [
-                PermissionFlagsBits.ViewChannel,
-                PermissionFlagsBits.SendMessages,
-                PermissionFlagsBits.ReadMessageHistory,
-                PermissionFlagsBits.ManageChannels,
-              ]
-            }]
-          : [];
-
-        // Fermee : c'est elle qui rend prives les salons de ticket ouverts
-        // dedans, chacun n'etant rouvert qu'a son auteur et au staff.
-        const category = await ensureCategory(discordGuild, {
-          key: 'category',
-          existingId: guildConfig?.ticketCategoryId,
-          name: m.setup_channel_tickets_category({}, { locale }),
-          permissionOverwrites: [
-            { id: everyoneId, deny: [PermissionFlagsBits.ViewChannel] },
-            ...botOverwrite,
-          ],
-          reason,
-        });
-        items.push(category.entry);
-        if (category.entry.created) data.ticketCategoryId = category.channel.id;
-
-        // Seul salon de la categorie a etre rouvert a tous : ses propres
-        // surcharges priment sur celles de la categorie, qui reste fermee.
-        const panel = await ensureTextChannel(discordGuild, {
-          key: 'panelChannel',
-          existingId: guildConfig?.ticketChannelId,
-          name: m.setup_channel_tickets_panel({}, { locale }),
-          parentId: category.channel.id,
-          permissionOverwrites: [
-            {
-              id: everyoneId,
-              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-              deny: [PermissionFlagsBits.SendMessages],
-            },
-            ...botOverwrite,
-          ],
-          reason,
-        });
-        items.push(panel.entry);
-        if (panel.entry.created) data.ticketChannelId = panel.channel.id;
-
-        const logs = await ensureTextChannel(discordGuild, {
-          key: 'logChannel',
-          existingId: guildConfig?.ticketLogChannelId,
-          name: m.setup_channel_tickets_logs({}, { locale }),
-          parentId: category.channel.id,
-          reason,
-        });
-        items.push(logs.entry);
-        if (logs.entry.created) data.ticketLogChannelId = logs.channel.id;
-
-        await persist();
+        const { provisionTicketChannels } = await import('../../../../services/features/ticketProvisioning.js');
+        const outcome = await provisionTicketChannels(discordGuild, { locale, reason, items, data, persist });
 
         // Seulement sur un salon qu'on vient de creer : le renvoyer dans un
         // salon existant y empilerait un second panel.
         let panelSent = false;
-        if (panel.entry.created) {
+        if (outcome.panelCreated) {
           const { sendTicketSetupEmbed } = await import('../../../../services/features/ticketService.js');
           await sendTicketSetupEmbed(client, guildId);
           panelSent = true;
@@ -478,7 +389,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
           module: 'Tickets',
           eventType: 'Manuel',
           details: `Créés : ${items.filter(i => i.created).map(i => i.name).join(', ') || 'aucun'}. Repris : ${items.filter(i => !i.created).map(i => i.name).join(', ') || 'aucun'}.`,
-          channelId: panel.channel.id,
+          channelId: outcome.panelChannelId,
         });
 
         await cache.invalidateGuild(guildId);
