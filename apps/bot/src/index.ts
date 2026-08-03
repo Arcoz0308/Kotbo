@@ -78,6 +78,11 @@ import { registerWelcomeGoodbyeBusSubscribers } from './modules/welcomeGoodbye.m
 import { registerModerationBusSubscribers } from './modules/moderation.module.js';
 import { registerTicketsBusSubscribers } from './modules/tickets.module.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
+import {
+  dispatchLinkGuestEvent,
+  isLinkGuestGuild,
+  loadLinkGuestGuilds,
+} from './services/features/channelLinkGuestService.js';
 import { resolveEventGuildId } from './utils/eventGuild.js';
 import { initializeAutoBackupForAllGuilds, initializeAutoBackup, stopAutoBackup } from './services/system/autoBackupService.js';
 import {
@@ -149,6 +154,13 @@ const PASSTHROUGH_EVENTS = new Set<string | symbol>([
 ]);
 const OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
 
+// `/activate` doit franchir la garde, sinon un serveur non activé n'aurait aucun
+// moyen de s'activer. `/link` pour la même raison : un serveur invité en mode
+// liaison seule n'a pas de code et doit pouvoir accepter (puis gérer, puis
+// rompre) le pont qui le relie au serveur activé. La commande applique
+// elle-même ses propres restrictions dans ce cas.
+const GATE_EXEMPT_COMMANDS = new Set(['activate', 'link']);
+
 const originalEmit = client.emit;
 client.emit = function (eventName: string | symbol, ...args: unknown[]) {
   if (PASSTHROUGH_EVENTS.has(eventName)) {
@@ -170,22 +182,23 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
     return originalEmit.call(client, eventName, ...args);
   }
 
-  let isActivateCommand = false;
+  let isExemptCommand = false;
   let isOwnerInteraction = false;
 
   const guildId = resolveEventGuildId(args);
 
   if (guildId) {
-    // `/activate` doit franchir la garde ci-dessous, sinon un serveur non activé
-    // n'aurait aucun moyen de s'activer.
-    //
     // On se contente de `commandName`, porté par les seules interactions de
     // commande : dépendre d'une méthode de discord.js avait fait échouer cette
     // exception en silence, `isChatInput` (nom v13) n'existant plus en v14 sous
     // ce nom. La garde renvoyant `false` sans rien journaliser, la commande
     // restait muette sans le moindre indice.
-    if (eventName === Events.InteractionCreate && arg.commandName === 'activate') {
-      isActivateCommand = true;
+    if (
+      eventName === Events.InteractionCreate &&
+      typeof arg.commandName === 'string' &&
+      GATE_EXEMPT_COMMANDS.has(arg.commandName)
+    ) {
+      isExemptCommand = true;
     }
 
     if (OWNER_ID) {
@@ -195,8 +208,16 @@ client.emit = function (eventName: string | symbol, ...args: unknown[]) {
   }
 
   // Intercept and block unactivated guilds silently
-  if (guildId && !isActivateCommand && !isOwnerInteraction) {
+  if (guildId && !isExemptCommand && !isOwnerInteraction) {
     if (!isGuildActivated(guildId)) {
+      // Mode « liaison seule » : un serveur relié à un serveur activé n'a pas de
+      // code à lui, et n'obtient pas pour autant l'accès au bot. Ses événements
+      // ne rejoignent jamais le flux général ; seuls ceux dont le pont a besoin
+      // sont repoussés sur un bus privé auquel seul le relais est abonné.
+      // Aucun module de collecte ne peut donc les voir.
+      if (isLinkGuestGuild(guildId)) {
+        dispatchLinkGuestEvent(eventName, args);
+      }
       return false;
     }
   }
@@ -278,6 +299,10 @@ client.once(Events.ClientReady, async (c) => {
   await loadActivatedGuilds().catch((error) =>
     logger.error('Activation', 'Impossible de charger les serveurs activés :', error)
   );
+
+  // Dépend du cache d'activation ci-dessus : un serveur n'est « invité » que si
+  // l'autre extrémité de son lien est activée.
+  await loadLinkGuestGuilds();
 
   await initRedis();
   await assertRedisConnection().catch((err) => {
@@ -461,7 +486,7 @@ client.on(Events.GuildCreate, async (guild) => {
     if (channel && channel.isTextBased()) {
       const embed = errorEmbed(
         '🔑 Activation Requise',
-        `Merci d'avoir invité **Kotbo** sur votre serveur !\n\nPour des raisons de sécurité, ce bot nécessite un code d'activation pour fonctionner.\n\n👉 **Comment faire ?**\n1. Récupérez un code auprès de l'administrateur global de Kotbo.\n2. Exécutez la commande slash suivante sur ce serveur : \`/activate <code>\`\n\n*Note : Tant que le serveur n'est pas activé, aucune fonctionnalité du bot ni du dashboard ne sera opérationnelle.*`
+        `Merci d'avoir invité **Kotbo** sur votre serveur !\n\nPour des raisons de sécurité, ce bot nécessite un code d'activation pour fonctionner.\n\n👉 **Comment faire ?**\n1. Récupérez un code auprès de l'administrateur global de Kotbo.\n2. Exécutez la commande slash suivante sur ce serveur : \`/activate <code>\`\n\n*Note : Tant que le serveur n'est pas activé, aucune fonctionnalité du bot ni du dashboard ne sera opérationnelle.*\n\n🔗 **Vous ne voulez qu'un pont entre deux communautés ?**\nPas besoin de code. Demandez une invitation de liaison à l'autre serveur, puis lancez ici \`/link accept code:<code>\`. Le bot passera en **mode liaison seule** : il ne fera que faire circuler les messages du salon relié, sans activer le moindre autre module et sans enregistrer aucune donnée d'activité. \`/link status\` détaille à tout moment ce qui est actif.`
       );
       await channel.send({ embeds: [embed] }).catch(() => null);
     }

@@ -5,8 +5,33 @@ import { COLORS } from '../../utils/embeds.js';
 import { cache } from '../../utils/cache.js';
 import { randomBytes } from 'node:crypto';
 import type { ChannelLink, ChannelLinkInvite } from '@prisma/client';
+import { isGuildActivated } from '../../utils/activation.js';
+import { refreshLinkGuestGuilds } from './channelLinkGuestService.js';
 
 const TAG = 'ChannelLink';
+
+export const LINK_NEEDS_ACTIVATED_SIDE =
+  "Au moins un des deux serveurs doit disposer d'une clé d'activation Kotbo. " +
+  "L'autre n'en a pas besoin : il passera en mode liaison seule.";
+
+/**
+ * Un pont est toujours l'extension d'une licence existante : le serveur qui
+ * possède le code invite, l'autre accepte sans code. Deux serveurs dépourvus de
+ * code ne peuvent donc pas se relier entre eux.
+ */
+function hasActivatedSide(guildA: string, guildB: string): boolean {
+  return isGuildActivated(guildA) || isGuildActivated(guildB);
+}
+
+/**
+ * Le mapping message source → message relayé n'existe que pour propager les
+ * éditions, les suppressions et les réactions. Quand le lien ne relaie rien de
+ * tout cela, l'écrire reviendrait à conserver un journal des messages sans
+ * qu'aucune fonctionnalité ne s'en serve : on s'en abstient.
+ */
+export function needsMessageMapping(link: ChannelLink): boolean {
+  return link.relayEdits || link.relayDeletes || link.relayReactions;
+}
 
 // ── Cache helpers ───────────────────────────────────────────
 
@@ -115,6 +140,10 @@ export async function acceptLinkInvite(opts: {
     return { error: 'Impossible de lier un salon à lui-même.' };
   }
 
+  if (!hasActivatedSide(invite.guildId, opts.targetGuildId)) {
+    return { error: LINK_NEEDS_ACTIVATED_SIDE };
+  }
+
   const existing = await prisma.channelLink.findFirst({
     where: {
       OR: [
@@ -172,6 +201,11 @@ export async function acceptLinkInvite(opts: {
     data: { status: 'ACCEPTED', uses: { increment: 1 } },
   });
 
+  // Le serveur qui vient d'accepter sans code devient un serveur invité : le
+  // cache doit s'ouvrir avant le premier message, sinon la garde d'activation
+  // continuerait de tout jeter.
+  await refreshLinkGuestGuilds();
+
   if (shouldUpdateTopic) {
     await Promise.all([
       updateChannelTopic(opts.client, invite.guildId, invite.channelId, opts.targetChannelId, opts.targetGuildId, invite.createdByUserId, includeLink),
@@ -200,6 +234,10 @@ export async function createDirectLink(opts: {
 }): Promise<ChannelLink | { error: string }> {
   if (opts.sourceGuildId === opts.targetGuildId && opts.sourceChannelId === opts.targetChannelId) {
     return { error: 'Impossible de lier un salon à lui-même.' };
+  }
+
+  if (!hasActivatedSide(opts.sourceGuildId, opts.targetGuildId)) {
+    return { error: LINK_NEEDS_ACTIVATED_SIDE };
   }
 
   const existing = await prisma.channelLink.findFirst({
@@ -248,6 +286,8 @@ export async function createDirectLink(opts: {
       createdByGuildId: opts.sourceGuildId,
     },
   });
+
+  await refreshLinkGuestGuilds();
 
   if (shouldUpdateTopic) {
     await Promise.all([
@@ -449,12 +489,16 @@ async function getWebhookClient(destChannel: TextChannel, webhookId: string): Pr
   }
 }
 
-async function saveMessageMapping(linkId: string, sourceMessageId: string, sourceChannelId: string, relayedMessageId: string, relayedChannelId: string, webhookId?: string | null) {
+async function saveMessageMapping(link: ChannelLink, sourceMessageId: string, sourceChannelId: string, relayedMessageId: string, relayedChannelId: string, webhookId?: string | null) {
+  // Rien à conserver si le lien ne relaie ni édition, ni suppression, ni
+  // réaction : le pont fonctionne alors sans laisser la moindre trace en base.
+  if (!needsMessageMapping(link)) return;
+
   logger.debug(TAG, `Saving mapping: ${sourceMessageId} → ${relayedMessageId} (webhook: ${webhookId ?? 'none'})`);
   await prisma.channelLinkMessage.upsert({
-    where: { channelLinkId_sourceMessageId: { channelLinkId: linkId, sourceMessageId } },
+    where: { channelLinkId_sourceMessageId: { channelLinkId: link.id, sourceMessageId } },
     update: { relayedMessageId, relayedChannelId, webhookId },
-    create: { channelLinkId: linkId, sourceMessageId, sourceChannelId, relayedMessageId, relayedChannelId, webhookId },
+    create: { channelLinkId: link.id, sourceMessageId, sourceChannelId, relayedMessageId, relayedChannelId, webhookId },
   }).catch((err) => logger.warn(TAG, 'Impossible de sauvegarder le mapping message', err));
 }
 
@@ -541,7 +585,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
           allowedMentions: { parse: [] },
         });
 
-        await saveMessageMapping(link.id, message.id, message.channel.id, sent.id, relay.destChannelId, relay.webhookId);
+        await saveMessageMapping(link, message.id, message.channel.id, sent.id, relay.destChannelId, relay.webhookId);
         webhookClient.destroy();
       } else {
         const sourceGuild = message.guild!;
@@ -569,7 +613,7 @@ export async function relayMessage(message: Message, client: Client): Promise<vo
           : [];
 
         const sent = await (destChannel as TextChannel).send({ embeds: [embed], files, allowedMentions: { parse: [] } });
-        await saveMessageMapping(link.id, message.id, message.channel.id, sent.id, relay.destChannelId);
+        await saveMessageMapping(link, message.id, message.channel.id, sent.id, relay.destChannelId);
       }
     } catch (err) {
       logger.error(TAG, `Erreur relay message ${message.id} vers link ${link.id}`, err);
@@ -991,7 +1035,7 @@ export async function relayPollMessage(message: Message, client: Client): Promis
       }
 
       const sent = await (destChannel as TextChannel).send({ embeds: [embed], allowedMentions: { parse: [] } });
-      await saveMessageMapping(link.id, message.id, message.channel.id, sent.id, relay.destChannelId);
+      await saveMessageMapping(link, message.id, message.channel.id, sent.id, relay.destChannelId);
     } catch (err) {
       logger.error(TAG, `Erreur relay poll ${message.id}`, err);
     }
@@ -1016,6 +1060,20 @@ export async function removeLink(linkId: string, client?: Client): Promise<Chann
   await invalidateLinkCache(link);
   const deleted = await prisma.channelLink.delete({ where: { id: linkId } });
 
+  // `ChannelLinkMessage` et `ChannelLinkThread` ne portent pas de relation vers
+  // `ChannelLink` : rien ne les supprime en cascade. Sans ce nettoyage, rompre
+  // un pont laissait indéfiniment en base les identifiants des messages qui y
+  // avaient transité — exactement la trace qu'un serveur croit effacer en
+  // retirant le lien.
+  await purgeLinkMessageMappings(linkId);
+  await prisma.channelLinkThread
+    .deleteMany({ where: { channelLinkId: linkId } })
+    .catch((err) => logger.warn(TAG, `Impossible de purger les threads du lien ${linkId}`, err));
+
+  // Le pont rompu, un serveur invité perd son unique raison d'être vu par le
+  // bot : il redevient totalement muet pour Kotbo.
+  await refreshLinkGuestGuilds();
+
   if (client && deleted.updateTopic) {
     await Promise.all([
       clearChannelLinkTopic(client, deleted.sourceGuildId, deleted.sourceChannelId),
@@ -1039,5 +1097,30 @@ export async function updateLinkConfig(
   });
 
   await invalidateLinkCache(updated);
+
+  // Désactiver le dernier lien d'un serveur invité doit refermer la garde
+  // aussitôt, comme le ferait une suppression.
+  if (data.enabled !== undefined && data.enabled !== link.enabled) {
+    await refreshLinkGuestGuilds();
+  }
+
+  // Couper la relaie des éditions/suppressions/réactions rend le journal des
+  // correspondances inutile : on le purge au lieu de le laisser vieillir.
+  if (!needsMessageMapping(updated)) {
+    await purgeLinkMessageMappings(linkId);
+  }
+
   return updated;
+}
+
+/**
+ * Efface les correspondances de messages d'un lien : soit parce que le lien
+ * cesse d'en avoir besoin, soit parce qu'il disparaît.
+ */
+export async function purgeLinkMessageMappings(linkId: string): Promise<number> {
+  const { count } = await prisma.channelLinkMessage.deleteMany({ where: { channelLinkId: linkId } });
+  if (count > 0) {
+    logger.info(TAG, `${count} correspondance(s) de messages purgée(s) pour le lien ${linkId}.`);
+  }
+  return count;
 }

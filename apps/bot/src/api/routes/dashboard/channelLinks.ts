@@ -7,7 +7,8 @@ import {
   readJsonBody,
   type AuthClaims,
 } from '../../shared.js';
-import { createDirectLink } from '../../../services/features/channelLinkService.js';
+import { createDirectLink, removeLink, updateLinkConfig } from '../../../services/features/channelLinkService.js';
+import { isLinkGuestGuild } from '../../../services/features/channelLinkGuestService.js';
 
 export async function handleChannelLinkRoutes(
   req: IncomingMessage,
@@ -51,6 +52,14 @@ export async function handleChannelLinkRoutes(
           remoteGuildIcon: remoteGuild?.iconURL() ?? null,
           remoteChannelId,
           remoteChannelName: remoteChannel?.name ?? remoteChannelId,
+          // Le serveur d'en face n'a pas de clé : il ne voit que ce pont, et
+          // Kotbo n'y collecte rien. À afficher pour lever le doute des
+          // communautés qui acceptent un lien sans vouloir « du bot ».
+          remoteIsLinkOnly: isLinkGuestGuild(remoteGuildId),
+          // `true` quand ce lien inscrit en base la correspondance entre un
+          // message et sa copie — nécessaire aux éditions, suppressions et
+          // réactions, inutile autrement.
+          storesMessageMap: l.relayEdits || l.relayDeletes || l.relayReactions,
         };
       });
 
@@ -269,16 +278,20 @@ export async function handleChannelLinkRoutes(
         return true;
       }
 
-      const allowedFields = ['relayText', 'relayImages', 'relayEmbeds', 'relayReactions', 'relayEdits', 'relayDeletes', 'sourceRelayMode', 'targetRelayMode', 'direction', 'enabled'];
+      const allowedFields = ['relayText', 'relayImages', 'relayEmbeds', 'relayReactions', 'relayEdits', 'relayDeletes', 'relayThreads', 'relayPolls', 'sourceRelayMode', 'targetRelayMode', 'direction', 'enabled', 'updateTopic'];
       const updateData: Record<string, any> = {};
       for (const field of allowedFields) {
         if (body?.[field] !== undefined) updateData[field] = body[field];
       }
 
-      const updated = await prisma.channelLink.update({
-        where: { id: linkId },
-        data: updateData,
-      });
+      // Passe par le service : lui seul sait invalider le cache des liens,
+      // rouvrir ou refermer la garde des serveurs en liaison seule et purger les
+      // correspondances de messages devenues inutiles.
+      const updated = await updateLinkConfig(linkId, updateData);
+      if (!updated) {
+        json(res, 404, { error: 'Lien introuvable' });
+        return true;
+      }
 
       json(res, 200, updated);
     } catch (err) {
@@ -352,7 +365,7 @@ export async function handleChannelLinkRoutes(
         return true;
       }
 
-      await prisma.channelLink.delete({ where: { id: linkId } });
+      await removeLink(linkId, client);
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('ChannelLinkAPI', 'Erreur DELETE channel-link', err);
