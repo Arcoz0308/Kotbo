@@ -1563,8 +1563,8 @@
                   {/if}
 
                   {#each Object.entries(config.xpMultipliers) as [roleId, mult]}
+                    {@const missing = isMissingReference(roleId, availableRoles)}
                     <tr class="hover:bg-surface-hover/20 transition-all font-semibold">
-                      {@const missing = isMissingReference(roleId, availableRoles)}
                       <td
                         class="px-6 py-3.5 text-sm font-semibold {missing ? 'text-amber-600 dark:text-amber-400' : ''}"
                         title={missing ? m.lv_missing_ref_hint() : undefined}
@@ -2020,6 +2020,7 @@
             </thead>
             <tbody class="divide-y divide-outline-variant/5">
               {#each rewards as reward}
+                {@const missingRole = isMissingReference(reward.roleId, availableRoles)}
                 <tr class="hover:bg-surface-hover/20 transition-all">
                   <td class="px-5 py-4 font-semibold text-primary text-sm">
                     Lvl {reward.level}
@@ -2030,7 +2031,6 @@
                       >{m.lv_reward_unreachable()}</span>
                     {/if}
                   </td>
-                  {@const missingRole = isMissingReference(reward.roleId, availableRoles)}
                   <td
                     class="px-5 py-4 text-xs font-semibold {missingRole ? 'text-amber-600 dark:text-amber-400' : ''}"
                     title={missingRole ? m.lv_missing_ref_hint() : undefined}
