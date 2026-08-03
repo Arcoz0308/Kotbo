@@ -50,10 +50,16 @@ const KOTBO_MODULE_BY_KEY: Record<string, KotboModule> = {
   'tickets': 'ticket',
 };
 
+/**
+ * `featureName` ne sert qu'a la creation de la ligne, et seulement pour les
+ * modules absents du catalogue du Centre de gestion : sans lui, ils s'y
+ * afficheraient sous leur identifiant brut, « Channel_health » par exemple.
+ */
 export async function setDashboardModuleStatus(
   guildId: string,
   moduleId: string,
   enabled: boolean,
+  featureName?: string,
 ): Promise<void> {
   const key = normalizeModuleKey(moduleId);
 
@@ -85,10 +91,11 @@ export async function setDashboardModuleStatus(
     create: {
       guildId,
       featureKey: key,
-      // Depuis l'identifiant recu et non la cle normalisee : ce libelle
-      // s'affiche dans le Centre de gestion, ou « Dailyalgo » etait deja pose
-      // ainsi. Les lignes creees par la suite ne doivent pas s'en ecarter.
-      featureName: moduleId.charAt(0).toUpperCase() + moduleId.slice(1),
+      // A defaut, depuis l'identifiant recu et non la cle normalisee : ce
+      // libelle s'affiche dans le Centre de gestion, ou « Dailyalgo » etait
+      // deja pose ainsi. Les lignes creees par la suite ne doivent pas s'en
+      // ecarter.
+      featureName: featureName ?? moduleId.charAt(0).toUpperCase() + moduleId.slice(1),
       enabled,
       loggingEnabled: true,
       userActivityTracking: true,

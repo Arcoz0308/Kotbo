@@ -8,7 +8,7 @@
  *
  * La sante des salons, elle, a besoin d'un salon ou deposer ses conseils.
  */
-import { AUTOMOD_PRESETS, type AutomodPreset } from '@kotbo/shared';
+import { AUTOMOD_PRESETS, automodActiveFilterCount, type AutomodPreset } from '@kotbo/shared';
 import type { Client } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -34,17 +34,27 @@ export function recommendedAutomodPreset(): AutomodPreset {
 export async function applyRecommendedAutomod(client: Client, guildId: string): Promise<string | null> {
   const preset = recommendedAutomodPreset();
 
-  await prisma.autoModConfig.upsert({
-    where: { guildId },
-    create: { guildId, ...preset.filters },
-    update: { ...preset.filters },
-  });
+  const existingFilters = await prisma.autoModConfig.findUnique({ where: { guildId } });
+  const existingRaid = await prisma.raidProtectionConfig.findUnique({ where: { guildId } });
 
-  await prisma.raidProtectionConfig.upsert({
-    where: { guildId },
-    create: { guildId, ...preset.raid },
-    update: { ...preset.raid },
-  });
+  // Un seul filtre deja arme signe un AutoMod regle a la main : le prereglage
+  // ne s'y substitue pas. La mise en place remplit ce qui est vide, elle ne
+  // refait pas les choix de l'admin - meme regle que pour les textes de tickets
+  // ou le message de montee de niveau.
+  const alreadyArmed = automodActiveFilterCount(existingFilters ?? {}, existingRaid ?? {}) > 0;
+
+  if (!alreadyArmed) {
+    await prisma.autoModConfig.upsert({
+      where: { guildId },
+      create: { guildId, ...preset.filters },
+      update: { ...preset.filters },
+    });
+    await prisma.raidProtectionConfig.upsert({
+      where: { guildId },
+      create: { guildId, ...preset.raid },
+      update: { ...preset.raid },
+    });
+  }
 
   const { invalidateAutoModCache, syncDiscordAutoModRules } = await import('../moderation/autoModService.js');
   invalidateAutoModCache(guildId);

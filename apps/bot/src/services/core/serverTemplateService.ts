@@ -136,15 +136,17 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   item('voice.general', 'voice', 'voice', (l) => m.setup_template_voice_general({}, { locale: l }), { parent: 'voice.category' }),
   item('voice.generator', 'voice', 'voice', (l) => m.setup_template_voice_generator({}, { locale: l }), { parent: 'voice.category', wiring: 'tempvoice' }),
 
-  // Modules allumes en meme temps. Les noms ne partent pas sur Discord : ils
-  // s'affichent dans le dashboard, qui les traduit lui-meme depuis `moduleId`.
-  // La fonction de nom sert de repli et n'a pas a suivre la langue du serveur.
+  // Modules allumes en meme temps. Leur nom ne part pas sur Discord et ne suit
+  // donc pas la langue du serveur : la page les traduit elle-meme depuis
+  // `moduleId`. Il sert de repli, et de libelle dans le Centre de gestion pour
+  // ceux qui n'y figurent pas encore - sans quoi ils s'y afficheraient sous
+  // leur identifiant brut.
   item('module.tickets', 'modules', 'module', () => 'Tickets', { moduleId: 'tickets', linkedTo: 'tickets.category' }),
-  item('module.leveling', 'modules', 'module', () => 'Leveling', { moduleId: 'leveling', linkedTo: 'bots.level' }),
-  item('module.economy', 'modules', 'module', () => 'Economie', { moduleId: 'economy', linkedTo: 'bots.rpg' }),
-  item('module.nickname_moderation', 'modules', 'module', () => 'Moderation des pseudos', { moduleId: 'nickname_moderation' }),
+  item('module.leveling', 'modules', 'module', () => 'Niveaux & XP', { moduleId: 'leveling', linkedTo: 'bots.level' }),
+  item('module.economy', 'modules', 'module', () => 'Économie & RPG', { moduleId: 'economy', linkedTo: 'bots.rpg' }),
+  item('module.nickname_moderation', 'modules', 'module', () => 'Modération des pseudos', { moduleId: 'nickname_moderation' }),
   item('module.automod', 'modules', 'module', () => 'AutoMod', { moduleId: 'automod' }),
-  item('module.channel_health', 'modules', 'module', () => 'Sante des salons', { moduleId: 'channel_health', linkedTo: 'staff.log' }),
+  item('module.channel_health', 'modules', 'module', () => 'Santé des salons', { moduleId: 'channel_health', linkedTo: 'staff.log' }),
 ];
 
 const ITEMS_BY_KEY = new Map(SERVER_TEMPLATE_PLAN.map((entry) => [entry.key, entry]));
@@ -714,7 +716,7 @@ export async function applyServerTemplate(input: {
         await enableChannelHealth(guildId, refs['staff.log'] ?? config?.logChannelId ?? null);
       }
 
-      await setDashboardModuleStatus(guildId, entry.moduleId, true);
+      await setDashboardModuleStatus(guildId, entry.moduleId, true, entry.name(locale));
       modules.push(entry.moduleId);
     }
 

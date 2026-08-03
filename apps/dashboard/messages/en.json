@@ -8008,5 +8008,6 @@
   "st_module_automod_desc": "Anti-spam, links, caps, profanity and invite filters, on the recommended preset. Kotbo will start moderating messages.",
   "st_module_channel_health": "Channel health",
   "st_module_channel_health_desc": "Analyses crowded or idle channels and advises you. No channel is created or archived without your say-so.",
-  "st_warnings_title": "Done, with reservations"
+  "st_warnings_title": "Done, with reservations",
+  "st_module_muted": "No channel to post in: check #log in the Staff section, otherwise this module will analyse without ever alerting you."
 }

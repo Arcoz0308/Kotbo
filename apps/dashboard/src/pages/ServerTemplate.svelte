@@ -239,6 +239,20 @@
     return plan.find((entry) => entry.key === item.linkedTo)?.name ?? null;
   }
 
+  /**
+   * Module retenu mais prive du salon ou il devait s'exprimer. Ne vaut que
+   * pour la sante des salons : elle est la seule a n'avoir aucun repli une fois
+   * son salon de logs ecarte, les autres se passent tres bien de salon dedie.
+   *
+   * Le repli sur un salon de logs deja configure est verifie cote serveur : sans
+   * cela la page crierait au loup sur un serveur parfaitement equipe.
+   */
+  function isModuleMuted(item: ServerTemplatePlanItem): boolean {
+    if (item.moduleId !== 'channel_health') return false;
+    if (!selection.has(item.key)) return false;
+    return !selection.has('staff.log') && !(template?.hasLogChannel ?? false);
+  }
+
   function toggleAllModules(): void {
     const allOn = moduleItems.every((entry) => selection.has(entry.key));
     const next = new Set(selection);
@@ -497,6 +511,12 @@
                       {/if}
                       {#if linkName}
                         <span class="block text-[12px] text-primary/80">{m.st_module_linked({ channel: `#${linkName}` })}</span>
+                      {/if}
+                      {#if isModuleMuted(mod)}
+                        <span class="flex items-start gap-1.5 text-[12px] text-amber-600 dark:text-amber-400">
+                          <Papicon icon="AlertTriangle" size={12} class="shrink-0 mt-0.5" />
+                          {m.st_module_muted()}
+                        </span>
                       {/if}
                     </span>
                   </button>

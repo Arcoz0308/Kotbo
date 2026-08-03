@@ -50,6 +50,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
           serverTemplateAppliedAt: true,
           serverTemplateAppliedBy: true,
           serverTemplateSections: true,
+          logChannelId: true,
         },
       });
 
@@ -66,6 +67,9 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         defaultSelection: DEFAULT_SELECTION,
         missingPermissions: missing,
         canCreateChannels: me?.permissions.has(PermissionFlagsBits.ManageChannels) ?? false,
+        // Sert de repli au salon d'alerte de la sante des salons : la page ne
+        // met en garde que si ce repli n'existe pas non plus.
+        hasLogChannel: !!guildRow?.logChannelId,
         isAdministrator: me?.permissions.has(PermissionFlagsBits.Administrator) ?? false,
         applied: guildRow?.serverTemplateAppliedAt
           ? {
