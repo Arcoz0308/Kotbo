@@ -20,6 +20,11 @@ model Guild {
   configChannelId String?
   regulationChannelId String?
   regulationMessageId String?
+  // Le règlement peut dépasser les limites de taille d'un message Discord : il est
+  // alors publié en plusieurs messages. `regulationMessageId` reste le premier
+  // message (compatibilité dashboard), `regulationMessageIds` liste la suite dans
+  // l'ordre de publication.
+  regulationMessageIds String[] @default([])
   regulationVerificationEnabled Boolean @default(false)
   regulationRoleId             String?
   regulationLockEnabled        Boolean @default(false)
