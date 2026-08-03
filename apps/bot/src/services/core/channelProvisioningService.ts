@@ -68,6 +68,36 @@ export function releaseProvisionLock(key: string): void {
   inFlightProvisions.delete(key);
 }
 
+/**
+ * Mises en route simultanees admises, tous serveurs confondus.
+ *
+ * Le verrou ci-dessus est par serveur : il n'empeche pas cinquante serveurs de
+ * se mettre en route au meme instant. Or une mise en place complete fait une
+ * vingtaine d'appels REST, et discord.js les fait tous passer par un plafond
+ * commun de cinquante requetes par seconde. Cinquante serveurs a la fois, c'est
+ * un millier d'appels en file : la requete du dashboard pend jusqu'a expirer
+ * alors que le travail aboutit, et le trafic ordinaire du bot attend derriere.
+ *
+ * Trois a la fois tient la file a une soixantaine d'appels, soit le temps d'un
+ * aller-retour HTTP ordinaire. Les autres sont refuses tout de suite, avec de
+ * quoi comprendre, plutot que de rester suspendus.
+ */
+export const MAX_CONCURRENT_PROVISIONS = 3;
+
+let activeProvisions = 0;
+
+export function acquireProvisionSlot(): boolean {
+  if (activeProvisions >= MAX_CONCURRENT_PROVISIONS) return false;
+  activeProvisions += 1;
+  return true;
+}
+
+export function releaseProvisionSlot(): void {
+  // Jamais sous zero : une liberation en trop rendrait des places qui
+  // n'existent pas, et le plafond ne voudrait plus rien dire.
+  activeProvisions = Math.max(0, activeProvisions - 1);
+}
+
 /** Delai impose entre deux mises en route qui creent quelque chose. */
 export const PROVISION_COOLDOWN_SECONDS = 10 * 60;
 

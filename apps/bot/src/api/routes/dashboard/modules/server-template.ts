@@ -14,8 +14,10 @@ import {
 import {
   PROVISION_PERMISSION_LABELS,
   acquireProvisionLock,
+  acquireProvisionSlot,
   missingProvisionPermissions,
   releaseProvisionLock,
+  releaseProvisionSlot,
 } from '../../../../services/core/channelProvisioningService.js';
 import { PermissionFlagsBits } from 'discord.js';
 import { type ModuleRouteContext } from './_shared.js';
@@ -91,6 +93,17 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
     const lockKey = `server-template:${guildId}`;
     if (!acquireProvisionLock(lockKey)) {
       json(res, 409, { error: 'Une mise en place est déjà en cours sur ce serveur.' });
+      return true;
+    }
+
+    // Le verrou ci-dessus ne vaut que pour ce serveur. Celui-ci borne le total :
+    // une vingtaine d'appels REST par mise en place, tous derriere le meme
+    // plafond global de discord.js, et trop de serveurs a la fois laisseraient
+    // chaque requete pendre jusqu'a expirer. Mieux vaut un refus immediat qu'un
+    // echec apparent sur un travail qui aboutit.
+    if (!acquireProvisionSlot()) {
+      releaseProvisionLock(lockKey);
+      json(res, 429, { error: "Trop de mises en place en cours en ce moment. Réessayez dans une minute." });
       return true;
     }
 
@@ -183,6 +196,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
       logger.error('ServerTemplateAPI', `Error applying server template: ${errorMessage(err)}`);
       json(res, 500, { error: `Mise en place interrompue : ${errorMessage(err)}` });
     } finally {
+      releaseProvisionSlot();
       releaseProvisionLock(lockKey);
     }
     return true;
