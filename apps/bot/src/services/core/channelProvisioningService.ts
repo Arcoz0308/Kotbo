@@ -12,6 +12,7 @@ import {
   type CategoryChannel,
   type Guild,
   type GuildBasedChannel,
+  type NonThreadGuildBasedChannel,
   type OverwriteResolvable,
   type Role,
   type VoiceChannel,
@@ -66,6 +67,92 @@ export function acquireProvisionLock(key: string): boolean {
 
 export function releaseProvisionLock(key: string): void {
   inFlightProvisions.delete(key);
+}
+
+/**
+ * Mises en route simultanees admises, tous serveurs confondus.
+ *
+ * Le verrou ci-dessus est par serveur : il n'empeche pas cinquante serveurs de
+ * se mettre en route au meme instant. Or une mise en place complete fait une
+ * vingtaine d'appels REST, et discord.js les fait tous passer par un plafond
+ * commun de cinquante requetes par seconde. Cinquante serveurs a la fois, c'est
+ * un millier d'appels en file : la requete du dashboard pend jusqu'a expirer
+ * alors que le travail aboutit, et le trafic ordinaire du bot attend derriere.
+ *
+ * Trois a la fois tient la file a une soixantaine d'appels, soit le temps d'un
+ * aller-retour HTTP ordinaire. Les autres sont refuses tout de suite, avec de
+ * quoi comprendre, plutot que de rester suspendus.
+ */
+export const MAX_CONCURRENT_PROVISIONS = 3;
+
+/**
+ * Au-dela, la file est refusee plutot que retenue : ces requetes attendent
+ * toutes derriere un socket ouvert, et en accumuler sans fin ne ferait que
+ * repousser l'expiration au lieu de l'eviter.
+ */
+const MAX_WAITING_PROVISIONS = 25;
+
+/** Passe ce delai, mieux vaut rendre la main que tenir la requete indefiniment. */
+const PROVISION_SLOT_TIMEOUT_MS = 60_000;
+
+let activeProvisions = 0;
+
+type SlotWaiter = { settle: (granted: boolean) => void };
+const waitingForSlot: SlotWaiter[] = [];
+
+/**
+ * Attend son tour plutot que d'essuyer un refus.
+ *
+ * La mise en place ne se lance qu'une fois par serveur : deux appels simultanes
+ * viennent donc forcement de deux serveurs differents, tous deux legitimes.
+ * Les refuser parce qu'un troisieme travaille reviendrait a punir l'un pour
+ * l'activite de l'autre. Ils prennent la file, dans l'ordre d'arrivee.
+ *
+ * `false` ne sort que des deux cas ou attendre ne rime plus a rien : file
+ * pleine, ou attente trop longue.
+ */
+export function waitForProvisionSlot(timeoutMs = PROVISION_SLOT_TIMEOUT_MS): Promise<boolean> {
+  if (activeProvisions < MAX_CONCURRENT_PROVISIONS) {
+    activeProvisions += 1;
+    return Promise.resolve(true);
+  }
+  if (waitingForSlot.length >= MAX_WAITING_PROVISIONS) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const waiter: SlotWaiter = {
+      settle: (granted: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const index = waitingForSlot.indexOf(waiter);
+        if (index !== -1) waitingForSlot.splice(index, 1);
+        resolve(granted);
+      },
+    };
+
+    const timer = setTimeout(() => waiter.settle(false), timeoutMs);
+    // Un compte a rebours seul ne doit pas retenir le processus a l'arret.
+    timer.unref?.();
+
+    waitingForSlot.push(waiter);
+  });
+}
+
+export function releaseProvisionSlot(): void {
+  const next = waitingForSlot.shift();
+  if (next) {
+    // La place passe de main en main sans repasser par zero : la decrementer
+    // puis la laisser reprendre donnerait le tour a un appel arrive a l'instant
+    // plutot qu'a celui qui attend depuis le plus longtemps.
+    next.settle(true);
+    return;
+  }
+  // Jamais sous zero : une liberation en trop rendrait des places qui
+  // n'existent pas, et le plafond ne voudrait plus rien dire.
+  activeProvisions = Math.max(0, activeProvisions - 1);
 }
 
 /** Delai impose entre deux mises en route qui creent quelque chose. */
@@ -149,6 +236,9 @@ export async function ensureCategory(guild: Guild, input: {
   return { channel, entry: entryOf(input.key, channel, true) };
 }
 
+// Le type rend la garantie deja assuree par la reprise ci-dessous : jamais un
+// fil. Un appelant qui veut reposer des surcharges sur un salon repris a besoin
+// de cette certitude, un fil n'en portant pas.
 export async function ensureTextChannel(guild: Guild, input: {
   key: string;
   existingId?: string | null;
@@ -156,7 +246,7 @@ export async function ensureTextChannel(guild: Guild, input: {
   parentId?: string | null;
   permissionOverwrites?: OverwriteResolvable[];
   reason: string;
-}): Promise<{ channel: GuildBasedChannel; entry: ProvisionedEntry }> {
+}): Promise<{ channel: NonThreadGuildBasedChannel; entry: ProvisionedEntry }> {
   const existing = await resolveChannel(guild, input.existingId);
   // Tout salon ou le bot peut ecrire fait l'affaire, pas seulement un salon
   // textuel : un salon d'annonces est un choix legitime, et exiger le type
