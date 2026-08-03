@@ -14,6 +14,7 @@
 import {
   PermissionFlagsBits,
   type Guild,
+  type NonThreadGuildBasedChannel,
   type OverwriteResolvable,
 } from 'discord.js';
 import { Prisma } from '@prisma/client';
@@ -445,6 +446,51 @@ export async function applyServerTemplate(input: {
       },
     ];
 
+    /**
+     * Repose l'interdiction de parler sur un salon repris.
+     *
+     * `ensureTextChannel` ne fixe les surcharges qu'a la creation : sans ce
+     * rattrapage, le salon des regles de Discord - toujours repris, jamais
+     * cree - porterait la mention « lecture seule » de l'apercu sans la
+     * respecter.
+     *
+     * Reserve au reglement, et surtout pas etendu aux autres salons en lecture
+     * seule : leur reprise part d'un salon que l'admin a lui-meme designe, et
+     * rien n'empeche qu'il ait choisi le salon principal du serveur pour y
+     * annoncer les niveaux ou les arrivees. Y poser l'interdiction rendrait
+     * muet un salon de discussion. Un salon de regles, lui, est fait pour ca.
+     *
+     * `edit` complete les surcharges au lieu de les remplacer : les exceptions
+     * que l'admin a posees pour d'autres roles sont conservees.
+     */
+    const enforceReadOnly = async (channel: NonThreadGuildBasedChannel) => {
+      try {
+        await channel.permissionOverwrites.edit(everyoneId, {
+          ViewChannel: true,
+          ReadMessageHistory: true,
+          AddReactions: true,
+          SendMessages: false,
+          SendMessagesInThreads: false,
+          CreatePublicThreads: false,
+          CreatePrivateThreads: false,
+        }, { reason });
+        await channel.permissionOverwrites.edit(botId, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
+          EmbedLinks: true,
+          AddReactions: true,
+          SendMessagesInThreads: true,
+          CreatePublicThreads: true,
+          CreatePrivateThreads: true,
+        }, { reason });
+      } catch (err) {
+        // Demande « Gerer les roles ». Le salon existe et reste utilisable :
+        // seule l'interdiction manque, et il vaut mieux le dire que l'ignorer.
+        warnings.push(`Lecture seule sur #${channel.name} : ${errorMessage(err)}`);
+      }
+    };
+
     const ensurePlannedCategory = async (key: string, existingId: string | null | undefined, restricted: boolean) => {
       const created = await ensureCategory(guild, {
         key,
@@ -588,6 +634,7 @@ export async function applyServerTemplate(input: {
           reason,
         });
         record(channel.entry);
+        if (!channel.entry.created) await enforceReadOnly(channel.channel);
         if (config?.regulationChannelId !== channel.channel.id) {
           data.regulationChannelId = channel.channel.id;
         }

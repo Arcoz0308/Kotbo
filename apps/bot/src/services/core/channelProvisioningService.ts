@@ -12,6 +12,7 @@ import {
   type CategoryChannel,
   type Guild,
   type GuildBasedChannel,
+  type NonThreadGuildBasedChannel,
   type OverwriteResolvable,
   type Role,
   type VoiceChannel,
@@ -235,6 +236,9 @@ export async function ensureCategory(guild: Guild, input: {
   return { channel, entry: entryOf(input.key, channel, true) };
 }
 
+// Le type rend la garantie deja assuree par la reprise ci-dessous : jamais un
+// fil. Un appelant qui veut reposer des surcharges sur un salon repris a besoin
+// de cette certitude, un fil n'en portant pas.
 export async function ensureTextChannel(guild: Guild, input: {
   key: string;
   existingId?: string | null;
@@ -242,7 +246,7 @@ export async function ensureTextChannel(guild: Guild, input: {
   parentId?: string | null;
   permissionOverwrites?: OverwriteResolvable[];
   reason: string;
-}): Promise<{ channel: GuildBasedChannel; entry: ProvisionedEntry }> {
+}): Promise<{ channel: NonThreadGuildBasedChannel; entry: ProvisionedEntry }> {
   const existing = await resolveChannel(guild, input.existingId);
   // Tout salon ou le bot peut ecrire fait l'affaire, pas seulement un salon
   // textuel : un salon d'annonces est un choix legitime, et exiger le type
