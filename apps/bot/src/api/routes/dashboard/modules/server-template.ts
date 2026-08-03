@@ -153,7 +153,7 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         context: getGuildName(client, guildId),
         module: 'Configuration',
         eventType: 'Manuel',
-        details: `Créés : ${created.map((entry) => entry.name).join(', ') || 'aucun'}. Repris : ${result.items.filter((entry) => !entry.created).map((entry) => entry.name).join(', ') || 'aucun'}.${result.interrupted ? ` Interrompu : ${result.interrupted}` : ''}`,
+        details: `Créés : ${created.map((entry) => entry.name).join(', ') || 'aucun'}. Repris : ${result.items.filter((entry) => !entry.created).map((entry) => entry.name).join(', ') || 'aucun'}. Modules activés : ${result.modules.join(', ') || 'aucun'}.${result.interrupted ? ` Interrompu : ${result.interrupted}` : ''}`,
         channelId: null,
       });
 
@@ -161,12 +161,18 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
         json(res, 500, {
           error: `Mise en place interrompue : ${result.interrupted}`,
           items: result.items,
+          modules: result.modules,
           panelSent: result.panelSent,
         });
         return true;
       }
 
-      json(res, 200, { success: true, items: result.items, panelSent: result.panelSent });
+      json(res, 200, {
+        success: true,
+        items: result.items,
+        modules: result.modules,
+        panelSent: result.panelSent,
+      });
     } catch (err) {
       logger.error('ServerTemplateAPI', `Error applying server template: ${errorMessage(err)}`);
       json(res, 500, { error: `Mise en place interrompue : ${errorMessage(err)}` });
