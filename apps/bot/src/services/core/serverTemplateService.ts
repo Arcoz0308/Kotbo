@@ -401,22 +401,46 @@ export async function applyServerTemplate(input: {
       ...staffOverwrite,
     ];
 
-    // Lisible de tous, ecrit par le seul bot. Sa surcharge a lui est reprecisee
-    // car le refus pose sur @everyone le viserait aussi, faute d'etre
-    // administrateur du serveur.
+    // Lisible de tous, ecrit par le seul bot, mais ouvert aux reactions : un
+    // membre repond au reglement ou a un accueil par un emoji, pas par un
+    // message.
+    //
+    // Refuser `SendMessages` seul ne suffit pas a interdire de parler : ouvrir
+    // un fil releve d'une autre permission, et le membre y ecrirait ce que le
+    // salon lui refuse. Les trois voies sont donc fermees ensemble.
+    //
+    // `AddReactions` est accorde explicitement plutot que laisse au reglage du
+    // serveur : sur une guilde qui l'a retire a @everyone, le salon aurait ete
+    // muet des deux cotes.
     const readOnlyOverwrites: OverwriteResolvable[] = [
       {
         id: everyoneId,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-        deny: [PermissionFlagsBits.SendMessages],
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.AddReactions,
+        ],
+        deny: [
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.SendMessagesInThreads,
+          PermissionFlagsBits.CreatePublicThreads,
+          PermissionFlagsBits.CreatePrivateThreads,
+        ],
       },
       {
         id: botId,
+        // Les fils lui sont rendus : le refus vise les membres, pas lui. Sans
+        // cela, brancher plus tard les fils d'accueil sur ce salon echouerait
+        // sans que rien n'explique pourquoi.
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.SendMessages,
           PermissionFlagsBits.ReadMessageHistory,
           PermissionFlagsBits.EmbedLinks,
+          PermissionFlagsBits.AddReactions,
+          PermissionFlagsBits.SendMessagesInThreads,
+          PermissionFlagsBits.CreatePublicThreads,
+          PermissionFlagsBits.CreatePrivateThreads,
         ]
       },
     ];
@@ -551,9 +575,13 @@ export async function applyServerTemplate(input: {
       }
 
       if (selection.has('welcome.rules')) {
+        // Le salon des regles de Discord compte comme un salon deja enregistre,
+        // juste apres le notre : un serveur communautaire en a forcement un, la
+        // plateforme l'exigeant pour activer le mode. Sans le reprendre, on
+        // poserait un second reglement a cote du sien.
         const channel = await ensureTextChannel(guild, {
           key: 'welcome.rules',
-          existingId: config?.regulationChannelId ?? knownRefs['welcome.rules'],
+          existingId: config?.regulationChannelId ?? guild.rulesChannelId ?? knownRefs['welcome.rules'],
           name: nameOf('welcome.rules'),
           parentId,
           permissionOverwrites: readOnlyOverwrites,
@@ -567,27 +595,26 @@ export async function applyServerTemplate(input: {
         // d'articles, et l'embed vide qui en sortirait devrait de toute facon
         // etre republie depuis la page Reglement une fois le texte ecrit.
 
-        // Le salon des regles au sens de Discord, celui que la plateforme met
-        // en avant a l'arrivee sur un serveur communautaire. Le faire pointer
-        // sur le notre evite d'avoir deux reglements a deux endroits, chacun
-        // pouvant contredire l'autre.
-        //
-        // Reserve aux serveurs communautaires : ailleurs, Discord n'expose tout
-        // simplement pas ce reglage. Et jamais redirige s'il vise deja un autre
-        // salon, ce choix appartenant a l'admin.
-        if (guild.features.includes('COMMUNITY')) {
-          if (guild.rulesChannelId && guild.rulesChannelId !== channel.channel.id) {
-            warnings.push(
-              `Le salon des règles de Discord vise déjà un autre salon : il n'a pas été redirigé vers #${channel.channel.name}.`,
-            );
-          } else if (!guild.rulesChannelId) {
-            // Demande « Gérer le serveur ». Son absence ne doit pas emporter la
-            // mise en place : le salon existe et le module y renvoie deja.
-            try {
-              await guild.setRulesChannel(channel.channel.id, reason);
-            } catch (err) {
-              warnings.push(`Salon des règles Discord : ${errorMessage(err)}`);
-            }
+        // Reste a designer le notre aupres de Discord quand il ne l'est pas
+        // deja. Le cas ou la plateforme en vise un autre ne se produit que si
+        // l'admin avait pointe Kotbo ailleurs : son choix tient, mais il doit
+        // savoir que les deux ne se rejoignent pas.
+        if (guild.rulesChannelId === channel.channel.id) {
+          // Rien a faire : c'est le meme salon.
+        } else if (guild.rulesChannelId) {
+          warnings.push(
+            `Le salon des règles de Discord vise un autre salon que #${channel.channel.name} : les deux règlements restent séparés.`,
+          );
+        } else if (guild.features.includes('COMMUNITY')) {
+          // Hors serveur communautaire, Discord n'expose pas ce reglage : le
+          // salon reste un salon ordinaire, en lecture seule.
+          //
+          // L'operation demande « Gérer le serveur ». Son absence ne doit pas
+          // emporter la mise en place : le salon existe, et le module y renvoie.
+          try {
+            await guild.setRulesChannel(channel.channel.id, reason);
+          } catch (err) {
+            warnings.push(`Salon des règles Discord : ${errorMessage(err)}`);
           }
         }
       }
