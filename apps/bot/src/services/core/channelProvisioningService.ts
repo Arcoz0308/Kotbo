@@ -84,15 +84,71 @@ export function releaseProvisionLock(key: string): void {
  */
 export const MAX_CONCURRENT_PROVISIONS = 3;
 
+/**
+ * Au-dela, la file est refusee plutot que retenue : ces requetes attendent
+ * toutes derriere un socket ouvert, et en accumuler sans fin ne ferait que
+ * repousser l'expiration au lieu de l'eviter.
+ */
+const MAX_WAITING_PROVISIONS = 25;
+
+/** Passe ce delai, mieux vaut rendre la main que tenir la requete indefiniment. */
+const PROVISION_SLOT_TIMEOUT_MS = 60_000;
+
 let activeProvisions = 0;
 
-export function acquireProvisionSlot(): boolean {
-  if (activeProvisions >= MAX_CONCURRENT_PROVISIONS) return false;
-  activeProvisions += 1;
-  return true;
+type SlotWaiter = { settle: (granted: boolean) => void };
+const waitingForSlot: SlotWaiter[] = [];
+
+/**
+ * Attend son tour plutot que d'essuyer un refus.
+ *
+ * La mise en place ne se lance qu'une fois par serveur : deux appels simultanes
+ * viennent donc forcement de deux serveurs differents, tous deux legitimes.
+ * Les refuser parce qu'un troisieme travaille reviendrait a punir l'un pour
+ * l'activite de l'autre. Ils prennent la file, dans l'ordre d'arrivee.
+ *
+ * `false` ne sort que des deux cas ou attendre ne rime plus a rien : file
+ * pleine, ou attente trop longue.
+ */
+export function waitForProvisionSlot(timeoutMs = PROVISION_SLOT_TIMEOUT_MS): Promise<boolean> {
+  if (activeProvisions < MAX_CONCURRENT_PROVISIONS) {
+    activeProvisions += 1;
+    return Promise.resolve(true);
+  }
+  if (waitingForSlot.length >= MAX_WAITING_PROVISIONS) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const waiter: SlotWaiter = {
+      settle: (granted: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const index = waitingForSlot.indexOf(waiter);
+        if (index !== -1) waitingForSlot.splice(index, 1);
+        resolve(granted);
+      },
+    };
+
+    const timer = setTimeout(() => waiter.settle(false), timeoutMs);
+    // Un compte a rebours seul ne doit pas retenir le processus a l'arret.
+    timer.unref?.();
+
+    waitingForSlot.push(waiter);
+  });
 }
 
 export function releaseProvisionSlot(): void {
+  const next = waitingForSlot.shift();
+  if (next) {
+    // La place passe de main en main sans repasser par zero : la decrementer
+    // puis la laisser reprendre donnerait le tour a un appel arrive a l'instant
+    // plutot qu'a celui qui attend depuis le plus longtemps.
+    next.settle(true);
+    return;
+  }
   // Jamais sous zero : une liberation en trop rendrait des places qui
   // n'existent pas, et le plafond ne voudrait plus rien dire.
   activeProvisions = Math.max(0, activeProvisions - 1);

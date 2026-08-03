@@ -14,7 +14,7 @@ import {
 import {
   PROVISION_PERMISSION_LABELS,
   acquireProvisionLock,
-  acquireProvisionSlot,
+  waitForProvisionSlot,
   missingProvisionPermissions,
   releaseProvisionLock,
   releaseProvisionSlot,
@@ -99,11 +99,15 @@ export async function handleServerTemplateRoutes(ctx: ModuleRouteContext): Promi
     // Le verrou ci-dessus ne vaut que pour ce serveur. Celui-ci borne le total :
     // une vingtaine d'appels REST par mise en place, tous derriere le meme
     // plafond global de discord.js, et trop de serveurs a la fois laisseraient
-    // chaque requete pendre jusqu'a expirer. Mieux vaut un refus immediat qu'un
-    // echec apparent sur un travail qui aboutit.
-    if (!acquireProvisionSlot()) {
+    // chaque requete pendre jusqu'a expirer.
+    //
+    // L'attente est prise en charge ici : la mise en place ne se lancant qu'une
+    // fois par serveur, deux appels simultanes viennent de deux serveurs
+    // differents et sont l'un comme l'autre legitimes. Le refus n'arrive qu'au
+    // bout d'une minute d'attente, ou si la file est deja pleine.
+    if (!(await waitForProvisionSlot())) {
       releaseProvisionLock(lockKey);
-      json(res, 429, { error: "Trop de mises en place en cours en ce moment. Réessayez dans une minute." });
+      json(res, 429, { error: "Trop de mises en place en cours en ce moment. Réessayez dans quelques minutes." });
       return true;
     }
 
