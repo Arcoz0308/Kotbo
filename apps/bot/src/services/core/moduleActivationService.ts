@@ -33,6 +33,7 @@ function guildFieldsFor(moduleKey: string, enabled: boolean): Record<string, unk
     case 'nickname_moderation': return { autoNicknameModerationEnabled: enabled };
     case 'auto_thread': return { autoThreadEnabled: enabled };
     case 'fun': return { funEnabled: enabled };
+    case 'economy': return { economyEnabled: enabled };
     default: return {};
   }
 }
