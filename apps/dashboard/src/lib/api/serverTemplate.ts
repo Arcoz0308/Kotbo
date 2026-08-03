@@ -36,6 +36,8 @@ export type ServerTemplateApplyResult = {
   success: boolean;
   items: { key: string; id: string; name: string; created: boolean }[];
   modules: string[];
+  /** Etapes facultatives qui n'ont pas abouti, sans arreter la mise en place. */
+  warnings: string[];
   panelSent: boolean;
 };
 

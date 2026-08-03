@@ -143,6 +143,8 @@ export const SERVER_TEMPLATE_PLAN: TemplateItem[] = [
   item('module.leveling', 'modules', 'module', () => 'Leveling', { moduleId: 'leveling', linkedTo: 'bots.level' }),
   item('module.economy', 'modules', 'module', () => 'Economie', { moduleId: 'economy', linkedTo: 'bots.rpg' }),
   item('module.nickname_moderation', 'modules', 'module', () => 'Moderation des pseudos', { moduleId: 'nickname_moderation' }),
+  item('module.automod', 'modules', 'module', () => 'AutoMod', { moduleId: 'automod' }),
+  item('module.channel_health', 'modules', 'module', () => 'Sante des salons', { moduleId: 'channel_health', linkedTo: 'staff.log' }),
 ];
 
 const ITEMS_BY_KEY = new Map(SERVER_TEMPLATE_PLAN.map((entry) => [entry.key, entry]));
@@ -263,6 +265,12 @@ export type ServerTemplateResult = {
   items: ProvisionedEntry[];
   /** Modules allumes, par identifiant du dashboard. */
   modules: string[];
+  /**
+   * Ce qui n'a pas pu etre fait sans pour autant arreter la mise en place :
+   * une etape facultative refusee faute de permission, par exemple. Sans les
+   * remonter, l'admin croirait tout en place.
+   */
+  warnings: string[];
   panelSent: boolean;
   interrupted: string | null;
 };
@@ -281,6 +289,7 @@ export async function applyServerTemplate(input: {
 
   const items: ProvisionedEntry[] = [];
   const modules: string[] = [];
+  const warnings: string[] = [];
   const data: Prisma.GuildUpdateInput = {};
   const refs: StoredRefs = {};
   let panelSent = false;
@@ -690,19 +699,34 @@ export async function applyServerTemplate(input: {
     for (const entry of SERVER_TEMPLATE_PLAN) {
       if (entry.kind !== 'module' || !entry.moduleId) continue;
       if (!selection.has(entry.key)) continue;
+
+      // Deux modules ne se resument pas a un interrupteur : l'AutoMod n'a aucun
+      // effet sans filtres armes, et la sante des salons analyse sans rien dire
+      // tant qu'aucun salon ne recoit ses conseils.
+      if (entry.moduleId === 'automod') {
+        const { applyRecommendedAutomod } = await import('./moduleProvisioningService.js');
+        const warning = await applyRecommendedAutomod(guild.client, guildId);
+        if (warning) warnings.push(`AutoMod : ${warning}`);
+      } else if (entry.moduleId === 'channel_health') {
+        // Le salon staff qu'on vient de poser, sinon celui deja configure : sans
+        // salon d'alerte, elle analyse sans jamais rien dire.
+        const { enableChannelHealth } = await import('./moduleProvisioningService.js');
+        await enableChannelHealth(guildId, refs['staff.log'] ?? config?.logChannelId ?? null);
+      }
+
       await setDashboardModuleStatus(guildId, entry.moduleId, true);
       modules.push(entry.moduleId);
     }
 
     await persist();
     await cache.invalidateGuild(guildId);
-    return { items, modules, panelSent, interrupted: null };
+    return { items, modules, warnings, panelSent, interrupted: null };
   } catch (err) {
     // Ce qui a ete cree est enregistre malgre l'echec : sans cela, une reprise
     // reposerait les memes salons a cote des precedents.
     await persist().catch(() => null);
     await cache.invalidateGuild(guildId).catch(() => null);
     logger.error('ServerTemplate', `Mise en place interrompue sur ${guildId}: ${errorMessage(err)}`);
-    return { items, modules, panelSent, interrupted: errorMessage(err) };
+    return { items, modules, warnings, panelSent, interrupted: errorMessage(err) };
   }
 }

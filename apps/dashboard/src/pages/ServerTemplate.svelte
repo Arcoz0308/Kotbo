@@ -53,6 +53,8 @@
     leveling: { name: m.st_module_leveling, desc: m.st_module_leveling_desc },
     economy: { name: m.st_module_economy, desc: m.st_module_economy_desc },
     nickname_moderation: { name: m.st_module_nickname_moderation, desc: m.st_module_nickname_moderation_desc },
+    automod: { name: m.st_module_automod, desc: m.st_module_automod_desc },
+    channel_health: { name: m.st_module_channel_health, desc: m.st_module_channel_health_desc },
   };
 
   const plan = $derived(template?.plan ?? []);
@@ -297,6 +299,13 @@
         toast.success(m.st_success_modules({ modules: names.join(', ') }));
       }
       if (result.panelSent) toast.success(m.st_panel_sent());
+
+      // Une etape facultative refusee - la synchronisation AutoMod native sans
+      // « Gerer le serveur », par exemple - n'arrete pas la mise en place mais
+      // ne doit pas passer inapercue : le reste a bien ete fait.
+      for (const warning of result.warnings ?? []) {
+        toast.error(`${m.st_warnings_title()} · ${warning}`);
+      }
 
       // Les nouveaux salons doivent apparaitre dans les selecteurs des autres
       // pages sans passer par un rechargement complet.

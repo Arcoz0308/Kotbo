@@ -8003,5 +8003,10 @@
   "st_rules_notice": "The rules are not posted yet: write your articles on the Rules page, then publish them to this channel.",
   "st_modules_count": "{count} module(s) to turn on",
   "st_success_modules": "Modules turned on: {modules}",
-  "st_confirm_modules": "The following modules will be enabled for the whole server: {modules}."
+  "st_confirm_modules": "The following modules will be enabled for the whole server: {modules}.",
+  "st_module_automod": "AutoMod",
+  "st_module_automod_desc": "Anti-spam, links, caps, profanity and invite filters, on the recommended preset. Kotbo will start moderating messages.",
+  "st_module_channel_health": "Channel health",
+  "st_module_channel_health_desc": "Analyses crowded or idle channels and advises you. No channel is created or archived without your say-so.",
+  "st_warnings_title": "Done, with reservations"
 }

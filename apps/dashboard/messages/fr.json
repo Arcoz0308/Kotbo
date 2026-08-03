@@ -8003,5 +8003,10 @@
   "st_rules_notice": "Le règlement n'est pas publié tout de suite : écrivez vos articles sur la page Règlement, puis publiez-les dans ce salon.",
   "st_modules_count": "{count} module(s) à activer",
   "st_success_modules": "Modules activés : {modules}",
-  "st_confirm_modules": "Les modules suivants seront activés pour tout le serveur : {modules}."
+  "st_confirm_modules": "Les modules suivants seront activés pour tout le serveur : {modules}.",
+  "st_module_automod": "AutoMod",
+  "st_module_automod_desc": "Filtres anti-spam, liens, majuscules, insultes et invitations, sur le préréglage recommandé. Kotbo se mettra à modérer les messages.",
+  "st_module_channel_health": "Santé des salons",
+  "st_module_channel_health_desc": "Analyse les salons surchargés ou inactifs et vous conseille. Aucun salon n'est créé ni archivé sans votre accord.",
+  "st_warnings_title": "Terminé, avec des réserves"
 }
