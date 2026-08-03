@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const servicePath = path.resolve(__dirname, '../../services/analytics/messageScraperService.js');
 const guildDataSyncServicePath = path.resolve(__dirname, '../../services/analytics/guildDataSyncService.js');
-import { json, verifyAuth, resolveAdminAccess, collectShardSnapshots, collectShardGuilds, loadShardingConfig, saveShardingConfig, requestContainerRestart, requestShardRespawn, normalizeGlobalBannedWord, normalizeGlobalBannedWordCategory, cleanupGlobalBannedWords, getGuildName, readJsonBody, ShardSnapshot, ShardingMode, ShardingConfig } from '../shared.js';
+import { json, verifyAuth, resolveAdminAccess, collectShardSnapshots, collectShardGuilds, loadShardingConfig, saveShardingConfig, requestContainerRestart, requestShardRespawn, normalizeGlobalBannedWord, normalizeGlobalBannedWordCategory, cleanupGlobalBannedWords, getGuildName, readJsonBody, DISCORD_CLIENT_OWNER_ID, ShardSnapshot, ShardingMode, ShardingConfig } from '../shared.js';
 import {
   getModuleActivationStats,
   getModuleUsageStats,
@@ -407,7 +407,7 @@ export async function handleAdminRoutes(
     // DELETE /api/admin/admins/:userId
     if (method === 'DELETE' && parts.length === 4) {
        const targetId = parts[3];
-       if (targetId === '457275321171968000') {
+       if (DISCORD_CLIENT_OWNER_ID && targetId === DISCORD_CLIENT_OWNER_ID) {
          json(res, 403, { error: 'Impossible de supprimer le créateur' }); 
          return true;
        }
