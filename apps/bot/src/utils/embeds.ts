@@ -9,6 +9,7 @@ import {
   MediaGalleryItemBuilder,
   ActionRowBuilder,
   ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
   SeparatorSpacingSize,
   type ColorResolvable,
@@ -329,6 +330,32 @@ const YOUTUBE_HEADLINE = {
   short: (channel: string) => `${channel} a publié un Short sur YouTube !`,
 } as const;
 
+/** Libelle du bouton de lien, aligne sur le type d'annonce. */
+const YOUTUBE_BUTTON_LABEL = {
+  live: 'Regarder le live',
+  video: 'Voir la vidéo',
+  short: 'Voir le Short',
+} as const;
+
+/** Lien canonique d'une video : les Shorts et les lives repondent aussi sur /watch. */
+export function youtubeVideoUrl(videoId: string) {
+  return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+/**
+ * Bouton de lien accompagnant la notification : le titre de l'embed reste
+ * cliquable, mais un bouton explicite evite de deviner que le titre est un lien.
+ */
+export function buildYouTubeComponents(params: { videoId: string; kind?: 'live' | 'video' | 'short' }) {
+  const button = new ButtonBuilder()
+    .setLabel(YOUTUBE_BUTTON_LABEL[params.kind ?? 'video'])
+    .setURL(youtubeVideoUrl(params.videoId))
+    .setStyle(ButtonStyle.Link)
+    .setEmoji(E.youtube);
+
+  return [new ActionRowBuilder<ButtonBuilder>().addComponents(button)];
+}
+
 /**
  * Notification de publication YouTube, calquee sur la mise en page Pingcord :
  * avatar de la chaine en auteur et en vignette, miniature de la video en grand,
@@ -348,7 +375,7 @@ export function buildYouTubeEmbed(params: {
   const embed = new EmbedBuilder()
     .setColor(0xff0000)
     .setTitle(truncate(params.title, 256))
-    .setURL(`https://www.youtube.com/watch?v=${params.videoId}`)
+    .setURL(youtubeVideoUrl(params.videoId))
     .setAuthor({
       name: truncate(params.channelName, 256),
       url: params.channelUrl ?? undefined,

@@ -8,7 +8,7 @@ import { generateTranscript } from './transcriptService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
 import { handleTicketTrigger } from './autoResponseService.js';
 import { embedToV2 } from '../../utils/patchV2.js';
-import { resolveGuildLocale } from '../../utils/i18n.js';
+import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
 import * as m from '../../lib/paraglide/messages.js';
 
 function sanitizeTicketChannelName(input: string): string {
@@ -211,37 +211,76 @@ export function canManageTicket(member: GuildMember | APIInteractionGuildMember 
  * Sends the ticket opening embed in the configured channel using V2 components.
  * Buttons or dropdown are embedded directly inside the container.
  */
+/**
+ * Textes que le bot compose lui-meme quand l'admin n'en a pas ecrit. Exposes
+ * plutot qu'ecrits deux fois : la mise en route les depose dans la
+ * configuration pour qu'ils soient visibles et modifiables, et l'envoi s'en
+ * sert quand le champ est reste vide.
+ *
+ * Les jetons `{user}`, `{type_label}` et compagnie traversent la traduction
+ * tels quels, ils sont remplaces au moment de l'envoi.
+ */
+export function ticketDefaultTexts(locale: BotLocale) {
+  return {
+    ticketEmbedTitle: m.ticket_default_panel_title({}, { locale }),
+    ticketEmbedDesc: m.ticket_default_panel_desc({}, { locale }),
+    ticketEmbedButtonText: m.ticket_default_panel_button({}, { locale }),
+    ticketWelcomeTitle: m.ticket_default_welcome_title({ type_label: '{type_label}' }, { locale }),
+    ticketWelcomeDesc: m.ticket_default_welcome_desc(
+      { user: '{user}', staff_mention: '{staff_mention}', description: '{description}' },
+      { locale },
+    ),
+    ticketWelcomeFooter: m.ticket_default_welcome_footer({ ticket_id: '{ticket_id}' }, { locale }),
+    ticketInactivityMessage: m.ticket_default_inactivity({ user: '{user}' }, { locale }),
+  };
+}
+
 export async function sendTicketSetupEmbed(client: Client, guildId: string): Promise<void> {
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guildConfig || !guildConfig.ticketChannelId) {
     throw new Error("Le salon d'embed des tickets n'est pas configuré.");
   }
 
-  const channel = client.channels.cache.get(guildConfig.ticketChannelId);
-  if (!channel || !(channel instanceof TextChannel)) {
+  // Repli sur un appel REST : le cache peut ne pas porter un salon cree a
+  // l'instant, et l'absence du cache ne veut pas dire que le salon n'existe pas.
+  //
+  // Tout salon de serveur ou l'on peut ecrire convient, y compris un salon
+  // d'annonces : c'est un choix legitime pour un panneau, et la mise en route
+  // accepte deja d'en reprendre un.
+  const channel = client.channels.cache.get(guildConfig.ticketChannelId)
+    ?? await client.channels.fetch(guildConfig.ticketChannelId).catch(() => null);
+  if (!channel || !channel.isTextBased() || channel.isDMBased()) {
     throw new Error("Le salon d'embed des tickets est introuvable ou n'est pas un salon textuel.");
   }
 
   const colorHex = guildConfig.ticketEmbedColor || '#5865F2';
   const color = typeof colorHex === 'string' ? parseInt(colorHex.replace('#', ''), 16) : COLORS_RAW.primary;
 
-  // `ticketEmbedTitle`, `ticketEmbedDesc` et `ticketEmbedButtonText` sont NOT NULL
-  // en base : leur contenu appartient a l'admin et est republie tel quel. Seuls
-  // les textes que le bot genere lui-meme suivent la langue du serveur.
+  // Un texte ecrit par l'admin est republie tel quel, sans traduction : il lui
+  // appartient. La langue du serveur ne sert qu'aux textes que le bot compose
+  // lui-meme, defauts compris.
   const discordGuild = client.guilds.cache.get(guildId);
   const locale = await resolveGuildLocale(guildId, discordGuild?.preferredLocale ?? null);
 
+  // Un champ vide veut dire « le texte par defaut », compose ici dans la langue
+  // du serveur : le figer en base le laisserait dans la langue du jour ou la
+  // configuration est nee.
+  const defaults = ticketDefaultTexts(locale);
+  const panelTitle = guildConfig.ticketEmbedTitle?.trim() || defaults.ticketEmbedTitle;
+  const panelDesc = guildConfig.ticketEmbedDesc?.trim() || defaults.ticketEmbedDesc;
+  const panelButton = guildConfig.ticketEmbedButtonText?.trim() || defaults.ticketEmbedButtonText;
+
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
-    label: guildConfig.ticketEmbedButtonText,
-    description: guildConfig.ticketEmbedDesc,
+    label: panelButton,
+    description: panelDesc,
     categoryId: guildConfig.ticketCategoryId ?? null,
     staffRoleId: guildConfig.ticketStaffRoleId ?? null,
     emoji: '📩',
     buttonStyle: 'PRIMARY',
   });
 
-  const title = resolveEmojiShortcodes(guildConfig.ticketEmbedTitle);
-  let desc = resolveEmojiShortcodes(guildConfig.ticketEmbedDesc);
+  const title = resolveEmojiShortcodes(panelTitle);
+  let desc = resolveEmojiShortcodes(panelDesc);
   if (ticketTypes.length > 0) {
     desc += `\n\n${m.panel_tickets_types_heading({}, { locale })}\n`;
     ticketTypes.forEach(t => {
@@ -317,7 +356,8 @@ function buildTicketWelcomeContainer(
   user: any,
   staffMention: string | null,
   reason: string,
-  description: string
+  description: string,
+  locale: BotLocale
 ): ContainerBuilder {
   const replaceTemplates = (str: string) => {
     if (!str) return '';
@@ -331,9 +371,12 @@ function buildTicketWelcomeContainer(
       .replace(/{description}/g, description);
   };
 
-  const title = replaceTemplates(guildConfig.ticketWelcomeTitle || "🎫 Ticket d'Assistance · {type_label}");
-  const desc = replaceTemplates(guildConfig.ticketWelcomeDesc || "Bonjour {user} !\nLe personnel {staff_mention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n{description}");
-  const footerText = replaceTemplates(guildConfig.ticketWelcomeFooter || "Kotbo · Ticket ID: {ticket_id}");
+  // Les jetons `{user}`, `{type_label}` et compagnie traversent la traduction
+  // tels quels : `replaceTemplates` les remplace juste apres.
+  const defaults = ticketDefaultTexts(locale);
+  const title = replaceTemplates(guildConfig.ticketWelcomeTitle?.trim() || defaults.ticketWelcomeTitle);
+  const desc = replaceTemplates(guildConfig.ticketWelcomeDesc?.trim() || defaults.ticketWelcomeDesc);
+  const footerText = replaceTemplates(guildConfig.ticketWelcomeFooter?.trim() || defaults.ticketWelcomeFooter);
   
   const welcomeColorHex = guildConfig.ticketWelcomeColor || '#5865F2';
   const color = typeof welcomeColorHex === 'string' ? parseInt(welcomeColorHex.replace('#', ''), 16) : COLORS_RAW.primary;
@@ -880,6 +923,10 @@ export async function executeTicketCreation(
     return null;
   }
 
+  // Langue du serveur et non celle de la personne qui clique : le message
+  // d'accueil est lu dans le salon par tous ceux qui y ont acces.
+  const locale = await resolveGuildLocale(guildId, guild.preferredLocale);
+
   const ticketMode = ticketType.mode || (guildConfig as any).ticketMode || 'CHANNEL';
   const isAnonymous = ticketType.anonymous === true && ticketMode === 'DM';
   const useStaffServerRelay = ticketType.staffServerRelay === true;
@@ -1048,7 +1095,8 @@ export async function executeTicketCreation(
         user,
         staffMention,
         reason,
-        description
+        description,
+        locale
       );
 
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -1188,7 +1236,8 @@ export async function executeTicketCreation(
         user,
         staffMention,
         reason,
-        description
+        description,
+        locale
       );
 
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -1806,6 +1855,13 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
 
       const inactivityTimeMs = guildConfig.ticketInactivityHours * 60 * 60 * 1000;
 
+      // Resolue une fois par serveur, et avec la langue declaree du serveur
+      // Discord : sans elle, la cascade saute a son repli qui est l'anglais, et
+      // un serveur francais reste en detection automatique recevrait une
+      // relance anglaise au milieu de messages francais.
+      const discordGuild = client.guilds.cache.get(guildConfig.id);
+      const locale = await resolveGuildLocale(guildConfig.id, discordGuild?.preferredLocale ?? null);
+
       for (const ticket of activeTickets) {
         if (!ticket.channelId) continue;
 
@@ -1833,7 +1889,8 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
         if (shouldAlert) {
           // Formater le message d'inactivité
           const userMention = `<@${ticket.userId}>`;
-          const rawMessage = guildConfig.ticketInactivityMessage || "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !";
+          const rawMessage = guildConfig.ticketInactivityMessage?.trim()
+            || ticketDefaultTexts(locale).ticketInactivityMessage;
           const formattedMessage = rawMessage.replace(/{user}/g, userMention);
 
           await channel.send({ content: formattedMessage }).catch(() => null);

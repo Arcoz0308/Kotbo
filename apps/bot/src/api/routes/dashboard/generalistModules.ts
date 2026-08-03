@@ -1,10 +1,11 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, EmbedBuilder, type ColorResolvable } from 'discord.js';
+import { Client, EmbedBuilder, PermissionFlagsBits, type ColorResolvable } from 'discord.js';
 import prisma, { prismaRead } from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
+import { defaultLevelUpMessage, getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp, getGuildLevelCurve, invalidateLevelConfigCache, levelCurveFromConfig, resyncGuildLevels, countCurveImpact, invalidateLevelRewardsCache, getRoleResyncStatus, startRoleResync, stopRoleResync } from '../../../services/progression/levelingService.js';
 import { normalizeLevelCurve } from '@kotbo/shared';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
+import { resolveMemberAvatarUrl } from '../../../services/moderation/memberIdentityService.js';
 import { getOrCreateWelcomeThreadConfig, clampStepDelay, MAX_THREAD_STEPS } from '../../../services/features/welcomeThreadService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
@@ -12,8 +13,11 @@ import { createReactionRoleMenu, deleteReactionRoleMenu } from '../../../service
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { acquireProvisionLock, ensureTextChannel, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../services/core/channelProvisioningService.js';
 import { fetchAllMembers } from '../../../utils/discord.js';
 import { resolveEmojiShortcodes } from '../../../utils/emojis.js';
+import { resolveGuildLocale } from '../../../utils/i18n.js';
+import * as m from '../../../lib/paraglide/messages.js';
 
 const LEADERBOARD_PAGE_SIZE = 25;
 /** Plafond des profils retenus par une recherche, avant pagination. */
@@ -83,7 +87,7 @@ async function withMemberIdentity(
       ...row,
       username: discordMember?.user?.username || profile?.username || null,
       displayName: discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${row.userId}`,
-      avatarUrl: discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null,
+      avatarUrl: resolveMemberAvatarUrl(discordMember, 128) || profile?.avatarUrl || null,
     };
   });
 }
@@ -244,6 +248,119 @@ export async function handleGeneralistModulesRoutes(
       } catch (err) {
         logger.error('LevelingAPI', 'Error counting curve impact:', err);
         json(res, 500, { error: "Erreur lors du calcul de l'effet de la courbe" });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/leveling/level-up-channel (Créer le salon d'annonce)
+    if (parts.length === 6 && parts[5] === 'level-up-channel' && method === 'POST') {
+      if (!_access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé. Permissions insuffisantes.' });
+        return true;
+      }
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      if (!discordGuild) {
+        json(res, 404, { error: 'Serveur Discord introuvable.' });
+        return true;
+      }
+
+      const lockKey = `leveling-channel:${guildId}`;
+      if (!acquireProvisionLock(lockKey)) {
+        json(res, 409, { error: 'Une création de salon est déjà en cours sur ce serveur.' });
+        return true;
+      }
+
+      try {
+        const cooldown = await provisionCooldown(lockKey);
+        if (cooldown) {
+          json(res, 429, { error: provisionCooldownMessage(cooldown, 'Le salon a déjà été créé') });
+          return true;
+        }
+
+        const missing = await missingProvisionPermissions(discordGuild, [PermissionFlagsBits.ManageChannels]);
+        if (missing.length > 0) {
+          json(res, 400, { error: `Le bot n'a pas les permissions nécessaires : ${missing.join(', ')}.` });
+          return true;
+        }
+
+        // Nom dans la langue du serveur : le salon est lu par ses membres, pas
+        // par l'admin qui clique depuis le dashboard.
+        const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+
+        // `levelUpChannelId` porte aussi des valeurs qui ne sont pas des salons
+        // (vide pour le salon d'origine, `DM` pour le message privé) : seul un
+        // identifiant de salon vivant est repris, le reste part sur une création.
+        const config = await getOrCreateLevelConfig(guildId);
+        const existingId = config.levelUpChannelId && config.levelUpChannelId !== 'DM'
+          ? config.levelUpChannelId
+          : null;
+
+        // Le refus d'ecriture vaut aussi pour le bot : sans surcharge a son nom,
+        // il ne pourrait pas annoncer les niveaux dans le salon qu'il vient de
+        // creer, sauf a etre administrateur du serveur.
+        const botId = discordGuild.members.me?.id;
+
+        const { channel, entry } = await ensureTextChannel(discordGuild, {
+          key: 'levelUpChannel',
+          existingId,
+          name: m.setup_channel_leveling({}, { locale }),
+          permissionOverwrites: [
+            {
+              id: discordGuild.roles.everyone.id,
+              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+              deny: [PermissionFlagsBits.SendMessages],
+            },
+            ...(botId
+              ? [{
+                  id: botId,
+                  allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory,
+                    PermissionFlagsBits.EmbedLinks,
+                  ]
+                }]
+              : []),
+          ],
+          reason: m.setup_reason_leveling({ user: auditUser }, { locale }),
+        });
+
+        // Ecrit tout de suite : un salon cree que la page n'enregistrerait pas
+        // resterait sur le serveur sans que rien n'y renvoie.
+        // Le message est depose en meme temps quand l'admin n'en a pas ecrit :
+        // la mise en route doit laisser un texte visible et modifiable, pas un
+        // champ vide dont on ne devine pas ce qu'il produira. Sans creation,
+        // rien n'est ecrit et la page recoit la valeur inchangee.
+        const levelUpMessage = entry.created
+          ? (config.levelUpMessage?.trim() || defaultLevelUpMessage(locale))
+          : config.levelUpMessage;
+
+        if (entry.created) {
+          await prisma.levelConfig.update({
+            where: { guildId },
+            data: { levelUpChannelId: channel.id, levelUpMessage },
+          });
+          invalidateLevelConfigCache(guildId);
+          await startProvisionCooldown(lockKey, user.username ?? 'Utilisateur');
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: "Création du salon d'annonce des niveaux",
+            context: getGuildName(client, guildId),
+            module: 'Leveling',
+            eventType: 'Manuel',
+            details: `Salon créé : #${channel.name}`,
+            channelId: channel.id,
+          });
+        }
+
+        json(res, 200, { channelId: channel.id, name: channel.name, created: entry.created, levelUpMessage });
+      } catch (err) {
+        logger.error('LevelingAPI', 'Error creating level-up channel:', err);
+        json(res, 500, { error: "Erreur lors de la création du salon d'annonce" });
+      } finally {
+        releaseProvisionLock(lockKey);
       }
       return true;
     }

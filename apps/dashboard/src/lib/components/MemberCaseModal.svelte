@@ -247,8 +247,53 @@
 
   let requestVerificationBusy = $state(false);
 
+  // Historique des vérifications : un modérateur doit voir d'un coup d'oeil
+  // qu'un collègue en a déjà demandé une, et depuis quand (issue #216).
+  const verifications = $derived(caseData?.verifications ?? null);
+  const verificationEntries = $derived(verifications?.entries ?? []);
+  const verificationCount = $derived(verifications?.total ?? 0);
+  const verificationPending = $derived(verifications?.hasPending ?? false);
+  const verificationCooldownUntil = $derived(
+    verifications?.cooldownUntil ? new Date(verifications.cooldownUntil) : null
+  );
+  // Recalculé à chaque rendu du modal : suffisant ici, le staff rouvre la fiche
+  // plutôt que de fixer le bouton en attendant la fin du délai.
+  const verificationBlocked = $derived(
+    verificationPending
+    || (verificationCooldownUntil !== null && verificationCooldownUntil.getTime() > Date.now())
+  );
+
+  function formatVerificationDate(value: string | null | undefined): string {
+    if (!value) return m.mcm_verif_never();
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return m.mcm_verif_never();
+    return date.toLocaleString(dateLocale(), {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  const VERIFICATION_STATUS_STYLES: Record<string, string> = {
+    VERIFIED: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+    PENDING: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+    FLAGGED: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
+    EXPIRED: 'bg-on-surface/5 text-on-surface-variant/60 border-outline-variant/20',
+  };
+
+  function verificationStatusLabel(status: string): string {
+    switch (status) {
+      case 'VERIFIED': return m.mcm_verif_status_verified();
+      case 'PENDING': return m.mcm_verif_status_pending();
+      case 'FLAGGED': return m.mcm_verif_status_flagged();
+      default: return m.mcm_verif_status_expired();
+    }
+  }
+
   async function handleRequestVerification() {
     if (!userId) return;
+    if (verificationBlocked) {
+      toast.error(verificationPending ? m.mcm_verif_already_pending() : m.mcm_verif_cooldown());
+      return;
+    }
     if (!(await confirmDialog.ask({ title: m.mcm_verif_title(), description: m.mcm_verif_desc(), confirmLabel: m.mcm_verif_confirm(), variant: 'warning' }))) return;
     requestVerificationBusy = true;
     try {
@@ -743,11 +788,31 @@
             {/if}
             {#if userId}
               <div class="ml-auto flex items-center gap-2">
+                <!-- Un collègue est peut-être déjà passé par là : l'état saute
+                     aux yeux avant même d'ouvrir l'onglet Identité. -->
+                {#if verificationPending}
+                  <span class="badge border border-amber-400/30 bg-amber-500/20 text-amber-100 shadow-sm">
+                    <Papicon icon="clock" size={12} class="mr-1" />
+                    {m.mcm_verif_badge_pending()}
+                  </span>
+                {:else if verifications?.lastVerifiedAt}
+                  <span class="badge border border-emerald-400/30 bg-emerald-500/20 text-emerald-100 shadow-sm">
+                    <Papicon icon="check-circle" size={12} class="mr-1" />
+                    {m.mcm_verif_badge_done()}
+                  </span>
+                {/if}
                 <button
                   type="button"
                   onclick={handleRequestVerification}
-                  disabled={requestVerificationBusy}
-                  class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-amber-800 disabled:opacity-50 px-3 py-1.5 text-[10px] font-semibold text-white uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm cursor-pointer"
+                  disabled={requestVerificationBusy || verificationBlocked}
+                  title={verificationPending
+                    ? m.mcm_verif_already_pending()
+                    : verificationBlocked
+                      ? m.mcm_verif_cooldown()
+                      : verifications?.lastRequestedAt
+                        ? m.mcm_verif_requested_on({ date: formatVerificationDate(verifications.lastRequestedAt) })
+                        : m.mcm_request_verification()}
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 text-[10px] font-semibold text-white uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm cursor-pointer"
                 >
                   {#if requestVerificationBusy}
                     <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
@@ -1256,6 +1321,55 @@
                        <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? m.mcm_unknown_f()}</dd>
                      </div>
                    </dl>
+                </div>
+
+                <!-- Vérifications de sécurité : trace partagée entre modérateurs
+                     pour ne pas redemander ce qu'un collègue a déjà lancé. -->
+                <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
+                  <div class="flex items-center gap-3 mb-8">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
+                      <Papicon icon="shield-alert" size={24} />
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">{m.mcm_verif_history_title()}</p>
+                      <p class="text-lg font-semibold text-on-surface">{m.mcm_verif_history_count({ count: verificationCount })}</p>
+                    </div>
+                  </div>
+
+                  {#if verificationEntries.length === 0}
+                    <p class="text-sm text-on-surface-variant/50">{m.mcm_verif_history_empty()}</p>
+                  {:else}
+                    <dl class="space-y-4 mb-6">
+                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                        <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_verif_last_request()}</dt>
+                        <dd class="text-sm font-semibold text-on-surface">{formatVerificationDate(verifications?.lastRequestedAt)}</dd>
+                      </div>
+                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                        <dt class="text-xs font-medium text-on-surface-variant/40">{m.mcm_verif_last_verified()}</dt>
+                        <dd class="text-sm font-semibold text-on-surface">{formatVerificationDate(verifications?.lastVerifiedAt)}</dd>
+                      </div>
+                    </dl>
+
+                    <ul class="space-y-3">
+                      {#each verificationEntries as entry (entry.id)}
+                        <li class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-container-high/20 px-4 py-3">
+                          <div class="min-w-0">
+                            <p class="text-xs font-semibold text-on-surface">
+                              {m.mcm_verif_requested_on({ date: formatVerificationDate(entry.requestedAt) })}
+                            </p>
+                            {#if entry.verifiedAt}
+                              <p class="text-[10px] font-medium text-on-surface-variant/50 mt-0.5">
+                                {m.mcm_verif_verified_on({ date: formatVerificationDate(entry.verifiedAt) })}
+                              </p>
+                            {/if}
+                          </div>
+                          <span class="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest {VERIFICATION_STATUS_STYLES[entry.status] ?? VERIFICATION_STATUS_STYLES.EXPIRED}">
+                            {verificationStatusLabel(entry.status)}
+                          </span>
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
                 </div>
 
                 {#if caseData?.profile?.staffGrade}
@@ -2264,7 +2378,7 @@
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div 
-        class="fixed inset-0 z-[10010] flex items-center justify-center bg-surface-container-lowest/90 animate-in fade-in duration-300"
+        class="member-case-overlay fixed inset-0 flex items-center justify-center bg-surface-container-lowest/90 animate-in fade-in duration-300"
         onclick={(e) => e.stopPropagation()}
       >
         <!-- svelte-ignore a11y_click_events_have_key_events -->

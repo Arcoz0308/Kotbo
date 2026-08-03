@@ -1,5 +1,6 @@
 <script lang="ts">
   import { channelDisplayName } from '../lib/channelUtils';
+  import { isMissingReference } from '../lib/discordReferences';
   import { m } from '../lib/i18n';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { router } from 'tinro';
@@ -7,6 +8,7 @@
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -26,6 +28,7 @@
     findLevelingPreset,
     levelingPresetValues,
     type LevelingPreset,
+    type LevelingPresetValues,
   } from '../lib/levelingPresets';
   import { 
     fetchLevelingData,
@@ -34,7 +37,8 @@
     fetchLevelingRoleResync,
     runLevelingRoleResync,
     updateLevelingConfig,
-    addLevelingReward, 
+    createLevelUpChannel,
+    addLevelingReward,
     deleteLevelingReward,
     importLevelingData,
     fetchClansData,
@@ -50,6 +54,7 @@
 
   const saveAction = createAsyncActionState();
   const rewardAction = createAsyncActionState();
+  const createChannelAction = createAsyncActionState();
   let loading = $state(false);
   // 'config' a disparu au profit d'onglets thematiques. Il n'est pas conserve
   // comme alias : `resolveTabFromUrl` renvoie l'onglet par defaut pour tout
@@ -146,6 +151,34 @@
   // Saved versions for dirty checking
   let savedClanRewardXpBoost = $state(false);
   let savedClanRewardXpBoostRate = $state(1.2);
+
+  /**
+   * `levelUpChannelId` porte trois choix distincts : vide pour le salon
+   * d'origine, `DM` pour le message prive, un identifiant pour un salon. Le
+   * quatrieme etat n'en est pas un : l'identifiant enregistre ne designe plus
+   * aucun salon, le module annonce alors dans le vide.
+   */
+  const levelUpChannelState = $derived.by(() => {
+    const id = config.levelUpChannelId;
+    if (!id) return 'origin';
+    if (id === 'DM') return 'dm';
+    // Liste vide = pas encore chargee, ce qui n'est pas un salon disparu.
+    if (availableChannels.length > 0 && !availableChannels.some((c: any) => c.id === id)) return 'missing';
+    return 'channel';
+  });
+
+  /**
+   * Creer un salon n'a de sens que quand aucun ne tient le role. Le message
+   * prive en est exclu : c'est un choix delibere, pas un reglage a completer.
+   */
+  const canCreateLevelUpChannel = $derived(
+    levelUpChannelState === 'origin' || levelUpChannelState === 'missing'
+  );
+
+  const levelUpChannelLabel = $derived.by(() => {
+    const channel = availableChannels.find((c: any) => c.id === config.levelUpChannelId);
+    return channel ? channelDisplayName(channel) : (config.levelUpChannelId ?? '');
+  });
 
   const configDirty = $derived(
     JSON.stringify(config) !== JSON.stringify(savedConfig)
@@ -289,6 +322,34 @@
     }
   });
 
+  async function handleCreateLevelUpChannel() {
+    if (!canManageSettings) return;
+    await createChannelAction.run(async () => {
+      const res = await createLevelUpChannel();
+      if (!res?.channelId) throw new Error(m.lv_err_create_channel());
+
+      // La liste des salons d'abord : le champ pointerait sinon sur un salon
+      // qu'elle ne connait pas encore, et la page afficherait son identifiant
+      // brut le temps du rafraichissement.
+      await dashboardStore.refresh();
+
+      // Le salon est deja enregistre cote serveur : `savedConfig` suit, sinon
+      // la page se croirait modifiee par un changement deja en base. Le message
+      // par defaut est depose au meme moment, la reponse le porte.
+      config.levelUpChannelId = res.channelId;
+      savedConfig.levelUpChannelId = res.channelId;
+
+      // `savedConfig` prend ce que la base contient maintenant. Le champ, lui,
+      // n'est rempli que s'il etait vide : un texte en cours de saisie, pas
+      // encore enregistre, ne doit pas disparaitre sous le clic.
+      savedConfig.levelUpMessage = res.levelUpMessage ?? savedConfig.levelUpMessage;
+      if (!config.levelUpMessage?.trim()) {
+        config.levelUpMessage = savedConfig.levelUpMessage;
+      }
+      return true;
+    }, { successMessage: m.lv_channel_created() });
+  }
+
   async function handleSaveConfig(): Promise<boolean> {
     if (!canManageSettings) return false;
     let success = false;
@@ -362,6 +423,7 @@
       rewards = rewards.filter(r => r.id !== id);
     }
   }
+
 
   function getRoleName(roleId: string) {
     const role = availableRoles.find(r => r.id === roleId);
@@ -587,6 +649,30 @@
     xpMode.resolve(gainsFitSimpleMode() && lengthBonusFitsSimpleMode());
     curveMode.resolve(curveFitsSimpleMode());
   }
+
+  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
+  // configuration courante, elle ouvre juste les onglets.
+  function openPresetDetail() {
+    gotoTab('/leveling', 'gains', DEFAULT_TAB);
+  }
+
+  function levelingValuesOf(source: typeof config): LevelingPresetValues {
+    return {
+      xpMin: source.xpMin,
+      xpMax: source.xpMax,
+      cooldownSeconds: source.cooldownSeconds,
+      vocalXpPerMin: source.vocalXpPerMin,
+      curveBaseXp: source.curveBaseXp,
+      curveLinearXp: source.curveLinearXp,
+      curveExponent: source.curveExponent,
+      maxLevel: source.maxLevel,
+    };
+  }
+
+  // Des qu'un prereglage est choisi, la configuration courante est la sienne :
+  // la carte « Personnalise » doit alors montrer la configuration enregistree,
+  // sans quoi elle devient le sosie de la carte qu'on vient de cliquer.
+  const customPresetValues = $derived(levelingValuesOf(selectedPreset ? savedConfig : config));
 
   // Estimation de duree : les curseurs repondent chacun a un fragment, aucun ne
   // dit combien de temps il faut pour atteindre un niveau. Le calcul combine le
@@ -933,6 +1019,7 @@
 
   <InlineFeedback state={saveAction} />
   <InlineFeedback state={rewardAction} />
+  <InlineFeedback state={createChannelAction} />
 
   <!-- Navigation par onglets -->
   {#if activeTab !== 'accueil'}
@@ -993,16 +1080,67 @@
       <Skeleton height="250px" radius="2.5rem" />
     </div>
   {:else if activeTab === 'accueil'}
-    <LevelingPresetPicker
-      selectedId={selectedPreset?.id ?? null}
-      activeId={activePreset?.id ?? null}
-      disabled={!canManageSettings}
-      dirty={configDirty}
-      saving={saveAction.state.loading}
-      moduleEnabled={config.enabled}
-      onselect={applyLevelingPreset}
-      onsave={handleSaveConfig}
-    />
+    <div class="space-y-8">
+      <LevelingPresetPicker
+        selectedId={selectedPreset?.id ?? null}
+        activeId={activePreset?.id ?? null}
+        customValues={customPresetValues}
+        disabled={!canManageSettings}
+        dirty={configDirty}
+        saving={saveAction.state.loading}
+        moduleEnabled={config.enabled}
+        onselect={applyLevelingPreset}
+        onsave={handleSaveConfig}
+        ondetail={openPresetDetail}
+      />
+
+      <!-- Un rythme choisi ne dit pas encore ou les montees de niveau
+           s'annoncent : la carte porte cette derniere etape la ou l'oeil
+           arrive, au lieu de la laisser au fond de l'onglet Annonces. -->
+      {#if canManageSettings}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl px-6 py-5">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Papicon icon="Bell" size={18} />
+            </div>
+            <div class="space-y-0.5">
+              <p class="text-sm font-semibold text-on-surface">{m.lv_setup_channel_title()}</p>
+              <p class="text-[13px] text-on-surface-variant/70">
+                {#if levelUpChannelState === 'channel'}
+                  {m.lv_setup_channel_done({ channel: levelUpChannelLabel })}
+                  <!-- Le nom de l'onglet vient de sa propre traduction : le lien
+                       et la barre d'onglets ne peuvent pas se contredire. -->
+                  <button
+                    type="button"
+                    onclick={() => gotoTab('/leveling', 'annonces', DEFAULT_TAB)}
+                    class="text-primary font-medium hover:underline"
+                  >
+                    {m.lv_setup_channel_change({ tab: m.lv_tab_announcements() })}
+                  </button>
+                {:else if levelUpChannelState === 'dm'}
+                  {m.lv_setup_channel_dm()}
+                {:else if levelUpChannelState === 'missing'}
+                  {m.lv_setup_channel_missing()}
+                {:else}
+                  {m.lv_setup_channel_desc()}
+                {/if}
+              </p>
+            </div>
+          </div>
+          {#if canCreateLevelUpChannel}
+            <button
+              type="button"
+              onclick={handleCreateLevelUpChannel}
+              disabled={createChannelAction.state.loading}
+              class="shrink-0 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary text-[13px] font-medium rounded-lg shadow-md shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+            >
+              <Papicon icon="sparkles" size={16} />
+              {createChannelAction.state.loading ? m.lv_creating_channel() : m.lv_create_channel()}
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
   {:else if activeTab === 'gains'}
     <!-- === ONGLET GAINS D'XP === -->
     <div class="space-y-8 animate-in fade-in duration-300">
@@ -1288,7 +1426,11 @@
             <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
               {#each config.ignoredChannels as channelId}
                 {@const channel = availableChannels.find(c => c.id === channelId)}
-                <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
+                {@const missing = isMissingReference(channelId, availableChannels)}
+                <span
+                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border shadow-sm {missing ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10'}"
+                  title={missing ? m.lv_missing_ref_hint() : undefined}
+                >
                   #{channel ? channel.name : channelId}
                   {#if canManageSettings}
                     <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error transition-transform">✕</button>
@@ -1317,7 +1459,11 @@
             <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
               {#each config.ignoredRoles as roleId}
                 {@const role = availableRoles.find(r => r.id === roleId)}
-                <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
+                {@const missing = isMissingReference(roleId, availableRoles)}
+                <span
+                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-xl border shadow-sm {missing ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10'}"
+                  title={missing ? m.lv_missing_ref_hint() : undefined}
+                >
                   @{role ? role.name : roleId}
                   {#if canManageSettings}
                     <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error transition-transform">✕</button>
@@ -1417,8 +1563,12 @@
                   {/if}
 
                   {#each Object.entries(config.xpMultipliers) as [roleId, mult]}
+                    {@const missing = isMissingReference(roleId, availableRoles)}
                     <tr class="hover:bg-surface-hover/20 transition-all font-semibold">
-                      <td class="px-6 py-3.5 text-sm font-semibold">{getRoleName(roleId)}</td>
+                      <td
+                        class="px-6 py-3.5 text-sm font-semibold {missing ? 'text-amber-600 dark:text-amber-400' : ''}"
+                        title={missing ? m.lv_missing_ref_hint() : undefined}
+                      >{getRoleName(roleId)}</td>
                       <td class="px-6 py-3.5 text-sm font-semibold text-primary">{mult}x</td>
                       {#if canManageSettings}
                         <td class="px-6 py-3.5 text-right">
@@ -1870,6 +2020,7 @@
             </thead>
             <tbody class="divide-y divide-outline-variant/5">
               {#each rewards as reward}
+                {@const missingRole = isMissingReference(reward.roleId, availableRoles)}
                 <tr class="hover:bg-surface-hover/20 transition-all">
                   <td class="px-5 py-4 font-semibold text-primary text-sm">
                     Lvl {reward.level}
@@ -1880,7 +2031,10 @@
                       >{m.lv_reward_unreachable()}</span>
                     {/if}
                   </td>
-                  <td class="px-5 py-4 text-xs font-semibold">{getRoleName(reward.roleId)}</td>
+                  <td
+                    class="px-5 py-4 text-xs font-semibold {missingRole ? 'text-amber-600 dark:text-amber-400' : ''}"
+                    title={missingRole ? m.lv_missing_ref_hint() : undefined}
+                  >{getRoleName(reward.roleId)}</td>
                   {#if canManageSettings}
                     <td class="px-5 py-4 text-right">
                       <button 
@@ -1928,6 +2082,23 @@
               className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
+            {#if levelUpChannelState === 'missing'}
+              <p class="text-[10px] text-amber-500 mt-1.5">{m.lv_missing_ref_hint()}</p>
+            {/if}
+            {#if canManageSettings && canCreateLevelUpChannel}
+              <div class="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onclick={handleCreateLevelUpChannel}
+                  disabled={createChannelAction.state.loading}
+                  class="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container-high/40 border border-outline-variant/10 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
+                >
+                  <Papicon icon="sparkles" size={13} />
+                  {createChannelAction.state.loading ? m.lv_creating_channel() : m.lv_create_channel()}
+                </button>
+                <span class="text-[10px] text-on-surface-variant/50">{m.lv_create_channel_hint()}</span>
+              </div>
+            {/if}
           </div>
 
           <div class="space-y-1.5">
@@ -1941,6 +2112,7 @@
               disabled={!canManageSettings}
             />
             <p class="text-[11px] text-on-surface-variant/40 ml-2">{m.lv_variables_label()} <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> {m.lv_variables_mention()}, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
+            <p class="text-[11px] text-on-surface-variant/40 ml-2">{m.lv_levelup_message_hint()}</p>
           </div>
         </div>
       </section>
@@ -2049,7 +2221,7 @@
                 <div class="flex items-start justify-between">
                   <div class="relative">
                     <img
-                      src={podium[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
+                      src={memberAvatarSrc(podium[1].avatarUrl, podium[1].displayName || podium[1].username, podium[1].userId)}
                       alt=""
                       class="w-16 h-16 rounded-lg object-cover border border-outline-variant/10 shadow-inner"
                     />
@@ -2091,7 +2263,7 @@
                 <div class="flex items-start justify-between mt-1">
                   <div class="relative">
                     <img
-                      src={podium[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                      src={memberAvatarSrc(podium[0].avatarUrl, podium[0].displayName || podium[0].username, podium[0].userId)}
                       alt=""
                       class="w-20 h-20 rounded-lg object-cover border border-tertiary/20 shadow-inner"
                     />
@@ -2130,7 +2302,7 @@
                 <div class="flex items-start justify-between">
                   <div class="relative">
                     <img
-                      src={podium[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
+                      src={memberAvatarSrc(podium[2].avatarUrl, podium[2].displayName || podium[2].username, podium[2].userId)}
                       alt=""
                       class="w-16 h-16 rounded-lg object-cover border border-outline-variant/10 shadow-inner"
                     />
@@ -2189,7 +2361,7 @@
 
               <!-- Avatar -->
               <img 
-                src={userLvl.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} 
+                src={memberAvatarSrc(userLvl.avatarUrl, userLvl.displayName || userLvl.username, userLvl.userId)} 
                 alt="" 
                 class="w-11 h-11 rounded-xl border border-outline-variant/10 shadow-inner object-cover shrink-0"
               />

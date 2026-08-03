@@ -22,3 +22,4 @@ export * from './rankCard/types.js';
 export * from './rankCard/presets.js';
 export * from './rankCard/fonts.js';
 export * from './rankCard/normalize.js';
+export * from './automod/presets.js';

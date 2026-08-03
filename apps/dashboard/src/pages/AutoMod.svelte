@@ -13,6 +13,8 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
+  import AutomodPresetPicker from '../lib/components/AutomodPresetPicker.svelte';
+  import { findAutomodPreset, type AutomodPreset } from '@kotbo/shared';
   import {
     fetchAutoModConfig,
     updateAutoModConfig,
@@ -32,7 +34,7 @@
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
-  let activeTab = $state('bot-filters');
+  let activeTab = $state('accueil');
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.automod?.canConfigure
@@ -477,6 +479,29 @@
   function removeAdminLockSecurityRole(roleId: string) {
     config.adminLockSecurityRoleIds = config.adminLockSecurityRoleIds.filter(id => id !== roleId);
   }
+
+  // Niveaux de protection de la page d'accueil : ils ne touchent qu'aux filtres,
+  // aux seuils et aux sanctions. Les salons d'alerte, les roles exemptes et les
+  // listes de mots restent a regler dans les onglets, un niveau n'ayant aucun
+  // moyen de les deviner.
+  const selectedPreset = $derived(findAutomodPreset(config, raidConfig));
+  const activePreset = $derived(findAutomodPreset(savedConfig, savedRaidConfig));
+  const configDirty = $derived(
+    JSON.stringify(config) !== JSON.stringify(savedConfig)
+      || JSON.stringify(raidConfig) !== JSON.stringify(savedRaidConfig)
+  );
+
+  function applyAutomodPreset(preset: AutomodPreset) {
+    if (!canManageSettings) return;
+    Object.assign(config, preset.filters);
+    Object.assign(raidConfig, preset.raid);
+  }
+
+  // La carte « Personnalise » n'a rien a appliquer : elle affiche deja la
+  // configuration en place, elle ouvre juste les onglets.
+  function openPresetDetail() {
+    activeTab = 'bot-filters';
+  }
 </script>
 
 <ModulePage
@@ -485,6 +510,22 @@
   icon="shield-alert"
   featureKey="automod"
 >
+  {#snippet actions()}
+    {#if !loading}
+      <button
+        type="button"
+        onclick={() => activeTab = activeTab === 'accueil' ? 'bot-filters' : 'accueil'}
+        class="group flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 transition-all"
+      >
+        <Papicon icon={activeTab === 'accueil' ? 'Settings' : 'ArrowLeft'} size={15} />
+        {activeTab === 'accueil' ? m.am_presets_open_advanced() : m.am_presets_back()}
+        {#if activeTab === 'accueil'}
+          <Papicon icon="ChevronRight" size={14} class="transition-transform group-hover:translate-x-0.5" />
+        {/if}
+      </button>
+    {/if}
+  {/snippet}
+
   <InlineFeedback state={actionState} />
 
   {#if loading}
@@ -495,6 +536,19 @@
     <div class="flex justify-center mt-4">
       <LoadingHint context="config" />
     </div>
+  {:else if activeTab === 'accueil'}
+    <AutomodPresetPicker
+      selectedId={selectedPreset?.id ?? null}
+      activeId={activePreset?.id ?? null}
+      customFilters={selectedPreset ? savedConfig : config}
+      customRaid={selectedPreset ? savedRaidConfig : raidConfig}
+      disabled={!canManageSettings}
+      dirty={configDirty}
+      saving={actionState.state.loading}
+      onselect={applyAutomodPreset}
+      onsave={handleSave}
+      ondetail={openPresetDetail}
+    />
   {:else}
     <!-- Navigation Tabs -->
     <div class="tab-group w-fit">

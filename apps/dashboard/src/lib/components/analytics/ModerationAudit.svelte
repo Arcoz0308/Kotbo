@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { memberAvatarSrc } from '../../discordMedia';
   import Chart from '../charts/Chart.svelte';
   import DetailedAnalyticsModal from './DetailedAnalyticsModal.svelte';
   import { m } from '../../i18n';
@@ -67,7 +68,11 @@
     maintainAspectRatio: false
   };
 
-  const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  // Un repli sur l'avatar Discord generique donnerait la meme vignette a tous
+  // les membres sans photo : on passe le nom et l'id pour obtenir une
+  // initiale coloree distincte (issue #211).
+  const getAvatar = (url: string | null, name?: string | null, userId?: string | null) =>
+    memberAvatarSrc(url, name, userId);
 
   let showModsModal = $state(false);
   let showSanctionedModal = $state(false);
@@ -154,7 +159,7 @@
             class="w-full flex items-center justify-between p-3 rounded-lg bg-surface-container-high/20 hover:bg-surface-container-high/50 transition-all text-left"
           >
             <div class="flex items-center gap-3">
-              <img src={getAvatar(mod.avatarUrl)} alt="" class="w-8 h-8 rounded-lg object-cover" />
+              <img src={getAvatar(mod.avatarUrl, mod.moderatorTag, mod.userId)} alt="" class="w-8 h-8 rounded-lg object-cover" />
               <div>
                 <p class="text-sm font-semibold text-on-surface">@{mod.moderatorTag}</p>
                 <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_moderation_activity()}</p>
@@ -192,7 +197,7 @@
             class="w-full flex items-center justify-between p-3 rounded-lg bg-surface-container-high/20 hover:bg-surface-container-high/50 transition-all text-left"
           >
             <div class="flex items-center gap-3">
-              <img src={getAvatar(member.avatarUrl)} alt="" class="w-8 h-8 rounded-lg object-cover" />
+              <img src={getAvatar(member.avatarUrl, member.targetTag, member.targetUserId)} alt="" class="w-8 h-8 rounded-lg object-cover" />
               <div>
                 <p class="text-sm font-semibold text-on-surface">@{member.targetTag}</p>
                 <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_recidivism()}</p>
@@ -236,7 +241,7 @@
               onclick={() => onOpenMember(sanction.targetUserId, sanction.targetTag)}
               class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform shrink-0"
             >
-              <img src={getAvatar(sanction.targetAvatarUrl)} alt="" class="w-full h-full object-cover" />
+              <img src={getAvatar(sanction.targetAvatarUrl, sanction.targetTag, sanction.targetUserId)} alt="" class="w-full h-full object-cover" />
             </button>
             <div>
               <div class="flex items-center gap-2">
@@ -250,7 +255,7 @@
             <div class="text-right">
               <p class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">{m.d4_moderator()}</p>
               <div class="flex items-center gap-2 mt-0.5">
-                <img src={getAvatar(sanction.moderatorAvatarUrl)} alt="" class="w-5 h-5 rounded-md object-cover" />
+                <img src={getAvatar(sanction.moderatorAvatarUrl, sanction.moderatorTag, sanction.moderatorUserId)} alt="" class="w-5 h-5 rounded-md object-cover" />
                 <p class="text-xs font-bold text-on-surface">@{sanction.moderatorTag}</p>
               </div>
             </div>

@@ -3,14 +3,17 @@ import { cache } from '../../../../utils/cache.js';
 import prisma from '../../../../utils/db.js';
 import { COLORS, successEmbed } from '../../../../utils/embeds.js';
 import { errorMessage, errorStack } from '../../../../utils/errors.js';
+import { resolveGuildLocale } from '../../../../utils/i18n.js';
 import { logger } from '../../../../utils/logger.js';
-import { extractMediaUrls, getGuildName, json, parseDiscordMarkdown, readJsonBody } from '../../../shared.js';
+import * as m from '../../../../lib/paraglide/messages.js';
+import { extractMediaUrls, getGuildName, json, parseDiscordMarkdown, pushAudit, readJsonBody } from '../../../shared.js';
+import { type ProvisionedEntry, acquireProvisionLock, missingProvisionPermissions, provisionCooldown, provisionCooldownMessage, releaseProvisionLock, startProvisionCooldown } from '../../../../services/core/channelProvisioningService.js';
 import { Prisma } from '@prisma/client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, type ColorResolvable, EmbedBuilder, type OverwriteResolvable, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { type ModuleRouteContext, msgEmbedsMap } from './_shared.js';
 
 export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<boolean> {
-  const { req, res, parts, url, client, user, guildId, access, method, moduleKey } = ctx;
+  const { req, res, parts, url, client, user, guildId, access, method, auditUser, moduleKey } = ctx;
 
   // Tickets routes
   if (moduleKey === 'tickets') {
@@ -225,9 +228,12 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketLogChannelId: body.ticketLogChannelId || null,
             ticketStaffRoleId: body.ticketStaffRoleId || null,
             ticketChannelId: body.ticketChannelId || null,
-            ticketEmbedTitle: body.ticketEmbedTitle || 'Support Technique',
-            ticketEmbedDesc: body.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket de support.',
-            ticketEmbedButtonText: body.ticketEmbedButtonText || 'Ouvrir un ticket',
+            // Un champ vide est conserve tel quel : c'est ainsi que le bot sait
+            // qu'il doit composer le texte par defaut dans la langue du serveur.
+            // Y reecrire un texte francais le figerait a chaque enregistrement.
+            ticketEmbedTitle: body.ticketEmbedTitle ?? '',
+            ticketEmbedDesc: body.ticketEmbedDesc ?? '',
+            ticketEmbedButtonText: body.ticketEmbedButtonText ?? '',
             ticketEmbedColor: body.ticketEmbedColor || '#5865F2',
             ticketEmbedType: body.ticketEmbedType === 'DROPDOWN' ? 'DROPDOWN' : 'BUTTONS',
             ticketMode: body.ticketMode === 'DM' || body.ticketMode === 'THREAD' ? body.ticketMode : 'CHANNEL',
@@ -239,12 +245,12 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketEmbedFooter: body.ticketEmbedFooter || null,
             ticketEmbedAuthorName: body.ticketEmbedAuthorName || null,
             ticketEmbedAuthorIcon: body.ticketEmbedAuthorIcon || null,
-            ticketWelcomeTitle: body.ticketWelcomeTitle || "🎫 Ticket d'Assistance · {type_label}",
-            ticketWelcomeDesc: body.ticketWelcomeDesc || "Bonjour {user} !\nLe personnel {staff_mention} va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n{description}",
+            ticketWelcomeTitle: body.ticketWelcomeTitle ?? '',
+            ticketWelcomeDesc: body.ticketWelcomeDesc ?? '',
             ticketWelcomeColor: body.ticketWelcomeColor || "#5865F2",
             ticketWelcomeThumbnail: body.ticketWelcomeThumbnail || null,
             ticketWelcomeImage: body.ticketWelcomeImage || null,
-            ticketWelcomeFooter: body.ticketWelcomeFooter || "Kotbo · Ticket ID: {ticket_id}",
+            ticketWelcomeFooter: body.ticketWelcomeFooter ?? '',
             ...(body.ticketTypes !== undefined
               ? {
                   ticketTypes: Array.isArray(body.ticketTypes)
@@ -276,7 +282,7 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
             ticketOverclaimPermission: typeof body.ticketOverclaimPermission === 'string' ? body.ticketOverclaimPermission : 'ANY',
             ticketInactivityEnabled: typeof body.ticketInactivityEnabled === 'boolean' ? body.ticketInactivityEnabled : false,
             ticketInactivityHours: body.ticketInactivityHours !== undefined ? Number(body.ticketInactivityHours) : 24,
-            ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !",
+            ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : '',
           }
         });
 
@@ -302,6 +308,98 @@ export async function handleTicketsRoutes(ctx: ModuleRouteContext): Promise<bool
       } catch (err: unknown) {
         logger.error('TicketsAPI', `Error sending ticket setup embed: ${errorMessage(err)}`);
         json(res, 500, { error: errorMessage(err) || "Erreur lors de l'envoi de l'embed" });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/config/setup
+    if (parts.length === 7 && parts[5] === 'config' && parts[6] === 'setup' && method === 'POST') {
+      if (access.level !== 'admin') {
+        json(res, 403, { error: 'Seuls les administrateurs peuvent mettre le module en route.' });
+        return true;
+      }
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      if (!discordGuild) {
+        json(res, 404, { error: 'Serveur Discord introuvable.' });
+        return true;
+      }
+
+      const lockKey = `tickets:${guildId}`;
+      if (!acquireProvisionLock(lockKey)) {
+        json(res, 409, { error: 'Une mise en route est déjà en cours sur ce serveur.' });
+        return true;
+      }
+
+      const items: ProvisionedEntry[] = [];
+      const data: Prisma.GuildUpdateInput = {};
+      // Ecrits au fil de l'eau : si une creation echoue en cours de route, la
+      // tentative suivante reprend ce qui existe deja au lieu de le dupliquer.
+      const persist = async () => {
+        if (Object.keys(data).length > 0) {
+          await prisma.guild.update({ where: { id: guildId }, data });
+        }
+      };
+
+      try {
+        const cooldown = await provisionCooldown(lockKey);
+        if (cooldown) {
+          json(res, 429, { error: provisionCooldownMessage(cooldown, 'La mise en route a déjà été lancée') });
+          return true;
+        }
+
+        const missing = await missingProvisionPermissions(discordGuild, [PermissionFlagsBits.ManageChannels]);
+        if (missing.length > 0) {
+          json(res, 400, { error: `Le bot n'a pas les permissions nécessaires : ${missing.join(', ')}.` });
+          return true;
+        }
+
+        // Les salons crees portent le nom dans la langue du serveur : ils sont
+        // lus par ses membres, pas par l'admin qui clique depuis le dashboard.
+        // Le motif inscrit au journal d'audit Discord la suit pour la meme
+        // raison, c'est le serveur qui le relit.
+        const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
+        const reason = m.setup_reason_tickets({ user: auditUser }, { locale });
+
+        const { provisionTicketChannels } = await import('../../../../services/features/ticketProvisioning.js');
+        const outcome = await provisionTicketChannels(discordGuild, { locale, reason, items, data, persist });
+
+        // Seulement sur un salon qu'on vient de creer : le renvoyer dans un
+        // salon existant y empilerait un second panel.
+        let panelSent = false;
+        if (outcome.panelCreated) {
+          const { sendTicketSetupEmbed } = await import('../../../../services/features/ticketService.js');
+          await sendTicketSetupEmbed(client, guildId);
+          panelSent = true;
+        }
+
+        // Arme apres l'envoi du panel : un echec a cette etape doit pouvoir
+        // etre repris tout de suite, la reprise par identifiant garantissant
+        // qu'aucun salon ne sera cree une seconde fois.
+        if (items.some(item => item.created)) {
+          // Le pseudo seul : l'identifiant Discord alourdit un message d'interface,
+          // et le journal d'audit le porte deja pour qui veut remonter la trace.
+          await startProvisionCooldown(lockKey, user.username ?? 'Utilisateur');
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise en route tickets',
+          context: getGuildName(client, guildId),
+          module: 'Tickets',
+          eventType: 'Manuel',
+          details: `Créés : ${items.filter(i => i.created).map(i => i.name).join(', ') || 'aucun'}. Repris : ${items.filter(i => !i.created).map(i => i.name).join(', ') || 'aucun'}.`,
+          channelId: outcome.panelChannelId,
+        });
+
+        await cache.invalidateGuild(guildId);
+        json(res, 200, { success: true, items, panelSent });
+      } catch (err: unknown) {
+        await persist().catch(() => null);
+        logger.error('TicketsAPI', `Error provisioning ticket module: ${errorMessage(err)}`, errorStack(err));
+        json(res, 500, { error: `Mise en route interrompue : ${errorMessage(err)}`, items });
+      } finally {
+        releaseProvisionLock(lockKey);
       }
       return true;
     }

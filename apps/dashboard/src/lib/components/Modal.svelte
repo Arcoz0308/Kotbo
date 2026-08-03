@@ -65,7 +65,7 @@
 {#if open}
   <div
     use:portal
-    class="app-modal fixed inset-0 z-9999 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
+    class="app-modal fixed inset-0 flex items-center justify-center {isScreen ? 'p-0 sm:p-4' : 'p-4'}"
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"

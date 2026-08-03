@@ -4,10 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
+import { cache } from '../../utils/cache.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild, reconcileStaffGuildActivation } from '../../utils/activation.js';
 import { announceAccessRevoked, announceTrialStart, extendAccess, formatDuration, normalizeAccessGrant, MAX_ACCESS_DURATION_MINUTES } from '../../services/system/accessService.js';
 import { E, resolveEmojiShortcodes, resolveEmojiShortcodesToUnicode, UNICODE_FALLBACKS } from '../../utils/emojis.js';
+import { isReservedByNicknameModeration } from '../../services/moderation/nicknameModerationService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -134,6 +136,8 @@ export async function handleAdminRoutes(
           activated: true,
           activationCode: true,
           statsConfig: true,
+          serverTemplateAppliedAt: true,
+          serverTemplateAppliedBy: true,
         }
       });
       const dbGuildsMap = new Map(dbGuilds.map((guild) => [guild.id, guild] as const));
@@ -158,6 +162,8 @@ export async function handleAdminRoutes(
           activated: dbGuild?.activated ?? false,
           activationCode: dbGuild?.activationCode ?? null,
           statsConfig: dbGuild?.statsConfig ?? null,
+          serverTemplateAppliedAt: dbGuild?.serverTemplateAppliedAt?.toISOString() ?? null,
+          serverTemplateAppliedBy: dbGuild?.serverTemplateAppliedBy ?? null,
           shardId: g.shardId ?? 0,
         };
       });
@@ -521,7 +527,7 @@ export async function handleAdminRoutes(
           const word = normalizeGlobalBannedWord(entry?.word);
           if (!word) continue;
 
-          if (word.includes('automod') || word.includes('pseudo non conforme')) {
+          if (isReservedByNicknameModeration(word)) {
             continue;
           }
 
@@ -623,7 +629,7 @@ export async function handleAdminRoutes(
             return true;
           }
 
-          if (nextWord.includes('automod') || nextWord.includes('pseudo non conforme')) {
+          if (isReservedByNicknameModeration(nextWord)) {
             json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
             return true;
           }
@@ -1524,6 +1530,48 @@ export async function handleAdminRoutes(
     } catch (error) {
       logger.error('AdminAPI', 'POST resync-all error:', error);
       json(res, 500, { error: 'Erreur lors du lancement de la synchronisation complète.' });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/reset-server-template
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'reset-server-template' && method === 'POST') {
+    const guildId = parts[3];
+
+    try {
+      const guildRow = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { serverTemplateAppliedAt: true, serverTemplateAppliedBy: true },
+      });
+      if (!guildRow) {
+        json(res, 404, { error: 'Serveur introuvable' });
+        return true;
+      }
+      if (!guildRow.serverTemplateAppliedAt) {
+        json(res, 409, { error: "La mise en place du serveur n'a jamais été lancée sur ce serveur." });
+        return true;
+      }
+
+      // `serverTemplateRefs` survit a la remise a zero : les salons deja crees
+      // existent toujours, et c'est cette trace qui evite qu'une seconde mise
+      // en place les double.
+      await prisma.guild.update({
+        where: { id: guildId },
+        data: {
+          serverTemplateAppliedAt: null,
+          serverTemplateAppliedBy: null,
+          serverTemplateSections: [],
+        },
+      });
+      await cache.invalidateGuild(guildId).catch(() => null);
+
+      json(res, 200, {
+        ok: true,
+        message: `Mise en place rouverte (précédemment faite par ${guildRow.serverTemplateAppliedBy ?? 'un administrateur'}).`,
+      });
+    } catch (error) {
+      logger.error('AdminAPI', 'POST reset-server-template error:', error);
+      json(res, 500, { error: 'Erreur lors de la réinitialisation de la mise en place.' });
     }
     return true;
   }

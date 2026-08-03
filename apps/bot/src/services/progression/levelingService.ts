@@ -24,6 +24,8 @@ import { getRankCardCustomization } from './rankCardService.js';
 import prisma, { prismaRead } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { cache, getCachedGuild } from '../../utils/cache.js';
+import { type BotLocale, resolveGuildLocale } from '../../utils/i18n.js';
+import * as m from '../../lib/paraglide/messages.js';
 
 // Cooldown map: key is "guildId:userId", value is timestamp when cooldown expires
 const xpCooldowns = new Map<string, number>();
@@ -83,6 +85,19 @@ export async function getGuildLevelCurve(guildId: string): Promise<LevelCurve> {
   return config ? levelCurveFromConfig(config) : DEFAULT_LEVEL_CURVE;
 }
 
+/**
+ * Message compose par le bot quand l'admin n'en a pas ecrit. Expose plutot
+ * qu'ecrit deux fois : la mise en route le depose dans la configuration pour
+ * qu'il soit visible et modifiable, et l'envoi s'en sert quand le champ est
+ * reste vide.
+ *
+ * `{user}` et `{level}` traversent la traduction tels quels, ils sont
+ * remplaces au moment de l'envoi.
+ */
+export function defaultLevelUpMessage(locale: BotLocale): string {
+  return m.leveling_levelup_default_message({ user: '{user}', level: '{level}' }, { locale });
+}
+
 export async function getOrCreateLevelConfig(guildId: string) {
   const cacheKey = `guild:${guildId}:level_config`;
   let config = await cache.get<LevelConfig>(cacheKey);
@@ -109,7 +124,11 @@ export async function getOrCreateLevelConfig(guildId: string) {
         xpMax: 25,
         cooldownSeconds: 60,
         vocalXpPerMin: 5,
-        levelUpMessage: "Félicitations {user} ! Tu passes au niveau **{level}** ! 🎉",
+        // Vide, et non un texte fige : le message par defaut est compose a
+        // l'envoi, dans la langue du serveur a ce moment-la. Un texte ecrit ici
+        // resterait dans la langue du jour de la creation, meme apres un
+        // passage du bot en anglais.
+        levelUpMessage: '',
         stackRewards: false,
         ignoredChannels: [],
         ignoredRoles: [],
@@ -1092,12 +1111,25 @@ async function processLevelUp(
 
     // 1.5. Le crédit des KotboCoins a déjà été commis atomiquement avec le niveau (voir
     // addXp/setXp) ; on ne fait ici que construire le texte de notification.
+    //
+    // Cette phrase est collée au modèle de l'admin sans qu'il puisse la
+    // toucher : elle suit donc la langue du serveur, sinon un serveur
+    // anglophone qui traduit son message garde une phrase française au bout.
+    const locale = await resolveGuildLocale(guildId, discordGuild.preferredLocale);
     const coinRewardText = coinReward
-      ? ` Tu as également gagné **${coinReward.amount}** ${coinReward.currencyEmoji} **${coinReward.currencyName}** !`
+      ? ` ${m.leveling_coin_reward({
+          amount: coinReward.amount,
+          emoji: coinReward.currencyEmoji,
+          currency: coinReward.currencyName,
+        }, { locale })}`
       : '';
 
     // 2. Envoi du message de félicitations
-    const msgTemplate = config.levelUpMessage;
+    //
+    // Un message vide veut dire « celui par defaut », jamais « n'annonce
+    // rien » : il est alors compose maintenant, dans la langue du serveur, et
+    // suit donc le bot si celui-ci change de langue plus tard.
+    const msgTemplate = config.levelUpMessage?.trim() || defaultLevelUpMessage(locale);
     const msg = msgTemplate
       .replace(/{user}/g, `<@${userId}>`)
       .replace(/{username}/g, member.user.username)

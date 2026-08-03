@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthClaims, DashboardAccess } from '../../../shared.js';
 import { errorMessage } from '../../../../utils/errors.js';
 import prisma from '../../../../utils/db.js';
+import { resolveMemberAvatarUrl } from '../../../../services/moderation/memberIdentityService.js';
 import { logger } from '../../../../utils/logger.js';
 import { COLORS } from '../../../../utils/embeds.js';
 import {
@@ -213,7 +214,7 @@ export async function handleStaffRoutes(
                 username: member.user.username,
                 displayName: member.displayName ?? null,
                 userTag: member.user.tag ?? null,
-                avatarUrl: member.displayAvatarURL() || null,
+                avatarUrl: resolveMemberAvatarUrl(member, 256),
                 roleIds: member.roles.cache
                   .map((role) => role.id)
                   .filter((roleId) => roleId !== discordGuild.roles.everyone.id),
@@ -231,7 +232,7 @@ export async function handleStaffRoutes(
                   username: member.user.username,
                   displayName: member.displayName ?? null,
                   userTag: member.user.tag ?? null,
-                  avatarUrl: member.displayAvatarURL() || null,
+                  avatarUrl: resolveMemberAvatarUrl(member, 256),
                   roleIds: member.roles.cache
                     .map((role) => role.id)
                     .filter((roleId) => roleId !== discordGuild.roles.everyone.id),

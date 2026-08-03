@@ -5,6 +5,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import { isMissingReference } from '../lib/discordReferences';
   import { confirmDialog } from '../lib/stores/confirmDialog.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
@@ -72,7 +73,7 @@
   let ticketOverclaimPermission = $state('ANY');
   let ticketInactivityEnabled = $state(false);
   let ticketInactivityHours = $state(24);
-  let ticketInactivityMessage = $state(m.e1_tickets_default_inactivity_message({ user: '{user}' }));
+  let ticketInactivityMessage = $state('');
   let ticketEmbedThumbnail = $state('');
   let ticketEmbedImage = $state('');
   let ticketEmbedFooter = $state('');
@@ -278,8 +279,10 @@
   const discordCategories = $derived(dashboardStore.state.discordCategories || []);
   const discordRoles = $derived(dashboardStore.state.discordRoles || []);
 
+
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();
+  const setupAction = createAsyncActionState();
   const renameAction = createAsyncActionState();
 
   function createTicketTypeDraft(index = 0, legacy?: any) {
@@ -476,9 +479,13 @@
       ticketLogChannelId = config.ticketLogChannelId || '';
       ticketStaffRoleId = config.ticketStaffRoleId || '';
       ticketChannelId = config.ticketChannelId || '';
-      ticketEmbedTitle = config.ticketEmbedTitle || m.e1_tickets_default_embed_title();
-      ticketEmbedDesc = config.ticketEmbedDesc || m.e1_tickets_default_embed_desc();
-      ticketEmbedButtonText = config.ticketEmbedButtonText || m.e1_tickets_default_embed_button_text();
+      // Laisses vides quand ils le sont : le bot compose alors le texte par
+      // defaut dans la langue du serveur. Les remplir ici reviendrait a figer
+      // en base la langue du dashboard de celui qui enregistre. Le champ
+      // montre le defaut en filigrane.
+      ticketEmbedTitle = config.ticketEmbedTitle || '';
+      ticketEmbedDesc = config.ticketEmbedDesc || '';
+      ticketEmbedButtonText = config.ticketEmbedButtonText || '';
       ticketEmbedColor = config.ticketEmbedColor || '#5865F2';
       ticketEmbedType = config.ticketEmbedType === 'DROPDOWN' ? 'DROPDOWN' : 'BUTTONS';
       ticketMode = config.ticketMode || 'CHANNEL';
@@ -487,19 +494,19 @@
       ticketOverclaimPermission = config.ticketOverclaimPermission || 'ANY';
       ticketInactivityEnabled = config.ticketInactivityEnabled !== undefined ? config.ticketInactivityEnabled : false;
       ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
-      ticketInactivityMessage = config.ticketInactivityMessage || m.e1_tickets_default_inactivity_message({ user: '{user}' });
+      ticketInactivityMessage = config.ticketInactivityMessage || '';
       ticketTypes = normalizeTicketTypes(config);
       ticketEmbedThumbnail = config.ticketEmbedThumbnail || '';
       ticketEmbedImage = config.ticketEmbedImage || '';
       ticketEmbedFooter = config.ticketEmbedFooter || '';
       ticketEmbedAuthorName = config.ticketEmbedAuthorName || '';
       ticketEmbedAuthorIcon = config.ticketEmbedAuthorIcon || '';
-      ticketWelcomeTitle = config.ticketWelcomeTitle || m.e1_tickets_default_welcome_title({ type_label: '{type_label}' });
-      ticketWelcomeDesc = config.ticketWelcomeDesc || m.e1_tickets_default_welcome_desc({ user: '{user}', staff_mention: '{staff_mention}', description: '{description}' });
+      ticketWelcomeTitle = config.ticketWelcomeTitle || '';
+      ticketWelcomeDesc = config.ticketWelcomeDesc || '';
       ticketWelcomeColor = config.ticketWelcomeColor || '#5865F2';
       ticketWelcomeThumbnail = config.ticketWelcomeThumbnail || '';
       ticketWelcomeImage = config.ticketWelcomeImage || '';
-      ticketWelcomeFooter = config.ticketWelcomeFooter || m.e1_tickets_default_welcome_footer({ ticket_id: '{ticket_id}' });
+      ticketWelcomeFooter = config.ticketWelcomeFooter || '';
       savedSettingsConfig = {
         ticketCategoryId,
         ticketLogChannelId,
@@ -834,6 +841,37 @@
       return true;
     }, { successMessage: m.e1_tickets_config_saved() });
     return success;
+  }
+
+  async function runTicketSetup() {
+    if (!(await confirmDialog.ask({
+      title: m.e1_tickets_confirm_setup_title(),
+      description: m.e1_tickets_confirm_setup_desc(),
+      confirmLabel: m.e1_tickets_confirm_setup_btn()
+    }))) return;
+
+    // `run` range l'erreur dans son etat au lieu de la relancer, et cette page
+    // n'affiche aucun InlineFeedback : sans ce relais, un refus de permission
+    // ou un delai d'attente ne se verrait nulle part.
+    const ok = await setupAction.run(async () => {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config/setup`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || m.e1_tickets_err_setup());
+
+      const created = (payload?.items ?? []).filter((item: any) => item.created).map((item: any) => `#${item.name}`);
+      toast.success(created.length > 0
+        ? m.e1_tickets_setup_created({ names: created.join(', ') })
+        : m.e1_tickets_setup_nothing());
+
+      await dashboardStore.refresh();
+      await loadTicketsAndConfig();
+      return true;
+    });
+
+    if (!ok) toast.error(setupAction.state.error || m.e1_tickets_err_setup());
   }
 
   // Send Panel to Discord
@@ -1440,14 +1478,24 @@
           <h3 class="text-lg font-semibold text-on-surface">{m.e1_tickets_config_title()}</h3>
           <p class="text-on-surface-variant text-xs mt-0.5">{m.e1_tickets_config_desc()}</p>
         </div>
-        <button
-          onclick={sendEmbedPanel}
-          disabled={sendEmbedAction.state.loading || !ticketChannelId}
-          class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
-        >
-          <Papicon icon="send" size={13} />
-          {sendEmbedAction.state.loading ? m.e1_tickets_sending() : m.e1_tickets_send_embed()}
-        </button>
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            onclick={runTicketSetup}
+            disabled={setupAction.state.loading}
+            class="px-4 py-2.5 bg-surface-container-high text-on-surface rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+          >
+            <Papicon icon="sparkles" size={13} />
+            {setupAction.state.loading ? m.e1_tickets_setup_running() : m.e1_tickets_setup()}
+          </button>
+          <button
+            onclick={sendEmbedPanel}
+            disabled={sendEmbedAction.state.loading || !ticketChannelId}
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
+          >
+            <Papicon icon="send" size={13} />
+            {sendEmbedAction.state.loading ? m.e1_tickets_sending() : m.e1_tickets_send_embed()}
+          </button>
+        </div>
       </div>
 
       <!-- ─── Section 1: Salons & Rôles ──────────────────────────────────── -->
@@ -1470,22 +1518,37 @@
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_category()}</span>
                 <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketCategoryId, discordCategories)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_panel_channel()}</span>
                 <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_log_channel()}</span>
                 <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketLogChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_staff_role()}</span>
                 <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_select_ph()} className="w-full" />
+                {#if isMissingReference(ticketStaffRoleId, discordRoles)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
               <label class="block col-span-1 md:col-span-2">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_dm_relay()}</span>
                 <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.e1_tickets_select_channel_ph()} className="w-full" />
+                {#if isMissingReference(ticketDmRelayChannelId, discordChannels)}
+                  <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                {/if}
               </label>
             </div>
 
@@ -1540,6 +1603,7 @@
             <label class="block">
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_field_description()}</span>
               <FormTextarea bind:value={ticketEmbedDesc} placeholder={m.e1_tickets_embed_desc_ph()} className="w-full h-20" />
+              <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_default_hint()}</p>
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
@@ -1625,6 +1689,7 @@
             <label class="block">
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">{m.e1_tickets_welcome_desc_label()}</span>
               <FormTextarea bind:value={ticketWelcomeDesc} placeholder={m.e1_tickets_welcome_desc_ph({ user: '{user}', staff_mention: '{staff_mention}' })} className="w-full h-32" />
+              <p class="text-[10px] text-on-surface-variant/50 mt-1.5">{m.e1_tickets_default_hint()}</p>
             </label>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label class="block">
@@ -1854,10 +1919,16 @@
                         <label class="block">
                           <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_category()}</span>
                           <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
+                          {#if isMissingReference(ticketType.categoryId, discordCategories)}
+                            <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                          {/if}
                         </label>
                         <label class="block">
                           <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_type_staff_role()}</span>
                           <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder={m.e1_tickets_inherited_ph()} className="w-full" />
+                          {#if isMissingReference(ticketType.staffRoleId, discordRoles)}
+                            <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                          {/if}
                         </label>
                       </div>
 
@@ -1895,6 +1966,9 @@
                             <label class="block">
                               <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">{m.e1_tickets_staff_server_category()}</span>
                               <SearchableSelect bind:value={ticketType.staffServerCategoryId} options={staffServerInfo.categories.map((c: any) => ({ id: c.id, name: c.name }))} placeholder={m.e1_tickets_select_category_ph()} className="w-full" />
+                              {#if isMissingReference(ticketType.staffServerCategoryId, staffServerInfo.categories)}
+                                <p class="text-[10px] text-amber-500 mt-1.5">{m.e1_tickets_missing_ref()}</p>
+                              {/if}
                             </label>
                           {/if}
                         </div>

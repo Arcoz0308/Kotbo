@@ -1,4 +1,5 @@
 import prisma from '../../utils/db.js';
+import { resolveMemberAvatarUrl } from '../moderation/memberIdentityService.js';
 import { cache } from '../../utils/cache.js';
 
 import crypto from 'node:crypto';
@@ -1370,7 +1371,7 @@ export const importRoleMembers = async (
         update: {
           username: discordMember.user.username,
           displayName: discordMember.displayName || discordMember.user.globalName || discordMember.user.username,
-          avatarUrl: discordMember.user.displayAvatarURL() || '',
+          avatarUrl: resolveMemberAvatarUrl(discordMember, 256) ?? '',
         },
         create: {
           guildId,
@@ -1378,7 +1379,7 @@ export const importRoleMembers = async (
           grade,
           username: discordMember.user.username,
           displayName: discordMember.displayName || discordMember.user.globalName || discordMember.user.username,
-          avatarUrl: discordMember.user.displayAvatarURL() || '',
+          avatarUrl: resolveMemberAvatarUrl(discordMember, 256) ?? '',
         },
       });
 

@@ -5,6 +5,7 @@
   import { API_BASE_URL, fetchMemberCase } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import { m, dateLocale } from '../lib/i18n';
 
   const userIdFromUrl = $derived.by(() => {
@@ -250,7 +251,7 @@
       <div class="flex -space-x-3">
         {#each members.slice(0, 5) as member}
           <img
-            src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+            src={memberAvatarSrc(member.avatarUrl, member.displayName || member.username, member.id)}
             alt=""
             class="h-8 w-8 rounded-full border-2 border-surface-container object-cover"
           />
@@ -450,7 +451,7 @@
             <div class="flex items-start gap-4">
               <div class="relative">
                 <img
-                  src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                  src={memberAvatarSrc(member.avatarUrl, member.displayName || member.username, member.id)}
                   alt=""
                   class="h-12 w-12 rounded-xl object-cover grayscale-[0.2] transition-all group-hover:grayscale-0"
                 />
@@ -538,5 +539,3 @@
 />
 
 </ModulePage>
- 
- 

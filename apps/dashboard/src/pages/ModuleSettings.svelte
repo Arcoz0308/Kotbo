@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import {
@@ -1678,7 +1679,7 @@
                         </td>
                         <td class="px-6 py-4">
                           <div class="flex items-center gap-3">
-                            <img src={sub.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" class="w-8 h-8 rounded-full border border-sky-500/20" />
+                            <img src={memberAvatarSrc(sub.avatarUrl, sub.displayName, sub.userId)} alt="" class="w-8 h-8 rounded-full border border-sky-500/20" />
                             <span class="font-bold text-on-surface">{sub.displayName}</span>
                           </div>
                         </td>

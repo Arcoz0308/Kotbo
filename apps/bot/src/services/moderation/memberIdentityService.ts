@@ -16,8 +16,38 @@ import { logger } from '../../utils/logger.js';
 export type MemberIdentity = {
   username: string;
   displayName: string;
-  avatarUrl: string;
+  /** `null` quand le membre n'a aucune photo : voir resolveMemberAvatarUrl. */
+  avatarUrl: string | null;
 };
+
+/**
+ * Photo de profil réellement choisie par le membre, ou `null`.
+ *
+ * Deux pièges que `displayAvatarURL()` cache :
+ *  - il ignore l'avatar par serveur si l'on part de `member.user` alors que
+ *    `member.avatarURL()` le connaît ;
+ *  - sans aucun hash il renvoie `embed/avatars/N.png`, la même image pour tout
+ *    le monde. Stockée en base ou renvoyée au dashboard, elle empile des
+ *    vignettes identiques dans les classements (issue #211).
+ *
+ * On renvoie donc `null` quand il n'y a rien à afficher : le dashboard rend
+ * alors un avatar à initiale, distinct pour chaque membre.
+ */
+export function resolveMemberAvatarUrl(
+  member: GuildMember | null | undefined,
+  size: 64 | 128 | 256 = 256,
+): string | null {
+  if (!member) return null;
+  return member.avatarURL({ size }) ?? member.user.avatarURL({ size }) ?? null;
+}
+
+/** Même résolution à partir d'un utilisateur seul (pas de membre en main). */
+export function resolveUserAvatarUrl(
+  user: GuildMember['user'] | null | undefined,
+  size: 64 | 128 | 256 = 256,
+): string | null {
+  return user?.avatarURL({ size }) ?? null;
+}
 
 /**
  * Identité à poser sur un `MemberProfile` créé alors qu'un membre Discord est
@@ -30,7 +60,7 @@ export function memberProfileIdentity(member: GuildMember) {
     username: member.user.username,
     globalName: member.user.globalName ?? null,
     displayName: member.displayName ?? member.user.globalName ?? member.user.username,
-    avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+    avatarUrl: resolveMemberAvatarUrl(member, 256),
     isBot: member.user.bot,
     accountCreatedAt: member.user.createdAt,
     guildJoinedAt: member.joinedAt ?? null,
@@ -86,7 +116,7 @@ export async function getMemberIdentities(
     identities.set(profile.userId, {
       username: profile.username ?? displayName,
       displayName,
-      avatarUrl: profile.avatarUrl ?? '',
+      avatarUrl: profile.avatarUrl,
     });
   }
 
@@ -122,7 +152,7 @@ export async function resolveMissingMemberIdentities(
       identities.set(userId, {
         username: member.user.username,
         displayName: member.displayName ?? member.user.globalName ?? member.user.username,
-        avatarUrl: member.user.displayAvatarURL({ size: 256 }),
+        avatarUrl: resolveMemberAvatarUrl(member, 256),
       });
     }
   }
@@ -138,7 +168,7 @@ export async function resolveMissingMemberIdentities(
       identities.set(user.id, {
         username: user.username,
         displayName: user.globalName ?? user.username,
-        avatarUrl: user.displayAvatarURL({ size: 256 }),
+        avatarUrl: resolveUserAvatarUrl(user, 256),
       });
     }
   }

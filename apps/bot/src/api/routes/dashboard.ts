@@ -134,8 +134,22 @@ export async function handleDashboardRoutes(
     const isNewsAction = parts[4] === 'news'
       && (method === 'POST' || method === 'PATCH' || method === 'DELETE');
 
-    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction) {
+    // La fiche membre est un outil de modération : la note interne et les
+    // actions de modération doivent rester accessibles sans droit de
+    // configuration, sinon l'onglet « Notes Modérateur » renvoie une erreur
+    // d'enregistrement à tous les modérateurs (issue #215). Le niveau d'accès
+    // exact est revérifié dans handleMembersRoutes.
+    const isMemberModerationAction = parts.length === 7
+      && parts[4] === 'members'
+      && ((parts[6] === 'note' && method === 'PATCH') || (parts[6] === 'actions' && method === 'POST'));
+
+    if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction && !isMemberModerationAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
+      return true;
+    }
+
+    if (isMemberModerationAction && access.level !== 'admin' && access.level !== 'moderator') {
+      json(res, 403, { error: 'Action de modération non autorisée.' });
       return true;
     }
 
@@ -168,15 +182,18 @@ export async function handleDashboardRoutes(
       }
 
       // Actions coûteuses ou irréversibles : enregistrement de réglages, clôture
-      // de semaine Daily Algo, remises à zéro et distributions de clans.
+      // de semaine Daily Algo, mise en route d'un module (qui crée des salons
+      // Discord), remises à zéro et distributions de clans.
       const isSensitiveWrite =
         (parts[4] === 'settings' && (method === 'PATCH' || method === 'PUT'))
         || (parts[4] === 'daily-algo-weeks' && parts[5] === 'close')
+        || (parts[4] === 'tickets' && parts[5] === 'config' && parts[6] === 'setup')
+        || (parts[4] === 'leveling' && parts[5] === 'level-up-channel')
         || (parts[4] === 'clans'
           && ['distribute', 'clear', 'reset-season', 'reset-all', 'rollback-season'].includes(parts[5] ?? ''));
 
       if (isSensitiveWrite && !checkRateLimit(dashboardSensitiveRateLimiter, rateKey, 10, 60 * 1000)) {
-        json(res, 429, { error: 'Trop d\'enregistrements successifs. Patientez une minute avant de réessayer.' });
+        json(res, 429, { error: 'Trop d\'enregistrements successifs. Réessayez dans une minute.' });
         return true;
       }
     }

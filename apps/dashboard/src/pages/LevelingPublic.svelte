@@ -3,6 +3,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchPublicLeveling } from '../lib/api';
+  import { memberAvatarSrc } from '../lib/discordMedia';
   import { DEFAULT_LEVEL_CURVE, levelFromXp, normalizeLevelCurve, xpForLevel, type LevelCurve } from '@kotbo/shared';
   import { m, dateLocale, getLocale, locales, type Locale } from '../lib/i18n';
   import { themeStore } from '../lib/stores/theme.svelte';
@@ -230,7 +231,7 @@
                     <span class="text-xl font-semibold text-slate-400/80">{m.leveling_public_rank_2()}</span>
                     <div class="flex items-center gap-3">
                       <img
-                        src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
+                        src={memberAvatarSrc(levels[1].avatarUrl, levels[1].displayName || levels[1].username, levels[1].userId)}
                         alt=""
                         class="w-12 h-12 rounded-full object-cover border border-slate-200 dark:border-slate-800"
                       />
@@ -261,7 +262,7 @@
                     </span>
                     <div class="flex items-center gap-3.5">
                       <img
-                        src={levels[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                        src={memberAvatarSrc(levels[0].avatarUrl, levels[0].displayName || levels[0].username, levels[0].userId)}
                         alt=""
                         class="w-14 h-14 rounded-full object-cover border border-slate-200 dark:border-slate-800"
                       />
@@ -289,7 +290,7 @@
                     <span class="text-xl font-semibold text-amber-700/80 dark:text-amber-600">{m.leveling_public_rank_3()}</span>
                     <div class="flex items-center gap-3">
                       <img
-                        src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
+                        src={memberAvatarSrc(levels[2].avatarUrl, levels[2].displayName || levels[2].username, levels[2].userId)}
                         alt=""
                         class="w-12 h-12 rounded-full object-cover border border-slate-200 dark:border-slate-800"
                       />
@@ -387,7 +388,7 @@
                   <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
                       <img
-                        src={userLvl.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                        src={memberAvatarSrc(userLvl.avatarUrl, userLvl.displayName || userLvl.username, userLvl.userId)}
                         alt=""
                         class="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-800"
                       />

@@ -101,6 +101,22 @@
   --mobile-tabbar-clearance: calc(var(--mobile-tabbar-height) + var(--mobile-safe-bottom));
   --mobile-gutter: 1rem;
 
+  /* Hauteur et plan de la navbar fixe du dashboard (.app-navbar, h-14/z-40).
+     Toute barre `sticky` d'une page doit s'aligner dessus, sinon elle se colle
+     en haut de la fenêtre et disparaît derrière (issue #196). */
+  --app-navbar-height: 3.5rem;
+  --app-navbar-z: 40;
+
+  /* Ordre des surcouches plein écran, du plus bas au plus haut.
+     Elles sont toutes téléportées dans <body> (action `portal`), donc seul ce
+     nombre décide qui passe devant. La confirmation doit rester au-dessus de
+     tout modal : elle s'ouvre par-dessus la vue modérateur, et un modal qui la
+     recouvrirait rendrait l'action impossible à valider (issue #200).
+     Toute nouvelle surcouche se déclare ici plutôt qu'avec un z-index en dur. */
+  --layer-modal: 9999;
+  --layer-modal-overlay: 10010;
+  --layer-confirm: 20000;
+
   --background: #ffffff;
   --surface: #ffffff;
   --on-background: #111827;
@@ -671,6 +687,19 @@
 
 .app-navbar {
   isolation: isolate;
+}
+
+/* Plans des surcouches : voir les variables --layer-* déclarées dans :root. */
+.app-modal {
+  z-index: var(--layer-modal);
+}
+
+.member-case-overlay {
+  z-index: var(--layer-modal-overlay);
+}
+
+.confirm-modal {
+  z-index: var(--layer-confirm);
 }
 
 .skip-link {

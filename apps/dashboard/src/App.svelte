@@ -110,6 +110,7 @@
     }
     if (path.startsWith("/evaluations")) return "staff_directory";
     if (path.startsWith("/modules")) return "modules";
+    if (path.startsWith("/server-template")) return "settings";
     if (path.startsWith("/command-access")) return "commands";
     if (path.startsWith("/settings")) return "settings";
     if (path.startsWith("/regulation")) return "regulation";
@@ -569,6 +570,10 @@
               <LazyRoute
                 path="/modules"
                 load={() => import("./pages/ModuleCatalog.svelte")}
+              />
+              <LazyRoute
+                path="/server-template"
+                load={() => import("./pages/ServerTemplate.svelte")}
               />
               <Route path="/module-settings/:moduleId" let:meta>
                 <!-- Simple redirect logic for legacy URLs -->
