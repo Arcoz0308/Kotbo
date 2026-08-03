@@ -544,6 +544,8 @@ export type DashboardState = {
   translationEnabled: boolean;
   codePoliceEnabled: boolean;
   dailyAlgoEnabled: boolean;
+  /** Collecte des statistiques d'activité. À false, plus rien n'est enregistré. */
+  analyticsEnabled: boolean;
   // ── Daily Algo v2 : barème, semaine, sanctions, pont clans ──
   dailyAlgoTimezone: string;
   dailyAlgoParticipationPoints: number;

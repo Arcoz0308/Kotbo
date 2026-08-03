@@ -34,6 +34,9 @@ function guildFieldsFor(moduleKey: string, enabled: boolean): Record<string, unk
     case 'auto_thread': return { autoThreadEnabled: enabled };
     case 'fun': return { funEnabled: enabled };
     case 'economy': return { economyEnabled: enabled };
+    // Interrupteur de collecte : a false, plus aucune activite de membre n'est
+    // enregistree (voir services/analytics/analyticsConsent.ts).
+    case 'analytics': return { analyticsEnabled: enabled };
     default: return {};
   }
 }
@@ -48,6 +51,7 @@ const KOTBO_MODULE_BY_KEY: Record<string, KotboModule> = {
   'fun': 'fun',
   'leveling': 'leveling',
   'tickets': 'ticket',
+  'analytics': 'analytics',
 };
 
 /**

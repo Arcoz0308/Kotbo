@@ -31,6 +31,7 @@ class DashboardStore {
     translationEnabled: false,
     codePoliceEnabled: false,
     dailyAlgoEnabled: false,
+    analyticsEnabled: true,
     // ── Daily Algo v2 : barème, semaine, sanctions, pont clans ──
     dailyAlgoTimezone: 'Europe/Paris',
     dailyAlgoParticipationPoints: 1,
@@ -245,6 +246,7 @@ class DashboardStore {
         this.state.translationEnabled = data.translationEnabled || false;
         this.state.codePoliceEnabled = data.codePoliceEnabled || false;
         this.state.dailyAlgoEnabled = data.dailyAlgoEnabled || false;
+        this.state.analyticsEnabled = data.analyticsEnabled ?? true;
         this.state.dailyAlgoTimezone = data.dailyAlgoTimezone || 'Europe/Paris';
         this.state.dailyAlgoParticipationPoints = data.dailyAlgoParticipationPoints ?? 1;
         this.state.dailyAlgoWeekendMultiplier = data.dailyAlgoWeekendMultiplier ?? 1.5;

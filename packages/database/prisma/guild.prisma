@@ -311,6 +311,14 @@ model Guild {
   statsEnabled            Boolean  @default(false)
   statsConfig             Json?
 
+  // ── Collecte analytique (opt-out serveur) ─────────────────────────────────
+  // Interrupteur unique du module « analytics ». À false, plus aucune activité
+  // de membre n'est enregistrée : messages, vocal, réactions, threads, mots et
+  // compteurs d'usage par module s'arrêtent à la source (voir
+  // services/analytics/analyticsConsent.ts). Le reste du bot continue de
+  // fonctionner : c'est la collecte qui est coupée, pas les fonctionnalités.
+  analyticsEnabled        Boolean  @default(true)
+
   // Message logging / global message search
   messageLoggingEnabled       Boolean  @default(false)
   messageLoggingRetentionDays Int      @default(90)

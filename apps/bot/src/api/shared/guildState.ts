@@ -811,6 +811,7 @@ export const getGuildState = async (
     translationEnabled: guild.translationEnabled,
     codePoliceEnabled: guild.codePoliceEnabled,
     dailyAlgoEnabled: guild.dailyAlgoEnabled,
+    analyticsEnabled: guild.analyticsEnabled,
     dailyAlgoTimezone: guild.dailyAlgoTimezone,
     dailyAlgoParticipationPoints: guild.dailyAlgoParticipationPoints,
     dailyAlgoWeekendMultiplier: guild.dailyAlgoWeekendMultiplier,
