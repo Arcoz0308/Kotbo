@@ -7999,7 +7999,7 @@
   "st_module_nickname_moderation_desc": "Automatically renames unreadable or banned nicknames.",
   "st_readonly": "Read-only channel: only Kotbo posts here",
   "st_wiring_welcome": "Welcome message for new members",
-  "st_wiring_rules": "Channel where the rules are posted",
+  "st_wiring_rules": "Rules publishing, and Discord's rules channel on a Community server",
   "st_rules_notice": "The rules are not posted yet: write your articles on the Rules page, then publish them to this channel.",
   "st_modules_count": "{count} module(s) to turn on",
   "st_success_modules": "Modules turned on: {modules}",

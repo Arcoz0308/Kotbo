@@ -566,6 +566,30 @@ export async function applyServerTemplate(input: {
         // Le reglement n'est pas publie ici : un serveur neuf n'a pas encore
         // d'articles, et l'embed vide qui en sortirait devrait de toute facon
         // etre republie depuis la page Reglement une fois le texte ecrit.
+
+        // Le salon des regles au sens de Discord, celui que la plateforme met
+        // en avant a l'arrivee sur un serveur communautaire. Le faire pointer
+        // sur le notre evite d'avoir deux reglements a deux endroits, chacun
+        // pouvant contredire l'autre.
+        //
+        // Reserve aux serveurs communautaires : ailleurs, Discord n'expose tout
+        // simplement pas ce reglage. Et jamais redirige s'il vise deja un autre
+        // salon, ce choix appartenant a l'admin.
+        if (guild.features.includes('COMMUNITY')) {
+          if (guild.rulesChannelId && guild.rulesChannelId !== channel.channel.id) {
+            warnings.push(
+              `Le salon des règles de Discord vise déjà un autre salon : il n'a pas été redirigé vers #${channel.channel.name}.`,
+            );
+          } else if (!guild.rulesChannelId) {
+            // Demande « Gérer le serveur ». Son absence ne doit pas emporter la
+            // mise en place : le salon existe et le module y renvoie deja.
+            try {
+              await guild.setRulesChannel(channel.channel.id, reason);
+            } catch (err) {
+              warnings.push(`Salon des règles Discord : ${errorMessage(err)}`);
+            }
+          }
+        }
       }
 
       await persist();
