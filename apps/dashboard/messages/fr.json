@@ -7987,7 +7987,7 @@
   "st_section_welcome": "Bienvenue",
   "st_section_modules": "Modules Kotbo",
   "st_modules_title": "Modules activés",
-  "st_modules_hint": "Ces fonctions du bot seront allumées pour tout le serveur. Rien n'est jamais éteint : un module décoché reste dans l'état où vous l'avez laissé.",
+  "st_modules_hint": "Les modules cochés seront activés pour tout le serveur. Décocher ne désactive rien : le module est laissé tel quel, actif ou non.",
   "st_module_linked": "Activé parce que vous créez {channel}",
   "st_module_tickets": "Tickets",
   "st_module_tickets_desc": "Ouverture de tickets d'assistance depuis le panneau.",

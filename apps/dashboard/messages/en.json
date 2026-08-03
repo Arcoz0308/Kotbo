@@ -7987,7 +7987,7 @@
   "st_section_welcome": "Welcome",
   "st_section_modules": "Kotbo modules",
   "st_modules_title": "Modules turned on",
-  "st_modules_hint": "These bot features will be enabled for the whole server. Nothing is ever turned off: an unchecked module stays exactly as you left it.",
+  "st_modules_hint": "Checked modules will be enabled for the whole server. Unchecking disables nothing: the module is left as it is, on or off.",
   "st_module_linked": "Turned on because you are creating {channel}",
   "st_module_tickets": "Tickets",
   "st_module_tickets_desc": "Members open support tickets from the panel.",
