@@ -576,6 +576,58 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
 
 
+  // ── Captcha vocal (boutons destinés aux arrivants, pas au staff) ─────
+  if (customId.startsWith('vcaptcha:')) {
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!member) {
+      await interaction.editReply({ content: "❌ Membre introuvable sur ce serveur." });
+      return;
+    }
+
+    const { getRaidProtectionConfig } = await import('../services/moderation/raidProtectionService.js');
+    const config = await getRaidProtectionConfig(guildId!);
+    if (!config?.captchaEnabled) {
+      await interaction.editReply({ content: "ℹ️ La vérification n'est plus active sur ce serveur." });
+      return;
+    }
+
+    const session = await prisma.captchaSession.findFirst({
+      where: { guildId: guildId!, userId: user.id, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!session) {
+      await interaction.editReply({ content: "ℹ️ Tu n'as aucune vérification en cours." });
+      return;
+    }
+
+    const action = customId.split(':')[1];
+
+    if (action === 'repeat') {
+      const { replayCode } = await import('../services/moderation/voiceCaptchaService.js');
+      const queued = await replayCode(member, session.code);
+      await interaction.editReply({
+        content: queued
+          ? '🔁 Code remis en file : reste dans le salon vocal, il va être réénoncé.'
+          : '❌ Rejoins d\'abord le salon vocal de vérification.',
+      });
+      return;
+    }
+
+    if (action === 'fallback') {
+      const { dequeueMember } = await import('../services/moderation/voiceCaptchaService.js');
+      const { deliverImageCaptcha } = await import('../services/moderation/captchaService.js');
+      await dequeueMember(guildId!, member);
+      await deliverImageCaptcha(member, config, session.id);
+      await interaction.editReply({ content: '✅ Un captcha image vient d\'être envoyé dans le salon de vérification.' });
+      return;
+    }
+
+    await interaction.editReply({ content: '❌ Action inconnue.' });
+    return;
+  }
+
   // ── Protection anti-raid (raid mode, reports staff) ──────────────────
   if (customId.startsWith('rprot:')) {
     const member = await resolveGuildMemberByUserId(interaction, user.id);

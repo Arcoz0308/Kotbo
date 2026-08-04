@@ -12,6 +12,12 @@ model RaidProtectionConfig {
   captchaMaxAttempts      Int     @default(3)
   captchaFailAction       String  @default("KICK") // KICK | BAN
   captchaLogChannelId     String?
+  captchaMode             String  @default("IMAGE") // IMAGE | VOICE
+  captchaVoiceChannelId   String? // Salon vocal où le bot énonce le code
+  // Au-delà de N membres en file d'attente vocale, les arrivants suivants
+  // basculent sur le captcha image : la diffusion audio est sérielle, elle ne
+  // peut pas absorber un raid.
+  captchaVoiceQueueLimit  Int     @default(25)
 
   // ── Anti-raid (détection de vague de joins) ────────────────────────────────
   antiRaidEnabled            Boolean   @default(false)
@@ -86,8 +92,13 @@ model CaptchaSession {
   code     String
   attempts Int    @default(0)
   status   String @default("PENDING") // PENDING | VERIFIED | FAILED | EXPIRED
+  mode     String @default("IMAGE") // IMAGE | VOICE
 
   messageId String? // Message du bot contenant l'image captcha (nettoyé après vérif)
+
+  // Le membre attend son tour dans la file vocale : son chrono n'a pas démarré
+  // et le cron d'expiration doit l'ignorer, sinon la file expulse les légitimes.
+  awaitingTurn Boolean @default(false)
 
   createdAt DateTime @default(now())
   expiresAt DateTime

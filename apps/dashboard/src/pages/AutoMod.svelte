@@ -120,6 +120,9 @@
     captchaMaxAttempts: 3,
     captchaFailAction: 'KICK',
     captchaLogChannelId: null as string | null,
+    captchaMode: 'IMAGE',
+    captchaVoiceChannelId: null as string | null,
+    captchaVoiceQueueLimit: 25,
     antiRaidEnabled: false,
     antiRaidJoinThreshold: 10,
     antiRaidJoinWindowSec: 60,
@@ -1413,6 +1416,13 @@
             {#if raidConfig.captchaEnabled}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
                 <div class="space-y-1.5">
+                  <label for="captchaMode" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_mode()}</label>
+                  <select id="captchaMode" bind:value={raidConfig.captchaMode} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings}>
+                    <option value="IMAGE">{m.am_captcha_mode_image()}</option>
+                    <option value="VOICE">{m.am_captcha_mode_voice()}</option>
+                  </select>
+                </div>
+                <div class="space-y-1.5">
                   <label for="captchaChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_channel()}</label>
                   <SearchableSelect id="captchaChannel" bind:value={raidConfig.captchaChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
@@ -1439,6 +1449,17 @@
                   <label for="captchaLog" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_log_channel()}</label>
                   <SearchableSelect id="captchaLog" bind:value={raidConfig.captchaLogChannelId} options={availableChannels.map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_optional()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
                 </div>
+                {#if raidConfig.captchaMode === 'VOICE'}
+                  <div class="space-y-1.5">
+                    <label for="captchaVoiceChannel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_voice_channel()}</label>
+                    <SearchableSelect id="captchaVoiceChannel" bind:value={raidConfig.captchaVoiceChannelId} options={availableChannels.filter(c => c.type === 'voice').map(c => ({ id: c.id, name: channelDisplayName(c) }))} placeholder={m.am_choose_channel()} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  </div>
+                  <div class="space-y-1.5">
+                    <label for="captchaVoiceQueue" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{m.am_captcha_voice_queue_limit()}</label>
+                    <input id="captchaVoiceQueue" type="number" min="1" max="100" bind:value={raidConfig.captchaVoiceQueueLimit} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm" disabled={!canManageSettings} />
+                  </div>
+                  <p class="md:col-span-2 text-xs text-on-surface-variant/70 leading-relaxed">{m.am_captcha_voice_hint()}</p>
+                {/if}
               </div>
             {/if}
           </section>
