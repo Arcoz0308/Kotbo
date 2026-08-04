@@ -276,8 +276,9 @@ export async function registerCrons(client: Client): Promise<void> {
       await processDueReminders(client);
     },
     'raid-protection-tick': async () => {
-      const { expireOverdueCaptchaSessions } = await import('../services/moderation/captchaService.js');
+      const { expireOverdueCaptchaSessions, recoverStrandedVoiceSessions } = await import('../services/moderation/captchaService.js');
       const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');
+      await recoverStrandedVoiceSessions(client);
       await expireOverdueCaptchaSessions(client);
       await autoDisableExpiredRaidModes(client);
     },
@@ -407,8 +408,9 @@ export async function registerCrons(client: Client): Promise<void> {
   // 🛡️ Protection anti-raid: expiration des captchas + auto-disable du raid mode (toutes les minutes)
   cron.schedule('* * * * *', async () => {
     await runCronJob('raid-protection-tick', async () => {
-      const { expireOverdueCaptchaSessions } = await import('../services/moderation/captchaService.js');
+      const { expireOverdueCaptchaSessions, recoverStrandedVoiceSessions } = await import('../services/moderation/captchaService.js');
       const { autoDisableExpiredRaidModes } = await import('../services/moderation/raidProtectionService.js');
+      await recoverStrandedVoiceSessions(client);
       await expireOverdueCaptchaSessions(client);
       await autoDisableExpiredRaidModes(client);
     }, 1000);

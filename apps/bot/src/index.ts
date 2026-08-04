@@ -385,6 +385,12 @@ client.once(Events.ClientReady, async (c) => {
   registerRaidProtectionListener(client);
   registerClanListener(client);
 
+  // Un arrêt en plein tour de captcha vocal laisse des autorisations
+  // individuelles sur le salon, qui l'ouvriraient pendant le tour d'un autre.
+  void import('./services/moderation/voiceCaptchaService.js')
+    .then(({ sweepStaleOverwrites }) => sweepStaleOverwrites(client))
+    .catch((error) => logger.error('System', 'Nettoyage du captcha vocal impossible', error));
+
   // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
   logger.info('System', 'Enregistrement des cron jobs...');
   await registerCrons(client);

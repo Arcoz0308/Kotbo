@@ -1,4 +1,4 @@
-import { type Client, Events, type GuildMember, type Invite, type Message, type PartialGuildMember } from 'discord.js';
+import { type Client, Events, type GuildMember, type Invite, type Message, type PartialGuildMember, type VoiceState } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import {
   getRaidProtectionConfig,
@@ -10,6 +10,7 @@ import { startCaptchaChallenge, handleCaptchaMessage } from '../services/moderat
 import { handleScamMessage } from '../services/moderation/scamFilterService.js';
 import { syncMemberTagRole } from '../services/moderation/tagRoleService.js';
 import { handleInviteCreate } from '../services/moderation/inviteGuardService.js';
+import { handleVoiceStateUpdate } from '../services/moderation/voiceCaptchaService.js';
 
 export function registerRaidProtectionListener(client: Client): void {
   // ── Arrivées : join lock → raid kick → détection de raid → captcha → tag role
@@ -58,6 +59,15 @@ export function registerRaidProtectionListener(client: Client): void {
       await handleInviteCreate(invite);
     } catch (err) {
       logger.error('RaidProtection', `Erreur InviteCreate (${invite.code})`, err);
+    }
+  });
+
+  // ── Vocal : entrée/sortie de la file du captcha vocal ───────────────────────
+  client.on(Events.VoiceStateUpdate, async (oldState: VoiceState, newState: VoiceState) => {
+    try {
+      await handleVoiceStateUpdate(oldState, newState);
+    } catch (err) {
+      logger.error('RaidProtection', 'Erreur VoiceStateUpdate (captcha vocal)', err);
     }
   });
 

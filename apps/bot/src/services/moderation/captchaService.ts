@@ -1,4 +1,4 @@
-import { type Client, type GuildMember, type Message, type TextChannel, AttachmentBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { type Client, type GuildMember, type Message, type TextChannel, ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { createCanvas } from '@napi-rs/canvas';
 import crypto from 'node:crypto';
 import prisma from '../../utils/db.js';
@@ -6,6 +6,12 @@ import { logger } from '../../utils/logger.js';
 import { COLORS } from '../../utils/embeds.js';
 import type { CaptchaSession, RaidProtectionConfig } from '@prisma/client';
 import { getRaidProtectionConfig } from './raidProtectionService.js';
+import {
+  checkVoiceReadiness,
+  estimateTurnMs,
+  generateVoiceCode,
+  getQueueLength,
+} from './voiceCaptchaService.js';
 
 // Lettres sans ambiguïté (pas de I/O/0/1…)
 const CAPTCHA_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -45,7 +51,7 @@ export function renderCaptchaImage(code: string): Buffer {
   }
 
   // Lettres déformées
-  const step = width / (CAPTCHA_LENGTH + 1);
+  const step = width / (code.length + 1);
   for (let i = 0; i < code.length; i++) {
     const fontSize = 52 + crypto.randomInt(16);
     ctx.font = `bold ${fontSize}px sans-serif`;
@@ -73,8 +79,55 @@ export function renderCaptchaImage(code: string): Buffer {
 // ── Cycle de vie d'une session ────────────────────────────────────────────────
 
 /**
+ * Détermine si ce membre peut réellement passer par le vocal. Tout empêchement
+ * (mode désactivé, salon mal configuré, pack audio absent, file saturée) doit
+ * dégrader vers l'image plutôt que bloquer une arrivée légitime.
+ */
+async function shouldUseVoice(member: GuildMember, config: RaidProtectionConfig): Promise<boolean> {
+  if (config.captchaMode !== 'VOICE') return false;
+
+  const readiness = await checkVoiceReadiness(member.guild, config);
+  if (!readiness.ok) {
+    logger.warn('Captcha', `Mode vocal indisponible sur ${member.guild.id} : ${readiness.reason}`);
+    await reportVoiceMisconfiguration(member.guild.id, member.client, config, readiness.reason);
+    return false;
+  }
+
+  // La diffusion audio est sérielle : au-delà du seuil, l'attente dépasserait
+  // le délai d'expiration et la file se mettrait à expulser des légitimes.
+  if (getQueueLength(member.guild.id) >= config.captchaVoiceQueueLimit) {
+    logger.info('Captcha', `File vocale saturée sur ${member.guild.id}, repli sur l'image`);
+    return false;
+  }
+
+  return true;
+}
+
+// Dernier motif signalé par serveur : le repli sur l'image est silencieux pour
+// le membre, l'administrateur doit donc l'apprendre. Mais une vague d'arrivées
+// ne doit pas inonder le salon de logs du même message.
+const reportedVoiceIssues = new Map<string, string>();
+
+async function reportVoiceMisconfiguration(
+  guildId: string,
+  client: Client,
+  config: RaidProtectionConfig,
+  reason: string
+): Promise<void> {
+  if (reportedVoiceIssues.get(guildId) === reason) return;
+  reportedVoiceIssues.set(guildId, reason);
+
+  await logCaptcha(
+    client,
+    guildId,
+    config,
+    `⚠️ Captcha vocal inutilisable — ${reason}. Les arrivants basculent sur le captcha image en attendant.`
+  );
+}
+
+/**
  * À l'arrivée d'un membre : applique le rôle non-vérifié, crée la session et
- * envoie l'image captcha dans le salon de vérification.
+ * envoie le défi (image ou vocal) dans le salon de vérification.
  */
 export async function startCaptchaChallenge(member: GuildMember, config: RaidProtectionConfig): Promise<void> {
   if (member.user.bot) return;
@@ -96,25 +149,34 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
     data: { status: 'EXPIRED' },
   });
 
-  const code = generateCode();
+  const useVoice = await shouldUseVoice(member, config);
   const session = await prisma.captchaSession.create({
     data: {
       guildId: member.guild.id,
       userId: member.id,
-      code,
+      code: useVoice ? generateVoiceCode() : generateCode(),
+      mode: useVoice ? 'VOICE' : 'IMAGE',
+      // En vocal le chrono ne démarre qu'au tour du membre (voir announceTurn).
+      awaitingTurn: useVoice,
       expiresAt: new Date(Date.now() + config.captchaTimeoutMinutes * 60 * 1000),
     },
   });
 
+  if (useVoice) await sendVoiceChallenge(member, config, session);
+  else await sendImageChallenge(member, config, session);
+}
+
+async function sendImageChallenge(member: GuildMember, config: RaidProtectionConfig, session: CaptchaSession): Promise<void> {
+  if (!config.captchaChannelId) return;
   const channel = await member.guild.channels.fetch(config.captchaChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const attachment = new AttachmentBuilder(renderCaptchaImage(code), { name: 'captcha.png' });
+  const attachment = new AttachmentBuilder(renderCaptchaImage(session.code), { name: 'captcha.png' });
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('🔐 Vérification requise')
     .setDescription(
-      `Bienvenue ${member} !\n\nPour accéder au serveur, tape les **${CAPTCHA_LENGTH} caractères** affichés sur l'image ci-dessous dans ce salon.\n\n` +
+      `Bienvenue ${member} !\n\nPour accéder au serveur, tape les **${session.code.length} caractères** affichés sur l'image ci-dessous dans ce salon.\n\n` +
       `⏱️ Tu as **${config.captchaTimeoutMinutes} minutes** et **${config.captchaMaxAttempts} tentatives**.`
     )
     .setImage('attachment://captcha.png')
@@ -124,6 +186,68 @@ export async function startCaptchaChallenge(member: GuildMember, config: RaidPro
   if (sent) {
     await prisma.captchaSession.update({ where: { id: session.id }, data: { messageId: sent.id } });
   }
+}
+
+async function sendVoiceChallenge(member: GuildMember, config: RaidProtectionConfig, session: CaptchaSession): Promise<void> {
+  if (!config.captchaChannelId || !config.captchaVoiceChannelId) return;
+  const channel = await member.guild.channels.fetch(config.captchaChannelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
+
+  const waiting = getQueueLength(member.guild.id);
+  const waitLine = waiting > 0
+    ? `\n\n👥 **${waiting}** personne(s) devant toi, soit environ **${Math.ceil((waiting * estimateTurnMs()) / 1000)} secondes** d'attente.`
+    : '';
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.primary)
+    .setTitle('🔊 Vérification vocale requise')
+    .setDescription(
+      `Bienvenue ${member} !\n\nClique sur **Je suis prêt** quand tu peux écouter du son. ` +
+      `À ton tour, le salon vocal <#${config.captchaVoiceChannelId}> s'ouvrira **pour toi seul** : ` +
+      `le bot y énoncera un code de **${session.code.length} caractères**, que tu recopieras ici.\n\n` +
+      `⏱️ Ton chrono de **${config.captchaTimeoutMinutes} minutes** ne démarre qu'une fois le code énoncé.` +
+      waitLine
+    )
+    .setFooter({ text: 'Pas de son ? Utilise le bouton pour basculer sur un captcha image.' });
+
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('vcaptcha:start').setLabel('Je suis prêt').setEmoji('🎧').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('vcaptcha:repeat').setLabel('Répéter le code').setEmoji('🔁').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('vcaptcha:fallback').setLabel('Je ne peux pas utiliser le vocal').setStyle(ButtonStyle.Secondary)
+  );
+
+  const sent = await (channel as TextChannel).send({ content: `${member}`, embeds: [embed], components: [buttons] }).catch(() => null);
+  if (sent) {
+    await prisma.captchaSession.update({ where: { id: session.id }, data: { messageId: sent.id } });
+  }
+}
+
+/**
+ * Bascule une session vocale en cours vers le captcha image, sans repartir de
+ * zéro : le membre garde son code, ses tentatives et sa session.
+ */
+export async function deliverImageCaptcha(member: GuildMember, config: RaidProtectionConfig, sessionId: string | null): Promise<void> {
+  const session = sessionId
+    ? await prisma.captchaSession.findUnique({ where: { id: sessionId } })
+    : await prisma.captchaSession.findFirst({
+        where: { guildId: member.guild.id, userId: member.id, status: 'PENDING' },
+        orderBy: { createdAt: 'desc' },
+      });
+
+  if (!session || session.status !== 'PENDING') return;
+
+  await cleanupCaptchaMessage(member.guild.id, session, member.client, config);
+
+  const updated = await prisma.captchaSession.update({
+    where: { id: session.id },
+    data: {
+      mode: 'IMAGE',
+      awaitingTurn: false,
+      expiresAt: new Date(Date.now() + config.captchaTimeoutMinutes * 60 * 1000),
+    },
+  });
+
+  await sendImageChallenge(member, config, updated);
 }
 
 /**
@@ -205,10 +329,51 @@ async function logCaptcha(client: Client, guildId: string, config: RaidProtectio
   }
 }
 
+/**
+ * Cron : rattrape les sessions vocales orphelines. Un redémarrage du bot perd
+ * la file en mémoire ; sans ce filet, le membre garderait indéfiniment le rôle
+ * non-vérifié sans jamais entendre son code ni être sanctionné. On le bascule
+ * sur l'image plutôt que de le punir d'une panne qui n'est pas la sienne.
+ */
+export async function recoverStrandedVoiceSessions(client: Client): Promise<void> {
+  const { isQueued } = await import('./voiceCaptchaService.js');
+
+  const stranded = await prisma.captchaSession.findMany({
+    where: { status: 'PENDING', awaitingTurn: true },
+    take: 100,
+  });
+
+  for (const session of stranded) {
+    const guild = client.guilds.cache.get(session.guildId);
+    if (!guild) continue;
+
+    const config = await getRaidProtectionConfig(session.guildId);
+    if (!config?.captchaEnabled) continue;
+
+    // Toujours en file ou en plein tour : on ne touche à rien.
+    if (isQueued(session.guildId, session.userId)) continue;
+
+    const strandedForMs = Date.now() - session.createdAt.getTime();
+    if (strandedForMs < config.captchaTimeoutMinutes * 60 * 1000) continue;
+
+    const member = await guild.members.fetch(session.userId).catch(() => null);
+    if (!member) {
+      await prisma.captchaSession.update({ where: { id: session.id }, data: { status: 'EXPIRED' } });
+      continue;
+    }
+
+    await deliverImageCaptcha(member, config, session.id);
+    await logCaptcha(client, session.guildId, config, `🔁 <@${session.userId}> était bloqué en file vocale — bascule sur le captcha image.`);
+  }
+}
+
 /** Cron : expire les sessions dépassées et applique la sanction d'échec. */
 export async function expireOverdueCaptchaSessions(client: Client): Promise<void> {
+  // awaitingTurn : le membre patiente dans la file vocale et n'a pas encore
+  // entendu son code. L'expulser pour un délai qu'il ne maîtrise pas ferait de
+  // la file d'attente une machine à sanctionner les membres légitimes.
   const overdue = await prisma.captchaSession.findMany({
-    where: { status: 'PENDING', expiresAt: { lte: new Date() } },
+    where: { status: 'PENDING', awaitingTurn: false, expiresAt: { lte: new Date() } },
     take: 100,
   });
 
