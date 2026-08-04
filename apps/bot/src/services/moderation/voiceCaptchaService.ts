@@ -1,4 +1,4 @@
-import { type Client, type Guild, type GuildMember, type VoiceBasedChannel, type VoiceState, PermissionFlagsBits } from 'discord.js';
+import { type Client, type Guild, type GuildMember, type TextChannel, type VoiceBasedChannel, type VoiceState, OverwriteType, PermissionFlagsBits } from 'discord.js';
 import { createReadStream, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -24,8 +24,10 @@ const PACK_DIR = fileURLToPath(new URL('../../../assets/captcha-voice/', import.
 // est payée par tous les membres en file derrière.
 const CLIP_GAP_MIN_MS = 180;
 const CLIP_GAP_MAX_MS = 420;
-const TURN_SETTLE_MS = 800; // Laisse le temps au démute d'être appliqué côté client
-const BETWEEN_MEMBERS_MS = 500; // Respiration entre deux tours (rate limits)
+const CLIP_DURATION_ESTIMATE_MS = 700;
+const JOIN_WINDOW_MS = 45_000; // Délai laissé au membre pour rejoindre à son tour
+const TYPICAL_JOIN_MS = 8_000; // Utilisé seulement pour estimer l'attente annoncée
+const BETWEEN_MEMBERS_MS = 500;
 const CONNECTION_READY_TIMEOUT_MS = 20_000;
 const IDLE_DISCONNECT_MS = 30_000;
 
@@ -90,6 +92,12 @@ type QueueEntry = {
 const queues = new Map<string, QueueEntry[]>();
 const runningGuilds = new Set<string>();
 
+/** Membre dont c'est le tour : seul autorisé dans le salon vocal. */
+const currentTurns = new Map<string, string>();
+
+/** Résolveurs en attente de l'arrivée effective du membre dans le salon. */
+const joinWaiters = new Map<string, { userId: string; resolve: () => void }>();
+
 export function getQueueLength(guildId: string): number {
   return queues.get(guildId)?.length ?? 0;
 }
@@ -99,10 +107,15 @@ export function getQueuePosition(guildId: string, userId: string): number {
   return queue.findIndex((entry) => entry.userId === userId) + 1;
 }
 
-/** Durée d'antenne d'un code, utilisée pour estimer l'attente annoncée. */
+export function isQueued(guildId: string, userId: string): boolean {
+  return getQueuePosition(guildId, userId) > 0 || currentTurns.get(guildId) === userId;
+}
+
+/** Durée moyenne d'un tour, utilisée pour estimer l'attente annoncée. */
 export function estimateTurnMs(): number {
   const averageGap = (CLIP_GAP_MIN_MS + CLIP_GAP_MAX_MS) / 2;
-  return TURN_SETTLE_MS + VOICE_CODE_LENGTH * (700 + averageGap) + BETWEEN_MEMBERS_MS;
+  const airtime = VOICE_CODE_LENGTH * (CLIP_DURATION_ESTIMATE_MS + averageGap);
+  return TYPICAL_JOIN_MS + airtime + BETWEEN_MEMBERS_MS;
 }
 
 function removeFromQueue(guildId: string, userId: string): void {
@@ -112,7 +125,7 @@ function removeFromQueue(guildId: string, userId: string): void {
   if (index !== -1) queue.splice(index, 1);
 }
 
-// ── Permissions ───────────────────────────────────────────────────────────────
+// ── Contrôles de configuration ────────────────────────────────────────────────
 
 export type VoiceReadiness =
   | { ok: true; channel: VoiceBasedChannel }
@@ -121,6 +134,10 @@ export type VoiceReadiness =
 /**
  * Vérifie que le mode vocal est réellement praticable sur ce serveur. Tout
  * échec doit renvoyer vers le captcha image plutôt que bloquer le membre.
+ *
+ * Le contrôle porte autant sur le bot que sur le rôle non-vérifié : une
+ * configuration où l'arrivant ne peut pas voir le salon vocal échouerait
+ * silencieusement côté membre, sans que rien n'alerte l'administrateur.
  */
 export async function checkVoiceReadiness(guild: Guild, config: RaidProtectionConfig): Promise<VoiceReadiness> {
   if (!config.captchaVoiceChannelId) return { ok: false, reason: 'aucun salon vocal configuré' };
@@ -132,58 +149,145 @@ export async function checkVoiceReadiness(guild: Guild, config: RaidProtectionCo
   const me = guild.members.me;
   if (!me) return { ok: false, reason: 'membre bot indisponible' };
 
-  const permissions = channel.permissionsFor(me);
+  const botPermissions = channel.permissionsFor(me);
   const required: Array<[bigint, string]> = [
+    [PermissionFlagsBits.ViewChannel, 'Voir le salon'],
     [PermissionFlagsBits.Connect, 'Se connecter'],
     [PermissionFlagsBits.Speak, 'Parler'],
-    [PermissionFlagsBits.DeafenMembers, 'Rendre sourd'],
-    // Sert à éjecter le membre du salon une fois son code énoncé, pour qu'il
-    // n'entende pas celui du suivant.
+    // Sert à éjecter le membre du salon dès son code énoncé, et à en sortir
+    // quiconque s'y glisserait hors de son tour.
     [PermissionFlagsBits.MoveMembers, 'Déplacer les membres'],
+    // Nécessaire pour poser puis retirer l'autorisation individuelle qui ouvre
+    // le salon au seul membre dont c'est le tour.
+    [PermissionFlagsBits.ManageRoles, 'Gérer les permissions'],
   ];
-  const missing = required.filter(([flag]) => !permissions?.has(flag)).map(([, label]) => label);
+  const missingBot = required.filter(([flag]) => !botPermissions?.has(flag)).map(([, label]) => label);
+  if (missingBot.length) {
+    return { ok: false, reason: `permissions bot manquantes sur le salon vocal : ${missingBot.join(', ')}` };
+  }
 
-  if (missing.length) return { ok: false, reason: `permissions manquantes : ${missing.join(', ')}` };
+  const roleCheck = checkUnverifiedRoleAccess(channel, config);
+  if (!roleCheck.ok) return roleCheck;
 
   return { ok: true, channel };
 }
 
+/**
+ * Le rôle non-vérifié doit voir le salon vocal sans pouvoir y entrer : c'est
+ * l'autorisation individuelle posée à son tour qui lui ouvre la porte. Un rôle
+ * qui aurait déjà « Se connecter » ferait s'entasser tout le monde dans le
+ * salon, et chacun entendrait le code des autres.
+ */
+export function checkUnverifiedRoleAccess(
+  channel: VoiceBasedChannel,
+  config: RaidProtectionConfig
+): { ok: true } | { ok: false; reason: string } {
+  if (!config.captchaUnverifiedRoleId) return { ok: false, reason: 'aucun rôle non-vérifié configuré' };
+
+  const role = channel.guild.roles.cache.get(config.captchaUnverifiedRoleId);
+  if (!role) return { ok: false, reason: 'rôle non-vérifié introuvable' };
+
+  const rolePermissions = channel.permissionsFor(role);
+  if (!rolePermissions?.has(PermissionFlagsBits.ViewChannel)) {
+    return {
+      ok: false,
+      reason: `le rôle @${role.name} ne voit pas le salon vocal : il ne pourra jamais le rejoindre`,
+    };
+  }
+
+  if (rolePermissions.has(PermissionFlagsBits.Connect)) {
+    return {
+      ok: false,
+      reason: `le rôle @${role.name} peut rejoindre le salon vocal librement : retire-lui « Se connecter » sur ce salon, le bot l'accorde individuellement le temps de chaque tour`,
+    };
+  }
+
+  return { ok: true };
+}
+
 // ── Entrée dans la file ───────────────────────────────────────────────────────
 
+export type EnqueueResult =
+  | { ok: true; position: number; estimatedWaitMs: number }
+  | { ok: false; reason: string };
+
 /**
- * Le membre vient de rejoindre le salon vocal de vérification : on le rend
- * sourd le temps de son attente (sinon il entendrait le code des autres, ce
- * qui suffirait à un attaquant multi-comptes) puis on le met en file.
+ * Le membre se déclare prêt (bouton dans le salon de vérification). On ne lui
+ * demande pas d'attendre dans le vocal : il n'y entre qu'à son tour, seul.
  */
-export async function enqueueMember(member: GuildMember, config: RaidProtectionConfig): Promise<void> {
+export async function enqueueMember(member: GuildMember, config: RaidProtectionConfig): Promise<EnqueueResult> {
   const guildId = member.guild.id;
+
+  if (isQueued(guildId, member.id)) {
+    return { ok: false, reason: 'déjà en file' };
+  }
+
+  const readiness = await checkVoiceReadiness(member.guild, config);
+  if (!readiness.ok) return { ok: false, reason: readiness.reason };
+
   const queue = queues.get(guildId) ?? [];
-  if (queue.some((entry) => entry.userId === member.id)) return;
+  if (queue.length >= config.captchaVoiceQueueLimit) {
+    return { ok: false, reason: 'file saturée' };
+  }
 
   const session = await prisma.captchaSession.findFirst({
     where: { guildId, userId: member.id, status: 'PENDING', mode: 'VOICE' },
     orderBy: { createdAt: 'desc' },
   });
-  if (!session) return;
-
-  await setDeaf(member, true, 'Captcha vocal : attente du tour');
+  if (!session) return { ok: false, reason: 'aucune vérification en cours' };
 
   queue.push({ userId: member.id, sessionId: session.id, code: session.code, enqueuedAt: Date.now() });
   queues.set(guildId, queue);
 
   void runQueue(member.guild, config);
+
+  return {
+    ok: true,
+    position: queue.length,
+    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(),
+  };
 }
 
-export async function dequeueMember(guildId: string, member: GuildMember): Promise<void> {
-  removeFromQueue(guildId, member.id);
-  await setDeaf(member, false, 'Captcha vocal : sortie de la file');
+export function dequeueMember(guildId: string, userId: string): void {
+  removeFromQueue(guildId, userId);
 }
 
-async function setDeaf(member: GuildMember, deaf: boolean, reason: string): Promise<void> {
-  if (!member.voice.channelId) return;
-  if (member.voice.serverDeaf === deaf) return;
-  await member.voice.setDeaf(deaf, reason).catch((err) => {
-    logger.warn('VoiceCaptcha', `Démute/mute impossible sur ${member.id}`, err);
+// ── Ouverture et fermeture du salon pour un membre ────────────────────────────
+
+async function openChannelFor(channel: VoiceBasedChannel, userId: string): Promise<boolean> {
+  try {
+    await channel.permissionOverwrites.edit(userId, { Connect: true, ViewChannel: true }, {
+      reason: 'Captcha vocal : tour du membre',
+    });
+    return true;
+  } catch (err) {
+    logger.error('VoiceCaptcha', `Ouverture du salon impossible pour ${userId}`, err);
+    return false;
+  }
+}
+
+async function closeChannelFor(channel: VoiceBasedChannel, userId: string): Promise<void> {
+  await channel.permissionOverwrites.delete(userId, 'Captcha vocal : fin du tour').catch((err) => {
+    logger.warn('VoiceCaptcha', `Retrait de l'autorisation impossible pour ${userId}`, err);
+  });
+}
+
+/** Attend que le membre rejoigne effectivement le salon, ou expire. */
+function waitForJoin(guildId: string, userId: string, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      joinWaiters.delete(guildId);
+      resolve(false);
+    }, timeoutMs);
+
+    joinWaiters.set(guildId, {
+      userId,
+      resolve: () => {
+        clearTimeout(timer);
+        joinWaiters.delete(guildId);
+        resolve(true);
+      },
+    });
   });
 }
 
@@ -240,19 +344,24 @@ async function runQueue(guild: Guild, config: RaidProtectionConfig): Promise<voi
       idleSince = Date.now();
 
       const member = await guild.members.fetch(entry.userId).catch(() => null);
-
-      // Le membre a quitté le vocal (ou le serveur) entre-temps : on passe.
-      if (!member?.voice.channelId || member.voice.channelId !== readiness.channel.id) {
+      if (!member) {
         removeFromQueue(guild.id, entry.userId);
         continue;
       }
 
-      await announceTurn(entry, member, config, voice, player);
+      await runTurn(entry, member, readiness.channel, config, voice, player);
     }
   } catch (err) {
     logger.error('VoiceCaptcha', `Erreur de la file vocale sur ${guild.id}`, err);
   } finally {
-    connection?.destroy();
+    // destroy() lève si la connexion est déjà détruite, ce qui arrive quand
+    // Discord l'a coupée de son côté pendant la boucle.
+    try {
+      connection?.destroy();
+    } catch {
+      // Connexion déjà fermée, rien à libérer.
+    }
+    currentTurns.delete(guild.id);
     runningGuilds.delete(guild.id);
 
     // Une nouvelle arrivée pendant la fermeture aurait été ignorée : on relance.
@@ -262,18 +371,38 @@ async function runQueue(guild: Guild, config: RaidProtectionConfig): Promise<voi
   }
 }
 
-async function announceTurn(
+async function runTurn(
   entry: QueueEntry,
   member: GuildMember,
+  channel: VoiceBasedChannel,
   config: RaidProtectionConfig,
   voice: VoiceModule,
   player: import('@discordjs/voice').AudioPlayer
 ): Promise<void> {
   const guildId = member.guild.id;
+  currentTurns.set(guildId, member.id);
 
   try {
-    await setDeaf(member, false, 'Captcha vocal : énonciation du code');
-    await waitFor(TURN_SETTLE_MS);
+    if (!(await openChannelFor(channel, member.id))) {
+      removeFromQueue(guildId, entry.userId);
+      return;
+    }
+
+    // L'attente est armée avant l'annonce : un membre réactif peut rejoindre
+    // dans l'intervalle, et le signal serait perdu si le guetteur n'était posé
+    // qu'après. Il patienterait alors la fenêtre entière, déjà sur place.
+    const joinPromise = waitForJoin(guildId, member.id, JOIN_WINDOW_MS);
+    await notifyTurn(member, config, channel);
+    if (member.voice.channelId === channel.id) joinWaiters.get(guildId)?.resolve();
+
+    const joined = await joinPromise;
+
+    if (!joined) {
+      // Pas de remise en file automatique : un membre absent bloquerait tout le
+      // monde à chaque tour. Il repasse par le bouton quand il est réellement là.
+      await notifyMissedTurn(member, config);
+      return;
+    }
 
     if (entry.sessionId) {
       // Le chrono ne démarre qu'ici : le temps passé en file n'est pas imputable
@@ -290,16 +419,16 @@ async function announceTurn(
     await speakCode(entry.code, voice, player);
   } finally {
     removeFromQueue(guildId, entry.userId);
+    currentTurns.delete(guildId);
+    joinWaiters.delete(guildId);
 
-    // Sortie du salon ET levée de la surdité dans un seul appel REST. Laisser
-    // le membre sur place lui ferait entendre le code du suivant, ce qui suffit
-    // à un attaquant multi-comptes ; et séparer les deux appels ouvrirait une
-    // fenêtre où un crash le laisserait sourd de façon permanente, un état que
-    // Discord refuse de corriger tant qu'il n'est pas connecté au vocal.
-    await member.edit({ deaf: false, channel: null }).catch((err) => {
-      logger.warn('VoiceCaptcha', `Sortie de vocal impossible pour ${member.id}`, err);
-    });
-
+    // Le membre sort du salon dès son code énoncé : le laisser sur place lui
+    // ferait entendre celui du suivant, ce qui suffit à un attaquant
+    // multi-comptes pour récolter les codes de tous les autres.
+    if (member.voice.channelId === channel.id) {
+      await member.voice.disconnect('Captcha vocal : code énoncé').catch(() => null);
+    }
+    await closeChannelFor(channel, member.id);
     await waitFor(BETWEEN_MEMBERS_MS);
   }
 }
@@ -330,23 +459,59 @@ async function speakCode(
   player.stop();
 }
 
-/** Rejoue le code d'un membre déjà passé (bouton « Répéter »). */
-export async function replayCode(member: GuildMember, code: string): Promise<boolean> {
+// ── Messages au membre ────────────────────────────────────────────────────────
+
+async function captchaChannel(guild: Guild, config: RaidProtectionConfig): Promise<TextChannel | null> {
+  if (!config.captchaChannelId) return null;
+  const channel = await guild.channels.fetch(config.captchaChannelId).catch(() => null);
+  return channel?.isTextBased() ? (channel as TextChannel) : null;
+}
+
+async function notifyTurn(member: GuildMember, config: RaidProtectionConfig, voiceChannel: VoiceBasedChannel): Promise<void> {
+  const channel = await captchaChannel(member.guild, config);
+  if (!channel) return;
+
+  const sent = await channel.send({
+    content: `🔊 ${member}, c'est ton tour : rejoins <#${voiceChannel.id}> dans les **${Math.round(JOIN_WINDOW_MS / 1000)} secondes**. Tu y seras seul, le bot t'énoncera ton code.`,
+  }).catch(() => null);
+
+  if (sent) setTimeout(() => sent.delete().catch(() => null), JOIN_WINDOW_MS + 30_000);
+}
+
+async function notifyMissedTurn(member: GuildMember, config: RaidProtectionConfig): Promise<void> {
+  const channel = await captchaChannel(member.guild, config);
+  if (!channel) return;
+
+  const sent = await channel.send({
+    content: `⏭️ ${member}, tu n'as pas rejoint le salon vocal à temps. Reclique sur le bouton quand tu es prêt.`,
+  }).catch(() => null);
+
+  if (sent) setTimeout(() => sent.delete().catch(() => null), 60_000);
+}
+
+// ── Répétition ────────────────────────────────────────────────────────────────
+
+/** Remet le membre en file pour réentendre son code. */
+export async function replayCode(member: GuildMember, code: string): Promise<EnqueueResult> {
   const config = await getRaidProtectionConfig(member.guild.id);
-  if (!config) return false;
+  if (!config) return { ok: false, reason: 'configuration introuvable' };
+
+  if (isQueued(member.guild.id, member.id)) return { ok: false, reason: 'déjà en file' };
 
   const readiness = await checkVoiceReadiness(member.guild, config);
-  if (!readiness.ok) return false;
-  if (member.voice.channelId !== readiness.channel.id) return false;
+  if (!readiness.ok) return { ok: false, reason: readiness.reason };
 
   const queue = queues.get(member.guild.id) ?? [];
   queue.push({ userId: member.id, sessionId: null, code, enqueuedAt: Date.now() });
   queues.set(member.guild.id, queue);
 
-  // La répétition repasse par la file : elle consomme du temps d'antenne comme
-  // n'importe quel tour, et ne doit pas couper la parole au membre en cours.
   void runQueue(member.guild, config);
-  return true;
+
+  return {
+    ok: true,
+    position: queue.length,
+    estimatedWaitMs: (queue.length - 1) * estimateTurnMs(),
+  };
 }
 
 // ── Repli et nettoyage ────────────────────────────────────────────────────────
@@ -360,17 +525,16 @@ async function drainQueueToImage(guild: Guild, config: RaidProtectionConfig): Pr
   for (const entry of queue) {
     const member = await guild.members.fetch(entry.userId).catch(() => null);
     if (!member) continue;
-    await setDeaf(member, false, 'Captcha vocal indisponible');
     await deliverImageCaptcha(member, config, entry.sessionId).catch(() => null);
   }
 }
 
 /**
- * Au démarrage : un crash pendant un tour laisse des membres sourds côté
- * serveur, état qui persiste même après changement de salon. On rend l'ouïe à
- * tous ceux qui traînent dans les salons de vérification.
+ * Au démarrage : un arrêt en plein tour laisse derrière lui des autorisations
+ * individuelles sur le salon vocal, qui ouvriraient le salon à ces membres
+ * lors du tour de quelqu'un d'autre.
  */
-export async function sweepStaleDeafen(client: Client): Promise<void> {
+export async function sweepStaleOverwrites(client: Client): Promise<void> {
   const configs = await prisma.raidProtectionConfig.findMany({
     where: { captchaEnabled: true, captchaMode: 'VOICE', captchaVoiceChannelId: { not: null } },
     select: { guildId: true, captchaVoiceChannelId: true },
@@ -383,9 +547,26 @@ export async function sweepStaleDeafen(client: Client): Promise<void> {
     const channel = await guild.channels.fetch(captchaVoiceChannelId).catch(() => null);
     if (!channel?.isVoiceBased()) continue;
 
+    // On ne balaie que les membres passés par le captcha. Supprimer toutes les
+    // autorisations individuelles effacerait aussi celles qu'un administrateur
+    // aurait posées à la main sur ce salon.
+    const known = await prisma.captchaSession.findMany({
+      where: { guildId },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    const knownIds = new Set(known.map((session) => session.userId));
+
+    for (const overwrite of channel.permissionOverwrites.cache.values()) {
+      if (overwrite.type !== OverwriteType.Member) continue;
+      if (!knownIds.has(overwrite.id)) continue;
+      await overwrite.delete('Captcha vocal : nettoyage au démarrage').catch(() => null);
+    }
+
     for (const member of channel.members.values()) {
-      if (!member.voice.serverDeaf) continue;
-      await member.voice.setDeaf(false, 'Captcha vocal : nettoyage au démarrage').catch(() => null);
+      if (member.user.bot) continue;
+      if (!knownIds.has(member.id)) continue;
+      await member.voice.disconnect('Captcha vocal : nettoyage au démarrage').catch(() => null);
     }
   }
 }
@@ -421,30 +602,24 @@ export async function handleVoiceStateUpdate(oldState: VoiceState, newState: Voi
   const guild = newState.guild ?? oldState.guild;
   const member = newState.member ?? oldState.member;
   if (!member || member.user.bot) return;
+  if (oldState.channelId === newState.channelId) return;
 
   const config = await getRaidProtectionConfig(guild.id);
   if (!config?.captchaEnabled || config.captchaMode !== 'VOICE' || !config.captchaVoiceChannelId) return;
+  if (newState.channelId !== config.captchaVoiceChannelId) return;
 
-  if (oldState.channelId === newState.channelId) return;
-
-  if (newState.channelId === config.captchaVoiceChannelId) {
-    await enqueueMember(member, config);
+  if (currentTurns.get(guild.id) === member.id) {
+    const waiter = joinWaiters.get(guild.id);
+    if (waiter?.userId === member.id) waiter.resolve();
     return;
   }
 
-  if (oldState.channelId === config.captchaVoiceChannelId) {
-    await dequeueMember(guild.id, member);
-  }
-
-  // Filet de sécurité : quitter la file en plein tour laisse le membre sourd,
-  // et Discord refuse de lever cet état tant qu'il n'est pas reconnecté au
-  // vocal. On saisit donc sa prochaine connexion, quel que soit le salon.
-  if (newState.channelId && member.voice.serverDeaf) {
-    const pending = await prisma.captchaSession.count({
-      where: { guildId: guild.id, userId: member.id, status: 'PENDING', mode: 'VOICE' },
-    });
-    if (pending === 0) {
-      await member.voice.setDeaf(false, 'Captcha vocal : surdité résiduelle').catch(() => null);
-    }
+  // Garde-fou : même si les permissions du salon dérivent, aucun membre en
+  // cours de vérification ne reste dans la pièce hors de son tour. C'est ce qui
+  // rend l'isolation réelle plutôt que dépendante d'une configuration correcte.
+  // Le staff, lui, doit pouvoir entrer librement : il n'a pas le rôle
+  // non-vérifié, et l'éjecter de son propre salon serait absurde.
+  if (config.captchaUnverifiedRoleId && member.roles.cache.has(config.captchaUnverifiedRoleId)) {
+    await member.voice.disconnect('Captcha vocal : ce n\'est pas ton tour').catch(() => null);
   }
 }

@@ -2978,7 +2978,7 @@
   "am_captcha_mode_voice": "Voice (the bot reads the code out)",
   "am_captcha_voice_channel": "Voice verification channel",
   "am_captcha_voice_queue_limit": "Voice queue limit",
-  "am_captcha_voice_hint": "The bot reads the code out in the voice channel, one member at a time; everyone else is server-deafened while they wait. Past the queue limit, arrivals fall back to the image captcha, which audio playback cannot absorb during a raid.",
+  "am_captcha_voice_hint": "The voice channel opens for one member at a time, just long enough for the bot to read their code out. The unverified role must therefore see the channel without holding the Connect permission on it: the bot grants that individually for each turn. Past the queue limit, arrivals fall back to the image captcha, since audio playback cannot absorb a raid.",
   "am_captcha_log_channel": "Log channel",
   "am_joinwave_title": "Join wave detection",
   "am_joinwave_threshold": "Threshold (joins)",

@@ -604,13 +604,22 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     const action = customId.split(':')[1];
 
-    if (action === 'repeat') {
-      const { replayCode } = await import('../services/moderation/voiceCaptchaService.js');
-      const queued = await replayCode(member, session.code);
+    if (action === 'start' || action === 'repeat') {
+      const { enqueueMember, replayCode } = await import('../services/moderation/voiceCaptchaService.js');
+      const result = action === 'start'
+        ? await enqueueMember(member, config)
+        : await replayCode(member, session.code);
+
+      if (!result.ok) {
+        await interaction.editReply({ content: `❌ Impossible de te mettre en file : ${result.reason}.` });
+        return;
+      }
+
+      const seconds = Math.ceil(result.estimatedWaitMs / 1000);
       await interaction.editReply({
-        content: queued
-          ? '🔁 Code remis en file : reste dans le salon vocal, il va être réénoncé.'
-          : '❌ Rejoins d\'abord le salon vocal de vérification.',
+        content: result.position === 1
+          ? '🎧 C\'est bientôt à toi : reste ici, je te ping dès que le salon vocal s\'ouvre.'
+          : `🎧 Tu es **${result.position}e** dans la file, soit environ **${seconds} secondes** d'attente. Je te ping quand ce sera ton tour.`,
       });
       return;
     }
@@ -618,7 +627,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     if (action === 'fallback') {
       const { dequeueMember } = await import('../services/moderation/voiceCaptchaService.js');
       const { deliverImageCaptcha } = await import('../services/moderation/captchaService.js');
-      await dequeueMember(guildId!, member);
+      dequeueMember(guildId!, user.id);
       await deliverImageCaptcha(member, config, session.id);
       await interaction.editReply({ content: '✅ Un captcha image vient d\'être envoyé dans le salon de vérification.' });
       return;

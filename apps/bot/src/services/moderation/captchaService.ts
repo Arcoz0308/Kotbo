@@ -89,6 +89,7 @@ async function shouldUseVoice(member: GuildMember, config: RaidProtectionConfig)
   const readiness = await checkVoiceReadiness(member.guild, config);
   if (!readiness.ok) {
     logger.warn('Captcha', `Mode vocal indisponible sur ${member.guild.id} : ${readiness.reason}`);
+    await reportVoiceMisconfiguration(member.guild.id, member.client, config, readiness.reason);
     return false;
   }
 
@@ -100,6 +101,28 @@ async function shouldUseVoice(member: GuildMember, config: RaidProtectionConfig)
   }
 
   return true;
+}
+
+// Dernier motif signalé par serveur : le repli sur l'image est silencieux pour
+// le membre, l'administrateur doit donc l'apprendre. Mais une vague d'arrivées
+// ne doit pas inonder le salon de logs du même message.
+const reportedVoiceIssues = new Map<string, string>();
+
+async function reportVoiceMisconfiguration(
+  guildId: string,
+  client: Client,
+  config: RaidProtectionConfig,
+  reason: string
+): Promise<void> {
+  if (reportedVoiceIssues.get(guildId) === reason) return;
+  reportedVoiceIssues.set(guildId, reason);
+
+  await logCaptcha(
+    client,
+    guildId,
+    config,
+    `⚠️ Captcha vocal inutilisable — ${reason}. Les arrivants basculent sur le captcha image en attendant.`
+  );
 }
 
 /**
@@ -179,15 +202,16 @@ async function sendVoiceChallenge(member: GuildMember, config: RaidProtectionCon
     .setColor(COLORS.primary)
     .setTitle('🔊 Vérification vocale requise')
     .setDescription(
-      `Bienvenue ${member} !\n\nRejoins le salon vocal <#${config.captchaVoiceChannelId}>. ` +
-      `Quand ce sera ton tour, le bot énoncera un code de **${session.code.length} caractères** : tape-le ensuite ici.\n\n` +
-      `🔇 Tu seras rendu sourd pendant l'attente, pour que personne d'autre n'entende ton code. C'est normal, ça se lève à ton tour.` +
-      `\n\n⏱️ Ton chrono de **${config.captchaTimeoutMinutes} minutes** ne démarre qu'une fois le code énoncé.` +
+      `Bienvenue ${member} !\n\nClique sur **Je suis prêt** quand tu peux écouter du son. ` +
+      `À ton tour, le salon vocal <#${config.captchaVoiceChannelId}> s'ouvrira **pour toi seul** : ` +
+      `le bot y énoncera un code de **${session.code.length} caractères**, que tu recopieras ici.\n\n` +
+      `⏱️ Ton chrono de **${config.captchaTimeoutMinutes} minutes** ne démarre qu'une fois le code énoncé.` +
       waitLine
     )
     .setFooter({ text: 'Pas de son ? Utilise le bouton pour basculer sur un captcha image.' });
 
   const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('vcaptcha:start').setLabel('Je suis prêt').setEmoji('🎧').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('vcaptcha:repeat').setLabel('Répéter le code').setEmoji('🔁').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('vcaptcha:fallback').setLabel('Je ne peux pas utiliser le vocal').setStyle(ButtonStyle.Secondary)
   );
@@ -312,7 +336,7 @@ async function logCaptcha(client: Client, guildId: string, config: RaidProtectio
  * sur l'image plutôt que de le punir d'une panne qui n'est pas la sienne.
  */
 export async function recoverStrandedVoiceSessions(client: Client): Promise<void> {
-  const { getQueuePosition } = await import('./voiceCaptchaService.js');
+  const { isQueued } = await import('./voiceCaptchaService.js');
 
   const stranded = await prisma.captchaSession.findMany({
     where: { status: 'PENDING', awaitingTurn: true },
@@ -326,8 +350,8 @@ export async function recoverStrandedVoiceSessions(client: Client): Promise<void
     const config = await getRaidProtectionConfig(session.guildId);
     if (!config?.captchaEnabled) continue;
 
-    // Toujours en file : le tour finira par arriver, on ne touche à rien.
-    if (getQueuePosition(session.guildId, session.userId) > 0) continue;
+    // Toujours en file ou en plein tour : on ne touche à rien.
+    if (isQueued(session.guildId, session.userId)) continue;
 
     const strandedForMs = Date.now() - session.createdAt.getTime();
     if (strandedForMs < config.captchaTimeoutMinutes * 60 * 1000) continue;

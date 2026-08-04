@@ -2978,7 +2978,7 @@
   "am_captcha_mode_voice": "Vocal (le bot énonce le code)",
   "am_captcha_voice_channel": "Salon vocal de vérification",
   "am_captcha_voice_queue_limit": "Limite de la file vocale",
-  "am_captcha_voice_hint": "Le bot énonce le code dans le salon vocal, un membre à la fois : les autres sont rendus sourds le temps de leur attente. Au-delà de la limite de file, les arrivants basculent automatiquement sur le captcha image, que la diffusion audio ne peut pas absorber en cas de raid.",
+  "am_captcha_voice_hint": "Le salon vocal s'ouvre pour un seul membre à la fois, le temps que le bot lui énonce son code. Le rôle non-vérifié doit donc voir ce salon sans avoir la permission « Se connecter » dessus : c'est le bot qui l'accorde individuellement à chaque tour. Au-delà de la limite de file, les arrivants basculent sur le captcha image, la diffusion audio ne pouvant pas absorber un raid.",
   "am_captcha_log_channel": "Salon de logs",
   "am_joinwave_title": "Détection des vagues d'arrivées",
   "am_joinwave_threshold": "Seuil (arrivées)",

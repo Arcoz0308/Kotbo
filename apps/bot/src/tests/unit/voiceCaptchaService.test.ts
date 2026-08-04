@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
+import { PermissionFlagsBits } from 'discord.js';
 
 const prismaMock = {
   captchaSession: {
@@ -30,9 +31,24 @@ for (const [relativePath, factory] of moduleMocks) {
   mock.module(path.resolve(import.meta.dir, `${relativePath}.js`), factory);
 }
 
-const { VOICE_ALPHABET, VOICE_CODE_LENGTH, generateVoiceCode, estimateTurnMs } = await import(
-  '../../services/moderation/voiceCaptchaService.js'
-);
+const { VOICE_ALPHABET, VOICE_CODE_LENGTH, generateVoiceCode, estimateTurnMs, checkUnverifiedRoleAccess } =
+  await import('../../services/moderation/voiceCaptchaService.js');
+
+const UNVERIFIED_ROLE_ID = '444444444444444444';
+
+function voiceChannelDouble(rolePermissions: { view: boolean; connect: boolean } | null) {
+  const role = { id: UNVERIFIED_ROLE_ID, name: 'Non-vérifié' };
+  return {
+    guild: { roles: { cache: new Map(rolePermissions ? [[UNVERIFIED_ROLE_ID, role]] : []) } },
+    permissionsFor: () =>
+      rolePermissions
+        ? {
+            has: (flag: bigint) =>
+              flag === PermissionFlagsBits.ViewChannel ? rolePermissions.view : rolePermissions.connect,
+          }
+        : null,
+  } as never;
+}
 
 describe('alphabet vocal', () => {
   test("n'utilise que des symboles phonétiquement distincts en français", () => {
@@ -78,6 +94,34 @@ describe('generateVoiceCode', () => {
   test('ne renvoie pas deux fois la même valeur sur un petit échantillon', () => {
     const codes = new Set(Array.from({ length: 100 }, () => generateVoiceCode()));
     expect(codes.size).toBeGreaterThan(90);
+  });
+});
+
+describe('checkUnverifiedRoleAccess', () => {
+  const config = { captchaUnverifiedRoleId: UNVERIFIED_ROLE_ID } as never;
+
+  test('accepte un rôle qui voit le salon sans pouvoir s’y connecter', () => {
+    const result = checkUnverifiedRoleAccess(voiceChannelDouble({ view: true, connect: false }), config);
+    expect(result.ok).toBe(true);
+  });
+
+  test('refuse un rôle qui ne voit pas le salon', () => {
+    const result = checkUnverifiedRoleAccess(voiceChannelDouble({ view: false, connect: false }), config);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain('ne voit pas');
+  });
+
+  test('refuse un rôle qui peut se connecter librement', () => {
+    // Sinon tous les arrivants s'entassent dans le salon et chacun entend le
+    // code des autres : l'isolation un par un ne tient plus.
+    const result = checkUnverifiedRoleAccess(voiceChannelDouble({ view: true, connect: true }), config);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain('Se connecter');
+  });
+
+  test('refuse une configuration sans rôle non-vérifié', () => {
+    const result = checkUnverifiedRoleAccess(voiceChannelDouble(null), { captchaUnverifiedRoleId: null } as never);
+    expect(result.ok).toBe(false);
   });
 });
 
